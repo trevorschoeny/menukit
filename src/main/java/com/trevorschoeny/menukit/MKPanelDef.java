@@ -47,10 +47,12 @@ public record MKPanelDef(
         boolean startHidden,                                    // starts hidden (panel visibility)
         boolean includePlayerInventory,                         // standalone screen: show player inventory at bottom
         boolean allowOverlap,                                   // disables automatic collision avoidance
+        boolean exclusive,                                      // when visible, suppresses other auto-stacked panels on same side
         @Nullable BooleanSupplier disabledWhen,                 // runtime predicate: panel hidden when true
         LayoutMode layoutMode,                                  // child layout: MANUAL, COLUMN, or ROW (legacy flat path)
         int layoutGap,                                          // gap between children in flow layout (legacy)
-        @Nullable MKGroupDef rootGroup                          // layout tree root (null = legacy flat path)
+        @Nullable MKGroupDef rootGroup,                         // layout tree root (null = legacy flat path)
+        boolean rightAligned                                    // children align right within the panel (auto-derived from posMode)
 ) {
 
     // ── Position Mode ──────────────────────────────────────────────────────
@@ -227,7 +229,7 @@ public record MKPanelDef(
         int[] counters = { 0, 0, 0 }; // slot, button, text
         rootGroup.computeLayout(positions, counters,
                 slotDefs.size(), buttonDefs.size(),
-                0, 0, false);
+                0, 0, false, rightAligned);
         return positions;
     }
 
@@ -358,7 +360,7 @@ public record MKPanelDef(
             for (int[] pos : positions) { pos[0] = -9999; pos[1] = -9999; }
             int[] counters = { 0, 0, 0 };
             int[] contentSize = rootGroup.computeLayout(positions, counters,
-                    slotDefs.size(), buttonDefs.size(), 0, 0, false);
+                    slotDefs.size(), buttonDefs.size(), 0, 0, false, rightAligned);
             return new int[]{
                     contentSize[0] + ep * 2,
                     contentSize[1] + ep * 2

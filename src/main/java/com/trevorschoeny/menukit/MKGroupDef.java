@@ -48,20 +48,21 @@ public record MKGroupDef(
      * @param offsetX    X offset from parent group's origin
      * @param offsetY    Y offset from parent group's origin
      * @param parentDisabled true if any ancestor group is disabled
+     * @param rightAligned   true if children should be right-aligned within the group
      * @return {width, height} of this group's content area
      */
     public int[] computeLayout(int[][] positions, int[] counters,
                                 int totalSlots, int totalButtons,
                                 int offsetX, int offsetY,
-                                boolean parentDisabled) {
+                                boolean parentDisabled, boolean rightAligned) {
         boolean groupDisabled = parentDisabled
                 || (disabledWhen != null && disabledWhen.getAsBoolean());
 
         return switch (mode) {
             case COLUMN -> computeColumn(positions, counters, totalSlots, totalButtons,
-                    offsetX, offsetY, groupDisabled);
+                    offsetX, offsetY, groupDisabled, rightAligned);
             case ROW -> computeRow(positions, counters, totalSlots, totalButtons,
-                    offsetX, offsetY, groupDisabled);
+                    offsetX, offsetY, groupDisabled, rightAligned);
             case GRID -> computeGrid(positions, counters, totalSlots, totalButtons,
                     offsetX, offsetY, groupDisabled);
         };
@@ -71,37 +72,91 @@ public record MKGroupDef(
 
     private int[] computeColumn(int[][] positions, int[] counters,
                                  int totalSlots, int totalButtons,
-                                 int offsetX, int offsetY, boolean disabled) {
+                                 int offsetX, int offsetY, boolean disabled,
+                                 boolean rightAligned) {
         int cursor = 0;
         int maxWidth = 0;
         boolean hasActiveChild = false;
 
-        for (MKGroupChild child : children) {
+        // Save counter state before each child so the post-pass can find
+        // which flat indices belong to each child for X-shifting.
+        int[][] counterSnapshots = new int[children.size()][3];
+        int[][] childSizes = new int[children.size()][2];
+        boolean[] childActive = new boolean[children.size()];
+
+        for (int i = 0; i < children.size(); i++) {
+            MKGroupChild child = children.get(i);
             boolean childDisabled = disabled || child.isDisabled();
 
             if (childDisabled) {
-                // Write -9999 for all elements in this child (including nested)
                 writeDisabled(child, positions, counters, totalSlots, totalButtons);
+                childActive[i] = false;
                 continue;
             }
 
             if (hasActiveChild) cursor += gap;
             hasActiveChild = true;
 
-            int[] childSize = layoutChild(child, positions, counters, totalSlots, totalButtons,
-                    offsetX, offsetY + cursor, false);
-            cursor += childSize[1];
-            maxWidth = Math.max(maxWidth, childSize[0]);
+            // Snapshot counters BEFORE this child is laid out
+            counterSnapshots[i] = new int[]{ counters[0], counters[1], counters[2] };
+
+            childSizes[i] = layoutChild(child, positions, counters, totalSlots, totalButtons,
+                    offsetX, offsetY + cursor, false, rightAligned);
+            cursor += childSizes[i][1];
+            maxWidth = Math.max(maxWidth, childSizes[i][0]);
+            childActive[i] = true;
+        }
+
+        // ── Right-alignment post-pass ──────────────────────────────────────
+        // Shift narrower children rightward so they align to the right edge.
+        if (rightAligned && maxWidth > 0) {
+            for (int i = 0; i < children.size(); i++) {
+                if (!childActive[i]) continue;
+                int shift = maxWidth - childSizes[i][0];
+                if (shift <= 0) continue;
+
+                // Shift all flat positions that belong to this child
+                int startSlot = counterSnapshots[i][0];
+                int endSlot = (i + 1 < children.size()) ? findNextActiveCounter(i + 1, counterSnapshots, childActive, 0) : counters[0];
+                for (int s = startSlot; s < endSlot; s++) {
+                    if (positions[s][0] != -9999) positions[s][0] += shift;
+                }
+
+                int startBtn = counterSnapshots[i][1];
+                int endBtn = (i + 1 < children.size()) ? findNextActiveCounter(i + 1, counterSnapshots, childActive, 1) : counters[1];
+                for (int b = startBtn; b < endBtn; b++) {
+                    int fi = totalSlots + b;
+                    if (positions[fi][0] != -9999) positions[fi][0] += shift;
+                }
+
+                int startTxt = counterSnapshots[i][2];
+                int endTxt = (i + 1 < children.size()) ? findNextActiveCounter(i + 1, counterSnapshots, childActive, 2) : counters[2];
+                for (int t = startTxt; t < endTxt; t++) {
+                    int fi = totalSlots + totalButtons + t;
+                    if (positions[fi][0] != -9999) positions[fi][0] += shift;
+                }
+            }
         }
 
         return new int[]{ maxWidth, cursor };
+    }
+
+    /** Finds the counter value for the next active child, or falls back to current counters. */
+    private int findNextActiveCounter(int startIdx, int[][] counterSnapshots,
+                                       boolean[] childActive, int counterType) {
+        for (int i = startIdx; i < childActive.length; i++) {
+            if (childActive[i]) return counterSnapshots[i][counterType];
+        }
+        // No more active children — shouldn't happen, but return the snapshot of startIdx
+        return counterSnapshots[startIdx][counterType];
     }
 
     // ── ROW Layout ───────────────────────────────────────────────────────────
 
     private int[] computeRow(int[][] positions, int[] counters,
                               int totalSlots, int totalButtons,
-                              int offsetX, int offsetY, boolean disabled) {
+                              int offsetX, int offsetY, boolean disabled,
+                              boolean rightAligned) {
         int cursor = 0;
         int maxHeight = 0;
         boolean hasActiveChild = false;
@@ -118,7 +173,7 @@ public record MKGroupDef(
             hasActiveChild = true;
 
             int[] childSize = layoutChild(child, positions, counters, totalSlots, totalButtons,
-                    offsetX + cursor, offsetY, false);
+                    offsetX + cursor, offsetY, false, rightAligned);
             cursor += childSize[0];
             maxHeight = Math.max(maxHeight, childSize[1]);
         }
@@ -168,7 +223,7 @@ public record MKGroupDef(
             int childY = offsetY + row * cellSize;
 
             layoutChild(child, positions, counters, totalSlots, totalButtons,
-                    childX, childY, false);
+                    childX, childY, false, false);
             enabledIndex++;
         }
 
@@ -187,7 +242,7 @@ public record MKGroupDef(
      */
     private int[] layoutChild(MKGroupChild child, int[][] positions, int[] counters,
                                int totalSlots, int totalButtons,
-                               int x, int y, boolean disabled) {
+                               int x, int y, boolean disabled, boolean rightAligned) {
         return switch (child) {
             case MKGroupChild.Slot s -> {
                 int idx = counters[0]++;
@@ -211,7 +266,7 @@ public record MKGroupDef(
             case MKGroupChild.Group g -> {
                 // Recursive layout — the child group computes its own children
                 yield g.def().computeLayout(positions, counters,
-                        totalSlots, totalButtons, x, y, disabled);
+                        totalSlots, totalButtons, x, y, disabled, rightAligned);
             }
         };
     }

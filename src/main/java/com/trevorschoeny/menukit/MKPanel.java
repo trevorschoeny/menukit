@@ -354,6 +354,9 @@ public class MKPanel {
 
         // Collision avoidance
         private boolean allowOverlap = false;
+        private boolean exclusive = false;
+        private boolean rightAligned = false;
+        private boolean rightAlignedExplicit = false; // true if user called .rightAligned()
 
         // Runtime disable predicate
         private @Nullable BooleanSupplier disabledWhen;
@@ -642,6 +645,16 @@ public class MKPanel {
             this.allowOverlap = true; return this;
         }
 
+        /** When this panel is visible, suppresses all other auto-stacked panels on the same side. */
+        public Builder exclusive() {
+            this.exclusive = true; return this;
+        }
+
+        /** Forces children to right-align within the panel. Usually auto-derived from posMode. */
+        public Builder rightAligned() {
+            this.rightAligned = true; this.rightAlignedExplicit = true; return this;
+        }
+
         /**
          * Hides this panel at runtime when the predicate returns true.
          * When disabled, the panel background, all slots, and all buttons
@@ -765,6 +778,15 @@ public class MKPanel {
          * button creation, rendering, and persistence.
          */
         public void build() {
+            // Auto-derive right alignment from posMode unless explicitly set
+            boolean aligned = rightAligned;
+            if (!rightAlignedExplicit) {
+                aligned = posMode == MKPanelDef.PosMode.LEFT_AUTO
+                        || posMode == MKPanelDef.PosMode.LEFT
+                        || posMode == MKPanelDef.PosMode.ABOVE_RIGHT
+                        || posMode == MKPanelDef.PosMode.BELOW_RIGHT;
+            }
+
             MKPanelDef def = new MKPanelDef(
                     name,
                     java.util.Set.copyOf(contexts),
@@ -782,10 +804,12 @@ public class MKPanel {
                     startHidden,
                     includePlayerInventory,
                     allowOverlap,
+                    exclusive,
                     disabledWhen,
                     layoutMode,
                     gap >= 0 ? gap : 0,
-                    rootGroup);
+                    rootGroup,
+                    aligned);
             // ── Validation ────────────────────────────────────────────────
             // Catch configuration errors at mod init so they don't surface
             // as confusing runtime bugs later.
