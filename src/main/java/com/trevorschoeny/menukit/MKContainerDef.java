@@ -19,7 +19,7 @@ package com.trevorschoeny.menukit;
  */
 public record MKContainerDef(
         String name,            // unique identifier, used as NBT key
-        BindingType binding,    // PLAYER or INSTANCE
+        BindingType binding,    // PLAYER, INSTANCE, or EPHEMERAL
         int size                // number of slots in the container
 ) {
 
@@ -29,7 +29,11 @@ public record MKContainerDef(
         PLAYER,
         /** Container is tied to a block position. Stored in world SavedData.
          *  Each block has its own independent container. */
-        INSTANCE
+        INSTANCE,
+        /** Temporary container, not persisted to NBT. Stored in player maps for
+         *  lookup but skipped during save/load. Designed to be bound to an external
+         *  source (item contents, live container) via {@link MKContainer#bind}. */
+        EPHEMERAL
     }
 
     // ── Builder ─────────────────────────────────────────────────────────────
@@ -62,6 +66,12 @@ public record MKContainerDef(
         /** Container is tied to a block position. Stored in world SavedData. */
         public Builder instanceBound() {
             this.binding = BindingType.INSTANCE; return this;
+        }
+
+        /** Container is temporary — not persisted to NBT. Intended for binding
+         *  to external sources (shulker box contents, ender chest, bundles). */
+        public Builder ephemeral() {
+            this.binding = BindingType.EPHEMERAL; return this;
         }
 
         /** Sets the number of slots in the container. */

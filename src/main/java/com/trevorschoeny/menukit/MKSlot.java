@@ -150,19 +150,13 @@ public class MKSlot extends Slot {
     // and delegates to MKContainer via the Container interface.
 
     @Override
-    public void set(ItemStack stack) {
-        MenuKit.LOGGER.info(
-                "[MKSlot] set() slot={} item={} containerId={} thread={}",
-                this.getContainerSlot(),
-                stack.getCount() + " " + stack.getItemHolder().getRegisteredName(),
-                System.identityHashCode(this.container),
-                Thread.currentThread().getName());
-        super.set(stack);
-    }
-
-    @Override
     public boolean mayPlace(ItemStack stack) {
-        return filter == null || filter.test(stack);
+        if (filter != null && !filter.test(stack)) return false;
+        // Check source-level constraints (e.g., bundle weight limits, shulker nesting)
+        if (container instanceof MKContainer mkc && mkc.isBound()) {
+            if (!mkc.getSource().canAccept(getContainerSlot(), stack)) return false;
+        }
+        return true;
     }
 
     @Override

@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Immutable definition of a panel — its contexts, position, style, slot blueprints,
@@ -34,6 +35,7 @@ public record MKPanelDef(
         @Nullable Identifier customSprite,                      // user-provided 9-slice sprite (for CUSTOM style)
         List<MKSlotDef> slotDefs,                               // slot blueprints
         List<MKButtonDef> buttonDefs,                           // button blueprints
+        List<MKTextDef> textDefs,                               // text label blueprints
         @Nullable Consumer<ValueOutput> onSave,                 // custom persistence: save hook
         @Nullable Consumer<ValueInput> onLoad,                  // custom persistence: load hook
         PosMode posMode,                                        // how to resolve position
@@ -46,8 +48,9 @@ public record MKPanelDef(
         boolean includePlayerInventory,                         // standalone screen: show player inventory at bottom
         boolean allowOverlap,                                   // disables automatic collision avoidance
         @Nullable BooleanSupplier disabledWhen,                 // runtime predicate: panel hidden when true
-        LayoutMode layoutMode,                                  // child layout: MANUAL, COLUMN, or ROW
-        int layoutGap                                           // gap between children in flow layout
+        LayoutMode layoutMode,                                  // child layout: MANUAL, COLUMN, or ROW (legacy flat path)
+        int layoutGap,                                          // gap between children in flow layout (legacy)
+        @Nullable MKGroupDef rootGroup                          // layout tree root (null = legacy flat path)
 ) {
 
     // ── Position Mode ──────────────────────────────────────────────────────
@@ -56,14 +59,31 @@ public record MKPanelDef(
     public enum PosMode {
         /** Absolute container-relative coordinates (x, y fields used directly). */
         ABSOLUTE,
-        /** Right of container: x = containerWidth + posArg1, y = posArg2. */
+        /** Right of container with manual Y offset: x = containerWidth + margin, y = posArg2. */
         RIGHT,
-        /** Left of container: x = -posArg1 - panelWidth, y = posArg2. */
+        /** Left of container with manual Y offset: x = -margin - panelWidth, y = posArg2. */
         LEFT,
-        /** Above container: x = posArg1, y = -posArg2 - panelHeight. */
+        /** Above container with manual X offset: x = posArg1, y = -margin - panelHeight. */
         ABOVE,
-        /** Below container: x = posArg1, y = containerHeight + posArg2. */
-        BELOW
+        /** Below container with manual X offset: x = posArg1, y = containerHeight + margin. */
+        BELOW,
+
+        // ── Auto-stacking modes ────────────────────────────────────────────
+        // Panels using these modes are automatically stacked in order of
+        // registration, with DEFAULT_MARGIN gaps between each panel.
+
+        /** Auto-stack right of container, top-aligned, stacking downward. */
+        RIGHT_AUTO,
+        /** Auto-stack left of container, top-aligned, stacking downward. */
+        LEFT_AUTO,
+        /** Auto-stack above container, left-aligned, stacking rightward. */
+        ABOVE_LEFT,
+        /** Auto-stack above container, right-aligned, stacking leftward. */
+        ABOVE_RIGHT,
+        /** Auto-stack below container, left-aligned, stacking rightward. */
+        BELOW_LEFT,
+        /** Auto-stack below container, right-aligned, stacking leftward. */
+        BELOW_RIGHT
     }
 
     // ── Layout Mode ──────────────────────────────────────────────────────
@@ -103,16 +123,6 @@ public record MKPanelDef(
         return style == MKPanel.Style.NONE ? 0 : padding;
     }
 
-    /**
-     * Returns the content offset for slots within this panel.
-     * Slots always get +1 because the 18×18 slot background renders at
-     * (slotX-1, slotY-1) — the +1 prevents the background from extending
-     * past the panel's left/top edge.
-     */
-    public int slotContentOffset() {
-        return 1;
-    }
-
     // ── Position Resolution ────────────────────────────────────────────────
 
     /**
@@ -139,15 +149,30 @@ public record MKPanelDef(
      */
     public int[] resolvePosition(int containerWidth, int containerHeight) {
         int[] size = computeSize();
-        // -1 on each relative mode so the panel sits 1px closer to the container edge
-        // (visually aligns the panel border with the container border)
+        int m = MKPanel.Builder.DEFAULT_MARGIN;
         return switch (posMode) {
-            case RIGHT    -> new int[]{ containerWidth + posArg1 - 1, posArg2 };
-            case LEFT     -> new int[]{ -posArg1 - size[0] + 1, posArg2 };
-            case ABOVE    -> new int[]{ posArg1, -posArg2 - size[1] + 1 };
-            case BELOW    -> new int[]{ posArg1, containerHeight + posArg2 - 1 };
+            // Manual modes — explicit gap and offset
+            case RIGHT    -> new int[]{ containerWidth + posArg1, posArg2 };
+            case LEFT     -> new int[]{ -posArg1 - size[0], posArg2 };
+            case ABOVE    -> new int[]{ posArg1, -posArg2 - size[1] };
+            case BELOW    -> new int[]{ posArg1, containerHeight + posArg2 };
             case ABSOLUTE -> new int[]{ x, y };
+            // Auto-stacking modes — return base anchor position.
+            // The actual stacking offset is computed by resolvePositionsWithAvoidance().
+            case RIGHT_AUTO  -> new int[]{ containerWidth + m, 0 };
+            case LEFT_AUTO   -> new int[]{ -m - size[0], 0 };
+            case ABOVE_LEFT  -> new int[]{ 0, -m - size[1] };
+            case ABOVE_RIGHT -> new int[]{ containerWidth - size[0], -m - size[1] };
+            case BELOW_LEFT  -> new int[]{ 0, containerHeight + m };
+            case BELOW_RIGHT -> new int[]{ containerWidth - size[0], containerHeight + m };
         };
+    }
+
+    /** Returns true if this panel uses an auto-stacking position mode. */
+    public boolean isAutoStacked() {
+        return posMode == PosMode.RIGHT_AUTO || posMode == PosMode.LEFT_AUTO
+                || posMode == PosMode.ABOVE_LEFT || posMode == PosMode.ABOVE_RIGHT
+                || posMode == PosMode.BELOW_LEFT || posMode == PosMode.BELOW_RIGHT;
     }
 
     // ── Button Size Estimation ─────────────────────────────────────────────
@@ -181,10 +206,34 @@ public record MKPanelDef(
      * For {@code COLUMN}/{@code ROW}, positions are computed sequentially with
      * the configured gap between active elements.
      *
-     * @return array of [x, y] pairs — slots at indices 0..N-1, buttons at N..N+M-1
+     * @return array of [x, y] pairs — slots at 0..S-1, buttons at S..S+B-1, texts at S+B..S+B+T-1
      */
     public int[][] computeFlowPositions() {
-        int total = slotDefs.size() + buttonDefs.size();
+        // If we have a layout tree, delegate to the recursive computation
+        if (rootGroup != null) {
+            return computeFlowPositionsFromTree();
+        }
+        // Otherwise use the legacy flat algorithm
+        return computeFlowPositionsFlat();
+    }
+
+    /** Recursive tree-based layout computation. */
+    private int[][] computeFlowPositionsFromTree() {
+        int total = slotDefs.size() + buttonDefs.size() + textDefs.size();
+        int[][] positions = new int[total][2];
+        // Initialize all to disabled
+        for (int[] pos : positions) { pos[0] = -9999; pos[1] = -9999; }
+        // Recursive layout fills in enabled positions
+        int[] counters = { 0, 0, 0 }; // slot, button, text
+        rootGroup.computeLayout(positions, counters,
+                slotDefs.size(), buttonDefs.size(),
+                0, 0, false);
+        return positions;
+    }
+
+    /** Legacy flat layout algorithm (for panels without groups). */
+    private int[][] computeFlowPositionsFlat() {
+        int total = slotDefs.size() + buttonDefs.size() + textDefs.size();
         int[][] positions = new int[total][2];
 
         if (layoutMode == LayoutMode.MANUAL) {
@@ -205,12 +254,40 @@ public record MKPanelDef(
                     positions[slotDefs.size() + i] = new int[]{ btn.childX(), btn.childY() };
                 }
             }
+            for (int i = 0; i < textDefs.size(); i++) {
+                MKTextDef text = textDefs.get(i);
+                if (text.disabledWhen() != null && text.disabledWhen().getAsBoolean()) {
+                    positions[slotDefs.size() + buttonDefs.size() + i] = new int[]{ -9999, -9999 };
+                } else {
+                    positions[slotDefs.size() + buttonDefs.size() + i] = new int[]{ text.childX(), text.childY() };
+                }
+            }
+
             return positions;
         }
 
         // Flow layout: COLUMN (top-to-bottom) or ROW (left-to-right)
         int cursor = 0;
         boolean hasActiveChild = false;
+
+        // Text labels first (typically headers at the top)
+        for (int i = 0; i < textDefs.size(); i++) {
+            MKTextDef text = textDefs.get(i);
+            if (text.disabledWhen() != null && text.disabledWhen().getAsBoolean()) {
+                positions[slotDefs.size() + buttonDefs.size() + i] = new int[]{ -9999, -9999 };
+                continue;
+            }
+            if (hasActiveChild) cursor += layoutGap;
+            hasActiveChild = true;
+
+            if (layoutMode == LayoutMode.COLUMN) {
+                positions[slotDefs.size() + buttonDefs.size() + i] = new int[]{ 0, cursor };
+                cursor += MKTextDef.TEXT_HEIGHT;
+            } else { // ROW
+                positions[slotDefs.size() + buttonDefs.size() + i] = new int[]{ cursor, 0 };
+                cursor += text.estimateWidth();
+            }
+        }
 
         // Slots (18×18 each)
         for (int i = 0; i < slotDefs.size(); i++) {
@@ -219,15 +296,16 @@ public record MKPanelDef(
                 positions[i] = new int[]{ -9999, -9999 };
                 continue;
             }
-            // Add gap before this child (not before the first one)
             if (hasActiveChild) cursor += layoutGap;
             hasActiveChild = true;
 
+            // +1 offset: vanilla slot border renders at (x-1,y-1),
+            // bake the compensation into the position itself.
             if (layoutMode == LayoutMode.COLUMN) {
-                positions[i] = new int[]{ 0, cursor };
+                positions[i] = new int[]{ 1, cursor + 1 };
                 cursor += 18;
             } else { // ROW
-                positions[i] = new int[]{ cursor, 0 };
+                positions[i] = new int[]{ cursor + 1, 1 };
                 cursor += 18;
             }
         }
@@ -266,42 +344,61 @@ public record MKPanelDef(
      * Returns {width, height}. If not auto-sized, returns the explicit dimensions.
      */
     public int[] computeSize() {
-        if (!autoSize || (slotDefs.isEmpty() && buttonDefs.isEmpty())) {
+        if (!autoSize || (slotDefs.isEmpty() && buttonDefs.isEmpty() && textDefs.isEmpty())) {
             return new int[]{ width, height };
         }
 
+        int ep = effectivePadding();
+
+        // Tree-based layout: the root group already computes exact content size.
+        // Slot content offset (+1) is already baked into positions by the layout engine.
+        if (rootGroup != null) {
+            int total = slotDefs.size() + buttonDefs.size() + textDefs.size();
+            int[][] positions = new int[total][2];
+            for (int[] pos : positions) { pos[0] = -9999; pos[1] = -9999; }
+            int[] counters = { 0, 0, 0 };
+            int[] contentSize = rootGroup.computeLayout(positions, counters,
+                    slotDefs.size(), buttonDefs.size(), 0, 0, false);
+            return new int[]{
+                    contentSize[0] + ep * 2,
+                    contentSize[1] + ep * 2
+            };
+        }
+
+        // Legacy flat layout: derive size from element positions.
+        // Slot content offset (+1) is already baked into flowPos.
         int[][] flowPos = computeFlowPositions();
         int maxRight = 0;
         int maxBottom = 0;
-        boolean hasActiveSlots = false;
         boolean hasActiveElements = false;
 
-        // Slots are 18×18 — offset by slotContentOffset() relative to buttons,
-        // so add that offset to their extents for accurate sizing
-        int so = slotContentOffset();
         for (int i = 0; i < slotDefs.size(); i++) {
-            if (flowPos[i][0] == -9999) continue; // disabled
-            maxRight = Math.max(maxRight, flowPos[i][0] + so + 18);
-            maxBottom = Math.max(maxBottom, flowPos[i][1] + so + 18);
+            if (flowPos[i][0] == -9999) continue;
+            maxRight = Math.max(maxRight, flowPos[i][0] + 18);
+            maxBottom = Math.max(maxBottom, flowPos[i][1] + 18);
             hasActiveElements = true;
         }
 
-        // Buttons — no content offset
         for (int i = 0; i < buttonDefs.size(); i++) {
             int fi = slotDefs.size() + i;
-            if (flowPos[fi][0] == -9999) continue; // disabled
+            if (flowPos[fi][0] == -9999) continue;
             MKButtonDef btn = buttonDefs.get(i);
-            int btnW = estimateButtonWidth(btn);
-            int btnH = estimateButtonHeight(btn);
-            maxRight = Math.max(maxRight, flowPos[fi][0] + btnW);
-            maxBottom = Math.max(maxBottom, flowPos[fi][1] + btnH);
+            maxRight = Math.max(maxRight, flowPos[fi][0] + estimateButtonWidth(btn));
+            maxBottom = Math.max(maxBottom, flowPos[fi][1] + estimateButtonHeight(btn));
             hasActiveElements = true;
         }
 
-        // No active elements → zero size (panel won't render)
+        for (int i = 0; i < textDefs.size(); i++) {
+            int fi = slotDefs.size() + buttonDefs.size() + i;
+            if (flowPos[fi][0] == -9999) continue;
+            MKTextDef text = textDefs.get(i);
+            maxRight = Math.max(maxRight, flowPos[fi][0] + text.estimateWidth());
+            maxBottom = Math.max(maxBottom, flowPos[fi][1] + MKTextDef.TEXT_HEIGHT);
+            hasActiveElements = true;
+        }
+
         if (!hasActiveElements) return new int[]{ 0, 0 };
 
-        int ep = effectivePadding();
         return new int[]{
                 maxRight + ep * 2,
                 maxBottom + ep * 2

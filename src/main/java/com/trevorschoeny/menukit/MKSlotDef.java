@@ -89,11 +89,14 @@ public record MKSlotDef(
      * this def's childX/childY. Used when the parent panel has a flow layout
      * (COLUMN/ROW) that computes positions dynamically.
      *
+     * <p>The slot content offset (+1px for vanilla border rendering) is already
+     * baked into flowChildX/flowChildY by the layout engine, so positions
+     * are treated uniformly with buttons and text.
+     *
      * @param containerLookup resolves a container name to a live MKContainer instance
      * @param panelX          the panel's container-relative x position
      * @param panelY          the panel's container-relative y position
      * @param padding         the panel's effective padding
-     * @param contentOffset   slot content offset
      * @param flowChildX      flow-computed x position (replaces this.childX)
      * @param flowChildY      flow-computed y position (replaces this.childY)
      * @param panelName       the panel name (used for visibility checks), or null
@@ -101,12 +104,12 @@ public record MKSlotDef(
      */
     public @Nullable MKSlot createSlotAt(Function<String, MKContainer> containerLookup,
                                           int panelX, int panelY,
-                                          int padding, int contentOffset,
+                                          int padding,
                                           int flowChildX, int flowChildY,
                                           @Nullable String panelName,
                                           @Nullable Player player) {
-        int absX = panelX + padding + contentOffset + flowChildX;
-        int absY = panelY + padding + contentOffset + flowChildY;
+        int absX = panelX + padding + flowChildX;
+        int absY = panelY + padding + flowChildY;
 
         MKSlot slot;
         if (isVanillaSlot()) {

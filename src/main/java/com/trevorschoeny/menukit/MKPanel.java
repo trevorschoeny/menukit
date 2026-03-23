@@ -331,7 +331,7 @@ public class MKPanel {
 
         private int x = 0, y = 0;
         private int width = 0, height = 0;
-        private int padding = 4;
+        private int padding = 6;
         private boolean autoSize = false;
         private Style style = Style.RAISED;
         private @Nullable Identifier customSprite = null;
@@ -368,6 +368,10 @@ public class MKPanel {
 
         private final List<MKSlotDef> slotDefs = new ArrayList<>();
         private final List<MKButtonDef> buttonDefs = new ArrayList<>();
+        private final List<MKTextDef> textDefs = new ArrayList<>();
+
+        // Root layout group — when set, computeFlowPositions delegates to the tree
+        private @Nullable MKGroupDef rootGroup;
 
         private @Nullable Consumer<ValueOutput> onSave;
         private @Nullable Consumer<ValueInput> onLoad;
@@ -387,28 +391,71 @@ public class MKPanel {
             return this;
         }
 
-        /** Positions the panel to the right of the container edge. */
+        /** Default margin between panel edge and inventory edge, and between panels (px). */
+        static final int DEFAULT_MARGIN = 4;
+
+        // ── Auto-stacking positions (preferred) ────────────────────────────
+
+        /** Auto-stack to the right of the container, top-aligned, stacking downward. */
+        public Builder posRight() {
+            this.posMode = MKPanelDef.PosMode.RIGHT_AUTO;
+            return this;
+        }
+
+        /** Auto-stack to the left of the container, top-aligned, stacking downward. */
+        public Builder posLeft() {
+            this.posMode = MKPanelDef.PosMode.LEFT_AUTO;
+            return this;
+        }
+
+        /** Auto-stack above the container, left-aligned, stacking rightward. */
+        public Builder posAbove() {
+            this.posMode = MKPanelDef.PosMode.ABOVE_LEFT;
+            return this;
+        }
+
+        /** Auto-stack above the container, right-aligned, stacking leftward. */
+        public Builder posAboveRight() {
+            this.posMode = MKPanelDef.PosMode.ABOVE_RIGHT;
+            return this;
+        }
+
+        /** Auto-stack below the container, left-aligned, stacking rightward. */
+        public Builder posBelow() {
+            this.posMode = MKPanelDef.PosMode.BELOW_LEFT;
+            return this;
+        }
+
+        /** Auto-stack below the container, right-aligned, stacking leftward. */
+        public Builder posBelowRight() {
+            this.posMode = MKPanelDef.PosMode.BELOW_RIGHT;
+            return this;
+        }
+
+        // ── Manual positions (for pixel-perfect placement) ─────────────────
+
+        /** Manually position to the right of the container with explicit Y offset. */
         public Builder posRight(int gap, int y) {
             this.posMode = MKPanelDef.PosMode.RIGHT;
             this.posArg1 = gap; this.posArg2 = y;
             return this;
         }
 
-        /** Positions the panel to the left of the container edge. */
+        /** Manually position to the left of the container with explicit Y offset. */
         public Builder posLeft(int gap, int y) {
             this.posMode = MKPanelDef.PosMode.LEFT;
             this.posArg1 = gap; this.posArg2 = y;
             return this;
         }
 
-        /** Positions the panel above the container edge. */
+        /** Manually position above the container with explicit X offset and gap. */
         public Builder posAbove(int x, int gap) {
             this.posMode = MKPanelDef.PosMode.ABOVE;
             this.posArg1 = x; this.posArg2 = gap;
             return this;
         }
 
-        /** Positions the panel below the container edge. */
+        /** Manually position below the container with explicit X offset and gap. */
         public Builder posBelow(int x, int gap) {
             this.posMode = MKPanelDef.PosMode.BELOW;
             this.posArg1 = x; this.posArg2 = gap;
@@ -454,7 +501,7 @@ public class MKPanel {
             this.width = width; this.height = height; return this;
         }
 
-        /** Sets inner padding between panel edge and children. Default 4. */
+        /** Sets inner padding between panel edge and children. Default 6. */
         public Builder padding(int padding) {
             this.padding = padding; return this;
         }
@@ -487,33 +534,42 @@ public class MKPanel {
         }
 
         /**
-         * Enables column (vertical) flow layout with dynamic positioning.
-         * Children flow top-to-bottom. When elements are disabled at runtime,
-         * remaining elements re-flow to close gaps. Implies {@link #autoSize()}.
+         * Creates a root column layout group. Children flow top-to-bottom.
+         * Returns a {@link GroupBuilder} — add children with {@code .slot()},
+         * {@code .text()}, {@code .button()}, or nest with {@code .grid()}.
+         * Call {@code .build()} to finalize the panel.
          *
-         * <p>Chainable with {@link #gap(int)} to set spacing between children.
+         * <p>Implies {@link #autoSize()}.
          */
-        public Builder column() {
-            this.layoutMode = MKPanelDef.LayoutMode.COLUMN;
+        public GroupBuilder column() {
             this.autoSize = true;
-            // Also enable build-time auto-layout for placeholder positions
-            if (this.gap < 0) this.gap = 0;
-            return this;
+            return new GroupBuilder(this, null, MKGroupDef.LayoutMode.COLUMN);
         }
 
         /**
-         * Enables row (horizontal) flow layout with dynamic positioning.
-         * Children flow left-to-right. When elements are disabled at runtime,
-         * remaining elements re-flow to close gaps. Implies {@link #autoSize()}.
+         * Creates a root row layout group. Children flow left-to-right.
+         * Returns a {@link GroupBuilder} — add children with {@code .slot()},
+         * {@code .text()}, {@code .button()}, or nest with {@code .column()}.
+         * Call {@code .build()} to finalize the panel.
          *
-         * <p>Chainable with {@link #gap(int)} to set spacing between children.
+         * <p>Implies {@link #autoSize()}.
          */
-        public Builder row() {
-            this.layoutMode = MKPanelDef.LayoutMode.ROW;
-            this.horizontal = true;
+        public GroupBuilder row() {
             this.autoSize = true;
-            if (this.gap < 0) this.gap = 0;
-            return this;
+            return new GroupBuilder(this, null, MKGroupDef.LayoutMode.ROW);
+        }
+
+        /**
+         * Creates a root grid layout group. Children fill cells in a 2D grid.
+         * Returns a {@link GroupBuilder} — configure with {@code .cellSize()},
+         * {@code .rows()}, {@code .fillRight()}, then add children.
+         * Call {@code .build()} to finalize the panel.
+         *
+         * <p>Implies {@link #autoSize()}.
+         */
+        public GroupBuilder grid() {
+            this.autoSize = true;
+            return new GroupBuilder(this, null, MKGroupDef.LayoutMode.GRID);
         }
 
         /** Sets the visual style (RAISED, DARK, INSET, FLAT, CUSTOM, or NONE). Default RAISED. */
@@ -668,6 +724,27 @@ public class MKPanel {
             return new ButtonBuilder(this, childX, childY);
         }
 
+        // ── Text labels ──────────────────────────────────────────────────
+
+        /**
+         * Starts defining a text label at the given panel-relative position.
+         * Returns a {@link TextBuilder} — call {@code .done()} to return here.
+         */
+        public TextBuilder text(int childX, int childY) {
+            return new TextBuilder(this, childX, childY);
+        }
+
+        /**
+         * Starts defining an auto-positioned text label.
+         * Uses the auto-layout cursor position. Requires {@link #gap} to be set.
+         */
+        public TextBuilder text() {
+            if (gap < 0) throw new IllegalStateException(
+                    "text() without coordinates requires .gap() to enable auto-layout");
+            int[] pos = autoPosition(50, MKTextDef.TEXT_HEIGHT); // estimate 50px width
+            return new TextBuilder(this, pos[0], pos[1]);
+        }
+
         // ── Persistence callbacks ───────────────────────────────────────
 
         /** Hook for saving custom data alongside the container items. */
@@ -695,6 +772,7 @@ public class MKPanel {
                     padding, autoSize, style, customSprite,
                     List.copyOf(slotDefs),
                     List.copyOf(buttonDefs),
+                    List.copyOf(textDefs),
                     onSave, onLoad,
                     posMode, posArg1, posArg2,
                     java.util.Map.copyOf(posOverrides),
@@ -706,7 +784,8 @@ public class MKPanel {
                     allowOverlap,
                     disabledWhen,
                     layoutMode,
-                    gap >= 0 ? gap : 0);
+                    gap >= 0 ? gap : 0,
+                    rootGroup);
             // ── Validation ────────────────────────────────────────────────
             // Catch configuration errors at mod init so they don't surface
             // as confusing runtime bugs later.
@@ -1079,6 +1158,402 @@ public class MKPanel {
                     opensScreenName, opensScreenFactory, togglesPanelName,
                     resolvedStyle, disabled, disabledWhen, pressedWhen));
             return parent;
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // TextBuilder — fluent definition for text labels
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Fluent builder for defining text labels inside a panel.
+     *
+     * <p>Usage:
+     * <pre>{@code
+     * .text(0, 0)
+     *     .content(() -> Component.literal("Hello"))
+     *     .color(0x404040)
+     *     .done()
+     * }</pre>
+     */
+    public static class TextBuilder {
+        private final Builder parent;
+        private final int childX, childY;
+        private @Nullable Supplier<Component> content;
+        private int color = MKTextDef.DEFAULT_COLOR;
+        private boolean shadow = false;
+        private @Nullable BooleanSupplier disabledWhen;
+
+        TextBuilder(Builder parent, int childX, int childY) {
+            this.parent = parent;
+            this.childX = childX;
+            this.childY = childY;
+        }
+
+        /** Sets the text content as a dynamic supplier (evaluated each frame). */
+        public TextBuilder content(Supplier<Component> content) {
+            this.content = content; return this;
+        }
+
+        /** Sets the text content as a static string. */
+        public TextBuilder content(String text) {
+            Component c = Component.literal(text);
+            this.content = () -> c;
+            return this;
+        }
+
+        /** Sets the text content as a static Component. */
+        public TextBuilder content(Component text) {
+            this.content = () -> text;
+            return this;
+        }
+
+        /** Sets the text color (ARGB). Default is {@link MKTextDef#DEFAULT_COLOR}. */
+        public TextBuilder color(int color) {
+            this.color = color; return this;
+        }
+
+        /** Enables drop shadow on the text. */
+        public TextBuilder shadow() {
+            this.shadow = true; return this;
+        }
+
+        /** Hides this text when the predicate returns true. */
+        public TextBuilder disabledWhen(BooleanSupplier predicate) {
+            this.disabledWhen = predicate; return this;
+        }
+
+        /** Finalizes this text definition and returns to the panel builder. */
+        public Builder done() {
+            if (content == null) {
+                throw new IllegalStateException(
+                        "[MenuKit] Text at (" + childX + "," + childY + ") must call " +
+                        ".content(...) before .done()");
+            }
+            parent.textDefs.add(new MKTextDef(
+                    childX, childY, content, color, shadow, disabledWhen));
+            return parent;
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // GroupBuilder — fluent definition for layout groups
+    // ═════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Fluent builder for defining layout groups (column, row, grid).
+     * Groups contain slots, buttons, text, and nested groups.
+     *
+     * <p>Usage:
+     * <pre>{@code
+     * .column().gap(4)
+     *     .text().content("Title").done()
+     *     .grid().cellSize(18).rows(9).fillRight()
+     *         .slot().container("peek", 0).done()
+     *     .done()
+     * .build();
+     * }</pre>
+     */
+    public static class GroupBuilder {
+        private final Builder panelBuilder;
+        private final @Nullable GroupBuilder parentGroup;
+        private MKGroupDef.LayoutMode mode;
+        private int gap = 2;
+        private int cellSize = 18;
+        private int maxRows = 9;
+        private boolean fillRight = false;
+        private @Nullable BooleanSupplier disabledWhen;
+        private final List<MKGroupChild> children = new ArrayList<>();
+
+        GroupBuilder(Builder panelBuilder, @Nullable GroupBuilder parentGroup,
+                     MKGroupDef.LayoutMode mode) {
+            this.panelBuilder = panelBuilder;
+            this.parentGroup = parentGroup;
+            this.mode = mode;
+        }
+
+        // ── Group Configuration ──────────────────────────────────────────
+
+        /** Sets spacing between children (COLUMN/ROW modes). */
+        public GroupBuilder gap(int gap) {
+            this.gap = gap; return this;
+        }
+
+        /** Sets the cell size for GRID layout (default 18 for slots). */
+        public GroupBuilder cellSize(int size) {
+            this.cellSize = size; return this;
+        }
+
+        /** Sets max rows per column before wrapping (GRID mode, default 9). */
+        public GroupBuilder rows(int rows) {
+            this.maxRows = rows; return this;
+        }
+
+        /** GRID: index 0 goes in the rightmost column (closest to inventory for LEFT panels). */
+        public GroupBuilder fillRight() {
+            this.fillRight = true; return this;
+        }
+
+        /** Disables this group and all its children when the predicate returns true. */
+        public GroupBuilder disabledWhen(BooleanSupplier predicate) {
+            this.disabledWhen = predicate; return this;
+        }
+
+        // ── Add Children ─────────────────────────────────────────────────
+
+        /** Adds a nested column group. */
+        public GroupBuilder column() {
+            return new GroupBuilder(panelBuilder, this, MKGroupDef.LayoutMode.COLUMN);
+        }
+
+        /** Adds a nested row group. */
+        public GroupBuilder row() {
+            return new GroupBuilder(panelBuilder, this, MKGroupDef.LayoutMode.ROW);
+        }
+
+        /** Adds a nested grid group. */
+        public GroupBuilder grid() {
+            return new GroupBuilder(panelBuilder, this, MKGroupDef.LayoutMode.GRID);
+        }
+
+        /** Starts defining a slot in this group. */
+        public GSlotBuilder slot() {
+            return new GSlotBuilder(this);
+        }
+
+        /** Starts defining a button in this group. */
+        public GButtonBuilder button() {
+            return new GButtonBuilder(this);
+        }
+
+        /** Starts defining a text label in this group. */
+        public GTextBuilder text() {
+            return new GTextBuilder(this);
+        }
+
+        // ── Terminal Methods ─────────────────────────────────────────────
+
+        /** Closes this nested group and returns to the parent group. */
+        public GroupBuilder done() {
+            if (parentGroup == null) {
+                throw new IllegalStateException(
+                        "[MenuKit] .done() called on root group — use .build() instead");
+            }
+            parentGroup.children.add(new MKGroupChild.Group(buildDef()));
+            return parentGroup;
+        }
+
+        /** Closes the root group and builds the panel. */
+        public void build() {
+            if (parentGroup != null) {
+                throw new IllegalStateException(
+                        "[MenuKit] .build() called on nested group — use .done() instead");
+            }
+            MKGroupDef groupDef = buildDef();
+            panelBuilder.rootGroup = groupDef;
+            // Collect flat element lists from the tree for indexing
+            collectElements(groupDef, panelBuilder.slotDefs,
+                    panelBuilder.buttonDefs, panelBuilder.textDefs);
+            panelBuilder.build();
+        }
+
+        private MKGroupDef buildDef() {
+            return new MKGroupDef(mode, gap, cellSize, maxRows, fillRight,
+                    List.copyOf(children), disabledWhen);
+        }
+
+        /** Walks the tree depth-first and collects all elements into flat lists. */
+        private static void collectElements(MKGroupDef group,
+                                             List<MKSlotDef> slots,
+                                             List<MKButtonDef> buttons,
+                                             List<MKTextDef> texts) {
+            for (MKGroupChild child : group.children()) {
+                switch (child) {
+                    case MKGroupChild.Slot s -> slots.add(s.def());
+                    case MKGroupChild.Button b -> buttons.add(b.def());
+                    case MKGroupChild.Text t -> texts.add(t.def());
+                    case MKGroupChild.Group g -> collectElements(g.def(), slots, buttons, texts);
+                }
+            }
+        }
+
+        // ── Group-Scoped Sub-Builders ────────────────────────────────────
+        // These mirror SlotBuilder/ButtonBuilder/TextBuilder but return
+        // to GroupBuilder instead of Builder.
+
+        /** Slot builder that returns to GroupBuilder on .done(). */
+        public static class GSlotBuilder {
+            private final GroupBuilder parent;
+            private @Nullable String containerName;
+            private int containerIndex = -1;
+            private @Nullable Predicate<ItemStack> filter;
+            private int maxStack = 64;
+            private @Nullable Supplier<Identifier> ghostIcon;
+            private @Nullable BooleanSupplier disabledWhen;
+            private @Nullable Consumer<MKSlot> onEmptyClick;
+            private @Nullable Supplier<Component> emptyTooltip;
+            private int vanillaInventoryIndex = -1;
+
+            GSlotBuilder(GroupBuilder parent) { this.parent = parent; }
+
+            public GSlotBuilder container(String name, int index) {
+                this.containerName = name; this.containerIndex = index; return this;
+            }
+            public GSlotBuilder vanillaSlot(int inventoryIndex) {
+                this.vanillaInventoryIndex = inventoryIndex;
+                this.containerName = "__vanilla__";
+                this.containerIndex = inventoryIndex;
+                return this;
+            }
+            public GSlotBuilder filter(Predicate<ItemStack> filter) {
+                this.filter = filter; return this;
+            }
+            public GSlotBuilder maxStack(int max) {
+                this.maxStack = max; return this;
+            }
+            public GSlotBuilder ghostIcon(Supplier<Identifier> icon) {
+                this.ghostIcon = icon; return this;
+            }
+            public GSlotBuilder disabledWhen(BooleanSupplier pred) {
+                this.disabledWhen = pred; return this;
+            }
+            public GSlotBuilder onEmptyClick(Consumer<MKSlot> callback) {
+                this.onEmptyClick = callback; return this;
+            }
+            public GSlotBuilder emptyTooltip(Supplier<Component> tooltip) {
+                this.emptyTooltip = tooltip; return this;
+            }
+
+            public GroupBuilder done() {
+                if (containerName == null || containerIndex < 0) {
+                    throw new IllegalStateException(
+                            "[MenuKit] Group slot must call .container(name, index) before .done()");
+                }
+                // childX/childY are 0 — the group's layout mode determines position
+                parent.children.add(new MKGroupChild.Slot(new MKSlotDef(
+                        0, 0, containerName, containerIndex,
+                        filter, maxStack, ghostIcon, disabledWhen,
+                        vanillaInventoryIndex, onEmptyClick, emptyTooltip)));
+                return parent;
+            }
+        }
+
+        /** Button builder that returns to GroupBuilder on .done(). */
+        public static class GButtonBuilder {
+            private final GroupBuilder parent;
+            private int width = 0, height = 0;
+            private @Nullable Identifier icon, toggledIcon;
+            private int iconSize = 0;
+            private @Nullable Component label;
+            private boolean toggleMode = false;
+            private boolean initialPressed = false;
+            private @Nullable String groupName;
+            private @Nullable Consumer<MKButton> onClick;
+            private @Nullable BiConsumer<MKButton, Boolean> onToggle;
+            private @Nullable Component tooltip;
+            private @Nullable String opensScreenName;
+            private @Nullable Supplier<Screen> opensScreenFactory;
+            private @Nullable String togglesPanelName;
+            private boolean closesScreen = false;
+            private boolean goesBack = false;
+            private MKButton.ButtonStyle buttonStyle = MKButton.ButtonStyle.STANDARD;
+            private boolean disabled = false;
+            private @Nullable BooleanSupplier disabledWhen;
+            private @Nullable BooleanSupplier pressedWhen;
+
+            GButtonBuilder(GroupBuilder parent) { this.parent = parent; }
+
+            public GButtonBuilder size(int w, int h) { this.width = w; this.height = h; return this; }
+            public GButtonBuilder label(String text) { this.label = Component.literal(text); return this; }
+            public GButtonBuilder label(Component text) { this.label = text; return this; }
+            public GButtonBuilder icon(Identifier id) { this.icon = id; return this; }
+            public GButtonBuilder toggledIcon(Identifier id) { this.toggledIcon = id; return this; }
+            public GButtonBuilder iconSize(int size) { this.iconSize = size; return this; }
+            public GButtonBuilder toggle() { this.toggleMode = true; return this; }
+            public GButtonBuilder pressed(boolean pressed) { this.initialPressed = pressed; return this; }
+            public GButtonBuilder group(String name) { this.groupName = name; return this; }
+            public GButtonBuilder onClick(Consumer<MKButton> handler) { this.onClick = handler; return this; }
+            public GButtonBuilder onToggle(BiConsumer<MKButton, Boolean> handler) { this.onToggle = handler; return this; }
+            public GButtonBuilder tooltip(String text) { this.tooltip = Component.literal(text); return this; }
+            public GButtonBuilder opensScreen(String name) { this.opensScreenName = name; return this; }
+            public GButtonBuilder closesScreen() { this.closesScreen = true; return this; }
+            public GButtonBuilder togglesPanel(String name) { this.togglesPanelName = name; return this; }
+            public GButtonBuilder disabledWhen(BooleanSupplier pred) { this.disabledWhen = pred; return this; }
+            public GButtonBuilder pressedWhen(BooleanSupplier pred) { this.pressedWhen = pred; return this; }
+            public GButtonBuilder buttonStyle(MKButton.ButtonStyle style) { this.buttonStyle = style; return this; }
+
+            public GroupBuilder done() {
+                // Resolve final onClick with closesScreen/goesBack
+                Consumer<MKButton> finalOnClick = onClick;
+                if (closesScreen) {
+                    Consumer<MKButton> prev = finalOnClick;
+                    finalOnClick = btn -> {
+                        if (prev != null) prev.accept(btn);
+                        MenuKit.closeScreen();
+                    };
+                }
+                if (goesBack) {
+                    Consumer<MKButton> prev = finalOnClick;
+                    finalOnClick = btn -> {
+                        if (prev != null) prev.accept(btn);
+                        MenuKit.goBack();
+                    };
+                }
+                MKButton.ButtonStyle resolvedStyle = buttonStyle;
+                if (icon != null && (label == null || label.getString().isEmpty())
+                        && buttonStyle == MKButton.ButtonStyle.STANDARD) {
+                    resolvedStyle = MKButton.ButtonStyle.NONE;
+                }
+                parent.children.add(new MKGroupChild.Button(new MKButtonDef(
+                        0, 0, width, height,
+                        icon, toggledIcon, iconSize, label,
+                        toggleMode, initialPressed, groupName,
+                        finalOnClick, onToggle, tooltip,
+                        opensScreenName, opensScreenFactory, togglesPanelName,
+                        resolvedStyle, disabled, disabledWhen, pressedWhen)));
+                return parent;
+            }
+        }
+
+        /** Text builder that returns to GroupBuilder on .done(). */
+        public static class GTextBuilder {
+            private final GroupBuilder parent;
+            private @Nullable Supplier<Component> content;
+            private int color = MKTextDef.DEFAULT_COLOR;
+            private boolean shadow = false;
+            private @Nullable BooleanSupplier disabledWhen;
+
+            GTextBuilder(GroupBuilder parent) { this.parent = parent; }
+
+            public GTextBuilder content(Supplier<Component> content) {
+                this.content = content; return this;
+            }
+            public GTextBuilder content(String text) {
+                Component c = Component.literal(text);
+                this.content = () -> c; return this;
+            }
+            public GTextBuilder content(Component text) {
+                this.content = () -> text; return this;
+            }
+            public GTextBuilder color(int color) {
+                this.color = color; return this;
+            }
+            public GTextBuilder shadow() {
+                this.shadow = true; return this;
+            }
+            public GTextBuilder disabledWhen(BooleanSupplier pred) {
+                this.disabledWhen = pred; return this;
+            }
+
+            public GroupBuilder done() {
+                if (content == null) {
+                    throw new IllegalStateException(
+                            "[MenuKit] Group text must call .content(...) before .done()");
+                }
+                parent.children.add(new MKGroupChild.Text(new MKTextDef(
+                        0, 0, content, color, shadow, disabledWhen)));
+                return parent;
+            }
         }
     }
 }

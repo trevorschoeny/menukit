@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit;
 
+import com.trevorschoeny.menukit.source.MKContainerSource;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.ValueInput;
@@ -40,42 +41,79 @@ import java.util.Optional;
 public class MKContainer extends SimpleContainer {
 
     private @Nullable Runnable onChange;
+    private @Nullable MKContainerSource source;
+    private boolean syncing; // re-entrancy guard for source sync
 
     public MKContainer(int size) {
         super(size);
-        // DEBUG: log identity so we can match containers across operations
-        MenuKit.LOGGER.info(
-            "[MKContainer] CREATED size={} id={}", size, System.identityHashCode(this));
     }
 
-    @Override
-    public void setItem(int slot, net.minecraft.world.item.ItemStack stack) {
-        net.minecraft.world.item.ItemStack old = slot < getContainerSize() ? getItem(slot) : net.minecraft.world.item.ItemStack.EMPTY;
-        // Log when items are CLEARED (non-empty → empty) to catch the persistence bug
-        if (stack.isEmpty() && !old.isEmpty()) {
-            MenuKit.LOGGER.warn(
-                "[MKContainer] CLEARING slot={} was={} id={} thread={}",
-                slot, old, System.identityHashCode(this), Thread.currentThread().getName());
-            Thread.dumpStack();  // print stack trace to find WHO is clearing it
-        } else if (!stack.isEmpty()) {
-            MenuKit.LOGGER.info(
-                "[MKContainer] setItem slot={} item={} id={}",
-                slot, stack, System.identityHashCode(this));
-        }
-        super.setItem(slot, stack);
-    }
-
-    /** Called by SimpleContainer whenever items change. We forward to our callback. */
+    /** Called by SimpleContainer whenever items change. Forwards to onChange callback
+     *  and syncs to bound source if present. */
     @Override
     public void setChanged() {
         super.setChanged();
         if (onChange != null) onChange.run();
+        // Sync to bound source with re-entrancy guard — prevents infinite loops
+        // if source.sync() triggers setChanged() on another container
+        if (source != null && !syncing) {
+            syncing = true;
+            try {
+                source.sync(this);
+            } finally {
+                syncing = false;
+            }
+        }
     }
 
     /** Sets a callback fired whenever any item in this container changes. */
     public MKContainer onChange(@Nullable Runnable onChange) {
         this.onChange = onChange;
         return this;
+    }
+
+    // ── Source Binding ─────────────────────────────────────────────────────
+    // Ephemeral containers can be bound to an external source (item contents,
+    // live container, bundle) so changes sync bidirectionally.
+
+    /**
+     * Binds this container to an external source. Populates the container
+     * from the source immediately. After binding, every change to this
+     * container is automatically synced back to the source.
+     *
+     * @param source the backing store to bind to
+     */
+    public void bind(MKContainerSource source) {
+        this.source = source;
+        // Populate without triggering sync-back (we're reading FROM the source)
+        syncing = true;
+        try {
+            source.populate(this);
+        } finally {
+            syncing = false;
+        }
+    }
+
+    /**
+     * Unbinds from the current source. Performs a final sync to write any
+     * pending changes back, then clears this container.
+     */
+    public void unbind() {
+        if (source != null) {
+            source.sync(this);
+            source = null;
+            clearContent();
+        }
+    }
+
+    /** Returns true if this container is currently bound to an external source. */
+    public boolean isBound() {
+        return source != null;
+    }
+
+    /** Returns the current source, or null if not bound. */
+    public @Nullable MKContainerSource getSource() {
+        return source;
     }
 
     // ── NBT Persistence ─────────────────────────────────────────────────────
