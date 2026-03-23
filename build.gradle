@@ -1,0 +1,20 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// MenuKit — zero-boilerplate UI framework for Fabric mods.
+// Produces menukit.jar — no dependency on any other subproject.
+// ═══════════════════════════════════════════════════════════════════════════
+
+base.archivesName = 'menukit'
+
+// No runClient — use trevs-mod:runClient for the full dev environment
+loom {
+    runs {
+        client { ideConfigGenerated = false }
+        server { ideConfigGenerated = false }
+    }
+}
+
+dependencies {
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${rootProject.property('fabric_version')}"
+    modImplementation "com.terraformersmc:modmenu:${rootProject.property('modmenu_version')}"
+    modImplementation "dev.isxander:yet-another-config-lib:${rootProject.property('yacl_version')}"
+}

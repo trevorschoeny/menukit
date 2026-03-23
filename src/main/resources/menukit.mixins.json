@@ -1,0 +1,33 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.trevorschoeny.menukit.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "AbstractContainerMenuInvoker",
+    "MKMenuMixin",
+    "MKGenericMenuMixin",
+    "MKSlotClickMixin",
+    "MKCreativeSlotPacketMixin",
+    "MKServerPlayerMixin",
+    "ContainerLevelAccessAccessor$EnchantmentMenuAccessor",
+    "ContainerLevelAccessAccessor$CraftingMenuAccessor",
+    "ContainerLevelAccessAccessor$ItemCombinerMenuAccessor",
+    "ContainerLevelAccessAccessor$LoomMenuAccessor",
+    "ContainerLevelAccessAccessor$StonecutterMenuAccessor",
+    "ContainerLevelAccessAccessor$CartographyTableMenuAccessor"
+  ],
+  "client": [
+    "AbstractContainerScreenAccessor",
+    "MKCreativeMixin",
+    "MKItemPickerMenuMixin",
+    "MKScreenMixin",
+    "SlotPositionAccessor",
+    "SlotWrapperAccessor",
+    "MKRecipeBookScreenMixin",
+    "MKGuiMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

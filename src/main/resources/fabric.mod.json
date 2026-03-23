@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "menukit",
+  "version": "0.1.0",
+  "name": "MenuKit",
+  "description": "Zero-boilerplate UI framework for Fabric mods. Panels, slots, buttons, HUD, and mod families.",
+  "authors": ["trevorschoeny"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.trevorschoeny.menukit.MenuKit"],
+    "client": ["com.trevorschoeny.menukit.MenuKitClient"],
+    "modmenu": ["com.trevorschoeny.menukit.gui.ModMenuIntegration"]
+  },
+  "mixins": ["menukit.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21"
+  },
+  "suggests": {
+    "modmenu": "*",
+    "yet_another_config_lib_v3": "*"
+  }
+}
