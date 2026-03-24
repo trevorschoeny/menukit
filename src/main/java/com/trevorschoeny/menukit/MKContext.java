@@ -151,9 +151,9 @@ public enum MKContext {
     //   INTERACTION — screens opened by interacting with blocks/entities in the world
     //   (World view / HUD is not an MKContext — it uses MKHudPanel instead)
 
-    /** Personal screens — the player's own inventory (survival + creative). */
+    /** Personal screens — the player's own inventory (survival + creative, including creative tabs). */
     public static final Set<MKContext> PERSONAL = EnumSet.of(
-            SURVIVAL_INVENTORY, CREATIVE_INVENTORY);
+            SURVIVAL_INVENTORY, CREATIVE_INVENTORY, CREATIVE_TABS);
 
     /** @deprecated Use {@link #PERSONAL} instead. */
     @Deprecated public static final Set<MKContext> ALL_INVENTORIES = PERSONAL;

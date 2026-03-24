@@ -894,7 +894,7 @@ public class MKPanel {
         private int maxStack = 64;
         private @Nullable Supplier<Identifier> ghostIcon;
         private @Nullable BooleanSupplier disabledWhen;
-        private @Nullable Consumer<MKSlot> onEmptyClick;
+        private @Nullable Consumer<net.minecraft.world.inventory.Slot> onEmptyClick;
         private @Nullable Supplier<net.minecraft.network.chat.Component> emptyTooltip;
 
         SlotBuilder(Builder parent, int childX, int childY) {
@@ -967,7 +967,7 @@ public class MKPanel {
          * we can safely add behavior (like toggling an "empty hand" marker)
          * without interfering with normal item interaction.
          */
-        public SlotBuilder onEmptyClick(Consumer<MKSlot> callback) {
+        public SlotBuilder onEmptyClick(Consumer<net.minecraft.world.inventory.Slot> callback) {
             this.onEmptyClick = callback; return this;
         }
 
@@ -1440,7 +1440,7 @@ public class MKPanel {
             private int maxStack = 64;
             private @Nullable Supplier<Identifier> ghostIcon;
             private @Nullable BooleanSupplier disabledWhen;
-            private @Nullable Consumer<MKSlot> onEmptyClick;
+            private @Nullable Consumer<net.minecraft.world.inventory.Slot> onEmptyClick;
             private @Nullable Supplier<Component> emptyTooltip;
             private int vanillaInventoryIndex = -1;
 
@@ -1467,7 +1467,7 @@ public class MKPanel {
             public GSlotBuilder disabledWhen(BooleanSupplier pred) {
                 this.disabledWhen = pred; return this;
             }
-            public GSlotBuilder onEmptyClick(Consumer<MKSlot> callback) {
+            public GSlotBuilder onEmptyClick(Consumer<net.minecraft.world.inventory.Slot> callback) {
                 this.onEmptyClick = callback; return this;
             }
             public GSlotBuilder emptyTooltip(Supplier<Component> tooltip) {

@@ -36,7 +36,7 @@ public record MKSlotDef(
         @Nullable Supplier<Identifier> ghostIcon,   // icon shown when slot is empty
         @Nullable BooleanSupplier disabledWhen,      // runtime predicate: slot hidden when true
         int vanillaInventoryIndex,                   // >=0: use player.getInventory() at this index instead of MKContainer
-        @Nullable Consumer<MKSlot> onEmptyClick,     // callback: player clicked empty slot with empty cursor
+        @Nullable Consumer<net.minecraft.world.inventory.Slot> onEmptyClick,     // callback: player clicked empty slot with empty cursor
         @Nullable Supplier<Component> emptyTooltip    // tooltip: shown when hovering empty slot with empty cursor
 ) {
 
@@ -122,14 +122,19 @@ public record MKSlotDef(
             slot = new MKSlot(player.getInventory(), vanillaInventoryIndex, absX, absY,
                     filter, maxStack, ghostIcon, disabledWhen);
         } else {
-            // MKContainer slot — backed by a registered container
-            MKContainer container = containerLookup.apply(containerName);
-            if (container == null) {
+            // MKContainer slot — backed by a registered container's delegate
+            MKContainer mkContainer = containerLookup.apply(containerName);
+            if (mkContainer == null) {
                 MenuKit.LOGGER.warn(
                         "[MenuKit] Slot references container '{}' but it was not found", containerName);
                 return null;
             }
-            slot = new MKSlot(container, containerIndex, absX, absY,
+            // Use the delegate Container directly with region-remapped index
+            net.minecraft.world.Container delegate = mkContainer.getDelegate();
+            int realIndex = mkContainer.getRegion() != null
+                    ? mkContainer.getRegion().toContainerIndex(containerIndex)
+                    : containerIndex;
+            slot = new MKSlot(delegate, realIndex, absX, absY,
                     filter, maxStack, ghostIcon, disabledWhen);
         }
 

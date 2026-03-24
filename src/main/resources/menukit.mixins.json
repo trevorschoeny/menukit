@@ -7,6 +7,7 @@
     "AbstractContainerMenuInvoker",
     "MKMenuMixin",
     "MKGenericMenuMixin",
+    "MKSlotMixin",
     "MKSlotClickMixin",
     "MKCreativeSlotPacketMixin",
     "MKServerPlayerMixin",
@@ -20,8 +21,10 @@
   "client": [
     "AbstractContainerScreenAccessor",
     "MKCreativeMixin",
+    "MKCreativeRightClickMixin",
     "MKItemPickerMenuMixin",
     "MKScreenMixin",
+    "MKSlotRightClickMixin",
     "SlotPositionAccessor",
     "SlotWrapperAccessor",
     "MKRecipeBookScreenMixin",

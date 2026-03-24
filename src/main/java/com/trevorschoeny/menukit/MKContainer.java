@@ -1,7 +1,9 @@
 package com.trevorschoeny.menukit;
 
 import com.trevorschoeny.menukit.source.MKContainerSource;
+import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
@@ -10,52 +12,125 @@ import org.jspecify.annotations.Nullable;
 import java.util.Optional;
 
 /**
- * A vanilla-compatible item storage extending {@link SimpleContainer}.
+ * Proxy wrapper around a vanilla {@link Container}. Implements the Container
+ * interface by delegating all calls to the underlying delegate.
  *
- * <p>Works exactly like vanilla's containers (chests, barrels, etc.):
- * <ul>
- *   <li>{@link net.minecraft.world.inventory.Slot}s backed by this container
- *       participate in vanilla's click handling, sync, and rendering natively.</li>
- *   <li>{@code broadcastChanges()} detects changes and syncs to the client
- *       via standard slot packets — no custom networking needed.</li>
- *   <li>Items are serialized with the server's registry and deserialized with
- *       the client's registry automatically — the enchantment Holder.Reference
- *       crash is impossible.</li>
- * </ul>
+ * <p><b>Design philosophy:</b> MKContainer is a convenience API for mod
+ * authors — it wraps any vanilla Container and adds MenuKit features on top.
+ * The delegate Container is always the real data store. Other mods can
+ * interact with the delegate directly via {@link #getDelegate()} and
+ * everything stays in sync.
  *
- * <p>Adds two features on top of SimpleContainer:
- * <ol>
- *   <li><b>onChange callback</b> — notified whenever items change (e.g., trigger persistence)</li>
- *   <li><b>NBT persistence</b> — {@link #saveToNbt}/{@link #loadFromNbt} for player data save/load</li>
- * </ol>
- *
- * <h3>Usage</h3>
+ * <p><b>For custom containers:</b> The delegate is a {@link SimpleContainer}
+ * (or any other Container if explicitly specified). Created via:
  * <pre>{@code
- * MKContainer storage = new MKContainer(2);
- * menu.addSlot(new MKSlot(storage, 0, x, y));
- * // Vanilla handles clicks, sync, rendering from here.
+ * MenuKit.container("my_storage").size(27).register();
  * }</pre>
  *
- * <p>Part of the <b>MenuKit</b> API.
+ * <p><b>For vanilla containers:</b> The delegate is the actual vanilla
+ * Container (player Inventory, chest block entity, etc.). Created
+ * automatically when menus open.
+ *
+ * <p><b>Region-aware:</b> When wrapping a specific region of a larger
+ * container (e.g., hotbar = indices 0-8 of player Inventory), the proxy
+ * remaps indices so the mod author sees a clean 0-based container.
+ *
+ * <p>Part of the <b>MenuKit</b> API (proxy layer).
  */
-public class MKContainer extends SimpleContainer {
+public class MKContainer implements Container {
 
+    private final Container delegate;
+    private final @Nullable MKRegion region;
     private @Nullable Runnable onChange;
     private @Nullable MKContainerSource source;
     private boolean syncing; // re-entrancy guard for source sync
 
+    // ── Constructors ─────────────────────────────────────────────────────
+
+    /**
+     * Creates a proxy with a new SimpleContainer as delegate.
+     * Used for custom mod containers.
+     */
     public MKContainer(int size) {
-        super(size);
+        this(new SimpleContainer(size), null);
     }
 
-    /** Called by SimpleContainer whenever items change. Forwards to onChange callback
-     *  and syncs to bound source if present. */
+    /**
+     * Creates a proxy wrapping an existing Container.
+     * Used for vanilla containers and custom delegates.
+     */
+    public MKContainer(Container delegate) {
+        this(delegate, null);
+    }
+
+    /**
+     * Creates a proxy wrapping a specific region of a Container.
+     * Index remapping: proxy index 0 maps to region.startIndex().
+     */
+    public MKContainer(Container delegate, @Nullable MKRegion region) {
+        this.delegate = delegate;
+        this.region = region;
+    }
+
+    // ── Delegate Access ──────────────────────────────────────────────────
+
+    /** Returns the underlying vanilla Container. */
+    public Container getDelegate() { return delegate; }
+
+    /** Returns the region this proxy covers, or null if it covers the whole container. */
+    public @Nullable MKRegion getRegion() { return region; }
+
+    // ── Index Remapping ──────────────────────────────────────────────────
+    // When wrapping a region, proxy indices are 0-based within the region.
+    // toReal(0) maps to the region's startIndex in the delegate.
+
+    /** Converts a proxy-local index to a real delegate index. */
+    private int toReal(int proxyIndex) {
+        if (region == null) return proxyIndex;
+        return region.toContainerIndex(proxyIndex);
+    }
+
+    // ── Container Interface (delegated) ──────────────────────────────────
+
+    @Override
+    public int getContainerSize() {
+        return region != null ? region.size() : delegate.getContainerSize();
+    }
+
+    @Override
+    public boolean isEmpty() {
+        for (int i = 0; i < getContainerSize(); i++) {
+            if (!getItem(i).isEmpty()) return false;
+        }
+        return true;
+    }
+
+    @Override
+    public ItemStack getItem(int slot) {
+        return delegate.getItem(toReal(slot));
+    }
+
+    @Override
+    public ItemStack removeItem(int slot, int amount) {
+        return delegate.removeItem(toReal(slot), amount);
+    }
+
+    @Override
+    public ItemStack removeItemNoUpdate(int slot) {
+        return delegate.removeItemNoUpdate(toReal(slot));
+    }
+
+    @Override
+    public void setItem(int slot, ItemStack stack) {
+        delegate.setItem(toReal(slot), stack);
+    }
+
     @Override
     public void setChanged() {
-        super.setChanged();
+        delegate.setChanged();
+        // Fire onChange callback
         if (onChange != null) onChange.run();
-        // Sync to bound source with re-entrancy guard — prevents infinite loops
-        // if source.sync() triggers setChanged() on another container
+        // Sync to bound source with re-entrancy guard
         if (source != null && !syncing) {
             syncing = true;
             try {
@@ -66,13 +141,32 @@ public class MKContainer extends SimpleContainer {
         }
     }
 
+    @Override
+    public boolean stillValid(Player player) {
+        return delegate.stillValid(player);
+    }
+
+    @Override
+    public void clearContent() {
+        if (region != null) {
+            // Only clear this region's indices
+            for (int i = 0; i < region.size(); i++) {
+                delegate.setItem(toReal(i), ItemStack.EMPTY);
+            }
+        } else {
+            delegate.clearContent();
+        }
+    }
+
+    // ── onChange Callback ─────────────────────────────────────────────────
+
     /** Sets a callback fired whenever any item in this container changes. */
     public MKContainer onChange(@Nullable Runnable onChange) {
         this.onChange = onChange;
         return this;
     }
 
-    // ── Source Binding ─────────────────────────────────────────────────────
+    // ── Source Binding ────────────────────────────────────────────────────
     // Ephemeral containers can be bound to an external source (item contents,
     // live container, bundle) so changes sync bidirectionally.
 
@@ -80,12 +174,9 @@ public class MKContainer extends SimpleContainer {
      * Binds this container to an external source. Populates the container
      * from the source immediately. After binding, every change to this
      * container is automatically synced back to the source.
-     *
-     * @param source the backing store to bind to
      */
     public void bind(MKContainerSource source) {
         this.source = source;
-        // Populate without triggering sync-back (we're reading FROM the source)
         syncing = true;
         try {
             source.populate(this);
@@ -116,16 +207,12 @@ public class MKContainer extends SimpleContainer {
         return source;
     }
 
-    // ── NBT Persistence ─────────────────────────────────────────────────────
+    // ── NBT Persistence ──────────────────────────────────────────────────
     // Called from ServerPlayer save/load hooks (server thread, server registry).
-    // ValueOutput/ValueInput carry the server's RegistryOps automatically.
 
     /**
      * Saves non-empty items as slot-indexed entries under the given key.
-     *
-     * <p>Each entry is a compound with "slot" (int) and "item" (ItemStack).
-     * Empty slots are skipped — ItemStack.CODEC rejects air/empty stacks.
-     * Slot indices are preserved so items load back to the correct positions.
+     * Uses proxy-local indices (0-based) regardless of region offset.
      */
     public void saveToNbt(String key, ValueOutput output) {
         ValueOutput.ValueOutputList list = output.childrenList(key);
@@ -141,8 +228,7 @@ public class MKContainer extends SimpleContainer {
 
     /**
      * Loads items from slot-indexed entries under the given key.
-     * Clears existing items first. Each entry has "slot" and "item" fields.
-     * Items go into their original slot positions.
+     * Clears existing items first. Uses proxy-local indices.
      */
     public void loadFromNbt(String key, ValueInput input) {
         clearContent();

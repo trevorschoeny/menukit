@@ -7,6 +7,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.world.inventory.Slot;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -33,25 +34,102 @@ public class MKMenuMixin {
     @Inject(method = "<init>", at = @At("TAIL"))
     private void menuKit$createSlots(Inventory inventory, boolean active,
                                       Player owner, CallbackInfo ci) {
-        // Ask MenuKit for all slots registered to InventoryMenu via SURVIVAL_INVENTORY context.
-        // Not creative context here: InventoryMenu constructor runs for both modes,
-        // and creative mode fixes positions later via MKCreativeMixin.
+        AbstractContainerMenu menu = (AbstractContainerMenu)(Object) this;
+
+        // ── Step 1: Register vanilla slot → panel mappings ──────────────────
+        // InventoryMenu slot layout:
+        //   0     = crafting result
+        //   1-4   = 2x2 crafting grid
+        //   5-8   = armor (helmet=5, chest=6, legs=7, boots=8)
+        //   9-35  = main inventory (27 slots)
+        //   36-44 = hotbar (9 slots)
+        //   45    = offhand
+        // Vanilla slots stay vanilla — MenuKit tracks panel association via a map.
+        MenuKit.registerSlotPanelMapping(menu, 0,  1,  MenuKit.PANEL_CRAFT_RESULT);
+        MenuKit.registerSlotPanelMapping(menu, 1,  5,  MenuKit.PANEL_CRAFT_2X2);
+        MenuKit.registerSlotPanelMapping(menu, 5,  9,  MenuKit.PANEL_ARMOR);
+        MenuKit.registerSlotPanelMapping(menu, 9,  36, MenuKit.PANEL_MAIN_INVENTORY);
+        MenuKit.registerSlotPanelMapping(menu, 36, 45, MenuKit.PANEL_HOTBAR);
+        MenuKit.registerSlotPanelMapping(menu, 45, 46, MenuKit.PANEL_OFFHAND);
+
+        // ── Step 2: Create vanilla container wrappers for the unified API ─────
+        MenuKit.createVanillaContainerWrappers(menu, MKContext.SURVIVAL_INVENTORY, owner);
+
+        // ── Step 3: Add custom MKSlots (equipment, pockets, peek, etc.) ─────
         java.util.List<MKSlot> mkSlots = MenuKit.createSlotsForMenu(
-                (net.minecraft.world.inventory.AbstractContainerMenu)(Object) this,
-                MKContext.SURVIVAL_INVENTORY, owner);
+                menu, MKContext.SURVIVAL_INVENTORY, owner);
 
         for (MKSlot slot : mkSlots) {
             ((AbstractContainerMenuInvoker) this).trevorMod$addSlot(slot);
         }
 
-        // DEBUG: log slot count + side
-        AbstractContainerMenu menu = (AbstractContainerMenu)(Object) this;
+        // ── Step 4: Attach container state to ALL unique containers ───────
+        // Ensures change listeners, read-only enforcement, and tagging work
+        // for every container in this menu (crafting, armor, offhand, etc.)
+        MenuKit.discoverAndAttachContainerState(menu);
+
         String side = (owner instanceof net.minecraft.server.level.ServerPlayer) ? "SERVER" : "CLIENT";
-        com.trevorschoeny.menukit.MenuKit.LOGGER.info(
-            "[MenuKit] MKMenuMixin {} added {} MKSlots, total menu slots={}",
+        MenuKit.LOGGER.info(
+            "[MenuKit] MKMenuMixin {} mapped 46 vanilla slots + added {} MKSlots, total={}",
             side, mkSlots.size(), menu.slots.size());
     }
 
-    // Shift-click (quickMoveStack) is now handled by MKGenericMenuMixin
-    // on AbstractContainerMenu — covers ALL menu types including InventoryMenu.
+    /**
+     * Intercepts shift-click on InventoryMenu to enforce directional flags
+     * and route items to custom MKSlots (equipment, peek) first.
+     *
+     * <p>Map-based model: vanilla slots stay vanilla, but MenuKit tracks their
+     * panel association via a map. Custom MKSlots (equipment, peek) are real
+     * MKSlot instances added after vanilla slots.
+     */
+    @Inject(method = "quickMoveStack", at = @At("HEAD"), cancellable = true)
+    private void menuKit$directionalShiftClick(net.minecraft.world.entity.player.Player player,
+                                                int slotIndex,
+                                                org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<net.minecraft.world.item.ItemStack> cir) {
+        AbstractContainerMenu menu = (AbstractContainerMenu)(Object) this;
+
+        if (slotIndex < 0 || slotIndex >= menu.slots.size()) return;
+        Slot sourceSlot = menu.slots.get(slotIndex);
+        if (!sourceSlot.hasItem()) return;
+
+        net.minecraft.world.item.ItemStack sourceStack = sourceSlot.getItem();
+
+        // ── Unified shift-click handling via MKSlotState ──────────────────────
+        // Get the panel name for the source slot (from state registry or map)
+        String sourcePanel = MenuKit.getEffectivePanelName(menu, sourceSlot);
+        com.trevorschoeny.menukit.MKSlotState sourceState = com.trevorschoeny.menukit.MKSlotStateRegistry.get(sourceSlot);
+
+        // Check if shift-click-out is allowed for this slot's panel
+        if (sourcePanel != null && !MenuKit.isShiftClickOut(sourcePanel)) {
+            cir.setReturnValue(net.minecraft.world.item.ItemStack.EMPTY);
+            return;
+        }
+
+        // Case 1: Source is a MenuKit-managed slot → route to other panels
+        if (sourceState != null && sourceState.isMenuKitSlot()) {
+            net.minecraft.world.item.ItemStack original = sourceStack.copy();
+            boolean moved = MenuKit.tryRouteToOtherPanels(menu, sourceSlot, sourceStack, sourcePanel);
+            if (moved) {
+                sourceSlot.setChanged();
+                cir.setReturnValue(original);
+            } else {
+                cir.setReturnValue(net.minecraft.world.item.ItemStack.EMPTY);
+            }
+            return;
+        }
+
+        // Case 2: Source is a vanilla slot → try MenuKit-managed slots first
+        net.minecraft.world.item.ItemStack original = sourceStack.copy();
+        boolean moved = MenuKit.tryRouteToCustomSlots(menu, sourceSlot, sourceStack);
+        if (moved && sourceStack.isEmpty()) {
+            sourceSlot.setChanged();
+            cir.setReturnValue(original);
+            return;
+        }
+        if (moved) {
+            sourceSlot.setChanged();
+        }
+
+        // Fall through to vanilla's InventoryMenu.quickMoveStack for standard routing
+    }
 }

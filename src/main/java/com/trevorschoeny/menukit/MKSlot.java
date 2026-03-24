@@ -12,211 +12,91 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * A vanilla-compatible {@link Slot} subclass backed by an {@link MKContainer}.
+ * A vanilla {@link Slot} subclass used for MenuKit-managed panel slots.
  *
- * <p>Works exactly like a regular vanilla slot — vanilla handles ALL click logic
- * (left, right, shift, drag, number keys, Q-throw, middle-click clone),
- * network sync ({@code broadcastChanges}), hover detection, item rendering,
- * and tooltips. No custom click handler needed.
+ * <p>MKSlot is intentionally thin — it creates a regular Slot backed by
+ * an MKContainer, and registers an {@link MKSlotState} in the mixin-layer
+ * registry. All behavioral features (isActive, mayPlace, maxStackSize,
+ * ghostIcon) are handled by {@link com.trevorschoeny.menukit.mixin.MKSlotMixin}
+ * reading from MKSlotState, not by overrides on this class.
  *
- * <p>Adds two optional features:
- * <ul>
- *   <li><b>Item filter</b> via {@link #mayPlace(ItemStack)} — restricts what items can go in</li>
- *   <li><b>Ghost icon</b> via {@link #getNoItemIcon()} — shows a custom icon when slot is empty</li>
- * </ul>
- *
- * <h3>Usage</h3>
- * <pre>{@code
- * MKSlot slot = MKSlot.builder(container, 0, x, y)
- *     .filter(stack -> stack.is(Items.ELYTRA))
- *     .maxStack(1)
- *     .ghostIcon(() -> MY_ICON_ID)
- *     .build();
- * menu.addSlot(slot);
- * }</pre>
+ * <p>This means MKSlots and vanilla slots use the same code paths for
+ * all features. MKSlot is just a convenience for creating slots that
+ * automatically register state.
  *
  * <p>Part of the <b>MenuKit</b> API.
  */
 public class MKSlot extends Slot {
 
-    private final @Nullable Predicate<ItemStack> filter;
-    private final int maxStack;
-    private final @Nullable Supplier<Identifier> ghostIconProvider;
-    private final @Nullable BooleanSupplier disabledWhen;
-
-    // Callback fired when the player clicks this slot while both the
-    // slot and the cursor are empty. Vanilla treats this as a no-op,
-    // so we can safely add behavior without interfering.
-    private @Nullable Consumer<MKSlot> onEmptyClick;
-
-    // Tooltip shown when hovering an empty slot with an empty cursor.
-    // Returns null to show no tooltip. Evaluated each frame so text
-    // can change dynamically (e.g., "Mark empty hand" vs "Remove empty hand").
-    private @Nullable Supplier<net.minecraft.network.chat.Component> emptyTooltip;
-
-    // Panel name — used for panel visibility checks. When non-null,
-    // this slot deactivates itself when its parent panel is hidden.
-    private @Nullable String panelName;
-
-    // Index of this slot within its panel's slot list (0-based).
-    // Used for identity-based position matching in creative mode.
-    private int slotIndexInPanel = -1;
-
-    public MKSlot(MKContainer container, int containerSlot, int x, int y,
-                  @Nullable Predicate<ItemStack> filter, int maxStack,
-                  @Nullable Supplier<Identifier> ghostIconProvider,
-                  @Nullable BooleanSupplier disabledWhen) {
-        this((Container) container, containerSlot, x, y, filter, maxStack, ghostIconProvider, disabledWhen);
-    }
-
     /**
-     * Constructor accepting any vanilla Container (including player Inventory).
-     * Used for vanilla slot references (e.g., mirroring hotbar slots in pocket panels).
+     * Creates an MKSlot and registers its MKSlotState.
+     *
+     * @param container     the backing container (MKContainer or vanilla Container)
+     * @param containerSlot index within the container
+     * @param x             screen x position (set by layout engine later)
+     * @param y             screen y position (set by layout engine later)
+     * @param filter        item placement filter (nullable)
+     * @param maxStack      per-slot max stack size (64 for default)
+     * @param ghostIcon     ghost icon provider (nullable)
+     * @param disabledWhen  predicate that disables the slot (nullable)
      */
     public MKSlot(Container container, int containerSlot, int x, int y,
                   @Nullable Predicate<ItemStack> filter, int maxStack,
-                  @Nullable Supplier<Identifier> ghostIconProvider,
+                  @Nullable Supplier<Identifier> ghostIcon,
                   @Nullable BooleanSupplier disabledWhen) {
         super(container, containerSlot, x, y);
-        this.filter = filter;
-        this.maxStack = maxStack;
-        this.ghostIconProvider = ghostIconProvider;
-        this.disabledWhen = disabledWhen;
+
+        // Register state in the mixin-layer registry.
+        // All behavioral hooks (isActive, mayPlace, etc.) read from here.
+        MKSlotState state = MKSlotStateRegistry.getOrCreate(this);
+        state.setMenuKitSlot(true);
+        if (filter != null) state.setFilter(filter);
+        if (ghostIcon != null) state.setGhostIcon(ghostIcon.get());
+        if (disabledWhen != null) state.setDisabledWhen(disabledWhen);
+        if (maxStack > 0 && maxStack != 64) state.setMaxStackSize(maxStack);
     }
 
     /** Convenience constructor with no filter, ghost icon, or disable predicate. */
-    public MKSlot(MKContainer container, int containerSlot, int x, int y) {
-        this((Container) container, containerSlot, x, y, null, 64, null, null);
+    public MKSlot(Container container, int containerSlot, int x, int y) {
+        this(container, containerSlot, x, y, null, 64, null, null);
     }
 
-    // ── Panel Visibility ────────────────────────────────────────────────────
+    // ── State Accessors (convenience, delegate to MKSlotState) ───────────
 
-    /** Sets the panel name for visibility tracking. */
+    /** Sets the panel name for this slot. */
     public void setPanelName(@Nullable String panelName) {
-        this.panelName = panelName;
-    }
-
-    /** Returns the panel name, or null if not associated with a panel. */
-    public @Nullable String panelName() {
-        return panelName;
+        MKSlotStateRegistry.getOrCreate(this).setPanelName(panelName);
     }
 
     /** Sets this slot's index within its parent panel's slot list. */
     public void setSlotIndexInPanel(int index) {
-        this.slotIndexInPanel = index;
+        MKSlotStateRegistry.getOrCreate(this).setSlotIndexInPanel(index);
     }
 
-    /** Returns this slot's index within its parent panel's slot list. */
-    public int slotIndexInPanel() {
-        return slotIndexInPanel;
+    /** Sets a callback fired when clicking an empty slot with empty cursor. */
+    public void setOnEmptyClick(@Nullable Consumer<Slot> callback) {
+        MKSlotStateRegistry.getOrCreate(this).setOnEmptyClick(callback);
     }
 
-    // ── Empty Click Callback ─────────────────────────────────────────────
-
-    /** Sets a callback fired when the player clicks this slot with an empty cursor and empty slot. */
-    public void setOnEmptyClick(@Nullable Consumer<MKSlot> callback) {
-        this.onEmptyClick = callback;
-    }
-
-    /** Returns the empty-click callback, or null if none is set. */
-    public @Nullable Consumer<MKSlot> getOnEmptyClick() {
-        return onEmptyClick;
-    }
-
-    /** Sets a tooltip supplier shown when hovering this empty slot with an empty cursor. */
+    /** Sets a tooltip shown when hovering an empty slot with empty cursor. */
     public void setEmptyTooltip(@Nullable Supplier<net.minecraft.network.chat.Component> tooltip) {
-        this.emptyTooltip = tooltip;
-    }
-
-    /** Returns the empty-slot tooltip supplier, or null if none is set. */
-    public @Nullable Supplier<net.minecraft.network.chat.Component> getEmptyTooltip() {
-        return emptyTooltip;
-    }
-
-    /**
-     * Returns false when this slot's parent panel is hidden/disabled, or when
-     * the slot's own disabledWhen predicate returns true. Vanilla automatically
-     * skips rendering, hover detection, and click handling for inactive slots.
-     */
-    @Override
-    public boolean isActive() {
-        if (panelName != null && MenuKit.isPanelInactive(panelName)) return false;
-        if (disabledWhen != null && disabledWhen.getAsBoolean()) return false;
-        return true;
-    }
-
-    // ── Shift-Click Directional Checks ─────────────────────────────────────
-
-    /**
-     * Returns true if this slot's panel allows items to be shift-clicked IN.
-     * Combines the panel's shiftClickIn flag with active/visibility checks.
-     */
-    public boolean canShiftClickIn() {
-        return panelName != null && MenuKit.isShiftClickIn(panelName);
-    }
-
-    /**
-     * Returns true if this slot's panel allows items to be shift-clicked OUT.
-     * Combines the panel's shiftClickOut flag with active/visibility checks.
-     */
-    public boolean canShiftClickOut() {
-        return panelName != null && MenuKit.isShiftClickOut(panelName);
-    }
-
-    /** Returns the panel name this slot belongs to. */
-    public @Nullable String getPanelName() {
-        return panelName;
-    }
-
-    // ── Overrides ───────────────────────────────────────────────────────────
-    // Everything else (getItem, set, remove) is inherited from Slot
-    // and delegates to MKContainer via the Container interface.
-
-    @Override
-    public boolean mayPlace(ItemStack stack) {
-        if (filter != null && !filter.test(stack)) return false;
-        // Check source-level constraints (e.g., bundle weight limits, shulker nesting)
-        if (container instanceof MKContainer mkc && mkc.isBound()) {
-            if (!mkc.getSource().canAccept(getContainerSlot(), stack)) return false;
-        }
-        return true;
-    }
-
-    @Override
-    public int getMaxStackSize() {
-        return maxStack;
-    }
-
-    /**
-     * Returns null — MenuKit handles ghost icon rendering itself via
-     * {@code renderSlotBackgrounds}. Returning the icon here would cause
-     * vanilla's {@code blitSprite} to render a broken sprite on top of
-     * our pixel-art ghost icon.
-     */
-    @Override
-    public @Nullable Identifier getNoItemIcon() {
-        return null;
-    }
-
-    /** Returns the ghost icon provider for MenuKit's own rendering. */
-    public @Nullable Supplier<Identifier> getGhostIconProvider() {
-        return ghostIconProvider;
+        MKSlotStateRegistry.getOrCreate(this).setEmptyTooltip(tooltip);
     }
 
     // ── Builder ─────────────────────────────────────────────────────────────
 
-    public static Builder builder(MKContainer container, int containerSlot, int x, int y) {
+    public static Builder builder(Container container, int containerSlot, int x, int y) {
         return new Builder(container, containerSlot, x, y);
     }
 
     public static class Builder {
-        private final MKContainer container;
+        private final Container container;
         private final int containerSlot, x, y;
         private @Nullable Predicate<ItemStack> filter;
         private int maxStack = 64;
-        private @Nullable Supplier<Identifier> ghostIconProvider;
+        private @Nullable Supplier<Identifier> ghostIcon;
 
-        Builder(MKContainer container, int containerSlot, int x, int y) {
+        Builder(Container container, int containerSlot, int x, int y) {
             this.container = container;
             this.containerSlot = containerSlot;
             this.x = x;
@@ -225,11 +105,11 @@ public class MKSlot extends Slot {
 
         public Builder filter(Predicate<ItemStack> filter)       { this.filter = filter; return this; }
         public Builder maxStack(int maxStack)                     { this.maxStack = maxStack; return this; }
-        public Builder ghostIcon(Supplier<Identifier> provider)   { this.ghostIconProvider = provider; return this; }
+        public Builder ghostIcon(Supplier<Identifier> provider)   { this.ghostIcon = provider; return this; }
 
         public MKSlot build() {
             return new MKSlot(container, containerSlot, x, y,
-                    filter, maxStack, ghostIconProvider, null);
+                    filter, maxStack, ghostIcon, null);
         }
     }
 }

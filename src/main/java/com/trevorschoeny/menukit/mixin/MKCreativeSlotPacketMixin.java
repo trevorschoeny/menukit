@@ -42,7 +42,8 @@ public class MKCreativeSlotPacketMixin {
         if (slotNum >= player.inventoryMenu.slots.size()) return;
 
         Slot slot = player.inventoryMenu.getSlot(slotNum);
-        if (!(slot instanceof MKSlot)) return; // only process our slots
+        com.trevorschoeny.menukit.MKSlotState state = com.trevorschoeny.menukit.MKSlotStateRegistry.get(slot);
+        if (state == null || !state.isMenuKitSlot()) return; // only process our slots
 
         ItemStack stack = packet.itemStack();
 

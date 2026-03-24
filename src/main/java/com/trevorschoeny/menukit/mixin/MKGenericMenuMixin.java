@@ -1,20 +1,28 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.MKContext;
+import com.trevorschoeny.menukit.MKContainerState;
+import com.trevorschoeny.menukit.MKContainerStateRegistry;
 import com.trevorschoeny.menukit.MKSlot;
+import com.trevorschoeny.menukit.MKSlotStateRegistry;
 import com.trevorschoeny.menukit.MenuKit;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import java.util.IdentityHashMap;
+import java.util.Map;
 
 /**
  * MenuKit internal mixin — adds MKSlots to ANY container menu and handles
@@ -39,6 +47,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(AbstractContainerMenu.class)
 public class MKGenericMenuMixin {
 
+    // ── Container Change Tracking ────────────────────────────────────────────
+    // Cached snapshots of each container's contents, keyed by Container identity.
+    // Used by broadcastChanges to detect modifications and fire change listeners.
+    @Unique
+    private Map<Container, ItemStack[]> menuKit$containerSnapshots;
+
     // ── Slot Injection ───────────────────────────────────────────────────────
 
     @Inject(method = "addStandardInventorySlots", at = @At("TAIL"))
@@ -51,131 +65,181 @@ public class MKGenericMenuMixin {
         // Need a Player reference for per-player container management
         if (!(container instanceof Inventory inventory)) return;
 
+        // ── Map the 36 player inventory slots just added by vanilla ────
+        // addStandardInventorySlots() adds 27 main inventory + 9 hotbar = 36 slots.
+        // They're the last 36 slots in the menu's slot list (before any MKSlots).
+        int totalSlots = menu.slots.size();
+        int playerSlotsStart = totalSlots - 36;
+
+        // Main inventory (27 slots)
+        MenuKit.registerSlotPanelMapping(menu, playerSlotsStart, playerSlotsStart + 27,
+                MenuKit.PANEL_MAIN_INVENTORY);
+        // Hotbar (9 slots)
+        MenuKit.registerSlotPanelMapping(menu, playerSlotsStart + 27, playerSlotsStart + 36,
+                MenuKit.PANEL_HOTBAR);
+
         // Find a default context for this menu class
         MKContext context = MKContext.defaultForMenuClass(menu.getClass());
         if (context == null) return;
 
+        // Auto-create vanilla container wrappers for the unified API
+        MenuKit.createVanillaContainerWrappers(menu, context, inventory.player);
+
         // Check if any panels are registered for this context
         if (!MenuKit.hasPanelsForContext(context)) return;
 
-        // Create and add MKSlots
+        // Create and add custom MKSlots (equipment, pockets, peek, etc.)
         java.util.List<MKSlot> mkSlots = MenuKit.createSlotsForMenu(menu, context, inventory.player);
         for (MKSlot slot : mkSlots) {
             ((AbstractContainerMenuInvoker) menu).trevorMod$addSlot(slot);
         }
     }
 
-    // ── Directional Shift-Click Routing ──────────────────────────────────────
+    // (Menu cleanup is handled below in menuKit$cleanupOnRemoved)
+
+    // ── Container State Attachment ──────────────────────────────────────────
 
     /**
-     * Intercepts shift-click (quick-move) on ALL menu types to enforce
-     * directional shift-click flags on MKSlots.
-     *
-     * <p><b>From MKSlot:</b> Only allows shift-click out if the panel has
-     * {@code shiftClickOut=true}. Routes items to vanilla inventory range.
-     *
-     * <p><b>From vanilla slot:</b> Tries MKSlots with {@code shiftClickIn=true}
-     * first (partial stacks, then empty slots). Falls through to vanilla if
-     * no MKSlot accepts the item.
-     *
-     * <p>This runs on ALL menus (InventoryMenu, ChestMenu, CraftingMenu, etc.)
-     * ensuring consistent behavior regardless of which screen is open.
+     * After slots are injected, scan all unique Containers in this menu
+     * and ensure each has an MKContainerState. Also snapshot their contents
+     * for change detection.
      */
-    @Inject(method = "quickMoveStack", at = @At("HEAD"), cancellable = true)
-    private void menuKit$directionalShiftClick(Player player, int slotIndex,
-                                                CallbackInfoReturnable<ItemStack> cir) {
+    @Inject(method = "addStandardInventorySlots", at = @At("TAIL"))
+    private void menuKit$attachContainerState(Container container, int x, int y, CallbackInfo ci2) {
         AbstractContainerMenu menu = (AbstractContainerMenu)(Object) this;
+        menuKit$snapshotContainers(menu);
+    }
 
-        if (slotIndex < 0 || slotIndex >= menu.slots.size()) return;
-        Slot sourceSlot = menu.slots.get(slotIndex);
-        if (!sourceSlot.hasItem()) return;
+    /**
+     * Builds container content snapshots for change detection.
+     * Called after container state is attached (by MenuKit.discoverAndAttachContainerState).
+     */
+    @Unique
+    private void menuKit$snapshotContainers(AbstractContainerMenu menu) {
+        if (menuKit$containerSnapshots == null) {
+            menuKit$containerSnapshots = new IdentityHashMap<>();
+        }
 
-        ItemStack sourceStack = sourceSlot.getItem();
+        // Find every unique Container backing the slots in this menu
+        for (Slot slot : menu.slots) {
+            Container c = slot.container;
+            if (c == null || menuKit$containerSnapshots.containsKey(c)) continue;
 
-        // ── Case 1: Shift-click FROM an MKSlot ──────────────────────────────
-        // Block the move if shiftClickOut is false. If allowed, route to
-        // vanilla inventory slots (find the range by scanning for non-MK slots).
-        if (sourceSlot instanceof MKSlot mkSource) {
-            if (!mkSource.canShiftClickOut()) {
-                // Block — this panel doesn't allow shift-clicking out
-                cir.setReturnValue(ItemStack.EMPTY);
-                return;
+            // Snapshot current contents for change detection
+            ItemStack[] snapshot = new ItemStack[c.getContainerSize()];
+            for (int i = 0; i < snapshot.length; i++) {
+                snapshot[i] = c.getItem(i).copy();
             }
+            menuKit$containerSnapshots.put(c, snapshot);
+        }
+    }
 
-            // Find vanilla inventory slot range (non-MKSlots)
-            int vanillaStart = -1, vanillaEnd = -1;
-            for (int i = 0; i < menu.slots.size(); i++) {
-                if (!(menu.slots.get(i) instanceof MKSlot)) {
-                    if (vanillaStart < 0) vanillaStart = i;
-                    vanillaEnd = i + 1;
+    // ── Change Detection via broadcastChanges ────────────────────────────────
+
+    /**
+     * After vanilla's broadcastChanges(), compare current container contents
+     * against our snapshots. If anything changed, fire change listeners on
+     * the affected containers. This gives 100% coverage — every Container
+     * in every menu, regardless of implementation class.
+     */
+    @Inject(method = "broadcastChanges", at = @At("RETURN"))
+    private void menuKit$detectContainerChanges(CallbackInfo ci) {
+        if (menuKit$containerSnapshots == null) return;
+
+        for (Map.Entry<Container, ItemStack[]> entry : menuKit$containerSnapshots.entrySet()) {
+            Container c = entry.getKey();
+            ItemStack[] snapshot = entry.getValue();
+            MKContainerState state = MKContainerStateRegistry.get(c);
+            if (state == null || !state.hasChangeListeners()) continue;
+
+            // Compare each slot against snapshot
+            boolean changed = false;
+            int size = Math.min(snapshot.length, c.getContainerSize());
+            for (int i = 0; i < size; i++) {
+                ItemStack current = c.getItem(i);
+                if (!ItemStack.matches(current, snapshot[i])) {
+                    changed = true;
+                    snapshot[i] = current.copy();
                 }
             }
-            if (vanillaStart < 0) {
-                cir.setReturnValue(ItemStack.EMPTY);
-                return;
-            }
 
-            ItemStack original = sourceStack.copy();
-            if (!((AbstractContainerMenuInvoker) menu).trevorMod$moveItemStackTo(
-                    sourceStack, vanillaStart, vanillaEnd, false)) {
-                cir.setReturnValue(ItemStack.EMPTY);
-                return;
-            }
-            sourceSlot.setByPlayer(sourceStack, original);
-            sourceSlot.setChanged();
-            cir.setReturnValue(original);
-            return;
-        }
-
-        // ── Case 2: Shift-click FROM a vanilla slot → try MKSlots first ─────
-        // Only route to MKSlots that have shiftClickIn=true, are active, and
-        // accept the item via mayPlace(). Two passes: partial stacks first,
-        // then empty slots.
-
-        ItemStack original = sourceStack.copy();
-        boolean moved = false;
-
-        // Pass 1: Fill existing partial stacks in shiftClickIn-enabled MKSlots
-        for (Slot targetSlot : menu.slots) {
-            if (sourceStack.isEmpty()) break;
-            if (!(targetSlot instanceof MKSlot mkTarget)) continue;
-            if (!mkTarget.canShiftClickIn()) continue;
-            if (!mkTarget.mayPlace(sourceStack)) continue;
-
-            ItemStack targetItem = mkTarget.getItem();
-            if (!targetItem.isEmpty()
-                    && ItemStack.isSameItemSameComponents(sourceStack, targetItem)
-                    && targetItem.getCount() < mkTarget.getMaxStackSize()) {
-                int space = mkTarget.getMaxStackSize() - targetItem.getCount();
-                int toAdd = Math.min(sourceStack.getCount(), space);
-                sourceStack.shrink(toAdd);
-                targetItem.grow(toAdd);
-                mkTarget.setChanged();
-                moved = true;
+            if (changed) {
+                state.fireChangeListeners(c);
             }
         }
-
-        // Pass 2: Place into empty shiftClickIn-enabled MKSlots
-        for (Slot targetSlot : menu.slots) {
-            if (sourceStack.isEmpty()) break;
-            if (!(targetSlot instanceof MKSlot mkTarget)) continue;
-            if (!mkTarget.canShiftClickIn()) continue;
-            if (!mkTarget.mayPlace(sourceStack)) continue;
-
-            if (mkTarget.getItem().isEmpty()) {
-                int toPlace = Math.min(sourceStack.getCount(), mkTarget.getMaxStackSize());
-                mkTarget.setByPlayer(sourceStack.split(toPlace), original);
-                mkTarget.setChanged();
-                moved = true;
-            }
-        }
-
-        if (moved) {
-            sourceSlot.setChanged();
-            cir.setReturnValue(original);
-            return;
-        }
-
-        // No MKSlot accepted the item — let vanilla handle it normally
     }
+
+    // ── Read-Only Enforcement via clicked ─────────────────────────────────────
+
+    /**
+     * Before processing any click, check if the target slot's container is
+     * tagged as read-only (OUTPUT persistence). If so, block any action that
+     * would PLACE items into it. Taking items OUT is still allowed.
+     */
+    @Inject(method = "clicked", at = @At("HEAD"), cancellable = true)
+    private void menuKit$enforceReadOnly(int slotIndex, int button, ClickType clickType,
+                                          Player player, CallbackInfo ci) {
+        AbstractContainerMenu menu = (AbstractContainerMenu)(Object) this;
+        if (slotIndex < 0 || slotIndex >= menu.slots.size()) return;
+
+        Slot slot = menu.slots.get(slotIndex);
+        Container c = slot.container;
+        if (c == null) return;
+
+        MKContainerState state = MKContainerStateRegistry.get(c);
+        if (state == null || !state.isReadOnly()) return;
+
+        // Read-only containers: only allow TAKING items out (left-click pickup,
+        // shift-click out). Block placing, swapping, or any action that would
+        // add items to this container.
+        // PICKUP with empty carried item = taking out (allowed)
+        // QUICK_MOVE from this slot = shift-click out (allowed)
+        // Everything else that targets this slot = blocked
+        ItemStack carried = menu.getCarried();
+        if (clickType == ClickType.PICKUP && carried.isEmpty()) return; // taking out
+        if (clickType == ClickType.QUICK_MOVE) return; // shift-click out
+
+        // Block all other interactions on read-only containers
+        ci.cancel();
+    }
+
+    // ── Cleanup ──────────────────────────────────────────────────────────────
+
+    /**
+     * Cleans up MenuKit state when a menu is closed.
+     * Removes slot→panel mappings, vanilla container wrappers,
+     * and container state snapshots.
+     */
+    @Inject(method = "removed", at = @At("TAIL"))
+    private void menuKit$cleanupOnRemoved(Player player, CallbackInfo ci) {
+        AbstractContainerMenu menu = (AbstractContainerMenu)(Object) this;
+        MenuKit.cleanupSlotPanelMapping(menu);
+        MenuKit.cleanupVanillaContainers(menu);
+        MKSlotStateRegistry.cleanupMenu(menu);
+
+        // Clean up container state for non-persistent containers
+        // (Player inventory persists across menus, so don't remove its state)
+        if (menuKit$containerSnapshots != null) {
+            for (Container c : menuKit$containerSnapshots.keySet()) {
+                if (!(c instanceof Inventory)) {
+                    MKContainerStateRegistry.remove(c);
+                }
+            }
+            menuKit$containerSnapshots.clear();
+            menuKit$containerSnapshots = null;
+        }
+    }
+
+    // ── Shift-click routing is handled per-menu-class ───────────────────────
+    // quickMoveStack() is abstract on AbstractContainerMenu, so we can't inject
+    // here. Instead:
+    //   - InventoryMenu: handled by MKMenuMixin
+    //   - Other concrete menus: vanilla's own quickMoveStack uses moveItemStackTo,
+    //     which calls mayPlace() on each target slot. MKSlots block items from
+    //     going into hidden/disabled slots naturally.
+    //
+    // Custom MKSlots (equipment, peek) are injected AFTER vanilla slots in the
+    // menu. Vanilla's quickMoveStack doesn't know about them — it only routes
+    // within its own slot ranges. Our MKMenuMixin handles the InventoryMenu case
+    // where custom MKSlots need priority routing.
 }

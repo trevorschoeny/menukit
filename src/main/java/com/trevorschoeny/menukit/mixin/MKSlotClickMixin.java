@@ -43,39 +43,40 @@ public class MKSlotClickMixin {
 
         AbstractContainerMenu menu = (AbstractContainerMenu) (Object) this;
 
-        // Try to find the MKSlot — either from vanilla's slotId or our own hover detection
-        MKSlot mkSlot = null;
+        // Try to find a MenuKit-managed slot — either from vanilla's slotId or hover detection
+        Slot targetSlot = null;
+        com.trevorschoeny.menukit.MKSlotState state = null;
 
         if (slotId >= 0 && slotId < menu.slots.size()) {
-            // Vanilla found a slot — check if it's one of ours
             Slot slot = menu.slots.get(slotId);
-            if (slot instanceof MKSlot mk) {
-                mkSlot = mk;
-            } else if (slot instanceof SlotWrapperAccessor w) {
-                // Creative mode wraps slots — unwrap to find the MKSlot
-                var target = w.menuKit$getTarget();
-                if (target instanceof MKSlot mk) {
-                    mkSlot = mk;
-                }
+            // Unwrap SlotWrapper (creative mode) if needed
+            if (slot instanceof SlotWrapperAccessor w) {
+                slot = w.menuKit$getTarget();
+            }
+            state = com.trevorschoeny.menukit.MKSlotStateRegistry.get(slot);
+            if (state != null && state.isMenuKitSlot()) {
+                targetSlot = slot;
             }
         }
 
-        // If vanilla didn't find it (slotId == -1, outside container bounds),
-        // fall back to MenuKit's hover detection from renderSlotBackgrounds
-        if (mkSlot == null) {
-            mkSlot = MenuKit.getHoveredMKSlot();
+        // Fall back to MenuKit's hover detection from renderSlotBackgrounds
+        if (targetSlot == null) {
+            targetSlot = MenuKit.getHoveredMKSlot();
+            if (targetSlot != null) {
+                state = com.trevorschoeny.menukit.MKSlotStateRegistry.get(targetSlot);
+            }
         }
 
-        if (mkSlot == null) return;
+        if (targetSlot == null || state == null) return;
 
         // Both the slot and the cursor must be empty
-        if (mkSlot.hasItem()) return;
+        if (targetSlot.hasItem()) return;
         if (!menu.getCarried().isEmpty()) return;
 
         // Fire the callback if one is registered
-        var callback = mkSlot.getOnEmptyClick();
+        var callback = state.getOnEmptyClick();
         if (callback != null) {
-            callback.accept(mkSlot);
+            callback.accept(targetSlot);
         }
     }
 }

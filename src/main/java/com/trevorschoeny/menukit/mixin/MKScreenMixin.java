@@ -3,6 +3,8 @@ package com.trevorschoeny.menukit.mixin;
 import com.trevorschoeny.menukit.MKButton;
 import com.trevorschoeny.menukit.MKContext;
 import com.trevorschoeny.menukit.MKSlot;
+import com.trevorschoeny.menukit.MKSlotState;
+import com.trevorschoeny.menukit.MKSlotStateRegistry;
 import com.trevorschoeny.menukit.MenuKit;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -203,16 +205,23 @@ public class MKScreenMixin extends Screen {
         // Use MenuKit's own hover detection first (works in all injected-panel
         // contexts), then fall back to vanilla's hoveredSlot (works for standalone
         // screens where MenuKit.renderSlotBackgrounds isn't called).
-        MKSlot mkSlot = MenuKit.getHoveredMKSlot();
-        if (mkSlot == null && hoveredSlot instanceof MKSlot vanilla) {
-            mkSlot = vanilla;
+        // Check for empty-slot tooltip on any MenuKit-managed slot
+        net.minecraft.world.inventory.Slot hoveredMK = MenuKit.getHoveredMKSlot();
+        if (hoveredMK == null && hoveredSlot != null) {
+            MKSlotState hState = MKSlotStateRegistry.get(hoveredSlot);
+            if (hState != null && hState.isMenuKitSlot()) {
+                hoveredMK = hoveredSlot;
+            }
         }
-        if (mkSlot != null && !mkSlot.hasItem() && mkSlot.isActive()) {
-            var tooltipSupplier = mkSlot.getEmptyTooltip();
-            if (tooltipSupplier != null) {
-                Component text = tooltipSupplier.get();
-                if (text != null) {
-                    graphics.setTooltipForNextFrame(text, mouseX, mouseY);
+        if (hoveredMK != null && !hoveredMK.hasItem() && hoveredMK.isActive()) {
+            MKSlotState hState = MKSlotStateRegistry.get(hoveredMK);
+            if (hState != null) {
+                var tooltipSupplier = hState.getEmptyTooltip();
+                if (tooltipSupplier != null) {
+                    Component text = tooltipSupplier.get();
+                    if (text != null) {
+                        graphics.setTooltipForNextFrame(text, mouseX, mouseY);
+                    }
                 }
             }
         }
