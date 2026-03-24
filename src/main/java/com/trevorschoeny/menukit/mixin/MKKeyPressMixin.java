@@ -6,6 +6,7 @@ import com.trevorschoeny.menukit.MKEventHelper;
 import com.trevorschoeny.menukit.MKSlotEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.Slot;
 import org.spongepowered.asm.mixin.Mixin;
@@ -57,13 +58,12 @@ public class MKKeyPressMixin {
      * hovering a slot. If any handler returns CONSUMED, cancels vanilla's
      * key handling by returning true (key was handled).
      *
-     * @param keyCode   GLFW key code (e.g., GLFW_KEY_E = 69)
-     * @param scanCode  platform-specific scan code
-     * @param modifiers modifier flags (shift, ctrl, alt bitmask)
-     * @param cir       callback — set return value to cancel vanilla handling
+     * @param event  1.21.11 KeyEvent wrapping the GLFW key code (use event.key())
+     * @param cir    callback — set return value to cancel vanilla handling
      */
-    @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
-    private void menuKit$onKeyPress(int keyCode, int scanCode, int modifiers,
+    @Inject(method = "keyPressed(Lnet/minecraft/client/input/KeyEvent;)Z",
+            at = @At("HEAD"), cancellable = true)
+    private void menuKit$onKeyPress(KeyEvent event,
                                      CallbackInfoReturnable<Boolean> cir) {
 
         // ── Only fire when hovering a slot ───────────────────────────────
@@ -82,18 +82,21 @@ public class MKKeyPressMixin {
         Player player = Minecraft.getInstance().player;
         if (player == null) return;
 
+        // ── Extract key code from the 1.21.11 KeyEvent ────────────────────
+        // event.key() returns the GLFW key constant. Consumers use
+        // mkEvent.getKeyCode() to check which key was pressed.
+        int keyCode = event.key();
+
         // ── Build and fire the event ─────────────────────────────────────
-        // keyCode is the GLFW key constant. Consumers use event.getKeyCode()
-        // to check which key was pressed and decide whether to consume it.
-        MKSlotEvent event = MKEventHelper.buildKeyEvent(
+        MKSlotEvent mkEvent = MKEventHelper.buildKeyEvent(
                 this.hoveredSlot, self, player, keyCode);
-        if (event == null) return;
+        if (mkEvent == null) return;
 
         // ── Dispatch through the bus ─────────────────────────────────────
         // If any handler returns CONSUMED, we cancel vanilla's key handling.
         // This prevents the default action (e.g., number-key swap, drop key)
         // from executing when a MenuKit handler has claimed the key press.
-        boolean consumed = MKEventBus.fire(event);
+        boolean consumed = MKEventBus.fire(mkEvent);
         if (consumed) {
             cir.setReturnValue(true);
         }
