@@ -358,6 +358,10 @@ public class MKPanel {
         private boolean rightAligned = false;
         private boolean rightAlignedExplicit = false; // true if user called .rightAligned()
 
+        // Shift-click directional flags (default: false — opt-in per panel)
+        private boolean shiftClickIn = false;
+        private boolean shiftClickOut = false;
+
         // Runtime disable predicate
         private @Nullable BooleanSupplier disabledWhen;
 
@@ -656,6 +660,26 @@ public class MKPanel {
         }
 
         /**
+         * Allows items to be shift-clicked INTO this panel's slots.
+         * Default is false — panels don't participate in shift-click routing
+         * unless explicitly opted in. When the panel is hidden, this flag
+         * is effectively false regardless of the setting.
+         */
+        public Builder shiftClickIn(boolean value) {
+            this.shiftClickIn = value; return this;
+        }
+
+        /**
+         * Allows items to be shift-clicked OUT OF this panel's slots.
+         * Default is false — shift-clicking an item in this panel does nothing
+         * unless explicitly opted in. When the panel is hidden, this flag
+         * is effectively false regardless of the setting.
+         */
+        public Builder shiftClickOut(boolean value) {
+            this.shiftClickOut = value; return this;
+        }
+
+        /**
          * Hides this panel at runtime when the predicate returns true.
          * When disabled, the panel background, all slots, and all buttons
          * disappear — as if the panel was never registered. Items in disabled
@@ -809,7 +833,9 @@ public class MKPanel {
                     layoutMode,
                     gap >= 0 ? gap : 0,
                     rootGroup,
-                    aligned);
+                    aligned,
+                    shiftClickIn,
+                    shiftClickOut);
             // ── Validation ────────────────────────────────────────────────
             // Catch configuration errors at mod init so they don't surface
             // as confusing runtime bugs later.

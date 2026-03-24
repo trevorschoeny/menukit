@@ -145,6 +145,29 @@ public class MKSlot extends Slot {
         return true;
     }
 
+    // ── Shift-Click Directional Checks ─────────────────────────────────────
+
+    /**
+     * Returns true if this slot's panel allows items to be shift-clicked IN.
+     * Combines the panel's shiftClickIn flag with active/visibility checks.
+     */
+    public boolean canShiftClickIn() {
+        return panelName != null && MenuKit.isShiftClickIn(panelName);
+    }
+
+    /**
+     * Returns true if this slot's panel allows items to be shift-clicked OUT.
+     * Combines the panel's shiftClickOut flag with active/visibility checks.
+     */
+    public boolean canShiftClickOut() {
+        return panelName != null && MenuKit.isShiftClickOut(panelName);
+    }
+
+    /** Returns the panel name this slot belongs to. */
+    public @Nullable String getPanelName() {
+        return panelName;
+    }
+
     // ── Overrides ───────────────────────────────────────────────────────────
     // Everything else (getItem, set, remove) is inherited from Slot
     // and delegates to MKContainer via the Container interface.

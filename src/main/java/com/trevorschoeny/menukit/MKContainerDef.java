@@ -20,10 +20,11 @@ package com.trevorschoeny.menukit;
 public record MKContainerDef(
         String name,            // unique identifier, used as NBT key
         BindingType binding,    // PLAYER, INSTANCE, or EPHEMERAL
+        Persistence persistence,// PERSISTENT, TRANSIENT, or OUTPUT
         int size                // number of slots in the container
 ) {
 
-    /** How a container's data is keyed and persisted. */
+    /** How a container's data is keyed and persisted (WHO sees it). */
     public enum BindingType {
         /** Container follows the player. Stored in player NBT. Same items everywhere. */
         PLAYER,
@@ -34,6 +35,18 @@ public record MKContainerDef(
          *  lookup but skipped during save/load. Designed to be bound to an external
          *  source (item contents, live container) via {@link MKContainer#bind}. */
         EPHEMERAL
+    }
+
+    /** What happens to items in the container (HOW items behave). Orthogonal to binding. */
+    public enum Persistence {
+        /** Items stay in the container across screen close. Default for most containers. */
+        PERSISTENT,
+        /** Items eject to the player's inventory when the screen closes.
+         *  Like vanilla crafting grids — temporary workspace. */
+        TRANSIENT,
+        /** Read-only — items can be taken out but cannot be placed in.
+         *  Like vanilla crafting result or furnace output. */
+        OUTPUT
     }
 
     // ── Builder ─────────────────────────────────────────────────────────────
@@ -52,11 +65,14 @@ public record MKContainerDef(
     public static class Builder {
         private final String name;
         private BindingType binding = BindingType.PLAYER;
+        private Persistence persistence = Persistence.PERSISTENT;
         private int size = 0;
 
         Builder(String name) {
             this.name = name;
         }
+
+        // ── Binding (WHO sees it) ────────────────────────────────────────
 
         /** Container follows the player (default). Stored in player NBT. */
         public Builder playerBound() {
@@ -74,6 +90,27 @@ public record MKContainerDef(
             this.binding = BindingType.EPHEMERAL; return this;
         }
 
+        // ── Persistence (HOW items behave) ───────────────────────────────
+
+        /** Items persist across screen close (default). */
+        public Builder persistent() {
+            this.persistence = Persistence.PERSISTENT; return this;
+        }
+
+        /** Items eject to player inventory when the screen closes.
+         *  Like vanilla crafting grids — temporary workspace. */
+        public Builder transientItems() {
+            this.persistence = Persistence.TRANSIENT; return this;
+        }
+
+        /** Read-only — items can be taken out but not placed in.
+         *  Like vanilla crafting result or furnace output. */
+        public Builder outputOnly() {
+            this.persistence = Persistence.OUTPUT; return this;
+        }
+
+        // ── Size ─────────────────────────────────────────────────────────
+
         /** Sets the number of slots in the container. */
         public Builder size(int size) {
             this.size = size; return this;
@@ -85,7 +122,7 @@ public record MKContainerDef(
                 throw new IllegalStateException(
                         "[MenuKit] Container '" + name + "' must have size > 0");
             }
-            MenuKit.registerContainer(new MKContainerDef(name, binding, size));
+            MenuKit.registerContainer(new MKContainerDef(name, binding, persistence, size));
         }
     }
 }

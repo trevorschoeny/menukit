@@ -52,7 +52,9 @@ public record MKPanelDef(
         LayoutMode layoutMode,                                  // child layout: MANUAL, COLUMN, or ROW (legacy flat path)
         int layoutGap,                                          // gap between children in flow layout (legacy)
         @Nullable MKGroupDef rootGroup,                         // layout tree root (null = legacy flat path)
-        boolean rightAligned                                    // children align right within the panel (auto-derived from posMode)
+        boolean rightAligned,                                   // children align right within the panel (auto-derived from posMode)
+        boolean shiftClickIn,                                   // items can be shift-clicked INTO this panel's slots (default: false)
+        boolean shiftClickOut                                   // items can be shift-clicked OUT OF this panel's slots (default: false)
 ) {
 
     // ── Position Mode ──────────────────────────────────────────────────────

@@ -48,12 +48,30 @@ class BundleContainerSource implements MKContainerSource {
 
     @Override
     public void sync(MKContainer container) {
-        // Collect non-empty items, removing gaps (backfill)
+        // Collect non-empty items, consolidating matching stacks (auto-stack)
         List<ItemStack> items = new ArrayList<>();
         int count = Math.min(MAX_BUNDLE_SLOTS, container.getContainerSize());
         for (int i = 0; i < count; i++) {
             ItemStack item = container.getItem(i);
-            if (!item.isEmpty()) {
+            if (item.isEmpty()) continue;
+
+            // Try to merge with an existing stack in the collected list
+            boolean merged = false;
+            for (ItemStack existing : items) {
+                if (ItemStack.isSameItemSameComponents(existing, item)
+                        && existing.getCount() < existing.getMaxStackSize()) {
+                    int space = existing.getMaxStackSize() - existing.getCount();
+                    int toAdd = Math.min(item.getCount(), space);
+                    existing.grow(toAdd);
+                    item.shrink(toAdd);
+                    if (item.isEmpty()) {
+                        merged = true;
+                        break;
+                    }
+                }
+            }
+            // If not fully merged (or no match), add as a new entry
+            if (!merged && !item.isEmpty()) {
                 items.add(item.copy());
             }
         }
