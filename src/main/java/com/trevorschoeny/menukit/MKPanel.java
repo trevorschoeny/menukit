@@ -469,6 +469,57 @@ public class MKPanel {
             return this;
         }
 
+        // ── Hotbar-relative positioning ──────────────────────────────────────
+        //
+        // These methods position the panel relative to the hotbar row.
+        // MenuKit resolves the hotbar's actual X/Y per-context at runtime,
+        // so the consumer never needs to know per-screen coordinates.
+
+        /**
+         * Positions the panel relative to the hotbar row's top-left corner.
+         * MenuKit resolves the hotbar position per-context (survival=8,
+         * beacon=36, villager=108, creative=9, etc.) so the consumer only
+         * specifies the offset from the hotbar.
+         *
+         * <p>Positive xOffset moves right; positive yOffset moves down.
+         * Common patterns:
+         * <ul>
+         *   <li>{@code .posRelativeToHotbar(0, 18)} — directly below the hotbar</li>
+         *   <li>{@code .posRelativeToHotbar(0, -20)} — directly above the hotbar</li>
+         *   <li>{@code .posRelativeToHotbar(36, 20)} — below, offset to slot 2</li>
+         * </ul>
+         *
+         * @param xOffset pixels right of the hotbar's left edge
+         * @param yOffset pixels below the hotbar's top edge (negative = above)
+         */
+        public Builder posRelativeToHotbar(int xOffset, int yOffset) {
+            this.posMode = MKPanelDef.PosMode.HOTBAR_RELATIVE;
+            this.posArg1 = xOffset;
+            this.posArg2 = yOffset;
+            return this;
+        }
+
+        /**
+         * Positions the panel relative to a specific hotbar slot (0-8).
+         * Convenience method that computes the X offset from the slot index.
+         *
+         * <p>Example: to place a panel below hotbar slot 3 with a 2px gap:
+         * <pre>{@code
+         * .posRelativeToHotbarSlot(3, 0, 18 + 2)  // slotX + 0, hotbarY + 20
+         * }</pre>
+         *
+         * @param hotbarIndex the hotbar slot (0 = leftmost, 8 = rightmost)
+         * @param xOffset     additional X offset from the slot's left edge
+         * @param yOffset     pixels below the hotbar's top edge (negative = above)
+         */
+        public Builder posRelativeToHotbarSlot(int hotbarIndex, int xOffset, int yOffset) {
+            this.posMode = MKPanelDef.PosMode.HOTBAR_RELATIVE;
+            // Bake the slot offset into posArg1 so resolvePosition just adds hotbarX
+            this.posArg1 = hotbarIndex * MKContextLayout.SLOT_SPACING + xOffset;
+            this.posArg2 = yOffset;
+            return this;
+        }
+
         /**
          * Specifies which contexts (screens) this panel appears in.
          * Can be called multiple times — contexts accumulate.
@@ -486,6 +537,64 @@ public class MKPanel {
          */
         public Builder showIn(java.util.Set<MKContext> ctxs) {
             contexts.addAll(ctxs);
+            return this;
+        }
+
+        /**
+         * Show in ALL contexts that have the player's inventory visible.
+         * Shorthand for {@code showIn(MKContext.ALL_WITH_PLAYER_INVENTORY)}.
+         *
+         * <p>This is the most common "show everywhere relevant" choice —
+         * it covers survival, creative, all storage, crafting, processing,
+         * and special screens, but excludes read-only screens like LECTERN.
+         */
+        public Builder showInAll() {
+            contexts.addAll(MKContext.ALL_WITH_PLAYER_INVENTORY);
+            return this;
+        }
+
+        /**
+         * Show in all player-inventory contexts EXCEPT the specified ones.
+         * Convenience for "show everywhere, but not in X."
+         *
+         * <p>Example — show in all screens except the lectern and beacon:
+         * <pre>{@code
+         * .showInAllExcept(MKContext.LECTERN, MKContext.BEACON)
+         * }</pre>
+         *
+         * <p>Starts from {@link MKContext#ALL_WITH_PLAYER_INVENTORY} and
+         * removes each exclusion. Safe to exclude contexts that aren't in
+         * the base set — they're silently ignored.
+         *
+         * @param exclude contexts to remove from ALL_WITH_PLAYER_INVENTORY
+         */
+        public Builder showInAllExcept(MKContext... exclude) {
+            return showInExcept(MKContext.ALL_WITH_PLAYER_INVENTORY, exclude);
+        }
+
+        /**
+         * Show in a base set of contexts minus specific exclusions.
+         * The most flexible subtraction method — pick any predefined set
+         * (or custom set) as the base, then carve out what you don't want.
+         *
+         * <p>Example — show in all storage screens except hopper:
+         * <pre>{@code
+         * .showInExcept(MKContext.ALL_STORAGE, MKContext.HOPPER)
+         * }</pre>
+         *
+         * <p>Does not modify the base set — creates a copy internally.
+         * Safe to exclude contexts not present in the base (no-op).
+         *
+         * @param base    the starting set of contexts
+         * @param exclude contexts to remove from the base set
+         */
+        public Builder showInExcept(java.util.Set<MKContext> base, MKContext... exclude) {
+            // Copy into a mutable EnumSet so we don't mutate the shared constant
+            java.util.EnumSet<MKContext> result = java.util.EnumSet.copyOf(base);
+            for (MKContext ctx : exclude) {
+                result.remove(ctx);
+            }
+            contexts.addAll(result);
             return this;
         }
 
@@ -896,6 +1005,10 @@ public class MKPanel {
         private @Nullable BooleanSupplier disabledWhen;
         private @Nullable Consumer<net.minecraft.world.inventory.Slot> onEmptyClick;
         private @Nullable Supplier<net.minecraft.network.chat.Component> emptyTooltip;
+        // ── Visual Decorations ──────────────────────────────────────────
+        private int backgroundTint = 0;
+        private @Nullable Identifier overlayIcon = null;
+        private int borderColor = 0;
 
         SlotBuilder(Builder parent, int childX, int childY) {
             this.parent = parent;
@@ -981,6 +1094,33 @@ public class MKPanel {
             this.emptyTooltip = tooltip; return this;
         }
 
+        // ── Visual Decoration Builders ──────────────────────────────────
+
+        /**
+         * Sets an ARGB background tint rendered BEHIND the item.
+         * Use the alpha channel to control transparency.
+         * Example: {@code .tint(0x40FF0000)} for semi-transparent red.
+         */
+        public SlotBuilder tint(int argb) {
+            this.backgroundTint = argb; return this;
+        }
+
+        /**
+         * Sets an icon texture rendered ON TOP of the slot item.
+         * Useful for status indicators (lock, warning, etc.).
+         */
+        public SlotBuilder overlayIcon(Identifier icon) {
+            this.overlayIcon = icon; return this;
+        }
+
+        /**
+         * Sets an ARGB border color drawn as a 1px outline ON TOP of the item.
+         * Example: {@code .borderColor(0xFFFFD700)} for a gold border.
+         */
+        public SlotBuilder borderColor(int argb) {
+            this.borderColor = argb; return this;
+        }
+
         /** Finalizes this slot definition and returns to the panel builder. */
         public Builder done() {
             if (vanillaInventoryIndex < 0 && (containerName == null || containerIndex < 0)) {
@@ -994,7 +1134,8 @@ public class MKPanel {
                     containerIndex,
                     filter, maxStack, ghostIcon, disabledWhen,
                     vanillaInventoryIndex,
-                    onEmptyClick, emptyTooltip));
+                    onEmptyClick, emptyTooltip,
+                    backgroundTint, overlayIcon, borderColor));
             return parent;
         }
     }
@@ -1443,6 +1584,10 @@ public class MKPanel {
             private @Nullable Consumer<net.minecraft.world.inventory.Slot> onEmptyClick;
             private @Nullable Supplier<Component> emptyTooltip;
             private int vanillaInventoryIndex = -1;
+            // ── Visual Decorations ──────────────────────────────────────
+            private int backgroundTint = 0;
+            private @Nullable Identifier overlayIcon = null;
+            private int borderColor = 0;
 
             GSlotBuilder(GroupBuilder parent) { this.parent = parent; }
 
@@ -1473,6 +1618,18 @@ public class MKPanel {
             public GSlotBuilder emptyTooltip(Supplier<Component> tooltip) {
                 this.emptyTooltip = tooltip; return this;
             }
+            /** ARGB background tint rendered BEHIND the item. 0 = none. */
+            public GSlotBuilder tint(int argb) {
+                this.backgroundTint = argb; return this;
+            }
+            /** Icon rendered ON TOP of the slot item. */
+            public GSlotBuilder overlayIcon(Identifier icon) {
+                this.overlayIcon = icon; return this;
+            }
+            /** ARGB border color drawn ON TOP of the item. 0 = none. */
+            public GSlotBuilder borderColor(int argb) {
+                this.borderColor = argb; return this;
+            }
 
             public GroupBuilder done() {
                 if (containerName == null || containerIndex < 0) {
@@ -1483,7 +1640,8 @@ public class MKPanel {
                 parent.children.add(new MKGroupChild.Slot(new MKSlotDef(
                         0, 0, containerName, containerIndex,
                         filter, maxStack, ghostIcon, disabledWhen,
-                        vanillaInventoryIndex, onEmptyClick, emptyTooltip)));
+                        vanillaInventoryIndex, onEmptyClick, emptyTooltip,
+                        backgroundTint, overlayIcon, borderColor)));
                 return parent;
             }
         }

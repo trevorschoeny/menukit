@@ -162,6 +162,26 @@ public class MKScreenMixin extends Screen {
     }
 
     /**
+     * Stage C: Renders overlay icons and border decorations ON TOP of slot items.
+     * Injected at RETURN of renderSlots — after vanilla has drawn all items —
+     * so overlays and borders appear above the item layer.
+     *
+     * <p>Only processes slots with decorations set, so undecorated slots have
+     * zero rendering overhead.
+     */
+    @Inject(method = "renderSlots", at = @At("RETURN"))
+    private void menuKit$renderSlotOverlays(GuiGraphics graphics, int mouseX,
+                                             int mouseY, CallbackInfo ci) {
+        AbstractContainerScreen<?> self = (AbstractContainerScreen<?>)(Object) this;
+
+        MKContext context = MKContext.fromScreen(self);
+        if (context == null) return;
+
+        // Container-translated space — (0, 0) offset, matching renderSlotBackgrounds.
+        MenuKit.renderSlotOverlays(graphics, self.getMenu(), context, 0, 0);
+    }
+
+    /**
      * Captures the actual screen-space mouse position from renderContents().
      *
      * <p>Why renderContents and not render()? In 1.21.11, InventoryScreen and

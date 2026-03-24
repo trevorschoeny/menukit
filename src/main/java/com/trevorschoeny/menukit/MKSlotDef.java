@@ -37,7 +37,11 @@ public record MKSlotDef(
         @Nullable BooleanSupplier disabledWhen,      // runtime predicate: slot hidden when true
         int vanillaInventoryIndex,                   // >=0: use player.getInventory() at this index instead of MKContainer
         @Nullable Consumer<net.minecraft.world.inventory.Slot> onEmptyClick,     // callback: player clicked empty slot with empty cursor
-        @Nullable Supplier<Component> emptyTooltip    // tooltip: shown when hovering empty slot with empty cursor
+        @Nullable Supplier<Component> emptyTooltip,  // tooltip: shown when hovering empty slot with empty cursor
+        // ── Visual Decorations ───────────────────────────────────────────
+        int backgroundTint,                          // ARGB tint rendered BEHIND the item (0 = none)
+        @Nullable Identifier overlayIcon,            // icon rendered ON TOP of the slot item
+        int borderColor                              // ARGB border drawn ON TOP of the item (0 = none)
 ) {
 
     /** Whether this slot mirrors a vanilla Inventory slot (hotbar, armor, etc.). */
@@ -81,6 +85,8 @@ public record MKSlotDef(
         if (emptyTooltip != null) {
             slot.setEmptyTooltip(emptyTooltip);
         }
+        // Propagate visual decorations from the blueprint to the runtime state
+        applyDecorations(slot);
         return slot;
     }
 
@@ -147,6 +153,24 @@ public record MKSlotDef(
         if (emptyTooltip != null) {
             slot.setEmptyTooltip(emptyTooltip);
         }
+        // Propagate visual decorations from the blueprint to the runtime state
+        applyDecorations(slot);
         return slot;
+    }
+
+    // ── Decoration Propagation ──────────────────────────────────────────────
+
+    /**
+     * Copies visual decoration values from this immutable blueprint into the
+     * live slot's MKSlotState. Called by both createSlot and createSlotAt so
+     * declaratively-set decorations take effect at runtime.
+     */
+    private void applyDecorations(MKSlot slot) {
+        if (backgroundTint == 0 && overlayIcon == null && borderColor == 0) return;
+
+        MKSlotState state = MKSlotStateRegistry.getOrCreate(slot);
+        if (backgroundTint != 0) state.setBackgroundTint(backgroundTint);
+        if (overlayIcon != null) state.setOverlayIcon(overlayIcon);
+        if (borderColor != 0)    state.setBorderColor(borderColor);
     }
 }

@@ -1,8 +1,6 @@
 package com.trevorschoeny.menukit.mixin;
 
-import com.trevorschoeny.menukit.MKContext;
-import com.trevorschoeny.menukit.MKSlot;
-import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.*;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -68,10 +66,39 @@ public class MKMenuMixin {
         // for every container in this menu (crafting, armor, offhand, etc.)
         MenuKit.discoverAndAttachContainerState(menu);
 
+        // ── Step 5: Universal State ──────────────────────────────────────
+        // Ensure every slot in the menu has MKSlotState — vanilla crafting,
+        // armor, hotbar, offhand, AND custom MKSlots. This enables the
+        // event system (right-click, filters, locks, etc.) on ALL slots.
+        // getOrCreate is idempotent: MKSlots already have state from their
+        // constructor; vanilla slots get a fresh default state here.
+        for (Slot slot : menu.slots) {
+            MKSlotState state = MKSlotStateRegistry.getOrCreate(slot);
+
+            // Backfill panel name from the map-based tracking (Step 1) if
+            // not already set. MKSlots set their own panel name during
+            // construction, so this only affects the 46 vanilla slots.
+            if (state.getPanelName() == null) {
+                String panel = MenuKit.getSlotPanelName(menu, slot.index);
+                if (panel != null) {
+                    state.setPanelName(panel);
+                }
+            }
+        }
+
         String side = (owner instanceof net.minecraft.server.level.ServerPlayer) ? "SERVER" : "CLIENT";
         MenuKit.LOGGER.info(
             "[MenuKit] MKMenuMixin {} mapped 46 vanilla slots + added {} MKSlots, total={}",
             side, mkSlots.size(), menu.slots.size());
+
+        // ── Fire MENU_OPEN ───────────────────────────────────────────────
+        // Fires after all slots are injected, container state is attached,
+        // and universal state is created. InventoryMenu always uses
+        // SURVIVAL_INVENTORY context. Consumers can check for creative
+        // mode via the player or screen if needed.
+        MKSlotEvent openEvent = MKSlotEvent.lifecycle(
+                MKSlotEvent.Type.MENU_OPEN, MKContext.SURVIVAL_INVENTORY, owner);
+        MKEventBus.fire(openEvent);
     }
 
     /**

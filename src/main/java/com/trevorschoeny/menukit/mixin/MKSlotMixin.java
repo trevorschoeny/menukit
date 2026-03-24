@@ -14,10 +14,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * Slot mixin layer — adds per-slot behavioral features to ALL vanilla Slots.
  *
- * <p>Hooks into three Slot methods:
+ * <p>Hooks into five Slot methods:
  * <ul>
  *   <li>{@code isActive()} — disabled slots return false (hidden, no interaction)</li>
- *   <li>{@code mayPlace(ItemStack)} — filter and disabled checks block placement</li>
+ *   <li>{@code mayPlace(ItemStack)} — OUTPUT persistence, filter, and disabled checks block placement</li>
+ *   <li>{@code getMaxStackSize()} — wrapper delegation and per-slot override</li>
+ *   <li>{@code getMaxStackSize(ItemStack)} — wrapper delegation for item-specific limits</li>
  *   <li>{@code getNoItemIcon()} — ghost icon shows when slot is empty</li>
  * </ul>
  *
@@ -38,6 +40,7 @@ public class MKSlotMixin {
     private void menuKit$checkDisabled(CallbackInfoReturnable<Boolean> cir) {
         Slot self = (Slot)(Object) this;
         MKSlotState state = MKSlotStateRegistry.get(self);
+        // With universal state, this should never be null. Safety net only.
         if (state != null && !state.isSlotActive()) {
             cir.setReturnValue(false);
         }
@@ -45,14 +48,22 @@ public class MKSlotMixin {
 
     /**
      * If this slot has MKSlotState, enforce:
-     * 1. Disabled slots reject all items
-     * 2. Custom filter rejects non-matching items
+     * 1. OUTPUT persistence blocks all placement (take-only)
+     * 2. Disabled slots reject all items
+     * 3. Custom filter rejects non-matching items
      */
     @Inject(method = "mayPlace", at = @At("HEAD"), cancellable = true)
     private void menuKit$checkFilter(ItemStack stack, CallbackInfoReturnable<Boolean> cir) {
         Slot self = (Slot)(Object) this;
         MKSlotState state = MKSlotStateRegistry.get(self);
+        // With universal state, this should never be null. Safety net only.
         if (state == null) return;
+
+        // OUTPUT slots never accept items — take-only, like crafting result
+        if (state.isPersistenceOutput()) {
+            cir.setReturnValue(false);
+            return;
+        }
 
         // Disabled slots reject everything
         if (state.isDisabled()) {
@@ -73,23 +84,54 @@ public class MKSlotMixin {
         }
 
         // Source constraint check (e.g., bundle weight limits)
-        Slot self2 = (Slot)(Object) this;
-        if (self2.container instanceof com.trevorschoeny.menukit.MKContainer mkc && mkc.isBound()) {
-            if (!mkc.getSource().canAccept(self2.getContainerSlot(), stack)) {
+        if (self.container instanceof com.trevorschoeny.menukit.MKContainer mkc && mkc.isBound()) {
+            if (!mkc.getSource().canAccept(self.getContainerSlot(), stack)) {
                 cir.setReturnValue(false);
             }
         }
     }
 
     /**
-     * If this slot has a per-slot max stack size override, use it.
+     * If this slot wraps a vanilla slot, delegate to the wrapped slot's
+     * max stack size (e.g., armor slots have custom limits).
+     * Otherwise, use the per-slot max stack size override if set.
      */
     @Inject(method = "getMaxStackSize()I", at = @At("HEAD"), cancellable = true)
     private void menuKit$maxStackSize(CallbackInfoReturnable<Integer> cir) {
         Slot self = (Slot)(Object) this;
         MKSlotState state = MKSlotStateRegistry.get(self);
-        if (state != null && state.getMaxStackSize() > 0) {
+        // With universal state, this should never be null. Safety net only.
+        if (state == null) return;
+
+        // Wrapper delegation — preserve the wrapped slot's custom max stack
+        Slot wrapped = state.getWrappedSlot();
+        if (wrapped != null) {
+            cir.setReturnValue(wrapped.getMaxStackSize());
+            return;
+        }
+
+        // Per-slot override from state
+        if (state.getMaxStackSize() > 0) {
             cir.setReturnValue(state.getMaxStackSize());
+        }
+    }
+
+    /**
+     * If this slot wraps a vanilla slot, delegate to the wrapped slot's
+     * item-specific max stack size. Some vanilla slots (e.g., armor, offhand)
+     * limit stack size based on the item type.
+     */
+    @Inject(method = "getMaxStackSize(Lnet/minecraft/world/item/ItemStack;)I", at = @At("HEAD"), cancellable = true)
+    private void menuKit$maxStackSizeForItem(ItemStack stack, CallbackInfoReturnable<Integer> cir) {
+        Slot self = (Slot)(Object) this;
+        MKSlotState state = MKSlotStateRegistry.get(self);
+        // With universal state, this should never be null. Safety net only.
+        if (state == null) return;
+
+        // Wrapper delegation — preserve the wrapped slot's item-specific max stack
+        Slot wrapped = state.getWrappedSlot();
+        if (wrapped != null) {
+            cir.setReturnValue(wrapped.getMaxStackSize(stack));
         }
     }
 
@@ -106,6 +148,8 @@ public class MKSlotMixin {
     private void menuKit$ghostIcon(CallbackInfoReturnable<@Nullable Identifier> cir) {
         Slot self = (Slot)(Object) this;
         MKSlotState state = MKSlotStateRegistry.get(self);
+        // With universal state, state should never be null. The null check
+        // is a safety net — the real gate is getGhostIcon() != null.
         if (state != null && state.getGhostIcon() != null) {
             // Suppress vanilla rendering — MenuKit renders its own ghost icon
             cir.setReturnValue(null);

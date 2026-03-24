@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit;
 
+import com.trevorschoeny.menukit.MKContainerDef.Persistence;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.inventory.Slot;
@@ -76,6 +77,30 @@ public class MKSlotState {
     // ── Right-Click Callbacks ────────────────────────────────────────────
     // Fired when the player right-clicks this slot. Return true to consume.
     private @Nullable List<SlotRightClickHandler> rightClickHandlers;
+
+    // ── Persistence ─────────────────────────────────────────────────────
+    // How items in this slot behave (PERSISTENT, TRANSIENT, or OUTPUT).
+    // null = no persistence set (vanilla default behavior).
+    private @Nullable Persistence persistence;
+
+    // ── Visual Decorations ────────────────────────────────────────────────
+    // ARGB color applied as a translucent fill BEHIND the item.
+    // 0 = no tint. Use alpha channel to control transparency (e.g., 0x40FF0000
+    // for a semi-transparent red tint).
+    private int backgroundTint = 0;
+
+    // Icon texture rendered ON TOP of the slot item (e.g., a lock icon,
+    // a status indicator). null = no overlay.
+    private @Nullable Identifier overlayIcon = null;
+
+    // ARGB color drawn as a 1px border around the 16×16 slot area, ON TOP
+    // of the item. 0 = no border. Fully opaque recommended (0xFFRRGGBB).
+    private int borderColor = 0;
+
+    // ── Wrapped Slot ──────────────────────────────────────────────────────
+    // Reference to the original vanilla slot being wrapped by MKSlotWrapper.
+    // null for non-wrapper slots (MKSlot, vanilla slots with state attached).
+    private @Nullable Slot wrappedSlot;
 
     // ── MenuKit-managed flag ─────────────────────────────────────────────
     // True for slots created by MenuKit (custom panel slots).
@@ -175,6 +200,52 @@ public class MKSlotState {
 
     public @Nullable Supplier<Component> getEmptyTooltip() { return emptyTooltip; }
     public void setEmptyTooltip(@Nullable Supplier<Component> tooltip) { this.emptyTooltip = tooltip; }
+
+    // ── Persistence ─────────────────────────────────────────────────────
+
+    /** Returns the persistence mode, or null if not set. */
+    public @Nullable Persistence getPersistence() { return persistence; }
+    public void setPersistence(@Nullable Persistence persistence) { this.persistence = persistence; }
+
+    /** Convenience: true if this slot's persistence is OUTPUT (take-only). */
+    public boolean isPersistenceOutput() {
+        return persistence == Persistence.OUTPUT;
+    }
+
+    // ── Visual Decorations ─────────────────────────────────────────────────
+
+    /** Returns the ARGB background tint color, or 0 if no tint. */
+    public int getBackgroundTint() { return backgroundTint; }
+
+    /** Sets the ARGB background tint. 0 clears the tint. Rendered BEHIND the item. */
+    public void setBackgroundTint(int argb) { this.backgroundTint = argb; }
+
+    /** Returns the overlay icon rendered ON TOP of the slot item, or null. */
+    public @Nullable Identifier getOverlayIcon() { return overlayIcon; }
+
+    /** Sets an overlay icon drawn ON TOP of the slot item. null clears it. */
+    public void setOverlayIcon(@Nullable Identifier icon) { this.overlayIcon = icon; }
+
+    /** Returns the ARGB border color, or 0 if no border. */
+    public int getBorderColor() { return borderColor; }
+
+    /** Sets the ARGB border color. 0 clears the border. Rendered ON TOP of the item. */
+    public void setBorderColor(int argb) { this.borderColor = argb; }
+
+    /**
+     * Returns true if this slot has any visual decoration set (tint, overlay, or border).
+     * Used as a fast gate in the rendering path — undecorated slots skip all
+     * decoration logic for zero overhead.
+     */
+    public boolean hasDecoration() {
+        return backgroundTint != 0 || overlayIcon != null || borderColor != 0;
+    }
+
+    // ── Wrapped Slot ──────────────────────────────────────────────────────
+
+    /** Returns the original vanilla slot being wrapped, or null if not a wrapper. */
+    public @Nullable Slot getWrappedSlot() { return wrappedSlot; }
+    public void setWrappedSlot(@Nullable Slot slot) { this.wrappedSlot = slot; }
 
     // ── MenuKit-managed ──────────────────────────────────────────────────
 

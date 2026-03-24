@@ -4,7 +4,6 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
 
-import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 
 /**
@@ -17,17 +16,21 @@ import java.util.function.Predicate;
  * fully compatible with all vanilla click handling, sync, and rendering.
  *
  * <p>The wrapper adds MKSlot capabilities: panel association, shift-click
- * directional flags, filters, disabledWhen, ghost icons, etc.
+ * directional flags, filters, disabledWhen, ghost icons, etc. All behavioral
+ * features (OUTPUT enforcement, max stack delegation) are handled by
+ * {@link com.trevorschoeny.menukit.mixin.MKSlotMixin} via {@link MKSlotState},
+ * not by method overrides on this class.
  *
  * <p>Part of the <b>MenuKit</b> framework.
  */
 public class MKSlotWrapper extends MKSlot {
 
-    private final Slot vanillaSlot;                   // the original slot being wrapped
-    private final MKContainerDef.Persistence persistence; // PERSISTENT, TRANSIENT, or OUTPUT
-
     /**
      * Creates a wrapper around an existing vanilla Slot.
+     *
+     * <p>All behavioral features (OUTPUT enforcement, max stack delegation)
+     * are pushed into {@link MKSlotState} and enforced by the mixin layer.
+     * This constructor only sets up the state — no method overrides needed.
      *
      * @param vanillaSlot the original vanilla Slot to wrap
      * @param panelName   the MK panel this slot belongs to
@@ -50,54 +53,28 @@ public class MKSlotWrapper extends MKSlot {
         // Associate with the panel for shift-click routing and visibility
         setPanelName(panelName);
 
-        this.vanillaSlot = vanillaSlot;
-        this.persistence = persistence;
+        // Push persistence and wrapped slot reference into MKSlotState.
+        // The mixin layer reads these to enforce OUTPUT blocking and
+        // delegate max stack size to the original vanilla slot.
+        MKSlotState state = MKSlotStateRegistry.getOrCreate(this);
+        state.setPersistence(persistence);
+        state.setWrappedSlot(vanillaSlot);
     }
 
-    // ── Persistence ──────────────────────────────────────────────────────────
+    // ── Convenience Accessors (delegate to MKSlotState) ──────────────────────
 
     /** Returns how items in this slot behave (PERSISTENT, TRANSIENT, or OUTPUT). */
     public MKContainerDef.Persistence getPersistence() {
-        return persistence;
+        MKSlotState state = MKSlotStateRegistry.get(this);
+        return state != null ? state.getPersistence() : MKContainerDef.Persistence.PERSISTENT;
     }
-
-    // ── OUTPUT enforcement ───────────────────────────────────────────────────
-
-    /**
-     * For OUTPUT slots, items cannot be placed in — only taken out.
-     * Delegates to the vanilla slot's mayPlace for all other cases,
-     * then applies the MKSlot filter on top.
-     */
-    @Override
-    public boolean mayPlace(ItemStack stack) {
-        // OUTPUT slots never accept items
-        if (persistence == MKContainerDef.Persistence.OUTPUT) return false;
-        // Delegate to parent MKSlot logic (filter + source constraints)
-        return super.mayPlace(stack);
-    }
-
-    // ── Vanilla slot access ──────────────────────────────────────────────────
 
     /** Returns the original vanilla Slot that this wrapper replaced. */
     public Slot getVanillaSlot() {
-        return vanillaSlot;
-    }
-
-    /**
-     * Delegates to the vanilla slot's max stack size if it has a custom one.
-     * Some vanilla slots (like armor slots) have custom max stack sizes.
-     */
-    @Override
-    public int getMaxStackSize() {
-        return vanillaSlot.getMaxStackSize();
-    }
-
-    /**
-     * Delegates to the vanilla slot's max stack size for a specific item.
-     * Some vanilla slots limit stack size based on item type.
-     */
-    @Override
-    public int getMaxStackSize(ItemStack stack) {
-        return vanillaSlot.getMaxStackSize(stack);
+        MKSlotState state = MKSlotStateRegistry.get(this);
+        Slot wrapped = state != null ? state.getWrappedSlot() : null;
+        // Should never be null for a properly constructed wrapper,
+        // but fall back to self as a safety measure.
+        return wrapped != null ? wrapped : this;
     }
 }

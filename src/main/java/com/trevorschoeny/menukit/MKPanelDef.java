@@ -87,7 +87,19 @@ public record MKPanelDef(
         /** Auto-stack below container, left-aligned, stacking rightward. */
         BELOW_LEFT,
         /** Auto-stack below container, right-aligned, stacking leftward. */
-        BELOW_RIGHT
+        BELOW_RIGHT,
+
+        // ── Hotbar-relative mode ─────────────────────────────────────────
+        // Positions the panel relative to the hotbar row. MenuKit resolves
+        // the hotbar's X/Y per context so consumers don't need to know
+        // screen-specific coordinates.
+        //
+        // posArg1 = X offset from hotbar left edge (px)
+        // posArg2 = Y offset from hotbar top edge (px)
+        //   Positive Y = below hotbar, negative Y = above hotbar
+
+        /** Position relative to the hotbar row's top-left corner. */
+        HOTBAR_RELATIVE
     }
 
     // ── Layout Mode ──────────────────────────────────────────────────────
@@ -131,7 +143,8 @@ public record MKPanelDef(
 
     /**
      * Resolves the panel's position for the given context.
-     * Checks per-context overrides first, then falls back to the default posMode.
+     * Checks per-context overrides first, then handles context-dependent
+     * modes (like HOTBAR_RELATIVE), then falls back to the dimension-based resolver.
      *
      * @param context the active context (provides container width/height)
      * @return int[]{x, y} container-relative position
@@ -141,6 +154,16 @@ public record MKPanelDef(
         int[] override = posOverrides.get(context);
         if (override != null) {
             return new int[]{ override[0], override[1] };
+        }
+
+        // HOTBAR_RELATIVE needs per-context hotbar data that the
+        // dimension-only overload can't provide — resolve it here.
+        if (posMode == PosMode.HOTBAR_RELATIVE) {
+            // posArg1 = X offset from hotbar left edge
+            // posArg2 = Y offset from hotbar top edge
+            int hotbarX = MKContextLayout.getHotbarX(context);
+            int hotbarY = MKContextLayout.getHotbarY(context);
+            return new int[]{ hotbarX + posArg1, hotbarY + posArg2 };
         }
 
         // Fall back to default posMode using this context's container dimensions
@@ -169,6 +192,9 @@ public record MKPanelDef(
             case ABOVE_RIGHT -> new int[]{ containerWidth - size[0], -m - size[1] };
             case BELOW_LEFT  -> new int[]{ 0, containerHeight + m };
             case BELOW_RIGHT -> new int[]{ containerWidth - size[0], containerHeight + m };
+            // HOTBAR_RELATIVE is normally resolved by the context-aware overload.
+            // Fallback: treat offsets as absolute (best effort without context data).
+            case HOTBAR_RELATIVE -> new int[]{ posArg1, posArg2 };
         };
     }
 

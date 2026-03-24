@@ -6,7 +6,9 @@
   "mixins": [
     "AbstractContainerMenuInvoker",
     "MKMenuMixin",
-    "MKGenericMenuMixin",
+    "MKSlotInjectionMixin",
+    "MKContainerTrackingMixin",
+    "MKReadOnlyMixin",
     "MKSlotMixin",
     "MKSlotClickMixin",
     "MKCreativeSlotPacketMixin",
@@ -16,7 +18,8 @@
     "ContainerLevelAccessAccessor$ItemCombinerMenuAccessor",
     "ContainerLevelAccessAccessor$LoomMenuAccessor",
     "ContainerLevelAccessAccessor$StonecutterMenuAccessor",
-    "ContainerLevelAccessAccessor$CartographyTableMenuAccessor"
+    "ContainerLevelAccessAccessor$CartographyTableMenuAccessor",
+    "MKTransferMixin"
   ],
   "client": [
     "AbstractContainerScreenAccessor",
@@ -25,10 +28,16 @@
     "MKItemPickerMenuMixin",
     "MKScreenMixin",
     "MKSlotRightClickMixin",
+    "MKSlotClickBusMixin",
+    "MKCreativeClickBusMixin",
     "SlotPositionAccessor",
     "SlotWrapperAccessor",
     "MKRecipeBookScreenMixin",
-    "MKGuiMixin"
+    "MKGuiMixin",
+    "MKHoverTrackingMixin",
+    "MKKeyPressMixin",
+    "MKScrollMixin",
+    "MKRecipeBookAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

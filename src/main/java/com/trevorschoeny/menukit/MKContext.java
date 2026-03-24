@@ -183,12 +183,12 @@ public enum MKContext {
 
     /** All contexts where the player's inventory is visible at the bottom. */
     public static final Set<MKContext> ALL_WITH_PLAYER_INVENTORY = EnumSet.of(
-            SURVIVAL_INVENTORY, CREATIVE_INVENTORY,
+            SURVIVAL_INVENTORY, CREATIVE_INVENTORY, CREATIVE_TABS,
             CHEST, DOUBLE_CHEST, ENDER_CHEST, BARREL, SHULKER_BOX, HOPPER, DISPENSER,
             CRAFTING_TABLE, STONECUTTER, SMITHING_TABLE, LOOM,
             CARTOGRAPHY_TABLE, GRINDSTONE, CRAFTER,
             FURNACE, BLAST_FURNACE, SMOKER, BREWING_STAND,
-            ANVIL, ENCHANTING_TABLE, VILLAGER_TRADING, HORSE_INVENTORY);
+            ANVIL, ENCHANTING_TABLE, BEACON, VILLAGER_TRADING, HORSE_INVENTORY);
 
     /** Every context. */
     public static final Set<MKContext> ALL = EnumSet.allOf(MKContext.class);
