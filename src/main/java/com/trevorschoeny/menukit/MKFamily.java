@@ -1,6 +1,8 @@
 package com.trevorschoeny.menukit;
 
 import dev.isxander.yacl3.api.ConfigCategory;
+import dev.isxander.yacl3.api.Option;
+import dev.isxander.yacl3.api.OptionGroup;
 import dev.isxander.yacl3.api.YetAnotherConfigLib;
 import dev.isxander.yacl3.gui.YACLScreen;
 import net.minecraft.client.KeyMapping;
@@ -26,6 +28,14 @@ import java.util.function.Supplier;
  * category via {@link #configCategory}. When ModMenu opens the config
  * screen, {@link #buildConfigScreen} assembles them all into one YACL screen.
  *
+ * <p><b>General options</b> are family-wide settings that any mod can register.
+ * Deduplicated by key — first registration wins. Values are stored in a
+ * MenuKit-owned file ({@code config/menukit-family-{id}.json}), loaded lazily
+ * on first access.
+ *
+ * <p><b>Shared panels</b> are UI panels that any mod can register. Deduplicated
+ * by panel name — if the panel already exists, the registrar is skipped.
+ *
  * <p>The keybind category is derived from the display name. All mods in
  * the family share the same section in Controls.
  *
@@ -38,6 +48,10 @@ public class MKFamily {
     private String description;
     private final List<ConfigEntry> configCategories = new ArrayList<>();
     private final Set<String> modIds = new LinkedHashSet<>();
+
+    // General config — family-wide settings, deduplicated by key
+    private final Map<String, Option<?>> generalOptions = new LinkedHashMap<>();
+    private MKFamilyConfig generalConfig;
 
     // Lazily created keybind category — shared by all family members
     private KeyMapping.Category keybindCategory;
@@ -110,6 +124,126 @@ public class MKFamily {
         return this;
     }
 
+    // ── General Options (family-wide, deduplicated) ─────────────────────
+
+    /**
+     * Registers a general (family-wide) config option. Deduplicated by key —
+     * if an option with this key is already registered, this call is silently
+     * ignored. Values are stored in MenuKit's family config file, not in
+     * any individual mod's config.
+     *
+     * <p>Multiple mods in the family should register the same general options
+     * so that the options appear regardless of which mods are installed.
+     *
+     * <p>Example:
+     * <pre>{@code
+     * family.generalOption("show_settings_button",
+     *     Option.<Boolean>createBuilder()
+     *         .name(Component.literal("Show Settings Button"))
+     *         .binding(true,
+     *             () -> family.getGeneralBool("show_settings_button"),
+     *             val -> family.setGeneral("show_settings_button", val))
+     *         .controller(TickBoxControllerBuilder::create)
+     *         .build());
+     * }</pre>
+     *
+     * @param key    unique identifier for this option (used as JSON key)
+     * @param option the YACL Option to display in the General tab
+     */
+    public MKFamily generalOption(String key, Option<?> option) {
+        // First-writer-wins: if already registered, skip
+        if (!generalOptions.containsKey(key)) {
+            generalOptions.put(key, option);
+            MenuKit.LOGGER.debug("[MenuKit] Family '{}' registered general option '{}'", id, key);
+        }
+        return this;
+    }
+
+    /**
+     * Reads a boolean general option value. Returns the default if the key
+     * doesn't exist in storage.
+     */
+    public boolean getGeneralBool(String key) {
+        return getGeneralBool(key, false);
+    }
+
+    /** Reads a boolean general option value with an explicit default. */
+    public boolean getGeneralBool(String key, boolean defaultValue) {
+        return getConfig().getBool(key, defaultValue);
+    }
+
+    /** Reads an int general option value with an explicit default. */
+    public int getGeneralInt(String key, int defaultValue) {
+        return getConfig().getInt(key, defaultValue);
+    }
+
+    /** Reads a float general option value with an explicit default. */
+    public float getGeneralFloat(String key, float defaultValue) {
+        return getConfig().getFloat(key, defaultValue);
+    }
+
+    /** Reads a string general option value with an explicit default. */
+    public String getGeneralString(String key, String defaultValue) {
+        return getConfig().getString(key, defaultValue);
+    }
+
+    /**
+     * Sets a general option value in memory. Persisted when the user
+     * clicks Save in the config screen (or via {@link #saveGeneralConfig()}).
+     */
+    public void setGeneral(String key, Object value) {
+        getConfig().set(key, value);
+    }
+
+    /** Saves the general config to disk. Called by the composite save handler. */
+    public void saveGeneralConfig() {
+        if (generalConfig != null) {
+            generalConfig.save();
+        }
+    }
+
+    /** Loads the general config from disk. Safe to call multiple times. */
+    public void loadGeneralConfig() {
+        getConfig().load();
+    }
+
+    // ── Shared Panels (deduplicated by panel name) ──────────────────────
+
+    /**
+     * Registers a shared panel that multiple mods in the family can provide.
+     * If a panel with this name already exists (registered by another mod),
+     * the registrar is never called — deduplication by panel name.
+     *
+     * <p>This allows multiple mods to each register the same UI element
+     * (e.g., a settings button) without worrying about duplicates.
+     *
+     * <p>Example:
+     * <pre>{@code
+     * family.sharedPanel("trevmods_settings", () -> {
+     *     MKPanel.builder("trevmods_settings")
+     *         .showIn(MKContext.PERSONAL)
+     *         .posAboveRight()
+     *         .autoSize()
+     *         .column()
+     *             .button().label("⚙").onClick(btn -> ...).done()
+     *         .build();
+     * });
+     * }</pre>
+     *
+     * @param panelName  the panel name (must match the name in MKPanel.builder())
+     * @param registrar  a Runnable that registers the panel via MKPanel.builder()
+     */
+    public MKFamily sharedPanel(String panelName, Runnable registrar) {
+        if (!MenuKit.hasPanel(panelName)) {
+            registrar.run();
+            MenuKit.LOGGER.debug("[MenuKit] Family '{}' registered shared panel '{}'", id, panelName);
+        } else {
+            MenuKit.LOGGER.debug("[MenuKit] Family '{}' skipped shared panel '{}' (already registered)",
+                    id, panelName);
+        }
+        return this;
+    }
+
     // ── Queries ──────────────────────────────────────────────────────────
 
     public String id() { return id; }
@@ -125,6 +259,11 @@ public class MKFamily {
 
     public String description() {
         return description != null ? description : "";
+    }
+
+    /** Whether this family has any general options registered. */
+    public boolean hasGeneralOptions() {
+        return !generalOptions.isEmpty();
     }
 
     // ── Keybind category ─────────────────────────────────────────────────
@@ -161,16 +300,38 @@ public class MKFamily {
      * Builds the unified YACL config screen, optionally focused on the
      * category associated with the given mod ID.
      *
+     * <p>If general options are registered, a "General" tab is inserted
+     * as the first category.
+     *
      * @param parent      the screen to return to when the config screen closes
      * @param focusModId  if non-null, the screen will auto-select this mod's
      *                    config category tab after opening
      * @return the assembled config screen, or null if no categories are registered
      */
     public Screen buildConfigScreen(Screen parent, String focusModId) {
-        if (configCategories.isEmpty()) return null;
+        boolean hasGeneral = hasGeneralOptions();
+        if (configCategories.isEmpty() && !hasGeneral) return null;
 
         var builder = YetAnotherConfigLib.createBuilder()
                 .title(Component.literal(displayName()));
+
+        // Track total tab count for focus index calculation
+        int tabOffset = 0;
+
+        // Insert "General" tab first if there are general options
+        if (hasGeneral) {
+            var generalCategory = ConfigCategory.createBuilder()
+                    .name(Component.literal(displayName()))
+                    .tooltip(Component.literal("Settings shared across all " + displayName() + " mods"));
+
+            // Add options directly to the category (no group wrapper)
+            for (Option<?> option : generalOptions.values()) {
+                generalCategory.option(option);
+            }
+
+            builder.category(generalCategory.build());
+            tabOffset = 1;
+        }
 
         // Add each mod's config category, track which index to focus
         int focusIndex = -1;
@@ -178,12 +339,16 @@ public class MKFamily {
             ConfigEntry entry = configCategories.get(i);
             builder.category(entry.builder().get());
             if (focusModId != null && focusModId.equals(entry.modId())) {
-                focusIndex = i;
+                focusIndex = tabOffset + i;
             }
         }
 
-        // Composite save: call every mod's save callback
+        // Composite save: save general config + call every mod's save callback
         builder.save(() -> {
+            // Save family-wide general config
+            saveGeneralConfig();
+
+            // Save each mod's config
             for (ConfigEntry entry : configCategories) {
                 if (entry.onSave() != null) {
                     entry.onSave().run();
@@ -212,6 +377,15 @@ public class MKFamily {
     }
 
     // ── Internal ─────────────────────────────────────────────────────────
+
+    /** Lazily creates and loads the general config. */
+    private MKFamilyConfig getConfig() {
+        if (generalConfig == null) {
+            generalConfig = new MKFamilyConfig(id);
+            generalConfig.load();
+        }
+        return generalConfig;
+    }
 
     /**
      * A config category contribution from one mod in the family.

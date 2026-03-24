@@ -144,11 +144,29 @@ public enum MKContext {
     /** Whether this is a creative mode context. */
     public boolean isCreative() { return creative; }
 
-    // ── Shortcut Groups ──────────────────────────────────────────────────────
+    // ── Top-Level Groups ──────────────────────────────────────────────────────
+    //
+    // Three conceptual categories:
+    //   PERSONAL    — the player's own inventory screens
+    //   INTERACTION — screens opened by interacting with blocks/entities in the world
+    //   (World view / HUD is not an MKContext — it uses MKHudPanel instead)
 
-    /** Survival + creative inventory (not item grid tabs). */
-    public static final Set<MKContext> ALL_INVENTORIES = EnumSet.of(
+    /** Personal screens — the player's own inventory (survival + creative). */
+    public static final Set<MKContext> PERSONAL = EnumSet.of(
             SURVIVAL_INVENTORY, CREATIVE_INVENTORY);
+
+    /** @deprecated Use {@link #PERSONAL} instead. */
+    @Deprecated public static final Set<MKContext> ALL_INVENTORIES = PERSONAL;
+
+    /** Interaction screens — opened by interacting with blocks or entities in the world. */
+    public static final Set<MKContext> INTERACTION = EnumSet.of(
+            CHEST, DOUBLE_CHEST, ENDER_CHEST, BARREL, SHULKER_BOX, HOPPER, DISPENSER,
+            CRAFTING_TABLE, STONECUTTER, SMITHING_TABLE, LOOM,
+            CARTOGRAPHY_TABLE, GRINDSTONE, CRAFTER,
+            FURNACE, BLAST_FURNACE, SMOKER, BREWING_STAND,
+            ANVIL, ENCHANTING_TABLE, VILLAGER_TRADING, HORSE_INVENTORY);
+
+    // ── Subset Groups ───────────────────────────────────────────────────────
 
     /** All storage containers. */
     public static final Set<MKContext> ALL_STORAGE = EnumSet.of(
