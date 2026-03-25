@@ -2,8 +2,12 @@ package com.trevorschoeny.menukit;
 
 import com.trevorschoeny.menukit.mixin.MKRecipeBookAccessor;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
+import net.minecraft.network.chat.Component;
+
+import java.util.List;
 
 /**
  * Client-side entry point for MenuKit.
@@ -15,9 +19,47 @@ import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
  */
 public class MenuKitClient implements ClientModInitializer {
 
+    // Cached family reference — tooltip callbacks fire every frame while hovering,
+    // so we avoid repeated map lookups on this hot path.
+    private static MKFamily cachedFamily;
+
     @Override
     public void onInitializeClient() {
         MenuKit.initClient();
+
+        // Item Tips — enriched tooltips showing durability, food stats, and
+        // inventory totals. Registered at the framework level because it
+        // benefits ALL inventory screens. The toggle lives in the family
+        // config ("trevmods") so users can disable it in settings.
+        registerItemTipsCallback();
+    }
+
+    // ── Item Tips ────────────────────────────────────────────────────────────
+
+    /**
+     * Registers a Fabric {@link ItemTooltipCallback} that appends enriched
+     * info lines to item tooltips. Uses the "trevmods" family's
+     * {@code SHOW_ITEM_TIPS} general option as a runtime toggle.
+     *
+     * <p>Why Fabric callback instead of a mixin? The callback is the idiomatic
+     * Fabric approach for tooltip modification — it fires after vanilla has
+     * built its tooltip lines, and multiple mods can participate without
+     * conflicting mixin targets.
+     */
+    private static void registerItemTipsCallback() {
+        ItemTooltipCallback.EVENT.register((stack, tooltipContext, tooltipType, lines) -> {
+            // Check the family toggle — if the family hasn't been created yet
+            // (shouldn't happen in normal flow, but guard defensively), default
+            // to showing tips. The option defaults to true, so first-time users
+            // see tips immediately.
+            if (cachedFamily == null) cachedFamily = MenuKit.family("trevmods");
+            if (!cachedFamily.getGeneral(MKItemTips.SHOW_ITEM_TIPS)) return;
+
+            // Generate and append all tip lines. MKItemTips returns an empty
+            // list when nothing applies, so this is always safe.
+            List<Component> tips = MKItemTips.generateTips(stack);
+            lines.addAll(tips);
+        });
     }
 
     // ── Recipe Book Utilities ────────────────────────────────────────────────
