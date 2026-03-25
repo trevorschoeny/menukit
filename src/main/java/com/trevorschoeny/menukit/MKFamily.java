@@ -29,9 +29,10 @@ import java.util.function.Supplier;
  * screen, {@link #buildConfigScreen} assembles them all into one YACL screen.
  *
  * <p><b>General options</b> are family-wide settings that any mod can register.
- * Deduplicated by key — first registration wins. Values are stored in a
- * MenuKit-owned file ({@code config/menukit-family-{id}.json}), loaded lazily
- * on first access.
+ * Deduplicated by key — first registration wins. Each option is described by
+ * a {@link GeneralOption} record that carries the key, default value, and
+ * expected Java type. Values are stored in a MenuKit-owned file
+ * ({@code config/menukit-family-{id}.json}), loaded lazily on first access.
  *
  * <p><b>Shared panels</b> are UI panels that any mod can register. Deduplicated
  * by panel name — if the panel already exists, the registrar is skipped.
@@ -67,6 +68,12 @@ public class MKFamily {
      * as the keybind category name in Controls.
      */
     public MKFamily displayName(String name) {
+        // Warn if being overwritten with a different value — helps catch
+        // accidental mismatches between mods in the same family
+        if (this.displayName != null && !this.displayName.equals(name)) {
+            MenuKit.LOGGER.warn("[MenuKit] Family '{}': displayName being overwritten from '{}' to '{}'",
+                    id, this.displayName, name);
+        }
         this.displayName = name;
         return this;
     }
@@ -76,6 +83,12 @@ public class MKFamily {
      * mod list when the family is selected.
      */
     public MKFamily description(String desc) {
+        // Warn if being overwritten with a different value — helps catch
+        // accidental mismatches between mods in the same family
+        if (this.description != null && !this.description.equals(desc)) {
+            MenuKit.LOGGER.warn("[MenuKit] Family '{}': description being overwritten from '{}' to '{}'",
+                    id, this.description, desc);
+        }
         this.description = desc;
         return this;
     }
@@ -137,62 +150,52 @@ public class MKFamily {
      *
      * <p>Example:
      * <pre>{@code
-     * family.generalOption("show_settings_button",
+     * static final GeneralOption<Boolean> SHOW_BUTTON =
+     *     new GeneralOption<>("show_button", true, Boolean.class);
+     *
+     * family.generalOption(SHOW_BUTTON,
      *     Option.<Boolean>createBuilder()
      *         .name(Component.literal("Show Settings Button"))
      *         .binding(true,
-     *             () -> family.getGeneralBool("show_settings_button"),
-     *             val -> family.setGeneral("show_settings_button", val))
+     *             () -> family.getGeneral(SHOW_BUTTON),
+     *             val -> family.setGeneral(SHOW_BUTTON, val))
      *         .controller(TickBoxControllerBuilder::create)
      *         .build());
      * }</pre>
      *
-     * @param key    unique identifier for this option (used as JSON key)
-     * @param option the YACL Option to display in the General tab
+     * @param option typed descriptor containing key, default, and type info
+     * @param uiOption the YACL Option to display in the General tab
      */
-    public MKFamily generalOption(String key, Option<?> option) {
+    public <T> MKFamily generalOption(GeneralOption<T> option, Option<T> uiOption) {
         // First-writer-wins: if already registered, skip
-        if (!generalOptions.containsKey(key)) {
-            generalOptions.put(key, option);
-            MenuKit.LOGGER.debug("[MenuKit] Family '{}' registered general option '{}'", id, key);
+        if (!generalOptions.containsKey(option.key())) {
+            generalOptions.put(option.key(), uiOption);
+            MenuKit.LOGGER.debug("[MenuKit] Family '{}' registered general option '{}'", id, option.key());
         }
         return this;
     }
 
     /**
-     * Reads a boolean general option value. Returns the default if the key
-     * doesn't exist in storage.
+     * Reads a typed general option value. The {@link GeneralOption} descriptor
+     * carries the key, default value, and expected type — GSON number
+     * normalization is handled automatically.
+     *
+     * @param option typed descriptor for the option to read
+     * @return the stored value, or the option's default if not present
      */
-    public boolean getGeneralBool(String key) {
-        return getGeneralBool(key, false);
-    }
-
-    /** Reads a boolean general option value with an explicit default. */
-    public boolean getGeneralBool(String key, boolean defaultValue) {
-        return getConfig().getBool(key, defaultValue);
-    }
-
-    /** Reads an int general option value with an explicit default. */
-    public int getGeneralInt(String key, int defaultValue) {
-        return getConfig().getInt(key, defaultValue);
-    }
-
-    /** Reads a float general option value with an explicit default. */
-    public float getGeneralFloat(String key, float defaultValue) {
-        return getConfig().getFloat(key, defaultValue);
-    }
-
-    /** Reads a string general option value with an explicit default. */
-    public String getGeneralString(String key, String defaultValue) {
-        return getConfig().getString(key, defaultValue);
+    public <T> T getGeneral(GeneralOption<T> option) {
+        return getConfig().get(option);
     }
 
     /**
-     * Sets a general option value in memory. Persisted when the user
+     * Sets a typed general option value in memory. Persisted when the user
      * clicks Save in the config screen (or via {@link #saveGeneralConfig()}).
+     *
+     * @param option typed descriptor for the option to write
+     * @param value  the new value (must match the option's type)
      */
-    public void setGeneral(String key, Object value) {
-        getConfig().set(key, value);
+    public <T> void setGeneral(GeneralOption<T> option, T value) {
+        getConfig().set(option, value);
     }
 
     /** Saves the general config to disk. Called by the composite save handler. */

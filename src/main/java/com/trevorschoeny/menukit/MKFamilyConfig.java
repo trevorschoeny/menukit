@@ -16,9 +16,11 @@ import java.util.Map;
  * One file per family: {@code config/menukit-family-{id}.json}.
  *
  * <p>This is the single source of truth for family-wide settings.
- * Individual mods read/write through {@link MKFamily#getGeneralBool} etc.,
- * which delegate here. The file is loaded lazily on first access and
- * saved when the user clicks Save in the YACL config screen.
+ * Individual mods read/write through {@link MKFamily#getGeneral} and
+ * {@link MKFamily#setGeneral}, which delegate here. Type coercion
+ * (including GSON number normalization) is handled by {@link GeneralOption#coerce}.
+ * The file is loaded lazily on first access and saved when the user clicks
+ * Save in the YACL config screen.
  *
  * <p>Part of the <b>MenuKit</b> framework.
  */
@@ -54,6 +56,11 @@ class MKFamilyConfig {
             } catch (IOException e) {
                 MenuKit.LOGGER.error("[MenuKit] Failed to load family config from {}",
                         configPath.getFileName(), e);
+            } catch (Exception e) {
+                // Catch GSON parse errors (JsonSyntaxException, JsonParseException, etc.)
+                // so a corrupted config file doesn't crash the game. Defaults will apply.
+                MenuKit.LOGGER.warn("[MenuKit] Failed to parse family config '{}': {}. " +
+                        "Using defaults.", configPath.getFileName(), e.getMessage());
             }
         }
     }
@@ -68,43 +75,26 @@ class MKFamilyConfig {
         }
     }
 
-    // ── Typed Getters ───────────────────────────────────────────────────────
+    // ── Typed Access ────────────────────────────────────────────────────────
 
-    boolean getBool(String key, boolean defaultValue) {
+    /**
+     * Reads a value using a typed {@link GeneralOption} descriptor.
+     * GSON number normalization (Double -> Integer/Float) is handled
+     * by {@link GeneralOption#coerce}, so callers always get the right type.
+     */
+    <T> T get(GeneralOption<T> option) {
         ensureLoaded();
-        Object val = values.get(key);
-        if (val instanceof Boolean b) return b;
-        return defaultValue;
+        Object raw = values.get(option.key());
+        return option.coerce(raw);
     }
 
-    int getInt(String key, int defaultValue) {
+    /**
+     * Sets a value in memory. Call {@link #save()} to persist.
+     * Type enforcement happens at the call site via {@link GeneralOption}.
+     */
+    <T> void set(GeneralOption<T> option, T value) {
         ensureLoaded();
-        Object val = values.get(key);
-        // GSON deserializes all numbers as Double
-        if (val instanceof Number n) return n.intValue();
-        return defaultValue;
-    }
-
-    float getFloat(String key, float defaultValue) {
-        ensureLoaded();
-        Object val = values.get(key);
-        if (val instanceof Number n) return n.floatValue();
-        return defaultValue;
-    }
-
-    String getString(String key, String defaultValue) {
-        ensureLoaded();
-        Object val = values.get(key);
-        if (val instanceof String s) return s;
-        return defaultValue;
-    }
-
-    // ── Setter ──────────────────────────────────────────────────────────────
-
-    /** Sets a value in memory. Call {@link #save()} to persist. */
-    void set(String key, Object value) {
-        ensureLoaded();
-        values.put(key, value);
+        values.put(option.key(), value);
     }
 
     // ── Internal ────────────────────────────────────────────────────────────

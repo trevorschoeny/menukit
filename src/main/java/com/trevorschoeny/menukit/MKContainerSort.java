@@ -71,11 +71,25 @@ public class MKContainerSort {
      */
     private static void sortRange(Container container, int start, int end,
                                    AbstractContainerMenu menu, MKRegion region) {
-        // Step 1: Identify locked indices (these slots don't participate)
-        // Lock state will be checked via MKSlotStateRegistry once Phase 2 is built.
-        // For now, no slots are locked.
+        // Step 1: Identify locked indices (these slots don't participate).
+        // Lock state lives on the Slot object via MKSlotStateRegistry, but we're
+        // iterating by container index. We need to find the menu Slot that maps to
+        // each container index and check its lock state. If no menu is provided,
+        // we can't check locks — treat all slots as unlocked.
         Set<Integer> lockedIndices = new HashSet<>();
-        // TODO: Phase 2 — check MKSlotStateRegistry for locked slots
+        if (menu != null) {
+            for (net.minecraft.world.inventory.Slot slot : menu.slots) {
+                // Only check slots that belong to this container
+                if (slot.container != container) continue;
+                int ci = slot.getContainerSlot();
+                if (ci < start || ci >= end) continue;
+
+                MKSlotState state = MKSlotStateRegistry.get(slot);
+                if (state != null && state.isLocked()) {
+                    lockedIndices.add(ci);
+                }
+            }
+        }
 
         // Step 2: Collect all non-locked items
         List<ItemStack> items = new ArrayList<>();

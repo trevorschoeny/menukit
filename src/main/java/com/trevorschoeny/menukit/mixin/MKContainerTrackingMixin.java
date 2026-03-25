@@ -1,6 +1,8 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.*;
+import net.minecraft.advancements.CriteriaTriggers;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -27,10 +29,10 @@ import java.util.Map;
  * snapshot and fires {@link MKContainerState} change listeners when differences
  * are found. This gives 100% coverage of every Container in every menu.
  *
- * <p>Also fires state-change events ({@link MKSlotEvent.Type#SLOT_CHANGED},
- * {@link MKSlotEvent.Type#SLOT_EMPTIED}, {@link MKSlotEvent.Type#SLOT_FILLED})
+ * <p>Also fires state-change events ({@link MKEvent.Type#SLOT_CHANGED},
+ * {@link MKEvent.Type#SLOT_EMPTIED}, {@link MKEvent.Type#SLOT_FILLED})
  * through the {@link MKEventBus} when slot contents change, and fires
- * {@link MKSlotEvent.Type#MENU_CLOSE} when the menu is removed.
+ * {@link MKEvent.Type#MENU_CLOSE} when the menu is removed.
  *
  * <p>Also handles cleanup of all MenuKit per-menu state (slot mappings, vanilla
  * container wrappers, slot state, container snapshots) when the menu is closed.
@@ -113,9 +115,9 @@ public class MKContainerTrackingMixin {
      *
      * <p>For each changed slot, determines the appropriate event type:
      * <ul>
-     *   <li>{@link MKSlotEvent.Type#SLOT_FILLED} — old was empty, new has item</li>
-     *   <li>{@link MKSlotEvent.Type#SLOT_EMPTIED} — old had item, new is empty</li>
-     *   <li>{@link MKSlotEvent.Type#SLOT_CHANGED} — both non-empty but different</li>
+     *   <li>{@link MKEvent.Type#SLOT_FILLED} — old was empty, new has item</li>
+     *   <li>{@link MKEvent.Type#SLOT_EMPTIED} — old had item, new is empty</li>
+     *   <li>{@link MKEvent.Type#SLOT_CHANGED} — both non-empty but different</li>
      * </ul>
      */
     @Inject(method = "broadcastChanges", at = @At("RETURN"))
@@ -147,19 +149,19 @@ public class MKContainerTrackingMixin {
                     // ── Fire slot state event through the event bus ──────────
                     // Determine which event type: FILLED, EMPTIED, or CHANGED
                     if (menuKit$player != null) {
-                        MKSlotEvent.Type eventType;
+                        MKEvent.Type eventType;
                         boolean oldEmpty = old.isEmpty();
                         boolean newEmpty = current.isEmpty();
 
                         if (oldEmpty && !newEmpty) {
                             // Was empty, now has item → SLOT_FILLED
-                            eventType = MKSlotEvent.Type.SLOT_FILLED;
+                            eventType = MKEvent.Type.SLOT_FILLED;
                         } else if (!oldEmpty && newEmpty) {
                             // Had item, now empty → SLOT_EMPTIED
-                            eventType = MKSlotEvent.Type.SLOT_EMPTIED;
+                            eventType = MKEvent.Type.SLOT_EMPTIED;
                         } else {
                             // Both non-empty but different → SLOT_CHANGED
-                            eventType = MKSlotEvent.Type.SLOT_CHANGED;
+                            eventType = MKEvent.Type.SLOT_CHANGED;
                         }
 
                         // Find the Slot object in the menu that corresponds to
@@ -184,6 +186,34 @@ public class MKContainerTrackingMixin {
                                     menuKit$player, -1
                             );
                             MKEventBus.fire(event);
+
+                            // ── Advancement trigger for personal MK regions ──────
+                            // Vanilla only fires INVENTORY_CHANGED when the player's
+                            // own Inventory object changes (checked via identity:
+                            // slot.container == player.getInventory()). Items in
+                            // custom MKContainer regions (equipment panel, etc.)
+                            // never trigger advancements because they're a different
+                            // Container object.
+                            //
+                            // Fix: when an MKContainer changes, re-fire the trigger
+                            // so vanilla re-evaluates all inventory-based criteria.
+                            // This handles both directions: item moved INTO an MK
+                            // region (inventory lost an item, recheck) and item
+                            // moved OUT of an MK region (inventory gained an item).
+                            //
+                            // Guards:
+                            // - Server only (advancements are server-side)
+                            // - Skip vanilla Inventory containers (vanilla handles those)
+                            // - Only fire for MKContainer (custom personal regions)
+                            //   NOT for external containers like chests/furnaces
+                            if (c instanceof MKContainer
+                                    && menuKit$player instanceof ServerPlayer serverPlayer) {
+                                CriteriaTriggers.INVENTORY_CHANGED.trigger(
+                                        serverPlayer,
+                                        serverPlayer.getInventory(),
+                                        current
+                                );
+                            }
                         }
                     }
 
@@ -222,7 +252,7 @@ public class MKContainerTrackingMixin {
     // ── Lifecycle: MENU_CLOSE ────────────────────────────────────────────────
 
     /**
-     * Fires {@link MKSlotEvent.Type#MENU_CLOSE} when the menu is removed,
+     * Fires {@link MKEvent.Type#MENU_CLOSE} when the menu is removed,
      * BEFORE any cleanup happens. This lets event consumers inspect menu state
      * (slots, regions, container contents) before it's torn down.
      */
@@ -235,7 +265,7 @@ public class MKContainerTrackingMixin {
         MKContext context = MKContext.defaultForMenuClass(menu.getClass());
 
         MKSlotEvent event = MKSlotEvent.lifecycle(
-                MKSlotEvent.Type.MENU_CLOSE, context, player);
+                MKEvent.Type.MENU_CLOSE, context, player);
         MKEventBus.fire(event);
     }
 

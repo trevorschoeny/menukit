@@ -97,7 +97,7 @@ public class MKMenuMixin {
         // SURVIVAL_INVENTORY context. Consumers can check for creative
         // mode via the player or screen if needed.
         MKSlotEvent openEvent = MKSlotEvent.lifecycle(
-                MKSlotEvent.Type.MENU_OPEN, MKContext.SURVIVAL_INVENTORY, owner);
+                MKEvent.Type.MENU_OPEN, MKContext.SURVIVAL_INVENTORY, owner);
         MKEventBus.fire(openEvent);
     }
 
@@ -126,12 +126,6 @@ public class MKMenuMixin {
         String sourcePanel = MenuKit.getEffectivePanelName(menu, sourceSlot);
         com.trevorschoeny.menukit.MKSlotState sourceState = com.trevorschoeny.menukit.MKSlotStateRegistry.get(sourceSlot);
 
-        // Check if shift-click-out is allowed for this slot's panel
-        if (sourcePanel != null && !MenuKit.isShiftClickOut(sourcePanel)) {
-            cir.setReturnValue(net.minecraft.world.item.ItemStack.EMPTY);
-            return;
-        }
-
         // Case 1: Source is a MenuKit-managed slot → route to other panels
         if (sourceState != null && sourceState.isMenuKitSlot()) {
             net.minecraft.world.item.ItemStack original = sourceStack.copy();
@@ -145,9 +139,22 @@ public class MKMenuMixin {
             return;
         }
 
-        // Case 2: Source is a vanilla slot → try MenuKit-managed slots first
+        // Case 2: Source is a vanilla slot → try priority routes first, then generic
         net.minecraft.world.item.ItemStack original = sourceStack.copy();
-        boolean moved = MenuKit.tryRouteToCustomSlots(menu, sourceSlot, sourceStack);
+
+        // Priority routing: certain items have a "natural home" slot (e.g., elytra
+        // → equipment elytra slot, totem → equipment totem slot). Check these
+        // before generic routing so the item goes to its intended destination
+        // even if the target panel has shiftClickIn=false.
+        boolean moved = MenuKit.tryPriorityRoute(menu, sourceStack);
+        if (moved && sourceStack.isEmpty()) {
+            sourceSlot.setChanged();
+            cir.setReturnValue(original);
+            return;
+        }
+
+        // Generic routing: try remaining MenuKit-managed slots with shiftClickIn=true
+        moved |= MenuKit.tryRouteToCustomSlots(menu, sourceSlot, sourceStack);
         if (moved && sourceStack.isEmpty()) {
             sourceSlot.setChanged();
             cir.setReturnValue(original);

@@ -77,6 +77,21 @@ public class MKSlotMixin {
             return;
         }
 
+        // Locked slots reject all placement — the player has explicitly
+        // pinned this slot's contents. This protects against shift-click
+        // routing items INTO a locked slot and against double-click
+        // collection pulling FROM other slots into a locked target.
+        if (state.isLocked()) {
+            cir.setReturnValue(false);
+            return;
+        }
+
+        // NOTE: ShiftClickIn gate was removed from here. mayPlace() is a general
+        // item-acceptance method called for ALL placement operations (left-click,
+        // shift-click, hopper insertion). A shift-click restriction must NOT live
+        // here — it blocks all placement types, not just shift-clicks. Shift-click
+        // routing is handled in MKDoClickMixin where it belongs.
+
         // Custom filter check
         if (!state.passesFilter(stack)) {
             cir.setReturnValue(false);
