@@ -227,6 +227,38 @@ public class MKContainerTrackingMixin {
                 containerState.fireChangeListeners(c);
             }
         }
+
+        // ── Poll bound MKContainers for external changes ──────────────────
+        // When a bound source's backing store is modified externally (e.g.,
+        // vanilla bundle pickup, ender chest access), the peek container
+        // must re-populate to reflect the updated state. We poll each bound
+        // MKContainer once per broadcastChanges tick. If external changes
+        // are detected, the container is re-populated and the snapshot is
+        // updated so the change detection above picks up the new state on
+        // the next tick.
+        menuKit$pollBoundSources(menu);
+    }
+
+    /**
+     * Polls all bound MKContainers in the menu for external changes to
+     * their backing stores. If a source detects that its backing data
+     * was modified outside of {@code sync()}, it re-populates the
+     * container so the peek UI reflects the updated state.
+     */
+    @Unique
+    private void menuKit$pollBoundSources(AbstractContainerMenu menu) {
+        // Track which MKContainers we've already polled (avoid duplicates
+        // when multiple slots share the same container).
+        java.util.Set<MKContainer> polled = java.util.Collections.newSetFromMap(
+                new IdentityHashMap<>());
+
+        for (net.minecraft.world.inventory.Slot slot : menu.slots) {
+            if (!(slot.container instanceof MKContainer mkc)) continue;
+            if (!mkc.isBound()) continue;
+            if (!polled.add(mkc)) continue; // already polled this container
+
+            mkc.getSource().pollExternalChanges(mkc);
+        }
     }
 
     /**
@@ -279,6 +311,23 @@ public class MKContainerTrackingMixin {
     @Inject(method = "removed", at = @At("TAIL"))
     private void menuKit$cleanupOnRemoved(Player player, CallbackInfo ci) {
         AbstractContainerMenu menu = (AbstractContainerMenu)(Object) this;
+
+        // ── Skip cleanup for InventoryMenu ────────────────────────────────
+        // InventoryMenu is a long-lived singleton — it's created once per
+        // player and reused every time they open their inventory. Vanilla
+        // calls removed() on it when the player presses E to close the
+        // inventory screen (via doCloseContainer()), but the menu object
+        // stays alive and is immediately reassigned as containerMenu.
+        //
+        // If we wipe MKSlotState here, MKSlots lose their isMenuKitSlot,
+        // panelName, filter, and other state. The next shift-click can't
+        // find them, causing items to bounce back (client predicts the move
+        // but server can't find the MKSlot target).
+        //
+        // Real cleanup for InventoryMenu happens when the player disconnects
+        // and the ServerPlayer is garbage-collected (along with its menu).
+        if (menu instanceof net.minecraft.world.inventory.InventoryMenu) return;
+
         MenuKit.cleanupSlotPanelMapping(menu);
         MenuKit.cleanupVanillaContainers(menu);
         MKSlotStateRegistry.cleanupMenu(menu);

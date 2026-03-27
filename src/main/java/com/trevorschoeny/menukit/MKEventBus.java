@@ -13,18 +13,19 @@ import java.util.function.Predicate;
  * Central dispatch engine for MenuKit events.
  *
  * <p>Listeners are registered globally (typically during mod init) and fire
- * whenever a matching {@link MKSlotEvent} is dispatched. Registration is
+ * whenever a matching {@link MKEvent} is dispatched. Registration is
  * thread-safe (mods register from different threads during init).
  *
  * <p><b>Threading:</b> Click, hover, and keyboard events dispatch on the
  * client render thread. Transfer events (ITEM_TRANSFER_IN/OUT) and state
  * change events (SLOT_CHANGED/EMPTIED/FILLED) dispatch on the server tick
  * thread. Lifecycle events (MENU_OPEN/CLOSE) dispatch on whichever thread
- * constructs/removes the menu. Handlers that need client-only behavior
- * should check {@code player.level().isClientSide()}.
+ * constructs/removes the menu. UI events (BUTTON_CLICK, PANEL_SHOW, etc.)
+ * dispatch on the client render thread. Handlers that need client-only
+ * behavior should check {@code player.level().isClientSide()}.
  *
- * <p>Listeners are sorted by priority (descending — higher priority fires first)
- * at registration time so that {@link #fire(MKSlotEvent)} has zero overhead from
+ * <p>Listeners are sorted by priority (descending -- higher priority fires first)
+ * at registration time so that {@link #fire(MKEvent)} has zero overhead from
  * sorting. The fire path is allocation-free and optimized for the hot path
  * (called on every click).
  *
@@ -86,22 +87,27 @@ public final class MKEventBus {
      *
      * <p>Filters are checked in order of cost (cheapest first):
      * <ol>
-     *   <li>Event type (EnumSet.contains — O(1) bitwise)</li>
-     *   <li>Player inventory flag (boolean compare)</li>
-     *   <li>Region name (string equality)</li>
-     *   <li>Panel name (string equality)</li>
+     *   <li>Event type (EnumSet.contains -- O(1) bitwise)</li>
+     *   <li>Player inventory flag (boolean compare, slot events only)</li>
+     *   <li>Region name (string equality, slot events only)</li>
+     *   <li>Panel name (string equality, works for both slot and UI events)</li>
+     *   <li>Element ID (string equality, UI events only)</li>
      *   <li>Context set (EnumSet.contains)</li>
-     *   <li>Where predicate (arbitrary user code — last)</li>
+     *   <li>Where predicate (arbitrary user code -- last)</li>
      * </ol>
      *
      * @param event the event to dispatch
      * @return true if any handler returned {@link MKEventResult#CONSUMED}
      */
-    public static boolean fire(MKSlotEvent event) {
+    public static boolean fire(MKEvent event) {
         // Snapshot iteration — CopyOnWriteArrayList guarantees a consistent
         // view even if registration happens concurrently (shouldn't during
         // gameplay, but safety first).
-        MKSlotEvent.Type eventType = event.getType();
+        MKEvent.Type eventType = event.getType();
+
+        // Check once whether this is a slot event (avoids repeated instanceof)
+        MKSlotEvent slotEvent = event instanceof MKSlotEvent se ? se : null;
+        MKUIEvent uiEvent = event instanceof MKUIEvent ue ? ue : null;
 
         for (int i = 0, size = listeners.size(); i < size; i++) {
             MKEventListener listener = listeners.get(i);
@@ -109,27 +115,44 @@ public final class MKEventBus {
             // 1. Type filter — cheapest check (EnumSet.contains is a bitwise op)
             if (!listener.types.contains(eventType)) continue;
 
-            // 2. Player inventory filter — simple boolean
-            if (listener.playerInventoryFilter && !event.isPlayerInventorySlot()) continue;
+            // 2. Player inventory filter — only applies to slot events
+            if (listener.playerInventoryFilter) {
+                if (slotEvent == null || !slotEvent.isPlayerInventorySlot()) continue;
+            }
 
-            // 3. Region name filter — string equality (null means "no filter")
+            // 3. Region name filter — only applies to slot events
             if (listener.regionFilter != null) {
-                MKRegion region = event.getRegion();
+                if (slotEvent == null) continue;
+                MKRegion region = slotEvent.getRegion();
                 if (region == null || !listener.regionFilter.equals(region.name())) continue;
             }
 
-            // 4. Panel name filter — string equality
+            // 4. Panel name filter — works for both slot and UI events
             if (listener.panelFilter != null) {
-                String panel = event.getPanelName();
+                String panel;
+                if (slotEvent != null) {
+                    panel = slotEvent.getPanelName();
+                } else if (uiEvent != null) {
+                    panel = uiEvent.getPanelName();
+                } else {
+                    panel = null;
+                }
                 if (panel == null || !listener.panelFilter.equals(panel)) continue;
             }
 
-            // 5. Context filter — EnumSet.contains
+            // 5. Element ID filter — only applies to UI events
+            if (listener.elementFilter != null) {
+                if (uiEvent == null) continue;
+                String elemId = uiEvent.getElementId();
+                if (elemId == null || !listener.elementFilter.equals(elemId)) continue;
+            }
+
+            // 6. Context filter — EnumSet.contains
             if (listener.contextFilter != null) {
                 if (!listener.contextFilter.contains(event.getContext())) continue;
             }
 
-            // 6. Where predicate — arbitrary user code, checked last
+            // 7. Where predicate — arbitrary user code, checked last
             if (listener.wherePredicate != null) {
                 if (!listener.wherePredicate.test(event)) continue;
             }
@@ -186,13 +209,16 @@ public final class MKEventBus {
     static final class MKEventListener {
 
         /** Which event types this listener cares about. Never empty. */
-        final Set<MKSlotEvent.Type> types;
+        final Set<MKEvent.Type> types;
 
         /** Region name filter. Null means "match any region". */
         final @Nullable String regionFilter;
 
         /** Panel name filter. Null means "match any panel". */
         final @Nullable String panelFilter;
+
+        /** Element ID filter. Null means "match any element". */
+        final @Nullable String elementFilter;
 
         /** If true, only fires for player inventory slots. */
         final boolean playerInventoryFilter;
@@ -201,25 +227,27 @@ public final class MKEventBus {
         final @Nullable Set<MKContext> contextFilter;
 
         /** Custom predicate filter. Null means "no extra filter". */
-        final @Nullable Predicate<MKSlotEvent> wherePredicate;
+        final @Nullable Predicate<MKEvent> wherePredicate;
 
         /** Priority for ordering. Higher = fires first. Default 0. */
         final int priority;
 
         /** The actual handler function. */
-        final Function<MKSlotEvent, MKEventResult> handler;
+        final Function<MKEvent, MKEventResult> handler;
 
-        MKEventListener(Set<MKSlotEvent.Type> types,
+        MKEventListener(Set<MKEvent.Type> types,
                          @Nullable String regionFilter,
                          @Nullable String panelFilter,
+                         @Nullable String elementFilter,
                          boolean playerInventoryFilter,
                          @Nullable Set<MKContext> contextFilter,
-                         @Nullable Predicate<MKSlotEvent> wherePredicate,
+                         @Nullable Predicate<MKEvent> wherePredicate,
                          int priority,
-                         Function<MKSlotEvent, MKEventResult> handler) {
+                         Function<MKEvent, MKEventResult> handler) {
             this.types = types;
             this.regionFilter = regionFilter;
             this.panelFilter = panelFilter;
+            this.elementFilter = elementFilter;
             this.playerInventoryFilter = playerInventoryFilter;
             this.contextFilter = contextFilter;
             this.wherePredicate = wherePredicate;

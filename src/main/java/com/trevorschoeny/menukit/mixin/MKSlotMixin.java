@@ -135,6 +135,12 @@ public class MKSlotMixin {
      * If this slot wraps a vanilla slot, delegate to the wrapped slot's
      * item-specific max stack size. Some vanilla slots (e.g., armor, offhand)
      * limit stack size based on the item type.
+     *
+     * <p>Also enforces source-level capacity limits (e.g., bundle weight).
+     * When a slot is backed by an MKContainer with a bound source, the
+     * source's {@code getMaxAcceptCount} limits how many items can be
+     * inserted. This makes vanilla's {@code safeInsert} naturally perform
+     * partial insertion, leaving excess items on the cursor.
      */
     @Inject(method = "getMaxStackSize(Lnet/minecraft/world/item/ItemStack;)I", at = @At("HEAD"), cancellable = true)
     private void menuKit$maxStackSizeForItem(ItemStack stack, CallbackInfoReturnable<Integer> cir) {
@@ -147,6 +153,21 @@ public class MKSlotMixin {
         Slot wrapped = state.getWrappedSlot();
         if (wrapped != null) {
             cir.setReturnValue(wrapped.getMaxStackSize(stack));
+            return;
+        }
+
+        // Source capacity limit — backed by a bound MKContainer (bundle, shulker, etc.)
+        if (self.container instanceof com.trevorschoeny.menukit.MKContainer mkc && mkc.isBound()) {
+            int maxAccept = mkc.getSource().getMaxAcceptCount(self.getContainerSlot(), stack);
+            if (maxAccept < Integer.MAX_VALUE) {
+                // Effective max = what's already in the slot + how many more the source can take
+                int current = self.getItem().isEmpty() ? 0 : self.getItem().getCount();
+                int sourceLimit = current + maxAccept;
+                // Also respect the item's own max stack size and per-slot override
+                int itemLimit = stack.getMaxStackSize();
+                int slotLimit = (state.getMaxStackSize() > 0) ? state.getMaxStackSize() : 64;
+                cir.setReturnValue(Math.min(sourceLimit, Math.min(itemLimit, slotLimit)));
+            }
         }
     }
 

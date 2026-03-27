@@ -19,7 +19,9 @@
     "ContainerLevelAccessAccessor$LoomMenuAccessor",
     "ContainerLevelAccessAccessor$StonecutterMenuAccessor",
     "ContainerLevelAccessAccessor$CartographyTableMenuAccessor",
-    "MKTransferMixin"
+    "MKTransferMixin",
+    "MKDoClickMixin",
+    "MKMoveItemSortLockMixin"
   ],
   "client": [
     "AbstractContainerScreenAccessor",
@@ -37,7 +39,9 @@
     "MKHoverTrackingMixin",
     "MKKeyPressMixin",
     "MKScrollMixin",
-    "MKRecipeBookAccessor"
+    "MKRecipeBookAccessor",
+    "MKKeyBindsScreenMixin",
+    "KeyEntryAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

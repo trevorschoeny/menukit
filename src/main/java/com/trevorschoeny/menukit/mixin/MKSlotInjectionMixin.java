@@ -24,7 +24,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * because it has unique constructor parameters and creative mode handling.
  *
  * <p>After slot injection and universal state creation, fires
- * {@link MKSlotEvent.Type#MENU_OPEN} through the {@link MKEventBus}.
+ * {@link MKEvent.Type#MENU_OPEN} through the {@link MKEventBus}.
  *
  * <p>Part of the <b>MenuKit</b> framework internals. Users never see this.
  */
@@ -72,6 +72,17 @@ public class MKSlotInjectionMixin {
             // Auto-create vanilla container wrappers for the unified API
             MenuKit.createVanillaContainerWrappers(menu, context, inventory.player);
 
+            // Resolve regions and region groups for this menu instance.
+            // This populates MKRegionRegistry so that getRegion(),
+            // getRegionForSlot(), and getGroup() return correct results.
+            // Must run AFTER vanilla slots are added and BEFORE MKSlots,
+            // because region resolution reads menu.slots for Container refs.
+            MKRegionRegistry.resolveForMenu(menu, context, inventory.player);
+
+            // Inject virtual SlotGroups into vanilla panels and evaluate
+            // conditional rules now that regions are resolved.
+            MenuKit.onMenuResolved(menu);
+
             // Add custom MKSlots if panels are registered for this context
             if (MenuKit.hasPanelsForContext(context)) {
                 java.util.List<MKSlot> mkSlots = MenuKit.createSlotsForMenu(menu, context, inventory.player);
@@ -112,7 +123,7 @@ public class MKSlotInjectionMixin {
         if (!menuKit$menuOpenFired) {
             menuKit$menuOpenFired = true;
             MKSlotEvent event = MKSlotEvent.lifecycle(
-                    MKSlotEvent.Type.MENU_OPEN, context, inventory.player);
+                    MKEvent.Type.MENU_OPEN, context, inventory.player);
             MKEventBus.fire(event);
         }
     }

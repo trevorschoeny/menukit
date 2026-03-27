@@ -1,6 +1,7 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.MKContext;
+import com.trevorschoeny.menukit.MKEvent;
 import com.trevorschoeny.menukit.MKEventBus;
 import com.trevorschoeny.menukit.MKEventHelper;
 import com.trevorschoeny.menukit.MKSlotEvent;
@@ -16,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Fires {@link MKSlotEvent.Type#KEY_PRESS} when a key is pressed while
+ * Fires {@link MKEvent.Type#KEY_PRESS} when a key is pressed while
  * the cursor hovers a slot.
  *
  * <p>Intercepts {@code AbstractContainerScreen.keyPressed()} at HEAD.
@@ -82,14 +83,18 @@ public class MKKeyPressMixin {
         Player player = Minecraft.getInstance().player;
         if (player == null) return;
 
-        // ── Extract key code from the 1.21.11 KeyEvent ────────────────────
+        // ── Extract key code and modifiers from the 1.21.11 KeyEvent ──────
         // event.key() returns the GLFW key constant. Consumers use
         // mkEvent.getKeyCode() to check which key was pressed.
+        // event.modifiers() returns the GLFW modifier bitmask (Shift=1,
+        // Ctrl=2, Alt=4, Super=8) so KEY_PRESS handlers can check modifier
+        // combos (e.g., Ctrl+K triggers sort keybind).
         int keyCode = event.key();
+        int modifiers = event.modifiers();
 
         // ── Build and fire the event ─────────────────────────────────────
         MKSlotEvent mkEvent = MKEventHelper.buildKeyEvent(
-                this.hoveredSlot, self, player, keyCode);
+                this.hoveredSlot, self, player, keyCode, modifiers);
         if (mkEvent == null) return;
 
         // ── Dispatch through the bus ─────────────────────────────────────

@@ -128,19 +128,20 @@ public record MKSlotDef(
             slot = new MKSlot(player.getInventory(), vanillaInventoryIndex, absX, absY,
                     filter, maxStack, ghostIcon, disabledWhen);
         } else {
-            // MKContainer slot — backed by a registered container's delegate
+            // MKContainer slot — backed by the MKContainer directly (not its
+            // delegate). This ensures source-level checks work naturally:
+            //   - canAccept() fires in MKSlotMixin.mayPlace() (container IS MKContainer)
+            //   - setItem() triggers MKContainer.setChanged() → live source sync
+            //   - getMaxAcceptCount() is accessible for capacity-limited insertion
+            // The MKContainer delegates all Container methods to its SimpleContainer
+            // delegate, so vanilla tracking (broadcastChanges) works unchanged.
             MKContainer mkContainer = containerLookup.apply(containerName);
             if (mkContainer == null) {
                 MenuKit.LOGGER.warn(
                         "[MenuKit] Slot references container '{}' but it was not found", containerName);
                 return null;
             }
-            // Use the delegate Container directly with region-remapped index
-            net.minecraft.world.Container delegate = mkContainer.getDelegate();
-            int realIndex = mkContainer.getRegion() != null
-                    ? mkContainer.getRegion().toContainerIndex(containerIndex)
-                    : containerIndex;
-            slot = new MKSlot(delegate, realIndex, absX, absY,
+            slot = new MKSlot(mkContainer, containerIndex, absX, absY,
                     filter, maxStack, ghostIcon, disabledWhen);
         }
 

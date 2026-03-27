@@ -42,6 +42,14 @@ public class MKSlotState {
     // ── Lock State ───────────────────────────────────────────────────────
     private boolean locked;
 
+    // ── Sort Lock State ──────────────────────────────────────────────────
+    // Separate from "locked" — sort-locked slots are excluded from sorting
+    // and from receiving shift-clicked items, but the player can still
+    // interact with them normally (pick up, place, etc.). This is the
+    // IP-level "pin this slot in place for sorting" feature, distinct from
+    // the MK-level Ctrl+click full lock.
+    private boolean sortLocked;
+
     // ── Filter ───────────────────────────────────────────────────────────
     // Additional placement restriction on top of vanilla's mayPlace.
     private @Nullable Predicate<ItemStack> filter;
@@ -136,6 +144,14 @@ public class MKSlotState {
     public boolean isLocked() { return locked; }
     public void setLocked(boolean locked) { this.locked = locked; }
     public void toggleLocked() { this.locked = !this.locked; }
+
+    // ── Sort Lock ────────────────────────────────────────────────────────
+    // Sort-locked slots are skipped by sorting and by shift-click-in
+    // routing, but remain fully interactive for direct clicks.
+
+    public boolean isSortLocked() { return sortLocked; }
+    public void setSortLocked(boolean sortLocked) { this.sortLocked = sortLocked; }
+    public void toggleSortLocked() { this.sortLocked = !this.sortLocked; }
 
     // ── Filter ───────────────────────────────────────────────────────────
 

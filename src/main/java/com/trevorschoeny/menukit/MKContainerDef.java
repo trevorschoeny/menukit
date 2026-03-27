@@ -21,8 +21,14 @@ public record MKContainerDef(
         String name,            // unique identifier, used as NBT key
         BindingType binding,    // PLAYER, INSTANCE, or EPHEMERAL
         Persistence persistence,// PERSISTENT, TRANSIENT, or OUTPUT
-        int size                // number of slots in the container
+        int size,               // number of slots in the container
+        MKContainerType containerType // functional classification (SIMPLE, CRAFTING, etc.)
 ) {
+
+    /** Backward-compatible constructor — defaults containerType to SIMPLE. */
+    public MKContainerDef(String name, BindingType binding, Persistence persistence, int size) {
+        this(name, binding, persistence, size, MKContainerType.SIMPLE);
+    }
 
     /** How a container's data is keyed and persisted (WHO sees it). */
     public enum BindingType {
@@ -67,6 +73,7 @@ public record MKContainerDef(
         private BindingType binding = BindingType.PLAYER;
         private Persistence persistence = Persistence.PERSISTENT;
         private int size = 0;
+        private MKContainerType containerType = MKContainerType.SIMPLE;
 
         Builder(String name) {
             this.name = name;
@@ -109,6 +116,14 @@ public record MKContainerDef(
             this.persistence = Persistence.OUTPUT; return this;
         }
 
+        // ── Container Type (WHAT it is) ──────────────────────────────────
+
+        /** Sets the functional classification (SIMPLE, CRAFTING, PROCESSING,
+         *  EQUIPMENT, HOTBAR, OTHER). Defaults to SIMPLE. */
+        public Builder type(MKContainerType type) {
+            this.containerType = type; return this;
+        }
+
         // ── Size ─────────────────────────────────────────────────────────
 
         /** Sets the number of slots in the container. */
@@ -122,7 +137,7 @@ public record MKContainerDef(
                 throw new IllegalStateException(
                         "[MenuKit] Container '" + name + "' must have size > 0");
             }
-            MenuKit.registerContainer(new MKContainerDef(name, binding, persistence, size));
+            MenuKit.registerContainer(new MKContainerDef(name, binding, persistence, size, containerType));
         }
     }
 }

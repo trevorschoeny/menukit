@@ -2,6 +2,7 @@ package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.MKButton;
 import com.trevorschoeny.menukit.MKContext;
+import com.trevorschoeny.menukit.MKPanelStateRegistry;
 import com.trevorschoeny.menukit.MKSlot;
 import com.trevorschoeny.menukit.MKSlotState;
 import com.trevorschoeny.menukit.MKSlotStateRegistry;
@@ -43,7 +44,7 @@ import java.util.List;
  *
  * <p>Part of the <b>MenuKit</b> framework internals. Users never see this.
  */
-@Mixin(AbstractContainerScreen.class)
+@Mixin(value = AbstractContainerScreen.class, priority = 900)
 public class MKScreenMixin extends Screen {
 
     @Shadow private Slot hoveredSlot;
@@ -67,6 +68,10 @@ public class MKScreenMixin extends Screen {
         // This ensures toggle-revealed panels (like pockets) don't persist
         // across screen open/close cycles.
         MenuKit.resetStartHiddenPanels();
+
+        // Clear element visibility overrides so stale state doesn't persist
+        // across screen reopens.
+        MKPanelStateRegistry.cleanup();
 
         int leftPos = acc.trevorMod$getLeftPos();
         int topPos  = acc.trevorMod$getTopPos();
@@ -118,6 +123,15 @@ public class MKScreenMixin extends Screen {
             }
         }
         MenuKit.resolvePositionsWithAvoidance(context, effectsActive, effectsHeight);
+
+        // Create button widgets for any panels registered after init() ran.
+        // Dynamically-registered panels (e.g., sort/move-matching buttons for
+        // peek containers) miss the initial createButtonsForMenu() call in init().
+        // This lazy check runs every frame but only creates buttons once per panel.
+        var missingButtons = MenuKit.createMissingButtons(self, context, leftPos, topPos);
+        for (var btn : missingButtons) {
+            this.addRenderableWidget(btn);
+        }
 
         // Update slot + button positions to match resolved positions
         MenuKit.updateSlotPositions(self.getMenu(), context);
@@ -179,6 +193,11 @@ public class MKScreenMixin extends Screen {
 
         // Container-translated space — (0, 0) offset, matching renderSlotBackgrounds.
         MenuKit.renderSlotOverlays(graphics, self.getMenu(), context, 0, 0);
+
+        // Lock overlays — renders lock and sort-lock tints for ALL menu slots
+        // (both MK-panel slots and vanilla container slots like chest/furnace).
+        // Done after overlays so the tint appears on top of everything.
+        MenuKit.renderLockOverlays(graphics, self.getMenu());
     }
 
     /**
@@ -270,6 +289,89 @@ public class MKScreenMixin extends Screen {
         // Check if the click is within any registered MKPanel's bounds
         if (MenuKit.isClickInsideAnyPanel(mouseX, mouseY, leftPos, topPos, context)) {
             cir.setReturnValue(false); // NOT outside — it's on a panel
+        }
+    }
+
+    // ── Scroll Container Input ──────────────────────────────────────────────
+    //
+    // Intercepts mouseScrolled at HEAD (BEFORE MKScrollMixin which handles
+    // slot-level scroll events). If the mouse is over a scroll container
+    // viewport, the scroll offset is updated and the event is consumed,
+    // preventing both the slot-level SCROLL event and vanilla's own scroll
+    // handling from firing.
+    //
+    // Priority note: Both MKScreenMixin and MKScrollMixin inject at HEAD
+    // of mouseScrolled. MKScreenMixin uses priority = 900 (lower = fires
+    // first) while MKScrollMixin uses the default priority of 1000, so
+    // this mixin's scroll container handler always fires before the
+    // slot-level scroll handler. If the scroll container consumes the
+    // event, MKScrollMixin never sees it.
+
+    /**
+     * Handles mouse wheel scrolling for scroll container viewports.
+     * If the cursor is over a scroll viewport, updates the scroll offset
+     * and cancels vanilla's scroll handling.
+     *
+     * <p>Fires BEFORE MKScrollMixin's slot-level scroll handler.
+     */
+    @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true)
+    private void menuKit$scrollContainerInput(double mouseX, double mouseY,
+                                               double scrollX, double scrollY,
+                                               CallbackInfoReturnable<Boolean> cir) {
+        AbstractContainerScreen<?> self = (AbstractContainerScreen<?>)(Object) this;
+        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor)(Object) this;
+
+        MKContext context = MKContext.fromScreen(self);
+        if (context == null) return;
+
+        int leftPos = acc.trevorMod$getLeftPos();
+        int topPos  = acc.trevorMod$getTopPos();
+
+        // Check if scroll should be consumed by a scroll container viewport
+        if (MenuKit.handleScrollContainerInput(mouseX, mouseY, scrollY,
+                leftPos, topPos, context)) {
+            cir.setReturnValue(true); // Consumed — don't let vanilla or MKScrollMixin handle it
+        }
+    }
+
+    // ── Tab Click Input ─────────────────────────────────────────────────────
+    //
+    // Intercepts mouseClicked at HEAD to check for tab bar button clicks.
+    // If a tab button was clicked, switches the active tab and consumes the
+    // click so it doesn't reach vanilla's slot click handling.
+    //
+    // In 1.21.11, mouseClicked takes (MouseButtonEvent, boolean) but the
+    // underlying Screen.mouseClicked(double, double, int) is also available.
+    // We inject on the Screen-level method since AbstractContainerScreen
+    // delegates to it. The 1.21.11 signature wraps it in MouseButtonEvent.
+
+    /**
+     * Handles mouse clicks on tab bar buttons. If the click lands on a tab
+     * button, switches the active tab and cancels the event.
+     */
+    @Inject(method = "mouseClicked(Lnet/minecraft/client/input/MouseButtonEvent;Z)Z",
+            at = @At("HEAD"), cancellable = true)
+    private void menuKit$tabClickInput(net.minecraft.client.input.MouseButtonEvent event,
+                                        boolean flag,
+                                        CallbackInfoReturnable<Boolean> cir) {
+        AbstractContainerScreen<?> self = (AbstractContainerScreen<?>)(Object) this;
+        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor)(Object) this;
+
+        MKContext context = MKContext.fromScreen(self);
+        if (context == null) return;
+
+        int leftPos = acc.trevorMod$getLeftPos();
+        int topPos  = acc.trevorMod$getTopPos();
+
+        // Extract mouse position and button from the event.
+        // Use MenuKit's captured mouse position for consistency with rendering.
+        double mouseX = MenuKit.getLastMouseX();
+        double mouseY = MenuKit.getLastMouseY();
+        int button = event.button();
+
+        // Check if click should be consumed by a tab bar button
+        if (MenuKit.handleTabClick(mouseX, mouseY, button, leftPos, topPos, context)) {
+            cir.setReturnValue(true); // Consumed — tab was clicked
         }
     }
 }

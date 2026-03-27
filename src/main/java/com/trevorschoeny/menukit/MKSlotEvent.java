@@ -27,114 +27,14 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>Part of the <b>MenuKit</b> event system.
  */
-public class MKSlotEvent {
-
-    // ── Event Types ───────────────────────────────────────────────────────────
-    //
-    // Organized by category: click, interaction, state change, lifecycle,
-    // keyboard, and transfer. Each type maps to a specific vanilla or
-    // MenuKit-internal trigger.
-
-    public enum Type {
-
-        // ── Click Events ──────────────────────────────────────────────────
-        // These map directly to vanilla's ClickType + button combinations.
-        // Consumers never need to decode ClickType themselves.
-
-        /** Left-click on a slot. Vanilla: ClickType.PICKUP, button=0. */
-        LEFT_CLICK,
-
-        /** Right-click on a slot. Vanilla: ClickType.PICKUP, button=1. */
-        RIGHT_CLICK,
-
-        /** Shift-click (left or right). Vanilla: ClickType.QUICK_MOVE. */
-        SHIFT_CLICK,
-
-        /** Number key or offhand swap. Vanilla: ClickType.SWAP. */
-        SWAP,
-
-        /**
-         * Middle-click on a slot. Fires in ALL game modes, not just creative.
-         *
-         * <p>In creative mode, vanilla calls this ClickType.CLONE (pick block).
-         * In survival mode, vanilla ignores button=2 entirely — MenuKit catches
-         * it at the mouseClicked level and still fires this event so consumers
-         * can use middle-click as a universal interaction (bookmarking, tagging,
-         * info lookup, etc.) regardless of game mode.
-         */
-        MIDDLE_CLICK,
-
-        /** Click outside the window to throw. Vanilla: ClickType.THROW. */
-        THROW,
-
-        /** Double-click to collect matching items. Vanilla: ClickType.PICKUP_ALL. */
-        DOUBLE_CLICK,
-
-        // ── Interaction Events ────────────────────────────────────────────
-        // Hover and drag tracking — fired by MenuKit's own hover detection.
-
-        /** Cursor moves onto a slot (was not hovering, now is). */
-        HOVER_ENTER,
-
-        /** Cursor leaves a slot (was hovering, now isn't). */
-        HOVER_EXIT,
-
-        /** Cursor drags across a slot while holding items. */
-        DRAG_OVER,
-
-        // ── State Change Events ───────────────────────────────────────────
-        // Fired when slot contents change. Useful for reactive UI updates.
-
-        /** Item in a slot changes (any modification). */
-        SLOT_CHANGED,
-
-        /** Slot transitions from having an item to being empty. */
-        SLOT_EMPTIED,
-
-        /** Slot transitions from empty to having an item. */
-        SLOT_FILLED,
-
-        // ── Lifecycle Events ──────────────────────────────────────────────
-        // Screen open/close and region resolution. slot/state may be null.
-
-        /** Container screen opens. slot and state are null. */
-        MENU_OPEN,
-
-        /** Container screen closes. slot and state are null. */
-        MENU_CLOSE,
-
-        /** A region's slots are fully resolved after menu construction. */
-        REGION_POPULATED,
-
-        // ── Keyboard Events ───────────────────────────────────────────────
-
-        /** Key pressed while cursor hovers a slot. Check keyCode for which key. */
-        KEY_PRESS,
-
-        // ── Scroll Events ────────────────────────────────────────────────
-        // Fired when the mouse wheel scrolls while the cursor hovers a slot.
-        // scrollDelta carries the direction: positive = scroll up, negative = scroll down.
-
-        /** Mouse wheel scrolled while cursor hovers a slot. Use getScrollDelta() for direction. */
-        SCROLL,
-
-        // ── Transfer Events ───────────────────────────────────────────────
-        // Fired BEFORE the transfer happens. Handlers can call transformStack()
-        // to replace the item being moved.
-
-        /** Item is about to be placed INTO a slot. Mutable via transformStack(). */
-        ITEM_TRANSFER_IN,
-
-        /** Item is about to be taken FROM a slot. Mutable via transformStack(). */
-        ITEM_TRANSFER_OUT,
-    }
+public final class MKSlotEvent implements MKEvent {
 
     // ── Fields ────────────────────────────────────────────────────────────────
     //
     // Private fields + getters (not a Java record) because transfer events
     // need mutable cursorStack and the transform mechanism.
 
-    private final Type type;
+    private final MKEvent.Type type;
 
     /** Raw mouse button: 0=left, 1=right, 2=middle. -1 for non-click events. */
     private final int button;
@@ -172,6 +72,19 @@ public class MKSlotEvent {
     /** Mouse wheel scroll delta for SCROLL events. Positive = up, negative = down. 0.0 otherwise. */
     private final double scrollDelta;
 
+    /**
+     * GLFW modifier key bitfield at the time of the event.
+     * Populated for click events ({@code buildSlotEvent}) and KEY_PRESS events
+     * ({@code buildKeyEvent}). 0 for hover, scroll, transfer, and lifecycle events.
+     * <ul>
+     *   <li>0x1 = Shift held</li>
+     *   <li>0x2 = Ctrl held</li>
+     *   <li>0x4 = Alt held</li>
+     *   <li>0x8 = Super/Cmd held</li>
+     * </ul>
+     */
+    private final int modifiers;
+
     // ── Transform Mechanism ───────────────────────────────────────────────────
     //
     // For ITEM_TRANSFER_IN / ITEM_TRANSFER_OUT, handlers can replace the item
@@ -182,12 +95,12 @@ public class MKSlotEvent {
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
-    public MKSlotEvent(Type type, int button,
+    public MKSlotEvent(MKEvent.Type type, int button,
                        @Nullable Slot slot, @Nullable MKSlotState state,
                        @Nullable MKContext context, @Nullable MKRegion region,
                        @Nullable String panelName, int containerSlot,
                        ItemStack slotStack, ItemStack cursorStack,
-                       Player player, int keyCode, double scrollDelta) {
+                       Player player, int keyCode, double scrollDelta, int modifiers) {
         this.type = type;
         this.button = button;
         this.slot = slot;
@@ -201,20 +114,35 @@ public class MKSlotEvent {
         this.player = player;
         this.keyCode = keyCode;
         this.scrollDelta = scrollDelta;
+        this.modifiers = modifiers;
     }
 
     /**
-     * Backwards-compatible constructor — defaults scrollDelta to 0.0.
-     * Used by all existing event builders (click, hover, key, transfer, lifecycle).
+     * Backwards-compatible constructor — defaults modifiers to 0.
+     * Used by scroll, key, hover, transfer, and lifecycle event builders.
      */
-    public MKSlotEvent(Type type, int button,
+    public MKSlotEvent(MKEvent.Type type, int button,
+                       @Nullable Slot slot, @Nullable MKSlotState state,
+                       @Nullable MKContext context, @Nullable MKRegion region,
+                       @Nullable String panelName, int containerSlot,
+                       ItemStack slotStack, ItemStack cursorStack,
+                       Player player, int keyCode, double scrollDelta) {
+        this(type, button, slot, state, context, region, panelName,
+             containerSlot, slotStack, cursorStack, player, keyCode, scrollDelta, 0);
+    }
+
+    /**
+     * Backwards-compatible constructor — defaults scrollDelta to 0.0 and modifiers to 0.
+     * Used by all legacy call sites (click, hover, key, transfer, lifecycle).
+     */
+    public MKSlotEvent(MKEvent.Type type, int button,
                        @Nullable Slot slot, @Nullable MKSlotState state,
                        @Nullable MKContext context, @Nullable MKRegion region,
                        @Nullable String panelName, int containerSlot,
                        ItemStack slotStack, ItemStack cursorStack,
                        Player player, int keyCode) {
         this(type, button, slot, state, context, region, panelName,
-             containerSlot, slotStack, cursorStack, player, keyCode, 0.0);
+             containerSlot, slotStack, cursorStack, player, keyCode, 0.0, 0);
     }
 
     // ── Static Factories ───────────────────────────────────────────────────────
@@ -233,7 +161,7 @@ public class MKSlotEvent {
      * @param player  the player involved
      * @return a new MKSlotEvent with null slot/state/region/panel
      */
-    public static MKSlotEvent lifecycle(Type type, @Nullable MKContext context,
+    public static MKSlotEvent lifecycle(MKEvent.Type type, @Nullable MKContext context,
                                          Player player) {
         return new MKSlotEvent(
                 type, -1,
@@ -256,7 +184,7 @@ public class MKSlotEvent {
      * @param player  the player involved
      * @return a new MKSlotEvent with the region set but null slot/state
      */
-    public static MKSlotEvent lifecycleWithRegion(Type type, @Nullable MKContext context,
+    public static MKSlotEvent lifecycleWithRegion(MKEvent.Type type, @Nullable MKContext context,
                                                     MKRegion region, Player player) {
         return new MKSlotEvent(
                 type, -1,
@@ -271,7 +199,8 @@ public class MKSlotEvent {
     // ── Getters ───────────────────────────────────────────────────────────────
 
     /** The type of event that occurred. */
-    public Type getType() { return type; }
+    @Override
+    public MKEvent.Type getType() { return type; }
 
     /** Raw mouse button (0=left, 1=right, 2=middle). -1 for non-click events. */
     public int getButton() { return button; }
@@ -283,6 +212,7 @@ public class MKSlotEvent {
     public @Nullable MKSlotState getState() { return state; }
 
     /** The screen context where this event occurred, or null for unknown menu types. */
+    @Override
     public @Nullable MKContext getContext() { return context; }
 
     /** The region this slot belongs to, or null. */
@@ -301,6 +231,7 @@ public class MKSlotEvent {
     public ItemStack getCursorStack() { return cursorStack; }
 
     /** The player who triggered the event. */
+    @Override
     public Player getPlayer() { return player; }
 
     /** GLFW key code for KEY_PRESS events (-1 otherwise). */
@@ -311,6 +242,22 @@ public class MKSlotEvent {
      * negative = scroll down. Returns 0.0 for all non-SCROLL events.
      */
     public double getScrollDelta() { return scrollDelta; }
+
+    /**
+     * Raw GLFW modifier bitfield (0x1=Shift, 0x2=Ctrl, 0x4=Alt, 0x8=Super).
+     * Populated for click and KEY_PRESS events; 0 for hover, scroll,
+     * transfer, and lifecycle events.
+     */
+    public int getModifiers() { return modifiers; }
+
+    /** Whether the Shift key was held when this event fired. */
+    public boolean isShiftPressed() { return (modifiers & 0x1) != 0; }
+
+    /** Whether the Ctrl key was held when this event fired. */
+    public boolean isCtrlPressed() { return (modifiers & 0x2) != 0; }
+
+    /** Whether the Alt key was held when this event fired. */
+    public boolean isAltPressed() { return (modifiers & 0x4) != 0; }
 
     // ── Transform API (for transfer events) ───────────────────────────────────
     //
@@ -325,7 +272,7 @@ public class MKSlotEvent {
      * @throws IllegalStateException if the event type is not a transfer event
      */
     public void transformStack(ItemStack replacement) {
-        if (type != Type.ITEM_TRANSFER_IN && type != Type.ITEM_TRANSFER_OUT) {
+        if (type != MKEvent.Type.ITEM_TRANSFER_IN && type != MKEvent.Type.ITEM_TRANSFER_OUT) {
             throw new IllegalStateException(
                     "transformStack() is only valid for transfer events, not " + type);
         }

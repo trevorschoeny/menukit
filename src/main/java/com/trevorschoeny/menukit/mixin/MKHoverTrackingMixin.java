@@ -1,6 +1,7 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.MKContext;
+import com.trevorschoeny.menukit.MKEvent;
 import com.trevorschoeny.menukit.MKEventBus;
 import com.trevorschoeny.menukit.MKEventHelper;
 import com.trevorschoeny.menukit.MKSlotEvent;
@@ -23,9 +24,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *
  * <p>Fires three event types:
  * <ul>
- *   <li>{@link MKSlotEvent.Type#HOVER_ENTER} — cursor moves onto a slot</li>
- *   <li>{@link MKSlotEvent.Type#HOVER_EXIT} — cursor leaves a slot</li>
- *   <li>{@link MKSlotEvent.Type#DRAG_OVER} — cursor moves onto a slot while
+ *   <li>{@link MKEvent.Type#HOVER_ENTER} — cursor moves onto a slot</li>
+ *   <li>{@link MKEvent.Type#HOVER_EXIT} — cursor leaves a slot</li>
+ *   <li>{@link MKEvent.Type#DRAG_OVER} — cursor moves onto a slot while
  *       holding items (cursor stack is not empty)</li>
  * </ul>
  *
@@ -143,7 +144,7 @@ public class MKHoverTrackingMixin {
             // (either to a different slot or to empty space).
             if (previousSlot != null) {
                 MKSlotEvent exitEvent = MKEventHelper.buildHoverEvent(
-                        MKSlotEvent.Type.HOVER_EXIT, previousSlot, self, player);
+                        MKEvent.Type.HOVER_EXIT, previousSlot, self, player);
                 if (exitEvent != null) {
                     MKEventBus.fire(exitEvent);
                 }
@@ -156,9 +157,9 @@ public class MKHoverTrackingMixin {
             // during item dragging.
             if (currentSlot != null) {
                 boolean isDragging = !self.getMenu().getCarried().isEmpty();
-                MKSlotEvent.Type enterType = isDragging
-                        ? MKSlotEvent.Type.DRAG_OVER
-                        : MKSlotEvent.Type.HOVER_ENTER;
+                MKEvent.Type enterType = isDragging
+                        ? MKEvent.Type.DRAG_OVER
+                        : MKEvent.Type.HOVER_ENTER;
 
                 MKSlotEvent enterEvent = MKEventHelper.buildHoverEvent(
                         enterType, currentSlot, self, player);

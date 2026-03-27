@@ -60,13 +60,13 @@ public final class MKEventHelper {
         currentClickPlayer = null;
     }
 
-    // ── ClickType -> MKSlotEvent.Type Mapping ─────────────────────────────
+    // ── ClickType -> MKEvent.Type Mapping ─────────────────────────────
     //
     // Maps vanilla's ClickType + button combination to our unified event type.
     // Returns null for click types we don't (yet) handle as bus events.
 
     /**
-     * Converts a vanilla ClickType + button pair to an {@link MKSlotEvent.Type}.
+     * Converts a vanilla ClickType + button pair to an {@link MKEvent.Type}.
      *
      * <p>Mapping:
      * <ul>
@@ -81,16 +81,16 @@ public final class MKEventHelper {
      *
      * @param clickType vanilla click type
      * @param button    mouse button (0=left, 1=right, 2=middle)
-     * @return the matching MKSlotEvent.Type, or null if not mapped
+     * @return the matching MKEvent.Type, or null if not mapped
      */
     public static MKSlotEvent.@Nullable Type mapClickType(ClickType clickType, int button) {
         return switch (clickType) {
-            case PICKUP -> button == 1 ? MKSlotEvent.Type.RIGHT_CLICK : MKSlotEvent.Type.LEFT_CLICK;
-            case QUICK_MOVE -> MKSlotEvent.Type.SHIFT_CLICK;
-            case SWAP -> MKSlotEvent.Type.SWAP;
-            case CLONE -> MKSlotEvent.Type.MIDDLE_CLICK;
-            case THROW -> MKSlotEvent.Type.THROW;
-            case PICKUP_ALL -> MKSlotEvent.Type.DOUBLE_CLICK;
+            case PICKUP -> button == 1 ? MKEvent.Type.RIGHT_CLICK : MKEvent.Type.LEFT_CLICK;
+            case QUICK_MOVE -> MKEvent.Type.SHIFT_CLICK;
+            case SWAP -> MKEvent.Type.SWAP;
+            case CLONE -> MKEvent.Type.MIDDLE_CLICK;
+            case THROW -> MKEvent.Type.THROW;
+            case PICKUP_ALL -> MKEvent.Type.DOUBLE_CLICK;
             default -> null; // QUICK_CRAFT (drag) not handled as a click event
         };
     }
@@ -121,11 +121,33 @@ public final class MKEventHelper {
      * @param player the player who clicked
      * @return a fully-populated MKSlotEvent
      */
-    public static MKSlotEvent buildSlotEvent(MKSlotEvent.Type type,
+    public static MKSlotEvent buildSlotEvent(MKEvent.Type type,
                                               @Nullable Slot slot,
                                               int button,
                                               AbstractContainerScreen<?> screen,
                                               Player player) {
+
+        // ── Sample modifier key state via GLFW ──────────────────────────
+        // Click events fire rarely (on actual input), so sampling here is cheap.
+        // Bitfield: 0x1=Shift, 0x2=Ctrl, 0x4=Alt
+        // mc.getWindow().handle() returns the LWJGL GLFW window handle.
+        int modifiers = 0;
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc != null && mc.getWindow() != null) {
+            long wnd = mc.getWindow().handle();
+            if (org.lwjgl.glfw.GLFW.glfwGetKey(wnd, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT)  == org.lwjgl.glfw.GLFW.GLFW_PRESS
+             || org.lwjgl.glfw.GLFW.glfwGetKey(wnd, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SHIFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS) {
+                modifiers |= 0x1;
+            }
+            if (org.lwjgl.glfw.GLFW.glfwGetKey(wnd, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_CONTROL)  == org.lwjgl.glfw.GLFW.GLFW_PRESS
+             || org.lwjgl.glfw.GLFW.glfwGetKey(wnd, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_CONTROL) == org.lwjgl.glfw.GLFW.GLFW_PRESS) {
+                modifiers |= 0x2;
+            }
+            if (org.lwjgl.glfw.GLFW.glfwGetKey(wnd, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_ALT)  == org.lwjgl.glfw.GLFW.GLFW_PRESS
+             || org.lwjgl.glfw.GLFW.glfwGetKey(wnd, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_ALT) == org.lwjgl.glfw.GLFW.GLFW_PRESS) {
+                modifiers |= 0x4;
+            }
+        }
 
         // ── Resolve screen context ──────────────────────────────────────
         // MKContext identifies which screen type we're in (survival, creative,
@@ -182,7 +204,9 @@ public final class MKEventHelper {
                 slotStack,
                 cursorStack,
                 player,
-                -1            // keyCode — not applicable for click events
+                -1,           // keyCode — not applicable for click events
+                0.0,          // scrollDelta — not applicable for click events
+                modifiers     // GLFW modifier bitfield sampled above
         );
     }
 
@@ -211,7 +235,7 @@ public final class MKEventHelper {
                                           AbstractContainerScreen<?> screen,
                                           Player player) {
         // Map vanilla ClickType to our event type
-        MKSlotEvent.Type eventType = mapClickType(clickType, button);
+        MKEvent.Type eventType = mapClickType(clickType, button);
         if (eventType == null) return false; // unmapped click type (e.g., drag)
 
         // Build the fully-resolved event
@@ -238,7 +262,7 @@ public final class MKEventHelper {
      * @param player the player
      * @return a fully-populated MKSlotEvent
      */
-    public static MKSlotEvent buildHoverEvent(MKSlotEvent.Type type,
+    public static MKSlotEvent buildHoverEvent(MKEvent.Type type,
                                                Slot slot,
                                                AbstractContainerScreen<?> screen,
                                                Player player) {
@@ -276,7 +300,7 @@ public final class MKEventHelper {
      * @param player     the player involved, or null if unavailable
      * @return a fully-populated MKSlotEvent, or null if player is null
      */
-    public static @Nullable MKSlotEvent buildTransferEvent(MKSlotEvent.Type type,
+    public static @Nullable MKSlotEvent buildTransferEvent(MKEvent.Type type,
                                                             Slot slot,
                                                             ItemStack slotStack,
                                                             ItemStack cursorStack,
@@ -366,19 +390,27 @@ public final class MKEventHelper {
      * Builds a fully-resolved {@link MKSlotEvent} for a KEY_PRESS event.
      *
      * <p>Uses the same context resolution as click events (state, region,
-     * panel, cursor stack) but sets button to -1 and carries the keyCode.
-     * Returns null if the slot is null (no slot hovered when key was pressed).
+     * panel, cursor stack) but sets button to -1 and carries the keyCode
+     * plus the GLFW modifier bitmask (Shift/Ctrl/Alt/Super). Consumers
+     * can use {@link MKSlotEvent#getModifiers()} and the convenience
+     * helpers ({@code isShiftPressed()}, etc.) to check modifier state,
+     * or pass keyCode + modifiers directly to
+     * {@link com.trevorschoeny.menukit.MKKeybind#matches(int, int, int)}.
      *
-     * @param slot    the slot being hovered when the key was pressed, or null
-     * @param screen  the container screen
-     * @param player  the player
-     * @param keyCode GLFW key code (e.g., GLFW_KEY_Q = 81)
+     * <p>Returns null if the slot is null (no slot hovered when key was pressed).
+     *
+     * @param slot      the slot being hovered when the key was pressed, or null
+     * @param screen    the container screen
+     * @param player    the player
+     * @param keyCode   GLFW key code (e.g., GLFW_KEY_Q = 81)
+     * @param modifiers GLFW modifier bitmask (Shift=1, Ctrl=2, Alt=4, Super=8)
      * @return the event, or null if slot is null
      */
     public static @Nullable MKSlotEvent buildKeyEvent(@Nullable Slot slot,
                                                        AbstractContainerScreen<?> screen,
                                                        Player player,
-                                                       int keyCode) {
+                                                       int keyCode,
+                                                       int modifiers) {
         // Key events require a hovered slot to be meaningful
         if (slot == null) return null;
 
@@ -404,9 +436,11 @@ public final class MKEventHelper {
         // Cursor stack snapshot
         ItemStack cursorStack = menu.getCarried().copy();
 
-        // Build the event with keyCode (button is -1 for key events)
+        // Build the event with keyCode AND modifiers. Uses the 4-arg
+        // constructor so the modifier bitmask is preserved for KEY_PRESS
+        // handlers that need to check multi-key combos (e.g., Ctrl+K).
         return new MKSlotEvent(
-                MKSlotEvent.Type.KEY_PRESS,
+                MKEvent.Type.KEY_PRESS,
                 -1,            // button — not applicable for key events
                 slot,
                 state,
@@ -417,7 +451,9 @@ public final class MKEventHelper {
                 slotStack,
                 cursorStack,
                 player,
-                keyCode
+                keyCode,
+                0.0,           // scrollDelta — not applicable for key events
+                modifiers
         );
     }
 
@@ -473,7 +509,7 @@ public final class MKEventHelper {
 
         // Build the event with scrollDelta (button and keyCode are -1 for scroll events)
         return new MKSlotEvent(
-                MKSlotEvent.Type.SCROLL,
+                MKEvent.Type.SCROLL,
                 -1,            // button — not applicable for scroll events
                 slot,
                 state,

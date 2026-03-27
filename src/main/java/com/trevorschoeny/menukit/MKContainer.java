@@ -112,17 +112,25 @@ public class MKContainer implements Container {
 
     @Override
     public ItemStack removeItem(int slot, int amount) {
-        return delegate.removeItem(toReal(slot), amount);
+        ItemStack removed = delegate.removeItem(toReal(slot), amount);
+        if (!removed.isEmpty()) this.setChanged();
+        return removed;
     }
 
     @Override
     public ItemStack removeItemNoUpdate(int slot) {
         return delegate.removeItemNoUpdate(toReal(slot));
+        // No setChanged — "NoUpdate" variants intentionally skip notifications
     }
 
     @Override
     public void setItem(int slot, ItemStack stack) {
         delegate.setItem(toReal(slot), stack);
+        // Trigger source sync so bound backing stores (bundle BundleContents,
+        // shulker ItemContainerContents, ender chest) update immediately.
+        // The syncing re-entrancy guard in setChanged() prevents infinite
+        // recursion when sync() writes items back to this container.
+        this.setChanged();
     }
 
     @Override
@@ -180,6 +188,22 @@ public class MKContainer implements Container {
         syncing = true;
         try {
             source.populate(this);
+        } finally {
+            syncing = false;
+        }
+    }
+
+    /**
+     * Runs an action with source sync suppressed. Any {@code setItem} calls
+     * during the action will update the container but NOT trigger
+     * {@code source.sync()}. Used by {@code pollExternalChanges} to
+     * re-populate from the backing store without the populate's setItem
+     * calls writing intermediate state back to the store.
+     */
+    public void withSyncSuppressed(Runnable action) {
+        syncing = true;
+        try {
+            action.run();
         } finally {
             syncing = false;
         }

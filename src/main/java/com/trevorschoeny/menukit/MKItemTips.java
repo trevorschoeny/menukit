@@ -1,15 +1,24 @@
 package com.trevorschoeny.menukit;
 
+import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.core.NonNullList;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.food.FoodProperties;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.BundleContents;
+import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -154,45 +163,217 @@ public final class MKItemTips {
         return List.of(Component.empty(), nutritionLine, saturationLine);
     }
 
-    // ── Total Inventory Count ────────────────────────────────────────────
+    // ── Total Count (context-aware) ─────────────────────────────────────
+
+    // Name of the region group that combines hotbar + main inventory.
+    // Registered by InventoryPlus at mod init. When hovering within this
+    // group, we count across all member regions AND inside containers
+    // (shulker boxes, bundles) found in those regions.
+    private static final String PLAYER_STORAGE_GROUP = "player_storage";
+
+    // Shulker boxes always have 27 slots
+    private static final int SHULKER_SIZE = 27;
 
     /**
-     * Returns a "Total in inventory: N" line showing how many of this item
-     * the player has across all inventory slots (main inventory + armor + offhand).
+     * Returns a "Total: N" line showing how many of this item the player
+     * has in the relevant context.
      *
-     * <p>Only shown when the player has more than 1 total (a single stack
-     * doesn't need a "total" indicator — you can already see the count).
-     * Uses {@link ItemStack#isSameItem} for matching — ignores NBT/components
-     * so all swords of the same type are counted together regardless of
-     * enchantments or damage.
+     * <p><b>Context-aware rules:</b>
+     * <ul>
+     *   <li><b>Player inventory</b> (hotbar or main): counts across the
+     *       entire {@code player_storage} group, plus items inside shulker
+     *       boxes and bundles within those slots. This reflects the player's
+     *       true available supply.</li>
+     *   <li><b>Other containers</b> (chests, peek views, etc.): counts only
+     *       within that container's single region.</li>
+     * </ul>
+     *
+     * <p>Falls back to total player inventory count when no region or group
+     * context is available (non-container screen, no hovered slot, etc.).
+     *
+     * <p>Only shown when the total exceeds the hovered stack's own count
+     * (showing "Total: 32" when hovering the only stack of 32 is redundant).
      *
      * @param stack the item to count
-     * @return singleton list with the count line, or empty if count <= 1
-     *         or player is unavailable
+     * @return singleton list with the count line, or empty if not useful
      */
     public static List<Component> totalCountTip(ItemStack stack) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return List.of();
 
-        Inventory inventory = mc.player.getInventory();
-        int total = 0;
+        int total = -1; // sentinel: no context-aware count yet
 
-        // Scan all inventory slots: main (0-35), armor (36-39), offhand (40)
-        for (int i = 0; i < inventory.getContainerSize(); i++) {
-            ItemStack slotStack = inventory.getItem(i);
-            if (!slotStack.isEmpty() && ItemStack.isSameItem(slotStack, stack)) {
-                total += slotStack.getCount();
+        if (mc.screen instanceof AbstractContainerScreen<?> containerScreen) {
+            // Get the hovered slot — either MenuKit's own tracking (works for
+            // MKSlots outside vanilla bounds) or vanilla's hoveredSlot via accessor
+            Slot hovered = MenuKit.getHoveredMKSlot();
+            if (hovered == null) {
+                hovered = ((AbstractContainerScreenAccessor) containerScreen)
+                        .trevorMod$getHoveredSlot();
+            }
+
+            if (hovered != null) {
+                AbstractContainerMenu menu = containerScreen.getMenu();
+
+                // Check if the hovered slot is in the player_storage group.
+                // If so, count across the whole group + inside containers.
+                MKRegionGroup playerGroup = MKRegionRegistry.getGroup(
+                        menu, PLAYER_STORAGE_GROUP);
+
+                if (playerGroup != null && playerGroup.containsMenuSlot(hovered.index)) {
+                    // Player inventory context: group-wide count + container contents
+                    total = playerGroup.countItem(stack)
+                            + countInsideContainers(playerGroup, stack);
+                } else {
+                    // Non-player region (chest, peek, etc.): count within that region only.
+                    // Dynamic containers (e.g., peek) get regions registered automatically
+                    // when their panel is shown via MenuKit.showPanel().
+                    MKRegion region = MKRegionRegistry.getRegionForSlot(menu, hovered.index);
+                    if (region != null) {
+                        total = countInRegion(region, stack);
+                    }
+                }
             }
         }
 
-        // Skip if only one stack exists — the count is already visible on the item
-        if (total <= 1) return List.of();
+        // Fallback: scan entire player inventory if no region/group context
+        if (total < 0) {
+            total = countInInventory(mc.player.getInventory(), stack);
+        }
 
-        MutableComponent line = Component.literal("Total in inventory: ")
+        // Skip if total doesn't exceed the hovered stack's own count —
+        // the slot already shows that number, so "Total: N" adds nothing
+        if (total <= stack.getCount()) return List.of();
+
+        MutableComponent line = Component.literal("Total: ")
                 .withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(String.valueOf(total))
                         .withStyle(ChatFormatting.WHITE));
 
         return List.of(Component.empty(), line);
+    }
+
+    // ── Container Content Scanning ──────────────────────────────────────
+
+    /**
+     * Counts items matching {@code target} that are stored <b>inside</b>
+     * shulker boxes and bundles found in the given region group.
+     *
+     * <p>This looks one level deep — it does not recurse into nested containers
+     * (e.g., a shulker inside a bundle). Each container item in the group's
+     * slots is opened and its contents scanned for matches.
+     *
+     * @param group  the region group whose slots contain the containers
+     * @param target the item to match (type + components)
+     * @return total count of matching items found inside containers
+     */
+    private static int countInsideContainers(MKRegionGroup group, ItemStack target) {
+        int count = 0;
+
+        // Iterate every slot across all regions in the group
+        for (MKRegion region : group.regions()) {
+            for (int i = 0; i < region.size(); i++) {
+                ItemStack slotStack = region.getItem(i);
+                if (slotStack.isEmpty()) continue;
+
+                // Shulker boxes: read ItemContainerContents
+                if (isShulkerBox(slotStack)) {
+                    count += countInsideShulker(slotStack, target);
+                }
+
+                // Bundles: read BundleContents
+                if (isBundle(slotStack)) {
+                    count += countInsideBundle(slotStack, target);
+                }
+            }
+        }
+
+        return count;
+    }
+
+    /**
+     * Counts items matching {@code target} inside a shulker box item.
+     * Reads the {@link ItemContainerContents} component and scans all 27 slots.
+     */
+    private static int countInsideShulker(ItemStack shulkerStack, ItemStack target) {
+        ItemContainerContents contents = shulkerStack.get(DataComponents.CONTAINER);
+        if (contents == null) return 0;
+
+        // Copy into a mutable list so we can iterate by index
+        NonNullList<ItemStack> items = NonNullList.withSize(SHULKER_SIZE, ItemStack.EMPTY);
+        contents.copyInto(items);
+
+        int count = 0;
+        for (ItemStack item : items) {
+            if (!item.isEmpty() && ItemStack.isSameItemSameComponents(item, target)) {
+                count += item.getCount();
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Counts items matching {@code target} inside a bundle item.
+     * Reads the {@link BundleContents} component and iterates its items.
+     */
+    private static int countInsideBundle(ItemStack bundleStack, ItemStack target) {
+        BundleContents contents = bundleStack.get(DataComponents.BUNDLE_CONTENTS);
+        if (contents == null) return 0;
+
+        int count = 0;
+        for (ItemStack item : contents.items()) {
+            if (!item.isEmpty() && ItemStack.isSameItemSameComponents(item, target)) {
+                count += item.getCount();
+            }
+        }
+        return count;
+    }
+
+    // ── Region / Inventory Counting ─────────────────────────────────────
+
+    /**
+     * Counts items matching {@code target} within a single region.
+     * Used for non-player containers (chests, peek views, etc.)
+     * where we only want the count within that container's slots.
+     */
+    private static int countInRegion(MKRegion region, ItemStack target) {
+        int count = 0;
+        for (int i = 0; i < region.size(); i++) {
+            ItemStack slotStack = region.getItem(i);
+            if (!slotStack.isEmpty()
+                    && ItemStack.isSameItemSameComponents(slotStack, target)) {
+                count += slotStack.getCount();
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Counts items matching {@code target} across all inventory slots.
+     * Used as fallback when no region context is available.
+     */
+    private static int countInInventory(Inventory inventory, ItemStack target) {
+        int count = 0;
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            ItemStack slotStack = inventory.getItem(i);
+            if (!slotStack.isEmpty()
+                    && ItemStack.isSameItemSameComponents(slotStack, target)) {
+                count += slotStack.getCount();
+            }
+        }
+        return count;
+    }
+
+    // ── Container Type Checks ───────────────────────────────────────────
+
+    /** Returns true if the given ItemStack is a shulker box (any color). */
+    private static boolean isShulkerBox(ItemStack stack) {
+        return stack.getItem() instanceof BlockItem bi
+                && bi.getBlock() instanceof ShulkerBoxBlock;
+    }
+
+    /** Returns true if the given ItemStack is a bundle (has BundleContents). */
+    private static boolean isBundle(ItemStack stack) {
+        return stack.has(DataComponents.BUNDLE_CONTENTS);
     }
 }

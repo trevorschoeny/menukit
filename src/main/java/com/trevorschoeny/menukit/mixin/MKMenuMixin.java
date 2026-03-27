@@ -53,6 +53,18 @@ public class MKMenuMixin {
         // ── Step 2: Create vanilla container wrappers for the unified API ─────
         MenuKit.createVanillaContainerWrappers(menu, MKContext.SURVIVAL_INVENTORY, owner);
 
+        // ── Step 2.5: Resolve regions and region groups ─────────────────────
+        // Populates MKRegionRegistry so that getRegion(), getRegionForSlot(),
+        // and getGroup() return correct results for this menu. Must run AFTER
+        // vanilla slots are added (Step 1 mapped them) and BEFORE MKSlots
+        // so region resolution sees the correct vanilla slot layout.
+        MKRegionRegistry.resolveForMenu(menu, MKContext.SURVIVAL_INVENTORY, owner);
+
+        // ── Step 2.6: Conditional element evaluation ─────────────────────────
+        // Inject virtual SlotGroups into vanilla panels and evaluate conditional
+        // rules now that regions are resolved.
+        MenuKit.onMenuResolved(menu);
+
         // ── Step 3: Add custom MKSlots (equipment, pockets, peek, etc.) ─────
         java.util.List<MKSlot> mkSlots = MenuKit.createSlotsForMenu(
                 menu, MKContext.SURVIVAL_INVENTORY, owner);
@@ -114,7 +126,6 @@ public class MKMenuMixin {
                                                 int slotIndex,
                                                 org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<net.minecraft.world.item.ItemStack> cir) {
         AbstractContainerMenu menu = (AbstractContainerMenu)(Object) this;
-
         if (slotIndex < 0 || slotIndex >= menu.slots.size()) return;
         Slot sourceSlot = menu.slots.get(slotIndex);
         if (!sourceSlot.hasItem()) return;
@@ -126,12 +137,25 @@ public class MKMenuMixin {
         String sourcePanel = MenuKit.getEffectivePanelName(menu, sourceSlot);
         com.trevorschoeny.menukit.MKSlotState sourceState = com.trevorschoeny.menukit.MKSlotStateRegistry.get(sourceSlot);
 
+        MenuKit.LOGGER.debug("[MKMenuMixin] quickMoveStack: slot={}, panel='{}', isMK={}, item={}",
+                slotIndex, sourcePanel,
+                sourceState != null && sourceState.isMenuKitSlot(),
+                sourceStack.getItem());
+
         // Case 1: Source is a MenuKit-managed slot → route to other panels
         if (sourceState != null && sourceState.isMenuKitSlot()) {
             net.minecraft.world.item.ItemStack original = sourceStack.copy();
             boolean moved = MenuKit.tryRouteToOtherPanels(menu, sourceSlot, sourceStack, sourcePanel);
             if (moved) {
-                sourceSlot.setChanged();
+                // If the source was fully consumed (count reduced to 0 by
+                // shrink/split), replace the count-0 ghost with proper EMPTY.
+                // This prevents vanilla's slot sync from seeing a stale item
+                // type in an "empty" slot and sending spurious corrections.
+                if (sourceStack.isEmpty()) {
+                    sourceSlot.set(net.minecraft.world.item.ItemStack.EMPTY);
+                } else {
+                    sourceSlot.setChanged();
+                }
                 cir.setReturnValue(original);
             } else {
                 cir.setReturnValue(net.minecraft.world.item.ItemStack.EMPTY);
@@ -148,7 +172,14 @@ public class MKMenuMixin {
         // even if the target panel has shiftClickIn=false.
         boolean moved = MenuKit.tryPriorityRoute(menu, sourceStack);
         if (moved && sourceStack.isEmpty()) {
-            sourceSlot.setChanged();
+            // Clean up the source slot: replace the count-0 remnant left by
+            // split() with a proper ItemStack.EMPTY. Vanilla's quickMoveStack
+            // does this via setByPlayer(EMPTY, original). Without this, the
+            // source slot holds a "ghost" count-0 stack with the old item type
+            // still set. While isEmpty() returns true, the ghost can confuse
+            // vanilla's slot sync or the doClick loop, causing the transferred
+            // item to bounce back to the source.
+            sourceSlot.set(net.minecraft.world.item.ItemStack.EMPTY);
             cir.setReturnValue(original);
             return;
         }
@@ -156,7 +187,8 @@ public class MKMenuMixin {
         // Generic routing: try remaining MenuKit-managed slots with shiftClickIn=true
         moved |= MenuKit.tryRouteToCustomSlots(menu, sourceSlot, sourceStack);
         if (moved && sourceStack.isEmpty()) {
-            sourceSlot.setChanged();
+            // Same cleanup as above — replace count-0 ghost with proper EMPTY
+            sourceSlot.set(net.minecraft.world.item.ItemStack.EMPTY);
             cir.setReturnValue(original);
             return;
         }

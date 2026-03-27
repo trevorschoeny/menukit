@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit.mixin;
 
+import com.trevorschoeny.menukit.MKEvent;
 import com.trevorschoeny.menukit.MKEventBus;
 import com.trevorschoeny.menukit.MKEventHelper;
 import com.trevorschoeny.menukit.MKSlotEvent;
@@ -15,8 +16,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.Optional;
 
 /**
- * Fires {@link MKSlotEvent.Type#ITEM_TRANSFER_IN ITEM_TRANSFER_IN} and
- * {@link MKSlotEvent.Type#ITEM_TRANSFER_OUT ITEM_TRANSFER_OUT} events through
+ * Fires {@link MKEvent.Type#ITEM_TRANSFER_IN ITEM_TRANSFER_IN} and
+ * {@link MKEvent.Type#ITEM_TRANSFER_OUT ITEM_TRANSFER_OUT} events through
  * the {@link MKEventBus} whenever items move into or out of a slot.
  *
  * <p>Instead of trying to inject into the ~800-line {@code AbstractContainerMenu.doClick()},
@@ -93,7 +94,7 @@ public class MKTransferMixin {
         // ── Build the transfer event ────────────────────────────────────
         // slotStack = current slot contents; cursorStack = incoming item
         MKSlotEvent event = MKEventHelper.buildTransferEvent(
-                MKSlotEvent.Type.ITEM_TRANSFER_IN,
+                MKEvent.Type.ITEM_TRANSFER_IN,
                 self,
                 self.getItem().copy(),  // snapshot current slot contents
                 stack.copy(),           // snapshot the incoming item
@@ -193,7 +194,7 @@ public class MKTransferMixin {
         // ── Build the transfer event ────────────────────────────────────
         // slotStack = current slot contents; cursorStack = replacement item
         MKSlotEvent event = MKEventHelper.buildTransferEvent(
-                MKSlotEvent.Type.ITEM_TRANSFER_IN,
+                MKEvent.Type.ITEM_TRANSFER_IN,
                 self,
                 self.getItem().copy(),  // snapshot current slot contents
                 stack.copy(),           // snapshot the replacement item
@@ -264,7 +265,7 @@ public class MKTransferMixin {
         // ── Build the transfer event ────────────────────────────────────
         // slotStack = current contents (about to be taken); cursorStack = empty
         MKSlotEvent event = MKEventHelper.buildTransferEvent(
-                MKSlotEvent.Type.ITEM_TRANSFER_OUT,
+                MKEvent.Type.ITEM_TRANSFER_OUT,
                 self,
                 self.getItem().copy(),  // snapshot current slot contents
                 ItemStack.EMPTY,        // nothing incoming (this is an extraction)
@@ -310,7 +311,7 @@ public class MKTransferMixin {
 
         // ── Build the transfer event ────────────────────────────────────
         MKSlotEvent event = MKEventHelper.buildTransferEvent(
-                MKSlotEvent.Type.ITEM_TRANSFER_OUT,
+                MKEvent.Type.ITEM_TRANSFER_OUT,
                 self,
                 self.getItem().copy(),  // snapshot current slot contents
                 ItemStack.EMPTY,        // nothing incoming

@@ -34,6 +34,92 @@ public class MKContainerSort {
     }
 
     /**
+     * Sorts across an entire region group. Collects all items from every
+     * region in the group, consolidates and sorts them, then distributes
+     * back in fill-priority order (region with lowest priority fills first).
+     *
+     * <p>Locked slots are respected — their items stay in place and other
+     * items sort around them.
+     *
+     * @param group the region group to sort
+     * @param menu  the menu (for lock lookups)
+     */
+    public static void sortGroup(MKRegionGroup group, AbstractContainerMenu menu) {
+        // Step 1: Collect all non-locked items across all regions + track free slots
+        List<ItemStack> allItems = new ArrayList<>();
+        // Each entry: (region, container index) — in fill-priority order
+        List<int[]> freeSlots = new ArrayList<>();  // [regionIdx, regionLocal]
+        Set<String> lockedKeys = new HashSet<>();
+
+        List<MKRegion> regions = group.fillOrder();
+
+        for (int rIdx = 0; rIdx < regions.size(); rIdx++) {
+            MKRegion region = regions.get(rIdx);
+            for (int local = 0; local < region.size(); local++) {
+                // Check if this slot is locked via menu slot mapping
+                int menuSlot = region.getMenuSlotStart() + local;
+                boolean locked = false;
+                if (menuSlot >= 0 && menuSlot < menu.slots.size()) {
+                    net.minecraft.world.inventory.Slot slot = menu.slots.get(menuSlot);
+                    MKSlotState state = MKSlotStateRegistry.get(slot);
+                    if (state != null && (state.isLocked() || state.isSortLocked())) {
+                        locked = true;
+                    }
+                }
+
+                if (locked) continue;
+
+                ItemStack stack = region.getItem(local);
+                if (!stack.isEmpty()) {
+                    allItems.add(stack.copy());
+                }
+                freeSlots.add(new int[]{rIdx, local});
+            }
+        }
+
+        if (allItems.isEmpty()) return;
+
+        // Step 2: Consolidate partial stacks
+        List<ItemStack> consolidated = consolidateStacks(allItems);
+
+        // Step 3: Count totals for sort ordering
+        Map<String, Integer> totalCounts = new HashMap<>();
+        for (ItemStack stack : consolidated) {
+            String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            totalCounts.merge(id, stack.getCount(), Integer::sum);
+        }
+
+        // Step 4: Sort by total count (descending), then by item ID, then stack size
+        consolidated.sort((a, b) -> {
+            String idA = BuiltInRegistries.ITEM.getKey(a.getItem()).toString();
+            String idB = BuiltInRegistries.ITEM.getKey(b.getItem()).toString();
+            int countA = totalCounts.getOrDefault(idA, 0);
+            int countB = totalCounts.getOrDefault(idB, 0);
+            if (countA != countB) return Integer.compare(countB, countA);
+            int idComp = idA.compareTo(idB);
+            if (idComp != 0) return idComp;
+            return Integer.compare(b.getCount(), a.getCount());
+        });
+
+        // Step 5: Distribute sorted items back into free slots (fill-priority order)
+        int itemIdx = 0;
+        for (int[] slot : freeSlots) {
+            MKRegion region = regions.get(slot[0]);
+            if (itemIdx < consolidated.size()) {
+                region.setItem(slot[1], consolidated.get(itemIdx));
+                itemIdx++;
+            } else {
+                region.setItem(slot[1], ItemStack.EMPTY);
+            }
+        }
+
+        // Mark all affected containers as changed
+        for (MKRegion region : regions) {
+            region.container().setChanged();
+        }
+    }
+
+    /**
      * Sorts an entire container. If the container has regions registered
      * for the given menu, sorts each region independently. Otherwise,
      * sorts all slots as one group.
@@ -85,7 +171,7 @@ public class MKContainerSort {
                 if (ci < start || ci >= end) continue;
 
                 MKSlotState state = MKSlotStateRegistry.get(slot);
-                if (state != null && state.isLocked()) {
+                if (state != null && (state.isLocked() || state.isSortLocked())) {
                     lockedIndices.add(ci);
                 }
             }

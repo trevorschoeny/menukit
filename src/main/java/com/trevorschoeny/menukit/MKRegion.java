@@ -23,6 +23,7 @@ public class MKRegion {
     private final int startIndex;   // first index within the container (inclusive)
     private final int size;         // number of indices in this region
     private final MKContainerDef.Persistence persistence;
+    private final MKContainerType containerType; // functional classification
 
     // Shift-click directional flags (mutable — can change at runtime)
     private boolean shiftClickIn;
@@ -34,7 +35,8 @@ public class MKRegion {
 
     public MKRegion(String name, Container container, int startIndex, int size,
                     MKContainerDef.Persistence persistence,
-                    boolean shiftClickIn, boolean shiftClickOut) {
+                    boolean shiftClickIn, boolean shiftClickOut,
+                    MKContainerType containerType) {
         this.name = name;
         this.container = container;
         this.startIndex = startIndex;
@@ -42,6 +44,15 @@ public class MKRegion {
         this.persistence = persistence;
         this.shiftClickIn = shiftClickIn;
         this.shiftClickOut = shiftClickOut;
+        this.containerType = containerType;
+    }
+
+    /** Backward-compatible constructor — defaults containerType to SIMPLE. */
+    public MKRegion(String name, Container container, int startIndex, int size,
+                    MKContainerDef.Persistence persistence,
+                    boolean shiftClickIn, boolean shiftClickOut) {
+        this(name, container, startIndex, size, persistence,
+                shiftClickIn, shiftClickOut, MKContainerType.SIMPLE);
     }
 
     // ── Index Translation ────────────────────────────────────────────────
@@ -106,6 +117,7 @@ public class MKRegion {
     public int startIndex() { return startIndex; }
     public int size() { return size; }
     public MKContainerDef.Persistence persistence() { return persistence; }
+    public MKContainerType containerType() { return containerType; }
 
     public boolean shiftClickIn() { return shiftClickIn; }
     public boolean shiftClickOut() { return shiftClickOut; }

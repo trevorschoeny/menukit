@@ -33,6 +33,13 @@ public class MKContextLayout {
     private static final MKContainerDef.Persistence T = MKContainerDef.Persistence.TRANSIENT;
     private static final MKContainerDef.Persistence O = MKContainerDef.Persistence.OUTPUT;
 
+    // ── Container type shortcuts ────────────────────────────────────────────
+    private static final MKContainerType S = MKContainerType.SIMPLE;
+    private static final MKContainerType C = MKContainerType.CRAFTING;
+    private static final MKContainerType X = MKContainerType.PROCESSING;  // X for "transform"
+    private static final MKContainerType E = MKContainerType.EQUIPMENT;
+    private static final MKContainerType H = MKContainerType.HOTBAR;
+
     // ── Layout Record ──────────────────────────────────────────────────────
 
     /**
@@ -58,14 +65,25 @@ public class MKContextLayout {
             boolean shiftClickIn,
             boolean shiftClickOut,
             int containerStart,   // DYNAMIC = derive from Slot at runtime
-            int containerSize     // DYNAMIC = derive from menu slot range
+            int containerSize,    // DYNAMIC = derive from menu slot range
+            MKContainerType containerType // functional classification
     ) {
-        /** Convenience constructor — most layouts derive container indices at runtime. */
+        /** Convenience constructor — most layouts derive container indices at runtime.
+         *  Container type defaults to SIMPLE. */
         public SlotLayout(String name, int menuSlotStart, int menuSlotEnd,
                           MKContainerDef.Persistence persistence,
                           boolean shiftClickIn, boolean shiftClickOut) {
             this(name, menuSlotStart, menuSlotEnd, persistence,
-                    shiftClickIn, shiftClickOut, DYNAMIC, DYNAMIC);
+                    shiftClickIn, shiftClickOut, DYNAMIC, DYNAMIC, MKContainerType.SIMPLE);
+        }
+
+        /** Convenience constructor with explicit container type. */
+        public SlotLayout(String name, int menuSlotStart, int menuSlotEnd,
+                          MKContainerDef.Persistence persistence,
+                          boolean shiftClickIn, boolean shiftClickOut,
+                          MKContainerType containerType) {
+            this(name, menuSlotStart, menuSlotEnd, persistence,
+                    shiftClickIn, shiftClickOut, DYNAMIC, DYNAMIC, containerType);
         }
 
         /** Number of menu slots in this group. Only valid when indices are resolved. */
@@ -92,8 +110,8 @@ public class MKContextLayout {
         return switch (context) {
             // ── Personal crafting ─────────────────────────────────────────
             case SURVIVAL_INVENTORY -> List.of(
-                    new SlotLayout("mk:craft_result", 0, 0, O, false, true),
-                    new SlotLayout("mk:craft_2x2", 1, 4, T, true, true)
+                    new SlotLayout("mk:craft_result", 0, 0, O, false, true, X),
+                    new SlotLayout("mk:craft_2x2", 1, 4, T, true, true, C)
             );
 
             // ── Storage ───────────────────────────────────────────────────
@@ -111,81 +129,81 @@ public class MKContextLayout {
 
             // ── Crafting ──────────────────────────────────────────────────
             case CRAFTING_TABLE -> List.of(
-                    new SlotLayout("mk:crafting_3x3_result", 0, 0, O, false, true),
-                    new SlotLayout("mk:crafting_3x3", 1, 9, T, true, true)
+                    new SlotLayout("mk:crafting_3x3_result", 0, 0, O, false, true, X),
+                    new SlotLayout("mk:crafting_3x3", 1, 9, T, false, true, C)
             );
             case STONECUTTER -> List.of(
-                    new SlotLayout("mk:stonecutter_input", 0, 0, T, true, true),
-                    new SlotLayout("mk:stonecutter_output", 1, 1, O, false, true)
+                    new SlotLayout("mk:stonecutter_input", 0, 0, T, true, true, X),
+                    new SlotLayout("mk:stonecutter_output", 1, 1, O, false, true, X)
             );
             case SMITHING_TABLE -> List.of(
-                    new SlotLayout("mk:smithing_template", 0, 0, T, true, true),
-                    new SlotLayout("mk:smithing_base", 1, 1, T, true, true),
-                    new SlotLayout("mk:smithing_addition", 2, 2, T, true, true),
-                    new SlotLayout("mk:smithing_output", 3, 3, O, false, true)
+                    new SlotLayout("mk:smithing_template", 0, 0, T, true, true, X),
+                    new SlotLayout("mk:smithing_base", 1, 1, T, true, true, X),
+                    new SlotLayout("mk:smithing_addition", 2, 2, T, true, true, X),
+                    new SlotLayout("mk:smithing_output", 3, 3, O, false, true, X)
             );
             case LOOM -> List.of(
-                    new SlotLayout("mk:loom_banner", 0, 0, T, true, true),
-                    new SlotLayout("mk:loom_dye", 1, 1, T, true, true),
-                    new SlotLayout("mk:loom_pattern", 2, 2, T, true, true),
-                    new SlotLayout("mk:loom_output", 3, 3, O, false, true)
+                    new SlotLayout("mk:loom_banner", 0, 0, T, true, true, X),
+                    new SlotLayout("mk:loom_dye", 1, 1, T, true, true, X),
+                    new SlotLayout("mk:loom_pattern", 2, 2, T, true, true, X),
+                    new SlotLayout("mk:loom_output", 3, 3, O, false, true, X)
             );
             case CARTOGRAPHY_TABLE -> List.of(
-                    new SlotLayout("mk:cartography_map", 0, 0, T, true, true),
-                    new SlotLayout("mk:cartography_material", 1, 1, T, true, true),
-                    new SlotLayout("mk:cartography_output", 2, 2, O, false, true)
+                    new SlotLayout("mk:cartography_map", 0, 0, T, true, true, X),
+                    new SlotLayout("mk:cartography_material", 1, 1, T, true, true, X),
+                    new SlotLayout("mk:cartography_output", 2, 2, O, false, true, X)
             );
             case GRINDSTONE -> List.of(
-                    new SlotLayout("mk:grindstone_input_1", 0, 0, T, true, true),
-                    new SlotLayout("mk:grindstone_input_2", 1, 1, T, true, true),
-                    new SlotLayout("mk:grindstone_output", 2, 2, O, false, true)
+                    new SlotLayout("mk:grindstone_input_1", 0, 0, T, true, true, X),
+                    new SlotLayout("mk:grindstone_input_2", 1, 1, T, true, true, X),
+                    new SlotLayout("mk:grindstone_output", 2, 2, O, false, true, X)
             );
             case CRAFTER ->
-                    List.of(new SlotLayout("mk:crafter", 0, 8, P, true, true));
+                    List.of(new SlotLayout("mk:crafter", 0, 8, P, true, true, C));
 
             // ── Processing ────────────────────────────────────────────────
             case FURNACE, BLAST_FURNACE, SMOKER -> List.of(
-                    new SlotLayout("mk:furnace_input", 0, 0, P, true, true),
-                    new SlotLayout("mk:furnace_fuel", 1, 1, P, true, true),
-                    new SlotLayout("mk:furnace_output", 2, 2, O, false, true)
+                    new SlotLayout("mk:furnace_input", 0, 0, P, true, true, X),
+                    new SlotLayout("mk:furnace_fuel", 1, 1, P, true, true, X),
+                    new SlotLayout("mk:furnace_output", 2, 2, O, false, true, X)
             );
             case BREWING_STAND -> List.of(
-                    new SlotLayout("mk:brewing_potions", 0, 2, P, true, true),
-                    new SlotLayout("mk:brewing_ingredient", 3, 3, P, true, true),
-                    new SlotLayout("mk:brewing_fuel", 4, 4, P, true, true)
+                    new SlotLayout("mk:brewing_potions", 0, 2, P, true, true, X),
+                    new SlotLayout("mk:brewing_ingredient", 3, 3, P, true, true, X),
+                    new SlotLayout("mk:brewing_fuel", 4, 4, P, true, true, X)
             );
 
             // ── Special ───────────────────────────────────────────────────
             case ANVIL -> List.of(
-                    new SlotLayout("mk:anvil_input_1", 0, 0, T, true, true),
-                    new SlotLayout("mk:anvil_input_2", 1, 1, T, true, true),
-                    new SlotLayout("mk:anvil_output", 2, 2, O, false, true)
+                    new SlotLayout("mk:anvil_input_1", 0, 0, T, true, true, X),
+                    new SlotLayout("mk:anvil_input_2", 1, 1, T, true, true, X),
+                    new SlotLayout("mk:anvil_output", 2, 2, O, false, true, X)
             );
             case ENCHANTING_TABLE -> List.of(
-                    new SlotLayout("mk:enchanting_item", 0, 0, T, true, true),
-                    new SlotLayout("mk:enchanting_lapis", 1, 1, T, true, true)
+                    new SlotLayout("mk:enchanting_item", 0, 0, T, true, true, X),
+                    new SlotLayout("mk:enchanting_lapis", 1, 1, T, true, true, X)
             );
             case BEACON ->
-                    List.of(new SlotLayout("mk:beacon_payment", 0, 0, T, true, true));
+                    List.of(new SlotLayout("mk:beacon_payment", 0, 0, T, true, true, X));
             case VILLAGER_TRADING -> List.of(
-                    new SlotLayout("mk:merchant_input_1", 0, 0, T, true, true),
-                    new SlotLayout("mk:merchant_input_2", 1, 1, T, true, true),
-                    new SlotLayout("mk:merchant_output", 2, 2, O, false, true)
+                    new SlotLayout("mk:merchant_input_1", 0, 0, T, true, true, X),
+                    new SlotLayout("mk:merchant_input_2", 1, 1, T, true, true, X),
+                    new SlotLayout("mk:merchant_output", 2, 2, O, false, true, X)
             );
             case HORSE_INVENTORY -> {
                 // Horse: slots 0-1 are always saddle+armor.
                 // Slots 2+ are chest inventory (dynamic, depends on entity).
                 // The chest layout uses DYNAMIC end — resolved at runtime.
                 List<SlotLayout> layouts = new ArrayList<>();
-                layouts.add(new SlotLayout("mk:horse_saddle", 0, 0, P, true, true));
-                layouts.add(new SlotLayout("mk:horse_armor", 1, 1, P, true, true));
+                layouts.add(new SlotLayout("mk:horse_saddle", 0, 0, P, true, true, E));
+                layouts.add(new SlotLayout("mk:horse_armor", 1, 1, P, true, true, E));
                 // mk:horse_chest added only if the entity has chest slots — dynamic
                 layouts.add(new SlotLayout("mk:horse_chest", 2, DYNAMIC, P, true, true));
                 yield Collections.unmodifiableList(layouts);
             }
             case LECTERN ->
                     // Lectern: shiftClickIn=false, shiftClickOut=false (can't put items in OR take via shift)
-                    List.of(new SlotLayout("mk:lectern_book", 0, 0, O, false, false));
+                    List.of(new SlotLayout("mk:lectern_book", 0, 0, O, false, false, X));
 
             // No context-specific containers for other contexts
             default -> List.of();
@@ -213,10 +231,10 @@ public class MKContextLayout {
             //   Slot 36-44 = hotbar  (container indices 0-8)
             //   Slot 45    = offhand (container index 40)
             case SURVIVAL_INVENTORY, CREATIVE_INVENTORY, CREATIVE_TABS -> List.of(
-                    new SlotLayout("mk:armor", 5, 8, P, true, true, 36, 4),
-                    new SlotLayout("mk:main_inventory", 9, 35, P, true, true, 9, 27),
-                    new SlotLayout("mk:hotbar", 36, 44, P, true, true, 0, 9),
-                    new SlotLayout("mk:offhand", 45, 45, P, true, true, 40, 1)
+                    new SlotLayout("mk:armor", 5, 8, P, true, true, 36, 4, E),
+                    new SlotLayout("mk:main_inventory", 9, 35, P, true, true, 9, 27, S),
+                    new SlotLayout("mk:hotbar", 36, 44, P, true, true, 0, 9, H),
+                    new SlotLayout("mk:offhand", 45, 45, P, true, true, 40, 1, E)
             );
 
             // ── Interaction screens ───────────────────────────────────────
@@ -225,8 +243,8 @@ public class MKContextLayout {
             default -> {
                 if (MKContext.ALL_WITH_PLAYER_INVENTORY.contains(context)) {
                     yield List.of(
-                            new SlotLayout("mk:main_inventory", DYNAMIC, DYNAMIC, P, true, true, 9, 27),
-                            new SlotLayout("mk:hotbar", DYNAMIC, DYNAMIC, P, true, true, 0, 9)
+                            new SlotLayout("mk:main_inventory", DYNAMIC, DYNAMIC, P, true, true, 9, 27, S),
+                            new SlotLayout("mk:hotbar", DYNAMIC, DYNAMIC, P, true, true, 0, 9, H)
                     );
                 }
                 yield List.of();
@@ -296,7 +314,7 @@ public class MKContextLayout {
                 int containerEnd = vanillaSlots - 37;
                 if (containerEnd < 0) yield null; // guard: skip if invalid
                 yield new SlotLayout(raw.name(), 0, containerEnd, raw.persistence(),
-                        raw.shiftClickIn(), raw.shiftClickOut());
+                        raw.shiftClickIn(), raw.shiftClickOut(), raw.containerType());
             }
 
             // Horse chest: slots 2..(1 + chestSlots), chestSlots = vanillaSlots - 38
@@ -305,7 +323,7 @@ public class MKContextLayout {
                 int chestSlots = vanillaSlots - 38;
                 if (chestSlots <= 0) yield null; // no chest on this horse
                 yield new SlotLayout(raw.name(), 2, 1 + chestSlots, raw.persistence(),
-                        raw.shiftClickIn(), raw.shiftClickOut());
+                        raw.shiftClickIn(), raw.shiftClickOut(), raw.containerType());
             }
 
             default -> raw;
@@ -343,11 +361,11 @@ public class MKContextLayout {
             if ("mk:main_inventory".equals(raw.name())) {
                 out.add(new SlotLayout(raw.name(), mainStart, mainEnd, raw.persistence(),
                         raw.shiftClickIn(), raw.shiftClickOut(),
-                        raw.containerStart(), raw.containerSize()));
+                        raw.containerStart(), raw.containerSize(), raw.containerType()));
             } else if ("mk:hotbar".equals(raw.name())) {
                 out.add(new SlotLayout(raw.name(), hotbarStart, hotbarEnd, raw.persistence(),
                         raw.shiftClickIn(), raw.shiftClickOut(),
-                        raw.containerStart(), raw.containerSize()));
+                        raw.containerStart(), raw.containerSize(), raw.containerType()));
             }
         }
     }

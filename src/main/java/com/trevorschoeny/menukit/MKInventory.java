@@ -307,22 +307,26 @@ public class MKInventory {
         return switch (containerName) {
             case "mk:hotbar" -> {
                 MKRegion r = new MKRegion("mk:hotbar", inv, HOTBAR_START, HOTBAR_SIZE,
-                        MKContainerDef.Persistence.PERSISTENT, true, true);
+                        MKContainerDef.Persistence.PERSISTENT, true, true,
+                        MKContainerType.HOTBAR);
                 yield new MKContainer(inv, r);
             }
             case "mk:main_inventory" -> {
                 MKRegion r = new MKRegion("mk:main_inventory", inv, MAIN_START, MAIN_SIZE,
-                        MKContainerDef.Persistence.PERSISTENT, true, true);
+                        MKContainerDef.Persistence.PERSISTENT, true, true,
+                        MKContainerType.SIMPLE);
                 yield new MKContainer(inv, r);
             }
             case "mk:armor" -> {
                 MKRegion r = new MKRegion("mk:armor", inv, ARMOR_START, ARMOR_SIZE,
-                        MKContainerDef.Persistence.PERSISTENT, true, true);
+                        MKContainerDef.Persistence.PERSISTENT, true, true,
+                        MKContainerType.EQUIPMENT);
                 yield new MKContainer(inv, r);
             }
             case "mk:offhand" -> {
                 MKRegion r = new MKRegion("mk:offhand", inv, OFFHAND, 1,
-                        MKContainerDef.Persistence.PERSISTENT, true, true);
+                        MKContainerDef.Persistence.PERSISTENT, true, true,
+                        MKContainerType.EQUIPMENT);
                 yield new MKContainer(inv, r);
             }
             default -> null;

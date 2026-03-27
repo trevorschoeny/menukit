@@ -1,6 +1,7 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.MKContext;
+import com.trevorschoeny.menukit.MKEvent;
 import com.trevorschoeny.menukit.MKEventBus;
 import com.trevorschoeny.menukit.MKEventHelper;
 import com.trevorschoeny.menukit.MKSlotEvent;
@@ -15,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Fires {@link MKSlotEvent.Type#SCROLL} when the mouse wheel scrolls while
+ * Fires {@link MKEvent.Type#SCROLL} when the mouse wheel scrolls while
  * the cursor hovers a slot.
  *
  * <p>Intercepts {@code AbstractContainerScreen.mouseScrolled()} at HEAD.

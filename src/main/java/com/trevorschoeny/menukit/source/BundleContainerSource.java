@@ -7,34 +7,54 @@ import net.minecraft.world.item.component.BundleContents;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Source backed by an item's {@code DataComponents.BUNDLE_CONTENTS} component.
  *
- * <p>Bundles use weight-based storage rather than fixed slots. Each item costs
- * {@code 64 / maxStackSize} weight units, with a total capacity of 64 units.
- * This source spreads bundle items across sequential container slots and
- * enforces weight limits via {@link #canAccept}.
+ * <p>Uses a {@code Supplier<ItemStack>} to resolve the backing item live.
+ * This is critical because vanilla may REPLACE the ItemStack in the inventory
+ * slot (e.g., when popping items via bundle scroll+right-click). A direct
+ * reference would go stale; the supplier always returns the current live item.
  *
  * <p>On populate, items from the bundle are placed into slots 0, 1, 2, etc.
  * On sync, non-empty slots are collected and rebuilt into a {@link BundleContents}.
  */
 class BundleContainerSource implements MKContainerSource {
 
-    // Reasonable max slots for a bundle grid — bundles can hold many small stacks
-    // but rarely exceed ~16 distinct item types in practice
     private static final int MAX_BUNDLE_SLOTS = 64;
 
-    private final ItemStack stack;
+    // Supplier that returns the CURRENT ItemStack from the inventory slot.
+    // Vanilla may replace the ItemStack object, so we can't hold a direct ref.
+    private final Supplier<ItemStack> stackSupplier;
 
+    // Snapshot of the BundleContents after the last sync or populate.
+    private BundleContents lastSyncedContents;
+
+    BundleContainerSource(Supplier<ItemStack> stackSupplier) {
+        this.stackSupplier = stackSupplier;
+    }
+
+    /** Convenience constructor for a fixed ItemStack reference (non-live). */
     BundleContainerSource(ItemStack stack) {
-        this.stack = stack;
+        this(() -> stack);
+    }
+
+    /** Returns the current live backing ItemStack. */
+    private ItemStack stack() {
+        return stackSupplier.get();
     }
 
     @Override
     public void populate(MKContainer container) {
-        BundleContents contents = stack.get(DataComponents.BUNDLE_CONTENTS);
-        if (contents == null) return;
+        ItemStack stack = stack();
+        BundleContents contents = stack.isEmpty() ? BundleContents.EMPTY
+                : stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
+
+        // Clear all slots first so stale items from a previous bind don't linger
+        for (int i = 0; i < container.getContainerSize(); i++) {
+            container.setItem(i, ItemStack.EMPTY);
+        }
 
         // Spread bundle items across sequential slots
         int slot = 0;
@@ -44,78 +64,118 @@ class BundleContainerSource implements MKContainerSource {
                 container.setItem(slot++, item.copy());
             }
         }
+
+        lastSyncedContents = contents;
     }
 
     @Override
     public void sync(MKContainer container) {
-        // Collect non-empty items, consolidating matching stacks (auto-stack)
+        ItemStack stack = stack();
+        // Skip sync if the backing item is empty (count 0, on cursor)
+        if (stack.isEmpty()) return;
+
+        // Collect non-empty items, consolidating matching stacks (auto-stack).
+        // Does NOT compact container slots — items shouldn't shift mid-interaction.
         List<ItemStack> items = new ArrayList<>();
         int count = Math.min(MAX_BUNDLE_SLOTS, container.getContainerSize());
         for (int i = 0; i < count; i++) {
             ItemStack item = container.getItem(i);
             if (item.isEmpty()) continue;
 
-            // Try to merge with an existing stack in the collected list
+            // Work with a COPY — never modify the live container item.
+            ItemStack itemCopy = item.copy();
+
             boolean merged = false;
             for (ItemStack existing : items) {
-                if (ItemStack.isSameItemSameComponents(existing, item)
+                if (ItemStack.isSameItemSameComponents(existing, itemCopy)
                         && existing.getCount() < existing.getMaxStackSize()) {
                     int space = existing.getMaxStackSize() - existing.getCount();
-                    int toAdd = Math.min(item.getCount(), space);
+                    int toAdd = Math.min(itemCopy.getCount(), space);
                     existing.grow(toAdd);
-                    item.shrink(toAdd);
-                    if (item.isEmpty()) {
+                    itemCopy.shrink(toAdd);
+                    if (itemCopy.isEmpty()) {
                         merged = true;
                         break;
                     }
                 }
             }
-            // If not fully merged (or no match), add as a new entry
-            if (!merged && !item.isEmpty()) {
-                items.add(item.copy());
+            if (!merged && !itemCopy.isEmpty()) {
+                items.add(itemCopy);
             }
         }
-        stack.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(items));
 
-        // Compact the container slots — remove gaps so items are packed
-        // sequentially from slot 0. This makes the panel visually consistent
-        // (no empty slots in the middle, just one trailing empty slot).
-        for (int i = 0; i < items.size(); i++) {
-            container.setItem(i, items.get(i));
+        BundleContents newContents = new BundleContents(items);
+        stack.set(DataComponents.BUNDLE_CONTENTS, newContents);
+        lastSyncedContents = newContents;
+    }
+
+    @Override
+    public boolean pollExternalChanges(MKContainer container) {
+        ItemStack stack = stack();
+        // Skip if backing item is empty (count 0, on cursor)
+        if (stack.isEmpty()) return false;
+
+        BundleContents current = stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
+
+        // Fast path: same reference
+        if (current == lastSyncedContents) return false;
+
+        // Deep compare
+        if (contentsMatch(current, lastSyncedContents)) {
+            lastSyncedContents = current;
+            return false;
         }
-        // Clear any remaining slots beyond the compacted items
-        for (int i = items.size(); i < count; i++) {
-            container.setItem(i, ItemStack.EMPTY);
+
+        // External change — re-populate with sync suppressed
+        container.withSyncSuppressed(() -> populate(container));
+        return true;
+    }
+
+    private static boolean contentsMatch(BundleContents a, BundleContents b) {
+        if (a == b) return true;
+        if (a == null || b == null) return false;
+
+        List<ItemStack> aItems = new ArrayList<>();
+        a.items().forEach(aItems::add);
+        List<ItemStack> bItems = new ArrayList<>();
+        b.items().forEach(bItems::add);
+
+        if (aItems.size() != bItems.size()) return false;
+        for (int i = 0; i < aItems.size(); i++) {
+            if (!ItemStack.matches(aItems.get(i), bItems.get(i))) return false;
         }
+        return true;
     }
 
     @Override
     public int size() {
-        // Report current item count + a few empty slots for insertion.
-        // Capped at MAX_BUNDLE_SLOTS.
-        BundleContents contents = stack.get(DataComponents.BUNDLE_CONTENTS);
-        if (contents == null) return 4; // empty bundle, show a few slots
+        ItemStack stack = stack();
+        BundleContents contents = stack.isEmpty() ? null : stack.get(DataComponents.BUNDLE_CONTENTS);
+        if (contents == null) return 4;
         int itemCount = 0;
         for (ItemStack item : contents.items()) {
             if (!item.isEmpty()) itemCount++;
         }
-        // Show current items + up to 4 empty slots for adding more
         return Math.min(itemCount + 4, MAX_BUNDLE_SLOTS);
     }
 
     @Override
     public boolean canAccept(int slot, ItemStack candidate) {
         if (candidate.isEmpty()) return true;
-
-        // Build the current bundle state from the backing item (not the container,
-        // since the container might be mid-modification) and check if the candidate fits.
-        BundleContents contents = stack.get(DataComponents.BUNDLE_CONTENTS);
-        if (contents == null) {
-            contents = BundleContents.EMPTY;
-        }
-
-        // Use Mutable.tryInsert to check weight limits — it returns 0 if no room
+        ItemStack stack = stack();
+        BundleContents contents = stack.isEmpty() ? BundleContents.EMPTY
+                : stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
         BundleContents.Mutable mutable = new BundleContents.Mutable(contents);
         return mutable.tryInsert(candidate.copyWithCount(1)) > 0;
+    }
+
+    @Override
+    public int getMaxAcceptCount(int slot, ItemStack candidate) {
+        if (candidate.isEmpty()) return 0;
+        ItemStack stack = stack();
+        BundleContents contents = stack.isEmpty() ? BundleContents.EMPTY
+                : stack.getOrDefault(DataComponents.BUNDLE_CONTENTS, BundleContents.EMPTY);
+        BundleContents.Mutable mutable = new BundleContents.Mutable(contents);
+        return mutable.tryInsert(candidate.copyWithCount(candidate.getMaxStackSize()));
     }
 }

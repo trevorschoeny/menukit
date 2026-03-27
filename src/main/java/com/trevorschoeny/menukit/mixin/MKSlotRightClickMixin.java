@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * Intercepts right-clicks on ANY slot in ANY container screen and fires:
  * <ol>
  *   <li>Per-slot right-click handlers from {@link MKSlotState} (legacy API)</li>
- *   <li>A {@link MKSlotEvent.Type#RIGHT_CLICK} event through the {@link MKEventBus}</li>
+ *   <li>A {@link MKEvent.Type#RIGHT_CLICK} event through the {@link MKEventBus}</li>
  * </ol>
  *
  * <p>If EITHER the per-slot handler OR the bus consumes the click, vanilla
@@ -66,7 +66,7 @@ public class MKSlotRightClickMixin {
             if (player != null) {
                 AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
                 MKSlotEvent event = MKEventHelper.buildSlotEvent(
-                        MKSlotEvent.Type.RIGHT_CLICK, slot, button, screen, player);
+                        MKEvent.Type.RIGHT_CLICK, slot, button, screen, player);
                 if (MKEventBus.fire(event)) {
                     consumed = true;
                 }

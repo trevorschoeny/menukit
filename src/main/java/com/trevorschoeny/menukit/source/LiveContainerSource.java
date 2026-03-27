@@ -13,6 +13,9 @@ import net.minecraft.world.item.ItemStack;
  *
  * <p>Typical use: ender chest ({@code player.getEnderChestInventory()})
  * or any block entity that implements Container.
+ *
+ * <p>External changes are detected by comparing the backing container's
+ * items against the MKContainer's items on each poll tick.
  */
 class LiveContainerSource implements MKContainerSource {
 
@@ -39,6 +42,30 @@ class LiveContainerSource implements MKContainerSource {
             backing.setItem(i, container.getItem(i).copy());
         }
         backing.setChanged();
+    }
+
+    @Override
+    public boolean pollExternalChanges(MKContainer container) {
+        // Compare backing container items against the MKContainer.
+        // If any slot differs, something external modified the backing
+        // container (e.g., another player accessed the ender chest,
+        // or a hopper inserted/extracted items).
+        int count = Math.min(backing.getContainerSize(), container.getContainerSize());
+        boolean changed = false;
+        for (int i = 0; i < count; i++) {
+            if (!ItemStack.matches(backing.getItem(i), container.getItem(i))) {
+                changed = true;
+                break;
+            }
+        }
+
+        if (changed) {
+            // Suppress sync so setItem calls during populate don't write
+            // the MKContainer's stale state back to the backing container
+            // (which would undo the external change and cause duplication).
+            container.withSyncSuppressed(() -> populate(container));
+        }
+        return changed;
     }
 
     @Override

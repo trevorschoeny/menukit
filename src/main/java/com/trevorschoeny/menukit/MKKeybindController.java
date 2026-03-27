@@ -8,37 +8,21 @@ import dev.isxander.yacl3.gui.AbstractWidget;
 import dev.isxander.yacl3.gui.YACLScreen;
 import dev.isxander.yacl3.gui.controllers.ControllerWidget;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.network.chat.Component;
+
+import java.util.*;
 
 /**
  * A custom YACL {@link Controller} for configuring multi-key keybinds directly
- * in the YACL config screen. Supports modifier keys (Ctrl, Shift, Alt, Cmd)
- * combined with any base key.
+ * in the YACL config screen. Supports arbitrary key combos (up to 3 keys),
+ * including mouse buttons, with live preview during capture.
  *
- * <p><b>Interaction model:</b>
- * <ol>
- *   <li>Shows current binding as a button (e.g., "Ctrl+K" or "Unbound")</li>
- *   <li>Click the button to enter capture mode ("Press a key...")</li>
- *   <li>Press any key (with optional modifiers) to set the binding</li>
- *   <li>Press Escape to cancel capture without changing the binding</li>
- *   <li>Press Delete or Backspace to clear the binding to UNBOUND</li>
- * </ol>
- *
- * <p>Modifier-only key presses (pressing just Ctrl without another key) are
- * ignored — the user must press a non-modifier key to commit the binding.
- * This prevents accidental bindings to bare modifier keys.
- *
- * <p><b>Usage in a YACL config builder:</b>
- * <pre>{@code
- * Option.<MKKeybind>createBuilder()
- *     .name(Component.literal("Sort Region"))
- *     .binding(MKKeybind.UNBOUND,
- *         () -> config.sortKeybind,
- *         val -> config.sortKeybind = val)
- *     .controller(MKKeybindController::new)
- *     .build()
- * }</pre>
+ * <p>Capture logic is delegated to {@link MKKeybindCapture}, the shared engine
+ * used by both this YACL widget and the vanilla Controls screen mixin.
  *
  * <p>Part of the <b>MenuKit</b> framework.
  */
@@ -46,8 +30,32 @@ public class MKKeybindController implements Controller<MKKeybind> {
 
     private final Option<MKKeybind> option;
 
+    // The KeyMapping that owns this keybind option, if any. Used to exclude
+    // self from conflict detection.
+    final KeyMapping excludeMapping;
+
+    /**
+     * When set, the next {@link KeyBindsScreen} that opens will auto-scroll
+     * to bring this KeyMapping into view. Consumed (nulled) by the
+     * {@code MKKeyBindsScreenMixin} after scrolling.
+     */
+    public static KeyMapping pendingScrollTarget = null;
+
+    /**
+     * Creates a controller with no exclusion -- all registered KeyMappings are
+     * checked for conflicts.
+     */
     public MKKeybindController(Option<MKKeybind> option) {
+        this(option, null);
+    }
+
+    /**
+     * Creates a controller that excludes the given KeyMapping from conflict
+     * detection (to avoid self-conflict).
+     */
+    public MKKeybindController(Option<MKKeybind> option, KeyMapping exclude) {
         this.option = option;
+        this.excludeMapping = exclude;
     }
 
     @Override
@@ -55,10 +63,6 @@ public class MKKeybindController implements Controller<MKKeybind> {
         return option;
     }
 
-    /**
-     * Formats the current (pending) value for display in the option row.
-     * Delegates to {@link MKKeybind#getDisplayName()} for "Ctrl+K" style text.
-     */
     @Override
     public Component formatValue() {
         return option.pendingValue().getDisplayName();
@@ -73,125 +77,89 @@ public class MKKeybindController implements Controller<MKKeybind> {
 
     /**
      * The interactive widget that renders inside the YACL option list.
-     * Handles click-to-capture, key capture, and visual feedback.
+     * Handles click-to-capture, live preview, conflict detection, and an
+     * "Open in Controls" button.
+     *
+     * <p>All capture logic (key accumulation, high water mark tracking,
+     * finalization) is delegated to {@link MKKeybindCapture}.
      */
     public static class KeybindWidget extends ControllerWidget<MKKeybindController> {
 
-        // When true, the widget is waiting for the user to press a key.
-        // All key events are consumed in this state to prevent them from
-        // reaching other handlers (e.g., ESC closing the screen).
-        private boolean capturing = false;
+        // ── Shared Capture Engine ─────────────────────────────────────────
+
+        private final MKKeybindCapture capture;
+
+        // ── Conflict State ────────────────────────────────────────────────
+
+        private List<MKKeybindConflicts.Conflict> cachedConflicts = List.of();
+        private MKKeybind lastCheckedBind = null;
+
+        // "Open in Controls" gear button
+        private static final String GEAR_TEXT = "\u2699";
+        private static final int GEAR_PADDING = 4;
+
+        private final KeyMapping excludeMapping;
 
         public KeybindWidget(MKKeybindController control, YACLScreen screen, Dimension<Integer> dim) {
             super(control, screen, dim);
+            this.excludeMapping = control.excludeMapping;
+
+            // Wire up the shared capture engine with YACL-specific callbacks:
+            // - onFinalize: apply the new binding to the YACL option
+            // - onCancel: no-op (just stops capturing, binding unchanged)
+            // - onUpdate: no-op (getValueText() reads from capture.getPreviewText())
+            // - onClear: clear binding to UNBOUND
+            this.capture = new MKKeybindCapture(
+                    bind -> control.option().requestSet(bind),
+                    () -> { /* cancel -- binding unchanged */ },
+                    () -> { /* update -- live preview handled by getValueText() */ },
+                    () -> control.option().requestSet(MKKeybind.UNBOUND)
+            );
         }
 
-        // ── Rendering ────────────────────────────────────────────────────
+        // ── Capture Control ───────────────────────────────────────────────
 
         /**
-         * Override value text rendering to show capture-mode feedback.
-         * During capture: yellow italic "Press a key..." text.
-         * Normal mode: the formatted keybind name from the controller.
+         * Starts a new capture session via the shared engine.
+         * Registers this widget as the active capture target.
          */
-        @Override
-        protected Component getValueText() {
-            if (capturing) {
-                // Yellow italic signals to the user that input is being captured.
-                // Matches vanilla's keybind screen behavior.
-                return Component.literal("Press a key...")
-                        .withStyle(ChatFormatting.YELLOW, ChatFormatting.ITALIC);
-            }
-            return control.formatValue();
+        public void startCapture() {
+            capture.start();
         }
-
-        @Override
-        protected void drawHoveredControl(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
-            // No extra hover decoration needed — the value text + button rect
-            // already provide sufficient visual feedback.
-        }
-
-        @Override
-        protected int getHoveredControlWidth() {
-            // Use the same width whether hovered or not — avoids layout jumps.
-            return getUnhoveredControlWidth();
-        }
-
-        // ── Mouse Interaction ────────────────────────────────────────────
 
         /**
-         * Clicking the widget toggles capture mode. If already capturing,
-         * a click cancels capture (same as pressing Escape).
+         * Stops capture. Called internally by the capture engine callbacks
+         * and by unfocus().
          */
-        @Override
-        public boolean onMouseClicked(double mouseX, double mouseY, int button) {
-            if (!isMouseOver(mouseX, mouseY) || !isAvailable()) {
-                return false;
-            }
-
-            if (capturing) {
-                // Click while capturing = cancel (user changed their mind)
-                capturing = false;
-            } else {
-                // Enter capture mode — next key press will set the binding
-                capturing = true;
-            }
-
-            playDownSound();
-            return true;
+        private void endCapture() {
+            // No-op placeholder -- if future external routing needs arise,
+            // cleanup logic goes here. Currently all release events are
+            // handled directly by the widget's own override methods.
         }
 
-        // ── Key Capture ──────────────────────────────────────────────────
+        // ── Key Event Handling ────────────────────────────────────────────
 
         /**
-         * In capture mode, intercepts all key presses:
-         * <ul>
-         *   <li><b>Escape:</b> cancel capture, restore previous value</li>
-         *   <li><b>Delete/Backspace:</b> clear binding to UNBOUND</li>
-         *   <li><b>Modifier-only keys:</b> ignored (wait for a base key)</li>
-         *   <li><b>Any other key:</b> commit the binding with current modifiers</li>
-         * </ul>
+         * Called when a key is pressed. Delegates to the shared capture engine.
          *
-         * <p>Returns true to consume the event and prevent it from propagating
-         * (e.g., ESC would otherwise close the YACL screen).
+         * @return true if the event was consumed
          */
-        @Override
         public boolean onKeyPressed(int keyCode, int scanCode, int modifiers) {
-            if (capturing) {
-                // ESC cancels capture — don't change the binding
-                if (keyCode == InputConstants.KEY_ESCAPE) {
-                    capturing = false;
-                    return true; // Consume so the screen doesn't close
+            if (capture.isCapturing()) {
+                InputConstants.Key key = InputConstants.Type.KEYSYM.getOrCreate(keyCode);
+                boolean consumed = capture.onKeyPressed(key);
+                // If capture ended (finalize, cancel, or clear), clean up static ref
+                if (!capture.isCapturing()) {
+                    endCapture();
                 }
-
-                // DELETE or BACKSPACE clears the binding to UNBOUND
-                if (keyCode == InputConstants.KEY_DELETE || keyCode == InputConstants.KEY_BACKSPACE) {
-                    control.option().requestSet(MKKeybind.UNBOUND);
-                    capturing = false;
-                    return true;
-                }
-
-                // Ignore modifier-only presses — we want a base key + modifiers,
-                // not a binding to just "Ctrl" by itself. The modifier state is
-                // captured in the `modifiers` parameter when the base key arrives.
-                if (MKKeybind.isModifierKey(keyCode)) {
-                    return true; // Consume but don't commit
-                }
-
-                // Commit the binding: base key + whatever modifiers are held.
-                // The GLFW modifiers bitmask is passed through directly — it
-                // already reflects the physical Ctrl/Shift/Alt/Cmd state.
-                MKKeybind newBind = new MKKeybind(keyCode, scanCode, modifiers);
-                control.option().requestSet(newBind);
-                capturing = false;
-                return true;
+                return consumed;
             }
 
-            // Not capturing — let the parent handle normal key navigation.
-            // Enter/Space toggles capture mode (accessibility: keyboard-only users).
+            // Not capturing -- Enter/Space toggles capture mode
             if (isFocused() && (keyCode == InputConstants.KEY_RETURN
                     || keyCode == InputConstants.KEY_SPACE
                     || keyCode == InputConstants.KEY_NUMPADENTER)) {
-                capturing = true;
+                startCapture();
                 playDownSound();
                 return true;
             }
@@ -199,17 +167,232 @@ public class MKKeybindController implements Controller<MKKeybind> {
             return false;
         }
 
-        // ── Focus Management ─────────────────────────────────────────────
+        /**
+         * Called when a key is released. Delegates to the shared capture engine.
+         *
+         * @return true if the event was consumed
+         */
+        public boolean onKeyReleased(int keyCode, int scanCode) {
+            if (!capture.isCapturing()) return false;
+
+            InputConstants.Key key = InputConstants.Type.KEYSYM.getOrCreate(keyCode);
+            boolean consumed = capture.onKeyReleased(key);
+            if (!capture.isCapturing()) {
+                endCapture();
+            }
+            return consumed;
+        }
 
         /**
-         * When the widget loses focus, cancel any in-progress capture.
-         * This handles edge cases like the user tabbing away while in
-         * capture mode.
+         * Called when a mouse button is clicked during capture.
+         *
+         * @return true if the event was consumed
          */
+        public boolean onMouseClickedCapture(int button) {
+            if (!capture.isCapturing()) return false;
+
+            InputConstants.Key key = InputConstants.Type.MOUSE.getOrCreate(button);
+            boolean consumed = capture.onMousePressed(key);
+            if (!capture.isCapturing()) {
+                endCapture();
+            }
+            return consumed;
+        }
+
+        /**
+         * Called when a mouse button is released during capture.
+         *
+         * @return true if the event was consumed
+         */
+        public boolean onMouseReleasedCapture(int button) {
+            if (!capture.isCapturing()) return false;
+
+            InputConstants.Key key = InputConstants.Type.MOUSE.getOrCreate(button);
+            boolean consumed = capture.onMouseReleased(key);
+            if (!capture.isCapturing()) {
+                endCapture();
+            }
+            return consumed;
+        }
+
+        // ── Conflict Detection ────────────────────────────────────────────
+
+        private void refreshConflicts() {
+            MKKeybind current = control.option().pendingValue();
+            if (current != lastCheckedBind) {
+                lastCheckedBind = current;
+                cachedConflicts = MKKeybindConflicts.findConflicts(current, excludeMapping);
+            }
+        }
+
+        private boolean hasConflicts() {
+            refreshConflicts();
+            return !cachedConflicts.isEmpty();
+        }
+
+        // ── Rendering ─────────────────────────────────────────────────────
+
+        @Override
+        protected Component getValueText() {
+            if (capture.isCapturing()) {
+                // Delegate to the shared engine's preview text
+                return capture.getPreviewText();
+            }
+
+            Component base = control.formatValue();
+
+            if (hasConflicts()) {
+                return Component.literal("[ ")
+                        .append(base.copy().withStyle(ChatFormatting.RED))
+                        .append(" ]")
+                        .withStyle(ChatFormatting.YELLOW);
+            }
+
+            return base;
+        }
+
+        @Override
+        protected void drawValueText(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+            Component valueText = getValueText();
+            int valueWidth = textRenderer.width(valueText);
+            int gearWidth = textRenderer.width(GEAR_TEXT);
+
+            int valueX = getDimension().xLimit() - valueWidth - getXPadding();
+            int gearX = valueX - gearWidth - GEAR_PADDING;
+            int textY = getTextY();
+
+            // Draw gear icon
+            boolean gearHovered = isGearHovered(mouseX, mouseY, gearX, gearWidth);
+            int gearColor = gearHovered ? 0xFFFFFFFF : 0xFFA0A0A0;
+            graphics.drawString(textRenderer, GEAR_TEXT, gearX, textY, gearColor, true);
+
+            // Draw value text
+            graphics.drawString(textRenderer, valueText, valueX, textY, getValueColor(), true);
+
+            // Conflict tooltip
+            if (hasConflicts() && !capture.isCapturing()) {
+                boolean overValue = mouseX >= valueX && mouseX <= getDimension().xLimit()
+                        && mouseY >= getDimension().y() && mouseY <= getDimension().yLimit();
+                if (overValue) {
+                    List<Component> tooltipLines = MKKeybindConflicts.buildTooltipLines(cachedConflicts);
+                    graphics.setComponentTooltipForNextFrame(textRenderer, tooltipLines, mouseX, mouseY);
+                }
+            }
+
+            // Gear tooltip
+            if (gearHovered && !capture.isCapturing()) {
+                graphics.setTooltipForNextFrame(textRenderer,
+                        Component.translatable("key.menukit.open_controls"),
+                        mouseX, mouseY);
+            }
+        }
+
+        @Override
+        protected void drawHoveredControl(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+            if (hasConflicts() && !capture.isCapturing()) {
+                Component valueText = getValueText();
+                int valueWidth = textRenderer.width(valueText);
+                int gearWidth = textRenderer.width(GEAR_TEXT);
+                int barX = getDimension().xLimit() - valueWidth - getXPadding()
+                        - gearWidth - GEAR_PADDING - 6;
+                graphics.fill(barX, getDimension().y() + 1,
+                        barX + 3, getDimension().yLimit() - 1,
+                        0xFFFFFF00);
+            }
+        }
+
+        @Override
+        protected int getHoveredControlWidth() {
+            int gearWidth = textRenderer.width(GEAR_TEXT) + GEAR_PADDING;
+            return getUnhoveredControlWidth() + gearWidth;
+        }
+
+        @Override
+        protected int getUnhoveredControlWidth() {
+            int gearWidth = textRenderer.width(GEAR_TEXT) + GEAR_PADDING;
+            return textRenderer.width(getValueText()) + gearWidth;
+        }
+
+        // ── Gear Button Hit Testing ───────────────────────────────────────
+
+        private boolean isGearHovered(double mouseX, double mouseY, int gearX, int gearWidth) {
+            return mouseX >= gearX && mouseX <= gearX + gearWidth
+                    && mouseY >= getDimension().y() && mouseY <= getDimension().yLimit();
+        }
+
+        private int getGearX() {
+            Component valueText = getValueText();
+            int valueWidth = textRenderer.width(valueText);
+            int gearWidth = textRenderer.width(GEAR_TEXT);
+            return getDimension().xLimit() - valueWidth - getXPadding() - gearWidth - GEAR_PADDING;
+        }
+
+        // ── Mouse Interaction ─────────────────────────────────────────────
+
+        @Override
+        public boolean onMouseClicked(double mouseX, double mouseY, int button) {
+            if (!isMouseOver(mouseX, mouseY) || !isAvailable()) {
+                return false;
+            }
+
+            // Check gear icon click -- opens vanilla KeyBindsScreen scrolled
+            // to the relevant keybind entry
+            int gearX = getGearX();
+            int gearWidth = textRenderer.width(GEAR_TEXT);
+            if (isGearHovered(mouseX, mouseY, gearX, gearWidth)) {
+                Minecraft mc = Minecraft.getInstance();
+                // Tell the mixin which KeyMapping to scroll to after init
+                pendingScrollTarget = excludeMapping;
+                mc.setScreen(new KeyBindsScreen(screen, mc.options));
+                playDownSound();
+                return true;
+            }
+
+            // During capture, mouse clicks add to the combo
+            if (capture.isCapturing()) {
+                return onMouseClickedCapture(button);
+            }
+
+            // Normal click: enter capture mode
+            startCapture();
+            playDownSound();
+            return true;
+        }
+
+        // ── Key Release (YACL propagates via AbstractWidget.keyReleased) ──
+
+        @Override
+        public boolean onKeyReleased(int keyCode, int scanCode, int modifiers) {
+            return onKeyReleased(keyCode, scanCode);
+        }
+
+        // ── Mouse Release (YACL propagates via AbstractWidget.mouseReleased) ──
+
+        @Override
+        public boolean onMouseReleased(double mouseX, double mouseY, int button) {
+            if (capture.isCapturing()) {
+                return onMouseReleasedCapture(button);
+            }
+            return false;
+        }
+
+        // ── Focus Management ──────────────────────────────────────────────
+
         @Override
         public void unfocus() {
             super.unfocus();
-            capturing = false;
+            if (capture.isCapturing()) {
+                // Force-stop capture without changing binding. We reset
+                // the engine by starting and immediately cancelling -- but
+                // simpler to just let the cancel callback fire.
+                // The capture engine's onCancel is a no-op for YACL,
+                // so we just need to clear the static ref.
+                // Note: We can't call capture's internal cancel directly,
+                // so we use the key escape path.
+                InputConstants.Key escKey = InputConstants.Type.KEYSYM.getOrCreate(InputConstants.KEY_ESCAPE);
+                capture.onKeyPressed(escKey);
+                endCapture();
+            }
         }
     }
 }

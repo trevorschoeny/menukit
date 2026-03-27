@@ -111,8 +111,19 @@ public class MKButton extends AbstractButton {
     private int anchorGap = 2;
 
     // ── Panel association ────────────────────────────────────────────────────
-    /** Panel name — used for collision avoidance position updates. */
+    /** Panel name -- used for collision avoidance position updates and event dispatch. */
     public @Nullable String panelName;
+    /** Sequential index within the panel's button list. Used to match buttons
+     *  during position updates (label matching fails when multiple buttons
+     *  share the same label or have empty labels). Set during creation. */
+    public int buttonIndex = -1;
+
+    // ── Event context ────────────────────────────────────────────────────────
+    /** The screen context for event dispatch. Set during button creation. */
+    @Nullable MKContext eventContext;
+
+    /** The player for event dispatch. Set during button creation. */
+    net.minecraft.world.entity.player.@Nullable Player eventPlayer;
 
     // ── Callbacks ───────────────────────────────────────────────────────────
     private @Nullable Consumer<MKButton> onClick;
@@ -208,6 +219,20 @@ public class MKButton extends AbstractButton {
         // Fire click callback
         if (onClick != null) {
             onClick.accept(this);
+        }
+
+        // Fire bus events for UI event listeners
+        // Resolve player: prefer the pre-set eventPlayer, fall back to Minecraft.player
+        net.minecraft.world.entity.player.Player player = eventPlayer;
+        if (player == null) {
+            var mc = net.minecraft.client.Minecraft.getInstance();
+            player = mc.player;
+        }
+        if (player != null) {
+            MKEventBus.fire(MKUIEvent.buttonClick(this, panelName, eventContext, player));
+            if (toggleMode) {
+                MKEventBus.fire(MKUIEvent.buttonToggle(this, pressed, panelName, eventContext, player));
+            }
         }
     }
 

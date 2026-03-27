@@ -54,7 +54,8 @@ public record MKPanelDef(
         @Nullable MKGroupDef rootGroup,                         // layout tree root (null = legacy flat path)
         boolean rightAligned,                                   // children align right within the panel (auto-derived from posMode)
         boolean shiftClickIn,                                   // items can be shift-clicked INTO this panel's slots (default: false)
-        boolean shiftClickOut                                   // items can be shift-clicked OUT OF this panel's slots (default: false)
+        boolean shiftClickOut,                                  // items can be shift-clicked OUT OF this panel's slots (default: false)
+        @Nullable MKRegionFollowDef followsRegion               // if set, panel auto-positions itself relative to a named MKRegion
 ) {
 
     // ── Position Mode ──────────────────────────────────────────────────────
@@ -205,6 +206,15 @@ public record MKPanelDef(
                 || posMode == PosMode.BELOW_LEFT || posMode == PosMode.BELOW_RIGHT;
     }
 
+    /**
+     * Returns true if this panel should auto-position itself relative to a
+     * named {@link MKRegion} each frame. The panel hides automatically when
+     * the target region is not present in the active menu.
+     */
+    public boolean isRegionFollowing() {
+        return followsRegion != null;
+    }
+
     // ── Button Size Estimation ─────────────────────────────────────────────
 
     /**
@@ -229,16 +239,16 @@ public record MKPanelDef(
     /**
      * Computes dynamic positions for all children (slots first, then buttons)
      * based on the panel's layout mode. Evaluates {@code disabledWhen} predicates
-     * each call — disabled children get sentinel positions (-9999) and don't
-     * affect the flow cursor.
+     * each call — disabled children are marked inactive (active[i] = false)
+     * with positions left at {0, 0}, and don't affect the flow cursor.
      *
      * <p>For {@code MANUAL} mode, returns original childX/childY unchanged.
      * For {@code COLUMN}/{@code ROW}, positions are computed sequentially with
      * the configured gap between active elements.
      *
-     * @return array of [x, y] pairs — slots at 0..S-1, buttons at S..S+B-1, texts at S+B..S+B+T-1
+     * @return layout result with positions and active flags for each element
      */
-    public int[][] computeFlowPositions() {
+    public MKLayoutResult computeFlowPositions() {
         // If we have a layout tree, delegate to the recursive computation
         if (rootGroup != null) {
             return computeFlowPositionsFromTree();
@@ -248,52 +258,111 @@ public record MKPanelDef(
     }
 
     /** Recursive tree-based layout computation. */
-    private int[][] computeFlowPositionsFromTree() {
-        int total = slotDefs.size() + buttonDefs.size() + textDefs.size();
+    private MKLayoutResult computeFlowPositionsFromTree() {
+        // Count elements from the ACTUAL tree, not the original def lists.
+        // Conditional element rules can insert children (e.g., sort buttons)
+        // after the panel is built, so the tree may have more elements than
+        // slotDefs + buttonDefs + textDefs.
+        int[] typeCounts = MKGroupDef.countElementsByType(rootGroup);
+        int treeSlots = typeCounts[0];
+        int treeButtons = typeCounts[1];
+        int treeTexts = typeCounts[2];
+        int total = treeSlots + treeButtons + treeTexts;
+
         int[][] positions = new int[total][2];
-        // Initialize all to disabled
-        for (int[] pos : positions) { pos[0] = -9999; pos[1] = -9999; }
-        // Recursive layout fills in enabled positions
+        boolean[] active = new boolean[total];
+        // Initialize all positions to {0, 0} and inactive
+        // Recursive layout fills in enabled positions and marks them active
         int[] counters = { 0, 0, 0 }; // slot, button, text
-        rootGroup.computeLayout(positions, counters,
-                slotDefs.size(), buttonDefs.size(),
-                0, 0, false, rightAligned);
-        return positions;
+        int[] contentSize = rootGroup.computeLayout(positions, active, counters,
+                treeSlots, treeButtons,
+                0, 0, false, rightAligned, name());
+        return new MKLayoutResult(positions, active, contentSize[0], contentSize[1]);
+    }
+
+    /**
+     * Returns all button definitions from the rootGroup tree in depth-first
+     * traversal order. This captures conditionally-injected buttons that aren't
+     * in the original flat {@link #buttonDefs()} list.
+     *
+     * <p>Falls back to {@link #buttonDefs()} if no rootGroup exists (legacy panels).
+     */
+    List<MKButtonDef> getTreeButtonDefs() {
+        if (rootGroup == null) return buttonDefs;
+        List<MKButtonDef> treeDefs = new java.util.ArrayList<>();
+        MKGroupDef.collectButtonDefs(rootGroup, treeDefs);
+        return treeDefs;
+    }
+
+    /**
+     * Returns the number of slots in the rootGroup tree (not the original flat list).
+     * Used as the index offset for buttons in tree-based layout results.
+     *
+     * <p>Falls back to {@code slotDefs.size()} if no rootGroup exists.
+     */
+    int getTreeSlotCount() {
+        if (rootGroup == null) return slotDefs.size();
+        return MKGroupDef.countElementsByType(rootGroup)[0];
     }
 
     /** Legacy flat layout algorithm (for panels without groups). */
-    private int[][] computeFlowPositionsFlat() {
+    private MKLayoutResult computeFlowPositionsFlat() {
         int total = slotDefs.size() + buttonDefs.size() + textDefs.size();
         int[][] positions = new int[total][2];
+        boolean[] active = new boolean[total];
 
         if (layoutMode == LayoutMode.MANUAL) {
             // Manual: use original positions from defs, but still respect disabledWhen
             for (int i = 0; i < slotDefs.size(); i++) {
                 MKSlotDef slot = slotDefs.get(i);
                 if (slot.disabledWhen() != null && slot.disabledWhen().getAsBoolean()) {
-                    positions[i] = new int[]{ -9999, -9999 };
+                    // active[i] remains false, position stays {0, 0}
                 } else {
                     positions[i] = new int[]{ slot.childX(), slot.childY() };
+                    active[i] = true;
                 }
             }
             for (int i = 0; i < buttonDefs.size(); i++) {
                 MKButtonDef btn = buttonDefs.get(i);
+                int idx = slotDefs.size() + i;
                 if (btn.disabledWhen() != null && btn.disabledWhen().getAsBoolean()) {
-                    positions[slotDefs.size() + i] = new int[]{ -9999, -9999 };
+                    // inactive
                 } else {
-                    positions[slotDefs.size() + i] = new int[]{ btn.childX(), btn.childY() };
+                    positions[idx] = new int[]{ btn.childX(), btn.childY() };
+                    active[idx] = true;
                 }
             }
             for (int i = 0; i < textDefs.size(); i++) {
                 MKTextDef text = textDefs.get(i);
+                int idx = slotDefs.size() + buttonDefs.size() + i;
                 if (text.disabledWhen() != null && text.disabledWhen().getAsBoolean()) {
-                    positions[slotDefs.size() + buttonDefs.size() + i] = new int[]{ -9999, -9999 };
+                    // inactive
                 } else {
-                    positions[slotDefs.size() + buttonDefs.size() + i] = new int[]{ text.childX(), text.childY() };
+                    positions[idx] = new int[]{ text.childX(), text.childY() };
+                    active[idx] = true;
                 }
             }
 
-            return positions;
+            // Compute content dimensions from active elements
+            int contentW = 0, contentH = 0;
+            for (int i = 0; i < total; i++) {
+                if (!active[i]) continue;
+                int w = 0, h = 0;
+                if (i < slotDefs.size()) { w = 18; h = 18; }
+                else if (i < slotDefs.size() + buttonDefs.size()) {
+                    int bi = i - slotDefs.size();
+                    w = estimateButtonWidth(buttonDefs.get(bi));
+                    h = estimateButtonHeight(buttonDefs.get(bi));
+                } else {
+                    int ti = i - slotDefs.size() - buttonDefs.size();
+                    w = textDefs.get(ti).estimateWidth();
+                    h = MKTextDef.TEXT_HEIGHT;
+                }
+                contentW = Math.max(contentW, positions[i][0] + w);
+                contentH = Math.max(contentH, positions[i][1] + h);
+            }
+
+            return new MKLayoutResult(positions, active, contentW, contentH);
         }
 
         // Flow layout: COLUMN (top-to-bottom) or ROW (left-to-right)
@@ -303,31 +372,34 @@ public record MKPanelDef(
         // Text labels first (typically headers at the top)
         for (int i = 0; i < textDefs.size(); i++) {
             MKTextDef text = textDefs.get(i);
+            int idx = slotDefs.size() + buttonDefs.size() + i;
             if (text.disabledWhen() != null && text.disabledWhen().getAsBoolean()) {
-                positions[slotDefs.size() + buttonDefs.size() + i] = new int[]{ -9999, -9999 };
+                // inactive — position stays {0, 0}
                 continue;
             }
             if (hasActiveChild) cursor += layoutGap;
             hasActiveChild = true;
+            active[idx] = true;
 
             if (layoutMode == LayoutMode.COLUMN) {
-                positions[slotDefs.size() + buttonDefs.size() + i] = new int[]{ 0, cursor };
+                positions[idx] = new int[]{ 0, cursor };
                 cursor += MKTextDef.TEXT_HEIGHT;
             } else { // ROW
-                positions[slotDefs.size() + buttonDefs.size() + i] = new int[]{ cursor, 0 };
+                positions[idx] = new int[]{ cursor, 0 };
                 cursor += text.estimateWidth();
             }
         }
 
-        // Slots (18×18 each)
+        // Slots (18x18 each)
         for (int i = 0; i < slotDefs.size(); i++) {
             MKSlotDef slot = slotDefs.get(i);
             if (slot.disabledWhen() != null && slot.disabledWhen().getAsBoolean()) {
-                positions[i] = new int[]{ -9999, -9999 };
+                // inactive
                 continue;
             }
             if (hasActiveChild) cursor += layoutGap;
             hasActiveChild = true;
+            active[i] = true;
 
             // +1 offset: vanilla slot border renders at (x-1,y-1),
             // bake the compensation into the position itself.
@@ -340,29 +412,50 @@ public record MKPanelDef(
             }
         }
 
-        // Buttons (def width/height or 20×20 default)
+        // Buttons (def width/height or 20x20 default)
         for (int i = 0; i < buttonDefs.size(); i++) {
             MKButtonDef btn = buttonDefs.get(i);
+            int idx = slotDefs.size() + i;
             if (btn.disabledWhen() != null && btn.disabledWhen().getAsBoolean()) {
-                positions[slotDefs.size() + i] = new int[]{ -9999, -9999 };
+                // inactive
                 continue;
             }
             if (hasActiveChild) cursor += layoutGap;
             hasActiveChild = true;
+            active[idx] = true;
 
             int btnW = estimateButtonWidth(btn);
             int btnH = estimateButtonHeight(btn);
 
             if (layoutMode == LayoutMode.COLUMN) {
-                positions[slotDefs.size() + i] = new int[]{ 0, cursor };
+                positions[idx] = new int[]{ 0, cursor };
                 cursor += btnH;
             } else { // ROW
-                positions[slotDefs.size() + i] = new int[]{ cursor, 0 };
+                positions[idx] = new int[]{ cursor, 0 };
                 cursor += btnW;
             }
         }
 
-        return positions;
+        // Compute content dimensions
+        int contentW = 0, contentH = 0;
+        for (int i = 0; i < total; i++) {
+            if (!active[i]) continue;
+            int w = 0, h = 0;
+            if (i < slotDefs.size()) { w = 18; h = 18; }
+            else if (i < slotDefs.size() + buttonDefs.size()) {
+                int bi = i - slotDefs.size();
+                w = estimateButtonWidth(buttonDefs.get(bi));
+                h = estimateButtonHeight(buttonDefs.get(bi));
+            } else {
+                int ti = i - slotDefs.size() - buttonDefs.size();
+                w = textDefs.get(ti).estimateWidth();
+                h = MKTextDef.TEXT_HEIGHT;
+            }
+            contentW = Math.max(contentW, positions[i][0] + w);
+            contentH = Math.max(contentH, positions[i][1] + h);
+        }
+
+        return new MKLayoutResult(positions, active, contentW, contentH);
     }
 
     // ── Size Computation ───────────────────────────────────────────────────
@@ -374,64 +467,27 @@ public record MKPanelDef(
      * Returns {width, height}. If not auto-sized, returns the explicit dimensions.
      */
     public int[] computeSize() {
-        if (!autoSize || (slotDefs.isEmpty() && buttonDefs.isEmpty() && textDefs.isEmpty())) {
+        if (!autoSize || (slotDefs.isEmpty() && buttonDefs.isEmpty() && textDefs.isEmpty()
+                && rootGroup == null)) {
             return new int[]{ width, height };
         }
 
         int ep = effectivePadding();
 
-        // Tree-based layout: the root group already computes exact content size.
-        // Slot content offset (+1) is already baked into positions by the layout engine.
-        if (rootGroup != null) {
-            int total = slotDefs.size() + buttonDefs.size() + textDefs.size();
-            int[][] positions = new int[total][2];
-            for (int[] pos : positions) { pos[0] = -9999; pos[1] = -9999; }
-            int[] counters = { 0, 0, 0 };
-            int[] contentSize = rootGroup.computeLayout(positions, counters,
-                    slotDefs.size(), buttonDefs.size(), 0, 0, false, rightAligned);
-            return new int[]{
-                    contentSize[0] + ep * 2,
-                    contentSize[1] + ep * 2
-            };
-        }
+        // Both tree-based and flat layouts now go through computeFlowPositions(),
+        // which returns an MKLayoutResult with content dimensions already computed.
+        MKLayoutResult layout = computeFlowPositions();
 
-        // Legacy flat layout: derive size from element positions.
-        // Slot content offset (+1) is already baked into flowPos.
-        int[][] flowPos = computeFlowPositions();
-        int maxRight = 0;
-        int maxBottom = 0;
+        // Check if there are any active elements
         boolean hasActiveElements = false;
-
-        for (int i = 0; i < slotDefs.size(); i++) {
-            if (flowPos[i][0] == -9999) continue;
-            maxRight = Math.max(maxRight, flowPos[i][0] + 18);
-            maxBottom = Math.max(maxBottom, flowPos[i][1] + 18);
-            hasActiveElements = true;
+        for (int i = 0; i < layout.active().length; i++) {
+            if (layout.isActive(i)) { hasActiveElements = true; break; }
         }
-
-        for (int i = 0; i < buttonDefs.size(); i++) {
-            int fi = slotDefs.size() + i;
-            if (flowPos[fi][0] == -9999) continue;
-            MKButtonDef btn = buttonDefs.get(i);
-            maxRight = Math.max(maxRight, flowPos[fi][0] + estimateButtonWidth(btn));
-            maxBottom = Math.max(maxBottom, flowPos[fi][1] + estimateButtonHeight(btn));
-            hasActiveElements = true;
-        }
-
-        for (int i = 0; i < textDefs.size(); i++) {
-            int fi = slotDefs.size() + buttonDefs.size() + i;
-            if (flowPos[fi][0] == -9999) continue;
-            MKTextDef text = textDefs.get(i);
-            maxRight = Math.max(maxRight, flowPos[fi][0] + text.estimateWidth());
-            maxBottom = Math.max(maxBottom, flowPos[fi][1] + MKTextDef.TEXT_HEIGHT);
-            hasActiveElements = true;
-        }
-
         if (!hasActiveElements) return new int[]{ 0, 0 };
 
         return new int[]{
-                maxRight + ep * 2,
-                maxBottom + ep * 2
+                layout.contentWidth() + ep * 2,
+                layout.contentHeight() + ep * 2
         };
     }
 }

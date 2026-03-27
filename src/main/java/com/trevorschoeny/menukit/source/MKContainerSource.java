@@ -63,6 +63,39 @@ public interface MKContainerSource {
      */
     boolean canAccept(int slot, ItemStack stack);
 
+    /**
+     * Checks if the backing store was modified externally (outside of
+     * {@link #sync}). If so, re-populates the container from the backing
+     * store and returns true.
+     *
+     * <p>Called on each {@code broadcastChanges} tick for bound containers.
+     * Default returns false (no external change detection). Override for
+     * sources that can be modified by vanilla mechanics (e.g., bundle pickup,
+     * ender chest access from another player).
+     *
+     * @param container the MKContainer to re-populate if needed
+     * @return true if external changes were detected and the container was updated
+     */
+    default boolean pollExternalChanges(MKContainer container) {
+        return false;
+    }
+
+    /**
+     * Returns how many MORE items of the given type this source can accept.
+     * Used by {@link com.trevorschoeny.menukit.mixin.MKSlotMixin} to limit
+     * {@code getMaxStackSize(ItemStack)} so vanilla's {@code safeInsert}
+     * naturally performs partial insertion (leaving remainder on cursor).
+     *
+     * <p>Default returns {@code Integer.MAX_VALUE} (no source-level limit).
+     * Override for weight-based sources like bundles.
+     *
+     * @param slot  the container slot index
+     * @param stack the item being placed (type matters, count is ignored)
+     */
+    default int getMaxAcceptCount(int slot, ItemStack stack) {
+        return Integer.MAX_VALUE;
+    }
+
     // ── Factory Methods ──────────────────────────────────────────────────
 
     /**
@@ -90,6 +123,20 @@ public interface MKContainerSource {
     }
 
     /**
+     * Creates a source backed by an item's {@code DataComponents.CONTAINER},
+     * using a live supplier to resolve the current ItemStack.
+     *
+     * <p>Prefer this over the direct-reference overload when the ItemStack
+     * in the inventory slot may be REPLACED by vanilla (e.g., during
+     * interactions that rebuild the item's components).
+     *
+     * @param stackSupplier supplier returning the current live ItemStack
+     */
+    static MKContainerSource ofItemContainer(java.util.function.Supplier<ItemStack> stackSupplier) {
+        return new ItemContainerSource(stackSupplier);
+    }
+
+    /**
      * Creates a source backed by an item's {@code DataComponents.BUNDLE_CONTENTS}.
      *
      * <p>For bundles. Items are spread across slots sequentially.
@@ -99,5 +146,18 @@ public interface MKContainerSource {
      */
     static MKContainerSource ofBundle(ItemStack stack) {
         return new BundleContainerSource(stack);
+    }
+
+    /**
+     * Creates a source backed by an item's {@code DataComponents.BUNDLE_CONTENTS},
+     * using a live supplier to resolve the current ItemStack.
+     *
+     * <p>Prefer this over the direct-reference overload when the ItemStack
+     * may be REPLACED by vanilla during bundle interactions (scroll+right-click).
+     *
+     * @param stackSupplier supplier returning the current live ItemStack
+     */
+    static MKContainerSource ofBundle(java.util.function.Supplier<ItemStack> stackSupplier) {
+        return new BundleContainerSource(stackSupplier);
     }
 }

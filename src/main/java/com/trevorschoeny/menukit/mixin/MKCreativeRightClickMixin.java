@@ -22,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * <p>Fires two paths for each right-click:
  * <ol>
  *   <li>Per-slot handlers from {@link MKSlotState} (legacy API)</li>
- *   <li>{@link MKSlotEvent.Type#RIGHT_CLICK} through the {@link MKEventBus}</li>
+ *   <li>{@link MKEvent.Type#RIGHT_CLICK} through the {@link MKEventBus}</li>
  * </ol>
  *
  * <p>If either consumes, vanilla behavior is cancelled.
@@ -76,7 +76,7 @@ public abstract class MKCreativeRightClickMixin
             if (player != null) {
                 AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
                 MKSlotEvent event = MKEventHelper.buildSlotEvent(
-                        MKSlotEvent.Type.RIGHT_CLICK, realSlot, button, screen, player);
+                        MKEvent.Type.RIGHT_CLICK, realSlot, button, screen, player);
                 if (MKEventBus.fire(event)) {
                     consumed = true;
                 }
@@ -120,7 +120,7 @@ public abstract class MKCreativeRightClickMixin
             if (player != null) {
                 AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
                 MKSlotEvent event2 = MKEventHelper.buildSlotEvent(
-                        MKSlotEvent.Type.RIGHT_CLICK, realSlot, 1, screen, player);
+                        MKEvent.Type.RIGHT_CLICK, realSlot, 1, screen, player);
                 if (MKEventBus.fire(event2)) {
                     consumed = true;
                 }
