@@ -1,6 +1,5 @@
 package com.trevorschoeny.menukit;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -17,8 +16,8 @@ import java.util.List;
  *
  * <p><b>Conflict rules:</b>
  * <ul>
- *   <li>MKKeyMapping vs MKKeybind: exact key set match = conflict</li>
- *   <li>Vanilla KeyMapping vs MKKeybind: vanilla's single key is wrapped as
+ *   <li>KeyMapping with combo vs MKKeybind: exact key set match = conflict</li>
+ *   <li>KeyMapping without combo vs MKKeybind: vanilla's single key is wrapped as
  *       an MKKeybind for comparison. Only conflicts if the MKKeybind is also
  *       a single key and matches.</li>
  * </ul>
@@ -71,18 +70,11 @@ public final class MKKeybindConflicts {
             // Skip unbound mappings
             if (km.isUnbound()) continue;
 
-            // Get the other mapping's effective keybind for comparison
-            MKKeybind otherBind;
-            if (km instanceof MKKeyMapping mkKm) {
-                otherBind = mkKm.getCombo();
-            } else {
-                // Vanilla KeyMapping: wrap its single key as an MKKeybind.
-                // Vanilla mappings have no modifier awareness, so we treat
-                // them as single-key combos.
-                int keyCode = MKKeyMapping.getKeyCode(km);
-                if (keyCode == InputConstants.UNKNOWN.getValue()) continue;
-                otherBind = MKKeybind.ofKey(keyCode);
-            }
+            // Get the other mapping's effective keybind for comparison.
+            // Uses the MKKeybindExt duck interface -- every KeyMapping has it
+            // via the MKKeyMappingMixin. Returns the full multi-key combo if
+            // set, or wraps the single key as an MKKeybind.
+            MKKeybind otherBind = MKKeybindExt.getCombo(km);
 
             if (otherBind.isUnbound()) continue;
 

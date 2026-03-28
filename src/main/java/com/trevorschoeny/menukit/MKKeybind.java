@@ -138,7 +138,7 @@ public final class MKKeybind {
 
     /**
      * Returns true if this is a single keyboard key (not mouse). Used by
-     * {@link MKKeyMapping} to determine which key to register with vanilla.
+     * {@link MKKeybindExt} to determine which key to register with vanilla.
      */
     public boolean isSingleKeyboard() {
         return keys.size() == 1
@@ -148,7 +148,7 @@ public final class MKKeybind {
     /**
      * Returns the single key if this is a single-key combo, or
      * {@link InputConstants#UNKNOWN} if multi-key or unbound.
-     * Used by {@link MKKeyMapping} to set vanilla's base key.
+     * Used by {@link MKKeybindExt} to set vanilla's base key.
      */
     public InputConstants.Key getSingleKey() {
         if (keys.size() == 1) return keys.first();
@@ -202,7 +202,7 @@ public final class MKKeybind {
     // ── Live State Checking ──────────────────────────────────────────────────
     //
     // Polls GLFW for the current pressed state of all keys in this combo.
-    // Used by MKKeyMapping.setDown() for runtime activation checks.
+    // Used by MKKeyMappingMixin.setDown() for runtime activation checks.
 
     /**
      * Returns true if ALL keys in this combo are currently pressed, as reported

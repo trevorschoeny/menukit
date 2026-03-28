@@ -4,8 +4,8 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.trevorschoeny.menukit.MKKeybind;
 import com.trevorschoeny.menukit.MKKeybindCapture;
 import com.trevorschoeny.menukit.MKKeybindController;
+import com.trevorschoeny.menukit.MKKeybindExt;
 import com.trevorschoeny.menukit.MKKeybindSync;
-import com.trevorschoeny.menukit.MKKeyMapping;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -28,8 +28,8 @@ import net.minecraft.client.gui.GuiGraphics;
 
 /**
  * Replaces vanilla's single-key capture in {@link KeyBindsScreen} with multi-key
- * High Water Mark capture for ALL keybindings (both {@link MKKeyMapping} and
- * plain vanilla {@link KeyMapping}).
+ * High Water Mark capture for ALL keybindings. Uses the {@link MKKeybindExt}
+ * duck interface (mixed into every {@link KeyMapping}) for combo access.
  *
  * <p>Capture logic is delegated to {@link MKKeybindCapture}, the shared engine
  * used by both this mixin and the YACL settings widget. The mixin's role is to:
@@ -105,9 +105,9 @@ public abstract class MKKeyBindsScreenMixin extends Screen {
      * Creates a fresh {@link MKKeybindCapture} engine wired to the currently
      * selected {@link KeyMapping}. The callbacks:
      * <ul>
-     *   <li><b>onFinalize</b>: applies the new binding (full combo for
-     *       {@link MKKeyMapping}, primary key for vanilla), sets
-     *       {@code lastKeySelection}, clears {@code selectedKey}, and
+     *   <li><b>onFinalize</b>: applies the new binding via the
+     *       {@link MKKeybindExt} duck interface (universal for all KeyMappings),
+     *       sets {@code lastKeySelection}, clears {@code selectedKey}, and
      *       refreshes the list</li>
      *   <li><b>onCancel</b>: sets the binding to UNBOUND (matching vanilla's
      *       Escape=unbind behavior), clears {@code selectedKey}</li>
@@ -117,20 +117,13 @@ public abstract class MKKeyBindsScreenMixin extends Screen {
     @Unique
     private MKKeybindCapture menuKit$createCapture() {
         return new MKKeybindCapture(
-                // onFinalize: apply the new binding to the selected KeyMapping
+                // onFinalize: apply the new binding via the duck interface
                 bind -> {
                     if (this.selectedKey != null) {
-                        if (this.selectedKey instanceof MKKeyMapping mkMapping) {
-                            // MKKeyMapping: store the full multi-key combo
-                            mkMapping.updateFromKeybind(bind);
-                        } else {
-                            // Vanilla KeyMapping: can only hold one key, so pick
-                            // the "primary" key (last non-modifier, or last key
-                            // if all are modifiers)
-                            InputConstants.Key primary = menuKit$findPrimaryKey(bind);
-                            this.selectedKey.setKey(primary);
-                            KeyMapping.resetMapping();
-                        }
+                        // All KeyMappings now support multi-key combos via the
+                        // MKKeybindExt duck interface. updateFromKeybind sets both
+                        // the combo and the vanilla base key.
+                        MKKeybindExt.updateFromKeybind(this.selectedKey, bind);
                     }
                     this.selectedKey = null;
                     // Critical: set lastKeySelection so vanilla's mouseClicked()
@@ -144,10 +137,8 @@ public abstract class MKKeyBindsScreenMixin extends Screen {
                 },
                 // onCancel: set to UNBOUND (matching vanilla's Escape=unbind behavior)
                 () -> {
-                    if (this.selectedKey instanceof MKKeyMapping mkMapping) {
-                        mkMapping.updateFromKeybind(MKKeybind.UNBOUND);
-                    } else if (this.selectedKey != null) {
-                        this.selectedKey.setKey(InputConstants.UNKNOWN);
+                    if (this.selectedKey != null) {
+                        MKKeybindExt.updateFromKeybind(this.selectedKey, MKKeybind.UNBOUND);
                     }
                     this.selectedKey = null;
                     this.lastKeySelection = Util.getMillis();
@@ -179,6 +170,10 @@ public abstract class MKKeyBindsScreenMixin extends Screen {
         if (menuKit$capture == null || !menuKit$capture.isCapturing()) {
             menuKit$capture = menuKit$createCapture();
             menuKit$capture.start();
+            // Register static tracking so the mixin's getTranslatedKeyMessage
+            // shows live preview for the mapping being captured
+            MKKeybindCapture.activeMapping = this.selectedKey;
+            MKKeybindCapture.activeCapture = menuKit$capture;
         }
 
         InputConstants.Key key = InputConstants.getKey(keyEvent);
@@ -230,6 +225,8 @@ public abstract class MKKeyBindsScreenMixin extends Screen {
         if (menuKit$capture == null || !menuKit$capture.isCapturing()) {
             menuKit$capture = menuKit$createCapture();
             menuKit$capture.start();
+            MKKeybindCapture.activeMapping = this.selectedKey;
+            MKKeybindCapture.activeCapture = menuKit$capture;
         }
 
         InputConstants.Key key = InputConstants.Type.MOUSE.getOrCreate(event.button());
@@ -381,17 +378,17 @@ public abstract class MKKeyBindsScreenMixin extends Screen {
     // ── Controls -> Config Sync ─────────────────────────────────────────────
 
     /**
-     * When the Controls screen is removed, sync all MKKeyMapping combos back to
-     * their respective mod configs. This ensures keybind changes made in the
-     * vanilla Controls screen (which writes directly to MKKeyMapping instances)
-     * are persisted to disk. Without this, changes are lost on restart.
+     * When the Controls screen is removed, sync all KeyMapping combos back to
+     * their respective mod configs via {@link MKKeybindSync}. This ensures
+     * keybind changes made in the vanilla Controls screen are persisted to
+     * disk. Without this, changes are lost on restart.
      *
      * <p>Added as a concrete method rather than {@code @Inject} because
      * {@code KeyBindsScreen} does not override {@code removed()} — only its
      * superclass {@code OptionsSubScreen} does, and Mixin cannot inject into
      * a method that the target class doesn't declare. The concrete override
      * calls {@code super.removed()} (which saves vanilla options) and then
-     * syncs MKKeyMapping configs.
+     * syncs keybind configs.
      */
     @Override
     public void removed() {
@@ -399,25 +396,4 @@ public abstract class MKKeyBindsScreenMixin extends Screen {
         MKKeybindSync.syncToConfig();
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    /**
-     * Finds the "primary" key from an {@link MKKeybind} for vanilla
-     * {@link KeyMapping} assignment. Prefers non-modifier keys; falls back
-     * to the last key if all are modifiers.
-     */
-    @Unique
-    private static InputConstants.Key menuKit$findPrimaryKey(MKKeybind bind) {
-        InputConstants.Key last = InputConstants.UNKNOWN;
-        InputConstants.Key lastNonModifier = null;
-
-        for (InputConstants.Key key : bind.getKeys()) {
-            last = key;
-            if (!MKKeybind.isTraditionalModifier(key)) {
-                lastNonModifier = key;
-            }
-        }
-
-        return lastNonModifier != null ? lastNonModifier : last;
-    }
 }

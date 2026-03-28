@@ -41,7 +41,9 @@
     "MKScrollMixin",
     "MKRecipeBookAccessor",
     "MKKeyBindsScreenMixin",
-    "KeyEntryAccessor"
+    "KeyEntryAccessor",
+    "KeyMappingAccessor",
+    "MKKeyMappingMixin"
   ],
   "injectors": {
     "defaultRequire": 1

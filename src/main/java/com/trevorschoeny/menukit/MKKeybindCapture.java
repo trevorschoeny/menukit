@@ -2,6 +2,7 @@ package com.trevorschoeny.menukit;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
@@ -48,6 +49,19 @@ public class MKKeybindCapture {
 
     /** How long (ms) without events before GLFW polling kicks in as a fallback. */
     private static final long GLFW_FALLBACK_TIMEOUT_MS = 2000;
+
+    // ── Active Capture Tracking ──────────────────────────────────────────────
+    //
+    // Static references so the MKKeyMappingMixin can check whether a given
+    // KeyMapping is currently being captured (for live preview in
+    // getTranslatedKeyMessage). These are set/cleared by the vanilla Controls
+    // screen mixin when capture starts/ends.
+
+    /** The KeyMapping currently being captured, or null if no capture is active. */
+    public static KeyMapping activeMapping;
+
+    /** The active capture engine, or null if no capture is active. */
+    public static MKKeybindCapture activeCapture;
 
     // ── Capture State ────────────────────────────────────────────────────────
 
@@ -355,12 +369,19 @@ public class MKKeybindCapture {
         }
     }
 
-    /** Resets all internal state to non-capturing. */
+    /** Resets all internal state to non-capturing. Also clears the static
+     *  active capture refs so the mixin stops showing live preview. */
     private void resetState() {
         capturing = false;
         heldKeys.clear();
         highWaterMark.clear();
         lastEventTime = 0;
+
+        // Clear static tracking if this instance was the active capture
+        if (activeCapture == this) {
+            activeMapping = null;
+            activeCapture = null;
+        }
     }
 
     // ── GLFW Polling Helper ──────────────────────────────────────────────────
