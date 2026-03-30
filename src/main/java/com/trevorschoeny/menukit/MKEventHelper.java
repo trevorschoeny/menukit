@@ -431,11 +431,27 @@ public final class MKEventHelper {
         ItemStack slotStack = slot.getItem().copy();
 
         // Resolve region from the menu's region registry.
-        // Creative mode fallback: ItemPickerMenu has no regions, use inventoryMenu.
+        // Creative mode complicates this in two ways:
+        //   1. SlotWrapper: wraps an inventoryMenu slot but has an ItemPickerMenu
+        //      index. Unwrap to get the original slot's inventoryMenu index.
+        //   2. MKSlot on ItemPickerMenu: has a different index than on the
+        //      inventoryMenu. Use the slot state's regionName for lookup by name.
         AbstractContainerMenu menu = screen.getMenu();
-        region = MKRegionRegistry.getRegionForSlot(menu, slot.index);
-        if (region == null) {
-            region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, slot.index);
+        if (slot instanceof com.trevorschoeny.menukit.mixin.SlotWrapperAccessor wrapper) {
+            // Creative SlotWrapper — use the underlying inventoryMenu slot's index
+            Slot target = wrapper.menuKit$getTarget();
+            region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, target.index);
+        } else {
+            // Normal slot — try screen menu first, fall back to inventoryMenu
+            region = MKRegionRegistry.getRegionForSlot(menu, slot.index);
+            if (region == null) {
+                region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, slot.index);
+            }
+            // If still null, try region name from slot state (handles MKSlots on
+            // creative ItemPickerMenu where index differs from inventoryMenu)
+            if (region == null && state != null && state.getRegionName() != null) {
+                region = MKRegionRegistry.getRegion(player.inventoryMenu, state.getRegionName());
+            }
         }
 
         // Panel name from slot state
@@ -506,11 +522,27 @@ public final class MKEventHelper {
         ItemStack slotStack = slot.getItem().copy();
 
         // Resolve region from the menu's region registry.
-        // Creative mode fallback: ItemPickerMenu has no regions, use inventoryMenu.
+        // Creative mode complicates this in two ways:
+        //   1. SlotWrapper: wraps an inventoryMenu slot but has an ItemPickerMenu
+        //      index. Unwrap to get the original slot's inventoryMenu index.
+        //   2. MKSlot on ItemPickerMenu: has a different index than on the
+        //      inventoryMenu. Use the slot state's regionName for lookup by name.
         AbstractContainerMenu menu = screen.getMenu();
-        region = MKRegionRegistry.getRegionForSlot(menu, slot.index);
-        if (region == null) {
-            region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, slot.index);
+        if (slot instanceof com.trevorschoeny.menukit.mixin.SlotWrapperAccessor wrapper) {
+            // Creative SlotWrapper — use the underlying inventoryMenu slot's index
+            Slot target = wrapper.menuKit$getTarget();
+            region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, target.index);
+        } else {
+            // Normal slot — try screen menu first, fall back to inventoryMenu
+            region = MKRegionRegistry.getRegionForSlot(menu, slot.index);
+            if (region == null) {
+                region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, slot.index);
+            }
+            // If still null, try region name from slot state (handles MKSlots on
+            // creative ItemPickerMenu where index differs from inventoryMenu)
+            if (region == null && state != null && state.getRegionName() != null) {
+                region = MKRegionRegistry.getRegion(player.inventoryMenu, state.getRegionName());
+            }
         }
 
         // Panel name from slot state

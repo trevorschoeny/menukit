@@ -2,15 +2,21 @@ package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.MKButton;
 import com.trevorschoeny.menukit.MKContext;
+import com.trevorschoeny.menukit.MKEventBus;
+import com.trevorschoeny.menukit.MKEventHelper;
 import com.trevorschoeny.menukit.MKSlot;
+import com.trevorschoeny.menukit.MKSlotEvent;
 import com.trevorschoeny.menukit.MenuKit;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.CreativeModeTab;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -46,6 +52,41 @@ public class MKCreativeMixin extends Screen {
     @Shadow
     protected boolean checkTabClicked(CreativeModeTab tab, double mouseX, double mouseY) {
         throw new AssertionError(); // shadow — never called directly
+    }
+
+    // ── Key Press ────────────────────────────────────────────────────────────
+
+    /**
+     * Fires KEY_PRESS events on the creative screen. Vanilla's
+     * CreativeModeInventoryScreen overrides keyPressed() without calling
+     * super, so the @Inject on AbstractContainerScreen (MKKeyPressMixin)
+     * never fires. This duplicates that logic for the creative screen.
+     */
+    @Inject(method = "keyPressed(Lnet/minecraft/client/input/KeyEvent;)Z",
+            at = @At("HEAD"), cancellable = true)
+    private void menuKit$onCreativeKeyPress(KeyEvent event,
+                                             CallbackInfoReturnable<Boolean> cir) {
+        // Access hoveredSlot via the accessor (it's on AbstractContainerScreen)
+        var acc = (AbstractContainerScreenAccessor)(Object) this;
+        Slot hoveredSlot = acc.trevorMod$getHoveredSlot();
+
+        if (hoveredSlot == null) return;
+
+        AbstractContainerScreen<?> self = (AbstractContainerScreen<?>)(Object) this;
+        MKContext context = MKContext.fromScreen(self);
+        if (context == null) return;
+
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return;
+
+        MKSlotEvent mkEvent = MKEventHelper.buildKeyEvent(
+                hoveredSlot, self, player, event.key(), event.modifiers());
+        if (mkEvent == null) return;
+
+        boolean consumed = MKEventBus.fire(mkEvent);
+        if (consumed) {
+            cir.setReturnValue(true);
+        }
     }
 
     // ── Tab Switch ──────────────────────────────────────────────────────────
