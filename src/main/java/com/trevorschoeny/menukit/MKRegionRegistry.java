@@ -465,6 +465,83 @@ public class MKRegionRegistry {
         menuGroups.remove(key);
     }
 
+    // ── Active Menu Utilities ────────────────────────────────────────────
+
+    /**
+     * Returns the currently active menu for region queries. Prefers the
+     * screen's menu (which in creative mode is the ItemPickerMenu with
+     * correct slot indices) over {@code player.containerMenu} (which may
+     * be the survival InventoryMenu with stale positions).
+     *
+     * @return the active menu, or null if no player/screen is available
+     */
+    public static @Nullable AbstractContainerMenu getActiveMenu() {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc == null || mc.player == null) return null;
+
+        // Prefer the screen's menu — in creative mode, regions are on
+        // the ItemPickerMenu, not the InventoryMenu that containerMenu
+        // points to. Only use it if regions have been resolved on it.
+        if (mc.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> acs) {
+            var screenMenu = acs.getMenu();
+            if (!getRegions(screenMenu).isEmpty()) {
+                return screenMenu;
+            }
+        }
+        return mc.player.containerMenu;
+    }
+
+    /**
+     * Counts how many regions of a given {@link MKContainerType} are currently
+     * resolved across all active menus. In creative mode, regions may be split
+     * between the screen's ItemPickerMenu (player inv) and the InventoryMenu
+     * (dynamic regions like peek). This method unions both to get an accurate
+     * count regardless of which creative tab is active.
+     *
+     * <p>Evaluated per-frame by {@code disabledWhen} lambdas on buttons, so
+     * the result is always live — no event-driven refresh needed.
+     *
+     * @param type           the container type to count (e.g., SIMPLE)
+     * @param excludePrefix  if non-null, regions whose name starts with this
+     *                       prefix are excluded from the count
+     * @return the number of matching regions, or 0 if unavailable
+     */
+    public static int countRegionsByType(MKContainerType type,
+                                          @Nullable String excludePrefix) {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc == null || mc.player == null) return 0;
+
+        // Collect unique region names across both menus to avoid double-counting
+        // regions that exist on both (e.g., mk:main_inventory).
+        Set<String> counted = new HashSet<>();
+        int count = 0;
+
+        // Always check containerMenu (has dynamic regions like peek)
+        AbstractContainerMenu containerMenu = mc.player.containerMenu;
+        if (containerMenu != null) {
+            for (MKRegion region : getRegions(containerMenu)) {
+                if (region.containerType() != type) continue;
+                if (excludePrefix != null && region.name().startsWith(excludePrefix)) continue;
+                if (counted.add(region.name())) count++;
+            }
+        }
+
+        // Also check the screen's menu if it differs (creative item tabs use
+        // ItemPickerMenu, which has its own set of resolved regions)
+        if (mc.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> acs) {
+            var screenMenu = acs.getMenu();
+            if (screenMenu != containerMenu) {
+                for (MKRegion region : getRegions(screenMenu)) {
+                    if (region.containerType() != type) continue;
+                    if (excludePrefix != null && region.name().startsWith(excludePrefix)) continue;
+                    if (counted.add(region.name())) count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
     // ── Layout -> MKRegion conversion ────────────────────────────────────
 
     /**
