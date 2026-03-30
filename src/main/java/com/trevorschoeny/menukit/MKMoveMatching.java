@@ -115,4 +115,124 @@ public class MKMoveMatching {
 
         return movedCount;
     }
+
+    /**
+     * Moves items from {@code source} that match item types present in
+     * {@code destRegion} directly into the destination region's slots.
+     * Unlike {@link #moveMatching}, this does NOT use {@code quickMoveStack} —
+     * it inserts items slot-by-slot into the target region, ensuring they
+     * land in the intended container even when multiple containers share
+     * the same group (e.g., chest + peek open simultaneously).
+     *
+     * <p>The destination group is still used for item type scanning (what
+     * types to match), but the actual transfer targets only {@code destRegion}.
+     *
+     * @param menu       the player's open container menu
+     * @param player     the player performing the move
+     * @param source     the source region group (items move FROM here)
+     * @param dest       the destination region group (item types scanned HERE)
+     * @param destRegion the specific region to move items INTO
+     * @return the number of items transferred
+     */
+    public static int moveMatchingDirect(AbstractContainerMenu menu, Player player,
+                                          MKRegionGroup source, MKRegionGroup dest,
+                                          MKRegion destRegion) {
+        // Step 1: Collect unique item types present in the target region only
+        // (not the whole group — we want to match what's in THIS container)
+        Set<Item> destItemTypes = new HashSet<>();
+        for (int i = 0; i < destRegion.size(); i++) {
+            ItemStack stack = destRegion.getItem(i);
+            if (!stack.isEmpty()) {
+                destItemTypes.add(stack.getItem());
+            }
+        }
+
+        if (destItemTypes.isEmpty()) return 0;
+
+        // Step 2: Iterate source and transfer matching items directly
+        // into the destination region's slots (no quickMoveStack).
+        // Skip only the target region itself — other regions in the same
+        // group (e.g., chest when targeting peek) are valid sources.
+        int movedCount = 0;
+
+        int destStart = destRegion.getMenuSlotStart();
+        int destEnd = destRegion.getMenuSlotEnd();
+
+        for (MKRegion region : source.regions()) {
+            // Skip the target region itself
+            if (region.name().equals(destRegion.name())) continue;
+
+            int start = region.getMenuSlotStart();
+            int end = region.getMenuSlotEnd();
+
+            for (int menuSlot = end; menuSlot >= start; menuSlot--) {
+                if (menuSlot < 0 || menuSlot >= menu.slots.size()) continue;
+                // Skip slots that fall within the target region
+                if (menuSlot >= destStart && menuSlot <= destEnd) continue;
+
+                Slot slot = menu.slots.get(menuSlot);
+                ItemStack stack = slot.getItem();
+                if (stack.isEmpty()) continue;
+                if (!destItemTypes.contains(stack.getItem())) continue;
+
+                MKSlotState slotState = MKSlotStateRegistry.get(slot);
+                if (slotState != null && (slotState.isLocked() || slotState.isSortLocked())) continue;
+
+                // Direct transfer: try to insert into the destination region
+                int transferred = insertIntoRegion(menu, destRegion, stack);
+                if (transferred > 0) {
+                    // Shrink the source by the amount transferred
+                    stack.shrink(transferred);
+                    slot.setChanged();
+                    movedCount += transferred;
+                }
+            }
+        }
+
+        return movedCount;
+    }
+
+    /**
+     * Inserts as much of {@code stack} as possible into the given region's slots.
+     * First tries to merge into existing stacks of the same type, then fills
+     * empty slots. Returns the number of items inserted (stack is NOT modified).
+     */
+    private static int insertIntoRegion(AbstractContainerMenu menu, MKRegion region,
+                                         ItemStack stack) {
+        int remaining = stack.getCount();
+        int startSlot = region.getMenuSlotStart();
+        int endSlot = region.getMenuSlotEnd();
+
+        // Pass 1: merge into existing stacks
+        for (int i = startSlot; i <= endSlot && remaining > 0; i++) {
+            if (i < 0 || i >= menu.slots.size()) continue;
+            Slot destSlot = menu.slots.get(i);
+            ItemStack destStack = destSlot.getItem();
+
+            if (!destStack.isEmpty()
+                    && ItemStack.isSameItemSameComponents(stack, destStack)) {
+                int space = destStack.getMaxStackSize() - destStack.getCount();
+                if (space > 0) {
+                    int toMove = Math.min(remaining, space);
+                    destStack.grow(toMove);
+                    destSlot.setChanged();
+                    remaining -= toMove;
+                }
+            }
+        }
+
+        // Pass 2: fill empty slots
+        for (int i = startSlot; i <= endSlot && remaining > 0; i++) {
+            if (i < 0 || i >= menu.slots.size()) continue;
+            Slot destSlot = menu.slots.get(i);
+            if (!destSlot.getItem().isEmpty()) continue;
+
+            int toMove = Math.min(remaining, stack.getMaxStackSize());
+            ItemStack newStack = stack.copyWithCount(toMove);
+            destSlot.set(newStack);
+            remaining -= toMove;
+        }
+
+        return stack.getCount() - remaining;
+    }
 }
