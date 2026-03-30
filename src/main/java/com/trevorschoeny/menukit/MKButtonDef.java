@@ -39,7 +39,8 @@ public record MKButtonDef(
         MKButton.ButtonStyle buttonStyle,                    // visual style (STANDARD or SLEEK)
         boolean disabled,                                    // starts disabled (grayed out, not clickable)
         @Nullable BooleanSupplier disabledWhen,              // runtime predicate: button hidden when true
-        @Nullable BooleanSupplier pressedWhen                // runtime predicate: button shows pressed when true
+        @Nullable BooleanSupplier pressedWhen,               // runtime predicate: button shows pressed when true
+        @Nullable Supplier<Component> tooltipSupplier        // dynamic tooltip (overrides static tooltip each frame)
 ) {
 
     /**
@@ -107,6 +108,7 @@ public record MKButtonDef(
         // Post-build properties — can't be set via builder
         if (disabled) btn.active = false;
         if (pressedWhen != null) btn.setPressedWhen(pressedWhen);
+        if (tooltipSupplier != null) btn.setTooltipWhen(tooltipSupplier);
 
         return btn;
     }
@@ -141,6 +143,7 @@ public record MKButtonDef(
         MKButton btn = builder.build();
         if (disabled) btn.active = false;
         if (pressedWhen != null) btn.setPressedWhen(pressedWhen);
+        if (tooltipSupplier != null) btn.setTooltipWhen(tooltipSupplier);
         return btn;
     }
 

@@ -64,7 +64,7 @@ class ItemContainerSource implements MKContainerSource {
         NonNullList<ItemStack> items = NonNullList.withSize(SHULKER_SIZE, ItemStack.EMPTY);
         int count = Math.min(SHULKER_SIZE, container.getContainerSize());
         for (int i = 0; i < count; i++) {
-            items.set(i, container.getItem(i));
+            items.set(i, container.getItem(i).copy());
         }
 
         ItemContainerContents newContents = ItemContainerContents.fromItems(items);

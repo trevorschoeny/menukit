@@ -1470,7 +1470,7 @@ public class MKPanel {
                     toggleMode, initialPressed, groupName,
                     finalOnClick, onToggle, tooltip,
                     opensScreenName, opensScreenFactory, togglesPanelName,
-                    resolvedStyle, disabled, disabledWhen, pressedWhen));
+                    resolvedStyle, disabled, disabledWhen, pressedWhen, null));
             return parent;
         }
     }
@@ -1994,7 +1994,7 @@ public class MKPanel {
                         toggleMode, initialPressed, groupName,
                         finalOnClick, onToggle, tooltip,
                         opensScreenName, opensScreenFactory, togglesPanelName,
-                        resolvedStyle, disabled, disabledWhen, pressedWhen), id);
+                        resolvedStyle, disabled, disabledWhen, pressedWhen, null), id);
                 if (colSpan > 1 || rowSpan > 1) {
                     child = new MKGroupChild.Spanning(child, colSpan, rowSpan);
                 }
@@ -2266,7 +2266,8 @@ public class MKPanel {
                                 orig.tooltip(), orig.opensScreenName(),
                                 orig.opensScreenFactory(), orig.togglesPanelName(),
                                 orig.buttonStyle(), orig.disabled(),
-                                composedDisabled, orig.pressedWhen()), null);
+                                composedDisabled, orig.pressedWhen(),
+                                orig.tooltipSupplier()), null);
                     }
                     case MKGroupChild.Text t -> {
                         MKTextDef orig = t.def();
@@ -2469,7 +2470,7 @@ public class MKPanel {
                             toggleMode, initialPressed, groupName,
                             onClick, onToggle, tooltip,
                             opensScreenName, opensScreenFactory, togglesPanelName,
-                            buttonStyle, disabled, disabledWhen, pressedWhen), null);
+                            buttonStyle, disabled, disabledWhen, pressedWhen, null), null);
                     return parent;
                 }
             }

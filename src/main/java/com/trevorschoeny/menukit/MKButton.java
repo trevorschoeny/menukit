@@ -95,12 +95,8 @@ public class MKButton extends AbstractButton {
     // ── Toggle ──────────────────────────────────────────────────────────────
     private boolean toggleMode = false;
     private boolean pressed = false;
-    private java.util.function.@
-
-
-
-
-            Nullable BooleanSupplier pressedWhen; // runtime override for pressed state
+    private java.util.function.@Nullable BooleanSupplier pressedWhen; // runtime override for pressed state
+    private java.util.function.@Nullable Supplier<Component> tooltipWhen; // dynamic tooltip
 
     // ── Group ───────────────────────────────────────────────────────────────
     private @Nullable MKButtonGroup group;
@@ -146,6 +142,12 @@ public class MKButton extends AbstractButton {
     /** Sets a runtime predicate that overrides the pressed state each frame. */
     public void setPressedWhen(java.util.function.@Nullable BooleanSupplier supplier) {
         this.pressedWhen = supplier;
+    }
+
+    /** Sets a dynamic tooltip supplier. When non-null, the tooltip text is
+     *  updated from this supplier each frame during rendering. */
+    public void setTooltipWhen(java.util.function.@Nullable Supplier<Component> supplier) {
+        this.tooltipWhen = supplier;
     }
 
     /** Sets the pressed state directly (used by {@link MKButtonGroup}). */
@@ -260,6 +262,14 @@ public class MKButton extends AbstractButton {
     @Override
     protected void renderContents(GuiGraphics graphics, int mouseX, int mouseY,
                                   float partialTick) {
+        // ── Dynamic tooltip update ─────────────────────────────────────
+        if (tooltipWhen != null) {
+            Component newTooltip = tooltipWhen.get();
+            if (newTooltip != null) {
+                setTooltip(net.minecraft.client.gui.components.Tooltip.create(newTooltip));
+            }
+        }
+
         int x = getX();
         int y = getY();
         int w = getWidth();
