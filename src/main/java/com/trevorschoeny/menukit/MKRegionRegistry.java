@@ -364,6 +364,40 @@ public class MKRegionRegistry {
         }
     }
 
+    // ── Direct Region Management ─────────────────────────────────────────
+
+    /**
+     * Adds a pre-built region to a menu's region cache. Used when regions
+     * can't be created via resolveForMenu or registerDynamicRegion (e.g.,
+     * creative mode where vanilla slots share a container and slot indices
+     * differ from the inventoryMenu layout).
+     */
+    public static void addRegion(AbstractContainerMenu menu, MKRegion region) {
+        int key = System.identityHashCode(menu);
+        List<MKRegion> regions = menuRegions.get(key);
+        if (regions == null) {
+            regions = new ArrayList<>();
+            menuRegions.put(key, regions);
+        }
+        // Remove existing region with the same name (replace)
+        regions.removeIf(r -> r.name().equals(region.name()));
+        regions.add(region);
+
+        // Update groups that reference this region
+        updateGroupsForDynamicRegion(menu, region);
+    }
+
+    /**
+     * Clears all regions and groups for a menu. Used before re-resolving
+     * regions on creative tab switch so stale data from a previous tab
+     * doesn't linger.
+     */
+    public static void clearRegions(AbstractContainerMenu menu) {
+        int key = System.identityHashCode(menu);
+        menuRegions.remove(key);
+        menuGroups.remove(key);
+    }
+
     // ── Lookups ───────────────────────────────────────────────────────────
 
     /** Returns all regions for a menu, or empty list if not resolved. */

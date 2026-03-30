@@ -175,9 +175,15 @@ public final class MKEventHelper {
             // Snapshot the slot's current contents
             slotStack = slot.getItem().copy();
 
-            // Resolve region from the menu's region registry
+            // Resolve region from the menu's region registry.
+            // In creative mode, screen.getMenu() returns ItemPickerMenu which
+            // has no regions — fall back to player.inventoryMenu where regions
+            // were resolved during InventoryMenu construction.
             AbstractContainerMenu menu = screen.getMenu();
             region = MKRegionRegistry.getRegionForSlot(menu, slot.index);
+            if (region == null && player != null) {
+                region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, slot.index);
+            }
 
             // Panel name comes from the slot state (set during slot injection)
             if (state != null) {
@@ -424,9 +430,13 @@ public final class MKEventHelper {
         int containerSlot = slot.getContainerSlot();
         ItemStack slotStack = slot.getItem().copy();
 
-        // Resolve region from the menu's region registry
+        // Resolve region from the menu's region registry.
+        // Creative mode fallback: ItemPickerMenu has no regions, use inventoryMenu.
         AbstractContainerMenu menu = screen.getMenu();
         region = MKRegionRegistry.getRegionForSlot(menu, slot.index);
+        if (region == null) {
+            region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, slot.index);
+        }
 
         // Panel name from slot state
         if (state != null) {
@@ -495,9 +505,13 @@ public final class MKEventHelper {
         int containerSlot = slot.getContainerSlot();
         ItemStack slotStack = slot.getItem().copy();
 
-        // Resolve region from the menu's region registry
+        // Resolve region from the menu's region registry.
+        // Creative mode fallback: ItemPickerMenu has no regions, use inventoryMenu.
         AbstractContainerMenu menu = screen.getMenu();
         region = MKRegionRegistry.getRegionForSlot(menu, slot.index);
+        if (region == null) {
+            region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, slot.index);
+        }
 
         // Panel name from slot state
         if (state != null) {

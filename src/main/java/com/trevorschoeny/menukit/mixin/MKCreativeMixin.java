@@ -162,4 +162,17 @@ public class MKCreativeMixin extends Screen {
         }
     }
 
+    // ── Screen Close ───────────────────────────────────────────────────────
+
+    /**
+     * When the creative screen closes, reset inventoryMenu slot positions
+     * back to survival layout. onCreativeTabChanged repositions them for
+     * the creative layout so overlay panels compute correct bounds — this
+     * undoes that so survival inventory overlays aren't mispositioned.
+     */
+    @Inject(method = "removed", at = @At("HEAD"))
+    private void menuKit$onCreativeScreenClosed(CallbackInfo ci) {
+        MenuKit.onCreativeScreenClosed();
+    }
+
 }
