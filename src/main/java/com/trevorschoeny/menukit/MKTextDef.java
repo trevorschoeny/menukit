@@ -23,6 +23,7 @@ public record MKTextDef(
         Supplier<Component> content,                // text content (evaluated each frame)
         int color,                                  // text color (ARGB, e.g., 0x404040)
         boolean shadow,                             // render with drop shadow
+        boolean vertical,                           // render rotated -90° (bottom-to-top)
         @Nullable BooleanSupplier disabledWhen      // hidden when true
 ) {
 
@@ -36,7 +37,7 @@ public record MKTextDef(
     private static final int AVG_CHAR_WIDTH = 6;
 
     /**
-     * Returns the width of the text content in pixels.
+     * Returns the raw pixel width of the text string (always horizontal measurement).
      * Uses Font.width() on the render thread; falls back to a character-count
      * estimate on the server thread (where the render system is unavailable).
      */
@@ -49,5 +50,21 @@ public record MKTextDef(
             return text.getString().length() * AVG_CHAR_WIDTH;
         }
         return net.minecraft.client.Minecraft.getInstance().font.width(text);
+    }
+
+    /**
+     * Returns the layout width — for vertical text this is the font height
+     * (since the string is rotated 90°), for horizontal it's the string width.
+     */
+    public int layoutWidth() {
+        return vertical ? TEXT_HEIGHT : estimateWidth();
+    }
+
+    /**
+     * Returns the layout height — for vertical text this is the string width
+     * (since the string is rotated 90°), for horizontal it's the font height.
+     */
+    public int layoutHeight() {
+        return vertical ? estimateWidth() : TEXT_HEIGHT;
     }
 }

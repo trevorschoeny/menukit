@@ -700,7 +700,7 @@ public class MKGroupDef {
                 int idx = totalSlots + totalButtons + counters[2]++;
                 positions[idx] = new int[]{ x, y };
                 if (active != null) active[idx] = true;
-                yield new int[]{ t.def().estimateWidth(), MKTextDef.TEXT_HEIGHT };
+                yield new int[]{ t.def().layoutWidth(), t.def().layoutHeight() };
             }
             case MKGroupChild.Group g -> {
                 // Recursive layout -- the child group computes its own children
@@ -1293,7 +1293,7 @@ public class MKGroupDef {
             case MKGroupChild.Button b -> new int[]{
                     estimateButtonWidth(b.def()), estimateButtonHeight(b.def())
             };
-            case MKGroupChild.Text t -> new int[]{t.def().estimateWidth(), MKTextDef.TEXT_HEIGHT};
+            case MKGroupChild.Text t -> new int[]{t.def().layoutWidth(), t.def().layoutHeight()};
             case MKGroupChild.Group g -> {
                 // Use typed counts so computeLayout gets correct offsets
                 // (buttons are at index totalSlots+i, texts at totalSlots+totalButtons+i)

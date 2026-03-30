@@ -1496,6 +1496,7 @@ public class MKPanel {
         private @Nullable Supplier<Component> content;
         private int color = MKTextDef.DEFAULT_COLOR;
         private boolean shadow = false;
+        private boolean vertical = false;
         private @Nullable BooleanSupplier disabledWhen;
 
         TextBuilder(Builder parent, int childX, int childY) {
@@ -1537,6 +1538,11 @@ public class MKPanel {
             this.disabledWhen = predicate; return this;
         }
 
+        /** Renders this text rotated -90° (bottom-to-top vertical label). */
+        public TextBuilder vertical() {
+            this.vertical = true; return this;
+        }
+
         /** Finalizes this text definition and returns to the panel builder. */
         public Builder done() {
             if (content == null) {
@@ -1545,7 +1551,7 @@ public class MKPanel {
                         ".content(...) before .done()");
             }
             parent.textDefs.add(new MKTextDef(
-                    childX, childY, content, color, shadow, disabledWhen));
+                    childX, childY, content, color, shadow, vertical, disabledWhen));
             return parent;
         }
     }
@@ -2009,6 +2015,7 @@ public class MKPanel {
             private @Nullable Supplier<Component> content;
             private int color = MKTextDef.DEFAULT_COLOR;
             private boolean shadow = false;
+            private boolean vertical = false;
             private @Nullable BooleanSupplier disabledWhen;
             private @Nullable String id;
             private int colSpan = 1, rowSpan = 1;
@@ -2034,6 +2041,10 @@ public class MKPanel {
             public GTextBuilder disabledWhen(BooleanSupplier pred) {
                 this.disabledWhen = pred; return this;
             }
+            /** Renders this text rotated -90° (bottom-to-top vertical label). */
+            public GTextBuilder vertical() {
+                this.vertical = true; return this;
+            }
             /** Sets an element ID for runtime visibility overrides via {@link MenuKit#setElementVisible}. */
             public GTextBuilder id(String id) {
                 this.id = id; return this;
@@ -2049,7 +2060,7 @@ public class MKPanel {
                             "[MenuKit] Group text must call .content(...) before .done()");
                 }
                 MKGroupChild child = new MKGroupChild.Text(new MKTextDef(
-                        0, 0, content, color, shadow, disabledWhen), id);
+                        0, 0, content, color, shadow, vertical, disabledWhen), id);
                 if (colSpan > 1 || rowSpan > 1) {
                     child = new MKGroupChild.Spanning(child, colSpan, rowSpan);
                 }
@@ -2276,7 +2287,7 @@ public class MKPanel {
                         yield new MKGroupChild.Text(new MKTextDef(
                                 orig.childX(), orig.childY(),
                                 orig.content(), orig.color(), orig.shadow(),
-                                composedDisabled), null);
+                                orig.vertical(), composedDisabled), null);
                     }
                     case MKGroupChild.Group g -> {
                         // For group templates, wrap the group's disabledWhen
@@ -2481,6 +2492,7 @@ public class MKPanel {
                 private @Nullable Supplier<Component> content;
                 private int color = MKTextDef.DEFAULT_COLOR;
                 private boolean shadow = false;
+                private boolean vertical = false;
                 private @Nullable BooleanSupplier disabledWhen;
 
                 DTextBuilder(DynamicBuilder parent) { this.parent = parent; }
@@ -2504,6 +2516,10 @@ public class MKPanel {
                 public DTextBuilder disabledWhen(BooleanSupplier pred) {
                     this.disabledWhen = pred; return this;
                 }
+                /** Renders this text rotated -90° (bottom-to-top vertical label). */
+                public DTextBuilder vertical() {
+                    this.vertical = true; return this;
+                }
 
                 public DynamicBuilder done() {
                     if (content == null) {
@@ -2511,7 +2527,7 @@ public class MKPanel {
                                 "[MenuKit] Dynamic text template must call .content(...) before .done()");
                     }
                     parent.template = new MKGroupChild.Text(new MKTextDef(
-                            0, 0, content, color, shadow, disabledWhen), null);
+                            0, 0, content, color, shadow, vertical, disabledWhen), null);
                     return parent;
                 }
             }
