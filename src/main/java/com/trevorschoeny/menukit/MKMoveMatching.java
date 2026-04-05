@@ -6,6 +6,10 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
+import com.trevorschoeny.menukit.source.MKContainerSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -26,6 +30,8 @@ import java.util.Set;
  * <p>Part of the <b>MenuKit</b> framework.
  */
 public class MKMoveMatching {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
     /**
      * Moves all items from {@code source} that match item types present in
@@ -137,6 +143,9 @@ public class MKMoveMatching {
     public static int moveMatchingDirect(AbstractContainerMenu menu, Player player,
                                           MKRegionGroup source, MKRegionGroup dest,
                                           MKRegion destRegion) {
+        LOGGER.warn("[MKMoveMatching] moveMatchingDirect called: destRegion={} sourceRegions={}",
+                destRegion.name(), source.regions().size());
+
         // Step 1: Collect unique item types present in the target region only
         // (not the whole group — we want to match what's in THIS container)
         Set<Item> destItemTypes = new HashSet<>();
@@ -196,12 +205,37 @@ public class MKMoveMatching {
      * Inserts as much of {@code stack} as possible into the given region's slots.
      * First tries to merge into existing stacks of the same type, then fills
      * empty slots. Returns the number of items inserted (stack is NOT modified).
+     *
+     * <p>Respects source-level capacity limits (e.g., bundle weight). If the
+     * region's container is an {@link MKContainer} with a bound source, the
+     * source's {@code getMaxAcceptCount} caps total insertion so items beyond
+     * the bundle's weight limit stay in the source instead of being lost.
      */
     private static int insertIntoRegion(AbstractContainerMenu menu, MKRegion region,
                                          ItemStack stack) {
         int remaining = stack.getCount();
         int startSlot = region.getMenuSlotStart();
         int endSlot = region.getMenuSlotEnd();
+
+        // Check if the destination has a capacity-limited source (e.g., bundles).
+        // If so, cap insertion to what the source can actually accept.
+        LOGGER.warn("[MKMoveMatching] insertIntoRegion: container class={} isMKContainer={}",
+                region.container().getClass().getSimpleName(),
+                region.container() instanceof MKContainer);
+        if (region.container() instanceof MKContainer mkc) {
+            LOGGER.warn("[MKMoveMatching]   isBound={} source={}",
+                    mkc.isBound(),
+                    mkc.getSource() != null ? mkc.getSource().getClass().getSimpleName() : "null");
+            if (mkc.isBound()) {
+                MKContainerSource source = mkc.getSource();
+                int maxAccept = source.getMaxAcceptCount(0, stack);
+                LOGGER.warn("[MKMoveMatching]   maxAccept={} remaining={}", maxAccept, remaining);
+                if (maxAccept <= 0) return 0;
+                remaining = Math.min(remaining, maxAccept);
+            }
+        }
+
+        int budget = remaining;
 
         // Pass 1: merge into existing stacks
         for (int i = startSlot; i <= endSlot && remaining > 0; i++) {
@@ -233,6 +267,6 @@ public class MKMoveMatching {
             remaining -= toMove;
         }
 
-        return stack.getCount() - remaining;
+        return budget - remaining;
     }
 }
