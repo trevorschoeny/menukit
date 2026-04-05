@@ -3,6 +3,12 @@ package com.trevorschoeny.menukit;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
+
 /**
  * A named group of indices within a {@link Container}. Regions are the
  * mixin-layer concept that replaces panel-based slot grouping.
@@ -83,6 +89,42 @@ public class MKRegion {
     /** Sets the item at a region-local index. */
     public void setItem(int regionLocal, ItemStack stack) {
         container.setItem(toContainerIndex(regionLocal), stack);
+    }
+
+    // ── Iteration ───────────────────────────────────────────────────
+
+    /** Iterates all items in this region. Callback receives region-local index and stack. */
+    public void forEach(BiConsumer<Integer, ItemStack> action) {
+        for (int i = 0; i < size; i++) {
+            action.accept(i, getItem(i));
+        }
+    }
+
+    /** Returns a stream of all ItemStacks in this region (snapshot, includes EMPTY). */
+    public Stream<ItemStack> stream() {
+        Stream.Builder<ItemStack> builder = Stream.builder();
+        for (int i = 0; i < size; i++) {
+            builder.accept(getItem(i));
+        }
+        return builder.build();
+    }
+
+    /** Returns a snapshot list of all ItemStacks in this region (includes EMPTY). */
+    public List<ItemStack> getItems() {
+        List<ItemStack> items = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            items.add(getItem(i));
+        }
+        return items;
+    }
+
+    /** Counts items matching the predicate. */
+    public int count(Predicate<ItemStack> predicate) {
+        int n = 0;
+        for (int i = 0; i < size; i++) {
+            if (predicate.test(getItem(i))) n++;
+        }
+        return n;
     }
 
     // ── Menu Slot Range ──────────────────────────────────────────────────

@@ -318,6 +318,92 @@ public class MKPanel {
         return new Builder(name);
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // Panel Presets — one-liner factories for common patterns
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /** Orientation for slot strip presets. */
+    public enum Orientation { HORIZONTAL, VERTICAL }
+
+    /**
+     * Creates a 9x3 grid panel (27 slots) — the standard chest/shulker layout.
+     * Returns a Builder with a pre-configured root group; call
+     * {@code .showIn()}, {@code .posRight()}, {@code .style()}, then {@code .build()}.
+     *
+     * <p>Example:
+     * <pre>{@code
+     * MKPanel.grid3x9("peek_shulker", "peek_shulker")
+     *     .showIn(MKContext.SURVIVAL_INVENTORY)
+     *     .posRight()
+     *     .style(MKPanel.Style.RAISED)
+     *     .build();
+     * }</pre>
+     *
+     * @param panelName     unique panel name
+     * @param containerName the registered container to draw slots from (indices 0-26)
+     */
+    public static Builder grid3x9(String panelName, String containerName) {
+        // Build a root group: grid of 27 slots, 9 columns x 3 rows
+        GroupBuilder grid = new GroupBuilder(null, null, MKGroupDef.LayoutMode.GRID);
+        grid.maxRows = 3;
+        grid.cellSize = 18;
+        grid.gap = 0;
+        for (int i = 0; i < 27; i++) {
+            grid.children.add(new MKGroupChild.Slot(new MKSlotDef(
+                    0, 0, containerName, i,
+                    null, 64, null, null,
+                    -1, null, null,
+                    0, null, 0, null), null));
+        }
+        return builder(panelName).injectRootGroup(grid.buildDef());
+    }
+
+    /**
+     * Creates a 9x1 single-row panel (9 slots) — hotbar-like layout.
+     *
+     * @param panelName     unique panel name
+     * @param containerName the registered container (indices 0-8)
+     */
+    public static Builder grid1x9(String panelName, String containerName) {
+        GroupBuilder grid = new GroupBuilder(null, null, MKGroupDef.LayoutMode.GRID);
+        grid.maxRows = 1;
+        grid.cellSize = 18;
+        grid.gap = 0;
+        for (int i = 0; i < 9; i++) {
+            grid.children.add(new MKGroupChild.Slot(new MKSlotDef(
+                    0, 0, containerName, i,
+                    null, 64, null, null,
+                    -1, null, null,
+                    0, null, 0, null), null));
+        }
+        return builder(panelName).injectRootGroup(grid.buildDef());
+    }
+
+    /**
+     * Creates a strip of slots (vertical or horizontal).
+     *
+     * @param panelName     unique panel name
+     * @param containerName the registered container
+     * @param count         number of slots
+     * @param orientation   VERTICAL or HORIZONTAL
+     */
+    public static Builder slotStrip(String panelName, String containerName,
+                                    int count, Orientation orientation) {
+        MKGroupDef.LayoutMode mode = orientation == Orientation.VERTICAL
+                ? MKGroupDef.LayoutMode.COLUMN
+                : MKGroupDef.LayoutMode.ROW;
+        GroupBuilder strip = new GroupBuilder(null, null, mode);
+        strip.gap = 0;
+        for (int i = 0; i < count; i++) {
+            strip.children.add(new MKGroupChild.Slot(new MKSlotDef(
+                    0, 0, containerName, i,
+                    null, 64, null, null,
+                    -1, null, null,
+                    0, null, 0, null), null));
+        }
+        return builder(panelName).injectRootGroup(strip.buildDef());
+    }
+
     // ═════════════════════════════════════════════════════════════════════════
     // Panel Builder — collects all configuration, builds MKPanelDef, registers
     // ═════════════════════════════════════════════════════════════════════════
@@ -1132,6 +1218,7 @@ public class MKPanel {
         private int backgroundTint = 0;
         private @Nullable Identifier overlayIcon = null;
         private int borderColor = 0;
+        private @Nullable String id;
 
         SlotBuilder(Builder parent, int childX, int childY) {
             this.parent = parent;
@@ -1244,6 +1331,11 @@ public class MKPanel {
             this.borderColor = argb; return this;
         }
 
+        /** Sets an element ID for runtime visibility overrides via {@link MenuKit#setElementVisible}. */
+        public SlotBuilder id(String id) {
+            this.id = id; return this;
+        }
+
         /** Finalizes this slot definition and returns to the panel builder. */
         public Builder done() {
             if (vanillaInventoryIndex < 0 && (containerName == null || containerIndex < 0)) {
@@ -1258,7 +1350,7 @@ public class MKPanel {
                     filter, maxStack, ghostIcon, disabledWhen,
                     vanillaInventoryIndex,
                     onEmptyClick, emptyTooltip,
-                    backgroundTint, overlayIcon, borderColor));
+                    backgroundTint, overlayIcon, borderColor, id));
             return parent;
         }
     }
@@ -1292,6 +1384,7 @@ public class MKPanel {
         private boolean goesBack = false;
         private MKButton.ButtonStyle buttonStyle = MKButton.ButtonStyle.STANDARD;
         private @Nullable BooleanSupplier disabledWhen;
+        private @Nullable String id;
 
         ButtonBuilder(Builder parent, int childX, int childY) {
             this.parent = parent;
@@ -1401,6 +1494,11 @@ public class MKPanel {
             this.disabledWhen = predicate; return this;
         }
 
+        /** Sets an element ID for runtime visibility overrides via {@link MenuKit#setElementVisible}. */
+        public ButtonBuilder id(String id) {
+            this.id = id; return this;
+        }
+
         // ── Action sugar ───────────────────────────────────────────────
 
         /**
@@ -1470,7 +1568,7 @@ public class MKPanel {
                     toggleMode, initialPressed, groupName,
                     finalOnClick, onToggle, tooltip,
                     opensScreenName, opensScreenFactory, togglesPanelName,
-                    resolvedStyle, disabled, disabledWhen, pressedWhen, null));
+                    resolvedStyle, disabled, disabledWhen, pressedWhen, null, id));
             return parent;
         }
     }
@@ -1662,6 +1760,29 @@ public class MKPanel {
         /** Adds a nested grid group. */
         public GroupBuilder grid() {
             return new GroupBuilder(panelBuilder, this, MKGroupDef.LayoutMode.GRID);
+        }
+
+        /**
+         * Adds multiple slots from the same container in sequence.
+         * Each slot gets container indices startIndex, startIndex+1, ..., startIndex+count-1.
+         * Slots are positioned by the group's layout mode (GRID, ROW, COLUMN).
+         *
+         * <p>Example: {@code .grid().rows(3).slots("peek_shulker", 0, 27).done()}
+         * creates a 9x3 grid of 27 slots.
+         *
+         * @param containerName the registered container name
+         * @param startIndex    first container index
+         * @param count         number of slots to add
+         */
+        public GroupBuilder slots(String containerName, int startIndex, int count) {
+            for (int i = 0; i < count; i++) {
+                children.add(new MKGroupChild.Slot(new MKSlotDef(
+                        0, 0, containerName, startIndex + i,
+                        null, 64, null, null,
+                        -1, null, null,
+                        0, null, 0, null), null));
+            }
+            return this;
         }
 
         /** Starts defining a slot in this group. */
@@ -1911,7 +2032,7 @@ public class MKPanel {
                         0, 0, containerName, containerIndex,
                         filter, maxStack, ghostIcon, disabledWhen,
                         vanillaInventoryIndex, onEmptyClick, emptyTooltip,
-                        backgroundTint, overlayIcon, borderColor), id);
+                        backgroundTint, overlayIcon, borderColor, null), id);
                 if (colSpan > 1 || rowSpan > 1) {
                     child = new MKGroupChild.Spanning(child, colSpan, rowSpan);
                 }
@@ -2000,7 +2121,7 @@ public class MKPanel {
                         toggleMode, initialPressed, groupName,
                         finalOnClick, onToggle, tooltip,
                         opensScreenName, opensScreenFactory, togglesPanelName,
-                        resolvedStyle, disabled, disabledWhen, pressedWhen, null), id);
+                        resolvedStyle, disabled, disabledWhen, pressedWhen, null, null), id);
                 if (colSpan > 1 || rowSpan > 1) {
                     child = new MKGroupChild.Spanning(child, colSpan, rowSpan);
                 }
@@ -2262,7 +2383,8 @@ public class MKPanel {
                                         ? orig.vanillaInventoryIndex() + index
                                         : -1,
                                 orig.onEmptyClick(), orig.emptyTooltip(),
-                                orig.backgroundTint(), orig.overlayIcon(), orig.borderColor()), null);
+                                orig.backgroundTint(), orig.overlayIcon(), orig.borderColor(),
+                                orig.id()), null);
                     }
                     case MKGroupChild.Button b -> {
                         MKButtonDef orig = b.def();
@@ -2278,7 +2400,7 @@ public class MKPanel {
                                 orig.opensScreenFactory(), orig.togglesPanelName(),
                                 orig.buttonStyle(), orig.disabled(),
                                 composedDisabled, orig.pressedWhen(),
-                                orig.tooltipSupplier()), null);
+                                orig.tooltipSupplier(), orig.id()), null);
                     }
                     case MKGroupChild.Text t -> {
                         MKTextDef orig = t.def();
@@ -2428,7 +2550,7 @@ public class MKPanel {
                             0, 0, containerName, containerIndex,
                             filter, maxStack, ghostIcon, disabledWhen,
                             vanillaInventoryIndex, onEmptyClick, emptyTooltip,
-                            backgroundTint, overlayIcon, borderColor), null);
+                            backgroundTint, overlayIcon, borderColor, null), null);
                     return parent;
                 }
             }
@@ -2481,7 +2603,7 @@ public class MKPanel {
                             toggleMode, initialPressed, groupName,
                             onClick, onToggle, tooltip,
                             opensScreenName, opensScreenFactory, togglesPanelName,
-                            buttonStyle, disabled, disabledWhen, pressedWhen, null), null);
+                            buttonStyle, disabled, disabledWhen, pressedWhen, null, null), null);
                     return parent;
                 }
             }

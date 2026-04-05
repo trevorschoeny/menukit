@@ -40,7 +40,8 @@ public record MKButtonDef(
         boolean disabled,                                    // starts disabled (grayed out, not clickable)
         @Nullable BooleanSupplier disabledWhen,              // runtime predicate: button hidden when true
         @Nullable BooleanSupplier pressedWhen,               // runtime predicate: button shows pressed when true
-        @Nullable Supplier<Component> tooltipSupplier        // dynamic tooltip (overrides static tooltip each frame)
+        @Nullable Supplier<Component> tooltipSupplier,       // dynamic tooltip (overrides static tooltip each frame)
+        @Nullable String id                                 // element ID for runtime visibility via MenuKit.setElementVisible
 ) {
 
     /**
@@ -109,6 +110,7 @@ public record MKButtonDef(
         if (disabled) btn.active = false;
         if (pressedWhen != null) btn.setPressedWhen(pressedWhen);
         if (tooltipSupplier != null) btn.setTooltipWhen(tooltipSupplier);
+        if (id != null) btn.elementId = id;
 
         return btn;
     }
@@ -144,6 +146,7 @@ public record MKButtonDef(
         if (disabled) btn.active = false;
         if (pressedWhen != null) btn.setPressedWhen(pressedWhen);
         if (tooltipSupplier != null) btn.setTooltipWhen(tooltipSupplier);
+        if (id != null) btn.elementId = id;
         return btn;
     }
 

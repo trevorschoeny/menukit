@@ -37,6 +37,7 @@ public class MKSlotState {
     // ── Region & Panel Association ───────────────────────────────────────
     private @Nullable String regionName;
     private @Nullable String panelName;
+    private @Nullable String elementId;  // element ID for setElementVisible overrides
     private int regionIndex = -1;  // index within the region (0-based)
 
     // ── Lock State ───────────────────────────────────────────────────────
@@ -135,6 +136,9 @@ public class MKSlotState {
 
     public @Nullable String getPanelName() { return panelName; }
     public void setPanelName(@Nullable String name) { this.panelName = name; }
+
+    public @Nullable String getElementId() { return elementId; }
+    public void setElementId(@Nullable String id) { this.elementId = id; }
 
     public int getRegionIndex() { return regionIndex; }
     public void setRegionIndex(int index) { this.regionIndex = index; }
@@ -272,13 +276,21 @@ public class MKSlotState {
     // ── Panel Visibility Check ──────────────────────────────────────────
 
     /**
-     * Full activity check: slot is active if not disabled AND (no panel OR panel is visible).
-     * This replaces MKSlot.isActive() logic.
+     * Full activity check: slot is active if not disabled, panel is visible,
+     * AND element-level visibility is not overridden to hidden.
      */
     public boolean isSlotActive() {
         if (isDisabled()) return false;
         if (panelName != null) {
-            return !MenuKit.isPanelInactive(panelName);
+            if (MenuKit.isPanelInactive(panelName)) return false;
+            // Check element-level visibility override via setElementVisible
+            if (elementId != null) {
+                MKPanelState state = MKPanelStateRegistry.get(panelName);
+                if (state != null) {
+                    Boolean override = state.getVisible(elementId);
+                    if (override != null && !override) return false;
+                }
+            }
         }
         return true;
     }

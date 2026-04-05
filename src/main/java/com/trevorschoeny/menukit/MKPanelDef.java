@@ -313,9 +313,10 @@ public record MKPanelDef(
 
         if (layoutMode == LayoutMode.MANUAL) {
             // Manual: use original positions from defs, but still respect disabledWhen
+            // and element-level visibility overrides
             for (int i = 0; i < slotDefs.size(); i++) {
                 MKSlotDef slot = slotDefs.get(i);
-                if (slot.disabledWhen() != null && slot.disabledWhen().getAsBoolean()) {
+                if (isDefDisabled(slot.disabledWhen(), slot.id())) {
                     // active[i] remains false, position stays {0, 0}
                 } else {
                     positions[i] = new int[]{ slot.childX(), slot.childY() };
@@ -325,7 +326,7 @@ public record MKPanelDef(
             for (int i = 0; i < buttonDefs.size(); i++) {
                 MKButtonDef btn = buttonDefs.get(i);
                 int idx = slotDefs.size() + i;
-                if (btn.disabledWhen() != null && btn.disabledWhen().getAsBoolean()) {
+                if (isDefDisabled(btn.disabledWhen(), btn.id())) {
                     // inactive
                 } else {
                     positions[idx] = new int[]{ btn.childX(), btn.childY() };
@@ -393,7 +394,7 @@ public record MKPanelDef(
         // Slots (18x18 each)
         for (int i = 0; i < slotDefs.size(); i++) {
             MKSlotDef slot = slotDefs.get(i);
-            if (slot.disabledWhen() != null && slot.disabledWhen().getAsBoolean()) {
+            if (isDefDisabled(slot.disabledWhen(), slot.id())) {
                 // inactive
                 continue;
             }
@@ -416,7 +417,7 @@ public record MKPanelDef(
         for (int i = 0; i < buttonDefs.size(); i++) {
             MKButtonDef btn = buttonDefs.get(i);
             int idx = slotDefs.size() + i;
-            if (btn.disabledWhen() != null && btn.disabledWhen().getAsBoolean()) {
+            if (isDefDisabled(btn.disabledWhen(), btn.id())) {
                 // inactive
                 continue;
             }
@@ -456,6 +457,25 @@ public record MKPanelDef(
         }
 
         return new MKLayoutResult(positions, active, contentW, contentH);
+    }
+
+    /**
+     * Checks whether a flat def element is disabled, considering both its
+     * disabledWhen predicate and element-level visibility overrides.
+     */
+    private boolean isDefDisabled(@Nullable BooleanSupplier disabledWhen,
+                                  @Nullable String elementId) {
+        // Check the def's own disabledWhen predicate first
+        if (disabledWhen != null && disabledWhen.getAsBoolean()) return true;
+        // Check element-level visibility override via setElementVisible
+        if (elementId != null) {
+            MKPanelState state = MKPanelStateRegistry.get(name);
+            if (state != null) {
+                Boolean override = state.getVisible(elementId);
+                if (override != null && !override) return true;
+            }
+        }
+        return false;
     }
 
     // ── Size Computation ───────────────────────────────────────────────────

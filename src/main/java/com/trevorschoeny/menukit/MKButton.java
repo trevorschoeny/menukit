@@ -109,6 +109,8 @@ public class MKButton extends AbstractButton {
     // ── Panel association ────────────────────────────────────────────────────
     /** Panel name -- used for collision avoidance position updates and event dispatch. */
     public @Nullable String panelName;
+    /** Element ID for runtime visibility overrides via {@link MenuKit#setElementVisible}. */
+    public @Nullable String elementId;
     /** Sequential index within the panel's button list. Used to match buttons
      *  during position updates (label matching fails when multiple buttons
      *  share the same label or have empty labels). Set during creation. */

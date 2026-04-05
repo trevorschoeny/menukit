@@ -41,7 +41,8 @@ public record MKSlotDef(
         // ── Visual Decorations ───────────────────────────────────────────
         int backgroundTint,                          // ARGB tint rendered BEHIND the item (0 = none)
         @Nullable Identifier overlayIcon,            // icon rendered ON TOP of the slot item
-        int borderColor                              // ARGB border drawn ON TOP of the item (0 = none)
+        int borderColor,                              // ARGB border drawn ON TOP of the item (0 = none)
+        @Nullable String id                           // element ID for runtime visibility via MenuKit.setElementVisible
 ) {
 
     /** Whether this slot mirrors a vanilla Inventory slot (hotbar, armor, etc.). */
@@ -78,6 +79,9 @@ public record MKSlotDef(
                 filter, maxStack, ghostIcon, disabledWhen);
         if (panelName != null) {
             slot.setPanelName(panelName);
+        }
+        if (id != null) {
+            MKSlotStateRegistry.getOrCreate(slot).setElementId(id);
         }
         if (onEmptyClick != null) {
             slot.setOnEmptyClick(onEmptyClick);
@@ -147,6 +151,9 @@ public record MKSlotDef(
 
         if (panelName != null) {
             slot.setPanelName(panelName);
+        }
+        if (id != null) {
+            MKSlotStateRegistry.getOrCreate(slot).setElementId(id);
         }
         if (onEmptyClick != null) {
             slot.setOnEmptyClick(onEmptyClick);

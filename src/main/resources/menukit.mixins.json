@@ -43,7 +43,8 @@
     "MKKeyBindsScreenMixin",
     "KeyEntryAccessor",
     "KeyMappingAccessor",
-    "MKKeyMappingMixin"
+    "MKKeyMappingMixin",
+    "MKDragMixin"
   ],
   "injectors": {
     "defaultRequire": 1
