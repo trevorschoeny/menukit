@@ -151,10 +151,10 @@ public class MKHoverTrackingMixin {
             }
 
             // ── Fire HOVER_ENTER or DRAG_OVER for the new slot ───────────
-            // The cursor has moved onto a new slot. If the player is
-            // holding items (cursor stack not empty), this is a DRAG_OVER
-            // event instead of HOVER_ENTER — useful for visual feedback
-            // during item dragging.
+            // The cursor has moved onto a new slot. Fire DRAG_OVER if:
+            //   (a) carrying items (cursor stack not empty), OR
+            //   (b) left mouse button is held (active click-drag)
+            // Otherwise fire HOVER_ENTER.
             if (currentSlot != null) {
                 boolean isDragging = !self.getMenu().getCarried().isEmpty();
                 MKEvent.Type enterType = isDragging
