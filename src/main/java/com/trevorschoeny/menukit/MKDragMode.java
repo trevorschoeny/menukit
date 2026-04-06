@@ -19,7 +19,8 @@ public record MKDragMode(
         Predicate<MKDragContext> activationTest,
         @Nullable Consumer<MKDragContext> onDragStart,
         Consumer<MKDragSlotEvent> onSlotEntered,
-        @Nullable Consumer<MKDragContext> onDragEnd
+        @Nullable Consumer<MKDragContext> onDragEnd,
+        boolean suppressVanillaDrag
 ) {
 
     /** Builder for creating drag modes. */
@@ -29,6 +30,7 @@ public record MKDragMode(
         private @Nullable Consumer<MKDragContext> onDragStart;
         private @Nullable Consumer<MKDragSlotEvent> onSlotEntered;
         private @Nullable Consumer<MKDragContext> onDragEnd;
+        private boolean suppressVanillaDrag;
 
         public Builder(String id) {
             this.id = id;
@@ -58,13 +60,27 @@ public record MKDragMode(
             return this;
         }
 
+        /**
+         * Forces vanilla quick-craft suppression even for LMB drags.
+         *
+         * <p>RMB and MMB drags always suppress vanilla quick-craft automatically
+         * (vanilla's RMB/LMB hold-and-drag would otherwise conflict). LMB drags
+         * normally coexist with vanilla since the poll-based drag system doesn't
+         * interfere. Set this if your LMB drag mode needs exclusive control.
+         */
+        public Builder suppressVanillaDrag() {
+            this.suppressVanillaDrag = true;
+            return this;
+        }
+
         /** Registers this drag mode with MenuKit. */
         public void register() {
             if (activationTest == null) throw new IllegalStateException(
                     "[MenuKit] Drag mode '" + id + "' must have a .when() condition");
             if (onSlotEntered == null) throw new IllegalStateException(
                     "[MenuKit] Drag mode '" + id + "' must have an .onSlotEntered() handler");
-            MKDragRegistry.register(new MKDragMode(id, activationTest, onDragStart, onSlotEntered, onDragEnd));
+            MKDragRegistry.register(new MKDragMode(id, activationTest, onDragStart,
+                    onSlotEntered, onDragEnd, suppressVanillaDrag));
         }
     }
 }

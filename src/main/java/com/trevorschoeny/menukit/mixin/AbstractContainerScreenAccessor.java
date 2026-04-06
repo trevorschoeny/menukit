@@ -5,6 +5,8 @@ import net.minecraft.world.inventory.Slot;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
+import java.util.Set;
+
 /**
  * Exposes the protected leftPos/topPos fields of AbstractContainerScreen so that
  * other mixins can read the ACTUAL container position rather than re-computing it.
@@ -33,4 +35,26 @@ public interface AbstractContainerScreenAccessor {
 
     @Accessor("hoveredSlot")
     Slot trevorMod$getHoveredSlot();
+
+    // ── Vanilla quick-craft state ────────────────────────────────────────
+    //
+    // These expose the internal drag-distribution state machine that vanilla
+    // uses for LMB (split evenly) and RMB (place one each) hold-and-drag.
+    // Needed by MKVanillaDragSuppress to cancel vanilla's quick-craft when
+    // a custom drag mode takes over.
+
+    @Accessor("isQuickCrafting")
+    boolean menuKit$isQuickCrafting();
+
+    @Accessor("isQuickCrafting")
+    void menuKit$setIsQuickCrafting(boolean value);
+
+    @Accessor("quickCraftingButton")
+    int menuKit$getQuickCraftingButton();
+
+    @Accessor("quickCraftSlots")
+    Set<Slot> menuKit$getQuickCraftSlots();
+
+    @Accessor("skipNextRelease")
+    void menuKit$setSkipNextRelease(boolean value);
 }

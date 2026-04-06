@@ -16,16 +16,21 @@ import java.util.List;
  * <p>Part of the <b>MenuKit</b> drag mode API.
  */
 public final class MKDragContext {
+    private final int button;     // 0=LMB, 1=RMB, 2=MMB
     private final int modifiers;  // GLFW bitfield
     private final Player player;
     private final AbstractContainerMenu menu;
     private final List<Slot> visitedSlots = new ArrayList<>();
 
-    public MKDragContext(int modifiers, Player player, AbstractContainerMenu menu) {
+    public MKDragContext(int button, int modifiers, Player player, AbstractContainerMenu menu) {
+        this.button = button;
         this.modifiers = modifiers;
         this.player = player;
         this.menu = menu;
     }
+
+    /** The mouse button that started this drag (0=LMB, 1=RMB, 2=MMB). */
+    public int button() { return button; }
 
     /** True if Shift is held (GLFW modifier bit 0x1). */
     public boolean isShiftHeld() { return (modifiers & 0x1) != 0; }

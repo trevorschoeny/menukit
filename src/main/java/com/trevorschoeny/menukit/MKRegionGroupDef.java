@@ -16,7 +16,7 @@ import java.util.List;
  *
  * <p>Part of the <b>MenuKit</b> framework.
  */
-public record MKRegionGroupDef(String name, List<MemberDef> members) {
+public record MKRegionGroupDef(String name, List<MemberDef> members, List<MKTransferRoute> routes) {
 
     /**
      * A single member of a region group.

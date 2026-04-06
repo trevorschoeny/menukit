@@ -78,6 +78,15 @@ public class MKRegionRegistry {
         groupDefs.put(def.name(), def);
     }
 
+    /**
+     * Returns all registered group definitions as an unmodifiable list.
+     * Used by {@link MKTransferTopology} to resolve explicit transfer routes.
+     * Package-private — external code uses {@link MKTransferTopology}.
+     */
+    static List<MKRegionGroupDef> getGroupDefs() {
+        return List.copyOf(groupDefs.values());
+    }
+
     // ── Resolution (menu construction time) ───────────────────────────────
 
     /**

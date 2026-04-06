@@ -31,6 +31,7 @@ public class RegionGroupBuilder {
 
     private final String name;
     private final List<MKRegionGroupDef.MemberDef> members = new ArrayList<>();
+    private final List<MKTransferRoute> routes = new ArrayList<>();
     private int nextPriority = 1;  // auto-incrementing priority counter
 
     RegionGroupBuilder(String name) {
@@ -66,12 +67,42 @@ public class RegionGroupBuilder {
     }
 
     /**
+     * Declares a one-way transfer route: items in {@code from} can transfer
+     * to {@code to} when a consumer module requests transfer targets.
+     *
+     * <p>Use {@link #transferPair} for bidirectional routes.
+     *
+     * @param from source region name (e.g., "mk:hotbar")
+     * @param to   target region name (e.g., "mk:chest")
+     * @return this builder
+     */
+    public RegionGroupBuilder transferRoute(String from, String to) {
+        routes.add(new MKTransferRoute(from, to));
+        return this;
+    }
+
+    /**
+     * Declares a bidirectional transfer pair: items can transfer in either
+     * direction between the two regions.
+     *
+     * @param a first region name
+     * @param b second region name
+     * @return this builder
+     */
+    public RegionGroupBuilder transferPair(String a, String b) {
+        routes.add(new MKTransferRoute(a, b));
+        routes.add(new MKTransferRoute(b, a));
+        return this;
+    }
+
+    /**
      * Registers the group definition with MenuKit.
      * The definition is resolved into live {@link MKRegionGroup} instances
      * at menu construction time.
      */
     public void register() {
-        MKRegionGroupDef def = new MKRegionGroupDef(name, List.copyOf(members));
+        MKRegionGroupDef def = new MKRegionGroupDef(name, List.copyOf(members),
+                List.copyOf(routes));
         MenuKit.registerRegionGroup(def);
     }
 }

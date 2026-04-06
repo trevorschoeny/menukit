@@ -41,6 +41,10 @@ public class MKSlotRightClickMixin {
         // Only right-clicks (button 1) with PICKUP type
         if (button != 1 || clickType != ClickType.PICKUP) return;
 
+        // Skip simulated clicks — prevents infinite loops when a bus handler
+        // calls MKSlotActions.rightClick() which re-enters slotClicked
+        if (MKSlotActions.isSimulated()) return;
+
         boolean consumed = false;
 
         // ── Phase 1: Per-slot right-click handlers (legacy API) ─────────

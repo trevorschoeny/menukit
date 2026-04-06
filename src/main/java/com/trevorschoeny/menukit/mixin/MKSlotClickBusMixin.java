@@ -3,6 +3,7 @@ package com.trevorschoeny.menukit.mixin;
 import com.trevorschoeny.menukit.MKEvent;
 import com.trevorschoeny.menukit.MKEventBus;
 import com.trevorschoeny.menukit.MKEventHelper;
+import com.trevorschoeny.menukit.MKSlotActions;
 import com.trevorschoeny.menukit.MKSlotEvent;
 import com.trevorschoeny.menukit.MKSlotState;
 import com.trevorschoeny.menukit.MKSlotStateRegistry;
@@ -66,6 +67,11 @@ public abstract class MKSlotClickBusMixin {
     @Inject(method = "slotClicked", at = @At("HEAD"), cancellable = true)
     private void menuKit$fireClickBusEvent(Slot slot, int slotId, int button,
                                             ClickType clickType, CallbackInfo ci) {
+        // ── Skip simulated clicks — MKSlotActions sets this flag ─────────
+        // Prevents infinite loops when a bus handler calls MKSlotActions,
+        // which re-enters slotClicked and would re-fire the event.
+        if (MKSlotActions.isSimulated()) return;
+
         // ── Skip RIGHT_CLICK — handled by MKSlotRightClickMixin ─────────
         // That mixin fires per-slot handlers first, then the bus. We don't
         // want to double-fire RIGHT_CLICK events.

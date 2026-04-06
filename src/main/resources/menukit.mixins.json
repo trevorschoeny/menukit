@@ -25,6 +25,7 @@
   ],
   "client": [
     "AbstractContainerScreenAccessor",
+    "AbstractContainerScreenInvoker",
     "MKCreativeMixin",
     "MKCreativeRightClickMixin",
     "MKItemPickerMenuMixin",

@@ -4,6 +4,7 @@ import com.trevorschoeny.menukit.MKDragContext;
 import com.trevorschoeny.menukit.MKDragMode;
 import com.trevorschoeny.menukit.MKDragRegistry;
 import com.trevorschoeny.menukit.MKDragSlotEvent;
+import com.trevorschoeny.menukit.MKVanillaDragSuppress;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.gui.GuiGraphics;
@@ -39,6 +40,7 @@ public abstract class MKDragMixin {
     @Unique private @Nullable MKDragMode menukit$activeDragMode;
     @Unique private @Nullable MKDragContext menukit$dragContext;
     @Unique private int menukit$lastDragSlotIndex = -1;
+    @Unique private int menukit$activeDragButton = -1;  // which mouse button started the drag
 
     // ── mouseClicked: Arm the drag ──────────────────────────────────────────
 
@@ -46,18 +48,26 @@ public abstract class MKDragMixin {
             at = @At("HEAD"))
     private void menukit$onMouseClicked(MouseButtonEvent event, boolean flag,
                                          CallbackInfoReturnable<Boolean> cir) {
-        if (event.button() != 0) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
 
         AbstractContainerScreen<?> self = (AbstractContainerScreen<?>) (Object) this;
-        MKDragContext ctx = new MKDragContext(event.modifiers(), mc.player, self.getMenu());
+        MKDragContext ctx = new MKDragContext(event.button(), event.modifiers(),
+                mc.player, self.getMenu());
         MKDragMode mode = MKDragRegistry.findActive(ctx);
         if (mode == null) return;
 
         // Arm — record starting slot so we skip it (vanilla already handled it)
         menukit$activeDragMode = mode;
         menukit$dragContext = ctx;
+        menukit$activeDragButton = event.button();
+
+        // Suppress vanilla quick-craft for non-LMB drags (RMB/MMB would
+        // conflict with vanilla's hold-and-drag distribution). LMB drags
+        // only suppress if the mode explicitly requests it.
+        if (event.button() != 0 || mode.suppressVanillaDrag()) {
+            MKVanillaDragSuppress.suppress(self);
+        }
 
         var acc = (AbstractContainerScreenAccessor) (Object) this;
         Slot startSlot = menukit$findSlotAt(event.x(), event.y(),
@@ -80,11 +90,11 @@ public abstract class MKDragMixin {
                                        float partialTick, CallbackInfo ci) {
         if (menukit$activeDragMode == null || menukit$dragContext == null) return;
 
-        // Check if left mouse button is still held
+        // Check if the activating mouse button is still held
         Minecraft mc = Minecraft.getInstance();
         boolean mouseHeld = org.lwjgl.glfw.GLFW.glfwGetMouseButton(
                 mc.getWindow().handle(),
-                org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT) == 1;
+                menukit$activeDragButton) == 1;
         if (!mouseHeld) {
             // Mouse was released without mouseReleased firing (edge case)
             menukit$endDrag();
@@ -118,7 +128,7 @@ public abstract class MKDragMixin {
     private void menukit$onMouseReleased(MouseButtonEvent event,
                                           CallbackInfoReturnable<Boolean> cir) {
         if (menukit$activeDragMode == null || menukit$dragContext == null) return;
-        if (event.button() != 0) return;
+        if (event.button() != menukit$activeDragButton) return;
         menukit$endDrag();
     }
 
@@ -130,9 +140,17 @@ public abstract class MKDragMixin {
                 && menukit$activeDragMode.onDragEnd() != null) {
             menukit$activeDragMode.onDragEnd().accept(menukit$dragContext);
         }
+
+        // Restore vanilla quick-craft state if we suppressed it
+        if (MKVanillaDragSuppress.isSuppressed()) {
+            MKVanillaDragSuppress.restore(
+                    (AbstractContainerScreen<?>) (Object) this);
+        }
+
         menukit$activeDragMode = null;
         menukit$dragContext = null;
         menukit$lastDragSlotIndex = -1;
+        menukit$activeDragButton = -1;
     }
 
     @Unique
