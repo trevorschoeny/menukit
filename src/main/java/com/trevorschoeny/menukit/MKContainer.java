@@ -138,8 +138,10 @@ public class MKContainer implements Container {
         delegate.setChanged();
         // Fire onChange callback
         if (onChange != null) onChange.run();
-        // Sync to bound source with re-entrancy guard
-        if (source != null && !syncing) {
+        // Sync to bound source with re-entrancy guard.
+        // Sources that defer sync (e.g., shulker ItemContainerContents) skip
+        // continuous sync here — they write back once on unbind() instead.
+        if (source != null && !syncing && !source.defersSync()) {
             syncing = true;
             try {
                 source.sync(this);

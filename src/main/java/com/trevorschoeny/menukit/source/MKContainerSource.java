@@ -81,6 +81,26 @@ public interface MKContainerSource {
     }
 
     /**
+     * Whether this source defers sync to unbind-time only.
+     *
+     * <p>When true, {@link MKContainer#setChanged()} will NOT call
+     * {@link #sync} on every item change. Instead, sync happens once
+     * when the container is unbound. External change polling is also
+     * skipped, since the container — not the backing store — is the
+     * source of truth while bound.
+     *
+     * <p>Use this for component-based backing stores (like shulker box
+     * {@code ItemContainerContents}) where rewriting the component on
+     * every slot change causes unnecessary network traffic and visual
+     * flashing. The final sync on unbind writes everything back atomically.
+     *
+     * <p>Default is {@code false} (continuous sync on every change).
+     */
+    default boolean defersSync() {
+        return false;
+    }
+
+    /**
      * Returns how many MORE items of the given type this source can accept.
      * Used by {@link com.trevorschoeny.menukit.mixin.MKSlotMixin} to limit
      * {@code getMaxStackSize(ItemStack)} so vanilla's {@code safeInsert}

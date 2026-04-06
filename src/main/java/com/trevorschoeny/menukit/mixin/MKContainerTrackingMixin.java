@@ -257,7 +257,11 @@ public class MKContainerTrackingMixin {
             if (!mkc.isBound()) continue;
             if (!polled.add(mkc)) continue; // already polled this container
 
-            mkc.getSource().pollExternalChanges(mkc);
+            // Skip polling for sources that defer sync — the container is
+            // the source of truth while bound, not the backing store.
+            if (!mkc.getSource().defersSync()) {
+                mkc.getSource().pollExternalChanges(mkc);
+            }
         }
     }
 

@@ -24,8 +24,6 @@ class ItemContainerSource implements MKContainerSource {
     private static final int SHULKER_SIZE = 27;
     private final Supplier<ItemStack> stackSupplier;
 
-    private ItemContainerContents lastSyncedContents;
-
     ItemContainerSource(Supplier<ItemStack> stackSupplier) {
         this.stackSupplier = stackSupplier;
     }
@@ -53,7 +51,6 @@ class ItemContainerSource implements MKContainerSource {
             container.setItem(i, items.get(i));
         }
 
-        lastSyncedContents = contents;
     }
 
     @Override
@@ -69,41 +66,20 @@ class ItemContainerSource implements MKContainerSource {
 
         ItemContainerContents newContents = ItemContainerContents.fromItems(items);
         stack.set(DataComponents.CONTAINER, newContents);
-        lastSyncedContents = newContents;
     }
 
     @Override
-    public boolean pollExternalChanges(MKContainer container) {
-        ItemStack stack = stack();
-        if (stack.isEmpty()) return false;
-
-        ItemContainerContents current = stack.getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
-
-        if (current == lastSyncedContents) return false;
-
-        if (contentsMatch(current, lastSyncedContents)) {
-            lastSyncedContents = current;
-            return false;
-        }
-
-        container.withSyncSuppressed(() -> populate(container));
+    public boolean defersSync() {
+        // Component-based backing store: rewriting ItemContainerContents on
+        // every slot change causes broadcastChanges to re-send the entire
+        // shulker ItemStack each tick, producing visual flashing. Deferring
+        // sync to unbind means the component is written once, atomically.
         return true;
     }
 
-    private static boolean contentsMatch(ItemContainerContents a, ItemContainerContents b) {
-        if (a == b) return true;
-        if (a == null || b == null) return false;
-
-        NonNullList<ItemStack> aItems = NonNullList.withSize(SHULKER_SIZE, ItemStack.EMPTY);
-        NonNullList<ItemStack> bItems = NonNullList.withSize(SHULKER_SIZE, ItemStack.EMPTY);
-        a.copyInto(aItems);
-        b.copyInto(bItems);
-
-        for (int i = 0; i < SHULKER_SIZE; i++) {
-            if (!ItemStack.matches(aItems.get(i), bItems.get(i))) return false;
-        }
-        return true;
-    }
+    // No pollExternalChanges override — with deferred sync, the container
+    // is the source of truth while bound. The tracking mixin skips polling
+    // for sources that defer sync.
 
     @Override
     public int size() {
