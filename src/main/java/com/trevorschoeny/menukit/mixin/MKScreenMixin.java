@@ -292,6 +292,48 @@ public class MKScreenMixin extends Screen {
         }
     }
 
+    // ── Hovered Slot Fix ─────────────────────────────────────────────────────
+    //
+    // Vanilla's getHoveredSlot() misses MKSlots positioned outside the
+    // container image bounds (e.g., peek panels to the left of the inventory).
+    // The vanilla isHovering() method clips to imageWidth/imageHeight, so
+    // slots with negative x or x >= imageWidth are never detected as hovered.
+    //
+    // This injection runs at RETURN of getHoveredSlot(). If vanilla found
+    // nothing, we do our own unconstrained scan of all active slots using
+    // the same hit-test logic as MKDragMixin.menukit$findSlotAt().
+
+    /**
+     * Fixes vanilla's hovered slot detection for MKSlots outside the container
+     * image bounds. Vanilla's {@code isHovering} clips to imageWidth/imageHeight,
+     * so panels positioned to the left or right of the container are invisible
+     * to vanilla's hover detection. If vanilla returned null, we scan all active
+     * slots without the image bounds constraint.
+     */
+    @Inject(method = "getHoveredSlot", at = @At("RETURN"), cancellable = true)
+    private void menuKit$fixHoveredSlotForMKSlots(double mouseX, double mouseY,
+                                                   CallbackInfoReturnable<Slot> cir) {
+        // Only intervene when vanilla found nothing — don't override its result
+        if (cir.getReturnValue() != null) return;
+
+        AbstractContainerScreen<?> self = (AbstractContainerScreen<?>)(Object) this;
+        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor)(Object) this;
+
+        // Convert screen-space mouse position to container-relative coordinates
+        double relX = mouseX - acc.trevorMod$getLeftPos();
+        double relY = mouseY - acc.trevorMod$getTopPos();
+
+        // Scan all slots with the same hit-test as vanilla but without image bounds clipping
+        for (Slot slot : self.getMenu().slots) {
+            if (!slot.isActive()) continue;
+            if (relX >= slot.x - 1 && relX < slot.x + 17
+                    && relY >= slot.y - 1 && relY < slot.y + 17) {
+                cir.setReturnValue(slot);
+                return;
+            }
+        }
+    }
+
     // ── Scroll Container Input ──────────────────────────────────────────────
     //
     // Intercepts mouseScrolled at HEAD (BEFORE MKScrollMixin which handles
@@ -372,6 +414,46 @@ public class MKScreenMixin extends Screen {
         // Check if click should be consumed by a tab bar button
         if (MenuKit.handleTabClick(mouseX, mouseY, button, leftPos, topPos, context)) {
             cir.setReturnValue(true); // Consumed — tab was clicked
+        }
+    }
+
+    // ── Hover Detection Fix ─────────────────────────────────────────────────
+    //
+    // Vanilla's getHoveredSlot() misses MKSlots positioned outside the
+    // container's image bounds (e.g., peek panels to the left). This inject
+    // extends vanilla's detection to ALL active slots when vanilla found nothing.
+    // Fixes hoveredSlot for key presses, hover events, scroll, tooltips, etc.
+
+    /**
+     * Extends vanilla's hover detection to MKSlots outside the container image.
+     *
+     * <p>Vanilla's {@code getHoveredSlot()} only finds slots within the
+     * {@code imageWidth × imageHeight} bounds. MKSlots in panels positioned
+     * outside those bounds (left-side peek panels, right-side pockets) are
+     * invisible. This RETURN inject does the same hit-test without the bounds
+     * clipping when vanilla returned null.
+     */
+    @Inject(method = "getHoveredSlot", at = @At("RETURN"), cancellable = true)
+    private void menuKit$extendHoverToAllSlots(double mouseX, double mouseY,
+                                                CallbackInfoReturnable<Slot> cir) {
+        // Only act if vanilla found nothing — never override vanilla's result.
+        if (cir.getReturnValue() != null) return;
+
+        AbstractContainerScreen<?> self = (AbstractContainerScreen<?>)(Object) this;
+        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor)(Object) this;
+
+        // Convert screen-space mouse to container-relative coordinates.
+        double relX = mouseX - acc.trevorMod$getLeftPos();
+        double relY = mouseY - acc.trevorMod$getTopPos();
+
+        // Same hit-test as vanilla, but without image bounds clipping.
+        for (Slot slot : self.getMenu().slots) {
+            if (!slot.isActive()) continue;
+            if (relX >= slot.x - 1 && relX < slot.x + 17
+                    && relY >= slot.y - 1 && relY < slot.y + 17) {
+                cir.setReturnValue(slot);
+                return;
+            }
         }
     }
 }
