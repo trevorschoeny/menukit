@@ -322,4 +322,54 @@ public final class MKSlotEvent implements MKEvent {
     public int getUnifiedPlayerPos() {
         return isPlayerInventorySlot() ? containerSlot : -1;
     }
+
+    // ── Server-Safe Slot Index ───────────────────────────────────────────────
+
+    /**
+     * Returns the slot index as the server's {@code containerMenu} expects it.
+     *
+     * <p>In most contexts, the client and server share the same menu, so
+     * {@code slot.index} (the slot's position in the menu's {@code slots} list)
+     * is valid on both sides.
+     *
+     * <p>In <b>creative item tabs</b>, however, the client uses
+     * {@code ItemPickerMenu} (item picker grid + hotbar) while the server uses
+     * {@code InventoryMenu}. Their {@code slots} lists have completely different
+     * layouts, so a raw {@code slot.index} from the client would point to the
+     * wrong slot on the server — or be out of bounds entirely.
+     *
+     * <p>This method handles the translation: for creative tabs, it finds the
+     * equivalent slot in the player's {@code inventoryMenu} (which matches the
+     * server's layout) by matching on the backing container and container-local
+     * slot index. For all other contexts, it returns {@code slot.index} directly.
+     *
+     * <p><b>Use this whenever sending a slot index in a C2S packet.</b> Using
+     * {@code event.getSlot().index} directly is only safe when you know the
+     * client and server share the same menu.
+     *
+     * @return the server-compatible menu slot index, or -1 if the slot has no
+     *         equivalent in the server's menu (e.g., creative item picker slots)
+     */
+    public int getMenuSlotIndex() {
+        if (slot == null) return -1;
+
+        // Non-creative-tabs contexts: same menu on both sides
+        if (context != MKContext.CREATIVE_TABS) return slot.index;
+
+        // Creative item tabs: ItemPickerMenu ≠ InventoryMenu.
+        // Find the slot in inventoryMenu that backs the same container position.
+        // This handles ALL slot types (hotbar, main, armor, offhand, MKSlots)
+        // without hardcoding the InventoryMenu layout.
+        if (player != null) {
+            for (Slot menuSlot : player.inventoryMenu.slots) {
+                if (menuSlot.container == slot.container
+                        && menuSlot.getContainerSlot() == slot.getContainerSlot()) {
+                    return menuSlot.index;
+                }
+            }
+        }
+
+        // Slot has no equivalent in InventoryMenu (e.g., creative item picker)
+        return -1;
+    }
 }

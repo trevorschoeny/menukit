@@ -105,6 +105,60 @@ public final class MKEventHelper {
         };
     }
 
+    // ── Region Resolution ────────────────────────────────────────────────
+    //
+    // Shared logic for resolving which MKRegion owns a slot. Handles three
+    // creative-mode complications:
+    //   1. SlotWrapper: wraps an inventoryMenu slot but lives in ItemPickerMenu.
+    //      Unwrap to get the original slot's inventoryMenu index.
+    //   2. MKSlot on ItemPickerMenu: has a different index than on inventoryMenu.
+    //      Fall back to region name from MKSlotState for lookup by name.
+    //   3. Regular slots on ItemPickerMenu: index differs from inventoryMenu.
+    //      Fall back to inventoryMenu by index (works when indices happen to match).
+
+    /**
+     * Resolves the {@link MKRegion} that owns a slot across all screen types,
+     * including creative mode where the client menu differs from the server menu.
+     *
+     * <p>Resolution order:
+     * <ol>
+     *   <li>If the slot is a creative {@code SlotWrapper}, unwrap and look up
+     *       the target slot's index in {@code player.inventoryMenu}</li>
+     *   <li>Try the screen's active menu by slot index</li>
+     *   <li>Fall back to {@code player.inventoryMenu} by slot index</li>
+     *   <li>Fall back to region name from {@link MKSlotState} (handles MKSlots
+     *       on creative ItemPickerMenu where the index differs)</li>
+     * </ol>
+     *
+     * @param slot   the slot to resolve (never null — caller checks)
+     * @param menu   the screen's active menu
+     * @param player the player (for inventoryMenu fallback)
+     * @param state  the slot's MenuKit state, or null for vanilla-only slots
+     * @return the owning region, or null if not found
+     */
+    private static @Nullable MKRegion resolveSlotRegion(Slot slot,
+                                                          AbstractContainerMenu menu,
+                                                          Player player,
+                                                          @Nullable MKSlotState state) {
+        // Creative SlotWrapper — use the underlying inventoryMenu slot's index
+        if (slot instanceof com.trevorschoeny.menukit.mixin.SlotWrapperAccessor wrapper) {
+            Slot target = wrapper.menuKit$getTarget();
+            return MKRegionRegistry.getRegionForSlot(player.inventoryMenu, target.index);
+        }
+
+        // Normal slot — try screen menu first, fall back to inventoryMenu
+        MKRegion region = MKRegionRegistry.getRegionForSlot(menu, slot.index);
+        if (region == null) {
+            region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, slot.index);
+        }
+        // If still null, try region name from slot state (handles MKSlots on
+        // creative ItemPickerMenu where index differs from inventoryMenu)
+        if (region == null && state != null && state.getRegionName() != null) {
+            region = MKRegionRegistry.getRegion(player.inventoryMenu, state.getRegionName());
+        }
+        return region;
+    }
+
     // ── Event Builder ─────────────────────────────────────────────────────
     //
     // Resolves all context from the raw mixin parameters and builds an
@@ -185,15 +239,10 @@ public final class MKEventHelper {
             // Snapshot the slot's current contents
             slotStack = slot.getItem().copy();
 
-            // Resolve region from the menu's region registry.
-            // In creative mode, screen.getMenu() returns ItemPickerMenu which
-            // has no regions — fall back to player.inventoryMenu where regions
-            // were resolved during InventoryMenu construction.
+            // Resolve region — creative-aware, with SlotWrapper unwrap and
+            // region-name fallback for MKSlots on ItemPickerMenu
             AbstractContainerMenu menu = screen.getMenu();
-            region = MKRegionRegistry.getRegionForSlot(menu, slot.index);
-            if (region == null && player != null) {
-                region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, slot.index);
-            }
+            region = resolveSlotRegion(slot, menu, player, state);
 
             // Panel name comes from the slot state (set during slot injection)
             if (state != null) {
@@ -440,29 +489,10 @@ public final class MKEventHelper {
         int containerSlot = slot.getContainerSlot();
         ItemStack slotStack = slot.getItem().copy();
 
-        // Resolve region from the menu's region registry.
-        // Creative mode complicates this in two ways:
-        //   1. SlotWrapper: wraps an inventoryMenu slot but has an ItemPickerMenu
-        //      index. Unwrap to get the original slot's inventoryMenu index.
-        //   2. MKSlot on ItemPickerMenu: has a different index than on the
-        //      inventoryMenu. Use the slot state's regionName for lookup by name.
+        // Resolve region — creative-aware, with SlotWrapper unwrap and
+        // region-name fallback for MKSlots on ItemPickerMenu
         AbstractContainerMenu menu = screen.getMenu();
-        if (slot instanceof com.trevorschoeny.menukit.mixin.SlotWrapperAccessor wrapper) {
-            // Creative SlotWrapper — use the underlying inventoryMenu slot's index
-            Slot target = wrapper.menuKit$getTarget();
-            region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, target.index);
-        } else {
-            // Normal slot — try screen menu first, fall back to inventoryMenu
-            region = MKRegionRegistry.getRegionForSlot(menu, slot.index);
-            if (region == null) {
-                region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, slot.index);
-            }
-            // If still null, try region name from slot state (handles MKSlots on
-            // creative ItemPickerMenu where index differs from inventoryMenu)
-            if (region == null && state != null && state.getRegionName() != null) {
-                region = MKRegionRegistry.getRegion(player.inventoryMenu, state.getRegionName());
-            }
-        }
+        region = resolveSlotRegion(slot, menu, player, state);
 
         // Panel name from slot state
         if (state != null) {
@@ -531,29 +561,10 @@ public final class MKEventHelper {
         int containerSlot = slot.getContainerSlot();
         ItemStack slotStack = slot.getItem().copy();
 
-        // Resolve region from the menu's region registry.
-        // Creative mode complicates this in two ways:
-        //   1. SlotWrapper: wraps an inventoryMenu slot but has an ItemPickerMenu
-        //      index. Unwrap to get the original slot's inventoryMenu index.
-        //   2. MKSlot on ItemPickerMenu: has a different index than on the
-        //      inventoryMenu. Use the slot state's regionName for lookup by name.
+        // Resolve region — creative-aware, with SlotWrapper unwrap and
+        // region-name fallback for MKSlots on ItemPickerMenu
         AbstractContainerMenu menu = screen.getMenu();
-        if (slot instanceof com.trevorschoeny.menukit.mixin.SlotWrapperAccessor wrapper) {
-            // Creative SlotWrapper — use the underlying inventoryMenu slot's index
-            Slot target = wrapper.menuKit$getTarget();
-            region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, target.index);
-        } else {
-            // Normal slot — try screen menu first, fall back to inventoryMenu
-            region = MKRegionRegistry.getRegionForSlot(menu, slot.index);
-            if (region == null) {
-                region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, slot.index);
-            }
-            // If still null, try region name from slot state (handles MKSlots on
-            // creative ItemPickerMenu where index differs from inventoryMenu)
-            if (region == null && state != null && state.getRegionName() != null) {
-                region = MKRegionRegistry.getRegion(player.inventoryMenu, state.getRegionName());
-            }
-        }
+        region = resolveSlotRegion(slot, menu, player, state);
 
         // Panel name from slot state
         if (state != null) {
