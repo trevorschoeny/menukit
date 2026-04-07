@@ -1,7 +1,7 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.MKContext;
-import com.trevorschoeny.menukit.MKSlot;
+import com.trevorschoeny.menukit.widget.MKSlot;
 import com.trevorschoeny.menukit.MenuKit;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.InventoryMenu;

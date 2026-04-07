@@ -1,6 +1,9 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.*;
+import com.trevorschoeny.menukit.event.*;
+import com.trevorschoeny.menukit.region.*;
+import com.trevorschoeny.menukit.widget.*;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;

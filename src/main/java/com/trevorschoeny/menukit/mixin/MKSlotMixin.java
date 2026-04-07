@@ -1,7 +1,7 @@
 package com.trevorschoeny.menukit.mixin;
 
-import com.trevorschoeny.menukit.MKSlotState;
-import com.trevorschoeny.menukit.MKSlotStateRegistry;
+import com.trevorschoeny.menukit.widget.MKSlotState;
+import com.trevorschoeny.menukit.widget.MKSlotStateRegistry;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -99,7 +99,7 @@ public class MKSlotMixin {
         }
 
         // Source constraint check (e.g., bundle weight limits)
-        if (self.container instanceof com.trevorschoeny.menukit.MKContainer mkc && mkc.isBound()) {
+        if (self.container instanceof com.trevorschoeny.menukit.container.MKContainer mkc && mkc.isBound()) {
             if (!mkc.getSource().canAccept(self.getContainerSlot(), stack)) {
                 cir.setReturnValue(false);
             }
@@ -157,7 +157,7 @@ public class MKSlotMixin {
         }
 
         // Source capacity limit — backed by a bound MKContainer (bundle, shulker, etc.)
-        if (self.container instanceof com.trevorschoeny.menukit.MKContainer mkc && mkc.isBound()) {
+        if (self.container instanceof com.trevorschoeny.menukit.container.MKContainer mkc && mkc.isBound()) {
             int maxAccept = mkc.getSource().getMaxAcceptCount(self.getContainerSlot(), stack);
             if (maxAccept < Integer.MAX_VALUE) {
                 // Effective max = what's already in the slot + how many more the source can take

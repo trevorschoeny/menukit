@@ -1,10 +1,10 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.MKContext;
-import com.trevorschoeny.menukit.MKEvent;
-import com.trevorschoeny.menukit.MKEventBus;
-import com.trevorschoeny.menukit.MKEventHelper;
-import com.trevorschoeny.menukit.MKSlotEvent;
+import com.trevorschoeny.menukit.event.MKEvent;
+import com.trevorschoeny.menukit.event.MKEventBus;
+import com.trevorschoeny.menukit.event.MKEventHelper;
+import com.trevorschoeny.menukit.event.MKSlotEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.entity.player.Player;

@@ -1,6 +1,9 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.*;
+import com.trevorschoeny.menukit.event.*;
+import com.trevorschoeny.menukit.region.*;
+import com.trevorschoeny.menukit.widget.*;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -135,7 +138,7 @@ public class MKMenuMixin {
         // ── Unified shift-click handling via MKSlotState ──────────────────────
         // Get the panel name for the source slot (from state registry or map)
         String sourcePanel = MenuKit.getEffectivePanelName(menu, sourceSlot);
-        com.trevorschoeny.menukit.MKSlotState sourceState = com.trevorschoeny.menukit.MKSlotStateRegistry.get(sourceSlot);
+        com.trevorschoeny.menukit.widget.MKSlotState sourceState = com.trevorschoeny.menukit.widget.MKSlotStateRegistry.get(sourceSlot);
 
         MenuKit.LOGGER.debug("[MKMenuMixin] quickMoveStack: slot={}, panel='{}', isMK={}, item={}",
                 slotIndex, sourcePanel,

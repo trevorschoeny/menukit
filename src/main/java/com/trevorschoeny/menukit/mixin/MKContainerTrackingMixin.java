@@ -1,6 +1,10 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.*;
+import com.trevorschoeny.menukit.container.*;
+import com.trevorschoeny.menukit.event.*;
+import com.trevorschoeny.menukit.region.*;
+import com.trevorschoeny.menukit.widget.*;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;

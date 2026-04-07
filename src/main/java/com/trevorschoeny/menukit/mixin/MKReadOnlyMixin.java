@@ -1,8 +1,8 @@
 package com.trevorschoeny.menukit.mixin;
 
-import com.trevorschoeny.menukit.MKContainerState;
-import com.trevorschoeny.menukit.MKContainerStateRegistry;
-import com.trevorschoeny.menukit.MKEventHelper;
+import com.trevorschoeny.menukit.container.MKContainerState;
+import com.trevorschoeny.menukit.container.MKContainerStateRegistry;
+import com.trevorschoeny.menukit.event.MKEventHelper;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;

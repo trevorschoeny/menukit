@@ -1,6 +1,7 @@
 package com.trevorschoeny.menukit.mixin;
 
-import com.trevorschoeny.menukit.MKSlot;
+import com.trevorschoeny.menukit.widget.MKSlot;
+import com.trevorschoeny.menukit.widget.*;
 import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
@@ -42,7 +43,7 @@ public class MKCreativeSlotPacketMixin {
         if (slotNum >= player.inventoryMenu.slots.size()) return;
 
         Slot slot = player.inventoryMenu.getSlot(slotNum);
-        com.trevorschoeny.menukit.MKSlotState state = com.trevorschoeny.menukit.MKSlotStateRegistry.get(slot);
+        com.trevorschoeny.menukit.widget.MKSlotState state = com.trevorschoeny.menukit.widget.MKSlotStateRegistry.get(slot);
         if (state == null || !state.isMenuKitSlot()) return; // only process our slots
 
         ItemStack stack = packet.itemStack();

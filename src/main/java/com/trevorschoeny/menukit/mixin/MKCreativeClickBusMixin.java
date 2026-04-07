@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.mixin;
 
-import com.trevorschoeny.menukit.MKEventHelper;
+import com.trevorschoeny.menukit.event.MKEventHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;

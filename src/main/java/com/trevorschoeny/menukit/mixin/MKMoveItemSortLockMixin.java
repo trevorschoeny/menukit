@@ -1,7 +1,7 @@
 package com.trevorschoeny.menukit.mixin;
 
-import com.trevorschoeny.menukit.MKSlotState;
-import com.trevorschoeny.menukit.MKSlotStateRegistry;
+import com.trevorschoeny.menukit.widget.MKSlotState;
+import com.trevorschoeny.menukit.widget.MKSlotStateRegistry;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;

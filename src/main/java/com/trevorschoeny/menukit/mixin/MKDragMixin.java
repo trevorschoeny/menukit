@@ -1,10 +1,10 @@
 package com.trevorschoeny.menukit.mixin;
 
-import com.trevorschoeny.menukit.MKDragContext;
-import com.trevorschoeny.menukit.MKDragMode;
-import com.trevorschoeny.menukit.MKDragRegistry;
-import com.trevorschoeny.menukit.MKDragSlotEvent;
-import com.trevorschoeny.menukit.MKVanillaDragSuppress;
+import com.trevorschoeny.menukit.input.MKDragContext;
+import com.trevorschoeny.menukit.input.MKDragMode;
+import com.trevorschoeny.menukit.input.MKDragRegistry;
+import com.trevorschoeny.menukit.input.MKDragSlotEvent;
+import com.trevorschoeny.menukit.input.MKVanillaDragSuppress;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.gui.GuiGraphics;

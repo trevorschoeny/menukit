@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit;
 
+import com.trevorschoeny.menukit.screen.MKMenu;
 import net.minecraft.client.gui.screens.inventory.*;
 import net.minecraft.world.inventory.*;
 import org.jspecify.annotations.Nullable;

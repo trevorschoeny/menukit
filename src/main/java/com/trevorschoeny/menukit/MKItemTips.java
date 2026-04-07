@@ -1,5 +1,9 @@
 package com.trevorschoeny.menukit;
 
+import com.trevorschoeny.menukit.config.GeneralOption;
+import com.trevorschoeny.menukit.region.MKRegion;
+import com.trevorschoeny.menukit.region.MKRegionGroup;
+import com.trevorschoeny.menukit.region.MKRegionRegistry;
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;

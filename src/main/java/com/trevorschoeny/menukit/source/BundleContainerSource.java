@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.source;
 
-import com.trevorschoeny.menukit.MKContainer;
+import com.trevorschoeny.menukit.container.MKContainer;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BundleContents;

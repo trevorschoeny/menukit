@@ -2,7 +2,7 @@ package com.trevorschoeny.menukit.gui;
 
 import com.terraformersmc.modmenu.api.ConfigScreenFactory;
 import com.terraformersmc.modmenu.api.ModMenuApi;
-import com.trevorschoeny.menukit.MKFamily;
+import com.trevorschoeny.menukit.config.MKFamily;
 import com.trevorschoeny.menukit.MenuKit;
 
 import java.util.HashMap;

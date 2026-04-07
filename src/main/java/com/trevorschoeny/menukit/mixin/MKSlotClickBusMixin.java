@@ -1,12 +1,12 @@
 package com.trevorschoeny.menukit.mixin;
 
-import com.trevorschoeny.menukit.MKEvent;
-import com.trevorschoeny.menukit.MKEventBus;
-import com.trevorschoeny.menukit.MKEventHelper;
-import com.trevorschoeny.menukit.MKSlotActions;
-import com.trevorschoeny.menukit.MKSlotEvent;
-import com.trevorschoeny.menukit.MKSlotState;
-import com.trevorschoeny.menukit.MKSlotStateRegistry;
+import com.trevorschoeny.menukit.event.MKEvent;
+import com.trevorschoeny.menukit.event.MKEventBus;
+import com.trevorschoeny.menukit.event.MKEventHelper;
+import com.trevorschoeny.menukit.widget.MKSlotActions;
+import com.trevorschoeny.menukit.event.MKSlotEvent;
+import com.trevorschoeny.menukit.widget.MKSlotState;
+import com.trevorschoeny.menukit.widget.MKSlotStateRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.input.MouseButtonEvent;

@@ -1,9 +1,9 @@
 package com.trevorschoeny.menukit.mixin;
 
-import com.trevorschoeny.menukit.MKEvent;
-import com.trevorschoeny.menukit.MKEventBus;
-import com.trevorschoeny.menukit.MKEventHelper;
-import com.trevorschoeny.menukit.MKSlotEvent;
+import com.trevorschoeny.menukit.event.MKEvent;
+import com.trevorschoeny.menukit.event.MKEventBus;
+import com.trevorschoeny.menukit.event.MKEventHelper;
+import com.trevorschoeny.menukit.event.MKSlotEvent;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;

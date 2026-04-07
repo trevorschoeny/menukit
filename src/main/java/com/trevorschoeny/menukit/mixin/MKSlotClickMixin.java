@@ -1,7 +1,9 @@
 package com.trevorschoeny.menukit.mixin;
 
-import com.trevorschoeny.menukit.MKSlot;
+import com.trevorschoeny.menukit.widget.MKSlot;
+import com.trevorschoeny.menukit.widget.*;
 import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.widget.*;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ClickType;
@@ -45,7 +47,7 @@ public class MKSlotClickMixin {
 
         // Try to find a MenuKit-managed slot — either from vanilla's slotId or hover detection
         Slot targetSlot = null;
-        com.trevorschoeny.menukit.MKSlotState state = null;
+        com.trevorschoeny.menukit.widget.MKSlotState state = null;
 
         if (slotId >= 0 && slotId < menu.slots.size()) {
             Slot slot = menu.slots.get(slotId);
@@ -53,7 +55,7 @@ public class MKSlotClickMixin {
             if (slot instanceof SlotWrapperAccessor w) {
                 slot = w.menuKit$getTarget();
             }
-            state = com.trevorschoeny.menukit.MKSlotStateRegistry.get(slot);
+            state = com.trevorschoeny.menukit.widget.MKSlotStateRegistry.get(slot);
             if (state != null && state.isMenuKitSlot()) {
                 targetSlot = slot;
             }
@@ -63,7 +65,7 @@ public class MKSlotClickMixin {
         if (targetSlot == null) {
             targetSlot = MenuKit.getHoveredMKSlot();
             if (targetSlot != null) {
-                state = com.trevorschoeny.menukit.MKSlotStateRegistry.get(targetSlot);
+                state = com.trevorschoeny.menukit.widget.MKSlotStateRegistry.get(targetSlot);
             }
         }
 
