@@ -11,7 +11,7 @@ import com.trevorschoeny.menukit.region.MKContextLayout;
  *
  * <p>Every vanilla region is classified via {@link MKContextLayout},
  * and custom containers default to SIMPLE unless explicitly set via
- * {@link MKContainerDef.Builder#type(MKContainerType)}.
+ * {@link MKSlotGroupBuilder#type(MKContainerType)}.
  *
  * <p>Part of the <b>MenuKit</b> API.
  */

@@ -28,7 +28,7 @@ import java.util.Optional;
  * <p><b>For custom containers:</b> The delegate is a {@link SimpleContainer}
  * (or any other Container if explicitly specified). Created via:
  * <pre>{@code
- * MenuKit.container("my_storage").size(27).register();
+ * MenuKit.slotGroup("my_storage").slots(27).register();
  * }</pre>
  *
  * <p><b>For vanilla containers:</b> The delegate is the actual vanilla

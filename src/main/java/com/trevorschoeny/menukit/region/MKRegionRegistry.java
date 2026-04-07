@@ -74,7 +74,7 @@ public class MKRegionRegistry {
 
     /**
      * Registers a custom region definition. Called when a mod registers
-     * a container via {@code MenuKit.container("name").size(N).register()}.
+     * a slot group via {@code MenuKit.slotGroup("name").slots(N).register()}.
      * The actual MKRegion is created at menu construction time.
      */
     public static void registerCustom(String name, int size,

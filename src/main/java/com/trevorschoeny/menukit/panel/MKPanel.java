@@ -1184,7 +1184,7 @@ public class MKPanel {
                     throw new IllegalStateException(
                             "[MenuKit] Panel '" + name + "' references container '" +
                             slotDef.containerName() + "' which is not registered. " +
-                            "Register it with MenuKit.container(...).register() before building panels.");
+                            "Register it with MenuKit.slotGroup(...).register() before building panels.");
                 }
                 if (slotDef.containerIndex() < 0 || slotDef.containerIndex() >= cDef.size()) {
                     throw new IllegalStateException(
@@ -1246,7 +1246,7 @@ public class MKPanel {
 
         /**
          * Specifies which container and slot index this slot reads from.
-         * The container must be registered via {@code MenuKit.container(...).register()}
+         * The container must be registered via {@code MenuKit.slotGroup(...).register()}
          * before the panel is built.
          *
          * @param name  the container name (as registered with MenuKit)
