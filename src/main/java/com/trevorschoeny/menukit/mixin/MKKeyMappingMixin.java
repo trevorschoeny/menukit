@@ -1,9 +1,9 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import com.trevorschoeny.menukit.MKKeybind;
-import com.trevorschoeny.menukit.MKKeybindCapture;
-import com.trevorschoeny.menukit.MKKeybindExt;
+import com.trevorschoeny.menukit.input.MKKeybind;
+import com.trevorschoeny.menukit.input.MKKeybindCapture;
+import com.trevorschoeny.menukit.input.MKKeybindExt;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
