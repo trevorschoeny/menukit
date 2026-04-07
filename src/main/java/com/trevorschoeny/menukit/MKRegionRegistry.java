@@ -128,6 +128,36 @@ public class MKRegionRegistry {
             }
         }
 
+        // ── Apply slot group overrides ──────────────────────────────────
+        // If a MKSlotGroupDef was registered for a region's name, apply
+        // its shift-click flags, slot filter, and max stack override.
+        // This bridges the new v2 slotGroup API into the existing region system.
+        for (MKRegion region : regions) {
+            MKSlotGroupDef groupDef = MenuKit.getSlotGroupDef(region.name());
+            if (groupDef != null) {
+                region.setShiftClickIn(groupDef.shiftClickIn());
+                region.setShiftClickOut(groupDef.shiftClickOut());
+
+                // Apply slot-level rules from the group def to each slot in the region
+                if (groupDef.slotFilter() != null || groupDef.maxStack() > 0) {
+                    int menuStart = region.getMenuSlotStart();
+                    int menuEnd = region.getMenuSlotEnd();
+                    if (menuStart >= 0 && menuEnd >= menuStart) {
+                        for (int si = menuStart; si <= menuEnd && si < menu.slots.size(); si++) {
+                            MKSlotState slotState = MKSlotStateRegistry.getOrCreate(menu.slots.get(si));
+                            // Only set if not already overridden by a more specific MKSlotDef
+                            if (groupDef.slotFilter() != null && slotState.getFilter() == null) {
+                                slotState.setFilter(groupDef.slotFilter());
+                            }
+                            if (groupDef.maxStack() > 0 && slotState.getMaxStackSize() == 0) {
+                                slotState.setMaxStackSize(groupDef.maxStack());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Cache by menu identity
         menuRegions.put(System.identityHashCode(menu), regions);
 

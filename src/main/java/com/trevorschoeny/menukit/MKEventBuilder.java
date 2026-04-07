@@ -51,6 +51,8 @@ public class MKEventBuilder {
     private @Nullable Set<MKContext> contextFilter;
     private @Nullable Predicate<MKEvent> wherePredicate;
     private int priority;
+    private MKEventPhase phase = MKEventPhase.BEFORE; // default for backward compat
+    private @Nullable String sessionId; // null = global (lives forever)
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -159,6 +161,84 @@ public class MKEventBuilder {
         return this;
     }
 
+    // ── Phase Selection ─────────────────────────────────────────────────────
+
+    /**
+     * Sets this listener to the ALLOW phase — it can cancel the event.
+     * If the handler returns CONSUMED, the event stops entirely and
+     * BEFORE/AFTER phases never fire.
+     *
+     * @return this builder for chaining
+     */
+    public MKEventBuilder allow() {
+        this.phase = MKEventPhase.ALLOW;
+        return this;
+    }
+
+    /**
+     * Sets this listener to the BEFORE phase (default).
+     * Fires after all ALLOW listeners have permitted the event.
+     * Returning CONSUMED stops the BEFORE chain but AFTER still fires.
+     *
+     * @return this builder for chaining
+     */
+    public MKEventBuilder before() {
+        this.phase = MKEventPhase.BEFORE;
+        return this;
+    }
+
+    /**
+     * Sets this listener to the AFTER phase.
+     * Fires after the event has been fully processed.
+     * Return value is ignored — cannot cancel or stop the chain.
+     *
+     * @return this builder for chaining
+     */
+    public MKEventBuilder after() {
+        this.phase = MKEventPhase.AFTER;
+        return this;
+    }
+
+    // ── Session Scoping ──────────────────────────────────────────────────────
+
+    /**
+     * Scopes this listener to the current screen session.
+     * The listener is automatically removed when the screen closes.
+     *
+     * <p>If no screen session is active, the listener is registered globally
+     * as a fallback (with a warning logged).
+     *
+     * @return this builder for chaining
+     */
+    public MKEventBuilder screenSession() {
+        String session = MKEventBus.getCurrentScreenSession();
+        if (session != null) {
+            this.sessionId = session;
+        } else {
+            MenuKit.LOGGER.warn("[MenuKit] screenSession() called with no active screen session — listener will be global");
+        }
+        return this;
+    }
+
+    /**
+     * Scopes this listener to the current world session.
+     * The listener is automatically removed when the player leaves the world.
+     *
+     * <p>If no world session is active, the listener is registered globally
+     * as a fallback (with a warning logged).
+     *
+     * @return this builder for chaining
+     */
+    public MKEventBuilder worldSession() {
+        String session = MKEventBus.getCurrentWorldSession();
+        if (session != null) {
+            this.sessionId = session;
+        } else {
+            MenuKit.LOGGER.warn("[MenuKit] worldSession() called with no active world session — listener will be global");
+        }
+        return this;
+    }
+
     // ── Terminal Methods ──────────────────────────────────────────────────────
 
     /**
@@ -186,7 +266,9 @@ public class MKEventBuilder {
                 contextFilter,
                 wherePredicate,
                 priority,
-                handler
+                handler,
+                phase,
+                sessionId
         );
 
         // Register in the bus (thread-safe, priority-sorted)

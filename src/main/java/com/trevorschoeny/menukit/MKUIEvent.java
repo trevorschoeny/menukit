@@ -27,6 +27,9 @@ public final class MKUIEvent implements MKEvent {
     private final int previousTabIndex;
     private final int newTabIndex;
 
+    // Dismount reason -- only populated for PANEL_HIDE events
+    private final @Nullable MKDismountReason dismountReason;
+
     // ── Private Constructor ──────────────────────────────────────────────────
 
     private MKUIEvent(MKEvent.Type type,
@@ -37,7 +40,8 @@ public final class MKUIEvent implements MKEvent {
                       @Nullable MKContext context,
                       Player player,
                       int previousTabIndex,
-                      int newTabIndex) {
+                      int newTabIndex,
+                      @Nullable MKDismountReason dismountReason) {
         this.type = type;
         this.panelName = panelName;
         this.elementId = elementId;
@@ -47,6 +51,21 @@ public final class MKUIEvent implements MKEvent {
         this.player = player;
         this.previousTabIndex = previousTabIndex;
         this.newTabIndex = newTabIndex;
+        this.dismountReason = dismountReason;
+    }
+
+    /** Backwards-compatible constructor for non-tab, non-dismount events. */
+    private MKUIEvent(MKEvent.Type type,
+                      @Nullable String panelName,
+                      @Nullable String elementId,
+                      @Nullable MKButton button,
+                      boolean toggleState,
+                      @Nullable MKContext context,
+                      Player player,
+                      int previousTabIndex,
+                      int newTabIndex) {
+        this(type, panelName, elementId, button, toggleState, context, player,
+             previousTabIndex, newTabIndex, null);
     }
 
     /** Backwards-compatible constructor for non-tab events. */
@@ -57,7 +76,7 @@ public final class MKUIEvent implements MKEvent {
                       boolean toggleState,
                       @Nullable MKContext context,
                       Player player) {
-        this(type, panelName, elementId, button, toggleState, context, player, -1, -1);
+        this(type, panelName, elementId, button, toggleState, context, player, -1, -1, null);
     }
 
     // ── Static Factories ────────────────────────────────────────────────────
@@ -86,11 +105,20 @@ public final class MKUIEvent implements MKEvent {
         return new MKUIEvent(Type.PANEL_SHOW, panelName, null, null, false, context, player);
     }
 
-    /** Creates a PANEL_HIDE event. */
+    /** Creates a PANEL_HIDE event without a dismount reason (backward compat). */
     public static MKUIEvent panelHide(String panelName,
                                        @Nullable MKContext context,
                                        Player player) {
         return new MKUIEvent(Type.PANEL_HIDE, panelName, null, null, false, context, player);
+    }
+
+    /** Creates a PANEL_HIDE event with a dismount reason. */
+    public static MKUIEvent panelHide(String panelName,
+                                       @Nullable MKContext context,
+                                       Player player,
+                                       MKDismountReason reason) {
+        return new MKUIEvent(Type.PANEL_HIDE, panelName, null, null, false, context, player,
+                -1, -1, reason);
     }
 
     /** Creates an ELEMENT_SHOW event. */
@@ -133,6 +161,9 @@ public final class MKUIEvent implements MKEvent {
 
     /** The toggle state for BUTTON_TOGGLE events. */
     public boolean getToggleState() { return toggleState; }
+
+    /** The reason a panel was hidden, or null for non-PANEL_HIDE events. */
+    public @Nullable MKDismountReason getDismountReason() { return dismountReason; }
 
     /** The previous tab index for TAB_CHANGED events. -1 for other event types. */
     public int getPreviousTabIndex() { return previousTabIndex; }

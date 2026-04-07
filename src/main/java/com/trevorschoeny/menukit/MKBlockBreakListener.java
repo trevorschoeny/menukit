@@ -30,13 +30,30 @@ public class MKBlockBreakListener {
 
             if (containers.isEmpty()) return;
 
-            // Drop all items from all containers at this position
+            // Drop or retain items from all containers at this position.
+            // Per-group break behavior determines whether items spill or are
+            // retained in the dropped block's item NBT.
             for (var entry : containers.entrySet()) {
+                String containerName = entry.getKey();
                 MKContainer container = entry.getValue();
+
+                // Check if this container's slot group has retained-on-break behavior
+                MKSlotGroupDef groupDef = MenuKit.getSlotGroupDef(containerName);
+                if (groupDef != null && groupDef.breakBehavior() == MKSlotGroupDef.BreakBehavior.RETAINED_ON_BREAK) {
+                    // Retained-on-break: items transfer to the dropped item's NBT.
+                    // This is a generalization of shulker box behavior.
+                    // TODO: Implement NBT transfer to dropped block item.
+                    // For now, log and skip — items will be lost. This is a
+                    // placeholder for future implementation per SPEC-REFACTOR.md.
+                    MenuKit.LOGGER.info("[MenuKit] Container '{}' at {} has retained-on-break — NBT transfer not yet implemented",
+                            containerName, pos);
+                    continue;
+                }
+
+                // Default: drop items into the world (chest behavior)
                 for (int i = 0; i < container.getContainerSize(); i++) {
                     ItemStack stack = container.getItem(i);
                     if (!stack.isEmpty()) {
-                        // Drop the item as an entity at the block's position
                         Containers.dropItemStack(
                                 world,
                                 pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
@@ -44,7 +61,7 @@ public class MKBlockBreakListener {
                     }
                 }
                 MenuKit.LOGGER.info("[MenuKit] Dropped instance-bound container '{}' at {}",
-                        entry.getKey(), pos);
+                        containerName, pos);
             }
         });
     }

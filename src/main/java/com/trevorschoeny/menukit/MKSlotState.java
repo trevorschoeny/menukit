@@ -30,90 +30,45 @@ import java.util.function.Supplier;
  *   <li>Panel association — which panel renders this slot</li>
  * </ul>
  *
+ * <p>State is split into backend (item rules, persistence, region) and
+ * frontend (visuals, decorations) concerns. All existing getters/setters
+ * delegate to the appropriate inner state object. New code can access
+ * focused state via {@link #backend()} and {@link #frontend()}.
+ *
  * <p>Part of the <b>MenuKit</b> framework (mixin layer).
  */
 public class MKSlotState {
 
-    // ── Region & Panel Association ───────────────────────────────────────
-    private @Nullable String regionName;
+    // ── Composed State (v2) ─────────────────────────────────────────────
+    private final MKSlotBackendState backend = new MKSlotBackendState();
+    private final MKSlotFrontendState frontend = new MKSlotFrontendState();
+
+    /** Returns the backend state (item rules, persistence, region). */
+    public MKSlotBackendState backend() { return backend; }
+
+    /** Returns the frontend state (ghost icon, decorations, visual). */
+    public MKSlotFrontendState frontend() { return frontend; }
+
+    // ── Panel & Element Association (structural — shared by both sides) ──
     private @Nullable String panelName;
     private @Nullable String elementId;  // element ID for setElementVisible overrides
-    private int regionIndex = -1;  // index within the region (0-based)
-
-    // ── Lock State ───────────────────────────────────────────────────────
-    private boolean locked;
-
-    // ── Sort Lock State ──────────────────────────────────────────────────
-    // Separate from "locked" — sort-locked slots are excluded from sorting
-    // and from receiving shift-clicked items, but the player can still
-    // interact with them normally (pick up, place, etc.). This is the
-    // IP-level "pin this slot in place for sorting" feature, distinct from
-    // the MK-level Ctrl+click full lock.
-    private boolean sortLocked;
-
-    // ── Filter ───────────────────────────────────────────────────────────
-    // Additional placement restriction on top of vanilla's mayPlace.
-    private @Nullable Predicate<ItemStack> filter;
-
-    // ── Ghost Icon ───────────────────────────────────────────────────────
-    // Shown when the slot is empty (e.g., armor outline, elytra silhouette)
-    private @Nullable Identifier ghostIcon;
-
-    // ── Disabled ─────────────────────────────────────────────────────────
-    // When disabled, the slot is hidden and blocks interaction.
-    private @Nullable BooleanSupplier disabledWhen;
-
-    // ── Shift-Click Flags ───────────────────────────────────────────────
-    private boolean shiftClickIn;
-    private boolean shiftClickOut;
-
-    // ── Max Stack Size ───────────────────────────────────────────────────
-    // Per-slot max stack override. 0 = use vanilla default.
-    private int maxStackSize;
 
     // ── Slot Index in Panel ──────────────────────────────────────────────
-    // Index of this slot within its panel's slot list (0-based).
     private int slotIndexInPanel = -1;
 
     // ── Empty Slot Callbacks ─────────────────────────────────────────────
-    // Fired when the player left-clicks an empty slot with empty cursor.
     private @Nullable Consumer<Slot> onEmptyClick;
 
     // ── Empty Slot Tooltip ───────────────────────────────────────────────
-    // Tooltip shown when hovering an empty slot with empty cursor.
     private @Nullable Supplier<Component> emptyTooltip;
 
     // ── Right-Click Callbacks ────────────────────────────────────────────
-    // Fired when the player right-clicks this slot. Return true to consume.
     private @Nullable List<SlotRightClickHandler> rightClickHandlers;
 
-    // ── Persistence ─────────────────────────────────────────────────────
-    // How items in this slot behave (PERSISTENT, TRANSIENT, or OUTPUT).
-    // null = no persistence set (vanilla default behavior).
-    private @Nullable Persistence persistence;
-
-    // ── Visual Decorations ────────────────────────────────────────────────
-    // ARGB color applied as a translucent fill BEHIND the item.
-    // 0 = no tint. Use alpha channel to control transparency (e.g., 0x40FF0000
-    // for a semi-transparent red tint).
-    private int backgroundTint = 0;
-
-    // Icon texture rendered ON TOP of the slot item (e.g., a lock icon,
-    // a status indicator). null = no overlay.
-    private @Nullable Identifier overlayIcon = null;
-
-    // ARGB color drawn as a 1px border around the 16×16 slot area, ON TOP
-    // of the item. 0 = no border. Fully opaque recommended (0xFFRRGGBB).
-    private int borderColor = 0;
-
     // ── Wrapped Slot ──────────────────────────────────────────────────────
-    // Reference to the original vanilla slot being wrapped by MKSlotWrapper.
-    // null for non-wrapper slots (MKSlot, vanilla slots with state attached).
     private @Nullable Slot wrappedSlot;
 
     // ── MenuKit-managed flag ─────────────────────────────────────────────
-    // True for slots created by MenuKit (custom panel slots).
-    // False for vanilla slots that just have state attached for features.
     private boolean menuKitSlot;
 
     // ── Functional Interface ─────────────────────────────────────────────
@@ -129,10 +84,20 @@ public class MKSlotState {
         boolean handle(Slot slot, ItemStack stack);
     }
 
-    // ── Region & Panel ───────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+    // Delegating getters/setters — same signatures as before, but now
+    // read/write from the composed backend/frontend state objects.
+    // ══════════════════════════════════════════════════════════════════════
 
-    public @Nullable String getRegionName() { return regionName; }
-    public void setRegionName(@Nullable String name) { this.regionName = name; }
+    // ── Region (→ backend) ──────────────────────────────────────────────
+
+    public @Nullable String getRegionName() { return backend.getRegionName(); }
+    public void setRegionName(@Nullable String name) { backend.setRegionName(name); }
+
+    public int getRegionIndex() { return backend.getRegionIndex(); }
+    public void setRegionIndex(int index) { backend.setRegionIndex(index); }
+
+    // ── Panel & Element (structural — stays on MKSlotState) ─────────────
 
     public @Nullable String getPanelName() { return panelName; }
     public void setPanelName(@Nullable String name) { this.panelName = name; }
@@ -140,117 +105,112 @@ public class MKSlotState {
     public @Nullable String getElementId() { return elementId; }
     public void setElementId(@Nullable String id) { this.elementId = id; }
 
-    public int getRegionIndex() { return regionIndex; }
-    public void setRegionIndex(int index) { this.regionIndex = index; }
+    // ── Lock (→ frontend — visual Ctrl+click lock) ──────────────────────
 
-    // ── Lock ─────────────────────────────────────────────────────────────
+    public boolean isLocked() { return frontend.isLocked(); }
+    public void setLocked(boolean locked) { frontend.setLocked(locked); }
+    public void toggleLocked() { frontend.toggleLocked(); }
 
-    public boolean isLocked() { return locked; }
-    public void setLocked(boolean locked) { this.locked = locked; }
-    public void toggleLocked() { this.locked = !this.locked; }
+    // ── Sort Lock (→ backend — affects sorting and shift-click routing) ──
 
-    // ── Sort Lock ────────────────────────────────────────────────────────
-    // Sort-locked slots are skipped by sorting and by shift-click-in
-    // routing, but remain fully interactive for direct clicks.
+    public boolean isSortLocked() { return backend.isSortLocked(); }
+    public void setSortLocked(boolean sortLocked) { backend.setSortLocked(sortLocked); }
+    public void toggleSortLocked() { backend.toggleSortLocked(); }
 
-    public boolean isSortLocked() { return sortLocked; }
-    public void setSortLocked(boolean sortLocked) { this.sortLocked = sortLocked; }
-    public void toggleSortLocked() { this.sortLocked = !this.sortLocked; }
+    // ── Filter (→ backend — item validation) ────────────────────────────
 
-    // ── Filter ───────────────────────────────────────────────────────────
-
-    public @Nullable Predicate<ItemStack> getFilter() { return filter; }
-    public void setFilter(@Nullable Predicate<ItemStack> filter) { this.filter = filter; }
+    public @Nullable Predicate<ItemStack> getFilter() { return backend.getFilter(); }
+    public void setFilter(@Nullable Predicate<ItemStack> filter) { backend.setFilter(filter); }
 
     /** Tests whether the given item passes the filter (true = allowed). */
     public boolean passesFilter(ItemStack stack) {
-        return filter == null || filter.test(stack);
+        return backend.passesFilter(stack);
     }
 
-    // ── Ghost Icon ───────────────────────────────────────────────────────
+    // ── Ghost Icon (→ frontend — visual) ────────────────────────────────
 
-    public @Nullable Identifier getGhostIcon() { return ghostIcon; }
-    public void setGhostIcon(@Nullable Identifier icon) { this.ghostIcon = icon; }
+    public @Nullable Identifier getGhostIcon() { return frontend.getGhostIcon(); }
+    public void setGhostIcon(@Nullable Identifier icon) { frontend.setGhostIcon(icon); }
 
-    // ── Disabled ─────────────────────────────────────────────────────────
+    // ── Disabled (→ frontend — visual hiding) ───────────────────────────
 
-    public @Nullable BooleanSupplier getDisabledWhen() { return disabledWhen; }
-    public void setDisabledWhen(@Nullable BooleanSupplier predicate) { this.disabledWhen = predicate; }
+    public @Nullable BooleanSupplier getDisabledWhen() { return frontend.getDisabledWhen(); }
+    public void setDisabledWhen(@Nullable BooleanSupplier predicate) { frontend.setDisabledWhen(predicate); }
 
     /** Whether this slot is currently disabled. */
     public boolean isDisabled() {
-        return disabledWhen != null && disabledWhen.getAsBoolean();
+        return frontend.isDisabled();
     }
 
     /** Whether this slot is currently active (not disabled). */
     public boolean isActive() {
-        return !isDisabled();
+        return frontend.isActive();
     }
 
-    // ── Shift-Click ──────────────────────────────────────────────────────
+    // ── Shift-Click (→ backend — transfer policy) ───────────────────────
 
-    public boolean canShiftClickIn() { return shiftClickIn; }
-    public void setShiftClickIn(boolean value) { this.shiftClickIn = value; }
+    public boolean canShiftClickIn() { return backend.canShiftClickIn(); }
+    public void setShiftClickIn(boolean value) { backend.setShiftClickIn(value); }
 
-    public boolean canShiftClickOut() { return shiftClickOut; }
-    public void setShiftClickOut(boolean value) { this.shiftClickOut = value; }
+    public boolean canShiftClickOut() { return backend.canShiftClickOut(); }
+    public void setShiftClickOut(boolean value) { backend.setShiftClickOut(value); }
 
-    // ── Max Stack Size ──────────────────────────────────────────────────
+    // ── Max Stack Size (→ backend — item rules) ─────────────────────────
 
     /** Returns per-slot max stack override, or 0 if using vanilla default. */
-    public int getMaxStackSize() { return maxStackSize; }
-    public void setMaxStackSize(int max) { this.maxStackSize = max; }
+    public int getMaxStackSize() { return backend.getMaxStackSize(); }
+    public void setMaxStackSize(int max) { backend.setMaxStackSize(max); }
 
     /** Returns the effective max stack size — per-slot override or the given default. */
     public int getEffectiveMaxStackSize(int vanillaDefault) {
-        return maxStackSize > 0 ? maxStackSize : vanillaDefault;
+        return backend.getEffectiveMaxStackSize(vanillaDefault);
     }
 
-    // ── Slot Index in Panel ─────────────────────────────────────────────
+    // ── Slot Index in Panel (structural) ────────────────────────────────
 
     public int getSlotIndexInPanel() { return slotIndexInPanel; }
     public void setSlotIndexInPanel(int index) { this.slotIndexInPanel = index; }
 
-    // ── Empty Slot Click ─────────────────────────────────────────────────
+    // ── Empty Slot Click (structural — interaction callback) ────────────
 
     public @Nullable Consumer<Slot> getOnEmptyClick() { return onEmptyClick; }
     public void setOnEmptyClick(@Nullable Consumer<Slot> callback) { this.onEmptyClick = callback; }
 
-    // ── Empty Slot Tooltip ───────────────────────────────────────────────
+    // ── Empty Slot Tooltip (structural) ─────────────────────────────────
 
     public @Nullable Supplier<Component> getEmptyTooltip() { return emptyTooltip; }
     public void setEmptyTooltip(@Nullable Supplier<Component> tooltip) { this.emptyTooltip = tooltip; }
 
-    // ── Persistence ─────────────────────────────────────────────────────
+    // ── Persistence (→ backend) ─────────────────────────────────────────
 
     /** Returns the persistence mode, or null if not set. */
-    public @Nullable Persistence getPersistence() { return persistence; }
-    public void setPersistence(@Nullable Persistence persistence) { this.persistence = persistence; }
+    public @Nullable Persistence getPersistence() { return backend.getPersistence(); }
+    public void setPersistence(@Nullable Persistence persistence) { backend.setPersistence(persistence); }
 
     /** Convenience: true if this slot's persistence is OUTPUT (take-only). */
     public boolean isPersistenceOutput() {
-        return persistence == Persistence.OUTPUT;
+        return backend.isPersistenceOutput();
     }
 
-    // ── Visual Decorations ─────────────────────────────────────────────────
+    // ── Visual Decorations (→ frontend) ─────────────────────────────────
 
     /** Returns the ARGB background tint color, or 0 if no tint. */
-    public int getBackgroundTint() { return backgroundTint; }
+    public int getBackgroundTint() { return frontend.getBackgroundTint(); }
 
     /** Sets the ARGB background tint. 0 clears the tint. Rendered BEHIND the item. */
-    public void setBackgroundTint(int argb) { this.backgroundTint = argb; }
+    public void setBackgroundTint(int argb) { frontend.setBackgroundTint(argb); }
 
     /** Returns the overlay icon rendered ON TOP of the slot item, or null. */
-    public @Nullable Identifier getOverlayIcon() { return overlayIcon; }
+    public @Nullable Identifier getOverlayIcon() { return frontend.getOverlayIcon(); }
 
     /** Sets an overlay icon drawn ON TOP of the slot item. null clears it. */
-    public void setOverlayIcon(@Nullable Identifier icon) { this.overlayIcon = icon; }
+    public void setOverlayIcon(@Nullable Identifier icon) { frontend.setOverlayIcon(icon); }
 
     /** Returns the ARGB border color, or 0 if no border. */
-    public int getBorderColor() { return borderColor; }
+    public int getBorderColor() { return frontend.getBorderColor(); }
 
     /** Sets the ARGB border color. 0 clears the border. Rendered ON TOP of the item. */
-    public void setBorderColor(int argb) { this.borderColor = argb; }
+    public void setBorderColor(int argb) { frontend.setBorderColor(argb); }
 
     /**
      * Returns true if this slot has any visual decoration set (tint, overlay, or border).
@@ -258,16 +218,16 @@ public class MKSlotState {
      * decoration logic for zero overhead.
      */
     public boolean hasDecoration() {
-        return backgroundTint != 0 || overlayIcon != null || borderColor != 0;
+        return frontend.hasDecoration();
     }
 
-    // ── Wrapped Slot ──────────────────────────────────────────────────────
+    // ── Wrapped Slot (structural) ───────────────────────────────────────
 
     /** Returns the original vanilla slot being wrapped, or null if not a wrapper. */
     public @Nullable Slot getWrappedSlot() { return wrappedSlot; }
     public void setWrappedSlot(@Nullable Slot slot) { this.wrappedSlot = slot; }
 
-    // ── MenuKit-managed ──────────────────────────────────────────────────
+    // ── MenuKit-managed (structural) ────────────────────────────────────
 
     /** Whether this slot was created by MenuKit (vs a vanilla slot with state attached). */
     public boolean isMenuKitSlot() { return menuKitSlot; }
@@ -283,7 +243,6 @@ public class MKSlotState {
         if (isDisabled()) return false;
         if (panelName != null) {
             if (MenuKit.isPanelInactive(panelName)) return false;
-            // Check element-level visibility override via setElementVisible
             if (elementId != null) {
                 MKPanelState state = MKPanelStateRegistry.get(panelName);
                 if (state != null) {
@@ -295,7 +254,7 @@ public class MKSlotState {
         return true;
     }
 
-    // ── Right-Click ──────────────────────────────────────────────────────
+    // ── Right-Click (structural — interaction callbacks) ────────────────
 
     public void addRightClickHandler(SlotRightClickHandler handler) {
         if (rightClickHandlers == null) rightClickHandlers = new ArrayList<>(2);
