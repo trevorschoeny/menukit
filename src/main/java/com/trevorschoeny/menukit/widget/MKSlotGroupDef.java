@@ -46,7 +46,8 @@ public record MKSlotGroupDef(
         @Nullable Predicate<ItemStack> shiftInFilter, // conditional shift-in acceptance
         @Nullable Predicate<ItemStack> slotFilter,    // item filter applied to all slots
         int maxStack,                   // per-slot max stack override (0 = vanilla default)
-        BreakBehavior breakBehavior     // what happens when the block is broken
+        BreakBehavior breakBehavior,    // what happens when the block is broken
+        boolean autoPickup              // does auto-pickup routing fill this container? (player-bound only)
 ) {
 
     /** What happens to items when the containing block is broken.

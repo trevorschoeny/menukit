@@ -58,6 +58,7 @@ public class MKSlotGroupBuilder {
     private @Nullable Predicate<ItemStack> slotFilter;
     private int maxStack = 0;  // 0 = vanilla default
     private MKSlotGroupDef.BreakBehavior breakBehavior = MKSlotGroupDef.BreakBehavior.DROPS_ON_BREAK;
+    private boolean autoPickup = true;  // default: on — player-bound containers receive pickup routing
 
     public MKSlotGroupBuilder(String name) {
         this.name = name;
@@ -175,6 +176,37 @@ public class MKSlotGroupBuilder {
         return this;
     }
 
+    // ── Auto-Pickup Routing (player-bound only) ─────────────────────────
+
+    // @cairn 010 auto-pickup-flag
+    // @reason Default-on boolean flag for "is this container part of the player's
+    //         inventory w.r.t. vanilla item pickup flow?" Parallels the existing
+    //         shiftClickIn/shiftClickOut paradigm rather than extending MKContainerType
+    //         (which classifies UI feature eligibility, not data-flow rules).
+    // @anti-pattern Do NOT add hardcoded container-name checks in gameplay mixins.
+    //         Iterate MKInventory.getAutoPickupContainers(player) instead.
+    // @see .cairn/decisions/010-auto-pickup-flag.md
+
+    /**
+     * Excludes this container from automatic item-pickup routing. Items the
+     * player picks up from the world will not flow into this container, even
+     * though it's player-bound. Use this for specialized-slot containers like
+     * equipment slots or ender-chest-style storage where auto-routing would
+     * be semantically wrong.
+     *
+     * <p>By default, player-bound containers are auto-pickup participants —
+     * "any container attached to the player NBT is part of the inventory
+     * unless it says otherwise." Call this method to opt a container out.
+     *
+     * <p>Has no effect on {@code instanceBound()} or {@code ephemeral()}
+     * containers — only player-bound containers are candidates for
+     * auto-pickup routing in the first place.
+     */
+    public MKSlotGroupBuilder excludeFromAutoPickup() {
+        this.autoPickup = false;
+        return this;
+    }
+
     // ── Terminal ─────────────────────────────────────────────────────────
 
     /**
@@ -192,7 +224,7 @@ public class MKSlotGroupBuilder {
         MKSlotGroupDef def = new MKSlotGroupDef(
                 name, size, binding, persistence, containerType,
                 shiftClickIn, shiftClickOut, shiftInFilter,
-                slotFilter, maxStack, breakBehavior
+                slotFilter, maxStack, breakBehavior, autoPickup
         );
 
         // Delegate to MenuKit for registration — this creates the

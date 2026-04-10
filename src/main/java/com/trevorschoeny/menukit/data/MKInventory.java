@@ -8,6 +8,7 @@ import com.trevorschoeny.menukit.container.MKContainerDef;
 import com.trevorschoeny.menukit.container.MKContainerType;
 import com.trevorschoeny.menukit.region.MKContainerMapping;
 import com.trevorschoeny.menukit.region.MKRegion;
+import com.trevorschoeny.menukit.widget.MKSlotGroupDef;
 
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Inventory;
@@ -20,22 +21,40 @@ import org.jspecify.annotations.Nullable;
 import java.util.*;
 
 /**
- * Unified slot translation layer over ALL vanilla containers.
+ * Unified slot translation layer for vanilla containers in an open menu,
+ * plus off-menu iteration helpers for the player's full storage.
  *
- * <p>Every slot in every vanilla menu maps to a named MK container and a
- * position within that container. This class provides the translation in
- * both directions, and gives mod authors a consistent API to access items
- * regardless of which screen is open.
+ * <p>This class serves two related but distinct responsibilities:
  *
- * <p><b>Unified inventory positions</b> for the player's own inventory
- * are always consistent:
+ * <ol>
+ *   <li><b>Menu slot translation (menu-scoped).</b> Every slot in every
+ *       vanilla menu maps to a named MK container and a position within
+ *       that container. See {@link #fromMenuSlot}, {@link #toMenuSlot},
+ *       {@link #toUnifiedPlayerPos}, and related methods. These require
+ *       an open menu.</li>
+ *
+ *   <li><b>Player storage iteration (off-menu).</b> Enumerate the
+ *       player's complete storage — vanilla inventory plus all
+ *       player-bound MK containers like pockets and equipment — without
+ *       needing a menu. See {@link #getAllPlayerContainers},
+ *       {@link #getAutoPickupContainers}, {@link #forEachPlayerSlot}.
+ *       Use these when a mixin or feature needs to scan the player's
+ *       full storage regardless of screen state.</li>
+ * </ol>
+ *
+ * <p><b>Unified inventory positions</b> for the player's own vanilla
+ * inventory are always consistent:
  * <ul>
  *   <li>Hotbar: 0–8</li>
  *   <li>Main inventory: 9–35</li>
  *   <li>Armor: 36–39 (boots=36, leggings=37, chestplate=38, helmet=39)</li>
  *   <li>Offhand: 40</li>
  * </ul>
- * These never change, regardless of which menu is open.
+ * These never change, regardless of which menu is open. This integer
+ * space is intentionally vanilla-only — it doubles as a wire protocol
+ * for features like Container Peek, so MK-registered player-bound
+ * containers are NOT assigned positions in it. For MK containers, use
+ * the off-menu iteration API (section 2) instead.
  *
  * <p>Part of the <b>MenuKit</b> framework.
  */
@@ -415,5 +434,182 @@ public class MKInventory {
                 default -> -1;
             };
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ── Player Storage Iteration (off-menu) ────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // The methods below operate on a Player directly — they work regardless
+    // of whether a menu is open. Use these when a mixin or feature needs to
+    // scan the player's full storage (vanilla inventory + all player-bound
+    // MK containers like pockets and equipment) without caring about menu
+    // state.
+    //
+    // Contrast with the menu-scoped API above, which requires an open menu
+    // and operates on raw slot indices.
+    //
+    // @cairn 010 auto-pickup-flag
+    // @reason Gameplay mixins (auto-route, mending, etc.) need to iterate the
+    //         player's full storage — vanilla inventory plus all player-bound
+    //         MK containers — without hardcoding container names. This section
+    //         provides the off-menu iterator and the autoPickup-flag filter.
+    // @see .cairn/decisions/010-auto-pickup-flag.md
+
+    /** Ordered list of vanilla player container names, in unified position order. */
+    private static final String[] VANILLA_PLAYER_CONTAINERS = {
+            "mk:hotbar", "mk:main_inventory", "mk:armor", "mk:offhand"
+    };
+
+    /**
+     * Returns all of a player's storage containers in priority order:
+     * vanilla hotbar, main inventory, armor, offhand, then all player-bound
+     * MK containers in registration order.
+     *
+     * <p>Works off-menu — no menu needs to be open. The returned containers
+     * are live; writes go directly to the backing storage.
+     *
+     * <p>Vanilla containers are always included. MK containers are included
+     * regardless of their {@code excludeFromAutoPickup} flag — use
+     * {@link #getAutoPickupContainers} if you want only pickup-eligible
+     * containers.
+     *
+     * @param player the player whose storage to enumerate
+     * @return ordered list of containers (never null; never contains null)
+     */
+    public static List<MKContainer> getAllPlayerContainers(Player player) {
+        return collectPlayerContainers(player, false);
+    }
+
+    /**
+     * Subset of {@link #getAllPlayerContainers} eligible for automatic
+     * item-pickup routing. Vanilla containers are always included;
+     * player-bound MK containers are included unless their slot group
+     * was built with
+     * {@link com.trevorschoeny.menukit.widget.MKSlotGroupBuilder#excludeFromAutoPickup()}.
+     *
+     * @param player the player whose storage to enumerate
+     * @return ordered list of pickup-eligible containers
+     */
+    public static List<MKContainer> getAutoPickupContainers(Player player) {
+        return collectPlayerContainers(player, true);
+    }
+
+    /**
+     * Iterates every slot in the player's storage in priority order:
+     * vanilla (hotbar → main → armor → offhand) followed by player-bound
+     * MK containers in registration order.
+     *
+     * <p>Empty slots are visited too — callers that only care about
+     * non-empty stacks should check {@code stack.isEmpty()} inside the
+     * visitor.
+     *
+     * <p>Iterates over ALL player containers (not just pickup-eligible).
+     * Features like mending that care about every item should use this;
+     * features like auto-routing should iterate
+     * {@link #getAutoPickupContainers} directly.
+     *
+     * @param player  the player whose storage to iterate
+     * @param visitor called for each slot; return false to stop early
+     */
+    public static void forEachPlayerSlot(Player player, PlayerSlotVisitor visitor) {
+        // Vanilla containers in unified position order
+        for (String name : VANILLA_PLAYER_CONTAINERS) {
+            MKContainer c = createPlayerWrapper(player, name);
+            if (c == null) continue;
+            for (int i = 0; i < c.getContainerSize(); i++) {
+                PlayerSlotLocation loc = new PlayerSlotLocation(c, name, i);
+                if (!visitor.visit(loc, c.getItem(i))) return;
+            }
+        }
+
+        // Player-bound MK containers in registration order
+        boolean isServer = !player.level().isClientSide();
+        UUID playerId = player.getUUID();
+        for (MKSlotGroupDef def : MenuKit.getSlotGroupDefs()) {
+            if (def.binding() != MKContainerDef.BindingType.PLAYER) continue;
+            MKContainer c = MenuKit.getContainerForPlayer(def.name(), playerId, isServer);
+            if (c == null) continue;
+            for (int i = 0; i < c.getContainerSize(); i++) {
+                PlayerSlotLocation loc = new PlayerSlotLocation(c, def.name(), i);
+                if (!visitor.visit(loc, c.getItem(i))) return;
+            }
+        }
+    }
+
+    /**
+     * Shared implementation for {@link #getAllPlayerContainers} and
+     * {@link #getAutoPickupContainers}. Builds the ordered list once
+     * based on the filter flag.
+     */
+    private static List<MKContainer> collectPlayerContainers(Player player, boolean autoPickupOnly) {
+        List<MKContainer> result = new ArrayList<>();
+
+        // 1. Vanilla player containers — always included
+        for (String name : VANILLA_PLAYER_CONTAINERS) {
+            MKContainer c = createPlayerWrapper(player, name);
+            if (c != null) result.add(c);
+        }
+
+        // 2. Player-bound MK containers in registration order (LinkedHashMap).
+        // We iterate slot group defs rather than the runtime player-containers
+        // map so the order is deterministic regardless of which containers
+        // have been lazily created for this player yet.
+        boolean isServer = !player.level().isClientSide();
+        UUID playerId = player.getUUID();
+        for (MKSlotGroupDef def : MenuKit.getSlotGroupDefs()) {
+            if (def.binding() != MKContainerDef.BindingType.PLAYER) continue;
+            if (autoPickupOnly && !def.autoPickup()) continue;
+            MKContainer c = MenuKit.getContainerForPlayer(def.name(), playerId, isServer);
+            if (c != null) result.add(c);
+        }
+
+        return result;
+    }
+
+    /**
+     * A located slot in player storage. Writes via {@link #setItem} go
+     * directly to the backing container — they bypass menu slot listeners,
+     * so prefer them for off-menu operations like auto-routing or mending.
+     *
+     * @param container     the container holding the slot
+     * @param containerName the MK container name (e.g., "mk:hotbar", "pocket_0")
+     * @param localPos      0-based position within the container
+     */
+    public record PlayerSlotLocation(
+            MKContainer container,
+            String containerName,
+            int localPos
+    ) {
+        /** Returns the item currently in this slot. */
+        public ItemStack getItem() {
+            return container.getItem(localPos);
+        }
+
+        /** Writes an item to this slot. Fires the container's setChanged hook. */
+        public void setItem(ItemStack stack) {
+            container.setItem(localPos, stack);
+        }
+
+        /** Whether this slot is in the player's vanilla inventory (hotbar/main/armor/offhand). */
+        public boolean isVanilla() {
+            return containerName.equals("mk:hotbar")
+                    || containerName.equals("mk:main_inventory")
+                    || containerName.equals("mk:armor")
+                    || containerName.equals("mk:offhand");
+        }
+    }
+
+    /** Visitor for {@link #forEachPlayerSlot}. Return false to stop iteration. */
+    @FunctionalInterface
+    public interface PlayerSlotVisitor {
+        /**
+         * Called once per slot during iteration.
+         *
+         * @param location where this slot lives (container + local position)
+         * @param stack    the current item in this slot (possibly empty)
+         * @return true to continue iteration, false to stop
+         */
+        boolean visit(PlayerSlotLocation location, ItemStack stack);
     }
 }
