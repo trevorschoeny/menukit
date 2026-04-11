@@ -24,11 +24,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * already handles right-clicks in creative mode (both slotClicked and the
  * mouseClicked fallback for hotbar slots).
  *
- * <p><b>SlotWrapper unwrapping:</b> Creative mode wraps all slots in
- * SlotWrapper objects. Before state lookup, we unwrap via
- * {@link SlotWrapperAccessor} to get the real slot. The event is built with
- * the unwrapped slot so bus listeners see the actual MKSlot/vanilla slot,
- * not the creative wrapper.
+ * <p>SlotWrapper unwrapping is handled centrally by {@link MKEventHelper} —
+ * this mixin passes the raw hovered slot through and the helper unwraps at
+ * event-construction time to enforce the slot-identity invariant.
  *
  * <p>Part of the <b>MenuKit</b> framework (mixin layer).
  */
@@ -45,20 +43,13 @@ public class MKCreativeClickBusMixin {
         Player player = Minecraft.getInstance().player;
         if (player == null) return;
 
-        // ── Unwrap SlotWrapper for creative mode ────────────────────────
-        // Creative mode wraps all slots in SlotWrapper. We need the real
-        // slot underneath for MKSlotState lookup and region resolution.
-        // The event is built with the unwrapped slot.
-        Slot realSlot = slot;
-        if (slot instanceof SlotWrapperAccessor wrapper) {
-            realSlot = wrapper.menuKit$getTarget();
-        }
-
         // ── Cast self to AbstractContainerScreen ────────────────────────
         AbstractContainerScreen<?> screen = (AbstractContainerScreen<?>) (Object) this;
 
         // ── Map, build, fire ────────────────────────────────────────────
-        if (MKEventHelper.fireClickEvent(clickType, realSlot, button, screen, player)) {
+        // MKEventHelper unwraps the creative SlotWrapper at event construction,
+        // so bus listeners always see the real underlying slot.
+        if (MKEventHelper.fireClickEvent(clickType, slot, button, screen, player)) {
             ci.cancel();
         }
     }

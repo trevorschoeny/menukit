@@ -33,9 +33,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * double-firing — this mixin is the sole owner of right-click bus dispatch
  * for creative screens.
  *
- * <p><b>SlotWrapper unwrapping:</b> Creative mode wraps slots in SlotWrapper.
- * We unwrap via {@link SlotWrapperAccessor} before state lookup so the bus
- * event carries the real slot, not the wrapper.
+ * <p><b>SlotWrapper unwrapping:</b> The event-bus path (Phase 2) is covered
+ * centrally by {@link com.trevorschoeny.menukit.event.MKEventHelper}, which
+ * unwraps at event construction. This mixin still unwraps locally for the
+ * legacy per-slot right-click handler path (Phase 1), because
+ * {@code MKSlotStateRegistry.get} is keyed on the real underlying slot —
+ * passing the wrapper would return null and silently skip registered
+ * legacy handlers in creative.
  *
  * <p>Part of the <b>MenuKit</b> framework (mixin layer).
  */

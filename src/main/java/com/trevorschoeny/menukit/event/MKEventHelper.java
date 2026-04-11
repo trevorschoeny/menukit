@@ -161,30 +161,31 @@ public final class MKEventHelper {
 
     // ── Region Resolution ────────────────────────────────────────────────
     //
-    // Shared logic for resolving which MKRegion owns a slot. Handles three
-    // creative-mode complications:
-    //   1. SlotWrapper: wraps an inventoryMenu slot but lives in ItemPickerMenu.
-    //      Unwrap to get the original slot's inventoryMenu index.
-    //   2. MKSlot on ItemPickerMenu: has a different index than on inventoryMenu.
-    //      Fall back to region name from MKSlotState for lookup by name.
-    //   3. Regular slots on ItemPickerMenu: index differs from inventoryMenu.
-    //      Fall back to inventoryMenu by index (works when indices happen to match).
+    // Shared logic for resolving which MKRegion owns a slot. By the time this
+    // runs, the slot has already been unwrapped by the build*Event caller
+    // (see the slot-identity invariant), so it's always a real underlying
+    // slot — no SlotWrapper handling is needed here.
+    //
+    // In creative mode the screen's menu is ItemPickerMenu but unwrapped
+    // vanilla slots live in player.inventoryMenu. The "try screen menu,
+    // fall back to inventoryMenu" ladder naturally handles both survival
+    // (screen menu hits) and creative (inventoryMenu fallback hits) without
+    // needing to branch on context.
 
     /**
-     * Resolves the {@link MKRegion} that owns a slot across all screen types,
-     * including creative mode where the client menu differs from the server menu.
+     * Resolves the {@link MKRegion} that owns a slot.
      *
      * <p>Resolution order:
      * <ol>
-     *   <li>If the slot is a creative {@code SlotWrapper}, unwrap and look up
-     *       the target slot's index in {@code player.inventoryMenu}</li>
      *   <li>Try the screen's active menu by slot index</li>
-     *   <li>Fall back to {@code player.inventoryMenu} by slot index</li>
+     *   <li>Fall back to {@code player.inventoryMenu} by slot index (required
+     *       for creative, where the screen menu is ItemPickerMenu but the
+     *       slot lives in inventoryMenu)</li>
      *   <li>Fall back to region name from {@link MKSlotState} (handles MKSlots
-     *       on creative ItemPickerMenu where the index differs)</li>
+     *       on creative ItemPickerMenu, which are unregistered in inventoryMenu)</li>
      * </ol>
      *
-     * @param slot   the slot to resolve (never null — caller checks)
+     * @param slot   the slot to resolve (already unwrapped; never null — caller checks)
      * @param menu   the screen's active menu
      * @param player the player (for inventoryMenu fallback)
      * @param state  the slot's MenuKit state, or null for vanilla-only slots
@@ -194,13 +195,7 @@ public final class MKEventHelper {
                                                           AbstractContainerMenu menu,
                                                           Player player,
                                                           @Nullable MKSlotState state) {
-        // Creative SlotWrapper — use the underlying inventoryMenu slot's index
-        if (slot instanceof com.trevorschoeny.menukit.mixin.SlotWrapperAccessor wrapper) {
-            Slot target = wrapper.menuKit$getTarget();
-            return MKRegionRegistry.getRegionForSlot(player.inventoryMenu, target.index);
-        }
-
-        // Normal slot — try screen menu first, fall back to inventoryMenu
+        // Try screen menu first, fall back to inventoryMenu
         MKRegion region = MKRegionRegistry.getRegionForSlot(menu, slot.index);
         if (region == null) {
             region = MKRegionRegistry.getRegionForSlot(player.inventoryMenu, slot.index);

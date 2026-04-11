@@ -29,9 +29,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * fires for creative screens too. If consumed, super returns true and the
  * creative override short-circuits without scrolling the item grid.
  *
- * <p><b>SlotWrapper unwrapping:</b> In creative mode, hoveredSlot may be
- * a SlotWrapper. We unwrap via {@link SlotWrapperAccessor} before building
- * the event so bus listeners see the real slot, not the creative wrapper.
+ * <p>SlotWrapper unwrapping is handled centrally by {@link MKEventHelper} —
+ * this mixin passes the raw hovered slot through and the helper unwraps at
+ * event-construction time to enforce the slot-identity invariant.
  *
  * <p><b>Use cases:</b>
  * <ul>
@@ -100,21 +100,13 @@ public class MKScrollMixin {
         Player player = Minecraft.getInstance().player;
         if (player == null) return;
 
-        // ── Unwrap SlotWrapper for creative mode ─────────────────────────
-        // In creative mode, hoveredSlot is a SlotWrapper around the real slot.
-        // We unwrap it so bus listeners get the actual MKSlot/vanilla slot,
-        // not the creative wrapper. For non-creative screens this is a no-op.
-        Slot realSlot = this.hoveredSlot;
-        if (realSlot instanceof SlotWrapperAccessor wrapper) {
-            realSlot = wrapper.menuKit$getTarget();
-        }
-
         // ── Build and fire the event ─────────────────────────────────────
         // scrollY is the vertical wheel delta. Positive = up, negative = down.
         // Typical mice produce +1.0 or -1.0 per notch; touchpads may give
-        // fractional values for smooth scrolling.
+        // fractional values for smooth scrolling. MKEventHelper unwraps the
+        // creative SlotWrapper at event construction.
         MKSlotEvent event = MKEventHelper.buildScrollEvent(
-                realSlot, scrollY, self, player);
+                this.hoveredSlot, scrollY, self, player);
         if (event == null) return;
 
         // ── Dispatch through the bus ─────────────────────────────────────
