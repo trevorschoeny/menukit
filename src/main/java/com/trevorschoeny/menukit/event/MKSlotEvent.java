@@ -332,16 +332,19 @@ public final class MKSlotEvent implements MKEvent {
      * {@code slot.index} (the slot's position in the menu's {@code slots} list)
      * is valid on both sides.
      *
-     * <p>In <b>creative item tabs</b>, however, the client uses
-     * {@code ItemPickerMenu} (item picker grid + hotbar) while the server uses
-     * {@code InventoryMenu}. Their {@code slots} lists have completely different
-     * layouts, so a raw {@code slot.index} from the client would point to the
-     * wrong slot on the server — or be out of bounds entirely.
+     * <p><b>In creative mode</b>, however, the client <i>always</i> uses
+     * {@code CreativeModeInventoryScreen.ItemPickerMenu} — for every tab,
+     * including the "Inventory" tab — while the server uses {@code InventoryMenu}.
+     * The two menus have completely different {@code slots} layouts, so a raw
+     * {@code slot.index} from the client would point to the wrong slot on the
+     * server or be out of bounds. This is true whether the hovered slot is a
+     * vanilla {@code SlotWrapper}, an MK panel slot, or an item-picker grid slot.
      *
-     * <p>This method handles the translation: for creative tabs, it finds the
-     * equivalent slot in the player's {@code inventoryMenu} (which matches the
-     * server's layout) by matching on the backing container and container-local
-     * slot index. For all other contexts, it returns {@code slot.index} directly.
+     * <p>For any creative context, this method finds the equivalent slot in
+     * {@code player.inventoryMenu} by matching on the backing container and
+     * container-local slot index. Slots with no server equivalent (item-picker
+     * grid, destroy slot) return {@code -1}. For all non-creative contexts,
+     * {@code slot.index} is already server-safe and is returned directly.
      *
      * <p><b>Use this whenever sending a slot index in a C2S packet.</b> Using
      * {@code event.getSlot().index} directly is only safe when you know the
@@ -353,13 +356,15 @@ public final class MKSlotEvent implements MKEvent {
     public int getMenuSlotIndex() {
         if (slot == null) return -1;
 
-        // Non-creative-tabs contexts: same menu on both sides
-        if (context != MKContext.CREATIVE_TABS) return slot.index;
+        // Non-creative contexts: client and server share the same menu,
+        // so slot.index is already correct. Fast path.
+        if (context == null || !context.isCreative()) return slot.index;
 
-        // Creative item tabs: ItemPickerMenu ≠ InventoryMenu.
-        // Find the slot in inventoryMenu that backs the same container position.
-        // This handles ALL slot types (hotbar, main, armor, offhand, MKSlots)
-        // without hardcoding the InventoryMenu layout.
+        // Creative mode: ItemPickerMenu on the client, InventoryMenu on the
+        // server. Find the equivalent slot in player.inventoryMenu by matching
+        // on the backing container and container-local slot index. This
+        // handles ALL slot types (vanilla-wrapped slots, MKSlots on the
+        // creative menu, hotbar in item tabs) without hardcoding any layout.
         if (player != null) {
             for (Slot menuSlot : player.inventoryMenu.slots) {
                 if (menuSlot.container == slot.container
@@ -369,7 +374,8 @@ public final class MKSlotEvent implements MKEvent {
             }
         }
 
-        // Slot has no equivalent in InventoryMenu (e.g., creative item picker)
+        // Slot has no equivalent in InventoryMenu (e.g., creative item picker
+        // grid, destroy slot). Return -1 so callers can early-out.
         return -1;
     }
 }
