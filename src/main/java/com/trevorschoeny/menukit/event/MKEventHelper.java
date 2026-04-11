@@ -26,12 +26,66 @@ import org.jspecify.annotations.Nullable;
  * firing an event through the {@link MKEventBus}. This helper centralizes
  * that resolution logic so each mixin is just a thin dispatch layer.
  *
+ * <h3>MenuKit invariants for events in the bus</h3>
+ *
+ * This helper is the single point where these invariants are established:
+ *
+ * <ol>
+ *   <li><b>Slot identity.</b> Every {@link MKSlotEvent} in the bus carries
+ *       the <i>real</i> underlying slot — never a creative-mode
+ *       {@code CreativeModeInventoryScreen.SlotWrapper} proxy. Every public
+ *       {@code build*Event} method calls {@link #unwrapSlotWrapper} at the
+ *       top, so downstream handlers and mixins never need to know that
+ *       wrappers exist. State lookups, region resolution, and identity
+ *       comparisons all work uniformly across survival and creative.
+ *
+ *   <li><b>Server-safe slot index.</b> The {@link MKSlotEvent#getMenuSlotIndex()}
+ *       method returns a slot index that is valid on the server's
+ *       {@code containerMenu}, handling the client-side {@code ItemPickerMenu}
+ *       divergence in creative mode. This is the only index that should be
+ *       put into a C2S packet; {@code event.getSlot().index} is only
+ *       guaranteed correct for non-creative contexts.
+ * </ol>
+ *
+ * <p>Dispatch mixins must build their events through this helper — bypassing
+ * it and constructing an {@code MKSlotEvent} manually will break these
+ * invariants and silently break the creative-mode code paths.
+ *
  * <p>Part of the <b>MenuKit</b> event system (internal).
  */
 public final class MKEventHelper {
 
     // No instances — all static methods
     private MKEventHelper() {}
+
+    // ── SlotWrapper Unwrapping (creative mode) ───────────────────────────────
+    //
+    // In creative mode, CreativeModeInventoryScreen always uses its own
+    // ItemPickerMenu with CreativeModeInventoryScreen.SlotWrapper instances
+    // proxying the real player.inventoryMenu slots. Every public build*Event
+    // method in this helper unwraps at entry so the event carries the real
+    // slot — this establishes the "slot identity" invariant for the bus.
+    //
+    // Removing this unwrap breaks MKSlotStateRegistry lookups, region
+    // resolution, and getMenuSlotIndex() in every creative context.
+
+    /**
+     * Returns the real underlying slot for a (possibly wrapped) slot.
+     *
+     * <p>If {@code slot} is a creative-mode {@code SlotWrapper}, this returns
+     * the wrapped target. Otherwise returns {@code slot} unchanged. Safe to
+     * call in any context — for non-creative slots and for already-unwrapped
+     * slots it's a no-op.
+     *
+     * @param slot the slot as seen by the mixin layer, possibly null
+     * @return the real underlying slot, or null if {@code slot} was null
+     */
+    private static @Nullable Slot unwrapSlotWrapper(@Nullable Slot slot) {
+        if (slot instanceof com.trevorschoeny.menukit.mixin.SlotWrapperAccessor wrapper) {
+            return wrapper.menuKit$getTarget();
+        }
+        return slot;
+    }
 
     // ── Active Player Tracking ────────────────────────────────────────────────
     //
@@ -190,6 +244,11 @@ public final class MKEventHelper {
                                               int button,
                                               AbstractContainerScreen<?> screen,
                                               Player player) {
+
+        // ── Enforce the slot-identity invariant ─────────────────────────
+        // Unwrap creative-mode SlotWrapper so the event carries the real
+        // underlying slot. See class-level javadoc for details.
+        slot = unwrapSlotWrapper(slot);
 
         // ── Sample modifier key state via GLFW ──────────────────────────
         // Click events fire rarely (on actual input), so sampling here is cheap.
@@ -479,6 +538,11 @@ public final class MKEventHelper {
         // Key events require a hovered slot to be meaningful
         if (slot == null) return null;
 
+        // ── Enforce the slot-identity invariant ─────────────────────────
+        // Unwrap creative-mode SlotWrapper so the event carries the real
+        // underlying slot. See class-level javadoc for details.
+        slot = unwrapSlotWrapper(slot);
+
         // ── Resolve screen context ──────────────────────────────────────
         MKContext context = MKContext.fromScreen(screen);
 
@@ -550,6 +614,11 @@ public final class MKEventHelper {
                                                            Player player) {
         // Scroll events require a hovered slot to be meaningful
         if (slot == null) return null;
+
+        // ── Enforce the slot-identity invariant ─────────────────────────
+        // Unwrap creative-mode SlotWrapper so the event carries the real
+        // underlying slot. See class-level javadoc for details.
+        slot = unwrapSlotWrapper(slot);
 
         // ── Resolve screen context ──────────────────────────────────────
         MKContext context = MKContext.fromScreen(screen);
