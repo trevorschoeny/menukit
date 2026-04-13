@@ -2,7 +2,6 @@ package com.trevorschoeny.menukit.core;
 
 import org.jspecify.annotations.Nullable;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -23,8 +22,9 @@ public class Panel {
     private final List<SlotGroup> groups;
     private boolean visible;
 
-    // Set during handler construction — the panel knows its parent
-    private @Nullable Object handler; // Phase 3: typed as MenuKitScreenHandler
+    // Set during handler construction — typed via PanelOwner interface
+    // so Panel doesn't depend on the screen package.
+    private @Nullable PanelOwner owner;
 
     /**
      * @param id      unique identifier within the screen
@@ -63,25 +63,27 @@ public class Panel {
     public boolean isVisible() { return visible; }
 
     /**
-     * Sets this panel's visibility. When a panel becomes hidden, all its
-     * slots become inert (getItem returns EMPTY, canInsert returns false,
-     * quick-move skips them). When it becomes visible again, slots resume
-     * normal behavior and a sync pass pushes real stacks to the client.
+     * Sets this panel's visibility and notifies the owner to trigger
+     * a sync pass over the affected slots.
      *
-     * <p>The handler is responsible for triggering the sync pass — this
-     * method just flips the flag. Call
-     * {@code MenuKitScreenHandler.setPanelVisible()} instead of calling
-     * this directly.
+     * <p>When hidden, all slots become inert (getItem returns EMPTY,
+     * canInsert returns false, quick-move skips them). When visible
+     * again, slots resume normal behavior and the sync pass pushes
+     * real stacks to the client.
      */
     public void setVisible(boolean visible) {
+        if (this.visible == visible) return; // no-op if unchanged
         this.visible = visible;
+        if (owner != null) {
+            owner.onPanelVisibilityChanged(this);
+        }
     }
 
-    // ── Handler Reference ───────────────────────────────────────────────
+    // ── Owner Reference ─────────────────────────────────────────────────
 
     /** Sets the owning handler. Called during handler construction. */
-    void setHandler(Object handler) { this.handler = handler; }
+    public void setOwner(PanelOwner owner) { this.owner = owner; }
 
     /** Returns the owning handler, or null if not yet attached. */
-    public @Nullable Object getHandler() { return handler; }
+    public @Nullable PanelOwner getOwner() { return owner; }
 }
