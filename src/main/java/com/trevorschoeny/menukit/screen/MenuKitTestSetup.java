@@ -15,6 +15,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import org.lwjgl.glfw.GLFW;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static net.minecraft.commands.Commands.literal;
 
@@ -30,6 +33,7 @@ import static net.minecraft.commands.Commands.literal;
  */
 public class MenuKitTestSetup {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger("MenuKit");
     private static MenuType<MenuKitScreenHandler> testMenuType;
 
     /** Called during mod init (server side). */
@@ -119,7 +123,38 @@ public class MenuKitTestSetup {
 
     /** Called during client init. */
     public static void registerClient() {
-        MenuScreens.register(testMenuType, MenuKitHandledScreen::new);
+        MenuScreens.register(testMenuType, TestScreen::new);
+    }
+
+    /**
+     * Test screen subclass that registers event listeners and drag modes
+     * for verifying the Task 4 infrastructure.
+     */
+    private static class TestScreen extends MenuKitHandledScreen {
+        TestScreen(MenuKitScreenHandler handler, Inventory inventory, Component title) {
+            super(handler, inventory, title);
+
+            // Test event listener — logs events to verify the bus works
+            addEventListener(new ScreenEventListener() {
+                @Override
+                public void onSlotHoverEnter(MenuKitSlot slot) {
+                    LOGGER.debug("[Event] Hover ENTER: panel={} group={} local={}",
+                            slot.getPanelId(), slot.getGroupId(), slot.getLocalIndex());
+                }
+
+                @Override
+                public void onSlotHoverExit(MenuKitSlot slot) {
+                    LOGGER.debug("[Event] Hover EXIT: panel={} group={} local={}",
+                            slot.getPanelId(), slot.getGroupId(), slot.getLocalIndex());
+                }
+
+                @Override
+                public void onPanelToggle(Panel panel, boolean nowVisible) {
+                    LOGGER.info("[Event] Panel toggle: {} → {}",
+                            panel.getId(), nowVisible ? "VISIBLE" : "HIDDEN");
+                }
+            });
+        }
     }
 
     /**
@@ -138,8 +173,11 @@ public class MenuKitTestSetup {
         mainStorage.setStack(1, new ItemStack(Items.IRON_INGOT, 32));
         mainStorage.setStack(2, new ItemStack(Items.COBBLESTONE, 64));
 
-        // Extras: accepts only diamonds
+        // Extras: two groups to test multi-group layout.
+        // Group 1: 4 diamond-only slots (filtered).
+        // Group 2: 2 free slots (bonus) — verifies vertical stacking within a panel.
         EphemeralStorage extrasStorage = EphemeralStorage.of(4);
+        EphemeralStorage bonusStorage = EphemeralStorage.of(2);
 
         // Player inventory: 36 slots (27 main + 9 hotbar) wrapping vanilla Inventory.
         // Mapping: local 0-26 → inventory 9-35 (main), local 27-35 → inventory 0-8 (hotbar).
@@ -159,11 +197,16 @@ public class MenuKitTestSetup {
 
         return MenuKitScreenHandler.builder(testMenuType)
                 .panel("main", p -> p
-                        .group("container", mainStorage, InteractionPolicy.free()))
+                        .group("container", mainStorage, InteractionPolicy.free())
+                        .rightClick((player, slot) ->
+                                LOGGER.info("[Test] Right-clicked main slot {} (item={})",
+                                        slot.getLocalIndex(), slot.getItem())))
                 .panel("extras", p -> p
                         .rightOf("main")
+                        .toggleKey(GLFW.GLFW_KEY_T)
                         .group("filtered", extrasStorage,
                                 InteractionPolicy.input(stack -> stack.is(Items.DIAMOND)))
+                        .group("bonus", bonusStorage, InteractionPolicy.free())
                         .hidden())
                 .panel("player", p -> p
                         .group("inventory", playerInvStorage, InteractionPolicy.free(),
