@@ -161,12 +161,13 @@ public class MenuKitTestSetup {
                 .panel("main", p -> p
                         .group("container", mainStorage, InteractionPolicy.free()))
                 .panel("extras", p -> p
+                        .rightOf("main")
                         .group("filtered", extrasStorage,
                                 InteractionPolicy.input(stack -> stack.is(Items.DIAMOND)))
                         .hidden())
                 .panel("player", p -> p
                         .group("inventory", playerInvStorage, InteractionPolicy.free(),
-                                QuickMoveParticipation.BOTH, 0))
+                                QuickMoveParticipation.BOTH, 0, 9, 2, 4))
                 .build(syncId);
     }
 }

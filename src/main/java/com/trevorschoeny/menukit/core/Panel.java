@@ -20,6 +20,8 @@ public class Panel {
 
     private final String id;
     private final List<SlotGroup> groups;
+    private final PanelStyle style;
+    private final PanelPosition position;
     private boolean visible;
 
     // Set during handler construction — typed via PanelOwner interface
@@ -27,14 +29,21 @@ public class Panel {
     private @Nullable PanelOwner owner;
 
     /**
-     * @param id      unique identifier within the screen
-     * @param groups  ordered list of slot groups (immutable after construction)
-     * @param visible initial visibility state
+     * Full constructor with all metadata.
+     *
+     * @param id       unique identifier within the screen
+     * @param groups   ordered list of slot groups (immutable after construction)
+     * @param visible  initial visibility state
+     * @param style    visual style for panel background rendering
+     * @param position how this panel is positioned in the layout
      */
-    public Panel(String id, List<SlotGroup> groups, boolean visible) {
+    public Panel(String id, List<SlotGroup> groups, boolean visible,
+                 PanelStyle style, PanelPosition position) {
         this.id = id;
         this.groups = List.copyOf(groups);
         this.visible = visible;
+        this.style = style;
+        this.position = position;
 
         // Wire up group → panel references
         for (SlotGroup group : this.groups) {
@@ -42,7 +51,12 @@ public class Panel {
         }
     }
 
-    /** Creates a visible panel. */
+    /** Creates a panel with default style (RAISED) and position (BODY). */
+    public Panel(String id, List<SlotGroup> groups, boolean visible) {
+        this(id, groups, visible, PanelStyle.RAISED, PanelPosition.BODY);
+    }
+
+    /** Creates a visible panel with default style and position. */
     public Panel(String id, List<SlotGroup> groups) {
         this(id, groups, true);
     }
@@ -51,6 +65,14 @@ public class Panel {
 
     /** Returns this panel's unique identifier within the screen. */
     public String getId() { return id; }
+
+    // ── Style & Position ──────────────────────────────────────────────
+
+    /** Returns the visual style for this panel's background. */
+    public PanelStyle getStyle() { return style; }
+
+    /** Returns how this panel is positioned in the layout. */
+    public PanelPosition getPosition() { return position; }
 
     // ── Groups ──────────────────────────────────────────────────────────
 
