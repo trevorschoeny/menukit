@@ -4,8 +4,8 @@ Items deferred across phases. Scan this list at phase boundaries.
 
 ## Architecturally Significant
 
-- **Text rendering investigation** (Task 2 → Phase 4b first task)
-  `graphics.drawString()` doesn't render in `renderBg()` or `renderLabels()`, while `fill()` works in both. Hypothesis: text and geometry go through different buffer sources that flush at different pipeline stages in 1.21.11. Investigate before designing the panel element system — the solution shapes the abstraction.
+- ~~**Text rendering investigation**~~ **RESOLVED (Phase 4b)**
+  Root cause: 1.21.11's `GuiGraphics.drawString()` has an `ARGB.alpha(color) != 0` guard — colors without an explicit alpha byte (e.g., `0xFFFFFF`, `0x404040`) have alpha=0 and are silently discarded. Fix: use ARGB colors with `0xFF` prefix (e.g., `0xFFFFFFFF`, `0xFF404040`). All future text rendering must use ARGB colors. Not a pipeline integration issue — just a color format convention.
 
 - **Body panel visibility toggle limitation** (Task 2 → probably forced by Phase 4b scroll/tab)
   If a body panel toggles visibility, `imageWidth`/`imageHeight` change in `renderBg()` but `leftPos`/`topPos` don't update (set once in `init()`). Screen would be offset. Not a problem while only relative panels toggle.
