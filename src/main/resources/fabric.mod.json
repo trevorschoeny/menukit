@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "menukit",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "name": "MenuKit",
   "icon": "icon.png",
   "description": "Zero-boilerplate UI framework for Fabric mods. Panels, slots, buttons, HUD, and mod families.",
