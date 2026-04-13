@@ -123,12 +123,16 @@ public class MenuKitTestSetup {
     }
 
     /**
-     * Creates the test handler with two panels:
-     * - "main": 9 free slots (PlayerStorage) — visible
+     * Creates the test handler with three panels:
+     * - "main": 9 free slots (PlayerStorage) — visible, container-backed
      * - "extras": 4 input-filtered slots (EphemeralStorage, diamonds only) — hidden
+     * - "player": 36 slots wrapping the player's actual inventory — visible
+     *
+     * <p>The player panel uses VirtualStorage to delegate to the vanilla Inventory.
+     * This validates shift-click routing between container and player groups.
      */
     private static MenuKitScreenHandler createTestHandler(int syncId, Inventory playerInventory) {
-        // Pre-fill main storage with some items for testing
+        // Container: 9 free slots with some items pre-filled
         PlayerStorage mainStorage = PlayerStorage.of(9);
         mainStorage.setStack(0, new ItemStack(Items.DIAMOND, 16));
         mainStorage.setStack(1, new ItemStack(Items.IRON_INGOT, 32));
@@ -137,6 +141,22 @@ public class MenuKitTestSetup {
         // Extras: accepts only diamonds
         EphemeralStorage extrasStorage = EphemeralStorage.of(4);
 
+        // Player inventory: 36 slots (27 main + 9 hotbar) wrapping vanilla Inventory.
+        // Mapping: local 0-26 → inventory 9-35 (main), local 27-35 → inventory 0-8 (hotbar).
+        // This matches vanilla's standard container layout order.
+        VirtualStorage playerInvStorage = new VirtualStorage(
+                36,
+                i -> {
+                    int invIndex = i < 27 ? i + 9 : i - 27;
+                    return playerInventory.getItem(invIndex);
+                },
+                (i, stack) -> {
+                    int invIndex = i < 27 ? i + 9 : i - 27;
+                    playerInventory.setItem(invIndex, stack);
+                },
+                playerInventory::setChanged
+        );
+
         return MenuKitScreenHandler.builder(testMenuType)
                 .panel("main", p -> p
                         .group("container", mainStorage, InteractionPolicy.free()))
@@ -144,6 +164,9 @@ public class MenuKitTestSetup {
                         .group("filtered", extrasStorage,
                                 InteractionPolicy.input(stack -> stack.is(Items.DIAMOND)))
                         .hidden())
+                .panel("player", p -> p
+                        .group("inventory", playerInvStorage, InteractionPolicy.free(),
+                                QuickMoveParticipation.BOTH, 0))
                 .build(syncId);
     }
 }
