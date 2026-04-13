@@ -11,7 +11,6 @@
     "MKReadOnlyMixin",
     "MKSlotMixin",
     "MKSlotClickMixin",
-    "MKCreativeSlotPacketMixin",
     "MKServerPlayerMixin",
     "ContainerLevelAccessAccessor$EnchantmentMenuAccessor",
     "ContainerLevelAccessAccessor$CraftingMenuAccessor",
@@ -26,26 +25,15 @@
   "client": [
     "AbstractContainerScreenAccessor",
     "AbstractContainerScreenInvoker",
-    "MKCreativeMixin",
-    "MKCreativeRightClickMixin",
-    "MKItemPickerMenuMixin",
-    "MKScreenMixin",
-    "MKSlotRightClickMixin",
-    "MKSlotClickBusMixin",
-    "MKCreativeClickBusMixin",
     "SlotPositionAccessor",
     "SlotWrapperAccessor",
     "MKRecipeBookScreenMixin",
     "MKGuiMixin",
-    "MKHoverTrackingMixin",
-    "MKKeyPressMixin",
-    "MKScrollMixin",
     "MKRecipeBookAccessor",
     "MKKeyBindsScreenMixin",
     "KeyEntryAccessor",
     "KeyMappingAccessor",
-    "MKKeyMappingMixin",
-    "MKDragMixin"
+    "MKKeyMappingMixin"
   ],
   "injectors": {
     "defaultRequire": 1
