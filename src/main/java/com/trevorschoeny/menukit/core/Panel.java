@@ -22,6 +22,7 @@ public class Panel {
     private final List<SlotGroup> groups;
     private final PanelStyle style;
     private final PanelPosition position;
+    private final int toggleKey; // GLFW key code that toggles visibility, or -1 for none
     private boolean visible;
 
     // Set during handler construction — typed via PanelOwner interface
@@ -31,19 +32,21 @@ public class Panel {
     /**
      * Full constructor with all metadata.
      *
-     * @param id       unique identifier within the screen
-     * @param groups   ordered list of slot groups (immutable after construction)
-     * @param visible  initial visibility state
-     * @param style    visual style for panel background rendering
-     * @param position how this panel is positioned in the layout
+     * @param id        unique identifier within the screen
+     * @param groups    ordered list of slot groups (immutable after construction)
+     * @param visible   initial visibility state
+     * @param style     visual style for panel background rendering
+     * @param position  how this panel is positioned in the layout
+     * @param toggleKey GLFW key code that toggles this panel's visibility, or -1 for none
      */
     public Panel(String id, List<SlotGroup> groups, boolean visible,
-                 PanelStyle style, PanelPosition position) {
+                 PanelStyle style, PanelPosition position, int toggleKey) {
         this.id = id;
         this.groups = List.copyOf(groups);
         this.visible = visible;
         this.style = style;
         this.position = position;
+        this.toggleKey = toggleKey;
 
         // Wire up group → panel references
         for (SlotGroup group : this.groups) {
@@ -51,9 +54,9 @@ public class Panel {
         }
     }
 
-    /** Creates a panel with default style (RAISED) and position (BODY). */
+    /** Creates a panel with default style (RAISED), position (BODY), no toggle key. */
     public Panel(String id, List<SlotGroup> groups, boolean visible) {
-        this(id, groups, visible, PanelStyle.RAISED, PanelPosition.BODY);
+        this(id, groups, visible, PanelStyle.RAISED, PanelPosition.BODY, -1);
     }
 
     /** Creates a visible panel with default style and position. */
@@ -73,6 +76,9 @@ public class Panel {
 
     /** Returns how this panel is positioned in the layout. */
     public PanelPosition getPosition() { return position; }
+
+    /** Returns the GLFW key code that toggles this panel's visibility, or -1 for none. */
+    public int getToggleKey() { return toggleKey; }
 
     // ── Groups ──────────────────────────────────────────────────────────
 
