@@ -9,22 +9,24 @@ import java.util.List;
  * inside a Panel, because that's the scope at which visibility toggles —
  * and visibility is the load-bearing concept for the whole dynamic-menu story.
  *
- * <p>A Panel holds an ordered list of {@link SlotGroup}s, a list of
- * {@link PanelElement}s (buttons, text labels), and a visibility flag.
- * Visibility is mutable (the one mutable thing); the group list and
- * element list are fixed after construction.
+ * <p>A Panel holds an ordered list of {@link PanelElement}s (buttons, text
+ * labels, and anything else implementing the interface), along with a visual
+ * style, a layout position, a toggle key, and a visibility flag. Visibility
+ * is mutable (the one mutable thing); the element list is fixed after
+ * construction.
  *
- * <p>Slot groups determine the panel's layout (its size comes from the
- * slot grid). Panel elements are a decorative/interactive layer positioned
- * absolutely within that layout.
+ * <p>Panel is context-neutral. The same Panel type is used across inventory
+ * menus, HUDs, and standalone screens. Context-specific machinery — inventory
+ * slot groups, HUD anchoring, standalone-screen lifecycle — lives on the
+ * context-specific container holding the panel, not on the panel itself.
  *
- * <p>Part of the canonical MenuKit hierarchy:
- * Screen → Panel → SlotGroup → MenuKitSlot
+ * <p>For inventory menus specifically, slot groups are associated with a
+ * panel by id through the owning {@code MenuKitScreenHandler}'s group map.
+ * The panel itself does not hold them.
  */
 public class Panel {
 
     private final String id;
-    private final List<SlotGroup> groups;
     private final List<PanelElement> elements;
     private final PanelStyle style;
     private final PanelPosition position;
@@ -39,44 +41,31 @@ public class Panel {
      * Full constructor with all metadata.
      *
      * @param id        unique identifier within the screen
-     * @param groups    ordered list of slot groups (immutable after construction)
-     * @param elements  panel elements — buttons, text labels (immutable after construction)
+     * @param elements  panel elements — buttons, text labels, etc. (immutable after construction)
      * @param visible   initial visibility state
      * @param style     visual style for panel background rendering
      * @param position  how this panel is positioned in the layout
      * @param toggleKey GLFW key code that toggles this panel's visibility, or -1 for none
      */
-    public Panel(String id, List<SlotGroup> groups, List<PanelElement> elements,
+    public Panel(String id, List<PanelElement> elements,
                  boolean visible, PanelStyle style, PanelPosition position,
                  int toggleKey) {
         this.id = id;
-        this.groups = List.copyOf(groups);
         this.elements = List.copyOf(elements);
         this.visible = visible;
         this.style = style;
         this.position = position;
         this.toggleKey = toggleKey;
-
-        // Wire up group → panel references
-        for (SlotGroup group : this.groups) {
-            group.setPanel(this);
-        }
-    }
-
-    /** Constructor without elements — backward compatible. */
-    public Panel(String id, List<SlotGroup> groups, boolean visible,
-                 PanelStyle style, PanelPosition position, int toggleKey) {
-        this(id, groups, List.of(), visible, style, position, toggleKey);
     }
 
     /** Creates a panel with default style (RAISED), position (BODY), no toggle key. */
-    public Panel(String id, List<SlotGroup> groups, boolean visible) {
-        this(id, groups, List.of(), visible, PanelStyle.RAISED, PanelPosition.BODY, -1);
+    public Panel(String id, List<PanelElement> elements, boolean visible) {
+        this(id, elements, visible, PanelStyle.RAISED, PanelPosition.BODY, -1);
     }
 
     /** Creates a visible panel with default style and position. */
-    public Panel(String id, List<SlotGroup> groups) {
-        this(id, groups, true);
+    public Panel(String id, List<PanelElement> elements) {
+        this(id, elements, true);
     }
 
     // ── Identity ────────────────────────────────────────────────────────
@@ -95,10 +84,7 @@ public class Panel {
     /** Returns the GLFW key code that toggles this panel's visibility, or -1 for none. */
     public int getToggleKey() { return toggleKey; }
 
-    // ── Groups & Elements ─────────────────────────────────────────────
-
-    /** Returns the ordered list of slot groups (immutable). */
-    public List<SlotGroup> getGroups() { return groups; }
+    // ── Elements ────────────────────────────────────────────────────────
 
     /** Returns the panel's elements — buttons, text labels, etc. (immutable). */
     public List<PanelElement> getElements() { return elements; }
