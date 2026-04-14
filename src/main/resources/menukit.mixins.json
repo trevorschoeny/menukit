@@ -3,7 +3,10 @@
   "minVersion": "0.8",
   "package": "com.trevorschoeny.menukit.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [],
+  "mixins": [
+    "VerifyMayPlaceMixin",
+    "VerifyGetItemMixin"
+  ],
   "client": [
     "AbstractContainerScreenAccessor",
     "SlotPositionAccessor",
