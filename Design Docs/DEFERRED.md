@@ -92,4 +92,14 @@ Items deferred across phases. Scan this list at phase boundaries.
 
   Post-Phase-5 work will evaluate each gap against the library-not-platform discipline before deciding what to ship versus what to document as a consumer pattern. The audit provides the data; decisions happen when the evaluation begins. Some of these might resolve to "the library ships this," others to "consumers handle it themselves, here's a documented recipe," and others to "defer until more real mods need it."
 
+- **Phase 9 Toggle.linked variant — persistence framing**
+
+  When Phase 9 ships the state-linked Toggle variant (`Toggle.linked(x, y, w, h, BooleanSupplier state, Runnable onToggle)`), documentation should address persistence head-on:
+
+  > "To make a toggle persist, use `Toggle.linked()` and back it with wherever your state lives — block entity, player attachment, config file, etc. The state-linked variant gives you the visual element; persistence is consumer concern."
+
+  MenuKit does not ship a persistence abstraction. No `PersistentValue<T>`, no `BooleanFlag`, no config-backed state helpers. The state-linked pattern is MenuKit's answer to "where does toggle state live?" — and the answer is "wherever the consumer decides; the element reads it via supplier and signals changes via callback."
+
+  **Reconsideration trigger.** If Phase 11 reveals that inventory-plus, shulker-palette, and agreeable-allays all build similar persistence adapters independently (e.g., each rolling a "config-file-backed boolean" helper), that's evidence the library might ship a small persistence abstraction. Until then: no shipped abstraction, documented pattern only.
+
 - **`MKPanel.Style` enum extraction** — resolved during Step 5 as a concrete cleanup, not deferred. Live callers (`core/Button`, `hud/MKHudPanel`, `hud/MKHudPanelDef`, `hud/MKHudNotification`, `screen/MenuKitHandledScreen`) are updated to use `core/PanelStyle` instead; rendering helpers move out of `panel/MKPanel.java` before that file is deleted.
