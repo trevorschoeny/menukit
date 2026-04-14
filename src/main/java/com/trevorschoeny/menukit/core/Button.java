@@ -1,7 +1,6 @@
 package com.trevorschoeny.menukit.core;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
@@ -42,6 +41,7 @@ public class Button implements PanelElement {
     private final @Nullable BooleanSupplier disabledWhen;
 
     // Hover state — updated each render frame. Not persisted.
+    // Read by mouseClicked to gate the click on hover.
     private boolean hovered = false;
 
     /**
@@ -93,24 +93,24 @@ public class Button implements PanelElement {
     // ── Rendering ──────────────────────────────────────────────────────
 
     @Override
-    public void render(GuiGraphics graphics, int contentX, int contentY,
-                       int mouseX, int mouseY) {
-        int sx = contentX + childX;
-        int sy = contentY + childY;
+    public void render(RenderContext ctx) {
+        int sx = ctx.originX() + childX;
+        int sy = ctx.originY() + childY;
 
-        // Update hover state from current mouse position
-        hovered = mouseX >= sx && mouseX < sx + width
-                && mouseY >= sy && mouseY < sy + height;
+        // Update hover state from current mouse position. In contexts without
+        // input dispatch (HUDs) isHovered() returns false, so `hovered` stays
+        // false regardless of where the mouse cursor actually is.
+        hovered = isHovered(ctx);
 
         // Background
         boolean disabled = isDisabled();
         if (disabled) {
-            PanelRendering.renderPanel(graphics, sx, sy, width, height, PanelStyle.DARK);
+            PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, PanelStyle.DARK);
         } else {
-            PanelRendering.renderPanel(graphics, sx, sy, width, height, PanelStyle.RAISED);
+            PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, PanelStyle.RAISED);
             if (hovered) {
                 // Translucent highlight overlay (inside the border)
-                graphics.fill(sx + 1, sy + 1, sx + width - 1, sy + height - 1,
+                ctx.graphics().fill(sx + 1, sy + 1, sx + width - 1, sy + height - 1,
                         0x30FFFFFF);
             }
         }
@@ -123,7 +123,7 @@ public class Button implements PanelElement {
         int textX = sx + (width - textWidth) / 2;
         int textY = sy + (height - font.lineHeight) / 2;
         int textColor = disabled ? 0xFF808080 : 0xFFFFFFFF;
-        graphics.drawString(font, text, textX, textY, textColor, true);
+        ctx.graphics().drawString(font, text, textX, textY, textColor, true);
     }
 
     // ── Click Handling ─────────────────────────────────────────────────
@@ -138,6 +138,8 @@ public class Button implements PanelElement {
         // Left-click only
         if (button != 0) return false;
         if (isDisabled()) return false;
+        // The screen hit-tests before dispatching, so `hovered` should always
+        // be true here. Keep the check as defensive symmetry.
         if (!hovered) return false;
 
         onClick.accept(this);

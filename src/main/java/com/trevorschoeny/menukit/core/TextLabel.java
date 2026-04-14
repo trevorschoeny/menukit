@@ -1,7 +1,6 @@
 package com.trevorschoeny.menukit.core;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -14,6 +13,8 @@ import net.minecraft.network.chat.Component;
  * {@code ARGB.alpha(color) == 0}. All color constants in this class
  * use the {@code 0xFF} prefix. Consumer code passing custom colors must
  * do the same.
+ *
+ * <p>Render-only; {@link #mouseClicked} inherits the default no-op behavior.
  *
  * @see PanelElement  The interface this implements
  * @see Button        Interactive button element
@@ -76,22 +77,15 @@ public class TextLabel implements PanelElement {
     // ── Rendering ──────────────────────────────────────────────────────
 
     @Override
-    public void render(GuiGraphics graphics, int contentX, int contentY,
-                       int mouseX, int mouseY) {
-        graphics.drawString(
+    public void render(RenderContext ctx) {
+        ctx.graphics().drawString(
                 Minecraft.getInstance().font,
                 text,
-                contentX + childX,
-                contentY + childY,
+                ctx.originX() + childX,
+                ctx.originY() + childY,
                 color,
                 shadow);
     }
 
-    // ── Click Handling ─────────────────────────────────────────────────
-
-    /** Text labels are non-interactive — clicks always fall through. */
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        return false;
-    }
+    // mouseClicked inherits the default no-op from PanelElement.
 }
