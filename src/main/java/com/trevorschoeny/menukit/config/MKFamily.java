@@ -2,9 +2,6 @@ package com.trevorschoeny.menukit.config;
 
 import com.trevorschoeny.menukit.MenuKit;
 
-import com.trevorschoeny.menukit.MKContext;
-import com.trevorschoeny.menukit.panel.MKPanel;
-
 import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.api.OptionGroup;
@@ -217,40 +214,6 @@ public class MKFamily {
 
     // ── Shared Panels (deduplicated by panel name) ──────────────────────
 
-    /**
-     * Registers a shared panel that multiple mods in the family can provide.
-     * If a panel with this name already exists (registered by another mod),
-     * the registrar is never called — deduplication by panel name.
-     *
-     * <p>This allows multiple mods to each register the same UI element
-     * (e.g., a settings button) without worrying about duplicates.
-     *
-     * <p>Example:
-     * <pre>{@code
-     * family.sharedPanel("trevmods_settings", () -> {
-     *     MKPanel.builder("trevmods_settings")
-     *         .showIn(MKContext.PERSONAL)
-     *         .posAboveRight()
-     *         .autoSize()
-     *         .column()
-     *             .button().label("⚙").onClick(btn -> ...).done()
-     *         .build();
-     * });
-     * }</pre>
-     *
-     * @param panelName  the panel name (must match the name in MKPanel.builder())
-     * @param registrar  a Runnable that registers the panel via MKPanel.builder()
-     */
-    public MKFamily sharedPanel(String panelName, Runnable registrar) {
-        if (!MenuKit.hasPanel(panelName)) {
-            registrar.run();
-            MenuKit.LOGGER.debug("[MenuKit] Family '{}' registered shared panel '{}'", id, panelName);
-        } else {
-            MenuKit.LOGGER.debug("[MenuKit] Family '{}' skipped shared panel '{}' (already registered)",
-                    id, panelName);
-        }
-        return this;
-    }
 
     // ── Queries ──────────────────────────────────────────────────────────
 

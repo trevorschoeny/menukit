@@ -2,8 +2,6 @@ package com.trevorschoeny.menukit.hud;
 
 import com.trevorschoeny.menukit.MenuKit;
 
-import com.trevorschoeny.menukit.widget.MKSlot;
-
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -22,7 +20,8 @@ import java.util.function.Supplier;
  * at native 16×16 centered within the 20×22 slot.
  *
  * <p>This is a display-only element — no interaction. For interactive
- * slots, use {@link MKSlot} in a menu panel.
+ * slots, use a {@code MenuKitSlot} inside a {@code Panel} on a
+ * {@code MenuKitScreenHandler}.
  *
  * <p>Part of the <b>MenuKit</b> framework.
  */

@@ -2,8 +2,6 @@ package com.trevorschoeny.menukit.input;
 
 import com.trevorschoeny.menukit.MenuKit;
 
-import com.trevorschoeny.menukit.event.MKEvent;
-
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -270,7 +268,8 @@ public class MKKeyMapping extends KeyMapping {
      * {@code KeyMapping.set(key, true)} from the GLFW key callback --
      * key events go through {@code Screen.keyPressed()} instead. This means
      * {@link #isDown()} is unreliable for in-screen keybinds. Handlers that
-     * respond to {@link MKEvent.Type#KEY_PRESS} events should use this method.
+     * respond to key-press events through a screen's event system should
+     * use this method.
      *
      * <p>Uses GLFW polling via {@link MKKeybind#matchesKeyEvent} to verify
      * that ALL keys in the combo are held, not just the event key. This

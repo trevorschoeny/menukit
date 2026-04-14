@@ -16,13 +16,13 @@ Items deferred across phases. Scan this list at phase boundaries.
 - ~~**Public registration APIs**~~ **RESOLVED (Phase 4b)**
   `HandlerRecognizerRegistry.register(Recognizer)` and `PanelBuilder.element(PanelElement)` expose the extensibility hooks consumers need.
 
+- ~~**`onItemTransfer` / `onQuickMove` event scope ambiguity**~~ **RESOLVED (Phase 5)**
+  Code already uses `onQuickMove` — name intentionally matches vanilla's `quickMoveStack`, scope is shift-click only. Added explicit scope-statement to the JavaDoc enumerating which paths do NOT fire the event (drag-collect, double-click collect, hopper insertion, cursor placement, creative middle-click). The ambiguity existed only in the DEFERRED.md text where both candidate names were floated during design.
+
 ## Architecturally Significant
 
 - **Body panel visibility toggle limitation** (Phase 5 or later — evaluate when a real use case appears)
   If a body panel toggles visibility, `imageWidth`/`imageHeight` change in `renderBg()` but `leftPos`/`topPos` don't update (set once in `init()`). Screen would be offset. Not a problem while only relative panels toggle.
-
-- **`onItemTransfer` / `onQuickMove` event scope ambiguity** (Phase 5 cleanup or resolve opportunistically)
-  Task 1 added an `onItemTransfer`/`onQuickMove` event. The event currently fires from shift-click paths but the name could imply all transfer paths (drag, double-click collect, etc.). Decide scope and name; document clearly. Not a blocker but worth resolving before inventory-plus rebuilds against it.
 
 ## Must-Verify
 
@@ -58,3 +58,31 @@ Items deferred across phases. Scan this list at phase boundaries.
 ## Post-MenuKit
 
 - **inventory-plus refactor against new MenuKit API** — The real test of Phase 4b's "extracted to consumer mods" claim. If IP can be rebuilt cleanly using `SlotGroupLike`, recognizer queries, the event bus, and panel elements, the library boundary is correct. If IP keeps reaching for things MenuKit doesn't expose, the audit missed something.
+
+  **Pre-migration bug fixes to preserve during IP refactor** (captured from uncommitted working-tree state at start of Phase 5; discarded when IP's old-arch files couldn't compile post-demolition):
+  - **Peek region arg**: the `registerDynamicRegion` (or its new-arch equivalent) call should receive the MKContainer directly, not `container.getDelegate()`. The delegate form was dropping a layer of indirection that the region system needed.
+  - **Creative-mode ItemPickerMenu fix**: in creative, `screen.getMenu()` is `ItemPickerMenu` while `player.containerMenu` is `inventoryMenu`. Peek slots exist in both menus (sharing the same backing container), but hover detection needs regions registered on *both* menus — otherwise the peek keybind fails in creative because the hovered slot's index doesn't match the inventoryMenu region range. The fix was a symmetric `registerDynamicRegion` + `removeDynamicRegion` pair on `screen.getMenu()` when it differs from `containerMenu`. Both open-path and close-path were affected.
+
+- **Post-Phase-5 audit findings: consumer primitives and patterns revealed by existing mods**
+
+  Phase 5's Step 0 audit read the three small consumer mods (sandboxes, agreeable-allays, shulker-palette) and IP to understand what they actually do with MenuKit. Three mods share a dominant pattern: they inject UI into vanilla screens rather than build their own. The current new-architecture has first-class support for "build your own screen" (`MenuKitScreenHandler.builder`) but nothing equivalent for "decorate a vanilla screen," which turns out to be the majority use case.
+
+  **Primitives the three small mods use that the new architecture doesn't currently ship:**
+  - Icon-only button (small image-only, with tooltip) — sandboxes (11×11 icons), shulker-palette (9×9 icons)
+  - Toggle button with supplier-based pressed state — shulker-palette
+  - Icon swap by state (two sprites, pressed/unpressed) — shulker-palette
+  - Dynamic tooltip (`Supplier<Component>`) — shulker-palette
+  - Dynamic text content (`Supplier<String>` or equivalent) — agreeable-allays
+
+  **Pattern the three small mods + IP all need that the new architecture doesn't provide:**
+  - Inject a MenuKit panel / button into a vanilla inventory screen, with predicate-based visibility (by context, region, or runtime state). The old architecture provided this via `MKPanel.builder().showIn(...)` + `MenuKit.buttonAttachment()`. The new architecture currently has neither a mixin hook for this nor a documented consumer pattern for writing their own.
+
+  **Old global event bus removed.**
+  - The old `MenuKit.on(Type)` event bus and its entire `event/` package (MKEvent, MKEventBus, MKEventBuilder, MKSlotEvent, MKUIEvent, MKEventPhase, MKEventResult, MKDismountReason) were deleted in Phase 5. That bus was a global pub/sub coupled to old-arch types (MKButton, MKRegion, MKSlotState) and had zero new-arch consumers. The new architecture uses `MenuKitHandledScreen.ScreenEventListener` — per-screen, scoped, declared in Phase 4b Task 1 — which handles the screen-scoped event needs cleanly. Consumers needing ecosystem-wide events outside a specific screen write their own event system; that's consumer work under library-not-platform discipline.
+
+  **Unresolved subsystem relationship:**
+  - `MKHudPanel` is a separate builder subsystem that survives Phase 5 (no old-arch type dependencies once `MKPanel.Style` is extracted — see Step 5 below). But its relationship to the rest of the new architecture is undocumented. Is it a first-class part of MenuKit's canonical surface, or a separate library that happens to ship in the same jar? Decide post-Phase-5.
+
+  Post-Phase-5 work will evaluate each gap against the library-not-platform discipline before deciding what to ship versus what to document as a consumer pattern. The audit provides the data; decisions happen when the evaluation begins. Some of these might resolve to "the library ships this," others to "consumers handle it themselves, here's a documented recipe," and others to "defer until more real mods need it."
+
+- **`MKPanel.Style` enum extraction** — resolved during Step 5 as a concrete cleanup, not deferred. Live callers (`core/Button`, `hud/MKHudPanel`, `hud/MKHudPanelDef`, `hud/MKHudNotification`, `screen/MenuKitHandledScreen`) are updated to use `core/PanelStyle` instead; rendering helpers move out of `panel/MKPanel.java` before that file is deleted.

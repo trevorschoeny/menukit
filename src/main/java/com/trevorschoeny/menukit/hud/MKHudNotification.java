@@ -2,7 +2,8 @@ package com.trevorschoeny.menukit.hud;
 
 import com.trevorschoeny.menukit.MenuKit;
 
-import com.trevorschoeny.menukit.panel.MKPanel;
+import com.trevorschoeny.menukit.core.PanelRendering;
+import com.trevorschoeny.menukit.core.PanelStyle;
 
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -31,7 +32,7 @@ import java.util.List;
  *     .anchor(MKHudAnchor.TOP_CENTER, 0, 10)
  *     .duration(3000)
  *     .slideFrom(SlideDirection.TOP)
- *     .style(MKPanel.Style.RAISED)
+ *     .style(PanelStyle.RAISED)
  *     .padding(6)
  *     .build();
  *
@@ -53,7 +54,7 @@ public class MKHudNotification {
     private final int fadeMs;
     private final SlideDirection slideFrom;
     private final int slideDistance;
-    private final MKPanel.Style style;
+    private final PanelStyle style;
     private final int padding;
     private final int width, height;
 
@@ -62,7 +63,7 @@ public class MKHudNotification {
 
     MKHudNotification(String key, MKHudAnchor anchor, int offsetX, int offsetY,
                       int durationMs, int fadeMs, SlideDirection slideFrom,
-                      int slideDistance, MKPanel.Style style, int padding,
+                      int slideDistance, PanelStyle style, int padding,
                       int width, int height) {
         this.key = key;
         this.anchor = anchor;
@@ -136,8 +137,8 @@ public class MKHudNotification {
         int alphaInt = (int) (alpha * 255) << 24;
 
         // Render panel background
-        if (style != MKPanel.Style.NONE && alpha > 0.01f) {
-            MKPanel.renderPanel(graphics, drawX, drawY, panelW, panelH, style);
+        if (style != PanelStyle.NONE && alpha > 0.01f) {
+            PanelRendering.renderPanel(graphics, drawX, drawY, panelW, panelH, style);
         }
 
         // Render content
@@ -179,7 +180,7 @@ public class MKHudNotification {
         private int fadeMs = 500;
         private SlideDirection slideFrom = SlideDirection.TOP;
         private int slideDistance = 20;
-        private MKPanel.Style style = MKPanel.Style.RAISED;
+        private PanelStyle style = PanelStyle.RAISED;
         private int padding = 6;
         private int width = 0, height = 0;
 
@@ -196,7 +197,7 @@ public class MKHudNotification {
         public Builder fadeOut(int ms) { this.fadeMs = ms; return this; }
         public Builder slideFrom(SlideDirection dir) { this.slideFrom = dir; return this; }
         public Builder slideDistance(int pixels) { this.slideDistance = pixels; return this; }
-        public Builder style(MKPanel.Style style) { this.style = style; return this; }
+        public Builder style(PanelStyle style) { this.style = style; return this; }
         public Builder padding(int padding) { this.padding = padding; return this; }
         public Builder size(int width, int height) { this.width = width; this.height = height; return this; }
 

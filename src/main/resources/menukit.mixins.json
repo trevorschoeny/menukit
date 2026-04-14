@@ -3,37 +3,16 @@
   "minVersion": "0.8",
   "package": "com.trevorschoeny.menukit.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [
-    "AbstractContainerMenuInvoker",
-    "MKMenuMixin",
-    "MKSlotInjectionMixin",
-    "MKContainerTrackingMixin",
-    "MKReadOnlyMixin",
-    "MKSlotMixin",
-    "MKSlotClickMixin",
-    "MKServerPlayerMixin",
-    "ContainerLevelAccessAccessor$EnchantmentMenuAccessor",
-    "ContainerLevelAccessAccessor$CraftingMenuAccessor",
-    "ContainerLevelAccessAccessor$ItemCombinerMenuAccessor",
-    "ContainerLevelAccessAccessor$LoomMenuAccessor",
-    "ContainerLevelAccessAccessor$StonecutterMenuAccessor",
-    "ContainerLevelAccessAccessor$CartographyTableMenuAccessor",
-    "MKTransferMixin",
-    "MKDoClickMixin",
-    "MKMoveItemSortLockMixin"
-  ],
+  "mixins": [],
   "client": [
     "AbstractContainerScreenAccessor",
-    "AbstractContainerScreenInvoker",
     "SlotPositionAccessor",
-    "SlotWrapperAccessor",
-    "MKRecipeBookScreenMixin",
-    "MKGuiMixin",
-    "MKRecipeBookAccessor",
-    "MKKeyBindsScreenMixin",
     "KeyEntryAccessor",
     "KeyMappingAccessor",
-    "MKKeyMappingMixin"
+    "MKGuiMixin",
+    "MKKeyBindsScreenMixin",
+    "MKKeyMappingMixin",
+    "MKRecipeBookAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

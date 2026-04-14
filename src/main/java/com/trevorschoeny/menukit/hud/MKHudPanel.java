@@ -2,7 +2,7 @@ package com.trevorschoeny.menukit.hud;
 
 import com.trevorschoeny.menukit.MenuKit;
 
-import com.trevorschoeny.menukit.panel.MKPanel;
+import com.trevorschoeny.menukit.core.PanelStyle;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -26,7 +26,7 @@ import java.util.function.Supplier;
  * MKHudPanel.builder("coords")
  *     .anchor(MKHudAnchor.TOP_LEFT, 4, 4)
  *     .padding(4).autoSize()
- *     .style(MKPanel.Style.RAISED)
+ *     .style(PanelStyle.RAISED)
  *     .text(0, 0, () -> "X: " + (int) player.getX())
  *     .text(0, 12, () -> "Y: " + (int) player.getY())
  *     .build();
@@ -59,7 +59,7 @@ public class MKHudPanel {
         private int padding = 0;
         private boolean autoSize = false;
         private int width = 0, height = 0;
-        private MKPanel.Style style = MKPanel.Style.NONE;
+        private PanelStyle style = PanelStyle.NONE;
         private Supplier<Boolean> showWhen = () -> true;
         private boolean hideInScreen = false; // default: stay visible like vanilla HUD
         private MKHudPanelDef.HudRenderCallback onRender; // nullable
@@ -98,8 +98,8 @@ public class MKHudPanel {
             return this;
         }
 
-        /** Sets the panel background style (RAISED, INSET, FLAT, NONE). */
-        public Builder style(MKPanel.Style style) {
+        /** Sets the panel background style (RAISED, DARK, INSET, NONE). */
+        public Builder style(PanelStyle style) {
             this.style = style;
             return this;
         }
