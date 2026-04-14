@@ -1,7 +1,5 @@
 package com.trevorschoeny.menukit.core;
 
-import com.trevorschoeny.menukit.panel.MKPanel;
-
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -107,9 +105,9 @@ public class Button implements PanelElement {
         // Background
         boolean disabled = isDisabled();
         if (disabled) {
-            MKPanel.renderPanel(graphics, sx, sy, width, height, MKPanel.Style.DARK);
+            PanelRendering.renderPanel(graphics, sx, sy, width, height, PanelStyle.DARK);
         } else {
-            MKPanel.renderPanel(graphics, sx, sy, width, height, MKPanel.Style.RAISED);
+            PanelRendering.renderPanel(graphics, sx, sy, width, height, PanelStyle.RAISED);
             if (hovered) {
                 // Translucent highlight overlay (inside the border)
                 graphics.fill(sx + 1, sy + 1, sx + width - 1, sy + height - 1,

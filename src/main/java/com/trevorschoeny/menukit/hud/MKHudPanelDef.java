@@ -2,8 +2,7 @@ package com.trevorschoeny.menukit.hud;
 
 import com.trevorschoeny.menukit.MenuKit;
 
-import com.trevorschoeny.menukit.panel.MKPanel;
-import com.trevorschoeny.menukit.panel.MKPanelDef;
+import com.trevorschoeny.menukit.core.PanelStyle;
 
 import net.minecraft.client.gui.GuiGraphics;
 
@@ -15,8 +14,8 @@ import org.jspecify.annotations.Nullable;
  * Immutable definition of a HUD panel — created at mod init, stored in
  * MenuKit's registry, rendered each frame by the HUD dispatch.
  *
- * <p>Parallel to {@link MKPanelDef} (screen panels) but simpler — no
- * interactivity, no menu, no server sync.
+ * <p>Parallel to screen panels but simpler — no interactivity, no menu,
+ * no server sync.
  *
  * <p>Part of the <b>MenuKit</b> framework internals.
  */
@@ -29,7 +28,7 @@ public record MKHudPanelDef(
         boolean autoSize,
         int width,
         int height,
-        MKPanel.Style style,
+        PanelStyle style,
         List<MKHudElement> elements,
         Supplier<Boolean> showWhen,
         boolean hideInScreen,
