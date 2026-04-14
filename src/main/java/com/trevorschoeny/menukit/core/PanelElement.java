@@ -1,18 +1,23 @@
 package com.trevorschoeny.menukit.core;
 
-import net.minecraft.client.gui.GuiGraphics;
-
 /**
  * A visual or interactive element within a {@link Panel}. Elements are
  * positioned absolutely within the panel's content area (after padding)
  * using {@code childX}/{@code childY} coordinates.
  *
- * <p>Panel elements are a decorative/interactive layer on top of the slot
- * grid layout. Slot groups determine the panel's size; elements are
- * positioned within that space but don't affect it.
+ * <p>Panel elements are a decorative/interactive layer on top of the panel
+ * backgrounds. In inventory-menu panels they sit alongside slot groups (which
+ * live on the handler, not on the panel itself); in HUD panels and
+ * standalone-screen panels they are the only content.
  *
  * <p>Elements are per-panel-instance — each panel constructs its own
- * elements via the builder. Elements aren't shared between panels.
+ * elements via its builder. Elements aren't shared between panels.
+ *
+ * <p>Works uniformly across all three rendering contexts (inventory menus,
+ * HUDs, standalone screens). The {@link RenderContext} bundles per-frame
+ * state; in contexts without input dispatch (HUDs), {@link RenderContext#hasMouseInput}
+ * returns {@code false} and {@link #mouseClicked} is never called by the
+ * dispatcher.
  *
  * <p>Core implementations: {@link Button}, {@link TextLabel}.
  * Consumer mods can implement this interface for custom element types
@@ -21,6 +26,7 @@ import net.minecraft.client.gui.GuiGraphics;
  * @see Panel              The container that holds elements
  * @see Button             Interactive button element
  * @see TextLabel          Static or dynamic text element
+ * @see RenderContext      Per-frame render state
  */
 public interface PanelElement {
 
@@ -55,26 +61,48 @@ public interface PanelElement {
      */
     default boolean isVisible() { return true; }
 
+    // ── Hover Convenience ──────────────────────────────────────────────
+
+    /**
+     * Returns whether the mouse is currently over this element, using the
+     * element's own bounds. Returns {@code false} in contexts without input
+     * dispatch (HUDs).
+     *
+     * <p>Convenience wrapper around {@link RenderContext#isHovered}; equivalent
+     * to {@code ctx.isHovered(getChildX(), getChildY(), getWidth(), getHeight())}.
+     */
+    default boolean isHovered(RenderContext ctx) {
+        return ctx.isHovered(getChildX(), getChildY(), getWidth(), getHeight());
+    }
+
     // ── Rendering ──────────────────────────────────────────────────────
 
     /**
      * Renders this element. Called during the panel background pass
      * (screen space), after slot backgrounds.
      *
-     * @param graphics      the graphics context
-     * @param contentX      screen-space X of the panel's content area origin
-     * @param contentY      screen-space Y of the panel's content area origin
-     * @param mouseX        screen-space mouse X
-     * @param mouseY        screen-space mouse Y
+     * <p>Position the element using the context's content origin plus this
+     * element's {@code childX}/{@code childY}:
+     * <pre>{@code
+     * int sx = ctx.originX() + getChildX();
+     * int sy = ctx.originY() + getChildY();
+     * }</pre>
+     *
+     * @param ctx per-frame render context
      */
-    void render(GuiGraphics graphics, int contentX, int contentY,
-                int mouseX, int mouseY);
+    void render(RenderContext ctx);
 
     // ── Input ──────────────────────────────────────────────────────────
 
     /**
-     * Called when the mouse is clicked. Returns true if this element
-     * consumed the click (preventing further dispatch to slots or vanilla).
+     * Called when the mouse is clicked on this element. The dispatcher
+     * hit-tests against the element's bounds before calling this method, so
+     * implementations know the click is within bounds.
+     *
+     * <p>Returns true if this element consumed the click (preventing further
+     * dispatch to slots or vanilla). The default returns {@code false}, so
+     * render-only elements (TextLabel, Icon, ItemDisplay) don't need to
+     * override it.
      *
      * <p>The {@code button} parameter is the mouse button: 0=left, 1=right,
      * 2=middle. Core {@link Button} only consumes left-click; custom
@@ -85,5 +113,7 @@ public interface PanelElement {
      * @param button  mouse button (0=left, 1=right, 2=middle)
      * @return true if consumed, false to let the click fall through
      */
-    boolean mouseClicked(double mouseX, double mouseY, int button);
+    default boolean mouseClicked(double mouseX, double mouseY, int button) {
+        return false;
+    }
 }
