@@ -1,7 +1,6 @@
 package com.trevorschoeny.menukit.hud;
 
-import com.trevorschoeny.menukit.MenuKit;
-
+import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.PanelStyle;
 
 import net.minecraft.client.gui.GuiGraphics;
@@ -14,8 +13,10 @@ import org.jspecify.annotations.Nullable;
  * Immutable definition of a HUD panel — created at mod init, stored in
  * MenuKit's registry, rendered each frame by the HUD dispatch.
  *
- * <p>Parallel to screen panels but simpler — no interactivity, no menu,
- * no server sync.
+ * <p>Holds a list of {@link PanelElement}s — the same element abstraction
+ * used in inventory menus and standalone screens. HUD-specific machinery
+ * (anchor, screen-open visibility, per-frame dispatch) lives on this def;
+ * the elements themselves are context-neutral.
  *
  * <p>Part of the <b>MenuKit</b> framework internals.
  */
@@ -29,7 +30,7 @@ public record MKHudPanelDef(
         int width,
         int height,
         PanelStyle style,
-        List<MKHudElement> elements,
+        List<PanelElement> elements,
         Supplier<Boolean> showWhen,
         boolean hideInScreen,
         @Nullable HudRenderCallback onRender
@@ -45,7 +46,8 @@ public record MKHudPanelDef(
 
     /**
      * Computes the panel's size from its children + padding.
-     * Used for auto-sized panels.
+     * Used for auto-sized panels. Size = max(childX + width, childY + height)
+     * across all elements, plus padding on both sides.
      */
     public int[] computeSize() {
         if (!autoSize || elements.isEmpty()) {
@@ -55,9 +57,9 @@ public record MKHudPanelDef(
         int maxRight = 0;
         int maxBottom = 0;
 
-        for (MKHudElement el : elements) {
-            maxRight = Math.max(maxRight, el.getWidth());
-            maxBottom = Math.max(maxBottom, el.getHeight());
+        for (PanelElement el : elements) {
+            maxRight = Math.max(maxRight, el.getChildX() + el.getWidth());
+            maxBottom = Math.max(maxBottom, el.getChildY() + el.getHeight());
         }
 
         return new int[]{

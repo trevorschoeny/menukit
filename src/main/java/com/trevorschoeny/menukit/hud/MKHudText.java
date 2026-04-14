@@ -1,10 +1,9 @@
 package com.trevorschoeny.menukit.hud;
 
-import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.core.PanelElement;
+import com.trevorschoeny.menukit.core.RenderContext;
 
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
@@ -18,11 +17,14 @@ import java.util.function.Supplier;
  * stack, optional backdrop (semi-transparent background behind text),
  * and shadow.
  *
+ * <p>Implements {@link PanelElement} — Phase 8 will subsume this into a
+ * scale-variant of the core TextLabel.
+ *
  * <p>Part of the <b>MenuKit</b> framework.
  */
-public class MKHudText implements MKHudElement {
+public class MKHudText implements PanelElement {
 
-    private final int relX, relY;
+    private final int childX, childY;
     private final Supplier<Component> text;
     private final int color;
     private final boolean shadow;
@@ -30,11 +32,11 @@ public class MKHudText implements MKHudElement {
     private final boolean backdrop;
     private final @Nullable Runnable onRender;
 
-    MKHudText(int relX, int relY, Supplier<Component> text,
+    MKHudText(int childX, int childY, Supplier<Component> text,
               int color, boolean shadow, float scale,
               boolean backdrop, @Nullable Runnable onRender) {
-        this.relX = relX;
-        this.relY = relY;
+        this.childX = childX;
+        this.childY = childY;
         this.text = text;
         this.color = color;
         this.shadow = shadow;
@@ -43,16 +45,32 @@ public class MKHudText implements MKHudElement {
         this.onRender = onRender;
     }
 
+    @Override public int getChildX() { return childX; }
+    @Override public int getChildY() { return childY; }
+
     @Override
-    public void render(GuiGraphics graphics, int x, int y, DeltaTracker dt) {
+    public int getWidth() {
+        Component comp = text.get();
+        if (comp == null) return 0;
+        return (int) (Minecraft.getInstance().font.width(comp) * scale);
+    }
+
+    @Override
+    public int getHeight() {
+        return (int) (9 * scale); // 9 = MC font height
+    }
+
+    @Override
+    public void render(RenderContext ctx) {
         if (onRender != null) onRender.run();
 
         var mc = Minecraft.getInstance();
         Component comp = text.get();
         if (comp == null) return;
 
-        int drawX = x + relX;
-        int drawY = y + relY;
+        var graphics = ctx.graphics();
+        int drawX = ctx.originX() + childX;
+        int drawY = ctx.originY() + childY;
 
         if (scale != 1.0f) {
             graphics.pose().pushMatrix();
@@ -74,17 +92,5 @@ public class MKHudText implements MKHudElement {
         if (scale != 1.0f) {
             graphics.pose().popMatrix();
         }
-    }
-
-    @Override
-    public int getWidth() {
-        Component comp = text.get();
-        if (comp == null) return relX;
-        return relX + (int) (Minecraft.getInstance().font.width(comp) * scale);
-    }
-
-    @Override
-    public int getHeight() {
-        return relY + (int) (9 * scale); // 9 = MC font height
     }
 }

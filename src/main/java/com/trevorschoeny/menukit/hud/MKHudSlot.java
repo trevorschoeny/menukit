@@ -1,11 +1,10 @@
 package com.trevorschoeny.menukit.hud;
 
-import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.core.PanelElement;
+import com.trevorschoeny.menukit.core.RenderContext;
 
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
@@ -23,9 +22,12 @@ import java.util.function.Supplier;
  * slots, use a {@code MenuKitSlot} inside a {@code Panel} on a
  * {@code MenuKitScreenHandler}.
  *
+ * <p>Implements {@link PanelElement}. Phase 8 may subsume this into a
+ * hotbar-styled variant of the core {@code ItemDisplay}.
+ *
  * <p>Part of the <b>MenuKit</b> framework.
  */
-public class MKHudSlot implements MKHudElement {
+public class MKHudSlot implements PanelElement {
 
     // Vanilla hotbar sprite — 182x22, contains 9 slots of 20px each
     private static final Identifier HOTBAR_SPRITE =
@@ -38,29 +40,35 @@ public class MKHudSlot implements MKHudElement {
     private static final int ITEM_OFFSET_X = 3; // center 16px item in 20px slot
     private static final int ITEM_OFFSET_Y = 3; // center 16px item in 22px slot
 
-    private final int relX, relY;
+    private final int childX, childY;
     private final Supplier<ItemStack> itemSupplier;
     private final boolean showCount;
     private final boolean showDurability;
     private final @Nullable Runnable onRender;
 
-    MKHudSlot(int relX, int relY, Supplier<ItemStack> itemSupplier,
+    MKHudSlot(int childX, int childY, Supplier<ItemStack> itemSupplier,
               boolean showCount, boolean showDurability,
               @Nullable Runnable onRender) {
-        this.relX = relX;
-        this.relY = relY;
+        this.childX = childX;
+        this.childY = childY;
         this.itemSupplier = itemSupplier;
         this.showCount = showCount;
         this.showDurability = showDurability;
         this.onRender = onRender;
     }
 
+    @Override public int getChildX() { return childX; }
+    @Override public int getChildY() { return childY; }
+    @Override public int getWidth() { return SLOT_WIDTH; }
+    @Override public int getHeight() { return SLOT_HEIGHT; }
+
     @Override
-    public void render(GuiGraphics graphics, int x, int y, DeltaTracker dt) {
+    public void render(RenderContext ctx) {
         if (onRender != null) onRender.run();
 
-        int slotX = x + relX;
-        int slotY = y + relY;
+        var graphics = ctx.graphics();
+        int slotX = ctx.originX() + childX;
+        int slotY = ctx.originY() + childY;
 
         // Render a single slot from the hotbar sprite.
         // The hotbar sprite is 182x22. We render a 20x22 slice starting at
@@ -85,15 +93,5 @@ public class MKHudSlot implements MKHudElement {
                         Minecraft.getInstance().font, stack, itemX, itemY);
             }
         }
-    }
-
-    @Override
-    public int getWidth() {
-        return relX + SLOT_WIDTH;
-    }
-
-    @Override
-    public int getHeight() {
-        return relY + SLOT_HEIGHT;
     }
 }

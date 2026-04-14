@@ -1,10 +1,9 @@
 package com.trevorschoeny.menukit.hud;
 
-import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.core.PanelElement;
+import com.trevorschoeny.menukit.core.RenderContext;
 
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
 
@@ -17,22 +16,25 @@ import java.util.function.Supplier;
  * JOML matrix scaling. Optionally shows count text and durability bar
  * using vanilla's {@code renderItemDecorations()}.
  *
+ * <p>Implements {@link PanelElement}. Phase 8 will subsume this into the
+ * core {@code ItemDisplay} element.
+ *
  * <p>Part of the <b>MenuKit</b> framework.
  */
-public class MKHudItem implements MKHudElement {
+public class MKHudItem implements PanelElement {
 
-    private final int relX, relY;
+    private final int childX, childY;
     private final Supplier<ItemStack> item;
     private final int size;
     private final boolean showCount;
     private final boolean showDurability;
     private final @Nullable Runnable onRender;
 
-    MKHudItem(int relX, int relY, Supplier<ItemStack> item,
+    MKHudItem(int childX, int childY, Supplier<ItemStack> item,
               int size, boolean showCount, boolean showDurability,
               @Nullable Runnable onRender) {
-        this.relX = relX;
-        this.relY = relY;
+        this.childX = childX;
+        this.childY = childY;
         this.item = item;
         this.size = size;
         this.showCount = showCount;
@@ -40,16 +42,22 @@ public class MKHudItem implements MKHudElement {
         this.onRender = onRender;
     }
 
+    @Override public int getChildX() { return childX; }
+    @Override public int getChildY() { return childY; }
+    @Override public int getWidth() { return size; }
+    @Override public int getHeight() { return size; }
+
     @Override
-    public void render(GuiGraphics graphics, int x, int y, DeltaTracker dt) {
+    public void render(RenderContext ctx) {
         if (onRender != null) onRender.run();
 
         ItemStack stack = item.get();
         if (stack == null || stack.isEmpty()) return;
 
         var mc = Minecraft.getInstance();
-        int drawX = x + relX;
-        int drawY = y + relY;
+        var graphics = ctx.graphics();
+        int drawX = ctx.originX() + childX;
+        int drawY = ctx.originY() + childY;
 
         if (size != 16) {
             // Scale to target size — vanilla renders items at 16×16
@@ -69,15 +77,5 @@ public class MKHudItem implements MKHudElement {
                 graphics.renderItemDecorations(mc.font, stack, drawX, drawY);
             }
         }
-    }
-
-    @Override
-    public int getWidth() {
-        return relX + size;
-    }
-
-    @Override
-    public int getHeight() {
-        return relY + size;
     }
 }

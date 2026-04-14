@@ -1,8 +1,9 @@
 package com.trevorschoeny.menukit.hud;
 
 import com.trevorschoeny.menukit.MenuKit;
-
+import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.PanelStyle;
+import com.trevorschoeny.menukit.core.RenderContext;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -11,15 +12,21 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
  * Builder entry point for HUD panels — visual elements rendered on the
  * game's heads-up display.
  *
- * <p>HUD panels are purely visual (not interactive). They anchor to screen
+ * <p>HUD panels are render-only (no input dispatch). They anchor to screen
  * edges, update dynamically via {@code Supplier<T>}, and auto-size to fit
  * their content. Build once at mod init — MenuKit handles rendering.
+ *
+ * <p>Holds {@link PanelElement}s — the same abstraction used in inventory
+ * menus and standalone screens. Elements are context-neutral; the HUD panel
+ * supplies their {@link RenderContext} with {@code mouseX = -1} at render
+ * time to signal "no input dispatch."
  *
  * <p>Usage:
  * <pre>{@code
@@ -63,7 +70,7 @@ public class MKHudPanel {
         private Supplier<Boolean> showWhen = () -> true;
         private boolean hideInScreen = false; // default: stay visible like vanilla HUD
         private MKHudPanelDef.HudRenderCallback onRender; // nullable
-        private final List<MKHudElement> elements = new ArrayList<>();
+        private final List<PanelElement> elements = new ArrayList<>();
 
         Builder(String name) {
             this.name = name;
@@ -202,29 +209,34 @@ public class MKHudPanel {
         }
 
         /**
-         * Adds a layout group and returns a GroupBuilder.
+         * Adds a custom render region. The lambda receives the per-frame
+         * {@link RenderContext} for its position and graphics handle.
+         * The declared width/height are the element's bounds for layout.
+         *
+         * @param childX panel-relative X position
+         * @param childY panel-relative Y position
+         * @param width  region width (used for auto-sizing)
+         * @param height region height (used for auto-sizing)
+         * @param renderFn render callback invoked each frame
          */
-        public GroupBuilder group(int x, int y) {
-            return new GroupBuilder(this, x, y);
-        }
-
-        /**
-         * Adds a custom render region.
-         */
-        public Builder custom(int x, int y, int w, int h,
-                              MKHudCustom.Renderer renderer) {
-            elements.add(new MKHudCustom(x, y, w, h, renderer));
+        public Builder custom(int childX, int childY, int width, int height,
+                              Consumer<RenderContext> renderFn) {
+            elements.add(new PanelElement() {
+                @Override public int getChildX() { return childX; }
+                @Override public int getChildY() { return childY; }
+                @Override public int getWidth() { return width; }
+                @Override public int getHeight() { return height; }
+                @Override public void render(RenderContext ctx) { renderFn.accept(ctx); }
+            });
             return this;
         }
 
         /**
-         * Adds a dynamic list that re-evaluates each frame.
+         * Adds any panel element directly. Escape hatch for consumers that
+         * implement {@link PanelElement} themselves.
          */
-        public <T> Builder list(int x, int y,
-                                Supplier<List<T>> data,
-                                MKHudList.TemplateCallback<T> template) {
-            elements.add(new MKHudList<>(x, y, data, template,
-                    MKHudGroup.Layout.COLUMN, 2));
+        public Builder element(PanelElement element) {
+            elements.add(element);
             return this;
         }
 
@@ -253,7 +265,7 @@ public class MKHudPanel {
     public static class TextBuilder {
         private final Builder parent;
         private final int x, y;
-        private Supplier<Component> text = () -> Component.empty();
+        private Supplier<Component> text = Component::empty;
         private int color = 0xFFFFFFFF;
         private boolean shadow = true;
         private float scale = 1.0f;
@@ -371,46 +383,6 @@ public class MKHudPanel {
 
         public Builder done() {
             parent.elements.add(new MKHudSlot(x, y, item, showCount, showDurability, onRender));
-            return parent;
-        }
-    }
-
-    /** Builder for layout groups. */
-    public static class GroupBuilder {
-        private final Builder parent;
-        private final int x, y;
-        private MKHudGroup.Layout layout = MKHudGroup.Layout.ROW;
-        private int spacing = 2;
-        private final List<MKHudElement> children = new ArrayList<>();
-        private @Nullable Runnable onRender;
-
-        GroupBuilder(Builder parent, int x, int y) {
-            this.parent = parent;
-            this.x = x;
-            this.y = y;
-        }
-
-        public GroupBuilder row() { this.layout = MKHudGroup.Layout.ROW; return this; }
-        public GroupBuilder column() { this.layout = MKHudGroup.Layout.COLUMN; return this; }
-        public GroupBuilder spacing(int spacing) { this.spacing = spacing; return this; }
-
-        public GroupBuilder text(Supplier<String> text) {
-            children.add(new MKHudText(0, 0,
-                    () -> Component.literal(text.get()),
-                    0xFFFFFFFF, true, 1.0f, false, null));
-            return this;
-        }
-
-        public GroupBuilder item(Supplier<ItemStack> item) {
-            children.add(new MKHudItem(0, 0, item, 16, false, false, null));
-            return this;
-        }
-
-        public GroupBuilder onRender(Runnable callback) { this.onRender = callback; return this; }
-
-        public Builder done() {
-            parent.elements.add(new MKHudGroup(x, y, layout, spacing,
-                    List.copyOf(children), onRender));
             return parent;
         }
     }

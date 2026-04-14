@@ -1,10 +1,9 @@
 package com.trevorschoeny.menukit.hud;
 
-import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.core.PanelElement;
+import com.trevorschoeny.menukit.core.RenderContext;
 
-import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
@@ -17,9 +16,12 @@ import java.util.function.Supplier;
  * horizontal and vertical orientations with configurable fill direction,
  * colors, and optional label text.
  *
+ * <p>Implements {@link PanelElement}. Phase 8 will subsume this into the
+ * core {@code ProgressBar} element.
+ *
  * <p>Part of the <b>MenuKit</b> framework.
  */
-public class MKHudBar implements MKHudElement {
+public class MKHudBar implements PanelElement {
 
     /** Fill direction for the progress bar. */
     public enum Direction {
@@ -29,7 +31,7 @@ public class MKHudBar implements MKHudElement {
         TOP_TO_BOTTOM
     }
 
-    private final int relX, relY;
+    private final int childX, childY;
     private final int barWidth, barHeight;
     private final Supplier<Float> value;
     private final int fillColor;
@@ -38,12 +40,12 @@ public class MKHudBar implements MKHudElement {
     private final @Nullable Supplier<Component> label;
     private final @Nullable Runnable onRender;
 
-    MKHudBar(int relX, int relY, int barWidth, int barHeight,
+    MKHudBar(int childX, int childY, int barWidth, int barHeight,
              Supplier<Float> value, int fillColor, int bgColor,
              Direction direction, @Nullable Supplier<Component> label,
              @Nullable Runnable onRender) {
-        this.relX = relX;
-        this.relY = relY;
+        this.childX = childX;
+        this.childY = childY;
         this.barWidth = barWidth;
         this.barHeight = barHeight;
         this.value = value;
@@ -54,12 +56,18 @@ public class MKHudBar implements MKHudElement {
         this.onRender = onRender;
     }
 
+    @Override public int getChildX() { return childX; }
+    @Override public int getChildY() { return childY; }
+    @Override public int getWidth() { return barWidth; }
+    @Override public int getHeight() { return barHeight; }
+
     @Override
-    public void render(GuiGraphics graphics, int x, int y, DeltaTracker dt) {
+    public void render(RenderContext ctx) {
         if (onRender != null) onRender.run();
 
-        int drawX = x + relX;
-        int drawY = y + relY;
+        var graphics = ctx.graphics();
+        int drawX = ctx.originX() + childX;
+        int drawY = ctx.originY() + childY;
 
         // Background
         graphics.fill(drawX, drawY, drawX + barWidth, drawY + barHeight, bgColor);
@@ -99,15 +107,5 @@ public class MKHudBar implements MKHudElement {
                 graphics.drawString(mc.font, comp, tx, ty, 0xFFFFFFFF, true);
             }
         }
-    }
-
-    @Override
-    public int getWidth() {
-        return relX + barWidth;
-    }
-
-    @Override
-    public int getHeight() {
-        return relY + barHeight;
     }
 }
