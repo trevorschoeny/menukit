@@ -83,6 +83,26 @@ private void yourMod$keyPressed(KeyEvent event, CallbackInfoReturnable<Boolean> 
 
 **Cost.** Compile-time error gives no warning — this surfaces only at dev-client boot as a hard crash in the Mixin applicator. If you're porting mixin code from pre-1.21.5 or pre-1.21.11 era, audit every `keyPressed` / `mouseClicked` / `mouseReleased` / `mouseDragged` / `mouseScrolled` mixin signature and match against current vanilla. Referenced by Phase 10's `INVENTORY_INJECTION_PATTERN.md` § Pattern 2 example (mouseClicked used the new `MouseButtonEvent` signature).
 
+### 5. `Screen.hasShiftDown()` (and peers) removed
+
+**Symptom.** `cannot find symbol: method hasShiftDown() on class Screen`. Code that polls modifier-key state outside of an event callback (e.g. inside `slotClicked`, tick handlers, sound dispatch) can't reach for the old static anymore.
+
+**Cause.** 1.21.11 moved modifier queries onto `net.minecraft.client.input.InputWithModifiers` as instance defaults (`hasShiftDown()`, `hasControlDown()`, `hasAltDown()`). `KeyEvent` + `MouseButtonEvent` implement it, so inside a keyPressed/mouseClicked hook you call it on the event record. Outside of an event context there is no `InputWithModifiers` to call.
+
+**Consumer pattern.** Poll GLFW directly via `InputConstants.isKeyDown(window, key)`:
+
+```java
+import com.mojang.blaze3d.platform.InputConstants;
+
+var window = Minecraft.getInstance().getWindow();
+boolean shiftHeld = InputConstants.isKeyDown(window, InputConstants.KEY_LSHIFT)
+                 || InputConstants.isKeyDown(window, InputConstants.KEY_RSHIFT);
+```
+
+Use this when the caller isn't inside a key/mouse event — inside those events, prefer `event.hasShiftDown()` so the modifier state matches the exact event you're handling.
+
+**Reference:** IP's `decoration/BulkMove.isShiftHeld()` — called from `slotClicked` HEAD, which has no `InputWithModifiers` event to read.
+
 ---
 
 ## When to update this file

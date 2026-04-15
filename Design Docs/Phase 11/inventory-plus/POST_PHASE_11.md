@@ -79,15 +79,30 @@ By end of Phase 11, this file (plus similar per-mod files for shulker-palette / 
 
 ---
 
-### F6. Creative-mode bulk-move (if applicable)
+### F6. Creative-mode bulk-move
 
-**Trigger.** Group B2 planning — if bulk-move's shift+double-click detection + click-sequence approach doesn't work in creative (same reason as F5, creative's separate packet path), the feature is deferred there too.
+**Trigger.** Group B2 verification (2026-04-15) — shift+double-click bulk-move fires in survival but has no effect in creative. Same root cause as F5: `CreativeModeInventoryScreen` routes most clicks through `CreativeInventoryActionC2SPacket`, not through the standard `menu.clicked(...)` path that IP's click-sequence server handler replays against.
 
 **What Phase 13 delivers.** Bulk-move works in creative inventory.
 
-**Mechanism needed.** None — same creative-specific code path as F5.
+**Mechanism needed.** None — shares F5's creative-specific code path.
 
-**Note.** Placeholder — confirm during Group B2 verification whether this defer is needed. Remove entry if creative bulk-move works via current architecture.
+---
+
+### F7. Bulk-move within a single player-inventory region (no container open)
+
+**Trigger.** Group B2 verification (2026-04-15). With no container open and the anchor in hotbar or main, shift+double-click moves matching items but also leaves a mystery single stack back in the anchor slot afterwards. Investigation ruled out the obvious paths (source list excludes the anchor; vanilla's `moveItemStackTo` targets the opposite sub-region; canceling `mouseClicked` + `mouseReleased` both still reproduces). Vanilla's double-click has a release-time PICKUP_ALL dispatch that we suppress, but some additional state (possibly `lastQuickMoved` carrying across subsequent interactions, possibly `doubleclick` field, possibly a second slotClicked path we haven't traced) still produces the residue.
+
+**Current Phase 11 state.**
+- Chest-open player anchor → works (all matching items flow to container).
+- Container anchor → works (all matching items flow to player).
+- Player-only (no container), hotbar or main anchor → bulk of items move correctly; one stack bounces back to anchor. Most useful cases still function; the no-container gesture is the degraded one.
+
+**What Phase 13 delivers.** Clean shift+double-click within a single player-inventory region, no anchor residue.
+
+**Mechanism needed.** None — vanilla-click-protocol investigation, not a missing library primitive. Options to explore: (a) use `@Shadow` on `AbstractContainerScreen.doubleclick` + `lastQuickMoved` and reset them after our fire; (b) rewrite using a non-gesture trigger (keybind-based move-matching already covers the "all matching" use case in F5's Group B3, so F7 may be redundant if F5 lands); (c) drop shift+double-click bulk-move from survival player-only scope and require a container to be open.
+
+**Note.** Low-priority. The main player ↔ container directions work correctly, which is the common case. Worth revisiting when Phase 13 looks at click-protocol edge cases holistically.
 
 ---
 
