@@ -266,4 +266,92 @@ public class Toggle implements PanelElement {
         toggleTo(!currentState());
         return true;
     }
+
+    // ── State-linked variant ───────────────────────────────────────────
+
+    /**
+     * Creates a Toggle whose state lives in consumer code instead of inside
+     * the element. The consumer provides a {@link BooleanSupplier} that
+     * drives rendering each frame and a {@link Runnable} that fires when
+     * the user clicks to toggle.
+     *
+     * <h4>Persistence framing</h4>
+     *
+     * State persistence is a consumer concern. MenuKit does not ship a
+     * persistence abstraction — no {@code PersistentValue<T>}, no
+     * {@code BooleanFlag}, no config-backed state helpers. If you need a
+     * toggle whose state persists, use {@code Toggle.linked} and back the
+     * supplier and callback with wherever your state actually lives: a
+     * block entity, player attachment, config file, static field on a
+     * singleton, or anywhere else. The supplier reads; the callback
+     * signals. The library gives you the visual element and user input
+     * handling; the storage is yours to define.
+     *
+     * <h4>Self-healing behavior</h4>
+     *
+     * If the {@code onToggle} callback fails to update consumer state
+     * (bug, exception, swallowed error), the next frame's render reads
+     * the supplier and shows the unchanged state. The toggle visually
+     * snaps back to its pre-click appearance. State displayed is always
+     * state reported by the supplier — there is no internal state that
+     * could diverge from consumer state.
+     *
+     * <h4>Typical usage</h4>
+     *
+     * <pre>{@code
+     * Toggle.linked(x, y, w, h,
+     *     () -> config.autoSort,
+     *     () -> config.autoSort = !config.autoSort);
+     * }</pre>
+     *
+     * @param childX   X position within panel content area
+     * @param childY   Y position within panel content area
+     * @param width    width in pixels
+     * @param height   height in pixels
+     * @param state    supplier invoked each frame to drive rendering
+     * @param onToggle fired on user-initiated state changes; consumer
+     *                 updates their own state store in response
+     */
+    public static Toggle linked(int childX, int childY, int width, int height,
+                                BooleanSupplier state,
+                                Runnable onToggle) {
+        return new LinkedToggle(childX, childY, width, height, state, onToggle);
+    }
+
+    /**
+     * State-linked Toggle specialization. Overrides {@link #currentState}
+     * to read from a consumer-supplied {@link BooleanSupplier} and
+     * {@link #applyState} to fire a {@link Runnable} signal without any
+     * internal state commit. Package-private — consumers access via
+     * {@link #linked(int, int, int, int, BooleanSupplier, Runnable)}.
+     */
+    static final class LinkedToggle extends Toggle {
+        private final BooleanSupplier stateSupplier;
+        private final Runnable onToggleRunnable;
+
+        LinkedToggle(int childX, int childY, int width, int height,
+                     BooleanSupplier state, Runnable onToggle) {
+            // Super's Consumer<Boolean> is a dummy — the applyState override
+            // below fully replaces parent's state-commit behavior, so super's
+            // callback is never fired. Super's `state` field is also dead
+            // storage after construction (currentState() override reads the
+            // supplier instead).
+            super(childX, childY, width, height, state.getAsBoolean(), b -> {});
+            this.stateSupplier = state;
+            this.onToggleRunnable = onToggle;
+        }
+
+        @Override
+        protected boolean currentState() {
+            return stateSupplier.getAsBoolean();
+        }
+
+        @Override
+        protected void applyState(boolean newState) {
+            // Consumer-owned state — no internal commit to do.
+            // Fire the Runnable; consumer mutates their state; the supplier
+            // returns the new value on next frame.
+            onToggleRunnable.run();
+        }
+    }
 }
