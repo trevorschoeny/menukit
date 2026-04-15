@@ -70,6 +70,14 @@ Items deferred across phases. Scan this list at phase boundaries.
   - **`MKHudElement` removed**: HUD elements now implement `PanelElement` like every other context. Consumer custom HUD elements migrate to `PanelElement`. The HUD builder's `.custom()` signature changed to `Consumer<RenderContext>`; the old `(graphics, x, y, w, h, deltaTracker)` signature is gone.
   - **HUD builder `.list()` and `.group()` methods removed**: deferred per palette, zero consumers at time of removal.
 
+  **Phase 8 API additions and changes consumers should know about during refactor:**
+  - **Eight new foundational elements ship**: Icon, Divider, ItemDisplay, ProgressBar, Toggle, Checkbox, Radio/RadioGroup, Tooltip. Each has a design doc in `Design Docs/Element Design Docs/`.
+  - **TextLabel supplier variant added**: TextLabel now takes either `Component` or `Supplier<Component>`. Existing consumers passing `Component` keep working.
+  - **Tooltip Form A setters added to five elements**: Button, Toggle, Checkbox, Radio, Icon each have `.tooltip(Component)` and `.tooltip(Supplier<Component>)` chainable setters. Additive; not breaking.
+  - **MKHudItem and MKHudBar deleted**: subsumed into core ItemDisplay and ProgressBar. HUD builder `.item()` / `.bar()` / `BarBuilder` continue to work (retargeted internally). Consumers that directly imported these classes (none at time of writing) would break.
+  - **MKHudBar.Direction moved to ProgressBar.Direction**: breaking if any consumer imported the enum directly (none at time of writing).
+  - **PanelBuilder grew to ~20 methods**: all Phase 8 elements gained builder methods. Four past the original comfortable threshold of 15. Pocketed for Phase 12 evaluation; consumers not affected.
+
 - **Post-Phase-5 audit findings: consumer primitives and patterns revealed by existing mods**
 
   Phase 5's Step 0 audit read the three small consumer mods (sandboxes, agreeable-allays, shulker-palette) and IP to understand what they actually do with MenuKit. Three mods share a dominant pattern: they inject UI into vanilla screens rather than build their own. The current new-architecture has first-class support for "build your own screen" (`MenuKitScreenHandler.builder`) but nothing equivalent for "decorate a vanilla screen," which turns out to be the majority use case.
@@ -91,6 +99,15 @@ Items deferred across phases. Scan this list at phase boundaries.
   - `MKHudPanel` is a separate builder subsystem that survives Phase 5 (no old-arch type dependencies once `MKPanel.Style` is extracted — see Step 5 below). But its relationship to the rest of the new architecture is undocumented. Is it a first-class part of MenuKit's canonical surface, or a separate library that happens to ship in the same jar? Decide post-Phase-5.
 
   Post-Phase-5 work will evaluate each gap against the library-not-platform discipline before deciding what to ship versus what to document as a consumer pattern. The audit provides the data; decisions happen when the evaluation begins. Some of these might resolve to "the library ships this," others to "consumers handle it themselves, here's a documented recipe," and others to "defer until more real mods need it."
+
+- **Phase 8 reconsideration triggers**
+
+  Four items where in-game testing or Phase 11 consumer refactors may reveal a need to revisit Phase 8 design decisions:
+
+  - **Toggle visual legibility.** Toggle ships with pure RAISED/INSET panel styles rather than a custom switch sprite. This is an explicit Phase 8 trade-off, documented in the Toggle design doc. Reconsideration trigger: in-game testing or Phase 11 feedback reveals that isolated unlabeled toggles read as "button that's pre-pressed" rather than "on/off switch." Fallback: subtle internal indicator (small mark that shifts L/R by state) or custom sprite.
+  - **PanelBuilder method count consolidation.** Phase 8 ended with ~20 builder methods on PanelBuilder (four past the comfortable 15 threshold). Consolidation candidates for Phase 12: sub-builders for related elements, grouped accessors, or simply accept the count. Evaluate during Phase 12 documentation work.
+  - **Shared styling constants consolidation.** The default text-on-panel color `0xFF404040` appears in Divider, Checkbox, Radio, Tooltip (Form B). Similarly `0xFF808080` (disabled label) and `0xFF606060` (indicator) appear in multiple elements. A shared `StyleDefaults` or similar constants class would consolidate these. Phase 12 cleanup target.
+  - **MKHudSlot still HUD-specific.** After Phase 8 subsumed MKHudItem into ItemDisplay and MKHudBar into ProgressBar, MKHudSlot is the only HUD-specific element-like class remaining (MKHudNotification is intentionally HUD-specific per the palette). A hotbar-sprite-background ItemDisplay variant is plausibly Phase 9 or Phase 10 work if shulker-palette or another consumer reveals demand for the pattern. Not Phase 8 scope.
 
 - **Phase 9 Toggle.linked variant — persistence framing**
 
