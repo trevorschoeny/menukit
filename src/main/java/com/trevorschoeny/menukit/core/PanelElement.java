@@ -23,6 +23,36 @@ package com.trevorschoeny.menukit.core;
  * Consumer mods can implement this interface for custom element types
  * (icons, progress bars, etc.).
  *
+ * <h3>Coordinate contract</h3>
+ *
+ * Two coordinate spaces are in play across the element surface:
+ *
+ * <ul>
+ *   <li><b>Panel-local</b>: {@link #getChildX} / {@link #getChildY} specify
+ *       the element's position within the panel's content area (after
+ *       padding). Fixed at construction; never mutated.</li>
+ *   <li><b>Screen-space</b>: absolute coordinates in the game window's
+ *       GUI-scaled pixel grid. Used by {@link RenderContext#mouseX} /
+ *       {@link RenderContext#mouseY} and by the {@code mouseX} / {@code mouseY}
+ *       parameters of {@link #mouseClicked}. {@link RenderContext#originX} /
+ *       {@link RenderContext#originY} are the screen-space origin of the
+ *       panel's content area.</li>
+ * </ul>
+ *
+ * Render code composes the two: the element paints at
+ * {@code (ctx.originX() + getChildX(), ctx.originY() + getChildY())}.
+ * Input code uses screen-space directly — the dispatcher hit-tests in
+ * screen-space and passes screen-space {@code mouseX} / {@code mouseY} to
+ * {@link #mouseClicked}. Implementations of {@link #mouseClicked} should
+ * trust this and not re-compose with panel-local coords.
+ *
+ * <p>All three dispatchers conform to this contract: the native inventory-menu
+ * dispatcher in {@code MenuKitHandledScreen}, the standalone-screen
+ * dispatcher in {@code MenuKitScreen}, and the Phase 10 injection adapter
+ * {@code ScreenPanelAdapter}. Consumer implementations of
+ * {@link PanelElement} can rely on screen-space coords in {@link #mouseClicked}
+ * regardless of which context their panel ends up in.
+ *
  * @see Panel              The container that holds elements
  * @see Button             Interactive button element
  * @see TextLabel          Static or dynamic text element
