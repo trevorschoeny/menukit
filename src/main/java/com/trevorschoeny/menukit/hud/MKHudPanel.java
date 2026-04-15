@@ -1,8 +1,10 @@
 package com.trevorschoeny.menukit.hud;
 
 import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.core.ItemDisplay;
 import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.PanelStyle;
+import com.trevorschoeny.menukit.core.ProgressBar;
 import com.trevorschoeny.menukit.core.RenderContext;
 
 import net.minecraft.network.chat.Component;
@@ -159,10 +161,11 @@ public class MKHudPanel {
         }
 
         /**
-         * Adds an item icon at native 16×16 size.
+         * Adds an item icon at native 16×16 size. Count and durability
+         * overlays default to visible (matching vanilla item rendering).
          */
         public Builder item(int x, int y, Supplier<ItemStack> item) {
-            elements.add(new MKHudItem(x, y, item, 16, false, false, null));
+            elements.add(new ItemDisplay(x, y, item));
             return this;
         }
 
@@ -308,7 +311,6 @@ public class MKHudPanel {
         private int size = 16;
         private boolean showCount = true;    // default: show item count
         private boolean showDurability = true; // default: show durability bar
-        private @Nullable Runnable onRender;
 
         ItemBuilder(Builder parent, int x, int y) {
             this.parent = parent;
@@ -320,10 +322,9 @@ public class MKHudPanel {
         public ItemBuilder size(int size) { this.size = size; return this; }
         public ItemBuilder showCount() { this.showCount = true; return this; }
         public ItemBuilder showDurability() { this.showDurability = true; return this; }
-        public ItemBuilder onRender(Runnable callback) { this.onRender = callback; return this; }
 
         public Builder done() {
-            parent.elements.add(new MKHudItem(x, y, item, size, showCount, showDurability, onRender));
+            parent.elements.add(new ItemDisplay(x, y, size, item, showCount, showDurability));
             return parent;
         }
     }
@@ -333,11 +334,10 @@ public class MKHudPanel {
         private final Builder parent;
         private final int x, y, barW, barH;
         private Supplier<Float> value = () -> 0f;
-        private int fillColor = 0xFFFFFFFF;
-        private int bgColor = 0xFF333333;
-        private MKHudBar.Direction direction = MKHudBar.Direction.LEFT_TO_RIGHT;
+        private int fillColor = ProgressBar.DEFAULT_FILL_COLOR;
+        private int bgColor = ProgressBar.DEFAULT_BG_COLOR;
+        private ProgressBar.Direction direction = ProgressBar.DEFAULT_DIRECTION;
         private @Nullable Supplier<Component> label;
-        private @Nullable Runnable onRender;
 
         BarBuilder(Builder parent, int x, int y, int w, int h) {
             this.parent = parent;
@@ -350,13 +350,12 @@ public class MKHudPanel {
         public BarBuilder value(Supplier<Float> value) { this.value = value; return this; }
         public BarBuilder color(int color) { this.fillColor = color; return this; }
         public BarBuilder bgColor(int color) { this.bgColor = color; return this; }
-        public BarBuilder direction(MKHudBar.Direction dir) { this.direction = dir; return this; }
+        public BarBuilder direction(ProgressBar.Direction dir) { this.direction = dir; return this; }
         public BarBuilder label(Supplier<Component> label) { this.label = label; return this; }
-        public BarBuilder onRender(Runnable callback) { this.onRender = callback; return this; }
 
         public Builder done() {
-            parent.elements.add(new MKHudBar(x, y, barW, barH,
-                    value, fillColor, bgColor, direction, label, onRender));
+            parent.elements.add(new ProgressBar(x, y, barW, barH,
+                    value, direction, fillColor, bgColor, label));
             return parent;
         }
     }
