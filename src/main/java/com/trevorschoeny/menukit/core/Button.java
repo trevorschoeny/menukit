@@ -1,7 +1,9 @@
 package com.trevorschoeny.menukit.core;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.Nullable;
 
 import java.util.function.BooleanSupplier;
@@ -14,7 +16,9 @@ import java.util.function.Supplier;
  * and an optional disabled predicate.
  *
  * <p>This is MenuKit's core button abstraction. The default form renders
- * centered text on a raised panel background.
+ * centered text on a raised panel background. An icon-only variant is
+ * available via {@link #icon(int, int, int, Identifier, Consumer)} and its
+ * supplier overload.
  *
  * <p>Left-click only by default. Right-clicks and middle-clicks fall through
  * to vanilla's slot handling. Custom element implementations can handle
@@ -243,5 +247,91 @@ public class Button implements PanelElement {
 
         onClick.accept(this);
         return true;
+    }
+
+    // ── Icon-only Button variant ───────────────────────────────────────
+
+    /**
+     * Creates a square Button that renders a centered sprite instead of a
+     * text label. Size is a single int (square only).
+     *
+     * <p>The sprite is inset 2px from the button's edges so the panel-style
+     * border (RAISED bevel, INSET sunken edge) remains visible around the
+     * icon. When the button is disabled, the sprite is dimmed to ~40% alpha
+     * as an accessibility signal; hover/pressed states are communicated by
+     * the panel-style background shift.
+     *
+     * <p><b>Accessibility:</b> Icon-only buttons convey meaning through sprite
+     * alone, which can be less discoverable than text labels. Pairing
+     * {@code Button.icon} with a tooltip via {@link #tooltip(Component)} or
+     * {@link #tooltip(Supplier)} is strongly recommended for accessibility
+     * and discoverability. Users hovering over an icon button should learn
+     * its purpose from the tooltip.
+     *
+     * <p>For a sprite that swaps based on consumer state, use the
+     * {@link #icon(int, int, int, Supplier, Consumer) supplier overload}.
+     *
+     * @param childX  X position within panel content area
+     * @param childY  Y position within panel content area
+     * @param size    width and height in pixels (square)
+     * @param sprite  the sprite identifier to render
+     * @param onClick fired on left-click when enabled
+     */
+    public static Button icon(int childX, int childY, int size,
+                              Identifier sprite, Consumer<Button> onClick) {
+        return icon(childX, childY, size, (Supplier<Identifier>) () -> sprite, onClick);
+    }
+
+    /**
+     * Creates a square Button whose sprite is driven by a supplier. The
+     * supplier is invoked each frame, enabling state-swap-by-icon patterns
+     * (e.g., {@code () -> isActive ? iconOn : iconOff}).
+     *
+     * <p>See {@link #icon(int, int, int, Identifier, Consumer)} for the
+     * accessibility recommendation on pairing with a tooltip.
+     *
+     * @param childX  X position within panel content area
+     * @param childY  Y position within panel content area
+     * @param size    width and height in pixels (square)
+     * @param sprite  supplier invoked each frame to produce the sprite identifier
+     * @param onClick fired on left-click when enabled
+     */
+    public static Button icon(int childX, int childY, int size,
+                              Supplier<Identifier> sprite, Consumer<Button> onClick) {
+        return new IconButton(childX, childY, size, sprite, onClick);
+    }
+
+    /**
+     * Icon-only Button specialization. Overrides {@link #renderContent} to
+     * paint a centered sprite instead of the default centered text.
+     * Package-private — consumers use the {@link #icon(int, int, int, Identifier, Consumer)}
+     * factory methods, which return {@code Button}.
+     */
+    static final class IconButton extends Button {
+        /** Sprite inset on all sides so the panel-style border stays visible. */
+        private static final int INSET = 2;
+        /** Sprite alpha when the button is disabled (~40% for accessibility dim). */
+        private static final float DISABLED_ALPHA = 0.4f;
+
+        private final Supplier<Identifier> spriteSupplier;
+
+        IconButton(int childX, int childY, int size,
+                   Supplier<Identifier> sprite, Consumer<Button> onClick) {
+            super(childX, childY, size, size, Component.empty(), onClick);
+            this.spriteSupplier = sprite;
+        }
+
+        @Override
+        protected void renderContent(RenderContext ctx, int sx, int sy) {
+            Identifier id = spriteSupplier.get();
+            if (id == null) return;
+
+            int iconSize = getWidth() - INSET * 2;
+            float alpha = isDisabled() ? DISABLED_ALPHA : 1.0f;
+            ctx.graphics().blitSprite(
+                    RenderPipelines.GUI_TEXTURED, id,
+                    sx + INSET, sy + INSET, iconSize, iconSize,
+                    alpha);
+        }
     }
 }
