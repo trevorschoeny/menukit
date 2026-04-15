@@ -78,16 +78,31 @@ Items deferred across phases. Scan this list at phase boundaries.
   - **MKHudBar.Direction moved to ProgressBar.Direction**: breaking if any consumer imported the enum directly (none at time of writing).
   - **PanelBuilder grew to ~20 methods**: all Phase 8 elements gained builder methods. Four past the original comfortable threshold of 15. Pocketed for Phase 12 evaluation; consumers not affected.
 
+  **Phase 9 API additions and changes consumers should know about during refactor:**
+  - **`Button.icon(...)` factory ships** (two forms: fixed `Identifier` and `Supplier<Identifier>`). Returns a square Button with a centered sprite, 2px inset, dim-when-disabled. Accessed via `.element(Button.icon(...))`; no new builder method. Accessibility recommendation on the factory javadoc: pair with a tooltip.
+  - **`Toggle.linked(...)` factory ships**. State lives in consumer code via `BooleanSupplier` + `Runnable` callback. Persistence framing and self-healing documented on the factory javadoc. Accessed via `.element(Toggle.linked(...))`; no new builder method.
+  - **Button and Toggle gained protected extension hooks** formally documented as stable consumer-facing extension points. Button: `renderBackground(ctx, sx, sy)` and `renderContent(ctx, sx, sy)`. Toggle: `currentState()` and `applyState(boolean)`. Consumer subclasses can override independently; signatures and semantic contracts are maintained across MenuKit versions.
+  - **`Button.render(RenderContext)` is now `final`**. Consumer subclasses that previously overrode `render()` directly (none known in-tree) must migrate to the protected hooks. This is the blessed extension path.
+  - **`Toggle.applyState(boolean)` contract expanded** to "commits new state AND fires the consumer callback" — both happen atomically. Any consumer subclass overriding `applyState` must honor this atomicity contract.
+  - **`MenuKitHandledScreen.computePanelSize` now factors in element bounds** alongside slot-group dimensions. Panels with elements that extend beyond their slot-grid now render at the larger size. Not breaking for existing consumers (their panels have slot groups that already drive size).
+  - **`MenuKitHandledScreen.renderLabels` skips the vanilla "Inventory" label** when the handler has no panel with id `"player"`. Existing consumers all have player panels → unaffected.
+  - **Factor-then-specialize template** established as the repeatable pattern for future element specializations: factor the parent into protected hooks, then add a subclass factory. Phase 12 documentation should capture this pattern explicitly.
+  - **Convention 5 refined** (locked in Phase 9): factory methods permitted when they return a different concrete type (specialization subclass); still rejected as preset-value shortcuts. `Button.icon` and `Toggle.linked` pass; hypothetical `Button.primary` would fail.
+  - **`/mkverify elements` subcommand added** — dedicated element-demo screen for visual verification, separate from the contract-verification harness. Internal dev tooling; not a consumer-facing API.
+  - **PanelBuilder method count still ~20** (no new builder methods in Phase 9; specializations accessed via `.element(...)`). Phase 12 consolidation evaluation still pending.
+
 - **Post-Phase-5 audit findings: consumer primitives and patterns revealed by existing mods**
 
   Phase 5's Step 0 audit read the three small consumer mods (sandboxes, agreeable-allays, shulker-palette) and IP to understand what they actually do with MenuKit. Three mods share a dominant pattern: they inject UI into vanilla screens rather than build their own. The current new-architecture has first-class support for "build your own screen" (`MenuKitScreenHandler.builder`) but nothing equivalent for "decorate a vanilla screen," which turns out to be the majority use case.
 
-  **Primitives the three small mods use that the new architecture doesn't currently ship:**
-  - Icon-only button (small image-only, with tooltip) — sandboxes (11×11 icons), shulker-palette (9×9 icons)
-  - Toggle button with supplier-based pressed state — shulker-palette
-  - Icon swap by state (two sprites, pressed/unpressed) — shulker-palette
-  - Dynamic tooltip (`Supplier<Component>`) — shulker-palette
-  - Dynamic text content (`Supplier<String>` or equivalent) — agreeable-allays
+  **Primitives the three small mods use — status after Phase 9:**
+  - ~~Icon-only button (small image-only, with tooltip) — sandboxes (11×11 icons), shulker-palette (9×9 icons)~~ **SHIPPED in Phase 9** via `Button.icon(...)` (both fixed and supplier sprite forms). Tooltip inherited from parent Button's `.tooltip(...)` setters.
+  - ~~Toggle button with supplier-based pressed state — shulker-palette~~ **SHIPPED in Phase 9** via `Toggle.linked(...)`.
+  - ~~Icon swap by state (two sprites, pressed/unpressed) — shulker-palette~~ **SHIPPED in Phase 8** via Icon's `Supplier<Identifier>` constructor; also covered by Phase 9's `Button.icon(supplier)` overload.
+  - ~~Dynamic tooltip (`Supplier<Component>`) — shulker-palette~~ **SHIPPED in Phase 8** via Tooltip Form A setters on Button/Toggle/Checkbox/Radio/Icon.
+  - ~~Dynamic text content (`Supplier<String>` or equivalent) — agreeable-allays~~ **SHIPPED in Phase 8** via TextLabel's `Supplier<Component>` constructor.
+
+  All five audit-surfaced element primitives are now addressed. Remaining audit gap is the injection-into-vanilla-screens pattern (Phase 10 scope).
 
   **Pattern the three small mods + IP all need that the new architecture doesn't provide:**
   - Inject a MenuKit panel / button into a vanilla inventory screen, with predicate-based visibility (by context, region, or runtime state). The old architecture provided this via `MKPanel.builder().showIn(...)` + `MenuKit.buttonAttachment()`. The new architecture currently has neither a mixin hook for this nor a documented consumer pattern for writing their own.
@@ -109,14 +124,34 @@ Items deferred across phases. Scan this list at phase boundaries.
   - **Shared styling constants consolidation.** The default text-on-panel color `0xFF404040` appears in Divider, Checkbox, Radio, Tooltip (Form B). Similarly `0xFF808080` (disabled label) and `0xFF606060` (indicator) appear in multiple elements. A shared `StyleDefaults` or similar constants class would consolidate these. Phase 12 cleanup target.
   - **MKHudSlot still HUD-specific.** After Phase 8 subsumed MKHudItem into ItemDisplay and MKHudBar into ProgressBar, MKHudSlot is the only HUD-specific element-like class remaining (MKHudNotification is intentionally HUD-specific per the palette). A hotbar-sprite-background ItemDisplay variant is plausibly Phase 9 or Phase 10 work if shulker-palette or another consumer reveals demand for the pattern. Not Phase 8 scope.
 
-- **Phase 9 Toggle.linked variant — persistence framing**
+- **Phase 9 Toggle.linked variant — persistence framing** **SHIPPED in Phase 9**
 
-  When Phase 9 ships the state-linked Toggle variant (`Toggle.linked(x, y, w, h, BooleanSupplier state, Runnable onToggle)`), documentation should address persistence head-on:
+  Persistence framing and self-healing note live on `Toggle.linked`'s factory javadoc. MenuKit does not ship a persistence abstraction; state-linked is the answer. Consumer backs supplier + callback with whatever storage they need (block entity, player attachment, config file, in-memory field, etc.).
 
-  > "To make a toggle persist, use `Toggle.linked()` and back it with wherever your state lives — block entity, player attachment, config file, etc. The state-linked variant gives you the visual element; persistence is consumer concern."
+  **Reconsideration trigger (still active).** If Phase 11 reveals that inventory-plus, shulker-palette, and agreeable-allays all build similar persistence adapters independently (e.g., each rolling a "config-file-backed boolean" helper), that's evidence the library might ship a small persistence abstraction. Until then: no shipped abstraction, documented pattern only.
 
-  MenuKit does not ship a persistence abstraction. No `PersistentValue<T>`, no `BooleanFlag`, no config-backed state helpers. The state-linked pattern is MenuKit's answer to "where does toggle state live?" — and the answer is "wherever the consumer decides; the element reads it via supplier and signals changes via callback."
+- **Phase 9 reconsideration triggers**
 
-  **Reconsideration trigger.** If Phase 11 reveals that inventory-plus, shulker-palette, and agreeable-allays all build similar persistence adapters independently (e.g., each rolling a "config-file-backed boolean" helper), that's evidence the library might ship a small persistence abstraction. Until then: no shipped abstraction, documented pattern only.
+  Four items where in-game testing or Phase 11 consumer refactors may reveal a need to revisit Phase 9 design decisions:
+
+  - **Button.icon inset configurability.** `Button.icon` uses a fixed 2px inset. At the audit's small button sizes (9×9 shulker-palette, 11×11 sandboxes), 2px leaves 5×5 or 7×7 usable icon area — readable. Reconsideration trigger: Phase 11 testing reveals icons are illegible at small sizes, or consumers want the icon flush with the button edge for a different visual style. Cheap one-field addition to support an explicit inset parameter, or a scaled-with-size formula.
+  - **Toggle.linked callback type.** Currently `Runnable`. Reconsideration trigger: Phase 11 consumer refactors reveal that consumers repeatedly query the supplier inside their Runnable callback to determine new-state (e.g., `() -> { boolean newVal = !config.autoSort; config.autoSort = newVal; doSomethingWith(newVal); }`). That pattern is evidence for migrating to `Consumer<Boolean>` which receives the new state directly. One-field migration if it happens.
+  - **`disabledWhen` overloads for specializations.** Neither `Button.icon` nor `Toggle.linked` ships with a `disabledWhen` overload. Consumers needing disabled-predicate on an icon button or linked toggle subclass the parent class directly using the Phase 9 hooks. Reconsideration trigger: multiple consumer mods independently build the same disabled-subclass pattern. Add the overload if the pattern is common.
+  - **Additional `*.linked` variants.** Phase 9 shipped `Toggle.linked` only. Checkbox.linked and Radio.linked are plausible follow-ons if consumer state-linking demand extends beyond Toggle. Reconsideration trigger: Phase 11 surfaces a real use case. The factor-then-specialize template is mechanical once demand materializes.
+
+- **Factor-then-specialize template — capture in Phase 12 docs**
+
+  Both Phase 9 specializations followed the same structural pattern: factor the parent element into protected hooks, then add a subclass factory overriding those hooks, with a stable-extension-point contract on the hooks.
+
+  This is a repeatable template for future element specializations — either MenuKit-shipped variants or consumer-side customization. Phase 12's documentation should capture the pattern explicitly as "the shape of how MenuKit elements grow variants without API bloat or convention violations."
+
+  Key steps of the template:
+  1. Identify the variation points in the parent element.
+  2. Factor those variation points into `protected` hook methods with stable-extension-point javadoc.
+  3. Mark the parent's orchestration method `final` if the hooks fully cover the extension surface.
+  4. Add a static factory on the parent returning a package-private subclass overriding the hooks.
+  5. Factory javadoc covers usage, any emergent properties (e.g., self-healing for Toggle.linked), and accessibility notes where relevant.
+
+  Capture this in Phase 12's STORY.md updates or equivalent external documentation.
 
 - **`MKPanel.Style` enum extraction** — resolved during Step 5 as a concrete cleanup, not deferred. Live callers (`core/Button`, `hud/MKHudPanel`, `hud/MKHudPanelDef`, `hud/MKHudNotification`, `screen/MenuKitHandledScreen`) are updated to use `core/PanelStyle` instead; rendering helpers move out of `panel/MKPanel.java` before that file is deleted.
