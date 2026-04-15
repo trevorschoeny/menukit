@@ -6,6 +6,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * An interactive button within a {@link Panel}. Renders a raised panel
@@ -39,6 +40,11 @@ public class Button implements PanelElement {
     private final Component text;
     private final Consumer<Button> onClick;
     private final @Nullable BooleanSupplier disabledWhen;
+
+    // Optional hover-triggered tooltip. Set via .tooltip(...) during
+    // construction chain; post-construction configuration per the Tooltip
+    // design doc's setter convention (optional orthogonal feature).
+    private @Nullable Supplier<Component> tooltipSupplier;
 
     // Hover state — updated each render frame. Not persisted.
     // Read by mouseClicked to gate the click on hover.
@@ -90,6 +96,31 @@ public class Button implements PanelElement {
     /** Returns whether the mouse is currently over this button (updated each frame). */
     public boolean isHovered() { return hovered; }
 
+    // ── Tooltip (optional hover-triggered configuration) ───────────────
+
+    /**
+     * Attaches a hover-triggered tooltip with fixed text. Returns this
+     * Button for method chaining. Tooltip renders at the mouse position
+     * using vanilla's tooltip styling.
+     *
+     * <p>Post-construction configuration setter — intended to be called
+     * once during the construction chain. See
+     * {@code Design Docs/Element Design Docs/TOOLTIP_DESIGN_DOC.md}.
+     */
+    public Button tooltip(Component text) {
+        return tooltip(() -> text);
+    }
+
+    /**
+     * Attaches a hover-triggered tooltip with supplier-driven text. The
+     * supplier is invoked each frame while hovered. Returns this Button
+     * for method chaining.
+     */
+    public Button tooltip(Supplier<Component> supplier) {
+        this.tooltipSupplier = supplier;
+        return this;
+    }
+
     // ── Rendering ──────────────────────────────────────────────────────
 
     @Override
@@ -124,6 +155,17 @@ public class Button implements PanelElement {
         int textY = sy + (height - font.lineHeight) / 2;
         int textColor = disabled ? 0xFF808080 : 0xFFFFFFFF;
         ctx.graphics().drawString(font, text, textX, textY, textColor, true);
+
+        // Hover-triggered tooltip — setTooltipForNextFrame defers the tooltip
+        // draw to end-of-frame (correct z-ordering above items and other
+        // elements). The 1.21.11 method name is setTooltipForNextFrame;
+        // earlier versions called this renderTooltip.
+        if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
+            Component ttText = tooltipSupplier.get();
+            if (ttText != null) {
+                ctx.graphics().setTooltipForNextFrame(font, ttText, ctx.mouseX(), ctx.mouseY());
+            }
+        }
     }
 
     // ── Click Handling ─────────────────────────────────────────────────
