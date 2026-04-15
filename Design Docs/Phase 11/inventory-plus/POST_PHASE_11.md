@@ -116,6 +116,28 @@ Small-to-medium:
 
 ---
 
+## 2. SlotIdentity — shipped mid-Phase-11 as an explicit discipline exception
+
+**Trigger.** Group B1 verification surfaced two related UX issues: sort in creative inventory didn't work; lock state disappeared on chest open/close + on creative↔survival transitions. Root cause analysis identified missing cross-menu stable slot identity — vanilla creates fresh Slot instances per menu open even when backing storage is shared.
+
+**Advisor decision (2026-04-15).** Ship `com.trevorschoeny.menukit.core.SlotIdentity` as a MenuKit library primitive now, as an explicit exception to the "no library changes mid-consumer-mod work" discipline. Rationale: additions are asymmetric to removals. MKFamily removal (filed above) would cascade through every consumer during their refactors; SlotIdentity addition is purely additive — consumers that don't use it are unaffected. And IP's need is demonstrated. Doing a consumer-side workaround and then redoing it as a library primitive later would be throwaway work.
+
+**Shipped shape.** Record `SlotIdentity(Container container, int containerSlot)` + static factory `SlotIdentity.of(Slot)`. Nothing else — no registry, no state-management service, no cross-menu enumeration helpers, no persistence. Consumers manage their own state keyed by the primitive; library-not-platform discipline holds.
+
+**Established pattern.** Library additions mid-Phase-11 are acceptable iff:
+1. Purely additive — doesn't disturb existing consumers.
+2. Demonstrably needed by current consumer-mod work (not speculative).
+3. Tightly scoped — a primitive, not a service.
+
+Library removals or changes to existing surfaces remain out of scope until post-Phase-11 (see MKFamily entry).
+
+**Reconsideration triggers still active** (tracked here for post-Phase-11):
+
+- If shulker-palette, sandboxes, or agreeable-allays independently reach for SlotIdentity-keyed state during their refactors, that's multi-consumer evidence for further slot-related primitives (SlotIdentity-keyed library helpers, cross-menu slot enumeration, etc.). IP's usage alone is single-consumer evidence — keeps the primitive small.
+- IP's `IPRegionGroups.canonicalSlot(menu, slot)` — finds the slot in a different menu with matching SlotIdentity. Currently IP-side only. If other consumers need the same pattern, promote to MenuKit as `SlotIdentity`-keyed lookup helper.
+
+---
+
 ## How to use this file
 
 - Each demand signal gets its own section with:
