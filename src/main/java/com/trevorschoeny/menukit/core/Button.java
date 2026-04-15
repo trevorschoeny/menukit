@@ -13,9 +13,8 @@ import java.util.function.Supplier;
  * background with centered text. Supports hover detection, a click handler,
  * and an optional disabled predicate.
  *
- * <p>This is MenuKit's core button abstraction. It handles text-based buttons
- * only — consumer mods can implement {@link PanelElement} directly for icon
- * buttons, toggles, or other specialized interactive elements.
+ * <p>This is MenuKit's core button abstraction. The default form renders
+ * centered text on a raised panel background.
  *
  * <p>Left-click only by default. Right-clicks and middle-clicks fall through
  * to vanilla's slot handling. Custom element implementations can handle
@@ -27,6 +26,19 @@ import java.util.function.Supplier;
  *   <li><b>Hovered:</b> raised panel background + translucent highlight, white text</li>
  *   <li><b>Disabled:</b> dark panel background, gray text</li>
  * </ul>
+ *
+ * <h3>Extension points for consumer subclasses</h3>
+ *
+ * Consumer code can customize Button rendering by subclassing and overriding
+ * the protected hooks: {@link #renderBackground(RenderContext, int, int)} and
+ * {@link #renderContent(RenderContext, int, int)}. Those methods carry a
+ * stability contract — their signatures and semantic contracts are maintained
+ * across MenuKit versions. See their javadocs for the contract details.
+ *
+ * <p>The top-level {@link #render(RenderContext)} is {@code final} — it
+ * orchestrates hover-state update, background paint, content paint, and
+ * tooltip dispatch in that order. The extension surface is the hooks, not
+ * the orchestration.
  *
  * @see PanelElement  The interface this implements
  * @see TextLabel     Non-interactive text element
@@ -123,8 +135,15 @@ public class Button implements PanelElement {
 
     // ── Rendering ──────────────────────────────────────────────────────
 
+    /**
+     * Orchestrates the render pass: coordinate compute, hover-state update,
+     * background paint, content paint, and tooltip dispatch in that order.
+     * Final by design — the extension surface for consumer subclasses is the
+     * two protected hooks ({@link #renderBackground} and {@link #renderContent}),
+     * not this orchestration method.
+     */
     @Override
-    public void render(RenderContext ctx) {
+    public final void render(RenderContext ctx) {
         int sx = ctx.originX() + childX;
         int sy = ctx.originY() + childY;
 
@@ -133,7 +152,40 @@ public class Button implements PanelElement {
         // false regardless of where the mouse cursor actually is.
         hovered = isHovered(ctx);
 
-        // Background
+        renderBackground(ctx, sx, sy);
+        renderContent(ctx, sx, sy);
+
+        // Hover-triggered tooltip — setTooltipForNextFrame defers the tooltip
+        // draw to end-of-frame (correct z-ordering above items and other
+        // elements). The 1.21.11 method name is setTooltipForNextFrame;
+        // earlier versions called this renderTooltip.
+        if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
+            Component ttText = tooltipSupplier.get();
+            if (ttText != null) {
+                ctx.graphics().setTooltipForNextFrame(
+                        Minecraft.getInstance().font, ttText,
+                        ctx.mouseX(), ctx.mouseY());
+            }
+        }
+    }
+
+    /**
+     * Paints the button's panel background — raised when enabled, dark when
+     * disabled, plus a translucent highlight overlay when hovered. Called
+     * before {@link #renderContent}.
+     *
+     * <p><b>Stable extension point for consumer Button subclasses.</b> The
+     * signature {@code (RenderContext ctx, int sx, int sy)} and the semantic
+     * contract — {@code sx}/{@code sy} are the absolute screen-space top-left
+     * of the button, this hook runs before {@link #renderContent}, this hook
+     * does not mutate Button state — are maintained across MenuKit versions.
+     * Consumer subclasses may rely on these properties.
+     *
+     * <p>Override this hook to paint a custom background while keeping the
+     * default content rendering, or call {@code super.renderBackground(...)}
+     * and layer additional painting on top.
+     */
+    protected void renderBackground(RenderContext ctx, int sx, int sy) {
         boolean disabled = isDisabled();
         if (disabled) {
             PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, PanelStyle.DARK);
@@ -145,7 +197,23 @@ public class Button implements PanelElement {
                         0x30FFFFFF);
             }
         }
+    }
 
+    /**
+     * Paints the button's content — by default, the centered text label.
+     * Called after {@link #renderBackground}, before tooltip dispatch.
+     *
+     * <p><b>Stable extension point for consumer Button subclasses.</b> The
+     * signature {@code (RenderContext ctx, int sx, int sy)} and the semantic
+     * contract — {@code sx}/{@code sy} are the absolute screen-space top-left
+     * of the button, this hook runs after {@link #renderBackground}, this hook
+     * does not mutate Button state — are maintained across MenuKit versions.
+     * Consumer subclasses may rely on these properties.
+     *
+     * <p>Override this hook to paint custom content (icon, multi-line text,
+     * composite visuals) while keeping the default panel-style background.
+     */
+    protected void renderContent(RenderContext ctx, int sx, int sy) {
         // Text — centered within the button bounds
         // 1.21.11 ARGB requirement: colors must have a non-zero alpha byte
         // or drawString silently discards the text (ARGB.alpha(color) != 0 guard).
@@ -153,19 +221,8 @@ public class Button implements PanelElement {
         int textWidth = font.width(text);
         int textX = sx + (width - textWidth) / 2;
         int textY = sy + (height - font.lineHeight) / 2;
-        int textColor = disabled ? 0xFF808080 : 0xFFFFFFFF;
+        int textColor = isDisabled() ? 0xFF808080 : 0xFFFFFFFF;
         ctx.graphics().drawString(font, text, textX, textY, textColor, true);
-
-        // Hover-triggered tooltip — setTooltipForNextFrame defers the tooltip
-        // draw to end-of-frame (correct z-ordering above items and other
-        // elements). The 1.21.11 method name is setTooltipForNextFrame;
-        // earlier versions called this renderTooltip.
-        if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
-            Component ttText = tooltipSupplier.get();
-            if (ttText != null) {
-                ctx.graphics().setTooltipForNextFrame(font, ttText, ctx.mouseX(), ctx.mouseY());
-            }
-        }
     }
 
     // ── Click Handling ─────────────────────────────────────────────────
