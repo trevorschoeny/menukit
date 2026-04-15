@@ -3,9 +3,18 @@ package com.trevorschoeny.menukit.core;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
+import java.util.function.Supplier;
+
 /**
  * A non-interactive text label within a {@link Panel}. Renders text at
  * a fixed position using {@code drawString}.
+ *
+ * <p>Two forms for the text content:
+ * <ul>
+ *   <li><b>Fixed text</b> — pass a {@link Component} directly.</li>
+ *   <li><b>Supplier-driven text</b> — pass a {@code Supplier<Component>} for
+ *   text that changes over time (dynamic values, state reflections, etc.).</li>
+ * </ul>
  *
  * <p><b>ARGB color requirement (1.21.11):</b> Colors must include an
  * explicit alpha byte (e.g., {@code 0xFF404040}, not {@code 0x404040}).
@@ -13,6 +22,17 @@ import net.minecraft.network.chat.Component;
  * {@code ARGB.alpha(color) == 0}. All color constants in this class
  * use the {@code 0xFF} prefix. Consumer code passing custom colors must
  * do the same.
+ *
+ * <h3>Dynamic-width limitation with supplier text</h3>
+ *
+ * TextLabel's width is derived from the rendered text's width. Auto-sizing
+ * elements with supplier-based variable content cannot guarantee layout
+ * stability — if the supplier returns different-length text each frame,
+ * the element's width changes per frame but panel layout is not re-resolved
+ * per frame. Consumers needing stable layout should use fixed-content
+ * variants or ensure the supplier returns same-width content across all
+ * evaluations (e.g., {@code "Mode: AUTO"} vs {@code "Mode: MANUAL"} where
+ * both render to similar widths).
  *
  * <p>Render-only; {@link #mouseClicked} inherits the default no-op behavior.
  *
@@ -29,9 +49,11 @@ public class TextLabel implements PanelElement {
 
     private final int childX;
     private final int childY;
-    private final Component text;
+    private final Supplier<Component> textSupplier;
     private final int color;
     private final boolean shadow;
+
+    // ── Constructors: fixed text ──────────────────────────────────────
 
     /**
      * @param childX X position within panel content area
@@ -41,16 +63,37 @@ public class TextLabel implements PanelElement {
      * @param shadow whether to render with a drop shadow
      */
     public TextLabel(int childX, int childY, Component text, int color, boolean shadow) {
-        this.childX = childX;
-        this.childY = childY;
-        this.text = text;
-        this.color = color;
-        this.shadow = shadow;
+        this(childX, childY, wrap(text), color, shadow);
     }
 
     /** Convenience: dark gray text, no shadow (vanilla label style). */
     public TextLabel(int childX, int childY, Component text) {
         this(childX, childY, text, COLOR_DARK, false);
+    }
+
+    // ── Constructors: supplier text ───────────────────────────────────
+
+    /**
+     * Supplier-driven text with explicit color and shadow. The supplier is
+     * invoked each frame.
+     */
+    public TextLabel(int childX, int childY, Supplier<Component> text,
+                     int color, boolean shadow) {
+        this.childX = childX;
+        this.childY = childY;
+        this.textSupplier = text;
+        this.color = color;
+        this.shadow = shadow;
+    }
+
+    /** Convenience: supplier-driven text, dark gray, no shadow (vanilla label style). */
+    public TextLabel(int childX, int childY, Supplier<Component> text) {
+        this(childX, childY, text, COLOR_DARK, false);
+    }
+
+    /** Wraps a fixed Component into a one-shot supplier, unifying the render path. */
+    private static Supplier<Component> wrap(Component text) {
+        return () -> text;
     }
 
     // ── PanelElement Implementation ────────────────────────────────────
@@ -60,7 +103,8 @@ public class TextLabel implements PanelElement {
 
     @Override
     public int getWidth() {
-        return Minecraft.getInstance().font.width(text);
+        Component text = textSupplier.get();
+        return text != null ? Minecraft.getInstance().font.width(text) : 0;
     }
 
     @Override
@@ -68,8 +112,8 @@ public class TextLabel implements PanelElement {
         return Minecraft.getInstance().font.lineHeight;
     }
 
-    /** Returns the text content. */
-    public Component getText() { return text; }
+    /** Returns the text content the TextLabel would render right now. Resolves the supplier. */
+    public Component getCurrentText() { return textSupplier.get(); }
 
     /** Returns the ARGB text color. */
     public int getColor() { return color; }
@@ -78,6 +122,8 @@ public class TextLabel implements PanelElement {
 
     @Override
     public void render(RenderContext ctx) {
+        Component text = textSupplier.get();
+        if (text == null) return;
         ctx.graphics().drawString(
                 Minecraft.getInstance().font,
                 text,
