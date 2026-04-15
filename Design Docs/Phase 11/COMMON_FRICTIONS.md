@@ -59,6 +59,30 @@ Frictions from vanilla-API renames or removals between earlier versions and 1.21
 
 **Reference:** MenuKit's `/mkverify` in `ContractVerification.java` uses no permission gate; IP's `/ip_attach_probe` follows suit.
 
+### 4. `keyPressed` / `mouseClicked` signatures use `KeyEvent` / `MouseButtonEvent` records
+
+**Symptom.** Dev-client boot crashes with `InvalidInjectionException`: `Expected (Lnet/minecraft/client/input/KeyEvent;Lorg/spongepowered/asm/mixin/injection/callback/CallbackInfoReturnable;)V but found (IIILorg/spongepowered/asm/mixin/injection/callback/CallbackInfoReturnable;)V` on a keyPressed mixin. Compile is fine; Mixin applicator rejects the signature at load time.
+
+**Cause.** In 1.21.11, vanilla's `Screen.keyPressed` + `AbstractContainerScreen.keyPressed` + `AbstractRecipeBookScreen.keyPressed` all take `(KeyEvent event)` instead of the old `(int keyCode, int scanCode, int modifiers)`. Same pattern applies to `mouseClicked(MouseButtonEvent event, boolean doubleClick)` (Phase 10 already knew about this one). The mixin injection layer doesn't match by method name alone when the descriptor differs — the Mixin annotation's `method = "keyPressed"` succeeds in finding the name but fails when the parameter-list descriptor doesn't match.
+
+**Consumer pattern.** For `keyPressed` mixins on any `Screen` subclass in 1.21.11:
+
+```java
+import net.minecraft.client.input.KeyEvent;
+
+@Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
+private void yourMod$keyPressed(KeyEvent event, CallbackInfoReturnable<Boolean> cir) {
+    int keyCode = event.key();  // GLFW key code
+    // ... dispatch / match / etc.
+}
+```
+
+`KeyEvent.key()` returns the GLFW key code (what used to be the first int arg). `MKKeybindExt.matchesEvent(mapping, keyCode, modifiers)` documents that modifiers is unused (GLFW polling replaces it), so passing `0` for the modifier arg is safe.
+
+**Reference:** MenuKit's Phase 10 example mixins (`ExampleKeybindTriggeredPanelMixin` + `ExampleKeybindTriggeredPanelRecipeBookMixin`) already use `KeyEvent`. IP's Layer 1 Group A `InventoryContainerMixin` + `RecipeBookMixin` updated to match after dev-client boot caught the signature mismatch.
+
+**Cost.** Compile-time error gives no warning — this surfaces only at dev-client boot as a hard crash in the Mixin applicator. If you're porting mixin code from pre-1.21.5 or pre-1.21.11 era, audit every `keyPressed` / `mouseClicked` / `mouseReleased` / `mouseDragged` / `mouseScrolled` mixin signature and match against current vanilla. Referenced by Phase 10's `INVENTORY_INJECTION_PATTERN.md` § Pattern 2 example (mouseClicked used the new `MouseButtonEvent` signature).
+
 ---
 
 ## When to update this file
