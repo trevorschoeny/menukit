@@ -121,7 +121,7 @@ public class Toggle implements PanelElement {
     // ── State ──────────────────────────────────────────────────────────
 
     /** Returns the current toggle state. */
-    public boolean isOn() { return state; }
+    public boolean isOn() { return currentState(); }
 
     /**
      * Sets the toggle state programmatically. Fires {@code onToggle} with
@@ -130,9 +130,7 @@ public class Toggle implements PanelElement {
      * toggle while keeping observed callback behavior consistent.
      */
     public void setOn(boolean newState) {
-        if (this.state == newState) return;
-        this.state = newState;
-        onToggle.accept(newState);
+        toggleTo(newState);
     }
 
     /** Returns whether the toggle is currently disabled. */
@@ -142,6 +140,63 @@ public class Toggle implements PanelElement {
 
     /** Returns whether the mouse is currently over this toggle (updated each frame). */
     public boolean isHovered() { return hovered; }
+
+    // ── State extension points (factored for subclasses) ──────────────
+
+    /**
+     * Returns the Toggle's current boolean state.
+     *
+     * <p><b>Stable extension point for consumer Toggle subclasses.</b>
+     * Override to read state from external storage (supplier, block entity,
+     * config file, etc.). The default implementation returns the
+     * element-owned internal state.
+     *
+     * <p>Base Toggle's render and click handling call {@code currentState()}
+     * exactly once per frame. Subclasses overriding {@code currentState()}
+     * may rely on this: their supplier is invoked once per frame for base
+     * Toggle's rendering purposes. If the supplier returns different values
+     * across rapid successive calls, only the first call per frame affects
+     * the rendered output.
+     */
+    protected boolean currentState() {
+        return state;
+    }
+
+    /**
+     * Commits a state transition. Subclasses define what "commit" means for
+     * their state-ownership model:
+     *
+     * <ul>
+     *   <li>Base Toggle (element-owned state): writes the new state to
+     *       internal storage and fires the {@code onToggle} callback with
+     *       the new state.</li>
+     *   <li>{@link #linked(int, int, int, int, java.util.function.BooleanSupplier, Runnable) Toggle.linked}
+     *       (consumer-owned state): fires the consumer's callback; consumer
+     *       is responsible for updating their own state. No internal storage
+     *       commit happens.</li>
+     * </ul>
+     *
+     * <p>Called from the {@code toggleTo} orchestration helper after the
+     * short-circuit no-op check passes. Implementations should be atomic —
+     * the state transition and the callback notification are conceptually
+     * a single event.
+     *
+     * <p><b>Stable extension point.</b> Signature and semantic contract
+     * maintained across MenuKit versions.
+     */
+    protected void applyState(boolean newState) {
+        this.state = newState;
+        onToggle.accept(newState);
+    }
+
+    /**
+     * Orchestration: short-circuit on same-state, then applyState commits
+     * and fires the callback atomically. Used by mouseClicked and setOn.
+     */
+    private void toggleTo(boolean newState) {
+        if (currentState() == newState) return;
+        applyState(newState);
+    }
 
     // ── Tooltip (optional post-construction configuration) ─────────────
 
@@ -172,15 +227,14 @@ public class Toggle implements PanelElement {
         // Update hover state — false on HUDs (no input dispatch).
         hovered = isHovered(ctx);
 
+        // Read current state exactly once per frame so the render pass is
+        // internally consistent even when currentState() is backed by a
+        // consumer-supplied BooleanSupplier (e.g., Toggle.linked).
         boolean disabled = isDisabled();
-        PanelStyle bg;
-        if (disabled) {
-            bg = PanelStyle.DARK;
-        } else if (state) {
-            bg = PanelStyle.INSET;
-        } else {
-            bg = PanelStyle.RAISED;
-        }
+        boolean on = currentState();
+        PanelStyle bg = disabled ? PanelStyle.DARK
+                      : on       ? PanelStyle.INSET
+                                 : PanelStyle.RAISED;
 
         PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, bg);
 
@@ -209,15 +263,7 @@ public class Toggle implements PanelElement {
         if (isDisabled()) return false;
         if (!hovered) return false;
 
-        state = !state;
-        onToggle.accept(state);
+        toggleTo(!currentState());
         return true;
     }
-
-    // Phase 9 note: Toggle.linked will be a subclass that overrides render()
-    // and mouseClicked() to read from / write to a consumer-supplied
-    // BooleanSupplier instead of the internal `state` field. The class is
-    // deliberately non-final; the methods are deliberately non-final. Any
-    // refactoring into protected helper methods happens in Phase 9 when
-    // the linked variant is actually being built — not speculatively now.
 }
