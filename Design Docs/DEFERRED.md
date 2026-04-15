@@ -91,6 +91,24 @@ Items deferred across phases. Scan this list at phase boundaries.
   - **`/mkverify elements` subcommand added** — dedicated element-demo screen for visual verification, separate from the contract-verification harness. Internal dev tooling; not a consumer-facing API.
   - **PanelBuilder method count still ~20** (no new builder methods in Phase 9; specializations accessed via `.element(...)`). Phase 12 consolidation evaluation still pending.
 
+  **Phase 10 API additions and changes consumers should know about during refactor:**
+
+  - **`menukit.inject` package ships** with five types for vanilla-screen injection:
+    - `ScreenPanelAdapter` — bundles render + click dispatch for a Panel inside a vanilla screen. Class-agnostic (works on any Screen subclass).
+    - `ScreenBounds` — record. Vanilla-screen layout snapshot (`leftPos, topPos, imageWidth, imageHeight`); consumer constructs per-call.
+    - `ScreenOrigin` — record. Screen-space top-left of the injected panel.
+    - `ScreenOriginFn` — functional interface from `ScreenBounds` to `ScreenOrigin`.
+    - `ScreenOriginFns` — four constructors: `fromScreenTopLeft`, `fromScreenTopRight`, `aboveSlotGrid`, `belowSlotGrid`.
+  - **`Panel.showWhen(Supplier<Boolean>)` ships** on the core Panel surface. Supplier becomes single source of truth for `isVisible()` while set; `setVisible(...)` is silent no-op until `showWhen(null)` reverts. Sync-safety caveat: MenuKit-native inventory-menu panels with slot groups should continue using `setVisible` to drive the broadcastChanges sync pass — `showWhen` does not notify the owner.
+  - **`PanelElement.mouseClicked` coord-space contract is now class-level documented** in `PanelElement`'s javadoc as `Coordinate contract`. No API change; lifts the screen-space rule from a per-parameter comment to the canonical home. Consumer custom `PanelElement` implementations should trust screen-space for mouseX/mouseY.
+  - **Three injection-pattern documents** under `Design Docs/Architecture Design Docs/`:
+    - `INVENTORY_INJECTION_PATTERN.md` — Patterns 1/2/3 with four consumer-facing failure modes (silent-inert dispatch, render z-order occlusion, IllegalClassLoadError on non-mixin classes in mixin package, @Shadow on inherited fields in multi-target mixins). Required reading before writing any vanilla-inventory-screen mixin.
+    - `STANDALONE_INJECTION_PATTERN.md` — Pattern 4. Two consumer approaches; `ScreenPanelAdapter` works unchanged for standalone screens.
+    - `HUD_INJECTION_PATTERN.md` — Pattern 5. Already-shipped `MKHudPanel.builder().showWhen(...)` is the canonical answer.
+  - **`/mkverify all` consolidation** — single subcommand replaces the previous five-subcommand suite (`composability`, `substitutability`, `syncsafety`, `uniform`, `inertness`). Internal dev tooling; if any external doc references the old subcommands, update to `/mkverify all`.
+  - **`examples/injection/` + `examples/shared/` package convention** — non-mixin helpers (Panel + adapter state) live in a sibling package outside the mixin package, per Fabric's class-load rule (failure mode #3). Consumer mods writing injection mixins follow the same convention.
+  - **Split-mixins-as-default reframing** — consumer decorations spanning multiple inventory variants typically need multiple mixin classes (one primary + supplementaries per silent-inert hook), not one. Realistic floor: 1 primary + 2-3 supplementaries + 1 shared state holder for any decoration touching survival inventory through `AbstractRecipeBookScreen`. Documented in the inventory-menu doc's "Split mixins are the default" subsection.
+
 - **Post-Phase-5 audit findings: consumer primitives and patterns revealed by existing mods**
 
   Phase 5's Step 0 audit read the three small consumer mods (sandboxes, agreeable-allays, shulker-palette) and IP to understand what they actually do with MenuKit. Three mods share a dominant pattern: they inject UI into vanilla screens rather than build their own. The current new-architecture has first-class support for "build your own screen" (`MenuKitScreenHandler.builder`) but nothing equivalent for "decorate a vanilla screen," which turns out to be the majority use case.
@@ -102,10 +120,9 @@ Items deferred across phases. Scan this list at phase boundaries.
   - ~~Dynamic tooltip (`Supplier<Component>`) — shulker-palette~~ **SHIPPED in Phase 8** via Tooltip Form A setters on Button/Toggle/Checkbox/Radio/Icon.
   - ~~Dynamic text content (`Supplier<String>` or equivalent) — agreeable-allays~~ **SHIPPED in Phase 8** via TextLabel's `Supplier<Component>` constructor.
 
-  All five audit-surfaced element primitives are now addressed. Remaining audit gap is the injection-into-vanilla-screens pattern (Phase 10 scope).
+  All five audit-surfaced element primitives are now addressed.
 
-  **Pattern the three small mods + IP all need that the new architecture doesn't provide:**
-  - Inject a MenuKit panel / button into a vanilla inventory screen, with predicate-based visibility (by context, region, or runtime state). The old architecture provided this via `MKPanel.builder().showIn(...)` + `MenuKit.buttonAttachment()`. The new architecture currently has neither a mixin hook for this nor a documented consumer pattern for writing their own.
+  ~~**Pattern the three small mods + IP all need that the new architecture doesn't provide:**~~ **ADDRESSED in Phase 10.** The injection-into-vanilla-screens pattern is now documented in `INVENTORY_INJECTION_PATTERN.md` (Patterns 1/2/3) + `STANDALONE_INJECTION_PATTERN.md` (Pattern 4) + `HUD_INJECTION_PATTERN.md` (Pattern 5). Library-not-platform discipline: MenuKit ships `ScreenPanelAdapter` + `Panel.showWhen` as composable primitives; consumer mods write their own mixins into specific vanilla screen classes. The old `MKPanel.builder().showIn(...)` + `MenuKit.buttonAttachment()` shape is replaced by per-consumer mixins composing the new primitives — see the Phase 10 API notes above.
 
   **Old global event bus removed.**
   - The old `MenuKit.on(Type)` event bus and its entire `event/` package (MKEvent, MKEventBus, MKEventBuilder, MKSlotEvent, MKUIEvent, MKEventPhase, MKEventResult, MKDismountReason) were deleted in Phase 5. That bus was a global pub/sub coupled to old-arch types (MKButton, MKRegion, MKSlotState) and had zero new-arch consumers. The new architecture uses `MenuKitHandledScreen.ScreenEventListener` — per-screen, scoped, declared in Phase 4b Task 1 — which handles the screen-scoped event needs cleanly. Consumers needing ecosystem-wide events outside a specific screen write their own event system; that's consumer work under library-not-platform discipline.
@@ -138,6 +155,17 @@ Items deferred across phases. Scan this list at phase boundaries.
   - **Toggle.linked callback type.** Currently `Runnable`. Reconsideration trigger: Phase 11 consumer refactors reveal that consumers repeatedly query the supplier inside their Runnable callback to determine new-state (e.g., `() -> { boolean newVal = !config.autoSort; config.autoSort = newVal; doSomethingWith(newVal); }`). That pattern is evidence for migrating to `Consumer<Boolean>` which receives the new state directly. One-field migration if it happens.
   - **`disabledWhen` overloads for specializations.** Neither `Button.icon` nor `Toggle.linked` ships with a `disabledWhen` overload. Consumers needing disabled-predicate on an icon button or linked toggle subclass the parent class directly using the Phase 9 hooks. Reconsideration trigger: multiple consumer mods independently build the same disabled-subclass pattern. Add the overload if the pattern is common.
   - **Additional `*.linked` variants.** Phase 9 shipped `Toggle.linked` only. Checkbox.linked and Radio.linked are plausible follow-ons if consumer state-linking demand extends beyond Toggle. Reconsideration trigger: Phase 11 surfaces a real use case. The factor-then-specialize template is mechanical once demand materializes.
+
+- **Phase 10 reconsideration triggers**
+
+  Items where Phase 11 consumer refactors may reveal a need to revisit Phase 10 design decisions:
+
+  - **`ScreenPanelAdapter.debug(String name)` diagnostic helper.** Considered and rejected during Phase 10 per advisor guidance — documentation-only is the library-not-platform-aligned response to the silent-inert failure mode. Reconsideration trigger: two or more Phase 11 consumer refactors independently build the same "did this fire?" diagnostic logging in their mixins. If they do, ship a small `.debug(String name)` method that logs first-fire only, dev-environment-gated. Until then: documented pattern only.
+  - **Fifth `ScreenOriginFns` constructor.** `fromScreenTopLeft`, `fromScreenTopRight`, `aboveSlotGrid`, `belowSlotGrid` cover the audit-surfaced cases. Reconsideration trigger: multiple consumer use cases need the same custom positioning that's awkward to express as a lambda. Bar for adding: a concrete consumer case, not hypothetical demand.
+  - **Cross-mod composition mechanism.** Library does not ship one — consumers expose public Java APIs to other consumers directly. Reconsideration trigger: Phase 11 reveals two or more consumer mods independently invent the same decorator-registry shape for inter-mod composition. Until then: documented as out-of-scope in the design doc.
+  - **`ScreenBounds.window(int width, int height)` factory for standalone screens.** Pattern 4 demonstrates `ScreenPanelAdapter` works for vanilla standalone screens by passing `ScreenBounds(0, 0, this.width, this.height)`. Slightly awkward — the `imageWidth`/`imageHeight` field names imply a frame, but for full-window screens the values are window dimensions. Reconsideration trigger: Phase 11 standalone-screen decorations show this awkwardness recurring. Possible response: a `ScreenBounds.window(...)` factory that signals intent without changing the record's shape.
+  - **`Panel.showWhen` on inventory-menu panels with slot groups.** Currently no-ops on supplier-value-change — `showWhen` is documented for client-side rendering decisions, not for panels driving slot sync. Reconsideration trigger: a consumer use case wants supplier-driven visibility on an inventory-menu panel that has slots. Possible response: `showWhen` triggers `owner.onPanelVisibilityChanged` on supplier value change (would require comparing across frames). Currently deferred; native inventory-menu panels use `setVisible` directly.
+  - **Cross-mod composition example.** Phase 10 design doc mentioned a possible "fourth example" for cross-mod composition (Pattern 2 + direct API call to another consumer mod). Deferred — cross-mod composition is a consumer concern, not a library-primitive demonstration. Reconsideration trigger: Phase 11 surfaces a clean example shape worth shipping.
 
 - **Factor-then-specialize template — capture in Phase 12 docs**
 
