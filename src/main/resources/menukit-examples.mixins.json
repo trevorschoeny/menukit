@@ -5,8 +5,6 @@
   "compatibilityLevel": "JAVA_21",
   "plugin": "com.trevorschoeny.menukit.examples.injection.DevOnlyExampleMixinsPlugin",
   "client": [
-    "ExampleInventoryCornerButtonMixin",
-    "ExampleInventoryCornerButtonRecipeBookRenderMixin",
     "ExampleChestToolbarMixin",
     "ExampleKeybindTriggeredPanelMixin",
     "ExampleKeybindTriggeredPanelRecipeBookMixin",
