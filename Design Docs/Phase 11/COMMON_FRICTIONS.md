@@ -1,8 +1,10 @@
-# Phase 11 — Common Frictions
+# Common Frictions
 
-Accumulating findings across consumer-mod refactors. Each entry names a friction that surfaced during implementation and the pattern the consumer used to work around it. Downstream mods (shulker-palette, sandboxes, agreeable-allays — and any future refactors) can skim this file during their audit/plan phase rather than rediscovering each issue.
+Accumulating findings across consumer-mod refactors. Each entry names a friction that surfaced during implementation and the pattern the consumer used to work around it. Downstream mods can skim this file during their audit/plan phase rather than rediscovering each issue.
 
-Organized by subsystem. Update as new frictions surface.
+> **Phase-spanning artifact.** This file accumulates across phases — future consumer-mod rebuild phases or Minecraft-version upgrade phases should **append, not replace**. Keep existing entries; add new ones as they surface. Each new entry should note the phase that surfaced it (and, if relevant, the Minecraft version or Fabric API version) for downstream context. The file lives at `Design Docs/Phase 11/` for historical reasons (Phase 11 surfaced the first 11 entries); if its scope outgrows that location across future phases, move it to a phase-neutral path rather than recreating per-phase copies.
+
+Organized by subsystem. Entries within each subsystem are numbered sequentially (don't renumber when adding; append at the bottom of the relevant section or create a new subsystem section).
 
 ---
 
