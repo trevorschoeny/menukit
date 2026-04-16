@@ -105,6 +105,141 @@ Use this when the caller isn't inside a key/mouse event — inside those events,
 
 ---
 
+## Mixin method resolution
+
+Frictions from mixin injection target resolution. Surfaced during shulker-palette Layer 0a (2026-04-15).
+
+### 6. `@Inject` with explicit descriptor cannot target inherited methods on a subclass
+
+**Symptom.** Mixin applicator crash at boot: `@Inject annotation on trevorMod$myHandler could not find any targets matching 'mouseClicked(Lnet/minecraft/client/input/MouseButtonEvent;Z)Z' in net/minecraft/client/gui/screens/inventory/ShulkerBoxScreen`.
+
+**Cause.** `ShulkerBoxScreen` does not override `mouseClicked` — the method lives on `AbstractContainerScreen`. When `@Mixin(ShulkerBoxScreen.class)` specifies `method = "mouseClicked(Lnet/minecraft/client/input/MouseButtonEvent;Z)Z"`, the Mixin applicator searches only the target class's own methods, not the inheritance chain. Without an explicit descriptor (just `method = "mouseClicked"`), Mixin can sometimes resolve parent methods — but with a descriptor, it requires an exact match on the target class.
+
+**Consumer pattern.** Target the parent class where the method is actually defined and gate with `instanceof`:
+
+```java
+@Mixin(AbstractContainerScreen.class)
+public class MyScreenMixin {
+    @Inject(method = "mouseClicked(Lnet/minecraft/client/input/MouseButtonEvent;Z)Z",
+            at = @At("HEAD"), cancellable = true)
+    private void myMod$click(MouseButtonEvent event, boolean flag,
+                              CallbackInfoReturnable<Boolean> cir) {
+        if (!((Object) this instanceof ShulkerBoxScreen)) return;
+        // ... dispatch
+    }
+}
+```
+
+This fires for all `AbstractContainerScreen` instances but short-circuits immediately for non-target screens. The `instanceof` check is cheap.
+
+**Reference:** Shulker-palette's `ShulkerPaletteScreenMixin` — originally targeted `ShulkerBoxScreen` (crashed), fixed to target `AbstractContainerScreen` with `instanceof ShulkerBoxScreen` gate. IP's `InventoryContainerMixin` uses the same pattern (targets `AbstractContainerScreen`, dispatches per-screen via feature-scoped helpers).
+
+---
+
+## 1.21.11 vanilla API changes (continued)
+
+Additional friction clusters surfaced during IP Layer 2 passive-behavior mixin population (2026-04-15). Each one costs a compile-error round-trip if not known in advance.
+
+### 7. `HumanoidRenderState.wingsItem` doesn't exist — field is `chestEquipment`
+
+**Symptom.** `error: cannot find symbol: variable wingsItem, location: variable renderState of type HumanoidRenderState`.
+
+**Cause.** In 1.21.11, `HumanoidRenderState` doesn't carry a dedicated wings item field. Vanilla's `WingsLayer.submit` reads `renderState.chestEquipment` and renders wings only if it has an `EQUIPPABLE` component with a non-empty `assetId`. There's no separate wings storage — the chest armor slot doubles as the wings slot.
+
+**Consumer pattern.** To make WingsLayer render an elytra from a non-chest source, temporarily swap it into `renderState.chestEquipment` at `submit` HEAD and restore at RETURN:
+
+```java
+@Inject(method = "submit(...)", at = @At("HEAD"))
+private void myMod$swapElytraIn(..., HumanoidRenderState renderState, ..., CallbackInfo ci) {
+    if (isElytra(renderState.chestEquipment)) return;  // vanilla handles it
+    ItemStack elytra = /* read from your storage */;
+    if (!isElytra(elytra)) return;
+    this.originalChest = renderState.chestEquipment;
+    renderState.chestEquipment = elytra;
+    this.swapped = true;
+}
+
+@Inject(method = "submit(...)", at = @At("RETURN"))
+private void myMod$swapElytraOut(..., HumanoidRenderState renderState, ..., CallbackInfo ci) {
+    if (!this.swapped) return;
+    renderState.chestEquipment = this.originalChest;
+    this.swapped = false;
+}
+```
+
+**Reference:** IP's `IPWingsLayerMixin`. Similar swap pattern in `IPFallFlyingMixin` for the server-side equipment-elytra durability tick (swaps `EquipmentSlot.CHEST` on the living entity, not the render state).
+
+### 8. `EnchantmentHelper.hasMending(stack)` doesn't exist — use `modifyDurabilityToRepairFromXp`
+
+**Symptom.** `error: cannot find symbol: method hasMending(ItemStack), location: class EnchantmentHelper`.
+
+**Cause.** In 1.21.11's registry-based enchantment system, there's no named `hasMending` predicate. Enchantment effects are expressed through `EnchantmentEffectComponents` like `REPAIR_WITH_XP`. The helper to apply a mending-style repair is `EnchantmentHelper.modifyDurabilityToRepairFromXp(ServerLevel, ItemStack, int xp)` which returns durability-to-repair (0 if the item has no REPAIR_WITH_XP enchantment).
+
+**Consumer pattern.** Combine the has-enchantment check with the actual repair computation — both come from the same call. Mirror vanilla's XP accounting from `ExperienceOrb.repairPlayerItems`:
+
+```java
+int durabilityFromXp = EnchantmentHelper.modifyDurabilityToRepairFromXp(level, stack, remainingXp);
+if (durabilityFromXp <= 0) continue; // no mending, or no XP to apply
+
+int actualRepair = Math.min(durabilityFromXp, stack.getDamageValue());
+stack.setDamageValue(stack.getDamageValue() - actualRepair);
+
+// Proportional XP accounting
+if (actualRepair > 0) {
+    remainingXp = remainingXp - actualRepair * remainingXp / durabilityFromXp;
+}
+```
+
+The `actualRepair * remainingXp / durabilityFromXp` formula consumes XP in proportion to how much of the possible repair actually applied — so over-capacity durability doesn't eat extra XP.
+
+**Reference:** IP's `MendingHelper.applyLeftoverXp`. Vanilla reference: `ExperienceOrb.repairPlayerItems` in 1.21.11 sources.
+
+### 9. `GameRules.RULE_KEEPINVENTORY` renamed to `GameRules.KEEP_INVENTORY`
+
+**Symptom.** `error: cannot find symbol: variable RULE_KEEPINVENTORY, location: class GameRules`.
+
+**Cause.** Constants on `GameRules` switched from `RULE_*` naming to the shorter canonical form. `RULE_KEEPINVENTORY` → `KEEP_INVENTORY`; likely the same for other rules (`RULE_MOBGRIEFING` → `MOB_GRIEFING`, etc. — verify per rule).
+
+**Consumer pattern.** Update the constant name. Trivial fix once you know the new name; surfaces as a compile error.
+
+**Reference:** IP's `IPDeathDropsMixin`.
+
+### 10. `GameRules.getBoolean(rule)` replaced by generic `GameRules.get(rule)`
+
+**Symptom.** `error: cannot find symbol: method getBoolean(GameRule<Boolean>), location: class GameRules`.
+
+**Cause.** 1.21.11's `GameRules` uses a generic `<T> T get(GameRule<T>)` method instead of type-specific `getBoolean`/`getInt` accessors. The `GameRule<Boolean>` type parameter ensures the return is the right type without a separate method per type.
+
+**Consumer pattern.**
+
+```java
+// Old: level.getGameRules().getBoolean(GameRules.KEEP_INVENTORY)
+// New:
+boolean keep = level.getGameRules().get(GameRules.KEEP_INVENTORY);
+```
+
+Works identically for `GameRule<Integer>` etc. — just use `get(rule)`.
+
+**Reference:** IP's `IPDeathDropsMixin`.
+
+### 11. `GameRules` moved from `net.minecraft.world.level` to `net.minecraft.world.level.gamerules`
+
+**Symptom.** `error: cannot find symbol: class GameRules, location: package net.minecraft.world.level`.
+
+**Cause.** Package reorganization. The `GameRules` class and its associated types (`GameRule`, `GameRuleCategory`, etc.) moved to a dedicated `gamerules` sub-package.
+
+**Consumer pattern.** Update imports:
+
+```java
+// Old: import net.minecraft.world.level.GameRules;
+// New:
+import net.minecraft.world.level.gamerules.GameRules;
+```
+
+**Reference:** IP's `IPDeathDropsMixin`.
+
+---
+
 ## When to update this file
 
 Each consumer-mod Layer 0/1/2 implementation may surface new frictions. Add a section when:
