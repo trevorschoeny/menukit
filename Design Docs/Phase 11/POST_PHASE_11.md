@@ -100,7 +100,7 @@ Cleanup mechanism. MKFamily groups config categories under shared screens. If re
 
 **M6 — Client-side slot primitive for decoration panels.**
 Design a MenuKit primitive for rendering slot-like interactive elements inside a decoration Panel (Pattern 2/3 injection over vanilla screens), backed by a client-side Storage, not attached to any vanilla menu.
-**Status:** design input. Phase 12 designs against the peek use case.
+**Status:** dissolved in Phase 12. Verification showed peek requires vanilla-native slot instances via M4 (full drag / shift-click / cursor protocol), not client-side decoration slots. Rendering analysis (SlotRendering utility) carries forward to M4's design. See `Design Docs/Phase 12/M6_CLIENT_SIDE_SLOTS.md` for the dissolution record.
 **Architectural distinction from M4:** M4 is for injecting real slots into a vanilla `containerMenu.slots` list (vanilla-menu integration). M6 is for rendering slot-like elements in a client-only decoration panel that never participates in vanilla's slot-click protocol. Different integration contexts; probably different primitive shapes even if they share some rendering code.
 **Evidence:** IP's peek panel (F15). Peek slots:
 - are client-only (no server menu slot)
