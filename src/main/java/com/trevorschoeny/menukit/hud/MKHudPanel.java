@@ -63,7 +63,7 @@ public class MKHudPanel {
 
     public static class Builder {
         private final String name;
-        private MKHudAnchor anchor = MKHudAnchor.TOP_LEFT;
+        private MKHudAnchor anchor = MKHudAnchor.TOP_LEFT;  // default retained for backwards-compat
         private int offsetX = 0, offsetY = 0;
         private int padding = 0;
         private boolean autoSize = false;
@@ -74,17 +74,56 @@ public class MKHudPanel {
         private MKHudPanelDef.HudRenderCallback onRender; // nullable
         private final List<PanelElement> elements = new ArrayList<>();
 
+        // ── M5 region support (mutually exclusive with anchor) ────────
+        // Track explicit calls separately so we can distinguish
+        // "consumer called .anchor()" from "anchor left at its TOP_LEFT default"
+        // (the field can't tell us which — it's never null).
+        private com.trevorschoeny.menukit.core.HudRegion region;  // null unless .region() called
+        private boolean anchorSet = false;
+        private boolean regionSet = false;
+
         Builder(String name) {
             this.name = name;
         }
 
         // ── Panel configuration ──────────────────────────────────────
 
-        /** Sets the screen-edge anchor and offset. */
+        /**
+         * Sets the screen-edge anchor and offset.
+         *
+         * <p>Mutually exclusive with {@link #region(com.trevorschoeny.menukit.core.HudRegion)} —
+         * calling both throws {@link IllegalStateException}. Migration is a
+         * single commit per consumer (delete {@code .anchor()}, add
+         * {@code .region()}); there is no intentional transitional state.
+         */
         public Builder anchor(MKHudAnchor anchor, int offsetX, int offsetY) {
+            if (regionSet) {
+                throw new IllegalStateException(
+                        "Cannot combine .anchor() with .region(). Pick one.");
+            }
             this.anchor = anchor;
             this.offsetX = offsetX;
             this.offsetY = offsetY;
+            this.anchorSet = true;
+            return this;
+        }
+
+        /**
+         * Positions this HUD panel via a named {@link com.trevorschoeny.menukit.core.HudRegion}.
+         * The dispatch computes per-frame coordinates from the region's anchor
+         * and the panel's stacking position relative to other panels in the
+         * same region. See M5 design doc §3.5 for the region catalog.
+         *
+         * <p>Mutually exclusive with {@link #anchor(MKHudAnchor, int, int)} —
+         * calling both throws {@link IllegalStateException}.
+         */
+        public Builder region(com.trevorschoeny.menukit.core.HudRegion region) {
+            if (anchorSet) {
+                throw new IllegalStateException(
+                        "Cannot combine .region() with .anchor(). Pick one.");
+            }
+            this.region = region;
+            this.regionSet = true;
             return this;
         }
 
@@ -248,15 +287,25 @@ public class MKHudPanel {
         /**
          * Builds the HUD panel definition and registers it with MenuKit.
          * After this call, the panel renders automatically each frame.
+         *
+         * <p>If {@link #region(com.trevorschoeny.menukit.core.HudRegion)} was
+         * called, the def is also registered with
+         * {@link com.trevorschoeny.menukit.inject.RegionRegistry} so its
+         * stacked position resolves against other panels in the same region.
+         * Registration order is {@code build()} call order.
          */
         public void build() {
             MKHudPanelDef def = new MKHudPanelDef(
                     name, anchor, offsetX, offsetY,
                     padding, autoSize, width, height, style,
                     List.copyOf(elements),
-                    showWhen, hideInScreen, onRender
+                    showWhen, hideInScreen, onRender,
+                    region  // null unless .region() was called
             );
             MenuKit.registerHud(def);
+            if (regionSet) {
+                com.trevorschoeny.menukit.inject.RegionRegistry.registerHud(def, region);
+            }
         }
     }
 

@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit.inject;
 
+import com.trevorschoeny.menukit.core.InventoryRegion;
 import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.RenderContext;
@@ -86,6 +87,27 @@ public final class ScreenPanelAdapter {
         this.originFn = originFn;
     }
 
+    /**
+     * Region-aware overload. Registers the panel into the given
+     * {@link InventoryRegion} via {@link RegionRegistry} and wires an origin
+     * function that consults the registry each frame to resolve the panel's
+     * stacked position within the region.
+     *
+     * <p><b>Singleton contract.</b> Construct exactly one adapter per logical
+     * panel, typically as a {@code static final} field at mod init. Dynamic
+     * construction is unsupported — each call appends to the registry and
+     * there is no {@code unregister()}. See M5 design doc §6.1.
+     *
+     * <p>Render and input dispatch short-circuit when the region resolver
+     * returns {@link ScreenOrigin#OUT_OF_REGION} (panel overflows the region's
+     * available space).
+     */
+    public ScreenPanelAdapter(Panel panel, InventoryRegion region) {
+        this.panel = panel;
+        this.originFn = RegionRegistry.inventoryOriginFn(panel, region);
+        RegionRegistry.registerInventory(panel, region);
+    }
+
     /** Returns the panel this adapter wraps. */
     public Panel getPanel() {
         return panel;
@@ -109,6 +131,11 @@ public final class ScreenPanelAdapter {
         if (!panel.isVisible()) return;
 
         ScreenOrigin origin = originFn.compute(screenBounds);
+        // Region-aware originFns return OUT_OF_REGION when the panel would
+        // overflow its region. Short-circuit both render and input here so
+        // the panel behaves as hidden when out of space.
+        if (origin == ScreenOrigin.OUT_OF_REGION) return;
+
         RenderContext ctx = new RenderContext(
                 graphics, origin.x(), origin.y(), mouseX, mouseY);
 
@@ -140,6 +167,8 @@ public final class ScreenPanelAdapter {
         if (!panel.isVisible()) return false;
 
         ScreenOrigin origin = originFn.compute(screenBounds);
+        // Out-of-region panels consume no clicks — they aren't rendered.
+        if (origin == ScreenOrigin.OUT_OF_REGION) return false;
 
         for (PanelElement element : panel.getElements()) {
             if (!element.isVisible()) continue;

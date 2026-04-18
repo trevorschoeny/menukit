@@ -51,6 +51,15 @@ public class Panel {
     private final int toggleKey; // GLFW key code that toggles visibility, or -1 for none
     private boolean visible;
 
+    // ── Size pinning (M5 region stacking) ──────────────────────────────
+    // When pinnedWidth >= 0, getWidth() returns pinnedWidth regardless of
+    // element visibility. Same for pinnedHeight. Opt-in escape hatch for
+    // panels whose dynamic element visibility would otherwise cause
+    // getWidth/getHeight to collapse to zero, which would jitter the
+    // stacking of subsequent panels in a region.
+    private int pinnedWidth = -1;
+    private int pinnedHeight = -1;
+
     // Supplier-driven visibility (Phase 10). When non-null, this takes precedence
     // over the imperative `visible` field — isVisible() reads the supplier, and
     // setVisible(...) silently no-ops. Clear with showWhen(null) to revert to
@@ -113,6 +122,78 @@ public class Panel {
 
     /** Returns the panel's elements — buttons, text labels, etc. (immutable). */
     public List<PanelElement> getElements() { return elements; }
+
+    // ── Size (for M5 region stacking) ──────────────────────────────────
+
+    /**
+     * Pins this panel's width and height for the region-stacking calculation.
+     * Overrides the auto-sized bounding-box computation in {@link #getWidth()}
+     * and {@link #getHeight()}. Use when the panel's content is
+     * supplier-driven and its auto-size would fluctuate between frames —
+     * pinning stabilizes the stacking math so subsequent panels in the same
+     * region don't jitter.
+     *
+     * @param w pinned width in pixels (must be non-negative)
+     * @param h pinned height in pixels (must be non-negative)
+     * @return this panel, for method chaining
+     */
+    public Panel size(int w, int h) {
+        this.pinnedWidth = w;
+        this.pinnedHeight = h;
+        return this;
+    }
+
+    /**
+     * Returns the panel's width for region-stacking math.
+     *
+     * <p>If a pinned size was declared via {@link #size(int, int)}, returns
+     * the pinned width. Otherwise, returns the bounding-box extent computed
+     * from visible elements (max {@code childX + width}), plus any
+     * background-padding contribution when the panel has a non-NONE style.
+     *
+     * <p>Consumers whose panels have only supplier-gated elements should pin
+     * the size explicitly — auto-size collapses to zero when all elements
+     * report invisible, causing subsequent panels to shift inward for a
+     * frame until the elements reappear.
+     */
+    public int getWidth() {
+        if (pinnedWidth >= 0) return pinnedWidth;
+        int extent = 0;
+        for (PanelElement e : elements) {
+            if (!e.isVisible()) continue;
+            int right = e.getChildX() + e.getWidth();
+            if (right > extent) extent = right;
+        }
+        return extent + backgroundPadding();
+    }
+
+    /**
+     * Returns the panel's height for region-stacking math.
+     *
+     * <p>See {@link #getWidth()} — same auto-size/pin semantics along the Y axis.
+     */
+    public int getHeight() {
+        if (pinnedHeight >= 0) return pinnedHeight;
+        int extent = 0;
+        for (PanelElement e : elements) {
+            if (!e.isVisible()) continue;
+            int bottom = e.getChildY() + e.getHeight();
+            if (bottom > extent) extent = bottom;
+        }
+        return extent + backgroundPadding();
+    }
+
+    /**
+     * Additional pixels the panel background contributes beyond the element
+     * extent. Zero for {@link PanelStyle#NONE}; reserved as a style-specific
+     * hook for frame insets when styled-background panels need it. Kept as a
+     * single value (rather than per-edge insets) because all current styles
+     * are visually symmetric. Currently returns 0 for all styles — refine
+     * when visual verification shows frame clipping.
+     */
+    private int backgroundPadding() {
+        return 0;
+    }
 
     // ── Visibility ──────────────────────────────────────────────────────
 
