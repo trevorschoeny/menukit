@@ -2,7 +2,6 @@ package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.core.MKClickOutsideHelper;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -10,16 +9,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Fixes vanilla's click classification for slots outside the container frame
- * on {@link AbstractRecipeBookScreen}. This override sits between
- * {@code AbstractContainerScreen} (the base) and {@code InventoryScreen}
- * (a leaf), so any screen extending AbstractRecipeBookScreen — including
- * InventoryScreen — inherits this fix.
+ * on {@link AbstractContainerScreen} — i.e., any screen that inherits the base
+ * {@code hasClickedOutside} without overriding it (chests, hoppers, dispensers,
+ * shulker boxes, etc.).
  *
- * <p>See {@link MKHasClickedOutsideContainerMixin} (base) and
- * {@link MKHasClickedOutsideCreativeMixin} (creative) for the sibling targets.
+ * <p>Without this fix, clicks on grafted/decoration slots positioned outside
+ * the container frame get classified as "outside" clicks (k=-999), which
+ * changes PICKUP to THROW and causes items to physically drop as entities
+ * instead of going to the cursor.
+ *
+ * <p>Screens that override {@code hasClickedOutside} need their own mixins —
+ * see {@link MKHasClickedOutsideMixin} (recipe-book screens) and
+ * {@link MKHasClickedOutsideCreativeMixin} (creative).
  */
-@Mixin(AbstractRecipeBookScreen.class)
-public abstract class MKHasClickedOutsideMixin {
+@Mixin(AbstractContainerScreen.class)
+public abstract class MKHasClickedOutsideContainerMixin {
 
     @Inject(method = "hasClickedOutside(DDII)Z", at = @At("HEAD"), cancellable = true)
     private void menuKit$exemptSlotPositions(double mouseX, double mouseY,
