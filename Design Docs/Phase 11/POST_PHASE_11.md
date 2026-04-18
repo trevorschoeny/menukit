@@ -46,16 +46,15 @@ Shift+double-click in the hotbar or main inventory with no container open. Vanil
 
 **F8 — Equipment panel.**
 Two-slot panel (elytra + totem) visible in `InventoryScreen` + `CreativeModeInventoryScreen`, with per-slot filters, ghost icons, and config-driven disable. Passive behaviors (flight, totem, mending, death drops, wings rendering) are already live in Layer 2 — only the in-inventory UI is deferred.
-**Category:** primitive-blocked.
-**Blocked on:** M4 (vanilla menu slot injection primitive).
-**Phase 13 sketch:** Rebuild as `Panel` + 2-slot `SlotGroup` over `PlayerAttachedStorage.forEquipment()`. Per-slot `InteractionPolicy.input(stack -> isElytra(stack) || isTotem(stack))` with `.withMaxStackSize(s -> 1)`. Ghost icon via SlotGroup's `.ghostIcon(Identifier)` option. `PanelStyle.NONE` — blends with vanilla armor column. Per-screen origin resolution in `EquipmentDecoration.originForScreen` (survival vs creative).
+**Category:** primitive-blocked (visual layer pending M5 region system).
+**Blocked on:** M5 (region system for panel positioning). M4 mechanism (slot grafting via `addSlot()`) is **verified working** in Phase 12 — equipment slots graft onto InventoryMenu at construction, accept elytra/totem via `mayPlace`, enforce max stack 1, shift-click routes correctly, persistence works via Fabric attachments. What remains is the visual layer (slot backgrounds, ghost icons, panel frame) which should go through Panels + ScreenPanelAdapter positioned via M5 regions.
+**Phase 13 sketch:** Equipment slot grafting is already implemented (IP's `InventoryMenuMixin`). Phase 13 adds the visual backdrop Panel positioned via M5 region (likely `InventoryRegion.LEFT_ALIGN_TOP`). Ghost icons via vanilla's `Slot.getNoItemIcon()` extension point. Config-driven visibility via `Slot.isActive()` override.
 
 **F9 — Pockets panels.**
 Nine `Toggle.linked` buttons (one per hotbar slot, RAISED/INSET) + nine 3-slot pocket panels backed by the `POCKETS` attachment, with `POCKET_DISABLED` integration for per-slot disable-toggling via empty-click.
-**Category:** primitive-blocked.
-**Blocked on:** M4.
-**Phase 13 sketch:** Per refactor plan § 4.2. Nine `Panel`s with 3-slot `SlotGroup`s backed by `PlayerAttachedStorage.forPocketSlice(hotbarSlot)`. Per-slot `.disabledWhen(pocketIndex >= config.pocketSlotCount)`, `.ghostIcon(BARRIER when disabled)`, `.onEmptyClick(toggleDisabled)`, `.emptyTooltip("Enable/Disable slot")`. `openPocketIndex` lives client-only in `PocketsDecoration` (int, -1 when none open). Nine `Toggle.linked` buttons at hotbar positions — supplier reads `openPocketIndex == i`, click flips it.
-**Note on existing files:** `PocketsPanel.java` was deleted during Layer 5 cleanup — it had only stub methods with no live callers. Phase 13 creates a fresh `PocketsDecoration` class rather than reviving `PocketsPanel`. The attachment-layer predicates (`PocketDisabledData.isDisabled(h, p)`, etc.) are the canonical state read path.
+**Category:** primitive-blocked (visual layer pending M5 region system).
+**Blocked on:** M5 (region system for panel positioning). M4 mechanism (slot grafting) applies here the same way as F8 — pockets slots graft onto InventoryMenu at construction time, backed by `PlayerAttachedStorage.forPocketSlice(hotbarSlot)`. The grafting mechanism is verified; the visual layer is what remains.
+**Phase 13 sketch:** Graft 27 pocket slots (9 × 3) onto InventoryMenu via the same `addSlot()` pattern as F8. Per-slot `mayPlace` for disabled-slot gating. Panel visibility via `Slot.isActive()` returning false when pocket is closed (`openPocketIndex != hotbarSlot`). Nine `Toggle.linked` buttons at hotbar positions. Visual backdrop Panel positioned via M5 region (likely `InventoryRegion.BOTTOM_ALIGN_LEFT` or similar).
 
 **F10 — In-inventory pocket HUD toggle button.**
 If eventually desired: a small button in the inventory screen that toggles the pocket HUD's visibility. Not currently in the refactor plan — speculative placeholder if users request it. HUD itself (Layer 2 shipped) exists independently of this.
@@ -63,9 +62,9 @@ If eventually desired: a small button in the inventory screen that toggles the p
 **Phase 13 sketch:** Small `Toggle.linked` button in the settings region, reading/writing `config.showPocketHud`.
 
 **F15 — Peek panel UI (umbrella — subsumes F11–F14).**
-The visible peek panel and all user-facing peek behavior: rendering, click dispatch, sort-within-peek, move-matching-into-peek, drop, double-click-collect. These defer together because they all depend on the same missing slot primitive.
+The visible peek panel and all user-facing peek behavior: rendering, click dispatch, sort-within-peek, move-matching-into-peek, drop, double-click-collect. These defer together because they all depend on the same slot injection mechanism.
 **Category:** primitive-blocked.
-**Blocked on:** M6 (client-side slot primitive for decoration panels). Sort/move-matching sub-features additionally need protocol-design work, but that shape depends on the UI primitive settled by M6.
+**Blocked on:** M4 (vanilla menu slot injection — option (a) approved: dynamic pre-allocation of peek slots at handler construction based on peekable item count). M6 dissolved in Phase 12; peek needs real vanilla Slot instances, not client-side decoration slots.
 **What ships in Phase 11 Layer 3 (kept live):**
 - Six peek packet types (wire protocol)
 - `ContainerPeek` server-side: stateless open/move/close handlers with per-source-type storage access (shulker `CUSTOM_DATA`, bundle `BUNDLE_CONTENTS`, ender inventory)
@@ -79,7 +78,7 @@ The visible peek panel and all user-facing peek behavior: rendering, click dispa
 - Sort / move-matching / drop / double-click-collect actions
 - The `handlePeek` keybind behavior that opens a session
 
-**Phase 13 sketch:** When M6 ships, populate `PeekDecoration` with render + click dispatch using the new primitive. Populate `KeybindDispatch.handlePeek` to call `ContainerPeekClient.openPeek(menuSlotIndex)`. The infrastructure underneath (packets / server / session / API) stays unchanged — only the UI layer needs to be rebuilt. Sort and move-matching sub-features once UI shape settles.
+**Phase 13 sketch:** Uses M4's slot-injection mechanism (option a: dynamic pre-allocation). Per-handler-type mixins scan container contents at construction for peekable items; if any found, graft 64 hidden peek slots (max bundle capacity) backed by a `SimpleContainer`. Server-side statefulness: `PeekSession` tracks which slot is peeked, populates the SimpleContainer on peek-open, clears on peek-close. `broadcastChanges()` handles sync automatically. Panel visibility via `Slot.isActive()` + Panel.showWhen. Peek panel visual backdrop via M5 region. Phase 11's six-packet protocol may partially simplify — `PeekMoveC2SPayload` dissolves (vanilla's `slotClicked` handles mutations); `PeekSyncS2CPayload` dissolves (`broadcastChanges` handles sync). Remaining: `PeekOpenC2S`, `PeekCloseC2S`, `PeekErrorS2C`.
 
 **Historical note:** A prior Layer 3 pass hand-rolled peek panel rendering via raw `graphics.fill()` calls and custom hit-testing, violating the conforming-to-primitives principle. Reverted when the architectural mismatch was called out. F15 now properly subsumes what were F11–F14 separate-feature entries; those finer-grained sub-features are implementation choices within F15's scope rather than independently-deferrable items.
 
@@ -99,100 +98,31 @@ Cleanup mechanism. MKFamily groups config categories under shared screens. If re
 **Status:** decision pending. Not blocking features.
 
 **M6 — Client-side slot primitive for decoration panels.**
-Design a MenuKit primitive for rendering slot-like interactive elements inside a decoration Panel (Pattern 2/3 injection over vanilla screens), backed by a client-side Storage, not attached to any vanilla menu.
-**Status:** dissolved in Phase 12. Verification showed peek requires vanilla-native slot instances via M4 (full drag / shift-click / cursor protocol), not client-side decoration slots. Rendering analysis (SlotRendering utility) carries forward to M4's design. See `Design Docs/Phase 12/M6_CLIENT_SIDE_SLOTS.md` for the dissolution record.
-**Architectural distinction from M4:** M4 is for injecting real slots into a vanilla `containerMenu.slots` list (vanilla-menu integration). M6 is for rendering slot-like elements in a client-only decoration panel that never participates in vanilla's slot-click protocol. Different integration contexts; probably different primitive shapes even if they share some rendering code.
-**Evidence:** IP's peek panel (F15). Peek slots:
-- are client-only (no server menu slot)
-- render with vanilla-style slot backgrounds + hover highlights + item decorations
-- accept clicks that translate to C2S packets (not vanilla `menu.clicked`)
-- are backed by a client-side `Storage` (the peek session's items)
-
-**Shape hints (not design — Phase 12's job):**
-- A `PanelElement` subclass or factory, e.g., `Slot.client(Storage, int index, ...)` or `new ClientSlot(...)`
-- Renders using vanilla slot sprites (`SLOT_HIGHLIGHT_BACK_SPRITE` / `SLOT_HIGHLIGHT_FRONT_SPRITE`) so the visual matches real slots
-- Hit-testing like `Button` does — element handles its own hover state + click dispatch
-- Click handler receives `(button, shiftHeld, slotIndex)` and returns whether consumed
-- Storage binding for display (read item via `storage.getStack(index)`)
-
-**Relationship to existing primitives:**
-- Likely sits in `core/` alongside `Button`, `ItemDisplay`, etc.
-- Complements `ItemDisplay` (render-only item) with interactive slot semantics
-- Consumer code composes `ClientSlot` instances inside a `Panel`, same as any other `PanelElement`
-
-**Evidence from a hand-rolled attempt:** IP's prior Layer 3 pass rendered peek slots with custom `graphics.fill()` calls. It "worked" visually but looked non-native (missing vanilla hover sprites, wrong highlight color, etc.). Conforming to primitives isn't just aesthetic — the hand-rolled version also had to hand-roll click semantics (hit-testing, hover tracking) that a proper primitive would centralize.
-
-**Non-goals:** M6 is not for making peek slots participate in vanilla's slot-click protocol. Peek is client-side; mutations round-trip through IP's packets. M6 is just the rendering + input-dispatch primitive, not a cross-menu integration.
-
-**Architectural relationship to M1, M4, M5:**
-- M1 = persistence-shaped (per-slot state across sessions)
-- M4 = integration-shaped (SlotGroup in vanilla menus)
-- M5 = layout-shaped (positioning arbitration)
-- M6 = rendering-shaped (slot-like primitive for decoration panels)
-
-Four independent mechanism categories; Phase 12 designs each on its own.
+**Status:** dissolved in Phase 12. Verification showed peek requires vanilla-native slot instances via M4 (full drag / shift-click / cursor protocol), not client-side decoration slots. No other consumer evidence exists for a client-side slot primitive without peek. Rendering analysis (SlotRendering utility) carries forward to M4.
+**Dissolution record:** `Design Docs/Phase 12/M6_CLIENT_SIDE_SLOTS.md` — preserved as historical record with the verification finding and carryforward analysis.
 
 **M5 — Context-scoped region system for panel positioning.**
 Design a primitive for mods to declare panel positions by named region rather than pixel coordinates, scoped per-context. Collision arbitration via stacking along region-defined flow axes. Each region is an anchor + flow direction pair; panels attached to the same region stack with gaps along the flow axis.
-**Status:** design input — decision pending. **Exact region sets per context await Trevor's design decision.** Do not begin implementation.
-**Contexts to address:**
-- **InventoryContext** — screen-ful inventory UIs (survival inventory, creative inventory, chests, other containers). Panels positioned outside the menu frame, adaptive to menu size and recipe-book-open state.
-- **HudContext** — overlaid on gameworld during normal play.
-- **StandaloneScreenContext** — MenuKit-native screens not attached to vanilla menus.
+**Status:** region specs finalized. See `Design Docs/Phase 12/M5_REGION_SPECS.md` for the authoritative region definitions. Implementation pending in Phase 12.
+**Region sets (finalized by Trevor):**
+- **InventoryContext** — 8 regions using `SIDE_ALIGN_END` naming: `LEFT_ALIGN_TOP`, `LEFT_ALIGN_BOTTOM`, `RIGHT_ALIGN_TOP`, `RIGHT_ALIGN_BOTTOM`, `TOP_ALIGN_LEFT`, `TOP_ALIGN_RIGHT`, `BOTTOM_ALIGN_LEFT`, `BOTTOM_ALIGN_RIGHT`. Anchored to the vanilla menu frame; track menu position as it shifts.
+- **HudContext** — 9 regions using position naming: `TOP_LEFT`, `TOP_RIGHT`, `TOP_CENTER`, `LEFT_CENTER`, `RIGHT_CENTER`, `BOTTOM_LEFT`, `BOTTOM_RIGHT`, `BOTTOM_CENTER`, `CENTER` (below crosshair, stacks down). Anchored to screen edges.
+- **StandaloneScreenContext** — 8 regions matching InventoryContext naming, anchored to the main panel.
+**V1 scope:** registration-order stacking, 2px default gap, cutoff on overflow. No priority, no user override.
 
-**V1 scope (when this ships):**
-- Stacking order: registration order
-- Stacking spacing: with gaps (default 2px, panel-level override available)
-- Overflow: cutoff (panels beyond region capacity don't render)
-- No user override, no priority, no graceful overflow
+**Full specs:** `Design Docs/Phase 12/M5_REGION_SPECS.md` — contains region definitions, naming conventions, visual diagrams, flow directions, implementation notes (enum shape, API shape suggestions), and consumer mapping.
 
-**Out of scope for v1:**
-- Vanilla-element-anchored regions (crafting grid, player preview, etc.) — consumers use manual offsets from screen-level regions instead
-- Edge-center regions in InventoryContext (ambiguous flow axis)
-- Main menu / pause menu regions (not in InventoryContext — those screens aren't in scope)
-- Priority-based stacking (v2 concern)
-- User-configurable override (v3 concern)
-- Gameplay-state-aware HUD regions (chat open, boss bar, etc.)
-
-**Evidence:** Sandboxes manually offset "13px left of IP's settings gear" to avoid collision (single-pair collision solved ad hoc). Shulker-palette's ShulkerBoxScreen toggle similarly picks fixed coordinates with no collision awareness. As additional consumers want top-right inventory space, systematic arbitration compounds.
-
-**Design choice pending:** exact region set per context. InventoryContext is leaning toward four corners (top-left, top-right, bottom-left, bottom-right) with natural flow directions, but the full set including HudContext specifics is not yet committed. **Do not begin implementation until Trevor commits the region sets.**
-
-**Shape of API (tentative, for Phase 12 to finalize):**
-
-```java
-// Likely on ScreenPanelAdapter construction or similar
-new ScreenPanelAdapter(panel, InventoryRegion.TOP_RIGHT);
-// HudPanel analog
-MKHudPanel.builder(...).region(HudRegion.TOP_LEFT).build();
-```
-
-Manual-coordinate positioning via `ScreenOriginFns` remains supported — regions are additive, not replacement. Consumers bypassing regions bypass collision arbitration.
-
-**Relationship to existing primitives:**
-- Layers on top of Phase 10's injection patterns (inventory, standalone, HUD) which are about mixin-level integration mechanics. Regions are about positioning within those integrations; they don't conflict.
-- Uses existing `ScreenOriginFns` / `HudAnchor` internally to resolve region names to screen-relative coordinates.
-
-**Architectural distinction from M1, M4, M6:**
-- M1 = persistence-shaped (per-slot state that survives sessions)
-- M4 = integration-shaped (SlotGroup in vanilla menus)
-- M5 = layout-shaped (positioning arbitration across consumer panels)
-- M6 = rendering-shaped (slot-like primitive for decoration panels)
-
-Four independent mechanism categories; Phase 12 designs each on its own.
+**Evidence:** Sandboxes manually offset "13px left of IP's settings gear" to avoid collision. Shulker-palette's ShulkerBoxScreen toggle picks fixed coordinates with no collision awareness. As additional consumers want inventory-screen space, systematic arbitration compounds.
 
 **M4 — Vanilla menu slot injection primitive.**
-Design a MenuKit primitive for injecting real interactive slots into a vanilla menu post-construction. Slots back a `Storage` (including `PlayerAttachedStorage`), route clicks through vanilla's dispatch (`menu.clicked`), support filters via `mayPlace`, ghost icons via `setBackground`, shift-click routing policy, and empty-click handling.
-**Status:** design input. Phase 12 scopes the shape. Single-consumer evidence (IP) is sufficient — the use case is clear and architecturally well-defined.
-**Architectural distinction from M1:** M1 is **persistence-shaped** (per-slot state that survives menu transitions and sessions). M4 is **integration-shaped** (making MenuKit's SlotGroup system work inside vanilla menus). Different categories; Phase 12 designs both independently.
-**Surfaced by:** IP Layer 2 verification (2026-04-15). Current MenuKit SlotGroup is handler-construction-time only — tied to `MenuKitScreenHandler`. The refactor plan (§ 4.1, § 4.2) described equipment + pockets panels as "Panel with SlotGroup over Storage" placed in `decoration/`, but no mechanism exists to graft a `SlotGroup` onto vanilla's `InventoryMenu` / `CreativeModeInventoryScreen` menu. `VirtualSlotGroup` + `HandlerRecognizerRegistry` **observe** vanilla slots (used by IP's sort / move-matching) but don't **add** new slots.
-**Evidence from IP:** F8 (equipment panel), F9 (pockets panels) both need this. The entire attachment-dependent UI surface is blocked.
-**Shape hints (not design — that's Phase 12's job):**
-- Likely a mixin or builder helper that runs in `InventoryMenu.<init>` RETURN (and creative equivalent) and appends slots via `addSlot(...)`
-- Slots should be `MenuKitSlot` subclasses carrying panel/group identity so existing decoration features (sort-lock, move-matching scope resolution) observe them uniformly
-- Visibility hookup: hidden panels return empty + `mayPlace=false` (matching current `MenuKitScreenHandler` hidden-panel semantics)
-- Rendering: the injected slot positions come from the Panel's origin resolver, so positioning still lives in consumer code
-**Non-goals:** M4 is not about making MenuKit "a mixin toolkit" broadly. It's specifically the slot-injection primitive. Other vanilla-menu decoration patterns (render-only overlays, button attachments) already work via `ScreenPanelAdapter`.
+Design a MenuKit primitive for injecting real interactive slots into a vanilla menu at construction time via `addSlot()`.
+**Status:** mechanism confirmed working in Phase 12. Core grafting (`addSlot` at `InventoryMenu.<init>` RETURN), `hasClickedOutside` mixin fix, shift-click routing via `quickMoveStack` mixin — all verified. Visual layer (slot backgrounds, ghost icons via Panel + ScreenPanelAdapter) pending M5 region system. Library surface: `StorageContainerAdapter` + `MKHasClickedOutsideMixin` + `SlotRendering` ship; `SlotInjector` / `GraftedRegion` likely dissolve (consumer calls `addSlot` directly).
+**Key Phase 12 findings:**
+- Vanilla's Slot extension points (`mayPlace`, `getNoItemIcon`, `getMaxStackSize`, `isActive`) are sufficient. No MenuKitSlot data-flow overrides needed — plain Slot subclasses with 2-3 overrides work.
+- `hasClickedOutside` misclassifies clicks on slots outside the container frame (overwrites valid slot index to -999, changing PICKUP to THROW). Fix: mixin returns false when click lands on any active slot.
+- Two-layer model: handler layer (real vanilla Slots via addSlot) + visual layer (Panels via ScreenPanelAdapter). They share coordinates but aren't coupled.
+- F15 (peek) uses the same mechanism via option (a): dynamic pre-allocation at construction based on peekable item count. 64 hidden slots (max bundle capacity), zero-cost for non-peekable containers.
+**Design doc:** `Design Docs/Phase 12/M4_VANILLA_SLOT_INJECTION.md` (partially stale — see `Phase 12/SESSION_STATUS.md` §8 for what changed during implementation).
 
 ---
 

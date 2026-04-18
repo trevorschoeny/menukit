@@ -46,24 +46,23 @@ Each entry names what Phase 13 delivers, the blocker (primitive or sequencing), 
 
 Four independent categories. Phase 12 designs each on its own; they don't share implementation.
 
-| Entry | Category | Enables | Evidence source |
-|-------|----------|---------|-----------------|
-| M1 | persistence-shaped — per-slot state across sessions | F1, F2, future per-slot state needs | IP sort-lock only; single-consumer evidence |
-| M3 | cleanup — MKFamily disposition | Phase 13 config refactors IF removed | IP + all four consumer mods; decision-only, not design |
-| M4 | integration-shaped — vanilla-menu slot injection | F8, F9 | IP equipment + pockets panels; two IP features |
-| M5 | layout-shaped — context-scoped region positioning | Collision-free multi-consumer layout | Sandboxes ↔ IP settings-gear collision + shulker-palette toggle at fixed coords |
-| M6 | rendering-shaped — client-side slot primitive for decoration panels | F15 | IP peek (hand-rolled attempt reverted); single-consumer but architecturally unambiguous |
+| Entry | Category | Enables | Evidence source | Phase 12 status |
+|-------|----------|---------|-----------------|-----------------|
+| M1 | persistence-shaped — per-slot state across sessions | F1, F2, future per-slot state needs | IP sort-lock only; single-consumer evidence | design pending |
+| M3 | cleanup — MKFamily disposition | Phase 13 config refactors IF removed | IP + all four consumer mods; decision-only, not design | decision pending |
+| M4 | integration-shaped — vanilla-menu slot injection | F8, F9, F15 | IP equipment + pockets panels + peek | **mechanism confirmed** — grafting verified, visual layer pending M5 |
+| M5 | layout-shaped — context-scoped region positioning | Collision-free multi-consumer layout | Sandboxes ↔ IP settings-gear collision + shulker-palette toggle at fixed coords | **region specs finalized** — see `Phase 12/M5_REGION_SPECS.md` |
+| ~~M6~~ | ~~rendering-shaped — client-side slot primitive~~ | ~~F15~~ | ~~IP peek~~ | **dissolved** — peek needs real vanilla Slot instances (M4), not client-side decoration |
 
 **M2 (SlotIdentity)** shipped mid-Phase 11 as the sole exception to "no library additions during Phase 11." The exception clause is closed; all other primitive needs defer.
 
-### Suggested Phase 12 sequence
+### Suggested Phase 12 sequence (revised after Phase 12 implementation findings)
 
-If tackling serially, suggest: **M6 → M4 → M1 → M5**.
+**12a (stabilize) → M5 → M1.** Original suggestion was M6 → M4 → M1 → M5; revised after M6 dissolved and M4's mechanism confirmed working. Current sequence:
 
-- **M6 first** — single unambiguous use case (peek panel UI), smallest scope, unlocks the Process Finding's lesson by actually shipping the primitive that was supposed to exist. Good warm-up for Phase 12 primitive-design mechanics.
-- **M4 second** — unblocks the most user-visible deferrals (F8 equipment panel + F9 pockets panels, the entire attachment-dependent UI surface). Architecturally constrained (vanilla's slot sync protocol treats `menu.slots` as immutable after construction) so the design space is narrow — that's helpful after M6's design establishes patterns.
-- **M1 third** — single-consumer evidence (IP only) but clear use case. Can ship any time; no interlock with M4 or M6.
-- **M5 fourth** — **awaits Trevor's region-set decision**. Do not begin implementation until the exact region set per context is committed. Low-urgency — coordinate collisions are currently worked around with manual offsets, not a blocker.
+- **12a — Stabilize** what's already built from the first Phase 12 session: verify MenuKitSlot restructure, extend hasClickedOutside fix to all screen types, clean up experimental code, commit.
+- **M5 — Region system.** Region specs finalized by Trevor (see `Phase 12/M5_REGION_SPECS.md`). Visual layer for F8/F9 needs Panel positioning via regions; building Panels with hardcoded coordinates would mean rework when M5 ships.
+- **M1 — Per-slot persistent state.** Independent of M5. Can proceed after or in parallel.
 
 M3 (MKFamily disposition) is a decision, not a design. Resolve any time; orthogonal to M1/M4/M5/M6.
 
@@ -155,7 +154,7 @@ Pattern worth naming: **consumer-mod rebuild phases tend to surface library requ
 
 ### Half-formed thoughts worth surfacing
 
-- **Phase 12 scope shape.** Four mechanism candidates is a lot to do serially but probably less than a full phase each. Maybe Phase 12 is itself three sub-phases (12a/b/c), or maybe it's one phase with parallel mechanism design tracks. The answer depends on how intertwined M1/M4/M5/M6 turn out to be during design — probably less than feared (they're independent categories by construction) but Phase 12 planning should think about it.
+- **Phase 12 scope shape.** Original four mechanism candidates reduced to two active (M5, M1) plus stabilization of M4's confirmed mechanism. M6 dissolved. M3 is a decision, not design. Phase 12 is smaller than originally expected.
 
 - **M5's region-set decision.** Trevor said "don't begin implementation until I commit the region sets." That's right, but also worth surfacing: M5's design maturity is lower than M1/M4/M6 because of this. If Phase 12 tackles M5 early, it might stall waiting for the decision. Tackling M6 → M4 → M1 → M5 surfaces M5's blocker last, when there's plenty of runway to make the decision.
 
