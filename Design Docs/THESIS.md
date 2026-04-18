@@ -26,7 +26,7 @@ It is **not** a mixin toolkit for injecting into vanilla UI. Consumer mods that 
 
 ## Design principles
 
-Seven principles govern every design decision in MenuKit. They are ordered by load-bearing weight — the earlier principles override the later ones when they conflict.
+Eight principles govern every design decision in MenuKit. They are ordered by load-bearing weight — the earlier principles override the later ones when they conflict.
 
 ### 1. Library, not platform
 
@@ -103,6 +103,18 @@ This principle forces validation structure: every validation pass includes at le
 Without this discipline, validation regresses to primitive-coverage over time. Each phase's new primitives get a set of probes that test them in isolation; the library's product identity — "a component library that makes it easy to build real UI" — erodes into "a collection of primitives that pass their individual contracts." The difference is visible to consumers long before it's visible to the library.
 
 The test for this principle: *does the validation pass include at least one consumer-shaped scenario — where the harness builds something a real consumer would build — alongside its primitive-coverage scenarios?* If no, validation is measuring the library's parts, not the library's product.
+
+### 8. Elements are lenses, not stores
+
+Interactive elements with state-like behavior — Toggle, Checkbox, Radio, any future Slider / TextInput / Dropdown — expose their state via `supplier + callback` pairs. The element reflects consumer state; the element does not own state. Persistence, serialization, and cross-session durability are consumer concerns. The library provides lenses; consumers provide stores.
+
+The instinct to have a Toggle "remember its last state" or a Checkbox "save its value" is the instinct to move consumer concerns into the library. What actually persists in those scenarios is not the element's state — it is the consumer's feature flag, config value, or domain state that the element happens to be a visual handle for. "Should feature X be enabled" is the consumer's question, not MenuKit's. The consumer's mod knows what feature X is, what its persistence format should be, when it should be saved, and what happens when another part of the consumer's code mutates the same state by another path. MenuKit cannot know those answers for every consumer without becoming a platform that forces one set of answers on all of them.
+
+M1 is the exception that proves the rule. Per-slot state has a library-shaped persistence primitive because slots are library-owned entities with identity, lifecycle, and synchronization semantics MenuKit already handles. Non-slot state — feature flags driven by Toggles, numeric ranges driven by Sliders, enumerations driven by Radios — lives in the consumer's chosen store (config files, attachments, block-entity data, whatever the consumer's mod is already using). The library ships no "element state persistence" layer because every mechanism it could ship would force a particular storage model on consumers, exactly the library-not-platform failure mode that principle 1 rejects.
+
+This principle forces two specific decisions. First, every stateful element ships a `linked`-style factory at introduction time — `Toggle.linked(supplier, callback)`, `Checkbox.linked(supplier, callback)`, and so on — so consumers never need to work around an element that owns its own state when they want to wire it to their own store. Second, when the library encounters pressure to "just add persistence for this one element type," the answer is to sharpen the lens (improve the supplier/callback ergonomics, reduce boilerplate, ship examples) rather than to add library-owned storage.
+
+The test for this principle: *when this element's state changes, could the consumer's underlying state (config, attachment, field) have changed by a completely different code path, and the element still reflect it correctly on the next frame?* If no, the element is owning state instead of lensing over it.
 
 ## The ship-vs-consumer line
 

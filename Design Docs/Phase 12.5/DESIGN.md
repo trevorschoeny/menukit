@@ -103,7 +103,7 @@ V0 runs first because it validates the library's product positioning (THESIS pri
 
 ### V0 — Consumer mini-application [mixed]
 
-**Purpose.** Validate the library as a component library, not as a collection of primitives (THESIS §7). Build a fake "IP-settings-lite" feature inside the validator module — a MenuKit-native screen with 5–8 interactive elements composing into one coherent workflow. Exercise state flow between elements, cross-element dependencies, realistic keybind integration, real persistence via M1. If a consumer couldn't reasonably build this in a reasonable amount of code, that's a library-level finding, not a per-primitive bug.
+**Purpose.** Validate the library as a component library, not as a collection of primitives (THESIS §7). Build a fake "IP-settings-lite" feature inside the validator module — a MenuKit-native screen with 5–8 interactive elements composing into one coherent workflow. Exercise state flow between elements, cross-element dependencies, realistic keybind integration, consumer-owned persistence via the lens pattern (THESIS §8). If a consumer couldn't reasonably build this in a reasonable amount of code, that's a library-level finding, not a per-primitive bug.
 
 **Scenario shape.** A `MenuKitScreenHandler`-backed settings screen. Layout:
 
@@ -112,17 +112,21 @@ V0 runs first because it validates the library's product positioning (THESIS pri
 - A second `Toggle` for "enable feature Y" — gated by the first toggle's state (supplier-driven `isVisible` or `isEnabled`). Tests element-to-element state flow.
 - A `Checkbox` for a related preference.
 - A `ProgressBar` whose value is computed from the toggles' states (e.g., "how many features enabled / total"). Supplier-driven, updates per-frame.
-- A `Button` labeled "Save" that writes all state to M1 channels (one channel per toggle). Persists across close/reopen/disconnect.
+- A `Button` labeled "Save" that commits the dirty session buffer to a consumer-owned disk-persisted config. Persists across close/reopen/disconnect.
 - A `Button` labeled "Cancel" that discards unsaved state.
 - Each interactive element has a `Tooltip` explaining what it does.
 
+**Persistence model — consumer-owned (THESIS §8).** Feature flags ("enable X," "enable Y," "preference") are not slot-shaped state and therefore not M1 candidates. V0 owns its own disk-persisted config ({@code V0Config}, JSON file in the Fabric config dir) — the canonical real-consumer pattern. Toggle/Checkbox elements wire to a session-buffer dirty-edit layer via {@code Toggle.linked(supplier, callback)}; Save commits the dirty buffer to {@code V0Config} and writes to disk; Cancel closes the screen without committing (next open rehydrates the session buffer from the authoritative config).
+
+Slot-shaped state (lock flags, slot-anchored annotations) belongs to M1 and is exercised in V5 / V6, not V0. V0 deliberately demonstrates the lens-over-consumer-store pattern for non-slot state — the canonical usage the library wants consumers to reach for.
+
 **Automated checks.**
-- On open, state loads from M1 channels (reads default if never saved).
+- On open, session buffer loads from the consumer config (reads config defaults if never saved).
 - Toggle A's supplier-driven gating of Toggle B fires correctly — toggling A updates B's isVisible / isEnabled without manual refresh.
 - Progress bar value updates when toggles change (supplier reads per-frame).
-- Save button click writes all channel values to server; server broadcasts; client cache coherent.
-- Cancel button click restores pre-open state without server write.
-- Close + reopen the screen — state persists (via M1).
+- Save button click commits the session buffer to the config and writes to disk. Reopening reads the persisted state.
+- Cancel button click closes the screen without committing. Reopening reads the last-saved state, not the discarded edits.
+- Config file survives Minecraft restart — reopening after a fresh launch reads the previously-saved state.
 
 **Manual checklist.**
 - Visual layout matches expected positions.
@@ -133,6 +137,8 @@ V0 runs first because it validates the library's product positioning (THESIS pri
   - Slider / numeric input (continuous value)
   - Dropdown / select (enum choice from a list)
   - Scroll container (overflow handling for long settings lists)
+- **Lens-factory audit (THESIS §8).** V0 exercises which stateful elements ship a `linked(supplier, callback)` factory and which force consumers to work around element-owned state. Every gap surfaced — Checkbox without `linked`, Radio without `linked`, Toggle.linked without a `disabledWhen` overload — goes to the close-out REPORT. These are library palette gaps, not V0 bugs.
+- **Post-build size pinning.** `MenuKitScreenHandler.PanelBuilder` has no `.size(w, h)` method; V0 must retrieve the Panel post-build and call `Panel.size(...)` directly to get symmetric margins. Trivially additive palette gap filed for close-out.
 
 **Why first.** V0 is the scenario that validates the product. Everything downstream validates the primitives that support the product. Without V0, Phase 12.5 tests a primitive library, not a component library. With V0, we know whether the library delivers on its positioning before we spend time validating its parts.
 
@@ -483,7 +489,7 @@ Advisor's working hypothesis (noted for context): creative's tabs reconstruct th
 
 Phase 12.5 is a validation interstitial: a new Gradle submodule (`validator/`) that acts as a synthetic consumer, exercising every Phase 12 primitive through realistic usage patterns across eight scenarios, surfacing bugs where they're diagnosable (primitive level, not consumer-integration level) and fixing them in-phase.
 
-**V0 validates the product.** Consumer mini-application — a settings-screen feature built end-to-end inside the validator using 5–8 interacting elements, supplier-driven state flow, M1 persistence. Surfaces palette gaps (text input, slider, dropdown, scroll container) as library-evidence for future phases. Validates THESIS §7 (validate the product, not just the primitives). Runs first.
+**V0 validates the product.** Consumer mini-application — a settings-screen feature built end-to-end inside the validator using 5–8 interacting elements, supplier-driven state flow, consumer-owned persistence via the lens pattern (THESIS §8). Surfaces palette gaps (text input, slider, dropdown, scroll container; `Checkbox.linked` / `Radio.linked` absence; `Toggle.linked` without `disabledWhen`; `PanelBuilder.size`) as library-evidence for future phases. Validates THESIS §7 (validate the product, not just the primitives) and exercises THESIS §8 (elements are lenses, not stores). Runs first.
 
 **V1–V8 validate the primitives by blast radius.** **V1** element palette (V1.1 isolated + V1.2 composed) → **V2** regions × palette → **V3** visibility + inertness (including V3.7 slot-level data inertness — the specific regression class that `MenuKitSlot.getItem`'s 12a-checkpoint regression hit) → **V4** native screen lifecycle (V4.1) + cross-context element reuse (V4.2 — same element instance in inventory + HUD + standalone, THESIS §5 made concrete) → **V5** slot interactions (V5.5 rewritten for the shared-`Container`-instance finding from M1 §4.1) → **V6** M1 persistence (V6.1a added for optimistic-reconciliation idempotency) → **V7** HUD → **V8** MKFamily (scope reduced per M3 scope-down resolution).
 
@@ -491,7 +497,7 @@ Each scenario declares type (automated / manual / mixed) explicitly; output leav
 
 **M3 resolved as scope-down** (§11): `MenuKit.family("id")` keeps identity + keybind-category sharing (Layer A); YACL + ModMenu + config-aggregation (Layer B) leaves MenuKit. Prerequisite library-side work; interleavable with V0–V3 scaffolding; must land before V8 runs meaningfully.
 
-**THESIS principle 7** ("Validate the product, not just the primitives") landed in THESIS.md alongside this doc. Codifies the V0 discipline: every validation phase includes at least one consumer-shaped scenario. Phase 12.5 is the first pass under this principle.
+**THESIS principles 7 and 8** landed alongside this doc. Principle 7 ("Validate the product, not just the primitives") codifies the V0 discipline: every validation phase includes at least one consumer-shaped scenario. Principle 8 ("Elements are lenses, not stores") codifies the state-ownership line for interactive elements: MenuKit provides `linked(supplier, callback)` factories over consumer-owned state; the library does not persist non-slot element state. M1 remains the one library-owned persistence primitive, scoped to slot-shaped state only. Phase 12.5 is the first pass under both principles — V0 exercises the lens pattern as its canonical persistence story, and the palette-gap audit (what ships a `linked` factory, what doesn't) becomes load-bearing close-out evidence.
 
 Close-out: REPORT.md (including palette-gap inventory from V0) + SESSION_BRIEF.md for Phase 13 handoff + design-doc corrections if any drift surfaces + `POST_PHASE_11.md` M3 entry updated to reflect scope-down landing. Phase 13 opens with library-validated primitives, a trimmer library surface, and documented evidence of what consumer needs are met + what palette gaps remain.
 
