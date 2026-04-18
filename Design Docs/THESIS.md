@@ -26,7 +26,7 @@ It is **not** a mixin toolkit for injecting into vanilla UI. Consumer mods that 
 
 ## Design principles
 
-Six principles govern every design decision in MenuKit. They are ordered by load-bearing weight — the earlier principles override the later ones when they conflict.
+Seven principles govern every design decision in MenuKit. They are ordered by load-bearing weight — the earlier principles override the later ones when they conflict.
 
 ### 1. Library, not platform
 
@@ -91,6 +91,18 @@ The wire protocol is a separate concern. Binary `ByteBufCodecs` is correct for p
 This principle forces specific decisions: persistent-state primitives take `Codec<T>` at registration and store values as `Tag` internally. Wire protocols use `StreamCodec<T>` separately. Opaque-payload escape hatches — the "mod provides its own serialization" case — use `CompoundTag`, not `byte[]`. The library stays narrow by not inventing its own serialization format, and stays inspectable by not obscuring state that vanilla would expose.
 
 The test for this principle: *if a player runs `/data get` on the owner (player / block entity / entity), can they see what MenuKit has stored there?* If no, MenuKit is stashing state in a format vanilla can't see, and the library has drifted from vanilla's own pattern.
+
+### 7. Validate the product, not just the primitives
+
+A component library's correctness isn't the sum of its components passing isolated tests; it's whether the components compose into real workflows cleanly, reuse across contexts without friction, and express the palette real consumers expect.
+
+Primitive-coverage tests catch the easy bugs — per-element render bounds, individual codec round-trips, visibility-flag flips. Composition and cross-context tests catch the real ones — supplier-driving-across-elements, context-swap state leakage, palette gaps that force consumers to reinvent the things the library was supposed to save them from reinventing. A validation phase that skips the latter is only measuring what the library is made of, not what the library delivers.
+
+This principle forces validation structure: every validation pass includes at least one scenario where the harness acts as a consumer building a realistic feature end-to-end — not a scenario that exercises one primitive at a time. Palette completeness is evaluated against the standard UI shapes real consumers need (text input, sliders, dropdowns, scroll containers for settings screens; compositional state flow; cross-context element reuse). Gaps surfaced here become evidence that feeds future phases — whether toward library additions or toward explicit non-goal documentation.
+
+Without this discipline, validation regresses to primitive-coverage over time. Each phase's new primitives get a set of probes that test them in isolation; the library's product identity — "a component library that makes it easy to build real UI" — erodes into "a collection of primitives that pass their individual contracts." The difference is visible to consumers long before it's visible to the library.
+
+The test for this principle: *does the validation pass include at least one consumer-shaped scenario — where the harness builds something a real consumer would build — alongside its primitive-coverage scenarios?* If no, validation is measuring the library's parts, not the library's product.
 
 ## The ship-vs-consumer line
 
