@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit.hud;
 
+import com.trevorschoeny.menukit.core.HudRegion;
 import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.PanelStyle;
 
@@ -18,6 +19,15 @@ import org.jspecify.annotations.Nullable;
  * (anchor, screen-open visibility, per-frame dispatch) lives on this def;
  * the elements themselves are context-neutral.
  *
+ * <p><b>Positioning mode.</b> Exactly one of {@code region} or
+ * {@code anchor}+{@code offsetX}+{@code offsetY} drives placement:
+ * when {@code region != null}, the HUD dispatch resolves via
+ * {@link com.trevorschoeny.menukit.core.RegionMath#resolveHud} with a
+ * stacking prefix from
+ * {@link com.trevorschoeny.menukit.inject.RegionRegistry#axialPrefix(MKHudPanelDef, HudRegion)};
+ * otherwise it falls back to {@code anchor.resolve(...)}. Builder validation
+ * guarantees at most one is set. See M5 design doc §4.3.
+ *
  * <p>Part of the <b>MenuKit</b> framework internals.
  */
 public record MKHudPanelDef(
@@ -33,7 +43,8 @@ public record MKHudPanelDef(
         List<PanelElement> elements,
         Supplier<Boolean> showWhen,
         boolean hideInScreen,
-        @Nullable HudRenderCallback onRender
+        @Nullable HudRenderCallback onRender,
+        @Nullable HudRegion region
 ) {
     /**
      * Callback for custom rendering on a HUD panel.
