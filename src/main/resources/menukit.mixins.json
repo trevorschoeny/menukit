@@ -5,7 +5,9 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "VerifyMayPlaceMixin",
-    "VerifyGetItemMixin"
+    "VerifyGetItemMixin",
+    "PlayerOpenMenuMixin",
+    "PlayerListRespawnMixin"
   ],
   "client": [
     "AbstractContainerScreenAccessor",

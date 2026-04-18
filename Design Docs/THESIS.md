@@ -26,7 +26,7 @@ It is **not** a mixin toolkit for injecting into vanilla UI. Consumer mods that 
 
 ## Design principles
 
-Five principles govern every design decision in MenuKit. They are ordered by load-bearing weight — the earlier principles override the later ones when they conflict.
+Six principles govern every design decision in MenuKit. They are ordered by load-bearing weight — the earlier principles override the later ones when they conflict.
 
 ### 1. Library, not platform
 
@@ -79,6 +79,18 @@ A Button does not know whether it is rendering inside an inventory screen, a HUD
 This principle forces the element API surface to stay narrow. Elements cannot reach for context-specific APIs (no "get my containing screen handler," no "read the sync queue"). When an element needs context-specific behavior, either the behavior is expressible through supplier injection (the consumer supplies a `Supplier<Component>` that reads whatever it needs) or the element is context-specific and the palette marks it as such (SlotGroup is the clearest case).
 
 The test for this principle: *could this element, unchanged, render correctly in any of the three contexts if the container holding it did its part?* If no, the element has context-specific logic that should be pushed down into the container.
+
+### 6. Match vanilla's persistence patterns
+
+When MenuKit persists state, it uses NBT as the storage format, Fabric attachments as the transport, and keeps internal values as `Tag` rather than opaque `byte[]`.
+
+Every vanilla system persists state the same way: ItemStack components via `DataComponentPatch`, BlockEntity custom data, Player / Entity additional save data, ender chest contents — all NBT-backed, all serialized through the same pipeline, all inspectable via `/data get`. The payoff of conforming to this is more than consistency: state becomes legible to NBT editors, round-trippable through existing tooling, and debuggable with the same commands players and modpack authors already know. MenuKit's persisted data should never be the one opaque blob in an otherwise legible NBT tree.
+
+The wire protocol is a separate concern. Binary `ByteBufCodecs` is correct for packets, mirroring vanilla's own packet pattern. The dual `Codec<T>` (persistence, NBT-bound) + `StreamCodec<T>` (wire, binary) shape matches how vanilla handles DataComponents — `Codec` into a `Tag` for storage, `StreamCodec` into bytes for transport. Each half of the pair pulls its own weight; neither replaces the other.
+
+This principle forces specific decisions: persistent-state primitives take `Codec<T>` at registration and store values as `Tag` internally. Wire protocols use `StreamCodec<T>` separately. Opaque-payload escape hatches — the "mod provides its own serialization" case — use `CompoundTag`, not `byte[]`. The library stays narrow by not inventing its own serialization format, and stays inspectable by not obscuring state that vanilla would expose.
+
+The test for this principle: *if a player runs `/data get` on the owner (player / block entity / entity), can they see what MenuKit has stored there?* If no, MenuKit is stashing state in a format vanilla can't see, and the library has drifted from vanilla's own pattern.
 
 ## The ship-vs-consumer line
 
