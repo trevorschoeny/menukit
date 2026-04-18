@@ -5,12 +5,13 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "VerifyMayPlaceMixin",
-    "VerifyGetItemMixin",
-    "AbstractContainerMenuAccessor"
+    "VerifyGetItemMixin"
   ],
   "client": [
     "AbstractContainerScreenAccessor",
+    "MKHasClickedOutsideContainerMixin",
     "MKHasClickedOutsideMixin",
+    "MKHasClickedOutsideCreativeMixin",
     "SlotPositionAccessor",
     "KeyEntryAccessor",
     "KeyMappingAccessor",
