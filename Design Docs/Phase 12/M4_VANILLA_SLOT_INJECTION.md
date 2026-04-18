@@ -2,9 +2,82 @@
 
 **Phase 12 mechanism — integration-shaped** (per `Phase 11/POST_PHASE_11.md`).
 
-**Status: Approved. F8/F9 implementation-ready; F15 option (a) approved for Phase 13.**
+**Status: Mechanism shipped in Phase 12 checkpoint `4ed9793`. Visual layer pattern established via M5 §5.6 (shared-constants lambda on `ScreenPanelAdapter`). F15 option (a) still the approved path for Phase 13c.**
 
-**Enables:** F8 (equipment panel), F9 (pockets panels), F15 (peek panel UI — newly confirmed as M4 use case after M6 dissolution).
+**Enables:** F8 (equipment panel), F9 (pockets panels — pending UI-structure clarification for Phase 13b), F15 (peek panel UI — confirmed as M4 use case after M6 dissolution).
+
+**Consumers that landed:** IP's `InventoryMenuMixin` grafts elytra + totem equipment slots onto `InventoryMenu.<init>` RETURN. Mechanism verified: slots accept items via `mayPlace`, enforce max stack 1, shift-click routes, persistence holds across menu close/reopen via `PlayerAttachedStorage`. See commit `4ed9793`.
+
+---
+
+## Implementation findings (Phase 12 close-out)
+
+This section captures where the shipped reality diverges from the original design. The rest of the doc reflects the approved design direction; read this section first to know what actually landed and what patterns superseded earlier assumptions.
+
+### Finding 1: `hasClickedOutside` misclassifies slots outside the container frame
+
+Not in the original design — surfaced during F8 implementation.
+
+**Root cause.** `AbstractContainerScreen.mouseClicked` calls `hasClickedOutside()` and uses the return value to overwrite the slot index: if `true`, the slot index `k` is overwritten from the valid slot index to `-999`. This changes the `ClickType` from `PICKUP` to `THROW`, and the server's `player.drop(...)` fires — items physically drop as entities instead of going to the cursor.
+
+**Why it happens.** `hasClickedOutside` checks `mouseX < leftPos || mouseY < topPos || mouseX >= leftPos + imageWidth || mouseY >= topPos + imageHeight`. Slots grafted outside the container frame (equipment slot at `x = -22`, pockets below the main inventory, etc.) are correctly located by `getHoveredSlot` (which has no frame restriction) but then overridden to -999 by `hasClickedOutside`.
+
+**Fix (shipped in `d22bdf8`).** Three-screen mixin coverage: `MKHasClickedOutsideMixin` on `AbstractRecipeBookScreen` (covers InventoryScreen), `MKHasClickedOutsideContainerMixin` on `AbstractContainerScreen` (covers chests / hoppers / etc.), `MKHasClickedOutsideCreativeMixin` on `CreativeModeInventoryScreen` (covers creative — also shadows the private `hasClickedOutside` field to keep state coherent with `slotClicked`'s carry-drop path). All three delegate to shared `MKClickOutsideHelper.clickLandsOnActiveSlot` — 1px tolerance, matches vanilla's `isHovering`.
+
+### Finding 2: Visual layer does NOT use a mixin render hook
+
+The original design described slot backgrounds rendered via `SlotRendering.drawSlotBackground` in a mixin render TAIL hook. **This approach failed.** `InventoryContainerMixin`'s `@Inject(method="render", at=@At("TAIL"))` didn't produce visible output for grafted slots — even a debug `graphics.fill()` square didn't appear.
+
+The root cause investigation was deprioritized: the advisor called the investigation a red herring because Phase 11 decorations (SettingsGearDecoration, LockOverlayDecoration) render through the Panel + ScreenPanelAdapter path successfully, and that's the path grafted-slot backdrops should use anyway.
+
+**Shipped pattern (M5 §5.6 "Grafted-slot visual layers").** Backdrops for grafted slots are **by-reference to the handler-layer slot coordinates** — they trace the fixed `(x, y)` positions declared at `addSlot()` time. They're not by-value stackable decorations and don't use region stacking. Pattern:
+
+```java
+// Consumer's shared-constants file
+public final class EquipmentLayout {
+    public static final int ELYTRA_X = -22, ELYTRA_Y = 8;
+    public static final int TOTEM_X  = -22, TOTEM_Y = 26;
+    public static final int PANEL_WIDTH = 18, PANEL_HEIGHT = 36;
+}
+// Mixin uses the constants at addSlot time:
+this.addSlot(new Slot(adapter, 0, EquipmentLayout.ELYTRA_X, EquipmentLayout.ELYTRA_Y) { ... });
+// Visual-layer Panel uses the same constants via lambda ScreenOriginFn:
+private static final ScreenPanelAdapter ADAPTER = new ScreenPanelAdapter(
+        EQUIPMENT_BACKDROP_PANEL,
+        bounds -> new ScreenOrigin(
+                bounds.leftPos() + EquipmentLayout.ELYTRA_X,
+                bounds.topPos() + EquipmentLayout.ELYTRA_Y));
+```
+
+Single source of truth drives both the handler-layer graft and the visual-layer origin. If coordinates change, the consumer edits one file. Rule of Three reconsiders a "fixed-anchor non-stacking region" variant if a third consumer hand-rolls this pattern.
+
+`SlotRendering` (the utility this section originally prescribed) still ships in `core/` — consumers that need to render slot backgrounds, hover highlights, or ghost icons from within a Panel use it. It just doesn't live in a mixin hook.
+
+### Finding 3: `MenuKitSlot` restructure — `getItem()` override is load-bearing
+
+The Phase-12 checkpoint (`4ed9793`) removed `MenuKitSlot.getItem()` on the theory that behavioral inertness (`isActive` / `mayPlace` / `mayPickup` all returning false when the panel is hidden) would be sufficient. `/mkverify all` disagreed: SyncSafety reported 15 phantom-item desyncs over 10 toggles, and Inertness Phase A reported 1/4 slots fully inert (3/4 leaked backing content through `getItem`).
+
+Restored in commit `03b2a1a`. The override is load-bearing because behavioral methods block interaction but not observation — without the override, `broadcastChanges` syncs hidden-panel contents to the client, foreign `Slot.getItem` mixins observe real storage, and `menu.slots` iteration sees real items. Falsifying to `EMPTY` while inert closes that seam.
+
+Javadoc on `MenuKitSlot.getItem()` documents why future-us should resist removing it again.
+
+### Finding 4: Library surface dissolutions
+
+The original design proposed `SlotInjector`, `GraftedRegion`, and `AbstractContainerMenuAccessor` as library artifacts for the grafting path. The shipped reality: IP's `InventoryMenuMixin` calls `addSlot(...)` directly via its `@Mixin`-generated `AbstractContainerMenu` superclass and tracks its own grafted index range. Neither helper had any consumer.
+
+Dissolved in commit `d22bdf8`. Surviving library artifacts for the M4 path:
+
+- `StorageContainerAdapter` (core/) — bridges MenuKit `Storage` → vanilla `Container`. Reused by IP's mixin.
+- `MKHasClickedOutside*Mixin` family (mixin/) — three-screen coverage, shared helper.
+- `SlotRendering` (core/) — standalone slot visuals for Panel-rendered backdrops.
+
+### Finding 5: `Slot.x`/`Slot.y` are mutable — `SlotPositionAccessor` pre-existed
+
+Flagged as a verification item in the original design. Verified: MenuKit's `SlotPositionAccessor` already declared `@Mutable @Accessor` on `Slot.x` and `Slot.y`. Positions are runtime-updatable — relevant for F15 peek, where the peek panel position depends on which slot the player is peeking. Not a blocker.
+
+### Finding 6: F9 UI structure still pending
+
+F9's UI decomposition (one pocket-panel vs nine, button layout above hotbar) is a Phase 13b design decision that hasn't been committed. The migration plan in §7 of the original design assumed nine stacking panels — that reading doesn't fit (9 × 3-wide × 18px = ~486px far exceeds inventory width). Phase 13b's entry point is a UI clarification conversation with Trevor, then implementation follows.
 
 ---
 
@@ -325,4 +398,4 @@ Naming this now prevents Phase 13 surprise. The exact simplification depends on 
 
 **Additive to MenuKit.** Existing `MenuKitSlot`, `SlotGroup`, `Panel`, `InteractionPolicy`, `Storage` used as-is. No breaking changes. Existing consumers continue working unchanged.
 
-**Status: Approved.** F8/F9 section is implementation-ready; F15 option (a) approved for Phase 13 implementation against M4's shipped primitive.
+**Status: Mechanism shipped (12a checkpoint `4ed9793`). Visual-layer pattern established (M5 §5.6). F15 option (a) still approved for Phase 13c implementation against M4's shipped primitive.** See the "Implementation findings" section near the top of this doc for what superseded the original design assumptions — read that first before this summary.

@@ -85,44 +85,54 @@ The visible peek panel and all user-facing peek behavior: rendering, click dispa
 ### Mechanisms
 
 **M1 — Unified per-slot state primitive.**
-Design a MenuKit primitive for persistent per-slot metadata that survives menu transitions and sessions. Keyed by `SlotIdentity`. Enables F1 + F2 + future consumer mod state needs.
-**Status:** design input. Phase 12 reads M1 against multi-consumer evidence before designing.
-**Evidence from IP:** lock state needs persistent per-slot boolean(s). Sort-lock vs full-lock distinction may suggest typed state rather than a single flag.
+MenuKit primitive for persistent per-slot metadata that survives menu transitions and sessions. Keyed by `SlotIdentity` at the runtime/read layer; persistence keys through `PersistentContainerKey` variants (PlayerInventory, EnderChest, BlockEntityKey, EntityKey, Modded) attached to the natural owner via Fabric attachments.
+**Status:** shipped in Phase 12, commit `9cdc553`. Typed channels with dual `Codec<T>` (NBT) + `StreamCodec<T>` (wire) codecs; Tag-native storage inspectable via `/data get`; menu-open + player-join/respawn snapshot paths; per-player private on shared-owner containers with V2 shared-state migration hook. `/mkverify all` contract 7 covers the server-side persistence path with Tag-level inspection.
+**v1 coverage:** PlayerInventory + BlockEntityKey full; EnderChest needs player context at resolver (server-explicit API); EntityKey + Modded stubs. Full-coverage lands in Phase 13 consumer work as needed.
+**THESIS addition:** principle 6 "Match vanilla's persistence patterns" — codifies the NBT-native discipline across the library.
+**Design doc:** `Design Docs/Phase 12/M1_PER_SLOT_STATE.md` (status: Resolved, §10 decisions locked).
+**Phase 13 consumer:** 13e-1 (IP sort-lock migration) replaces `ClientLockStateHolder` + `ServerLockStateHolder` + `SortLockC2SPayload` + `SlotLockState` with a single `IPSlotState.SORT_LOCK` channel declaration. F1 (player-slot lock persistence) + F2 (chest-lock visibility across reopens) fall out automatically.
 
 **M2 — SlotIdentity.**
 `SlotIdentity` record `(Container, int containerSlot)` + static factory `SlotIdentity.of(Slot)`. Zero-dependency primitive for cross-menu stable slot identity.
 **Status:** shipped in Phase 11 IP. M1 builds on it.
 
-**M3 — MKFamily removal (or keep-as-is decision).**
-Cleanup mechanism. MKFamily groups config categories under shared screens. If removed, Phase 13 refactors consumer-side config screens to stand alone. If kept, no action needed.
-**Status:** decision pending. Not blocking features.
+**M3 — MKFamily disposition.**
+**What it is.** `MKFamily` (369 lines in `menukit/config/`) plus `MKFamilyConfig` (~107 lines) plus `GeneralOption` (~62 lines) plus `ModMenuIntegration` (~46 lines) implement a cross-mod grouping mechanism. Mods opt into a family via `MenuKit.family("id")`; the same ID returns the same instance; consumer mods contribute config categories + display name + keybind-category descriptor. MenuKit assembles the contributions into a single YACL-powered config screen accessible from ModMenu and an integrated keybind category. All four current consumer mods (IP, shulker-palette, sandboxes, agreeable-allays) share the `"trevmods"` family — one ModMenu entry, one keybind section, one config screen with four tabs.
+**Why it's still open.** MKFamily straddles the library-not-platform principle. On the "library" side: it's a grouping primitive that consumers opt into, and it eliminates duplicated config-screen scaffolding across four mods. On the "platform" side: it owns cross-mod aggregation (assembling categories from multiple mods into one screen), which is a platform-y ownership pattern — a second mod author building their own family config screen would have to mirror the implementation. Phase 11 audit flagged it as cleanup-eligible; no action was taken because it works and no removal pressure surfaced.
+**Candidate dispositions:**
+1. **Keep as-is** — MKFamily stays exactly as it is. Functional, used by all four consumer mods, no migration cost. Accepts that MenuKit owns a small slice of cross-mod config aggregation.
+2. **Scope down to grouping only** — library ships the `family("id")` identity primitive + keybind-category sharing, consumers handle their own config rendering (via Cloth Config, YACL direct, or a standalone screen). Phase 13 migrates consumer config paths to their chosen renderer. Narrows the library surface; removes YACL dependency from MenuKit.
+3. **Remove entirely** — delete `MKFamily` + `MKFamilyConfig` + `GeneralOption` + `ModMenuIntegration`. Each mod builds its own ModMenu integration + config screen. Phase 13 does a larger consumer migration pass (each mod gains a `<mod>Client.registerConfig` block). Maximal library-not-platform; highest consumer churn.
+**Status:** decision pending. Not blocking Phase 13 feature work — the decision shapes consumer migration scope but doesn't block it.
 
 **M6 — Client-side slot primitive for decoration panels.**
 **Status:** dissolved in Phase 12. Verification showed peek requires vanilla-native slot instances via M4 (full drag / shift-click / cursor protocol), not client-side decoration slots. No other consumer evidence exists for a client-side slot primitive without peek. Rendering analysis (SlotRendering utility) carries forward to M4.
 **Dissolution record:** `Design Docs/Phase 12/M6_CLIENT_SIDE_SLOTS.md` — preserved as historical record with the verification finding and carryforward analysis.
 
 **M5 — Context-scoped region system for panel positioning.**
-Design a primitive for mods to declare panel positions by named region rather than pixel coordinates, scoped per-context. Collision arbitration via stacking along region-defined flow axes. Each region is an anchor + flow direction pair; panels attached to the same region stack with gaps along the flow axis.
-**Status:** region specs finalized. See `Design Docs/Phase 12/M5_REGION_SPECS.md` for the authoritative region definitions. Implementation pending in Phase 12.
-**Region sets (finalized by Trevor):**
-- **InventoryContext** — 8 regions using `SIDE_ALIGN_END` naming: `LEFT_ALIGN_TOP`, `LEFT_ALIGN_BOTTOM`, `RIGHT_ALIGN_TOP`, `RIGHT_ALIGN_BOTTOM`, `TOP_ALIGN_LEFT`, `TOP_ALIGN_RIGHT`, `BOTTOM_ALIGN_LEFT`, `BOTTOM_ALIGN_RIGHT`. Anchored to the vanilla menu frame; track menu position as it shifts.
-- **HudContext** — 9 regions using position naming: `TOP_LEFT`, `TOP_RIGHT`, `TOP_CENTER`, `LEFT_CENTER`, `RIGHT_CENTER`, `BOTTOM_LEFT`, `BOTTOM_RIGHT`, `BOTTOM_CENTER`, `CENTER` (below crosshair, stacks down). Anchored to screen edges.
-- **StandaloneScreenContext** — 8 regions matching InventoryContext naming, anchored to the main panel.
-**V1 scope:** registration-order stacking, 2px default gap, cutoff on overflow. No priority, no user override.
-
-**Full specs:** `Design Docs/Phase 12/M5_REGION_SPECS.md` — contains region definitions, naming conventions, visual diagrams, flow directions, implementation notes (enum shape, API shape suggestions), and consumer mapping.
-
-**Evidence:** Sandboxes manually offset "13px left of IP's settings gear" to avoid collision. Shulker-palette's ShulkerBoxScreen toggle picks fixed coordinates with no collision awareness. As additional consumers want inventory-screen space, systematic arbitration compounds.
+MenuKit primitive for declaring panel positions by named region rather than pixel coordinates, scoped per-context. Collision arbitration via stacking along region-defined flow axes.
+**Status:** shipped in Phase 12, commit `21c935d`. Three per-context enums (InventoryRegion 8, HudRegion 9, StandaloneRegion 8), `RegionMath` pure resolver, `RegionRegistry` internal state, `ScreenPanelAdapter` + `MKHudPanel.Builder` overloads, `PanelPosition.IN_REGION` reserved API, `Panel.getWidth/getHeight/size` stacking support. `/mkverify all` contract 6 covers the coordinate math for all 25 regions + overflow.
+**Key findings (M5 round-2):**
+- **By-value vs by-reference composition distinction (§4A)** — regions model by-value (stackable) decorations. By-reference panels (grafted-slot backdrops, vanilla-anchored overlays) stay on the lambda path with shared constants. Named as a library-wide pattern.
+- **Shared-constants pattern for grafted-slot backdrops (§5.6)** — same coordinates drive the handler-layer `addSlot` and the visual-layer Panel origin. One source of truth; no drift between layers.
+- **Standalone regions: enum shipped, solver deferred** — `StandaloneRegion` + `PanelPosition.IN_REGION` are reserved API; the layout solver lands when a concrete standalone consumer surfaces.
+**Design doc:** `Design Docs/Phase 12/M5_REGION_SYSTEM.md` (status: Resolved, §10 decisions locked). Region catalog in `M5_REGION_SPECS.md`.
+**Phase 13 consumer:** 13a migrates IP settings gear + sandboxes buttons to `InventoryRegion.TOP_ALIGN_RIGHT`. Gear position shifts from inside-the-frame to outside-above; pending Trevor screenshot sign-off per M5 §5.1. Sandboxes adds `fabric.mod.json depends` on inventory-plus for stable registration ordering.
 
 **M4 — Vanilla menu slot injection primitive.**
-Design a MenuKit primitive for injecting real interactive slots into a vanilla menu at construction time via `addSlot()`.
-**Status:** mechanism confirmed working in Phase 12. Core grafting (`addSlot` at `InventoryMenu.<init>` RETURN), `hasClickedOutside` mixin fix, shift-click routing via `quickMoveStack` mixin — all verified. Visual layer (slot backgrounds, ghost icons via Panel + ScreenPanelAdapter) pending M5 region system. Library surface: `StorageContainerAdapter` + `MKHasClickedOutsideMixin` + `SlotRendering` ship; `SlotInjector` / `GraftedRegion` likely dissolve (consumer calls `addSlot` directly).
-**Key Phase 12 findings:**
-- Vanilla's Slot extension points (`mayPlace`, `getNoItemIcon`, `getMaxStackSize`, `isActive`) are sufficient. No MenuKitSlot data-flow overrides needed — plain Slot subclasses with 2-3 overrides work.
-- `hasClickedOutside` misclassifies clicks on slots outside the container frame (overwrites valid slot index to -999, changing PICKUP to THROW). Fix: mixin returns false when click lands on any active slot.
-- Two-layer model: handler layer (real vanilla Slots via addSlot) + visual layer (Panels via ScreenPanelAdapter). They share coordinates but aren't coupled.
+MenuKit primitive for injecting real interactive slots into a vanilla menu at construction time via `addSlot()`. Consumers write their own handler-specific mixins; the library provides the supporting pieces.
+**Status:** mechanism shipped in Phase 12 checkpoint `4ed9793` (IP's `InventoryMenuMixin` — equipment slots). 12a stabilization cleaned up library surface and fixed the cross-cutting `hasClickedOutside` issue (commit `d22bdf8`). Visual-layer pattern established via M5 §5.6 (by-reference-to-slot-coords with shared constants + `ScreenPanelAdapter`).
+**Key Phase 12 findings (full discussion in `Phase 12/M4_VANILLA_SLOT_INJECTION.md` "Implementation findings" section):**
+- Vanilla's Slot extension points (`mayPlace`, `getNoItemIcon`, `getMaxStackSize`, `isActive`) are sufficient. No MenuKitSlot data-flow overrides needed for grafted slots — plain Slot subclasses with 2-3 overrides work.
+- `hasClickedOutside` misclassifies clicks on slots outside the container frame (overwrites valid slot index to -999, changing PICKUP to THROW). Fix: three-screen mixin coverage (AbstractContainerScreen + AbstractRecipeBookScreen + CreativeModeInventoryScreen) with shared `MKClickOutsideHelper`.
+- Two-layer model: handler layer (real vanilla Slots via `addSlot`) + visual layer (Panels via `ScreenPanelAdapter`). They share coordinates but aren't coupled — coordinates live in a shared-constants file that both layers read.
+- `MenuKitSlot.getItem()` override is load-bearing for inertness. 12a removal caused an `/mkverify` regression; restored in `03b2a1a` with a "don't remove this again" javadoc.
+- SlotInjector / GraftedRegion / AbstractContainerMenuAccessor dissolved — IP's mixin calls `addSlot` directly via its `@Mixin`-generated superclass. Library surface: `StorageContainerAdapter` + `MKHasClickedOutside*Mixin` family + `SlotRendering`.
 - F15 (peek) uses the same mechanism via option (a): dynamic pre-allocation at construction based on peekable item count. 64 hidden slots (max bundle capacity), zero-cost for non-peekable containers.
-**Design doc:** `Design Docs/Phase 12/M4_VANILLA_SLOT_INJECTION.md` (partially stale — see `Phase 12/SESSION_STATUS.md` §8 for what changed during implementation).
+**Phase 13 consumers:**
+- 13b (F8 equipment panel backdrop + F9 pockets — F9 pending UI-structure clarification)
+- 13c (F15 peek panel UI)
+- SP-F1 (shulker-palette peek toggle — transitively enabled by F15)
 
 ---
 
