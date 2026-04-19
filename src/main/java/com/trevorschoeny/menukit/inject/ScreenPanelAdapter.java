@@ -10,6 +10,9 @@ import com.trevorschoeny.menukit.core.RenderContext;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
+import org.jspecify.annotations.Nullable;
+
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -102,6 +105,24 @@ public final class ScreenPanelAdapter {
     private final ScreenOriginFn originFn;
     private final int padding;
 
+    // ── Targeting state (region-based adapters only) ────────────────────
+    //
+    // Region-based adapters must declare targeting via .on(Class...) or
+    // .onAny() before first screen open. Construction registers with
+    // ScreenPanelRegistry's pending set; .on/.onAny() removes.
+    //
+    // Lambda-based adapters (constructed with ScreenOriginFn) don't
+    // participate — they're scoped by the consumer's own mixin. The
+    // targeting methods throw if called on them.
+
+    private final boolean regionBased;
+
+    /** Declared targets when {@link #targetedAny} is false. Null until .on() is called. */
+    private @Nullable List<Class<? extends AbstractContainerScreen<?>>> targets = null;
+
+    /** True when {@link #onAny()} has been called. Mutually exclusive with {@link #targets}. */
+    private boolean targetedAny = false;
+
     // ── Constructors ────────────────────────────────────────────────────
 
     /**
@@ -120,6 +141,7 @@ public final class ScreenPanelAdapter {
         this.panel = panel;
         this.originFn = originFn;
         this.padding = padding;
+        this.regionBased = false;
     }
 
     /**
@@ -151,8 +173,122 @@ public final class ScreenPanelAdapter {
     public ScreenPanelAdapter(Panel panel, MenuRegion region, int padding) {
         this.panel = panel;
         this.padding = padding;
+        this.regionBased = true;
         RegionRegistry.registerMenu(panel, region, padding);
         this.originFn = RegionRegistry.menuOriginFn(panel, region);
+        ScreenPanelRegistry.trackPending(this);
+    }
+
+    // ── Targeting API (region-based adapters) ───────────────────────────
+
+    /**
+     * Declares the screen classes this adapter applies to. Resolution is
+     * class-ancestry — the adapter fires on any opened
+     * {@link AbstractContainerScreen} that is an instance of one or more
+     * of {@code screenClasses}. A consumer targeting
+     * {@code ChestScreen.class} thus covers modded subclasses
+     * (e.g., {@code DoubleChestScreen extends ChestScreen}).
+     *
+     * <p>Multi-target semantics are OR — any matching target fires the
+     * adapter. Example: {@code .on(InventoryScreen.class,
+     * CreativeModeInventoryScreen.class)} covers both the survival and
+     * creative player-inventory screens (and modded subclasses of either).
+     *
+     * <p>Call exactly once per region-based adapter. Duplicate declarations
+     * throw {@link IllegalStateException}. Calling on a lambda-based adapter
+     * throws — lambda adapters are scoped by the consumer's own mixin, not
+     * by the library's registry. Use {@link #onAny()} for the "every
+     * screen" shape; don't pass {@code AbstractContainerScreen.class} here.
+     *
+     * @param screenClasses one or more screen classes; must not be empty
+     * @return this adapter, for chaining
+     * @throws IllegalStateException if the adapter is lambda-based or if
+     *         targeting was already declared
+     * @throws IllegalArgumentException if {@code screenClasses} is empty
+     */
+    @SafeVarargs
+    public final ScreenPanelAdapter on(
+            Class<? extends AbstractContainerScreen<?>>... screenClasses) {
+        requireRegionBased();
+        requireUndeclared();
+        if (screenClasses.length == 0) {
+            throw new IllegalArgumentException(
+                    "Adapter for panel '" + panel.getId() + "': .on() requires at " +
+                    "least one screen class. Use .onAny() for every-screen targeting.");
+        }
+        this.targets = List.of(screenClasses);
+        ScreenPanelRegistry.markTargetingDeclared(this);
+        return this;
+    }
+
+    /**
+     * Declares this adapter fires on every opened
+     * {@link AbstractContainerScreen}, including
+     * {@link net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen},
+     * modded screens, and future screen classes. Explicit "every screen"
+     * intent — different from
+     * {@code .on(AbstractContainerScreen.class)} at the documentation level
+     * (though functionally identical via class-ancestry). Use {@code .on(Class...)}
+     * when the consumer wants a specific set of screens; {@code .onAny()}
+     * when they genuinely mean "everywhere."
+     *
+     * @return this adapter, for chaining
+     * @throws IllegalStateException if the adapter is lambda-based or if
+     *         targeting was already declared
+     */
+    public ScreenPanelAdapter onAny() {
+        requireRegionBased();
+        requireUndeclared();
+        this.targetedAny = true;
+        ScreenPanelRegistry.markTargetingDeclared(this);
+        return this;
+    }
+
+    private void requireRegionBased() {
+        if (!regionBased) {
+            throw new IllegalStateException(
+                    "Adapter for panel '" + panel.getId() + "' is lambda-based; " +
+                    ".on() / .onAny() apply to region-based adapters only. Lambda " +
+                    "adapters (constructed with a ScreenOriginFn) are scoped by " +
+                    "the consumer's own mixin — the library's ScreenPanelRegistry " +
+                    "doesn't dispatch them.");
+        }
+    }
+
+    private void requireUndeclared() {
+        if (targets != null || targetedAny) {
+            throw new IllegalStateException(
+                    "Adapter for panel '" + panel.getId() + "' already declared " +
+                    "targeting. Call .on(...) or .onAny() exactly once.");
+        }
+    }
+
+    // ── Targeting queries (for ScreenPanelRegistry dispatch, step 3) ────
+
+    /** True if the adapter was constructed with a region rather than a lambda. */
+    public boolean isRegionBased() {
+        return regionBased;
+    }
+
+    /** True if {@code .on(...)} or {@code .onAny()} has been called. */
+    public boolean isTargetingDeclared() {
+        return targets != null || targetedAny;
+    }
+
+    /**
+     * Tests whether this adapter's declared targets match the given opened
+     * screen class. Always false for lambda-based adapters and for
+     * region-based adapters that haven't declared targeting yet — step 3's
+     * registry dispatch uses this to filter matching adapters per screen
+     * open.
+     */
+    public boolean matches(Class<? extends AbstractContainerScreen<?>> screenClass) {
+        if (targetedAny) return true;
+        if (targets == null) return false;
+        for (Class<? extends AbstractContainerScreen<?>> target : targets) {
+            if (target.isAssignableFrom(screenClass)) return true;
+        }
+        return false;
     }
 
     // ── Accessors ──────────────────────────────────────────────────────
