@@ -71,6 +71,7 @@ public abstract class ExampleKeybindTriggeredPanelRecipeBookRenderMixin
                 g,
                 ExampleKeybindTriggeredPanel.bounds(
                         this.leftPos, this.topPos, this.imageWidth, this.imageHeight),
-                mx, my);
+                mx, my,
+                (AbstractContainerScreen<?>) (Object) this);
     }
 }

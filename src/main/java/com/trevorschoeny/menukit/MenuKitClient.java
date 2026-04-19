@@ -2,6 +2,8 @@ package com.trevorschoeny.menukit;
 
 import com.trevorschoeny.menukit.config.GeneralOption;
 import com.trevorschoeny.menukit.config.MKFamily;
+import com.trevorschoeny.menukit.inject.InventoryChrome;
+import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevorschoeny.menukit.mixin.MKRecipeBookAccessor;
 
 import net.fabricmc.api.ClientModInitializer;
@@ -9,6 +11,8 @@ import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -59,6 +63,69 @@ public class MenuKitClient implements ClientModInitializer {
         // screens. The toggle lives in the "trevmods" family config so users
         // can disable it in settings.
         registerItemTipsCallback();
+
+        // M7 — vanilla inventory-chrome providers. Registered at client init
+        // so any region-aware ScreenPanelAdapter constructed later sees
+        // chrome-aware origin resolution. See M7 design doc §3.3 for scope.
+        registerVanillaInventoryChrome();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // M7 — Vanilla inventory chrome
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // v1 scope is evidence-driven: screens that current library work (V2
+    // probes, V4.2's inventory decoration) actually exercises. Other
+    // recipe-book screens (CraftingScreen, FurnaceScreen, SmokerScreen,
+    // BlastFurnaceScreen) are candidate additions pending consumer evidence.
+
+    private static void registerVanillaInventoryChrome() {
+        // CreativeModeInventoryScreen: two tab rows above + below the
+        // declared 195×136 frame. The TAB_HEIGHT=32 constant includes 3-4px
+        // of transparent sprite padding around each tab's visible shape;
+        // anchoring to 32 leaves probes floating too far from the visible
+        // tab edge. Values below come from vanilla's own hit-test geometry
+        // in checkTabHovering (21×27 at sprite offset +3, +3):
+        //   Top visible tab: topPos - 25 to topPos + 2  → 25px above frame
+        //   Bottom visible tab: topPos + iH - 1 to topPos + iH + 26  → 26px below
+        // Asymmetry (25 vs 26) matches vanilla's 1px deeper bottom-tab bias.
+        // Probes land STACK_GAP=2 past the visible edge — clean 2px gap.
+        InventoryChrome.register(CreativeModeInventoryScreen.class,
+                screen -> new InventoryChrome.ChromeExtents(25, 0, 0, 26));
+
+        // InventoryScreen: recipe book widget (when visible) extends left of
+        // the inventory frame by the book-body width (147px) PLUS the filter
+        // tab column (~31px with +35-wide tab buttons). Computed dynamically
+        // from vanilla's own tab-positioning formula:
+        //   tab_left = (screen.width - 147) / 2 - xOffset - 30
+        // with xOffset = 86 when the book is visible (and not widthTooNarrow).
+        // That simplifies to: tab_left = (screen.width - 147) / 2 - 116.
+        // chrome.left = currentLeftPos - tab_left.
+        //
+        // Per-frame recompute because screen.width changes on resize. We
+        // skip chrome when the book is in "widthTooNarrow" mode (screen
+        // width < 379) — vanilla overlays the book on top of the inventory
+        // instead of shifting the frame, so there's no clean "left of the
+        // book" space to anchor LEFT_ALIGN regions to.
+        InventoryChrome.register(InventoryScreen.class,
+                screen -> {
+                    if (!(screen instanceof AbstractRecipeBookScreen<?>)) {
+                        return InventoryChrome.ChromeExtents.NONE;
+                    }
+                    var rbAccessor = (MKRecipeBookAccessor) screen;
+                    if (!rbAccessor.menuKit$getRecipeBookComponent().isVisible()) {
+                        return InventoryChrome.ChromeExtents.NONE;
+                    }
+                    if (screen.width < 379) {
+                        return InventoryChrome.ChromeExtents.NONE;
+                    }
+                    var bndsAccessor = (AbstractContainerScreenAccessor) screen;
+                    int currentLeftPos = bndsAccessor.trevorMod$getLeftPos();
+                    int tabLeft = (screen.width - 147) / 2 - 116;
+                    int chromeLeft = currentLeftPos - tabLeft;
+                    if (chromeLeft <= 0) return InventoryChrome.ChromeExtents.NONE;
+                    return new InventoryChrome.ChromeExtents(0, chromeLeft, 0, 0);
+                });
     }
 
     // ══════════════════════════════════════════════════════════════════════

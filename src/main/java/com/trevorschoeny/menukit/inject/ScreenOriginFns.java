@@ -20,7 +20,7 @@ public final class ScreenOriginFns {
      * @param dy offset from topPos, positive = downward
      */
     public static ScreenOriginFn fromScreenTopLeft(int dx, int dy) {
-        return bounds -> new ScreenOrigin(bounds.leftPos() + dx, bounds.topPos() + dy);
+        return (bounds, screen) -> new ScreenOrigin(bounds.leftPos() + dx, bounds.topPos() + dy);
     }
 
     /**
@@ -36,7 +36,7 @@ public final class ScreenOriginFns {
      * @param dy         offset from topPos, positive = downward
      */
     public static ScreenOriginFn fromScreenTopRight(int panelWidth, int dx, int dy) {
-        return bounds -> new ScreenOrigin(
+        return (bounds, screen) -> new ScreenOrigin(
                 bounds.leftPos() + bounds.imageWidth() - panelWidth + dx,
                 bounds.topPos() + dy);
     }
@@ -54,7 +54,7 @@ public final class ScreenOriginFns {
      * @param gap          gap between panel's bottom edge and grid's top edge
      */
     public static ScreenOriginFn aboveSlotGrid(int gridX, int gridY, int panelHeight, int gap) {
-        return bounds -> new ScreenOrigin(
+        return (bounds, screen) -> new ScreenOrigin(
                 bounds.leftPos() + gridX,
                 bounds.topPos() + gridY - panelHeight - gap);
     }
@@ -72,7 +72,7 @@ public final class ScreenOriginFns {
      * @param gap         gap between grid's bottom edge and panel's top edge
      */
     public static ScreenOriginFn belowSlotGrid(int gridX, int gridY, int gridHeight, int gap) {
-        return bounds -> new ScreenOrigin(
+        return (bounds, screen) -> new ScreenOrigin(
                 bounds.leftPos() + gridX,
                 bounds.topPos() + gridY + gridHeight + gap);
     }

@@ -64,7 +64,8 @@ public abstract class ExampleKeybindTriggeredPanelMixin {
         ExampleKeybindTriggeredPanel.ADAPTER.render(
                 g,
                 ExampleKeybindTriggeredPanel.bounds(leftPos, topPos, imageWidth, imageHeight),
-                mx, my);
+                mx, my,
+                (AbstractContainerScreen<?>) (Object) this);
     }
 
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)

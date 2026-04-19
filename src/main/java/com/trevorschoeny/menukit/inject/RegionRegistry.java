@@ -114,21 +114,38 @@ public final class RegionRegistry {
     /**
      * Builds a region-aware {@link ScreenOriginFn} for an inventory-context
      * panel. The returned lambda consults the registry per-frame (for the
-     * stacking prefix and the panel's registered padding) and the current
-     * {@link ScreenBounds} (for the menu frame), producing a screen-space
+     * stacking prefix and the panel's registered padding), the current
+     * {@link ScreenBounds} (for the menu frame), and
+     * {@link InventoryChrome#of(net.minecraft.client.gui.screens.inventory.AbstractContainerScreen)}
+     * (for chrome extents outside the declared frame), producing a screen-space
      * origin — or {@link ScreenOrigin#OUT_OF_REGION} when the panel overflows
-     * its region. A one-shot warning is logged the first time each
-     * (panel, region) pair overflows.
+     * its region.
+     *
+     * <p>Chrome-extended bounds are computed once per frame and passed to
+     * {@link RegionMath}. Math stays pure; chrome logic lives here.
      */
     public static ScreenOriginFn inventoryOriginFn(Panel panel, InventoryRegion region) {
-        return bounds -> {
+        return (bounds, screen) -> {
             int pad = INVENTORY_PADDING.getOrDefault(panel, 0);
             int pw = panel.getWidth() + 2 * pad;
             int ph = panel.getHeight() + 2 * pad;
             int prefix = axialPrefix(panel, region);
-            var result = RegionMath.resolveInventory(region, bounds, pw, ph, prefix);
+
+            // Extend bounds by the screen's chrome extents on all axes —
+            // treats the chrome as part of the menu's visible extent, which
+            // is what consumers mean when they say "the TOP of the menu" in
+            // a screen with a top tab row. Each region then anchors within
+            // those chrome-extended bounds per RegionMath's usual logic.
+            InventoryChrome.ChromeExtents chrome = InventoryChrome.of(screen);
+            ScreenBounds effective = new ScreenBounds(
+                    bounds.leftPos() - chrome.left(),
+                    bounds.topPos() - chrome.top(),
+                    bounds.imageWidth() + chrome.left() + chrome.right(),
+                    bounds.imageHeight() + chrome.top() + chrome.bottom());
+
+            var result = RegionMath.resolveInventory(region, effective, pw, ph, prefix);
             if (result.isEmpty()) {
-                warnInventoryOverflowOnce(panel, region, pw, ph, prefix, bounds);
+                warnInventoryOverflowOnce(panel, region, pw, ph, prefix, effective);
                 return ScreenOrigin.OUT_OF_REGION;
             }
             return result.get();

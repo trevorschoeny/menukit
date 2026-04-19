@@ -8,6 +8,7 @@ import com.trevorschoeny.menukit.core.PanelStyle;
 import com.trevorschoeny.menukit.core.RenderContext;
 
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 import java.util.Optional;
 
@@ -175,10 +176,16 @@ public final class ScreenPanelAdapter {
      * decorations alongside the adapter's panel (tooltips, hover overlays,
      * related info panels) don't re-derive origin math from {@code RegionMath}.
      * The content area begins at {@code origin + getPadding()}.
+     *
+     * <p>Takes the live screen instance so chrome-aware origin functions
+     * (from region-aware constructors) can consult
+     * {@link InventoryChrome}. Non-region origin functions ignore the
+     * screen parameter; pass {@code null} if the caller doesn't have one.
      */
-    public Optional<ScreenOrigin> getOrigin(ScreenBounds screenBounds) {
+    public Optional<ScreenOrigin> getOrigin(ScreenBounds screenBounds,
+                                            AbstractContainerScreen<?> screen) {
         if (!panel.isVisible()) return Optional.empty();
-        ScreenOrigin origin = originFn.compute(screenBounds);
+        ScreenOrigin origin = originFn.compute(screenBounds, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return Optional.empty();
         return Optional.of(origin);
     }
@@ -190,12 +197,19 @@ public final class ScreenPanelAdapter {
      * and the panel's visible elements at the origin computed from the given
      * screen bounds. No-op when {@code !panel.isVisible()} or when the
      * region-aware origin resolver returns out-of-region.
+     *
+     * <p>{@code screen} is passed through to the origin function so
+     * chrome-aware region resolution can consult {@link InventoryChrome}.
+     * Non-region origin functions ignore it; callers that genuinely lack a
+     * screen reference pass {@code null} and accept that chrome-aware
+     * regions will resolve without chrome adjustment.
      */
     public void render(GuiGraphics graphics, ScreenBounds screenBounds,
-                       int mouseX, int mouseY) {
+                       int mouseX, int mouseY,
+                       AbstractContainerScreen<?> screen) {
         if (!panel.isVisible()) return;
 
-        ScreenOrigin origin = originFn.compute(screenBounds);
+        ScreenOrigin origin = originFn.compute(screenBounds, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return;
 
         // Padding-inclusive dimensions for the background rectangle.
@@ -230,15 +244,18 @@ public final class ScreenPanelAdapter {
      * No-op (returns false) when {@code !panel.isVisible()} or out-of-region.
      *
      * <p>Hit-testing uses padded content origin so element bounds line up with
-     * where the elements actually rendered.
+     * where the elements actually rendered. {@code screen} is threaded to the
+     * origin function for chrome-aware region resolution parity with
+     * {@link #render}.
      *
      * @return {@code true} if an element consumed the click.
      */
     public boolean mouseClicked(ScreenBounds screenBounds,
-                                double mouseX, double mouseY, int button) {
+                                double mouseX, double mouseY, int button,
+                                AbstractContainerScreen<?> screen) {
         if (!panel.isVisible()) return false;
 
-        ScreenOrigin origin = originFn.compute(screenBounds);
+        ScreenOrigin origin = originFn.compute(screenBounds, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return false;
 
         int contentX = origin.x() + padding;
