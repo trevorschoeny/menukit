@@ -6,28 +6,40 @@ import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.RegionMath;
 import com.trevorschoeny.menukit.hud.MKHudPanelDef;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
 
 /**
  * Internal registry mapping M5 regions to their registered panels. Holds
  * process-lifetime state; panels register once at mod init (typically during
  * adapter/builder construction) and remain registered until process exit.
  * See M5 design doc §6.1 for the singleton contract and §6.1a for ordering
- * semantics.
+ * semantics. See M5 design doc §12.5a for the padding + diagnostic
+ * additions from Phase 12.5.
  *
  * <p><b>Not pure.</b> Stacking depends on registration order and per-frame
  * visibility. The pure math lives in
  * {@link com.trevorschoeny.menukit.core.RegionMath}; this class supplies
- * the {@code prefix} input to that math by walking its panel lists.
+ * the {@code prefix} input to that math by walking its panel lists, and
+ * owns the state needed for one-shot overflow diagnostics.
  *
  * <p><b>Internal only.</b> Consumers don't call this directly — the inventory
  * {@link ScreenPanelAdapter} overload and the HUD panel builder register and
  * resolve on their behalf.
  */
 public final class RegionRegistry {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
     private RegionRegistry() {}
 
@@ -38,19 +50,49 @@ public final class RegionRegistry {
     private static final Map<HudRegion, List<MKHudPanelDef>> HUD =
             new EnumMap<>(HudRegion.class);
 
+    // Per-panel content padding — set at registration time so axial-prefix
+    // stacking and overflow math can include padding when deriving axial extent.
+    // Keyed on Panel identity (not class) so two distinct panels with the
+    // same class get independent paddings.
+    private static final Map<Panel, Integer> INVENTORY_PADDING = new HashMap<>();
+
+    // Deduplication state for the one-shot OUT_OF_REGION warn. First
+    // overflow per (panel identity, region) pair logs once; subsequent
+    // overflows are silent. WeakHashMap so entries GC with the panel when
+    // the consumer drops its reference.
+    private static final Map<Panel, Set<InventoryRegion>> WARNED_INVENTORY =
+            Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<MKHudPanelDef, Set<HudRegion>> WARNED_HUD =
+            Collections.synchronizedMap(new WeakHashMap<>());
+
     // ── Inventory ───────────────────────────────────────────────────────
 
-    /** Registers an inventory-context panel into a region. Called from
-     *  the {@link ScreenPanelAdapter} region constructor. */
-    public static void registerInventory(Panel panel, InventoryRegion region) {
+    /**
+     * Registers an inventory-context panel into a region with a content
+     * padding. Called from the {@link ScreenPanelAdapter} region constructor.
+     * Padding participates in axial-prefix stacking and overflow math so the
+     * region's capacity accounting is accurate.
+     */
+    public static void registerInventory(Panel panel, InventoryRegion region, int padding) {
         INVENTORY.computeIfAbsent(region, r -> new ArrayList<>()).add(panel);
+        INVENTORY_PADDING.put(panel, padding);
+    }
+
+    /**
+     * Back-compatible overload for consumers registering without the
+     * padding extension. Delegates with {@link ScreenPanelAdapter#DEFAULT_PADDING}
+     * so behavior matches the default-padding adapter constructors.
+     */
+    public static void registerInventory(Panel panel, InventoryRegion region) {
+        registerInventory(panel, region, ScreenPanelAdapter.DEFAULT_PADDING);
     }
 
     /**
      * Computes the axial stacking prefix for a panel — total extent (plus gap)
-     * contributed by visible preceding panels in the same region. Panels
-     * registered before {@code self} that are hidden in the current frame
-     * contribute zero, so the stack collapses naturally.
+     * contributed by visible preceding panels in the same region. Each panel's
+     * axial extent includes its registered padding. Panels registered before
+     * {@code self} that are hidden in the current frame contribute zero, so
+     * the stack collapses naturally.
      *
      * @throws IllegalStateException if {@code self} is not registered in {@code region}
      */
@@ -61,7 +103,8 @@ public final class RegionRegistry {
         for (Panel p : panels) {
             if (p == self) return prefix;
             if (!p.isVisible()) continue;
-            int extent = horizontal ? p.getWidth() : p.getHeight();
+            int pad = INVENTORY_PADDING.getOrDefault(p, 0);
+            int extent = (horizontal ? p.getWidth() : p.getHeight()) + 2 * pad;
             prefix += extent + RegionMath.STACK_GAP;
         }
         throw new IllegalStateException(
@@ -71,19 +114,41 @@ public final class RegionRegistry {
     /**
      * Builds a region-aware {@link ScreenOriginFn} for an inventory-context
      * panel. The returned lambda consults the registry per-frame (for the
-     * stacking prefix) and the current {@link ScreenBounds} (for the menu
-     * frame), producing a screen-space origin — or {@link ScreenOrigin#OUT_OF_REGION}
-     * when the panel overflows its region.
+     * stacking prefix and the panel's registered padding) and the current
+     * {@link ScreenBounds} (for the menu frame), producing a screen-space
+     * origin — or {@link ScreenOrigin#OUT_OF_REGION} when the panel overflows
+     * its region. A one-shot warning is logged the first time each
+     * (panel, region) pair overflows.
      */
     public static ScreenOriginFn inventoryOriginFn(Panel panel, InventoryRegion region) {
         return bounds -> {
+            int pad = INVENTORY_PADDING.getOrDefault(panel, 0);
+            int pw = panel.getWidth() + 2 * pad;
+            int ph = panel.getHeight() + 2 * pad;
             int prefix = axialPrefix(panel, region);
-            return RegionMath.resolveInventory(
-                            region, bounds,
-                            panel.getWidth(), panel.getHeight(),
-                            prefix)
-                    .orElse(ScreenOrigin.OUT_OF_REGION);
+            var result = RegionMath.resolveInventory(region, bounds, pw, ph, prefix);
+            if (result.isEmpty()) {
+                warnInventoryOverflowOnce(panel, region, pw, ph, prefix, bounds);
+                return ScreenOrigin.OUT_OF_REGION;
+            }
+            return result.get();
         };
+    }
+
+    private static void warnInventoryOverflowOnce(Panel panel, InventoryRegion region,
+                                                   int pw, int ph, int prefix,
+                                                   ScreenBounds bounds) {
+        Set<InventoryRegion> warned = WARNED_INVENTORY
+                .computeIfAbsent(panel, p -> Collections.synchronizedSet(
+                        EnumSet.noneOf(InventoryRegion.class)));
+        if (!warned.add(region)) return;
+        int axisExtent = region.isHorizontalFlow() ? pw : ph;
+        int axisCapacity = region.isHorizontalFlow() ? bounds.imageWidth() : bounds.imageHeight();
+        LOGGER.warn(
+                "[RegionRegistry] Panel '{}' overflows InventoryRegion.{} — axial extent " +
+                "{}px (including padding) + prefix {}px exceeds capacity {}px. " +
+                "Silent OUT_OF_REGION until this panel + region pair is resized.",
+                panel.getId(), region, axisExtent, prefix, axisCapacity);
     }
 
     // ── HUD ─────────────────────────────────────────────────────────────
@@ -111,5 +176,24 @@ public final class RegionRegistry {
         }
         throw new IllegalStateException(
                 "HUD panel '" + self.name() + "' is not registered in " + region);
+    }
+
+    /**
+     * Logs a one-shot warning the first time a HUD panel overflows its region.
+     * Called from {@link com.trevorschoeny.menukit.MenuKit}'s HUD render loop
+     * when {@link RegionMath#resolveHud} returns empty.
+     */
+    public static void warnHudOverflowOnce(MKHudPanelDef def, HudRegion region,
+                                            int pw, int ph, int prefix,
+                                            int screenWidth, int screenHeight) {
+        Set<HudRegion> warned = WARNED_HUD
+                .computeIfAbsent(def, d -> Collections.synchronizedSet(
+                        EnumSet.noneOf(HudRegion.class)));
+        if (!warned.add(region)) return;
+        LOGGER.warn(
+                "[RegionRegistry] HUD panel '{}' overflows HudRegion.{} — axial extent " +
+                "{}px + prefix {}px exceeds the region's available height in the " +
+                "{}x{} screen. Silent no-render until resized.",
+                def.name(), region, ph, prefix, screenWidth, screenHeight);
     }
 }
