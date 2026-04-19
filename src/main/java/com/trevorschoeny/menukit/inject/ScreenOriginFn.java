@@ -9,8 +9,8 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
  * and state changes (recipe-book toggle, etc.).
  *
  * <p>The screen parameter enables chrome-aware resolution via the M5 region
- * path — {@link RegionRegistry#inventoryOriginFn} consults
- * {@link InventoryChrome#of(AbstractContainerScreen)} to extend the bounds
+ * path — {@link RegionRegistry#menuOriginFn} consults
+ * {@link MenuChrome#of(AbstractContainerScreen)} to extend the bounds
  * by the screen's chrome extents before computing the origin. Origin
  * functions that don't need chrome (custom
  * {@link ScreenOriginFns#fromScreenTopLeft} etc.) simply ignore the parameter.

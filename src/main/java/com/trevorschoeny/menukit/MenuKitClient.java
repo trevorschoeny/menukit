@@ -2,7 +2,7 @@ package com.trevorschoeny.menukit;
 
 import com.trevorschoeny.menukit.config.GeneralOption;
 import com.trevorschoeny.menukit.config.MKFamily;
-import com.trevorschoeny.menukit.inject.InventoryChrome;
+import com.trevorschoeny.menukit.inject.MenuChrome;
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevorschoeny.menukit.mixin.MKRecipeBookAccessor;
 
@@ -65,14 +65,14 @@ public class MenuKitClient implements ClientModInitializer {
         // can disable it in settings.
         registerItemTipsCallback();
 
-        // M7 — vanilla inventory-chrome providers. Registered at client init
-        // so any region-aware ScreenPanelAdapter constructed later sees
+        // M7 — vanilla menu-chrome providers. Registered at client init so
+        // any region-aware ScreenPanelAdapter constructed later sees
         // chrome-aware origin resolution. See M7 design doc §3.3 for scope.
-        registerVanillaInventoryChrome();
+        registerVanillaMenuChrome();
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // M7 — Vanilla inventory chrome
+    // M7 — Vanilla menu chrome
     // ══════════════════════════════════════════════════════════════════════
     //
     // v1 scope is evidence-driven: screens that current library work (V2
@@ -95,16 +95,16 @@ public class MenuKitClient implements ClientModInitializer {
      * must compute the offset dynamically rather than using this shared
      * formula.
      */
-    private static InventoryChrome.ChromeExtents recipeBookChromeFor(
+    private static MenuChrome.ChromeExtents recipeBookChromeFor(
             AbstractContainerScreenAccessor screenAcc, int screenWidth) {
         int currentLeftPos = screenAcc.trevorMod$getLeftPos();
         int tabLeft = (screenWidth - 147) / 2 - 116;
         int chromeLeft = currentLeftPos - tabLeft;
-        if (chromeLeft <= 0) return InventoryChrome.ChromeExtents.NONE;
-        return new InventoryChrome.ChromeExtents(0, chromeLeft, 0, 0);
+        if (chromeLeft <= 0) return MenuChrome.ChromeExtents.NONE;
+        return new MenuChrome.ChromeExtents(0, chromeLeft, 0, 0);
     }
 
-    private static void registerVanillaInventoryChrome() {
+    private static void registerVanillaMenuChrome() {
         // CreativeModeInventoryScreen: two tab rows above + below the
         // declared 195×136 frame. The TAB_HEIGHT=32 constant includes 3-4px
         // of transparent sprite padding around each tab's visible shape;
@@ -115,8 +115,8 @@ public class MenuKitClient implements ClientModInitializer {
         //   Bottom visible tab: topPos + iH - 1 to topPos + iH + 26  → 26px below
         // Asymmetry (25 vs 26) matches vanilla's 1px deeper bottom-tab bias.
         // Probes land STACK_GAP=2 past the visible edge — clean 2px gap.
-        InventoryChrome.register(CreativeModeInventoryScreen.class,
-                screen -> new InventoryChrome.ChromeExtents(25, 0, 0, 26));
+        MenuChrome.register(CreativeModeInventoryScreen.class,
+                screen -> new MenuChrome.ChromeExtents(25, 0, 0, 26));
 
         // InventoryScreen: recipe book widget (when visible) extends left of
         // the inventory frame by the book-body width (147px) PLUS the filter
@@ -129,7 +129,7 @@ public class MenuKitClient implements ClientModInitializer {
         // < 379) — vanilla overlays the book on top of the inventory
         // instead of shifting the frame, so there's no clean "left of the
         // book" space to anchor LEFT_ALIGN regions to.
-        InventoryChrome.register(InventoryScreen.class,
+        MenuChrome.register(InventoryScreen.class,
                 screen -> recipeBookChromeIfOpen((AbstractRecipeBookScreen<?>) screen));
 
         // CraftingScreen: same recipe-book treatment as the player inventory.
@@ -141,23 +141,23 @@ public class MenuKitClient implements ClientModInitializer {
         // Outcome informs M7 v2 scope — either "add Furnace/Smoker/
         // BlastFurnace with the same formula" or "extract per-screen
         // getXOffset access and compute dynamically."
-        InventoryChrome.register(CraftingScreen.class,
+        MenuChrome.register(CraftingScreen.class,
                 screen -> recipeBookChromeIfOpen((AbstractRecipeBookScreen<?>) screen));
     }
 
     /**
      * Returns chrome extents for a recipe-book screen iff the book is
      * visible and the screen is wide enough for the book to shift the
-     * frame (not overlay it). Otherwise {@link InventoryChrome.ChromeExtents#NONE}.
+     * frame (not overlay it). Otherwise {@link MenuChrome.ChromeExtents#NONE}.
      */
-    private static InventoryChrome.ChromeExtents recipeBookChromeIfOpen(
+    private static MenuChrome.ChromeExtents recipeBookChromeIfOpen(
             AbstractRecipeBookScreen<?> screen) {
         var rbAccessor = (MKRecipeBookAccessor) screen;
         if (!rbAccessor.menuKit$getRecipeBookComponent().isVisible()) {
-            return InventoryChrome.ChromeExtents.NONE;
+            return MenuChrome.ChromeExtents.NONE;
         }
         if (screen.width < 379) {
-            return InventoryChrome.ChromeExtents.NONE;
+            return MenuChrome.ChromeExtents.NONE;
         }
         var bndsAccessor = (AbstractContainerScreenAccessor) screen;
         return recipeBookChromeFor(bndsAccessor, screen.width);

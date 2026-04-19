@@ -2,7 +2,7 @@ package com.trevorschoeny.menukit.core;
 
 /**
  * Named regions for positioning panels around a MenuKit-native screen's
- * main panel. Mirrors the eight {@link InventoryRegion} values — same
+ * main panel. Mirrors the eight {@link MenuRegion} values — same
  * naming convention, same flow directions — but anchors to the screen's
  * main panel instead of a vanilla menu's container frame.
  *

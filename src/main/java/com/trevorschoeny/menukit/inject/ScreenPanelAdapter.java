@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.inject;
 
-import com.trevorschoeny.menukit.core.InventoryRegion;
+import com.trevorschoeny.menukit.core.MenuRegion;
 import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.PanelRendering;
@@ -124,16 +124,16 @@ public final class ScreenPanelAdapter {
 
     /**
      * Region-aware constructor using default content padding. See
-     * {@link #ScreenPanelAdapter(Panel, InventoryRegion, int)} for the
+     * {@link #ScreenPanelAdapter(Panel, MenuRegion, int)} for the
      * padding-accepting overload.
      */
-    public ScreenPanelAdapter(Panel panel, InventoryRegion region) {
+    public ScreenPanelAdapter(Panel panel, MenuRegion region) {
         this(panel, region, DEFAULT_PADDING);
     }
 
     /**
      * Region-aware constructor with explicit padding. Registers the panel
-     * into the given {@link InventoryRegion} via {@link RegionRegistry} with
+     * into the given {@link MenuRegion} via {@link RegionRegistry} with
      * the declared padding so stacking math and overflow checks both account
      * for it.
      *
@@ -148,11 +148,11 @@ public final class ScreenPanelAdapter {
      * first time a panel overflows a given region (see
      * {@link RegionRegistry} for the deduplication semantics).
      */
-    public ScreenPanelAdapter(Panel panel, InventoryRegion region, int padding) {
+    public ScreenPanelAdapter(Panel panel, MenuRegion region, int padding) {
         this.panel = panel;
         this.padding = padding;
-        RegionRegistry.registerInventory(panel, region, padding);
-        this.originFn = RegionRegistry.inventoryOriginFn(panel, region);
+        RegionRegistry.registerMenu(panel, region, padding);
+        this.originFn = RegionRegistry.menuOriginFn(panel, region);
     }
 
     // ── Accessors ──────────────────────────────────────────────────────
@@ -179,7 +179,7 @@ public final class ScreenPanelAdapter {
      *
      * <p>Takes the live screen instance so chrome-aware origin functions
      * (from region-aware constructors) can consult
-     * {@link InventoryChrome}. Non-region origin functions ignore the
+     * {@link MenuChrome}. Non-region origin functions ignore the
      * screen parameter; pass {@code null} if the caller doesn't have one.
      */
     public Optional<ScreenOrigin> getOrigin(ScreenBounds screenBounds,
@@ -199,7 +199,7 @@ public final class ScreenPanelAdapter {
      * region-aware origin resolver returns out-of-region.
      *
      * <p>{@code screen} is passed through to the origin function so
-     * chrome-aware region resolution can consult {@link InventoryChrome}.
+     * chrome-aware region resolution can consult {@link MenuChrome}.
      * Non-region origin functions ignore it; callers that genuinely lack a
      * screen reference pass {@code null} and accept that chrome-aware
      * regions will resolve without chrome adjustment.
