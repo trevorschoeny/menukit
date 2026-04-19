@@ -2,6 +2,8 @@
 
 **Status: Resolved — ready for implementation, pending creative-adapt repro from Trevor for V2 sub-check scoping (see §13).**
 
+**Post-M8 reframe (in-flight during Phase 12.5).** The four-context model (`MenuContext` / `SlotGroupContext` / `HudContext` / `StandaloneContext`) landed mid-phase — see `M8_FOUR_CONTEXT_MODEL.md`. This doc's references to "inventory-context" refer to what's now `MenuContext`; references to the three-context trichotomy (inventory / HUD / standalone) predate SlotGroupContext. V2's remaining scope updates accordingly: probe coverage expands to include SlotGroupContext probes (at least PLAYER_INVENTORY + one storage category) alongside the MenuContext probes, and the chrome-adaptation test resumes against the M7/MenuChrome path.
+
 **M3 scope-down is a prerequisite library-side work item (not a Phase 12.5 scenario). Can interleave with V1–V3 work; must sequence before V8.**
 
 A validation phase that sits between Phase 12 (primitives shipped) and Phase 13 (consumer features). Its output is not new library code — it's a **synthetic consumer that pressure-tests every primitive through realistic usage patterns, decoupled from real-consumer complexity**. Bugs that surface at the synthetic level are known to be library issues, not consumer-integration confounds.
@@ -188,7 +190,7 @@ This tests supplier-driving-between-elements (the interesting bug shape — an e
 **Includes "probes don't adapt in creative" repro.** Needs narrowing from Trevor (§13 open question) — tab switch? window resize? specific tab? Once narrowed, becomes a named sub-check inside V2.
 
 **Automated checks.**
-- `RegionMath.resolveInventory` / `resolveHud` results match previously-validated values from `/mkverify all` contract 6 (ensures contract-level and scenario-level agree).
+- `RegionMath.resolveMenu` / `resolveHud` results match previously-validated values from `/mkverify all` contract 6 (ensures contract-level and scenario-level agree).
 - Axial prefix math correct for multi-panel stacking (validated in current probe — extends to more regions).
 - Overflow cutoff triggers when total probe extent exceeds region capacity.
 
@@ -244,7 +246,7 @@ V3.7 is what would have caught `03b2a1a` pre-ship. Without it, V3 only tests ele
 
 **V4.2 — Cross-context element reuse.** The library's component-library promise (THESIS §5: context-agnostic elements, context-specific containers) made concrete. **V4.2 is the first explicit validation of THESIS §5 in MenuKit's history.** Six phases (6–12) have shipped under the context-agnostic-elements principle, but nothing has ever explicitly tested "the same element instance renders identically in three contexts." V4.2 either confirms six phases of architectural assumption or surfaces context-specific leakage that's been there the whole time — either outcome is real project learning.
 
-Take a `Button`, `TextLabel`, `ProgressBar`, and `Icon` — construct each as a single element instance — and place it into three panels: one inventory-context (via `ScreenPanelAdapter`), one HUD-context (via `MKHudPanel.Builder.element()`), one standalone-context (via `MenuKitScreenHandler.panel(...).element()`). Assert:
+Take a `Button`, `TextLabel`, `ProgressBar`, and `Icon` — construct each as a single element instance — and place it into three panels: one MenuContext (via `ScreenPanelAdapter`), one HudContext (via `MKHudPanel.Builder.element()`), one StandaloneContext (via `MenuKitScreenHandler.panel(...).element()`). Assert:
 
 - Each element instance renders identically in every context (same bounds, same content, same hover behavior where applicable).
 - `mouseClicked` dispatches correctly in inventory and standalone contexts (both dispatch input); returns `false` / is never called in HUD (per `RenderContext.hasMouseInput()` convention).
@@ -347,7 +349,7 @@ Example output shapes:
 ```
 [mixed] [Verify.V2.Regions] BEGIN
 [Verify.V2.Regions] Automated checks:
-  - RegionMath.resolveInventory agrees with /mkverify all contract 6 — OK
+  - RegionMath.resolveMenu agrees with /mkverify all contract 6 — OK
   - Axial prefix math matches across 3-panel stack — OK
   ...
 [Verify.V2.Regions] Automated VERDICT — 12/12 cases pass (PASS)

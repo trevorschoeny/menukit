@@ -4,6 +4,8 @@
 
 **Status: Resolved — ready for implementation, pending F9 UI-structure clarification for §7.**
 
+**Post-M8 terminology update (Phase 12.5).** `InventoryRegion` was renamed to `MenuRegion` and `InventoryChrome` to `MenuChrome` as part of the four-context reframe — "inventory" was misleading because both regions apply to every `AbstractContainerScreen`, not just the player-inventory screen. See `Phase 12.5/M8_FOUR_CONTEXT_MODEL.md` for the reframe rationale and the full naming map. This doc has been updated to the new names; the semantics described are unchanged.
+
 **Enables:** Phase 13a migrations (settings gear, sandboxes buttons, pocket-panel for F9 once UI clarified), and future cross-mod panel placement without coordinate-level coordination. **Grafted-slot backdrops (F8 equipment, F15 peek, and any grafted-slot visual layer) do not use regions** — see §4A and §11.
 
 **Companion doc:** `M5_REGION_SPECS.md` — authoritative specification of the 25 region names, anchors, and flow directions. This doc is the HOW; the specs doc is the WHAT.
@@ -39,7 +41,7 @@ Each decision below is **resolved per advisor review** and locked for v1 impleme
 ### 3.1 Enum shape — three per-context enums
 
 ```java
-public enum InventoryRegion {
+public enum MenuRegion {
     LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM,
     RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM,
     TOP_ALIGN_LEFT, TOP_ALIGN_RIGHT,
@@ -63,9 +65,9 @@ public enum StandaloneRegion {
 
 **Rationale (matches specs doc lean):** Per-context enums give type safety — the compiler rejects passing a HudRegion to an inventory adapter. The naming conventions differ (SIDE_ALIGN_END vs positional), so a single combined enum would be awkward.
 
-**Trade-off:** InventoryRegion and StandaloneRegion have identical 8 names. The duplication is intentional — the types are distinct because the adapter they're passed to expects one specific type. A consumer cannot accidentally register a standalone-screen panel into an inventory adapter.
+**Trade-off:** MenuRegion and StandaloneRegion have identical 8 names. The duplication is intentional — the types are distinct because the adapter they're passed to expects one specific type. A consumer cannot accidentally register a standalone-screen panel into an inventory adapter.
 
-**Alternative considered and rejected:** Collapse InventoryRegion + StandaloneRegion into a single `FrameRegion` enum with 8 values, routing through context based on which API receives it. Smaller type surface, but loses the compile-time context distinction — a consumer could accidentally pass a standalone-screen region to an inventory adapter with no compile-time warning. The ~20 lines of enum duplication is a fair trade for that safety. See §10 decision 1.
+**Alternative considered and rejected:** Collapse MenuRegion + StandaloneRegion into a single `FrameRegion` enum with 8 values, routing through context based on which API receives it. Smaller type surface, but loses the compile-time context distinction — a consumer could accidentally pass a standalone-screen region to an inventory adapter with no compile-time warning. The ~20 lines of enum duplication is a fair trade for that safety. See §10 decision 1.
 
 ### 3.2 Registration + stacking — construction-order, auto-registered
 
@@ -74,7 +76,7 @@ Consumers register a panel into a region by constructing an adapter/builder that
 ```java
 // Inventory context
 private static final ScreenPanelAdapter ADAPTER = new ScreenPanelAdapter(
-        PANEL, InventoryRegion.RIGHT_ALIGN_TOP);
+        PANEL, MenuRegion.RIGHT_ALIGN_TOP);
 
 // HUD context
 MKHudPanel.builder("pocket_hud")
@@ -92,7 +94,7 @@ builder.panel("settings", p -> p
 **Registration ordering.** Stacking order = registration order. To make this deterministic across sessions, consumers are expected to touch their decoration classes from mod init in a stable order. Library docs will call this out: "If two mods register panels into the same region, order depends on which mod-init runs first — use `fabric.mod.json` `depends` relationships to enforce ordering, or accept arbitrary order if it doesn't matter."
 
 **Live registry.** A `RegionRegistry` (internal to MenuKit) holds:
-- `Map<InventoryRegion, List<Panel>>`
+- `Map<MenuRegion, List<Panel>>`
 - `Map<HudRegion, List<Panel>>`
 - `Map<StandaloneRegion, List<Panel>>` (deferred impl — see §3.6)
 
@@ -308,16 +310,16 @@ This framing also explains why dynamic panel size (§3.3 jitter) interacts badly
 
 ### 4.1 ScreenPanelAdapter (inventory context)
 
-Add a constructor overload that takes an `InventoryRegion`. The overload internally:
+Add a constructor overload that takes an `MenuRegion`. The overload internally:
 1. Registers `(panel, region)` with `RegionRegistry`.
 2. Constructs a region-aware `ScreenOriginFn` that computes the panel's origin each frame based on current bounds + stacking index.
 
 ```java
 // New overload
-public ScreenPanelAdapter(Panel panel, InventoryRegion region) {
+public ScreenPanelAdapter(Panel panel, MenuRegion region) {
     this.panel = panel;
-    this.originFn = RegionRegistry.inventoryOriginFn(panel, region);
-    RegionRegistry.registerInventory(panel, region);
+    this.originFn = RegionRegistry.menuOriginFn(panel, region);
+    RegionRegistry.registerMenu(panel, region);
 }
 ```
 
@@ -394,7 +396,7 @@ private static final ScreenPanelAdapter ADAPTER = new ScreenPanelAdapter(
 **After:**
 ```java
 private static final ScreenPanelAdapter ADAPTER = new ScreenPanelAdapter(
-        PANEL, InventoryRegion.TOP_ALIGN_RIGHT);
+        PANEL, MenuRegion.TOP_ALIGN_RIGHT);
 ```
 
 **Visual change — screenshot-before-commit workflow.** Gear moves from inside-the-frame-top-right (current: -4 inset, -16 above top) to outside-above-the-frame, right-aligned. This is a real visual move. Migration workflow: apply the change, ship the build, show Trevor a screenshot, iterate if needed, then commit. The long-term position is outside-above (that's where other mods will compete for space, which is the whole reason regions exist), but the exact placement is worth eyeballing in-game before locking in.
@@ -413,7 +415,7 @@ private static final ScreenPanelAdapter MAIN_ADAPTER = new ScreenPanelAdapter(
 **After:**
 ```java
 private static final ScreenPanelAdapter MAIN_ADAPTER = new ScreenPanelAdapter(
-        MAIN_WORLD_PANEL, InventoryRegion.TOP_ALIGN_RIGHT);
+        MAIN_WORLD_PANEL, MenuRegion.TOP_ALIGN_RIGHT);
 ```
 
 **Implicit ordering.** If both IP and sandboxes register in TOP_ALIGN_RIGHT, the second registration stacks leftward from the first (flow: left). Registration order (IP first, sandboxes second) produces the current visual layout (gear on the right, sandbox button to its left).
@@ -501,7 +503,7 @@ At adapter construction / builder build time:
 
 ```java
 // Pseudocode, internal
-void registerInventory(Panel panel, InventoryRegion region) {
+void registerMenu(Panel panel, MenuRegion region) {
     inventoryPanels.computeIfAbsent(region, r -> new ArrayList<>()).add(panel);
 }
 ```
@@ -528,7 +530,7 @@ For each adapter's render call, the library computes the panel's stacking index:
 
 ```java
 // Pseudocode
-int stackingIndex(Panel self, InventoryRegion region) {
+int stackingIndex(Panel self, MenuRegion region) {
     List<Panel> panels = inventoryPanels.get(region);
     int index = 0;
     for (Panel p : panels) {
@@ -545,7 +547,7 @@ Hidden panels contribute 0 to the index. When a panel flips from hidden to visib
 
 ```java
 // Pseudocode
-int axialPrefix(Panel self, InventoryRegion region, Panel.AxialAxis axis) {
+int axialPrefix(Panel self, MenuRegion region, Panel.AxialAxis axis) {
     List<Panel> panels = inventoryPanels.get(region);
     int prefix = 0;
     for (Panel p : panels) {
@@ -563,7 +565,7 @@ int axialPrefix(Panel self, InventoryRegion region, Panel.AxialAxis axis) {
 
 ```java
 // Pseudocode
-ScreenOrigin origin(Panel self, InventoryRegion region, ScreenBounds bounds) {
+ScreenOrigin origin(Panel self, MenuRegion region, ScreenBounds bounds) {
     int prefix = axialPrefix(self, region, region.axis());
     int pw = self.getWidth(), ph = self.getHeight();
     return region.resolve(bounds, pw, ph, prefix);
@@ -580,7 +582,7 @@ Each region's `resolve(bounds, pw, ph, prefix)` applies the formulas from §3.4.
 
 ```java
 // RegionMath — internal, idiomatic
-static Optional<ScreenOrigin> resolveInventory(InventoryRegion r, ScreenBounds bounds,
+static Optional<ScreenOrigin> resolveMenu(MenuRegion r, ScreenBounds bounds,
                                                 int pw, int ph, int prefix) {
     int available = r.availableSpace(bounds);
     int selfExtent = r.isHorizontalFlow() ? pw : ph;
@@ -590,7 +592,7 @@ static Optional<ScreenOrigin> resolveInventory(InventoryRegion r, ScreenBounds b
 
 // Adapter layer — maps to the public sentinel at the boundary
 ScreenOriginFn originFn = bounds -> RegionMath
-        .resolveInventory(region, bounds, panel.getWidth(), panel.getHeight(),
+        .resolveMenu(region, bounds, panel.getWidth(), panel.getHeight(),
                 axialPrefix(panel, region))
         .orElse(ScreenOrigin.OUT_OF_REGION);
 ```
@@ -616,8 +618,8 @@ Public-API callers (consumer lambdas) never see the sentinel because they never 
 
 **Recommended migration order:**
 
-1. **IP settings gear** → `InventoryRegion.TOP_ALIGN_RIGHT`. First migration — simplest case, single panel. Validates the region→coord pipeline.
-2. **Sandboxes buttons** → `InventoryRegion.TOP_ALIGN_RIGHT`. Validates two-panel stacking (sandbox button registered after IP gear stacks to its left per the region's leftward flow).
+1. **IP settings gear** → `MenuRegion.TOP_ALIGN_RIGHT`. First migration — simplest case, single panel. Validates the region→coord pipeline.
+2. **Sandboxes buttons** → `MenuRegion.TOP_ALIGN_RIGHT`. Validates two-panel stacking (sandbox button registered after IP gear stacks to its left per the region's leftward flow).
 
 **Consumers that stay on lambdas / anchors in v1:**
 
@@ -636,14 +638,14 @@ Public-API callers (consumer lambdas) never see the sentinel because they never 
 ## 8. Library surface
 
 **New files:**
-- `core/InventoryRegion.java` — enum + per-region `resolve()` method (may pull shared helpers into a package-private `RegionMath`)
+- `core/MenuRegion.java` — enum + per-region `resolve()` method (may pull shared helpers into a package-private `RegionMath`)
 - `core/HudRegion.java` — enum + per-region `resolve()` method
 - `core/StandaloneRegion.java` — enum only (resolve() deferred with implementation)
 - `inject/RegionRegistry.java` — internal registry for inventory + HUD panel lists per region
 - `core/RegionMath.java` (optional) — shared coordinate math helpers
 
 **Modified files:**
-- `inject/ScreenPanelAdapter.java` — new `(Panel, InventoryRegion)` constructor
+- `inject/ScreenPanelAdapter.java` — new `(Panel, MenuRegion)` constructor
 - `hud/MKHudPanel.java` — new `.region(HudRegion)` builder method, build-time validation
 - `core/PanelPosition.java` — add `IN_REGION` mode, `inRegion(StandaloneRegion)` factory
 - `core/Panel.java` — add `getWidth()` / `getHeight()` auto-size methods
@@ -659,13 +661,13 @@ Public-API callers (consumer lambdas) never see the sentinel because they never 
 
 ### 9.1 Math — runs via `/mkverify all`
 
-Region math is pure given explicit inputs (`bounds, pw, ph, prefix`). `/mkverify all` invokes `RegionMath.resolveInventory` / `resolveHud` with synthetic bounds + synthetic panel sizes and asserts the returned origin against expected values. Matches the library's established verification philosophy — runtime assertions via chat command, not headless harness.
+Region math is pure given explicit inputs (`bounds, pw, ph, prefix`). `/mkverify all` invokes `RegionMath.resolveMenu` / `resolveHud` with synthetic bounds + synthetic panel sizes and asserts the returned origin against expected values. Matches the library's established verification philosophy — runtime assertions via chat command, not headless harness.
 
 Cases the `/mkverify` pass covers:
 - Each of 8 inventory regions + 9 HUD regions at `prefix = 0` produces the first-panel origin matching the specs doc.
 - Each region at `prefix = 20` (a non-zero stacking offset) advances the origin along its flow axis by 20px.
 - `Panel.getWidth()` / `getHeight()` on a synthetic panel with known elements matches the computed bounding box.
-- Overflow: `resolveInventory(..., prefix=largeValue)` returns `Optional.empty()` (→ sentinel at the adapter boundary).
+- Overflow: `resolveMenu(..., prefix=largeValue)` returns `Optional.empty()` (→ sentinel at the adapter boundary).
 
 These assertions run at every phase boundary (per-session `/mkverify all`) so regressions surface immediately.
 
@@ -676,7 +678,7 @@ Math correctness doesn't prove visual correctness. A dev-only scaffolding mod (o
 **Single-panel visual check per region.** Register one 18×18 probe panel in each of the 25 regions. Verify placement matches specs doc.
 
 **Multi-panel stacking.**
-- Three panels in `InventoryRegion.TOP_ALIGN_RIGHT`. Verify they stack leftward from the right edge with 2px gaps.
+- Three panels in `MenuRegion.TOP_ALIGN_RIGHT`. Verify they stack leftward from the right edge with 2px gaps.
 - Toggle middle panel's visibility. Verify stack collapses and re-expands.
 
 **Frame-responsive behavior.**
@@ -700,7 +702,7 @@ Each migrated consumer: visual placement before/after matches the specs-doc inte
 
 The eight questions that were open during the draft pass are now resolved per advisor review. Divergence during implementation requires a follow-up review; otherwise implement as below.
 
-1. **Enum shape — three separate enums.** `InventoryRegion`, `HudRegion`, `StandaloneRegion` remain distinct types. The 8-name duplication between inventory and standalone is ~20 lines of enum declaration; compile-time type safety at API boundaries is permanent value. Shared math lives in package-private `RegionMath`, not in a unified enum.
+1. **Enum shape — three separate enums.** `MenuRegion`, `HudRegion`, `StandaloneRegion` remain distinct types. The 8-name duplication between inventory and standalone is ~20 lines of enum declaration; compile-time type safety at API boundaries is permanent value. Shared math lives in package-private `RegionMath`, not in a unified enum.
 2. **HUD corner/edge inset — 4px hardcoded.** Matches vanilla's F3 debug-overlay convention. Configurable when a second consumer needs a different inset — Rule of Three, not pre-built.
 3. **Pocket HUD migration path — stays on `.anchor(...)`.** No per-panel region offset. Regions encode a layout contract; escape hatches dilute it. If three consumers hit the "above vanilla HUD" wall, add a dedicated `BOTTOM_CENTER_ABOVE_HOTBAR` region (or similar) at that point. Until then, the anchor path is the answer.
 4. **Panel auto-size — default on; `.size(w, h)` opt-in override.** Backwards-compatible with existing Panels that don't declare dimensions. Explicit pin available for consumers with dynamic elements that need stacking jitter suppression (see §3.3).
@@ -713,9 +715,9 @@ The eight questions that were open during the draft pass are now resolved per ad
 
 ## 11. Non-goals / out of scope
 
-- **Grafted-slot backdrop panels (F8, F15, any future M4 consumer) do not use regions in v1.** Their visual-layer positioning derives from fixed slot coordinates via shared constants in the consumer's codebase. A by-reference backdrop stacked in a by-value region would drift out of alignment with the handler-layer slots it visually represents (§4A, §5.6). If a third consumer hand-rolls the same pattern, Rule of Three reconsiders adding a "fixed-anchor, non-stacking" region variant.
+- **Grafted-slot backdrop panels (F8, F15, any future M4 consumer) migrate to SlotGroupContext post-M8.** The pre-M8 non-goal here read as "do not use regions" because the only available region path was by-value stacking that drifted with visibility changes. Post-M8, the natural home is `SlotGroupPanelAdapter` — the consumer registers a `SlotGroupCategory` for the grafted slot group, and decorates via the category-keyed adapter path. The by-reference/by-value distinction resolves itself: the slot group's bounding box tracks its own slots per-frame, and the decoration panel anchors to that bounding box rather than to a stacking-position-within-a-region. The "fixed-anchor, non-stacking region variant" the old note flagged as a Rule-of-Three reconsideration is dissolved — SlotGroupContext answers the problem directly.
 - **Dynamic panel construction is unsupported.** The library contract assumes consumers construct exactly one adapter per logical panel at mod init, as a `static final` field. There is no `unregister()` API and no `WeakReference` fallback. Consumers needing per-session UI use raw `ScreenOriginFn` lambdas (opt out of regions).
-- **Vanilla-HUD-element awareness.** Regions do not know about vanilla hotbar / XP bar / boss bar / chat. Consumers that need clearance from vanilla HUD use the `.anchor(...)` path with manual offset (see §5.4). **Inventory chrome** (creative tabs, recipe book widget) is handled by M7 — see `Phase 12.5/M7_CHROME_AWARE_REGIONS.md`. Consumers get chrome-aware region placement automatically; modded screens register their own chrome extents via `InventoryChrome.register(...)`.
+- **Chrome awareness is scoped per context** (post-M8 refinement). *MenuContext* chrome (creative tabs, recipe book widget, any `AbstractContainerScreen` drawing outside its declared frame) is library-owned via M7/MenuChrome — see `Phase 12.5/M7_CHROME_AWARE_REGIONS.md`. Consumers get chrome-aware region placement automatically; modded screens register their own chrome extents via `MenuChrome.register(...)`. *HudContext* chrome (vanilla hotbar, XP bar, boss bar, chat) remains a non-goal — HUD panels needing clearance from vanilla HUD elements solve locally via manual offset. *SlotGroupContext* and *StandaloneContext* do not have chrome concerns — slot-group bounding boxes are always inside the screen frame (chrome is the parent screen's problem), and standalone screens are MenuKit-owned end-to-end.
 - **Vanilla-menu-element-anchored regions.** No "above crafting grid" region — consumers manually offset via `ScreenOriginFn` if they need menu-internal placement. The shulker palette toggle is the canonical example.
 - **Priority stacking.** Registration order only. No consumer-supplied priority knob.
 - **User override.** No runtime API for the player to re-stack or relocate regions.
@@ -729,7 +731,7 @@ The eight questions that were open during the draft pass are now resolved per ad
 
 ## 12. Summary
 
-M5 introduces named regions that consumers declare at panel construction. Three per-context enums (`InventoryRegion`, `HudRegion`, `StandaloneRegion`) cover 25 regions total. The library holds an internal registry mapping region → registered panels; per-frame origin computation uses the panel's stacking index, its width/height, and the current anchor frame to produce concrete coordinates.
+M5 introduces named regions that consumers declare at panel construction. Three per-context enums (`MenuRegion`, `HudRegion`, `StandaloneRegion`) cover 25 regions total. The library holds an internal registry mapping region → registered panels; per-frame origin computation uses the panel's stacking index, its width/height, and the current anchor frame to produce concrete coordinates.
 
 Integration is additive: `ScreenPanelAdapter` gets a new constructor overload, `MKHudPanel.Builder` gets a `.region()` method, `PanelPosition` gets a new `IN_REGION` mode (standalone implementation deferred). Legacy manual positioning remains fully supported.
 
@@ -751,7 +753,7 @@ Phase 12.5 V4 validation surfaced four gaps in `ScreenPanelAdapter` that broke t
 
 1. `ScreenPanelAdapter` rendered elements only — no panel-background rendering despite `Panel.getStyle()` being RAISED/INSET/DARK. Consumers had to manually call `PanelRendering.renderPanel` and re-derive origin via `RegionMath` to align.
 2. No content padding — unlike `MenuKitScreen`'s baked-in `PANEL_PADDING = 7` and `MKHudPanel.padding()`, the adapter rendered elements flush with its origin. `childX = 0` meant three different things in three contexts.
-3. `RegionMath.resolveInventory` / `resolveHud` returned `Optional.empty()` silently on overflow. Panels wider/taller than a region's axial capacity rendered nothing with no log signal. Consumer debug time spent hunting wrong causes.
+3. `RegionMath.resolveMenu` / `resolveHud` returned `Optional.empty()` silently on overflow. Panels wider/taller than a region's axial capacity rendered nothing with no log signal. Consumer debug time spent hunting wrong causes.
 4. The adapter's origin was private. Consumers wanting to paint sibling decorations (tooltips, hover overlays, related info) re-derived origin math.
 
 Disposition: **in-phase additive extension of `ScreenPanelAdapter` + `RegionRegistry`.** Advisor-reviewed. Scope is purely additive: no existing API signatures change; no behavioral coupling removed. Visual output of pre-12.5 consumers shifts — Phase 13a visual-diff review catches placement drift.
@@ -759,11 +761,11 @@ Disposition: **in-phase additive extension of `ScreenPanelAdapter` + `RegionRegi
 ### Closed-gap surface
 
 - **`ScreenPanelAdapter.DEFAULT_PADDING = 7`** — public constant, matches `MenuKitScreen.PANEL_PADDING`. Content origin is panel origin + padding; element `childX` / `childY` are relative to the content area.
-- **New constructor overloads**: `new ScreenPanelAdapter(Panel, ScreenOriginFn, int padding)` and `new ScreenPanelAdapter(Panel, InventoryRegion, int padding)`. Existing two-arg constructors default padding to `DEFAULT_PADDING`.
+- **New constructor overloads**: `new ScreenPanelAdapter(Panel, ScreenOriginFn, int padding)` and `new ScreenPanelAdapter(Panel, MenuRegion, int padding)`. Existing two-arg constructors default padding to `DEFAULT_PADDING`.
 - **`ScreenPanelAdapter.render` auto-renders background** when `panel.getStyle() != PanelStyle.NONE`. Paints a padding-inclusive rectangle at the panel origin before dispatching element renders. Consumers who want flush rendering without a background declare `PanelStyle.NONE` on their `Panel`.
 - **`ScreenPanelAdapter.getOrigin(screenBounds)` → `Optional<ScreenOrigin>`** — public accessor returning the panel's screen-space top-left. Returns empty when invisible or out-of-region. Content area begins at `origin + getPadding()`.
-- **`RegionRegistry.registerInventory(Panel, InventoryRegion, int padding)`** — stores padding per (panel, region) registration. Axial-prefix stacking math and `RegionMath.resolveInventory` overflow checks both use padding-inclusive extents.
-- **`RegionRegistry.inventoryOriginFn`** and the HUD render loop in `MenuKit.java` — log a one-shot `LOGGER.warn` the first time each (panel identity, region) pair overflows. Keyed on panel identity (not class) via `WeakHashMap`; deduplication is per-session. Message names the panel, the region, the axial extent, the region capacity, and the prefix from preceding panels.
+- **`RegionRegistry.registerMenu(Panel, MenuRegion, int padding)`** — stores padding per (panel, region) registration. Axial-prefix stacking math and `RegionMath.resolveMenu` overflow checks both use padding-inclusive extents.
+- **`RegionRegistry.menuOriginFn`** and the HUD render loop in `MenuKit.java` — log a one-shot `LOGGER.warn` the first time each (panel identity, region) pair overflows. Keyed on panel identity (not class) via `WeakHashMap`; deduplication is per-session. Message names the panel, the region, the axial extent, the region capacity, and the prefix from preceding panels.
 - **`RegionRegistry.warnHudOverflowOnce(...)`** — parallel helper for `MKHudPanelDef` + `HudRegion`.
 
 ### Consumer impact (for Phase 13a review)
@@ -784,9 +786,9 @@ The Phase 13a review passes each decoration through this checklist as a structur
 
 - **Name.** `ScreenPanelAdapter` keeps its name. The class now renders panels fully (style + padding + elements), contradicting the "adapter" framing, but rename cost exceeds benefit given four current consumers. Class javadoc documents the historical name explicitly.
 - **Padding default = 7.** Matches `MenuKitScreen.PANEL_PADDING`. Preserves the "just works" promise over preserving accidentally-inconsistent pre-12.5 placement. Current consumers who want flush-edge behavior pass `padding = 0` explicitly during 13a migration.
-- **One-shot warn keyed on Panel identity.** `WeakHashMap<Panel, Set<InventoryRegion>>` — one entry per distinct Panel instance. A second adapter wrapping a new Panel instance logs independently. Resize-triggered re-warn on hidden→visible transition is **deferred** to a follow-up: V4 doesn't exhibit the dynamic-size case, and adding the transition detector before a consumer exercises it would cut against the "ship what we need" discipline. Filed for when evidence accumulates.
+- **One-shot warn keyed on Panel identity.** `WeakHashMap<Panel, Set<MenuRegion>>` — one entry per distinct Panel instance. A second adapter wrapping a new Panel instance logs independently. Resize-triggered re-warn on hidden→visible transition is **deferred** to a follow-up: V4 doesn't exhibit the dynamic-size case, and adding the transition detector before a consumer exercises it would cut against the "ship what we need" discipline. Filed for when evidence accumulates.
 - **Panel stays pure.** Padding lives on `ScreenPanelAdapter` (and implicitly on `MenuKitScreen`'s `PANEL_PADDING` and `MKHudPanel.padding()`), never on `Panel`. This preserves THESIS §5 — Panel is context-neutral; padding is context-specific machinery.
-- **RegionMath stays pure.** The warn log lives at callsites (`RegionRegistry.inventoryOriginFn` lambda, `MenuKit.renderHud` loop), not inside the math functions. Preserves the "registry state stays out of the math" invariant from §6.
+- **RegionMath stays pure.** The warn log lives at callsites (`RegionRegistry.menuOriginFn` lambda, `MenuKit.renderHud` loop), not inside the math functions. Preserves the "registry state stays out of the math" invariant from §6.
 
 ### THESIS Principle 9 (landed alongside these changes)
 
@@ -802,7 +804,7 @@ Library additions landed. V4.2 inventory decoration ships against the new primit
 
 ### M7 chrome — follow-on
 
-`ScreenPanelAdapter` completeness closed the rendering-pipeline gap (padding + auto-background). A separate class of gap, `InventoryRegion` chrome-awareness, surfaced during V2 probe validation and resolved via **M7 — chrome-aware inventory regions** (`Phase 12.5/M7_CHROME_AWARE_REGIONS.md`). M7 introduces `InventoryChrome` registry + per-screen `ChromeProvider` functional interface, consulted by `RegionRegistry.inventoryOriginFn` before delegating to pure `RegionMath`.
+`ScreenPanelAdapter` completeness closed the rendering-pipeline gap (padding + auto-background). A separate class of gap, `MenuRegion` chrome-awareness, surfaced during V2 probe validation and resolved via **M7 — chrome-aware inventory regions** (`Phase 12.5/M7_CHROME_AWARE_REGIONS.md`). M7 introduces `MenuChrome` registry + per-screen `ChromeProvider` functional interface, consulted by `RegionRegistry.menuOriginFn` before delegating to pure `RegionMath`.
 
 v1 ships providers for `CreativeModeInventoryScreen` (static `ChromeExtents(25, 0, 0, 26)` — visible-tab-edge alignment, derived from vanilla's `checkTabHovering` hit-test geometry) and `InventoryScreen` (dynamic recipe-book chrome via vanilla's `RecipeBookComponent.updateTabs` formula). Other recipe-book screens (CraftingScreen, FurnaceScreen, SmokerScreen, BlastFurnaceScreen) extend the v1 scope once V2's completeness pass validates the pattern.
 

@@ -182,6 +182,8 @@ Why a separate type (not shared `Region` enum): type-safety at the call site —
 
 `SlotGroupPanelAdapter(panel, SlotGroupRegion)` is the constructor. The `.on(SlotGroupCategory...)` method declares targeting (no `.onAny()` — SlotGroupContext targeting is always explicit category enumeration; "any category" isn't a meaningful mental model).
 
+**Registration timing differs from MenuContext.** {@link ScreenPanelAdapter} registers into {@link RegionRegistry} in its *constructor* — the region is known at construction, so registration happens there. `SlotGroupPanelAdapter` can't: its `RegionRegistry.registerSlotGroup` call needs a `(category, region)` composite key, and categories aren't known until `.on(...)` is called. So the constructor only adds the adapter to `ScreenPanelRegistry`'s pending set (for orphan tracking); the actual `registerSlotGroup` call per target category runs inside `.on(...)`, followed by `markSlotGroupTargetingDeclared`. This is the unavoidable consequence of category-aware stacking — categories *are* the targeting input — and naming it here preempts the future "why are MenuContext and SlotGroupContext adapters wired differently at construction" question.
+
 ### 5.7 Render pipeline position
 
 SlotGroupContext panels render inside the same `AbstractContainerScreen.render` @TAIL hook as MenuContext panels, dispatched by the same `ScreenPanelRegistry`. The distinction is anchor computation (frame vs. slot-group bounds) and targeting (class vs. category). Pipeline-wise: same path, different inputs. Consistent with Principle 9 — uniform pipeline, context-specific embedding (here: context-specific anchor source).
@@ -231,10 +233,12 @@ Every menu that calls `addStandardInventorySlots` contributes `PLAYER_INVENTORY`
 |---|---|---|
 | `CRAFTING_INPUT` | 2×2 or 3×3 grid | `AbstractCraftingMenu` — `InventoryMenu` (2×2), `CraftingMenu` (3×3) |
 | `CRAFTING_OUTPUT` | 1 | same, `RESULT_SLOT` |
-| `CRAFTER_GRID` | 3×3 (9) | `CrafterMenu` — auto-crafter |
-| `CRAFTER_RESULT` | 1 | `CrafterMenu.resultContainer` — **new in doc, missing from advisor brief** |
+| `CRAFTER_GRID` | 3×3 (9) | `CrafterMenu` slots 0–8 — auto-crafter |
+| `CRAFTER_RESULT` | 1 | `CrafterMenu` slot **45** (post-standard-inventory) — see vanilla-quirk note below |
 
 **Note.** Advisor's brief listed only `CRAFTER_GRID`. `CrafterMenu` has a result container too (exposed via `getResultSlot`). Including for symmetry with other input/output pairs. §13 Q2.
+
+**Vanilla quirk.** `CrafterMenu.addSlots` calls `addCrafterGrid` (slots 0–8), then `addStandardInventorySlots` (slots 9–44), then `addSlot(new NonInteractiveResultSlot(...))` (slot 45). Unlike `CraftingMenu` / `InventoryMenu` where the result slot is at index 0, `CrafterMenu`'s result sits *after* the player-inventory slots. The resolver in `VanillaSlotGroupResolvers` registers `CRAFTER_GRID` at `subList(0, 9)`, `PLAYER_INVENTORY` + `PLAYER_HOTBAR` via `addPlayerInvTail(out, s, 9)`, then `CRAFTER_RESULT` at `subList(45, 46)`. Future readers expecting the result at index 0 should look past the standard inventory tail.
 
 ### 6.4 Furnace family — shared across Furnace / Smoker / BlastFurnace via `AbstractFurnaceMenu`
 
@@ -336,7 +340,7 @@ Every menu that calls `addStandardInventorySlots` contributes `PLAYER_INVENTORY`
 | `NautilusInventoryMenu` | MOUNT_SADDLE, MOUNT_BODY_ARMOR, PLAYER_INVENTORY, PLAYER_HOTBAR |
 | `LecternMenu` | (deferred — §6.10) |
 
-Total: **20 vanilla menu resolvers**, **36 category constants** (count tentative until §13 questions resolved).
+Total: **22 vanilla menu resolvers**, **43 category constants**. (Round-1 resolutions in §13 added seven categories over the initial draft count of 36: storage split +3, `CRAFTER_RESULT` +1, cartography table +3.)
 
 ---
 
@@ -366,11 +370,15 @@ new ScreenPanelAdapter(panel, MenuRegion.TOP_ALIGN_RIGHT)
 new SlotGroupPanelAdapter(panel, SlotGroupRegion.TOP_ALIGN_RIGHT)
     .on(SlotGroupCategory.PLAYER_INVENTORY);
 
-// Multiple categories (the panel fires on any screen where any listed category resolves)
+// Multiple categories — the panel renders once per category that
+// resolves in the current menu. In a furnace screen, targeting both
+// PLAYER_INVENTORY and FURNACE_INPUT paints the panel twice: once
+// anchored at the player inventory bounds, once at the furnace input.
 new SlotGroupPanelAdapter(panel, SlotGroupRegion.TOP_ALIGN_RIGHT)
-    .on(SlotGroupCategory.FURNACE_INPUT, SlotGroupCategory.SMOKER_INPUT);
-    // (FURNACE_INPUT covers all three furnace variants — this example is illustrative only)
+    .on(SlotGroupCategory.PLAYER_INVENTORY, SlotGroupCategory.FURNACE_INPUT);
 ```
+
+**Multi-category semantics — once per resolved category, per frame.** For each listed category that resolves in the current menu, the panel renders at that category's anchor. The library does not pick a priority among matching categories; each matching category is a distinct *anchor* the consumer declared, and rendering once per anchor is what the declaration means. An alternative — render once and silently pick which category's bounds win — would make the library platform-y (hiding which anchor was selected behind an internal rule). Once-per-category keeps the consumer's declaration and the library's behavior aligned.
 
 No `.onAny()` for SlotGroupContext. *"Any slot group"* isn't a consumer mental model; naming the category is the whole point.
 

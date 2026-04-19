@@ -1,11 +1,13 @@
-# M7 — Chrome-aware inventory regions
+# M7 — Chrome-aware MenuContext regions
 
-**Status: design resolved after advisor round-2. Ready to implement.**
+*(Originally titled "Chrome-aware inventory regions"; renamed during the M8 four-context reframe — see `M8_FOUR_CONTEXT_MODEL.md`. The chrome registry's job is unchanged; what's now called MenuContext is what this doc originally called inventory-context. `InventoryChrome` → `MenuChrome`, `InventoryRegion` → `MenuRegion` throughout.)*
+
+**Status: shipped. M8 renamed `InventoryChrome` → `MenuChrome`; otherwise unchanged.**
 
 Phase 12.5 V2 validation surfaced that regions anchor to the **declared inventory frame** (`imageWidth × imageHeight`) but not to the **effective visible boundary** of the screen — which includes vanilla chrome each `AbstractContainerScreen` subclass hand-draws outside its declared frame. Concrete symptoms:
 
-- `InventoryRegion.TOP_ALIGN_RIGHT` in `CreativeModeInventoryScreen` anchors above the declared 195×136 frame but below the creative tab row (TAB_HEIGHT=32 above the frame). Panels overlap tabs.
-- `InventoryRegion.LEFT_ALIGN_TOP` in `InventoryScreen` with the recipe book open anchors to the left of the declared frame but on top of the recipe book widget, which renders in that space.
+- `MenuRegion.TOP_ALIGN_RIGHT` in `CreativeModeInventoryScreen` anchors above the declared 195×136 frame but below the creative tab row (TAB_HEIGHT=32 above the frame). Panels overlap tabs.
+- `MenuRegion.LEFT_ALIGN_TOP` in `InventoryScreen` with the recipe book open anchors to the left of the declared frame but on top of the recipe book widget, which renders in that space.
 - Similar overlap cases in future modded screens with chrome outside their frame.
 
 The frame-edge dynamics already work — `AbstractContainerScreen` mutates `leftPos` / `topPos` on `init()` and on recipe-book toggle, and MenuKit reads those fields per-frame via `AbstractContainerScreenAccessor`. What's missing is the library-owned encoding of "what chrome each screen subclass draws outside its frame."
@@ -29,7 +31,7 @@ But many screen subclasses draw additional chrome **outside** that rectangle:
 
 Vanilla doesn't expose this chrome via any universal property. Each subclass draws its chrome in `render()` at positions the subclass computes from `leftPos`/`topPos`. There's no `getEffectiveBounds()` method, no `ChromeExtents` field, no pattern the library could pick up automatically.
 
-The consequence for MenuKit's region system: **`InventoryRegion.TOP_ALIGN_RIGHT` means "above the declared frame," not "above the visible edge."** In practice, these diverge whenever a subclass has top-row chrome.
+The consequence for MenuKit's region system: **`MenuRegion.TOP_ALIGN_RIGHT` means "above the declared frame," not "above the visible edge."** In practice, these diverge whenever a subclass has top-row chrome.
 
 ## 2. Why this is a library primitive, not a consumer concern
 
@@ -53,7 +55,7 @@ M7 closes this. The library owns inventory-chrome knowledge; consumers read via 
 
 THESIS Principle 9 — *"Rendering pipelines are uniform across contexts; embedding is context-specific"* — landed with Phase 12.5's V4 work. Principle 9's test sentence: *"when a rendering behavior varies between contexts, does the variation have a named reason rooted in the screen's relationship to gameplay, not in the container's implementation?"*
 
-M7 is the second concrete instance of Principle 9 forcing a gap closure (after `ScreenPanelAdapter` completeness). Apply the test to the chrome-overlap observation: `InventoryRegion.TOP_ALIGN_RIGHT` produces different visible behavior in survival vs. creative. Is there a gameplay-rooted reason? No. The variation is in the container's implementation — each subclass draws chrome in its own render method at subclass-computed positions. That's an implementation detail of the embedding, but the region's *semantic meaning* ("top edge of the visible inventory screen") should be invariant across subclasses.
+M7 is the second concrete instance of Principle 9 forcing a gap closure (after `ScreenPanelAdapter` completeness). Apply the test to the chrome-overlap observation: `MenuRegion.TOP_ALIGN_RIGHT` produces different visible behavior in survival vs. creative. Is there a gameplay-rooted reason? No. The variation is in the container's implementation — each subclass draws chrome in its own render method at subclass-computed positions. That's an implementation detail of the embedding, but the region's *semantic meaning* ("top edge of the visible inventory screen") should be invariant across subclasses.
 
 When a region declaration produces different visible behavior across screen subclasses without a gameplay-rooted reason, that's a Principle 9 violation and the library owns closing it. M7 is this specific closure: a library-owned chrome registry that makes `TOP_ALIGN_RIGHT` mean the same thing everywhere.
 
@@ -61,12 +63,12 @@ This pattern — "region semantics diverge across subclasses without named reaso
 
 ## 3. API shape
 
-### 3.1 `InventoryChrome` registry
+### 3.1 `MenuChrome` registry
 
-New class `com.trevorschoeny.menukit.inject.InventoryChrome` with static registry state:
+New class `com.trevorschoeny.menukit.inject.MenuChrome` with static registry state:
 
 ```java
-public final class InventoryChrome {
+public final class MenuChrome {
 
     /**
      * Per-side chrome extents outside the declared inventory frame.
@@ -114,29 +116,29 @@ public final class InventoryChrome {
 
 Exact-class is predictable: every screen gets exactly the chrome registered for its concrete class. Consumers of modded screens register for their own concrete classes. Zero inheritance surprise.
 
-**Transition semantics.** Chrome extents are recomputed per frame (the provider is called each time `RegionRegistry.inventoryOriginFn` resolves an origin). When a screen's chrome changes mid-session (recipe book toggle), there may be a one-frame visual transition as the provider picks up the new state — vanilla mutates `this.leftPos` in the same event that opens the recipe book, and the provider reads `recipeBookComponent.isVisible()` on the next frame. In practice the one-frame lag is imperceptible. Acceptable for current cases; revisit if longer transitions surface as a consumer concern.
+**Transition semantics.** Chrome extents are recomputed per frame (the provider is called each time `RegionRegistry.menuOriginFn` resolves an origin). When a screen's chrome changes mid-session (recipe book toggle), there may be a one-frame visual transition as the provider picks up the new state — vanilla mutates `this.leftPos` in the same event that opens the recipe book, and the provider reads `recipeBookComponent.isVisible()` on the next frame. In practice the one-frame lag is imperceptible. Acceptable for current cases; revisit if longer transitions surface as a consumer concern.
 
 **Dynamic providers are standard.** Providers that need no screen state (creative tabs, constant extents) simply ignore the `screen` parameter. Providers that need state (recipe book toggle) read the screen and return appropriate extents. Unified interface; no static/dynamic API split.
 
 ### 3.2 Integration with `RegionMath`
 
-`RegionMath.resolveInventory(region, bounds, pw, ph, prefix)` currently uses `bounds.leftPos` / `topPos` / `imageWidth` / `imageHeight` directly. After M7, the origin functions in `RegionRegistry.inventoryOriginFn` produce chrome-extended bounds before calling `RegionMath`:
+`RegionMath.resolveMenu(region, bounds, pw, ph, prefix)` currently uses `bounds.leftPos` / `topPos` / `imageWidth` / `imageHeight` directly. After M7, the origin functions in `RegionRegistry.menuOriginFn` produce chrome-extended bounds before calling `RegionMath`:
 
 ```java
-public static ScreenOriginFn inventoryOriginFn(Panel panel, InventoryRegion region) {
+public static ScreenOriginFn menuOriginFn(Panel panel, MenuRegion region) {
     return (bounds, screen) -> {
-        ChromeExtents chrome = InventoryChrome.of(screen);
+        ChromeExtents chrome = MenuChrome.of(screen);
         ScreenBounds effective = new ScreenBounds(
                 bounds.leftPos() - chrome.left(),
                 bounds.topPos() - chrome.top(),
                 bounds.imageWidth() + chrome.left() + chrome.right(),
                 bounds.imageHeight() + chrome.top() + chrome.bottom());
-        // ... existing RegionMath.resolveInventory call using `effective`
+        // ... existing RegionMath.resolveMenu call using `effective`
     };
 }
 ```
 
-`RegionMath` stays pure. M5 §6.1 invariant preserved: registry state stays out of the math. Chrome logic lives in `InventoryChrome` + `RegionRegistry`; `RegionMath` still receives explicit `(bounds, pw, ph, prefix)`.
+`RegionMath` stays pure. M5 §6.1 invariant preserved: registry state stays out of the math. Chrome logic lives in `MenuChrome` + `RegionRegistry`; `RegionMath` still receives explicit `(bounds, pw, ph, prefix)`.
 
 ### 3.3 v1 scope — what the library ships
 
@@ -160,7 +162,7 @@ That's it for v1. Scope is evidence-driven per Rule of Three: V2 exercises `Inve
 **Out of scope for v1:**
 - `BrewingStandScreen` potion bubbles, `HorseInventoryScreen` side panels, any non-recipe-book vanilla chrome — no consumer currently targets these.
 - Screens that mutate `imageWidth` / `imageHeight` mid-session (none in vanilla 1.21.11).
-- Modded screens beyond the vanilla registrations — modded consumers register their own via `InventoryChrome.register(MyScreen.class, myProvider)`.
+- Modded screens beyond the vanilla registrations — modded consumers register their own via `MenuChrome.register(MyScreen.class, myProvider)`.
 
 ### 3.4 Registration timing
 
@@ -210,17 +212,17 @@ The sub-check ships green because the library closed the gap, not because the te
 
 ## 7. Implementation plan
 
-1. `InventoryChrome.java` — registry class, `ChromeExtents` record, `ChromeProvider` functional interface, `register()` + `of()` methods. Exact-class Map lookup, no ancestry walk.
+1. `MenuChrome.java` — registry class, `ChromeExtents` record, `ChromeProvider` functional interface, `register()` + `of()` methods. Exact-class Map lookup, no ancestry walk.
 2. `MenuKit.onInitializeClient` — register the two v1 providers (`CreativeModeInventoryScreen`, `InventoryScreen`).
 3. `ScreenOriginFn.compute(ScreenBounds, AbstractContainerScreen<?>)` — signature change.
-4. `RegionRegistry.inventoryOriginFn(panel, region)` — updated lambda consults `InventoryChrome.of(screen)` and produces chrome-extended bounds before calling `RegionMath.resolveInventory`.
+4. `RegionRegistry.menuOriginFn(panel, region)` — updated lambda consults `MenuChrome.of(screen)` and produces chrome-extended bounds before calling `RegionMath.resolveMenu`.
 5. `ScreenPanelAdapter.render(graphics, bounds, mouseX, mouseY, screen)` + `mouseClicked(bounds, mouseX, mouseY, button, screen)` — signature changes. Thread the screen parameter through to the origin function.
 6. V4.2's `V4CrossInventoryDecoration` call sites — update `adapter.render` / `adapter.mouseClicked` signatures (one line each).
 7. Recipe-book chrome-provider implementation — reads `AbstractRecipeBookScreen`'s recipe-book state via cast + accessor; returns `ChromeExtents(0, 147, 0, 0)` when open, `NONE` when closed.
 8. M5 §11 non-goal amendment (§4.3).
 9. V2 resumes: main matrix + chrome-overlap sub-check both run against the M7-enabled library.
 
-One commit. Small additive library surface (~60-80 LOC for `InventoryChrome` + two providers + `RegionRegistry` lambda update + `ScreenPanelAdapter` signature change). Consumer updates: 2 call sites in V4.2.
+One commit. Small additive library surface (~60-80 LOC for `MenuChrome` + two providers + `RegionRegistry` lambda update + `ScreenPanelAdapter` signature change). Consumer updates: 2 call sites in V4.2.
 
 ## 8. Status
 
@@ -231,7 +233,7 @@ Advisor resolutions (round-1 + round-2) all implemented as agreed:
 - **Provider interface**: unified functional interface, screen parameter always present ✓
 - **Class resolution**: exact-class only, no ancestry walk ✓
 - **v1 scope**: `InventoryScreen` + `CreativeModeInventoryScreen` only ✓
-- **Namespace**: flat, `com.trevorschoeny.menukit.inject.InventoryChrome` ✓
+- **Namespace**: flat, `com.trevorschoeny.menukit.inject.MenuChrome` ✓
 - **Principle 9 tie-in**: explicit §2.5 added ✓
 - **Transition semantics**: documented in §3.1 ✓
 
