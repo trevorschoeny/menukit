@@ -2,6 +2,7 @@ package com.trevorschoeny.menukit.core;
 
 import com.trevorschoeny.menukit.inject.ScreenBounds;
 import com.trevorschoeny.menukit.inject.ScreenOrigin;
+import com.trevorschoeny.menukit.inject.SlotGroupBounds;
 
 import java.util.Optional;
 
@@ -50,6 +51,62 @@ public final class RegionMath {
      */
     public static Optional<ScreenOrigin> resolveMenu(
             MenuRegion region, ScreenBounds bounds,
+            int pw, int ph, int prefix) {
+
+        int leftPos = bounds.leftPos();
+        int topPos = bounds.topPos();
+        int imageWidth = bounds.imageWidth();
+        int imageHeight = bounds.imageHeight();
+
+        // Overflow check along the flow axis.
+        int available = region.isHorizontalFlow() ? imageWidth : imageHeight;
+        int selfExtent = region.isHorizontalFlow() ? pw : ph;
+        if (prefix + selfExtent > available) return Optional.empty();
+
+        ScreenOrigin origin = switch (region) {
+            case RIGHT_ALIGN_TOP -> new ScreenOrigin(
+                    leftPos + imageWidth + STACK_GAP,
+                    topPos + prefix);
+            case RIGHT_ALIGN_BOTTOM -> new ScreenOrigin(
+                    leftPos + imageWidth + STACK_GAP,
+                    topPos + imageHeight - ph - prefix);
+            case LEFT_ALIGN_TOP -> new ScreenOrigin(
+                    leftPos - pw - STACK_GAP,
+                    topPos + prefix);
+            case LEFT_ALIGN_BOTTOM -> new ScreenOrigin(
+                    leftPos - pw - STACK_GAP,
+                    topPos + imageHeight - ph - prefix);
+            case TOP_ALIGN_LEFT -> new ScreenOrigin(
+                    leftPos + prefix,
+                    topPos - ph - STACK_GAP);
+            case TOP_ALIGN_RIGHT -> new ScreenOrigin(
+                    leftPos + imageWidth - pw - prefix,
+                    topPos - ph - STACK_GAP);
+            case BOTTOM_ALIGN_LEFT -> new ScreenOrigin(
+                    leftPos + prefix,
+                    topPos + imageHeight + STACK_GAP);
+            case BOTTOM_ALIGN_RIGHT -> new ScreenOrigin(
+                    leftPos + imageWidth - pw - prefix,
+                    topPos + imageHeight + STACK_GAP);
+        };
+        return Optional.of(origin);
+    }
+
+    // ── SlotGroupContext ────────────────────────────────────────────────
+
+    /**
+     * Resolves a SlotGroupContext region panel's origin. Anchors to the
+     * slot group's bounding rectangle ({@link SlotGroupBounds}) rather
+     * than the screen frame, but is otherwise identical to
+     * {@link #resolveMenu} — same eight anchor semantics, same overflow
+     * cutoff, same {@link #STACK_GAP} spacing.
+     *
+     * <p>Bounds are computed per frame by
+     * {@link com.trevorschoeny.menukit.inject.ScreenPanelRegistry} walking
+     * the slot list for the target category.
+     */
+    public static Optional<ScreenOrigin> resolveSlotGroup(
+            SlotGroupRegion region, SlotGroupBounds bounds,
             int pw, int ph, int prefix) {
 
         int leftPos = bounds.leftPos();
