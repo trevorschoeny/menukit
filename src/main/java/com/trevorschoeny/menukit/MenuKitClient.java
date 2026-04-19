@@ -4,6 +4,7 @@ import com.trevorschoeny.menukit.config.GeneralOption;
 import com.trevorschoeny.menukit.config.MKFamily;
 import com.trevorschoeny.menukit.inject.MenuChrome;
 import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
+import com.trevorschoeny.menukit.inject.VanillaSlotGroupResolvers;
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevorschoeny.menukit.mixin.MKRecipeBookAccessor;
 
@@ -71,12 +72,18 @@ public class MenuKitClient implements ClientModInitializer {
         // chrome-aware origin resolution. See M7 design doc §3.3 for scope.
         registerVanillaMenuChrome();
 
+        // M8 — vanilla slot-group resolvers for SlotGroupContext dispatch.
+        // Must register before ScreenPanelRegistry.init so the first screen-
+        // open can resolve categories correctly. See M8 §6 for the 22 menu
+        // classes covered.
+        VanillaSlotGroupResolvers.registerAll();
+
         // M8 — library-owned ScreenEvents.AFTER_INIT dispatch for MenuContext
-        // adapters. Replaces per-consumer listener boilerplate. See
-        // M8_FOUR_CONTEXT_MODEL.md §8 for design. Registered after chrome
-        // providers so the first screen-open's orphan checkpoint sees all
-        // region-based adapters that completed their targeting declarations
-        // during mod init (static + onInitializeClient phases).
+        // + SlotGroupContext adapters. Replaces per-consumer listener
+        // boilerplate. See M8_FOUR_CONTEXT_MODEL.md §8 for design. Registered
+        // after chrome + resolvers so the first screen-open's orphan
+        // checkpoint sees all region-based adapters that completed their
+        // targeting declarations during mod init.
         ScreenPanelRegistry.init();
     }
 
