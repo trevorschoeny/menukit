@@ -120,7 +120,9 @@ The test for this principle: *when this element's state changes, could the consu
 
 ### 9. Rendering pipelines are uniform across contexts; embedding is context-specific
 
-MenuKit's three rendering contexts host the same panels and elements. The pipeline that transforms a Panel into drawn pixels inside its bounding box — background paint, content padding, element layout, element dispatch — is shared across all contexts and behaves identically regardless of which container owns the panel. What differs between contexts is embedding: where the bounding box sits on the screen, how it relates to surrounding gameplay (blur backdrops, darkened fields, world-space integration), how input maps in (mouse presence, keyboard focus). Embedding is context-specific by nature. Rendering is not.
+MenuKit's rendering pipelines host the same panels and elements across every context. The pipeline that transforms a Panel into drawn pixels inside its bounding box — background paint, content padding, element layout, element dispatch — is shared and behaves identically regardless of which context owns the panel. What differs between contexts is embedding: where the bounding box sits on the screen, how it relates to surrounding gameplay (blur backdrops, darkened fields, world-space integration), how input maps in (mouse presence, keyboard focus). Embedding is context-specific by nature. Rendering is not.
+
+(MenuContext and SlotGroupContext share the same AbstractContainerScreen rendering pipeline under the hood — they're distinct contexts per Principle 10 because their anchors differ, but the pipeline they dispatch through is the same.)
 
 Principle 5 established that elements work across contexts. Principle 9 carves the container further: its embedding is context-specific; its rendering pipeline is uniform. A consumer writing `new Panel(id, elements, PanelStyle.RAISED)` expects the RAISED background to paint wherever the panel embeds. A consumer placing elements at `childX = 0` expects the same padding inset in every context. The library-not-platform discipline only holds if the primitives behave the same everywhere they land.
 
@@ -129,6 +131,28 @@ This principle forces where context-specific code lives. Embedding machinery (`P
 Principle 9 crystallized from a concrete failure. `ScreenPanelAdapter`, shipped in Phase 10, was "rendering-lite" — it dispatched element renders but not panel backgrounds or padding. This wasn't malicious; the principle didn't exist yet to constrain it. Phase 11 consumers worked around the gap because they didn't need the full pipeline. Phase 12.5 V4 tried to push a styled panel through the adapter and nothing appeared. The principle surfaced; the gap closed additively; future contexts now have a checklist to clear before they're considered complete.
 
 The test for this principle: *when a rendering behavior varies between contexts, does the variation have a named reason rooted in the screen's relationship to gameplay, not in the container's implementation?* If no, the variation is a violation and the rendering logic belongs in the shared pipeline.
+
+### 10. Contexts are consumer mental models, not implementation boundaries
+
+Every panel belongs to exactly one context. A consumer deciding where a panel goes answers one question: *"what is this anchored to?"* Library contexts align with the natural answers to that question — not with the rendering pipeline's internal decomposition. When consumer mental models identify a new natural anchor category, the library expresses it as a context even if the rendering pipeline underneath is shared with an existing context. Conversely, when implementation factoring would split a single mental-model anchor into multiple contexts, the split is rejected — contexts track the consumer's decomposition, not the library's.
+
+Principle 10 pairs with Principle 9 at the line where the two diverge. Principle 9 says the rendering pipeline is uniform — MenuContext and SlotGroupContext share the same background-paint + padding + element-dispatch path. Principle 10 says that pipeline sharing does not collapse the two contexts into one, because their *anchors* are different consumer mental models. A panel anchored to a screen frame is a different consumer decision than a panel anchored to a slot group's bounding box. The library's contexts name the anchors; the pipeline is a shared implementation detail below that naming.
+
+Principle 10 crystallized during Phase 12.5's M8 reframe. The earlier naming — `InventoryContext` / `PlayerInventoryContext` / `ContainerContext` — looked like three different things because panels anchored to frames were conflated with panels anchored to slot-area shapes. Separating slot-area anchoring into its own context (SlotGroupContext) made MenuContext unambiguous, and the `PlayerInventoryContext` vs. `ContainerContext` distinction — which had been a targeting difference, not an anchor difference — collapsed into a single MenuContext with declared screen targets.
+
+The test for this principle is structural, not subjective: *does this context have a distinct answer to "what am I anchoring to?" that isn't available under any existing context?* If yes, it's a context. If the anchor can be expressed through an existing context plus targeting, it isn't a new context. The structural framing resolves debates that a perceptual framing ("do consumers recognize this as distinct?") would admit — the answer is computable from the library's existing primitives, not from anyone's judgment call.
+
+### 11. Evidence drives primitive scope; exhaustive coverage available when per-item cost is low and incompleteness cost is high
+
+New primitives' shape and scope come from the concrete consumers driving them; the library doesn't design for hypothetical consumers. The default for adding entries to a catalog — contexts, categories, screen targets, chrome providers — is Rule of Three. Wait for three concrete uses before generalizing; until then, defer.
+
+The exception, named explicitly rather than implicitly: when each catalog entry is cheap to add and omitted entries force consumer migrations on each discovery, exhaustive coverage at v1 is appropriate. The exception is invoked by naming both the low per-item cost and the high incompleteness cost. A catalog addition that doesn't pass both tests falls back to Rule of Three.
+
+SlotGroupContext's vanilla-category catalog (M8 §6) is the first concrete invocation of the exception. Per-category cost is one enum constant plus one resolver entry — trivial. Incompleteness cost is high: a consumer targeting a category the library hadn't shipped would find their panel silently failing to appear on that screen class, and would need to migrate against the added category once the library caught up. Both tests are satisfied, and the v1 catalog ships with the 43 vanilla 1.21.11 categories exhaustively covered.
+
+Principle 11 matters because "exhaustive coverage" is a tempting escape hatch. Without the named tests, any scope expansion could invoke "exhaustive coverage" as justification and defeat Rule of Three. With the tests in place, the exception only applies where it's earned — both cost properties have to hold, and the invocation has to name them. The default path remains Rule of Three; the exception is a narrow relaxation, not a bypass.
+
+The test for this principle: *what's the marginal cost of including this entry, and what's the migration cost if a consumer later discovers we omitted it?* If the first is small and the second is large, exhaustive coverage applies. Otherwise defer.
 
 ## The ship-vs-consumer line
 
@@ -200,6 +224,6 @@ Treat it as a fellow traveler. It ships with MenuKit because that's where it mak
 
 ## Summary
 
-MenuKit is a component library for Minecraft UI. It ships small, composable elements that work across inventory menus, HUDs, and standalone screens. It stops at being a library — it does not take ownership of vanilla code paths, does not compete with specialized libraries, and does not grow beyond its target contexts. It ships elements that multiple independent consumers would reach for; it leaves domain widgets to consumers. It holds architectural disciplines uniformly across the contexts it targets.
+MenuKit is a component library for Minecraft UI. It ships small, composable elements that work across four contexts — MenuContext (panels anchored to vanilla screen frames), SlotGroupContext (panels anchored to named slot groups), HudContext (HUD overlays), and StandaloneContext (MenuKit-native screens). It stops at being a library — it does not take ownership of vanilla code paths, does not compete with specialized libraries, and does not grow beyond its target contexts. It ships elements that multiple independent consumers would reach for; it leaves domain widgets to consumers. It holds architectural disciplines uniformly across the contexts it targets.
 
 Every element that ships, every context that's supported, every feature added in the library's lifetime is checkable against this thesis. If a candidate does not survive the check, it belongs with the consumer, not with MenuKit.
