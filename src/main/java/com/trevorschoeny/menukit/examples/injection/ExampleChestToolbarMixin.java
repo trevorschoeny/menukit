@@ -93,7 +93,7 @@ public abstract class ExampleChestToolbarMixin {
     @Inject(method = "render", at = @At("TAIL"))
     private void examples$render(GuiGraphics g, int mx, int my, float delta, CallbackInfo ci) {
         if (!examples$appliesToThisScreen()) return;
-        examples$adapter.render(g, examples$bounds(), mx, my);
+        examples$adapter.render(g, examples$bounds(), mx, my, (AbstractContainerScreen<?>) (Object) this);
     }
 
     @Inject(
@@ -105,7 +105,8 @@ public abstract class ExampleChestToolbarMixin {
                                  CallbackInfoReturnable<Boolean> cir) {
         if (!examples$appliesToThisScreen()) return;
         if (examples$adapter.mouseClicked(examples$bounds(),
-                event.x(), event.y(), event.button())) {
+                event.x(), event.y(), event.button(),
+                (AbstractContainerScreen<?>) (Object) this)) {
             cir.setReturnValue(true);
         }
     }

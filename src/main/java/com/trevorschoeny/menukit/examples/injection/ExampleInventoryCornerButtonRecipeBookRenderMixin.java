@@ -74,6 +74,7 @@ public abstract class ExampleInventoryCornerButtonRecipeBookRenderMixin
                 g,
                 ExampleInventoryCornerButton.bounds(
                         this.leftPos, this.topPos, this.imageWidth, this.imageHeight),
-                mx, my);
+                mx, my,
+                (AbstractContainerScreen<?>) (Object) this);
     }
 }

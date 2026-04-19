@@ -715,7 +715,7 @@ The eight questions that were open during the draft pass are now resolved per ad
 
 - **Grafted-slot backdrop panels (F8, F15, any future M4 consumer) do not use regions in v1.** Their visual-layer positioning derives from fixed slot coordinates via shared constants in the consumer's codebase. A by-reference backdrop stacked in a by-value region would drift out of alignment with the handler-layer slots it visually represents (§4A, §5.6). If a third consumer hand-rolls the same pattern, Rule of Three reconsiders adding a "fixed-anchor, non-stacking" region variant.
 - **Dynamic panel construction is unsupported.** The library contract assumes consumers construct exactly one adapter per logical panel at mod init, as a `static final` field. There is no `unregister()` API and no `WeakReference` fallback. Consumers needing per-session UI use raw `ScreenOriginFn` lambdas (opt out of regions).
-- **Vanilla-HUD-element awareness.** Regions do not know about vanilla hotbar / XP bar / boss bar / chat. Consumers that need clearance from vanilla HUD use the `.anchor(...)` path with manual offset (see §5.4).
+- **Vanilla-HUD-element awareness.** Regions do not know about vanilla hotbar / XP bar / boss bar / chat. Consumers that need clearance from vanilla HUD use the `.anchor(...)` path with manual offset (see §5.4). **Inventory chrome** (creative tabs, recipe book widget) is handled by M7 — see `Phase 12.5/M7_CHROME_AWARE_REGIONS.md`. Consumers get chrome-aware region placement automatically; modded screens register their own chrome extents via `InventoryChrome.register(...)`.
 - **Vanilla-menu-element-anchored regions.** No "above crafting grid" region — consumers manually offset via `ScreenOriginFn` if they need menu-internal placement. The shulker palette toggle is the canonical example.
 - **Priority stacking.** Registration order only. No consumer-supplied priority knob.
 - **User override.** No runtime API for the player to re-stack or relocate regions.
@@ -799,3 +799,11 @@ Every future rendering context MenuKit adds — tooltip overlay, boss-bar overla
 ### Status
 
 Library additions landed. V4.2 inventory decoration ships against the new primitives — consumer code is scenario-wiring-only, no origin math, no background painting, no padding hacks. 13a migration list filed. `/mkverify v4 cross inventory` validates render parity with HUD + standalone per the V4.2 test.
+
+### M7 chrome — follow-on
+
+`ScreenPanelAdapter` completeness closed the rendering-pipeline gap (padding + auto-background). A separate class of gap, `InventoryRegion` chrome-awareness, surfaced during V2 probe validation and resolved via **M7 — chrome-aware inventory regions** (`Phase 12.5/M7_CHROME_AWARE_REGIONS.md`). M7 introduces `InventoryChrome` registry + per-screen `ChromeProvider` functional interface, consulted by `RegionRegistry.inventoryOriginFn` before delegating to pure `RegionMath`.
+
+v1 ships providers for `CreativeModeInventoryScreen` (static `ChromeExtents(25, 0, 0, 26)` — visible-tab-edge alignment, derived from vanilla's `checkTabHovering` hit-test geometry) and `InventoryScreen` (dynamic recipe-book chrome via vanilla's `RecipeBookComponent.updateTabs` formula). Other recipe-book screens (CraftingScreen, FurnaceScreen, SmokerScreen, BlastFurnaceScreen) extend the v1 scope once V2's completeness pass validates the pattern.
+
+M7 closes what Principle 9 predicts for region anchoring: `TOP_ALIGN_LEFT` means the same thing regardless of which screen subclass hosts it — the screen's chrome is library knowledge, not consumer burden. The §11 non-goal language updates accordingly — **inventory chrome** (creative tabs, recipe book widget) is now a library concern via M7; **HUD chrome** (hotbar, XP bar, boss bar, chat) remains consumer-owned per the original non-goal.

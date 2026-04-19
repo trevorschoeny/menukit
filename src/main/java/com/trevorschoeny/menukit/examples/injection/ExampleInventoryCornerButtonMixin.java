@@ -77,7 +77,8 @@ public abstract class ExampleInventoryCornerButtonMixin {
         ExampleInventoryCornerButton.ADAPTER.render(
                 g,
                 ExampleInventoryCornerButton.bounds(leftPos, topPos, imageWidth, imageHeight),
-                mx, my);
+                mx, my,
+                (AbstractContainerScreen<?>) (Object) this);
     }
 
     @Inject(
@@ -90,7 +91,8 @@ public abstract class ExampleInventoryCornerButtonMixin {
         if (!examples$appliesToThisScreen()) return;
         if (ExampleInventoryCornerButton.ADAPTER.mouseClicked(
                 ExampleInventoryCornerButton.bounds(leftPos, topPos, imageWidth, imageHeight),
-                event.x(), event.y(), event.button())) {
+                event.x(), event.y(), event.button(),
+                (AbstractContainerScreen<?>) (Object) this)) {
             cir.setReturnValue(true);
         }
     }
