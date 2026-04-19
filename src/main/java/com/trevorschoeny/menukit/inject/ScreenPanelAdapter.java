@@ -3,15 +3,44 @@ package com.trevorschoeny.menukit.inject;
 import com.trevorschoeny.menukit.core.InventoryRegion;
 import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.PanelElement;
+import com.trevorschoeny.menukit.core.PanelRendering;
+import com.trevorschoeny.menukit.core.PanelStyle;
 import com.trevorschoeny.menukit.core.RenderContext;
 
 import net.minecraft.client.gui.GuiGraphics;
+
+import java.util.Optional;
 
 /**
  * Bundles the mechanical parts of rendering a {@link Panel} inside a vanilla
  * screen and dispatching input to it. Consumers hold this as a {@code @Unique}
  * field on their mixin and call its methods from inside the mixin's own render
  * and {@code mouseClicked} methods.
+ *
+ * <h3>Context-parity with other rendering contexts</h3>
+ *
+ * After the Phase 12.5 V4 pass, this adapter renders panels identically to
+ * the other two MenuKit rendering contexts (standalone {@code MenuKitScreen},
+ * HUD {@code MKHudPanel}):
+ *
+ * <ul>
+ *   <li><b>{@link PanelStyle} auto-render.</b> When the wrapped panel's style
+ *       is not {@link PanelStyle#NONE}, the adapter paints the panel
+ *       background before rendering elements. Consumers previously had to
+ *       render backgrounds themselves; they don't anymore.</li>
+ *   <li><b>Content padding.</b> Elements render inside a padded content area.
+ *       Padding defaults to {@link #DEFAULT_PADDING} (matches
+ *       {@code MenuKitScreen.PANEL_PADDING}) — set explicitly via the
+ *       {@code padding} constructor parameter, including {@code 0} for
+ *       flush-edge behavior.</li>
+ * </ul>
+ *
+ * <p>These defaults may shift the visual output of panels that were
+ * constructed against the pre-12.5 adapter (no background, no padding).
+ * Consumer mods migrate during Phase 13a by either declaring
+ * {@link PanelStyle#NONE} explicitly + passing {@code padding=0}, or adjusting
+ * their origin functions to account for the new padded content offset. See
+ * {@code menukit/Design Docs/Phase 12/M5_REGION_SYSTEM.md} §12.5a addendum.
  *
  * <h3>Scope — what the adapter bundles, what it doesn't</h3>
  *
@@ -21,13 +50,16 @@ import net.minecraft.client.gui.GuiGraphics;
  *       {@link ScreenOriginFn} that computes the panel's screen-space origin
  *       from the vanilla screen's bounds. The adapter calls it per frame so
  *       resizes are handled automatically.</li>
+ *   <li><b>Panel-background rendering.</b> When {@code panel.getStyle() != NONE},
+ *       paints the styled background at the panel's origin with padding-inclusive
+ *       dimensions.</li>
  *   <li><b>Render dispatch.</b> Constructs the {@link RenderContext} with the
- *       computed origin and mouse coords, iterates visible elements, and
- *       calls {@code element.render(ctx)}.</li>
- *   <li><b>Input dispatch.</b> Translates mouse coordinates, hit-tests each
- *       visible element against its bounds, and dispatches {@code mouseClicked}
- *       to elements under the cursor. Returns whether any element consumed
- *       the click.</li>
+ *       padded content origin and mouse coords, iterates visible elements,
+ *       and calls {@code element.render(ctx)}.</li>
+ *   <li><b>Input dispatch.</b> Translates mouse coordinates with padding
+ *       applied, hit-tests each visible element against its bounds, and
+ *       dispatches {@code mouseClicked} to elements under the cursor. Returns
+ *       whether any element consumed the click.</li>
  * </ul>
  *
  * The adapter explicitly does <b>not</b> bundle policy decisions:
@@ -40,24 +72,8 @@ import net.minecraft.client.gui.GuiGraphics;
  *       {@code !panel.isVisible()} but does not manage visibility itself.</li>
  *   <li><b>Click cancellation.</b> {@link #mouseClicked} returns whether the
  *       click landed on an interactive element; the consumer's mixin inspects
- *       the return value and decides whether to cancel vanilla's handling
- *       (e.g., {@code cir.setReturnValue(true)}). Some consumers swallow
- *       clicks; some want vanilla to also see them.</li>
+ *       the return value and decides whether to cancel vanilla's handling.</li>
  * </ul>
- *
- * <h3>Panel-background rendering</h3>
- *
- * The adapter renders elements only. If the consumer's panel uses a non-NONE
- * {@link com.trevorschoeny.menukit.core.PanelStyle} (RAISED, DARK, INSET),
- * the consumer is responsible for rendering the background themselves — call
- * {@code PanelRendering.renderPanel(...)} from their mixin before
- * {@code adapter.render(...)}, or use elements that render their own
- * backgrounds (like {@code Button} with its built-in panel-styled background).
- *
- * <p>For the majority of Phase 10 audit cases, panels use {@code PanelStyle.NONE}
- * because the elements inside (buttons, icons) render their own styling.
- * Background support may be extended into the adapter if Phase 11 consumer
- * refactors surface demand.
  *
  * <h3>Lifecycle with the mixin</h3>
  *
@@ -74,24 +90,51 @@ import net.minecraft.client.gui.GuiGraphics;
  */
 public final class ScreenPanelAdapter {
 
+    /**
+     * Default content padding — matches {@code MenuKitScreen.PANEL_PADDING}.
+     * Consumers wanting flush-edge behavior pass {@code 0} explicitly via
+     * the padding-accepting constructor overload.
+     */
+    public static final int DEFAULT_PADDING = 7;
+
     private final Panel panel;
     private final ScreenOriginFn originFn;
+    private final int padding;
+
+    // ── Constructors ────────────────────────────────────────────────────
 
     /**
-     * @param panel    the panel to render and dispatch input to
-     * @param originFn computes the panel's screen-space origin from the
-     *                 vanilla screen's bounds; called per frame
+     * Constructs an adapter with a consumer-supplied origin function and
+     * default content padding ({@link #DEFAULT_PADDING}).
      */
     public ScreenPanelAdapter(Panel panel, ScreenOriginFn originFn) {
-        this.panel = panel;
-        this.originFn = originFn;
+        this(panel, originFn, DEFAULT_PADDING);
     }
 
     /**
-     * Region-aware overload. Registers the panel into the given
-     * {@link InventoryRegion} via {@link RegionRegistry} and wires an origin
-     * function that consults the registry each frame to resolve the panel's
-     * stacked position within the region.
+     * Constructs an adapter with a consumer-supplied origin function and
+     * explicit content padding.
+     */
+    public ScreenPanelAdapter(Panel panel, ScreenOriginFn originFn, int padding) {
+        this.panel = panel;
+        this.originFn = originFn;
+        this.padding = padding;
+    }
+
+    /**
+     * Region-aware constructor using default content padding. See
+     * {@link #ScreenPanelAdapter(Panel, InventoryRegion, int)} for the
+     * padding-accepting overload.
+     */
+    public ScreenPanelAdapter(Panel panel, InventoryRegion region) {
+        this(panel, region, DEFAULT_PADDING);
+    }
+
+    /**
+     * Region-aware constructor with explicit padding. Registers the panel
+     * into the given {@link InventoryRegion} via {@link RegionRegistry} with
+     * the declared padding so stacking math and overflow checks both account
+     * for it.
      *
      * <p><b>Singleton contract.</b> Construct exactly one adapter per logical
      * panel, typically as a {@code static final} field at mod init. Dynamic
@@ -99,45 +142,82 @@ public final class ScreenPanelAdapter {
      * there is no {@code unregister()}. See M5 design doc §6.1.
      *
      * <p>Render and input dispatch short-circuit when the region resolver
-     * returns {@link ScreenOrigin#OUT_OF_REGION} (panel overflows the region's
-     * available space).
+     * returns {@link ScreenOrigin#OUT_OF_REGION} (panel overflows the
+     * region's available space). The registry logs a one-shot warning the
+     * first time a panel overflows a given region (see
+     * {@link RegionRegistry} for the deduplication semantics).
      */
-    public ScreenPanelAdapter(Panel panel, InventoryRegion region) {
+    public ScreenPanelAdapter(Panel panel, InventoryRegion region, int padding) {
         this.panel = panel;
+        this.padding = padding;
+        RegionRegistry.registerInventory(panel, region, padding);
         this.originFn = RegionRegistry.inventoryOriginFn(panel, region);
-        RegionRegistry.registerInventory(panel, region);
     }
+
+    // ── Accessors ──────────────────────────────────────────────────────
 
     /** Returns the panel this adapter wraps. */
     public Panel getPanel() {
         return panel;
     }
 
+    /** Returns the content padding applied inside the panel. */
+    public int getPadding() {
+        return padding;
+    }
+
     /**
-     * Renders the panel's visible elements at the origin computed from the
-     * given screen bounds. No-op when {@code !panel.isVisible()}.
+     * Returns the panel's screen-space origin (top-left corner of the
+     * background rectangle) for the given screen bounds, or empty when the
+     * panel is invisible or out-of-region.
      *
-     * <p>Invisible elements (those whose {@link PanelElement#isVisible} returns
-     * false) are skipped individually. The panel's overall visibility is
-     * checked once at entry for efficiency.
-     *
-     * @param graphics     the graphics handle from the vanilla render call
-     * @param screenBounds the vanilla screen's layout bounds this frame
-     * @param mouseX       screen-space mouse X, for hover detection
-     * @param mouseY       screen-space mouse Y, for hover detection
+     * <p>Added in Phase 12.5 (V4 finding) so consumers rendering sibling
+     * decorations alongside the adapter's panel (tooltips, hover overlays,
+     * related info panels) don't re-derive origin math from {@code RegionMath}.
+     * The content area begins at {@code origin + getPadding()}.
+     */
+    public Optional<ScreenOrigin> getOrigin(ScreenBounds screenBounds) {
+        if (!panel.isVisible()) return Optional.empty();
+        ScreenOrigin origin = originFn.compute(screenBounds);
+        if (origin == ScreenOrigin.OUT_OF_REGION) return Optional.empty();
+        return Optional.of(origin);
+    }
+
+    // ── Render + input ─────────────────────────────────────────────────
+
+    /**
+     * Renders the panel background (when style is not {@link PanelStyle#NONE})
+     * and the panel's visible elements at the origin computed from the given
+     * screen bounds. No-op when {@code !panel.isVisible()} or when the
+     * region-aware origin resolver returns out-of-region.
      */
     public void render(GuiGraphics graphics, ScreenBounds screenBounds,
                        int mouseX, int mouseY) {
         if (!panel.isVisible()) return;
 
         ScreenOrigin origin = originFn.compute(screenBounds);
-        // Region-aware originFns return OUT_OF_REGION when the panel would
-        // overflow its region. Short-circuit both render and input here so
-        // the panel behaves as hidden when out of space.
         if (origin == ScreenOrigin.OUT_OF_REGION) return;
 
+        // Padding-inclusive dimensions for the background rectangle.
+        int panelWidth = panel.getWidth() + 2 * padding;
+        int panelHeight = panel.getHeight() + 2 * padding;
+
+        // Auto-render the panel background when the declared style is
+        // not NONE. Consumers who want flush-element rendering without a
+        // background use PanelStyle.NONE on their Panel.
+        if (panel.getStyle() != PanelStyle.NONE) {
+            PanelRendering.renderPanel(graphics,
+                    origin.x(), origin.y(),
+                    panelWidth, panelHeight,
+                    panel.getStyle());
+        }
+
+        // Content origin is the panel origin shifted inward by padding.
+        // Elements' childX / childY are relative to this content origin,
+        // matching MenuKitScreen and MKHudPanel semantics.
         RenderContext ctx = new RenderContext(
-                graphics, origin.x(), origin.y(), mouseX, mouseY);
+                graphics, origin.x() + padding, origin.y() + padding,
+                mouseX, mouseY);
 
         for (PanelElement element : panel.getElements()) {
             if (!element.isVisible()) continue;
@@ -147,41 +227,31 @@ public final class ScreenPanelAdapter {
 
     /**
      * Dispatches a mouse click to any visible element under the cursor.
-     * No-op (returns false) when {@code !panel.isVisible()}.
+     * No-op (returns false) when {@code !panel.isVisible()} or out-of-region.
      *
-     * <p>Hit-testing is screen-space: the adapter computes each element's
-     * screen-space bounds (origin + childX/childY + width/height) and
-     * dispatches {@code mouseClicked} to the first element whose bounds
-     * contain the cursor and whose {@code mouseClicked} returns true.
+     * <p>Hit-testing uses padded content origin so element bounds line up with
+     * where the elements actually rendered.
      *
-     * @param screenBounds the vanilla screen's layout bounds this frame
-     * @param mouseX       screen-space mouse X of the click
-     * @param mouseY       screen-space mouse Y of the click
-     * @param button       mouse button (0=left, 1=right, 2=middle)
-     * @return {@code true} if an element consumed the click. The consumer's
-     *         mixin inspects this to decide whether to cancel vanilla's
-     *         handling.
+     * @return {@code true} if an element consumed the click.
      */
     public boolean mouseClicked(ScreenBounds screenBounds,
                                 double mouseX, double mouseY, int button) {
         if (!panel.isVisible()) return false;
 
         ScreenOrigin origin = originFn.compute(screenBounds);
-        // Out-of-region panels consume no clicks — they aren't rendered.
         if (origin == ScreenOrigin.OUT_OF_REGION) return false;
+
+        int contentX = origin.x() + padding;
+        int contentY = origin.y() + padding;
 
         for (PanelElement element : panel.getElements()) {
             if (!element.isVisible()) continue;
 
-            // Screen-space hit test against the element's bounds.
-            int sx = origin.x() + element.getChildX();
-            int sy = origin.y() + element.getChildY();
+            int sx = contentX + element.getChildX();
+            int sy = contentY + element.getChildY();
             if (mouseX < sx || mouseX >= sx + element.getWidth()) continue;
             if (mouseY < sy || mouseY >= sy + element.getHeight()) continue;
 
-            // Click is within this element's bounds. Dispatch; the element
-            // either consumes or falls through. Per PanelElement's contract,
-            // the coords passed are screen-space.
             if (element.mouseClicked(mouseX, mouseY, button)) {
                 return true;
             }

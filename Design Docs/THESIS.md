@@ -26,7 +26,7 @@ It is **not** a mixin toolkit for injecting into vanilla UI. Consumer mods that 
 
 ## Design principles
 
-Eight principles govern every design decision in MenuKit. They are ordered by load-bearing weight — the earlier principles override the later ones when they conflict.
+The following principles govern every design decision in MenuKit. They are ordered by load-bearing weight — the earlier principles override the later ones when they conflict.
 
 ### 1. Library, not platform
 
@@ -80,6 +80,8 @@ This principle forces the element API surface to stay narrow. Elements cannot re
 
 The test for this principle: *could this element, unchanged, render correctly in any of the three contexts if the container holding it did its part?* If no, the element has context-specific logic that should be pushed down into the container.
 
+Principle 9 carves the container further: its embedding is context-specific (this principle); its rendering pipeline is uniform across contexts (Principle 9). Together the two principles separate what varies by context (embedding) from what must not (rendering) — preserving separable failure modes.
+
 ### 6. Match vanilla's persistence patterns
 
 When MenuKit persists state, it uses NBT as the storage format, Fabric attachments as the transport, and keeps internal values as `Tag` rather than opaque `byte[]`.
@@ -115,6 +117,18 @@ M1 is the exception that proves the rule. Per-slot state has a library-shaped pe
 This principle forces two specific decisions. First, every stateful element ships a `linked`-style factory at introduction time — `Toggle.linked(supplier, callback)`, `Checkbox.linked(supplier, callback)`, and so on — so consumers never need to work around an element that owns its own state when they want to wire it to their own store. Second, when the library encounters pressure to "just add persistence for this one element type," the answer is to sharpen the lens (improve the supplier/callback ergonomics, reduce boilerplate, ship examples) rather than to add library-owned storage.
 
 The test for this principle: *when this element's state changes, could the consumer's underlying state (config, attachment, field) have changed by a completely different code path, and the element still reflect it correctly on the next frame?* If no, the element is owning state instead of lensing over it.
+
+### 9. Rendering pipelines are uniform across contexts; embedding is context-specific
+
+MenuKit's three rendering contexts host the same panels and elements. The pipeline that transforms a Panel into drawn pixels inside its bounding box — background paint, content padding, element layout, element dispatch — is shared across all contexts and behaves identically regardless of which container owns the panel. What differs between contexts is embedding: where the bounding box sits on the screen, how it relates to surrounding gameplay (blur backdrops, darkened fields, world-space integration), how input maps in (mouse presence, keyboard focus). Embedding is context-specific by nature. Rendering is not.
+
+Principle 5 established that elements work across contexts. Principle 9 carves the container further: its embedding is context-specific; its rendering pipeline is uniform. A consumer writing `new Panel(id, elements, PanelStyle.RAISED)` expects the RAISED background to paint wherever the panel embeds. A consumer placing elements at `childX = 0` expects the same padding inset in every context. The library-not-platform discipline only holds if the primitives behave the same everywhere they land.
+
+This principle forces where context-specific code lives. Embedding machinery (`PanelLayout.resolve`, `MKHudAnchor.resolve`, `RegionMath.resolveInventory/resolveHud`, screen-blur passes) stays in the container classes that own each context. Rendering pipeline (`PanelRendering.renderPanel`, background + padding + element dispatch) lives once and is consumed uniformly. New rendering capabilities land once for all contexts; new contexts adopt the existing pipeline and add only their embedding logic.
+
+Principle 9 crystallized from a concrete failure. `ScreenPanelAdapter`, shipped in Phase 10, was "rendering-lite" — it dispatched element renders but not panel backgrounds or padding. This wasn't malicious; the principle didn't exist yet to constrain it. Phase 11 consumers worked around the gap because they didn't need the full pipeline. Phase 12.5 V4 tried to push a styled panel through the adapter and nothing appeared. The principle surfaced; the gap closed additively; future contexts now have a checklist to clear before they're considered complete.
+
+The test for this principle: *when a rendering behavior varies between contexts, does the variation have a named reason rooted in the screen's relationship to gameplay, not in the container's implementation?* If no, the variation is a violation and the rendering logic belongs in the shared pipeline.
 
 ## The ship-vs-consumer line
 

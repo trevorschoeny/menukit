@@ -116,7 +116,12 @@ public class MenuKitScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
-        this.renderBackground(graphics, mouseX, mouseY, delta);
+        // Vanilla Screen.render() calls renderBackground() internally (which
+        // applies the blur effect). Calling renderBackground() explicitly
+        // here AND then super.render() triggers blur twice and fails the
+        // "Can only blur once per frame" check in 1.21.x. Let super handle
+        // the background; panels render afterward so they layer on top.
+        super.render(graphics, mouseX, mouseY, delta);
 
         // Panel backgrounds
         for (Panel panel : panels) {
@@ -145,8 +150,6 @@ public class MenuKitScreen extends Screen {
                 element.render(ctx);
             }
         }
-
-        super.render(graphics, mouseX, mouseY, delta);
     }
 
     // ── Input ───────────────────────────────────────────────────────────

@@ -742,3 +742,60 @@ Integration is additive: `ScreenPanelAdapter` gets a new constructor overload, `
 - Keep `RegionMath` pure. Resolve functions take `(bounds, pw, ph, prefix)` and return coordinates. Registry state stays out of the math. This makes region semantics referentially transparent given explicit inputs — and testable without registry setup, which is what lets `/mkverify all` run the math without spinning up a screen.
 - Registration-as-side-effect-of-construction makes class-load order an implicit input to stacking. Document it as a known property; don't chase it as a bug during debugging.
 - Panel registration contract: stable singletons only. If the code starts wanting `unregister()`, that's a sign of dynamic Panel construction, which isn't the intended usage.
+
+---
+
+## §12.5a — Addendum: ScreenPanelAdapter completeness (Phase 12.5)
+
+Phase 12.5 V4 validation surfaced four gaps in `ScreenPanelAdapter` that broke the component-library promise of "identical elements render identically across contexts":
+
+1. `ScreenPanelAdapter` rendered elements only — no panel-background rendering despite `Panel.getStyle()` being RAISED/INSET/DARK. Consumers had to manually call `PanelRendering.renderPanel` and re-derive origin via `RegionMath` to align.
+2. No content padding — unlike `MenuKitScreen`'s baked-in `PANEL_PADDING = 7` and `MKHudPanel.padding()`, the adapter rendered elements flush with its origin. `childX = 0` meant three different things in three contexts.
+3. `RegionMath.resolveInventory` / `resolveHud` returned `Optional.empty()` silently on overflow. Panels wider/taller than a region's axial capacity rendered nothing with no log signal. Consumer debug time spent hunting wrong causes.
+4. The adapter's origin was private. Consumers wanting to paint sibling decorations (tooltips, hover overlays, related info) re-derived origin math.
+
+Disposition: **in-phase additive extension of `ScreenPanelAdapter` + `RegionRegistry`.** Advisor-reviewed. Scope is purely additive: no existing API signatures change; no behavioral coupling removed. Visual output of pre-12.5 consumers shifts — Phase 13a visual-diff review catches placement drift.
+
+### Closed-gap surface
+
+- **`ScreenPanelAdapter.DEFAULT_PADDING = 7`** — public constant, matches `MenuKitScreen.PANEL_PADDING`. Content origin is panel origin + padding; element `childX` / `childY` are relative to the content area.
+- **New constructor overloads**: `new ScreenPanelAdapter(Panel, ScreenOriginFn, int padding)` and `new ScreenPanelAdapter(Panel, InventoryRegion, int padding)`. Existing two-arg constructors default padding to `DEFAULT_PADDING`.
+- **`ScreenPanelAdapter.render` auto-renders background** when `panel.getStyle() != PanelStyle.NONE`. Paints a padding-inclusive rectangle at the panel origin before dispatching element renders. Consumers who want flush rendering without a background declare `PanelStyle.NONE` on their `Panel`.
+- **`ScreenPanelAdapter.getOrigin(screenBounds)` → `Optional<ScreenOrigin>`** — public accessor returning the panel's screen-space top-left. Returns empty when invisible or out-of-region. Content area begins at `origin + getPadding()`.
+- **`RegionRegistry.registerInventory(Panel, InventoryRegion, int padding)`** — stores padding per (panel, region) registration. Axial-prefix stacking math and `RegionMath.resolveInventory` overflow checks both use padding-inclusive extents.
+- **`RegionRegistry.inventoryOriginFn`** and the HUD render loop in `MenuKit.java` — log a one-shot `LOGGER.warn` the first time each (panel identity, region) pair overflows. Keyed on panel identity (not class) via `WeakHashMap`; deduplication is per-session. Message names the panel, the region, the axial extent, the region capacity, and the prefix from preceding panels.
+- **`RegionRegistry.warnHudOverflowOnce(...)`** — parallel helper for `MKHudPanelDef` + `HudRegion`.
+
+### Consumer impact (for Phase 13a review)
+
+Four current consumers of `ScreenPanelAdapter`: IP `SettingsGearDecoration`, IP `LockOverlayDecoration`, sandboxes buttons, shulker-palette toggle. Most constructed Panels without explicitly declaring `PanelStyle` — `new Panel(id, elements)` defaults to `RAISED`. Pre-12.5, the adapter ignored this; post-12.5, it renders a RAISED background.
+
+Visual shifts those consumers will see on 13a relaunch:
+- A RAISED panel background appears behind what was previously a transparent-panel decoration. For `Button.icon`-only decorations (IP settings gear), this is raised-on-raised — a visible ghosted rectangle around the button.
+- Elements shift by 7 pixels inward (content padding). `ScreenOriginFn` calibration points drift by 7.
+
+Migration path per decoration:
+- **If the decoration doesn't want a panel background** (IP settings gear, IP lock overlay — likely the majority): declare `PanelStyle.NONE` on the `Panel` AND pass `padding = 0` to the adapter to preserve pre-12.5 placement exactly.
+- **If the decoration does want a panel background**: accept the visual shift, re-tune `ScreenOriginFn` offsets to account for padding.
+
+The Phase 13a review passes each decoration through this checklist as a structured migration step, not an ad-hoc visual fix.
+
+### Design-axis decisions locked
+
+- **Name.** `ScreenPanelAdapter` keeps its name. The class now renders panels fully (style + padding + elements), contradicting the "adapter" framing, but rename cost exceeds benefit given four current consumers. Class javadoc documents the historical name explicitly.
+- **Padding default = 7.** Matches `MenuKitScreen.PANEL_PADDING`. Preserves the "just works" promise over preserving accidentally-inconsistent pre-12.5 placement. Current consumers who want flush-edge behavior pass `padding = 0` explicitly during 13a migration.
+- **One-shot warn keyed on Panel identity.** `WeakHashMap<Panel, Set<InventoryRegion>>` — one entry per distinct Panel instance. A second adapter wrapping a new Panel instance logs independently. Resize-triggered re-warn on hidden→visible transition is **deferred** to a follow-up: V4 doesn't exhibit the dynamic-size case, and adding the transition detector before a consumer exercises it would cut against the "ship what we need" discipline. Filed for when evidence accumulates.
+- **Panel stays pure.** Padding lives on `ScreenPanelAdapter` (and implicitly on `MenuKitScreen`'s `PANEL_PADDING` and `MKHudPanel.padding()`), never on `Panel`. This preserves THESIS §5 — Panel is context-neutral; padding is context-specific machinery.
+- **RegionMath stays pure.** The warn log lives at callsites (`RegionRegistry.inventoryOriginFn` lambda, `MenuKit.renderHud` loop), not inside the math functions. Preserves the "registry state stays out of the math" invariant from §6.
+
+### THESIS Principle 9 (landed alongside these changes)
+
+The four gaps shared a root: `ScreenPanelAdapter` was shipped in Phase 10 as "rendering-lite," dispatching element renders but not the panel's background-paint or content-padding. The rendering pipeline that `MenuKitScreen` and `MKHudPanel` shared wasn't uniform; the adapter was outside it. Phase 11 consumers worked around the gap because they didn't push full-pipeline content through the adapter. Phase 12.5 V4 did, and the gap surfaced.
+
+Closing the four gaps additively was the tactical move. Naming the invariant that those gaps violated is the strategic one. THESIS Principle 9 — *"Rendering pipelines are uniform across contexts; embedding is context-specific"* — lands alongside this addendum. It splits the container's responsibilities cleanly: **embedding** (where the panel's bounding box sits, how the screen surrounds it with blur/darkening/world-integration) stays context-specific per Principle 5; **rendering pipeline** (what happens inside the bounding box — background, padding, element layout, element dispatch) is uniform across contexts.
+
+Every future rendering context MenuKit adds — tooltip overlay, boss-bar overlay, waystone UI, whatever Phase N ships — has a named checklist to clear before it's considered complete. Principle 9 makes that checklist explicit; its absence is what let Phase 10's adapter ship rendering-lite.
+
+### Status
+
+Library additions landed. V4.2 inventory decoration ships against the new primitives — consumer code is scenario-wiring-only, no origin math, no background painting, no padding hacks. 13a migration list filed. `/mkverify v4 cross inventory` validates render parity with HUD + standalone per the V4.2 test.
