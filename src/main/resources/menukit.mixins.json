@@ -15,8 +15,6 @@
     "MKHasClickedOutsideMixin",
     "MKHasClickedOutsideCreativeMixin",
     "SlotPositionAccessor",
-    "ProbeRenderMixin",
-    "ProbeRenderRecipeBookMixin",
     "KeyEntryAccessor",
     "KeyMappingAccessor",
     "MKGuiMixin",
