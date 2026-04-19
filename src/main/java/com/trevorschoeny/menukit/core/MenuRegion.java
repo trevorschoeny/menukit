@@ -22,7 +22,7 @@ package com.trevorschoeny.menukit.core;
  * <p>See {@code Design Docs/Phase 12/M5_REGION_SYSTEM.md} for the full design
  * and {@code M5_REGION_SPECS.md} for the authoritative region catalog.
  */
-public enum InventoryRegion {
+public enum MenuRegion {
     LEFT_ALIGN_TOP,
     LEFT_ALIGN_BOTTOM,
     RIGHT_ALIGN_TOP,

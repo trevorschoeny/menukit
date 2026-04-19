@@ -9,10 +9,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Library-owned registry of vanilla-inventory-chrome extents — the pixel
+ * Library-owned registry of vanilla-menu-chrome extents — the pixel
  * amounts each {@link AbstractContainerScreen} subclass draws <i>outside</i>
  * its declared {@code imageWidth × imageHeight} frame. The M5 region system
- * consults this registry when resolving inventory-region origins so panels
+ * consults this registry when resolving MenuContext region origins so panels
  * anchor to the effective visible edge of the screen, not the declared
  * frame edge.
  *
@@ -38,14 +38,14 @@ import java.util.Map;
  * be a one-frame visual transition as the provider picks up the new state.
  * In practice imperceptible; acceptable for current cases.
  */
-public final class InventoryChrome {
+public final class MenuChrome {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
-    private InventoryChrome() {}
+    private MenuChrome() {}
 
     /**
-     * Per-side chrome extents outside the declared inventory frame.
+     * Per-side chrome extents outside the declared menu frame.
      * {@code top}/{@code left}/{@code right}/{@code bottom} are non-negative
      * pixel amounts added to the frame's bounds to produce the effective
      * visible boundary.
@@ -86,12 +86,12 @@ public final class InventoryChrome {
             Class<T> screenClass, ChromeProvider provider) {
         ChromeProvider existing = PROVIDERS.get(screenClass);
         if (existing != null) {
-            LOGGER.warn("[InventoryChrome] provider for {} already registered — ignoring second registration",
+            LOGGER.warn("[MenuChrome] provider for {} already registered — ignoring second registration",
                     screenClass.getName());
             return;
         }
         PROVIDERS.put(screenClass, provider);
-        LOGGER.info("[InventoryChrome] registered provider for {}", screenClass.getSimpleName());
+        LOGGER.info("[MenuChrome] registered provider for {}", screenClass.getSimpleName());
     }
 
     /**
@@ -99,7 +99,7 @@ public final class InventoryChrome {
      * match on {@code screen.getClass()}; returns {@link ChromeExtents#NONE}
      * for screens without a registered provider.
      *
-     * <p>Called per-frame from {@code RegionRegistry.inventoryOriginFn} as
+     * <p>Called per-frame from {@code RegionRegistry.menuOriginFn} as
      * part of origin computation. Must be cheap.
      */
     public static ChromeExtents of(AbstractContainerScreen<?> screen) {

@@ -32,15 +32,15 @@ public final class RegionMath {
     /** Gap between stacked panels along the flow axis (pixels, GUI-scaled). */
     public static final int STACK_GAP = 2;
 
-    // ── Inventory context ───────────────────────────────────────────────
+    // ── MenuContext ─────────────────────────────────────────────────────
 
     /**
-     * Resolves an inventory-region panel's origin. Returns
+     * Resolves a MenuContext region panel's origin. Returns
      * {@link Optional#empty()} when {@code prefix + panel_extent} exceeds
      * the region's available space (menu height for side regions, menu
      * width for top/bottom regions).
      *
-     * @param region  the inventory region the panel belongs to
+     * @param region  the MenuContext region the panel belongs to
      * @param bounds  the vanilla menu's container-frame bounds this frame
      * @param pw      the panel's width (from {@link Panel#getWidth()})
      * @param ph      the panel's height (from {@link Panel#getHeight()})
@@ -48,8 +48,8 @@ public final class RegionMath {
      *                same region, plus one {@link #STACK_GAP} per preceding
      *                panel
      */
-    public static Optional<ScreenOrigin> resolveInventory(
-            InventoryRegion region, ScreenBounds bounds,
+    public static Optional<ScreenOrigin> resolveMenu(
+            MenuRegion region, ScreenBounds bounds,
             int pw, int ph, int prefix) {
 
         int leftPos = bounds.leftPos();
