@@ -204,6 +204,8 @@ This tests supplier-driving-between-elements (the interesting bug shape — an e
 
 **Dependencies.** V1 must pass first (elements render correctly standalone) before this scenario's manual check is diagnosable.
 
+**Creative-screen probe behavior (post-M8 scoping).** MenuContext probes fire on `CreativeModeInventoryScreen` — the M7 chrome provider accounts for creative's tab rows (25/26 px visible extents), and the registry dispatches via class-ancestry targeting. SlotGroupContext probes targeting `PLAYER_INVENTORY` correctly skip on creative — `ItemPickerMenu` has no registered resolver, which is the designed-for behavior per M8 §5.4 (Runtime category mutation non-goal; ItemPickerMenu is the canonical v1 skip case). This split is expected, not a bug. Future debuggers seeing the pink SlotGroup probe absent on creative should confirm M7 chrome on creative still works (MenuContext probes visible against visible tab edges) before chasing a chrome hypothesis — the absence is in the slot-group resolver layer, not in the chrome layer.
+
 ### V3 — Visibility lifecycle and inertness [automated]
 
 **Purpose.** The inertness contract (THESIS principle 3 + `/mkverify all` contract 5) holds under realistic consumer patterns. Hidden means invisible to the world — no click capture, no render tick, no sync leak, no data leak.

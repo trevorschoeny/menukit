@@ -172,6 +172,13 @@ Computed per frame (screen leftPos/topPos shift on resize and recipe-book toggle
 
 **Caching constraint.** If a menu adds slots dynamically mid-session, the cached category map goes stale — the adapter renders against the originally resolved slot set and the new slots won't appear in the bounding box. Re-resolution is not supported in v1; see §12 "Runtime category mutation." Menus with dynamic slot sets (rare in vanilla; potentially present in modded menus) either (a) register a resolver that includes all eventual slots at menu-open time, or (b) live outside SlotGroupContext and decorate via the lambda escape hatch.
 
+**Canonical example: `CreativeModeInventoryScreen.ItemPickerMenu`.** Vanilla's creative-inventory screen is the practical case that makes this non-goal concrete. Two characteristics disqualify it from v1 SlotGroupContext coverage, both surfaced during V2 probe validation:
+
+1. **Not `InventoryMenu`.** Creative uses a dedicated inner class `CreativeModeInventoryScreen.ItemPickerMenu` that extends `AbstractContainerMenu` directly, not `InventoryMenu`. M8's exact-class resolver map (§5.3) finds no match on `ItemPickerMenu.class` and returns an empty category set.
+2. **Slot composition changes per tab.** `ItemPickerMenu.setSelectedTab(...)` rebuilds the slot list entirely — non-INVENTORY tabs expose 45 creative items + 9 hotbar slots; the INVENTORY tab exposes the player's full inventory (1 result + 4 crafting + 4 armor + 27 inv + 9 hotbar + 1 offhand = 46 slots). A resolver that handled one tab would produce stale slot bounds after any tab switch.
+
+Together these make ItemPickerMenu the canonical v1 skip case. A SlotGroupContext probe targeting `PLAYER_INVENTORY` correctly does not fire on the creative screen — the behavior is expected, not a bug. M8 v2 dynamic-resolver support (see §12) would address this class of menu.
+
 ### 5.5 Region — SlotGroupRegion
 
 Parallel to `MenuRegion`, eight values, different type. Same semantics applied to the slot-group bounding box rather than the screen frame. A `SlotGroupRegion.TOP_ALIGN_LEFT` panel anchors above the top-left of the slot group, stacks rightward.
@@ -470,6 +477,24 @@ new ScreenPanelAdapter(panel, MenuRegion.TOP_ALIGN_RIGHT)
 
 No more `ScreenEvents.AFTER_INIT` boilerplate in consumers. No more class-filter duplication. The library owns the hook.
 
+**Render injection point — mixin, not Fabric's `afterRender`.** The initial draft of this section used `ScreenEvents.afterRender` for per-frame render dispatch (shown in the sketch above). V2 probe validation surfaced that this is the wrong hook for render: Fabric's `GameRendererMixin.onRenderScreen` invokes `afterRender` *after* `Screen.renderWithTooltipAndSubtitles` returns, which is *after* `GuiGraphics.renderDeferredElements()` flushes the tooltip queue populated by `setTooltipForNextFrame`. Panels rendered in that hook overdraw tooltips.
+
+This is a Principle 9 violation at the embedding layer. Tooltip layering is a gameplay-rooted ordering concern — tooltips must visually dominate so players can read hovered-slot information — so panels overdrawing tooltips is a variation with no gameplay reason. Principle 9 says the library closes that kind of gap.
+
+The shipped fix uses a library-private mixin (`com.trevorschoeny.menukit.mixin.MenuKitPanelRenderMixin`) that injects into `AbstractContainerScreen.render` at `@At(value = "INVOKE", target = "...renderCarriedItem(...)V")`. This puts panel rendering *before* the `renderCarriedItem` call, so the layer ordering becomes:
+
+1. `renderContents`: slots + labels (base stratum)
+2. **Panels (mixin injection point)** — still base stratum, painter's-algorithm draws them above slots
+3. `renderCarriedItem`: cursor-carried item on a new stratum (`nextStratum()`)
+4. `renderSnapbackItem`: snapback animation stratum
+5. After `render()` returns: `renderDeferredElements()` flushes tooltip queue — on top of everything
+
+Result: panels above slots, tooltips + cursor above panels. Principle 9 layering restored.
+
+**Click dispatch stays on `ScreenMouseEvents.allowMouseClick`.** Input events don't have a render-ordering constraint — `allowMouseClick` fires per-click regardless of where in the render pipeline it sits — so no mixin is needed for input. Only render dispatch moved to the mixin path.
+
+Per-screen match lists populated at screen-open are cached in `ScreenPanelRegistry.SCREEN_DATA` (WeakHashMap keyed on the `AbstractContainerScreen` instance). The mixin reads this map to find the panels matching the current screen; the click hook reads the same cached list. Cache entries GC when the screen is unreferenced — no manual cleanup on screen close.
+
 ### 8.3 Cancellation decision
 
 The current per-consumer pattern returns `true` from `allowMouseClick` to let vanilla process clicks that miss the panel. The library-owned pipeline keeps this default. v1 ships the simple `return true` default.
@@ -615,7 +640,7 @@ V2 section and elsewhere: rename "InventoryContext" → "MenuContext". Add SlotG
 - **"Any category" targeting for SlotGroupContext.** No `.onAny()`. Categories are the point.
 - **Category inheritance.** `PLAYER_INVENTORY` is not a "parent" of anything. Tags are flat.
 - **Chrome for slot groups.** The slot group's bounding box is inside the screen frame; the screen's chrome is handled by M7 at the screen level.
-- **Runtime category mutation.** A menu's resolver returns its category map once per screen-open; re-resolution is not supported. If a menu adds slots dynamically mid-session (rare), the consumer rebuilds the screen.
+- **Runtime category mutation.** A menu's resolver returns its category map once per screen-open; re-resolution is not supported. If a menu adds slots dynamically mid-session (rare), the consumer rebuilds the screen. See §5.4's canonical example (`ItemPickerMenu`) for what this non-goal means in practice. **Future work — M8 v2 dynamic resolvers.** When evidence accumulates for dynamic-slot-menu support (creative inventory today; modded menus with tab-like transitions tomorrow), the library can extend resolvers to re-run on menu state changes. Not Phase 12.5 scope; Phase 13 evidence-gatherer.
 - **Multiple region systems per context.** Each context has one Region enum (`MenuRegion`, `SlotGroupRegion`, `HudRegion`, `StandaloneRegion`). No sub-regions or nested regions in v1.
 - **Back-compat shims for the rename.** `InventoryRegion` is removed, not deprecated. Phase 12.5 is pre-1.0; breaking rename is cheap. See Principle 11's evidence basis.
 - **Unregister / removal APIs.** Adapters and resolvers are process-lifetime, same as M7.

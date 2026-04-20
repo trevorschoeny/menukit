@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 
 /**
  * Library-owned registry of MenuContext {@link ScreenPanelAdapter}s that
@@ -46,9 +47,14 @@ import java.util.Set;
  *       fails the client boot visibly, naming each orphan's panel ID.</li>
  *   <li><b>Dispatch.</b> For each opened {@link AbstractContainerScreen},
  *       walk {@link #REGISTERED} and for adapters whose targeting matches
- *       the screen class, register per-screen {@code afterRender} +
- *       {@code allowMouseClick} hooks. Fabric handles per-screen lifetime
- *       cleanup when the screen closes.</li>
+ *       the screen class, cache the match list in {@link #SCREEN_DATA}
+ *       and register a {@code ScreenMouseEvents.allowMouseClick} hook.
+ *       Render dispatch runs via
+ *       {@link com.trevorschoeny.menukit.mixin.MenuKitPanelRenderMixin}
+ *       (injects at {@code INVOKE renderCarriedItem} so panels land in
+ *       the right render stratum — see M8 §8.2 for why Fabric's
+ *       {@code afterRender} is the wrong hook for render). Fabric handles
+ *       per-screen click-hook lifetime cleanup when the screen closes.</li>
  * </ol>
  *
  * <h3>Lambda-based adapters are exempt</h3>
@@ -89,6 +95,17 @@ public final class ScreenPanelRegistry {
             Collections.synchronizedList(new ArrayList<>());
 
     private static volatile boolean checkpointRun = false;
+
+    // Per-screen render-data cache populated at screen-open. The mixin
+    // (MenuKitPanelRenderMixin) reads this per-frame to dispatch panels at
+    // the correct render stratum; the click hook reads it for input
+    // dispatch. WeakHashMap keyed on Screen so entries GC when the screen
+    // is unreferenced — no manual cleanup on screen close.
+    private record ScreenRenderData(List<ScreenPanelAdapter> menuMatches,
+                                     List<SlotGroupMatch> slotGroupMatches) {}
+
+    private static final Map<AbstractContainerScreen<?>, ScreenRenderData> SCREEN_DATA =
+            Collections.synchronizedMap(new WeakHashMap<>());
 
     // ── API called by ScreenPanelAdapter ────────────────────────────────
 
@@ -220,18 +237,14 @@ public final class ScreenPanelRegistry {
 
         if (menuMatches.isEmpty() && slotGroupMatches.isEmpty()) return;
 
-        // Per-screen render + input hooks. Fabric auto-unregisters these
-        // when the screen closes, so no manual cleanup is needed.
-        ScreenEvents.afterRender(screen).register((s, graphics, mouseX, mouseY, delta) -> {
-            ScreenBounds frame = frameBounds(acs);
-            for (ScreenPanelAdapter adapter : menuMatches) {
-                adapter.render(graphics, frame, mouseX, mouseY, acs);
-            }
-            for (SlotGroupMatch match : slotGroupMatches) {
-                SlotGroupBounds sgBounds = computeSlotGroupBounds(match.slots, acs);
-                match.adapter.render(graphics, sgBounds, match.category, mouseX, mouseY, acs);
-            }
-        });
+        // Cache the match lists per-screen for the library-owned render
+        // path (MenuKitPanelRenderMixin) and the click hook below.
+        SCREEN_DATA.put(acs, new ScreenRenderData(menuMatches, slotGroupMatches));
+
+        // Click dispatch via Fabric's hook — input doesn't have a render-
+        // ordering constraint so no mixin is needed here. Render dispatch
+        // happens via MenuKitPanelRenderMixin; see §8.2 of M8 for why the
+        // render path can't use ScreenEvents.afterRender (tooltip layering).
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
             ScreenBounds frame = frameBounds(acs);
             for (ScreenPanelAdapter adapter : menuMatches) {
@@ -248,6 +261,33 @@ public final class ScreenPanelRegistry {
             // ScreenPanelAdapter.cancelsUnhandledClicks(boolean).
             return true;
         });
+    }
+
+    /**
+     * Called from {@link com.trevorschoeny.menukit.mixin.MenuKitPanelRenderMixin}
+     * at the injection point in {@code AbstractContainerScreen.render}
+     * (before {@code renderCarriedItem}). Dispatches all matching MenuContext
+     * and SlotGroupContext adapters for the current screen. No-op for
+     * screens with no matches, or for screens opened before
+     * {@link #onScreenInit} populated the cache (shouldn't happen in
+     * practice — AFTER_INIT fires before the first render).
+     *
+     * <p>Public visibility required because the mixin is in a different
+     * package ({@code mixin}) from this class ({@code inject}).
+     */
+    public static void renderMatchingPanels(AbstractContainerScreen<?> screen,
+                                             net.minecraft.client.gui.GuiGraphics graphics,
+                                             int mouseX, int mouseY) {
+        ScreenRenderData data = SCREEN_DATA.get(screen);
+        if (data == null) return;
+        ScreenBounds frame = frameBounds(screen);
+        for (ScreenPanelAdapter adapter : data.menuMatches) {
+            adapter.render(graphics, frame, mouseX, mouseY, screen);
+        }
+        for (SlotGroupMatch match : data.slotGroupMatches) {
+            SlotGroupBounds sgBounds = computeSlotGroupBounds(match.slots, screen);
+            match.adapter.render(graphics, sgBounds, match.category, mouseX, mouseY, screen);
+        }
     }
 
     /**

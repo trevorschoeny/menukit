@@ -15,6 +15,7 @@
     "MKHasClickedOutsideMixin",
     "MKHasClickedOutsideCreativeMixin",
     "SlotPositionAccessor",
+    "MenuKitPanelRenderMixin",
     "KeyEntryAccessor",
     "KeyMappingAccessor",
     "MKGuiMixin",
