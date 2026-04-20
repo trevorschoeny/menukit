@@ -1,7 +1,5 @@
 package com.trevorschoeny.menukit;
 
-import com.trevorschoeny.menukit.config.GeneralOption;
-import com.trevorschoeny.menukit.config.MKFamily;
 import com.trevorschoeny.menukit.inject.MenuChrome;
 import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
 import com.trevorschoeny.menukit.inject.VanillaSlotGroupResolvers;
@@ -31,8 +29,10 @@ import java.util.List;
  * <p>Also provides two orthogonal convenience APIs:
  * <ul>
  *   <li><b>Item tooltip enrichment</b> — appends durability and food-stat
- *       lines to item tooltips. Gated by the {@code trevmods} family's
- *       {@code SHOW_ITEM_TIPS} option so users can disable it.</li>
+ *       lines to item tooltips. Always on post-M3 scope-down (see
+ *       POST_PHASE_11.md: "MenuKit own-config primitive" is a deferred
+ *       mechanism candidate; until a real consumer need surfaces, tooltips
+ *       being always-on is the reasonable default).</li>
  *   <li><b>Recipe book utilities</b> — read/toggle visibility of the
  *       vanilla recipe book on any screen extending
  *       {@link AbstractRecipeBookScreen}.</li>
@@ -42,20 +42,6 @@ import java.util.List;
  * every inventory screen, not features tied to any single consumer mod.
  */
 public class MenuKitClient implements ClientModInitializer {
-
-    // ── Item Tips Configuration ──────────────────────────────────────────
-    //
-    // The GeneralOption descriptor that controls whether item tips are shown.
-    // Public so consumers registering into the "trevmods" family can reference
-    // the same descriptor when building their config UI.
-
-    /** Family-wide toggle for enriched item tooltips. Default: enabled. */
-    public static final GeneralOption<Boolean> SHOW_ITEM_TIPS =
-            new GeneralOption<>("show_item_tips", true, Boolean.class);
-
-    // Cached family reference — tooltip callbacks fire every frame while
-    // hovering, so we avoid repeated map lookups on this hot path.
-    private static MKFamily cachedFamily;
 
     @Override
     public void onInitializeClient() {
@@ -185,8 +171,8 @@ public class MenuKitClient implements ClientModInitializer {
 
     /**
      * Registers a Fabric {@link ItemTooltipCallback} that appends enriched
-     * info lines to item tooltips. Uses the "trevmods" family's
-     * {@code SHOW_ITEM_TIPS} general option as a runtime toggle.
+     * info lines to item tooltips. Always-on post-M3 scope-down — no runtime
+     * toggle (MenuKit owns no persistent config primitive of its own).
      *
      * <p>Why Fabric callback instead of a mixin? The callback is the idiomatic
      * Fabric approach for tooltip modification — it fires after vanilla has
@@ -195,13 +181,6 @@ public class MenuKitClient implements ClientModInitializer {
      */
     private static void registerItemTipsCallback() {
         ItemTooltipCallback.EVENT.register((stack, tooltipContext, tooltipType, lines) -> {
-            // Check the family toggle — if the family hasn't been created yet
-            // (shouldn't happen in normal flow, but guard defensively), default
-            // to showing tips. The option defaults to true, so first-time users
-            // see tips immediately.
-            if (cachedFamily == null) cachedFamily = MenuKit.family("trevmods");
-            if (!cachedFamily.getGeneral(SHOW_ITEM_TIPS)) return;
-
             lines.addAll(generateTips(stack));
         });
     }
