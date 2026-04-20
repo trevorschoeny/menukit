@@ -96,13 +96,16 @@ public final class ScreenPanelRegistry {
 
     private static volatile boolean checkpointRun = false;
 
-    // Per-screen render-data cache populated at screen-open. The mixin
-    // (MenuKitPanelRenderMixin) reads this per-frame to dispatch panels at
-    // the correct render stratum; the click hook reads it for input
-    // dispatch. WeakHashMap keyed on Screen so entries GC when the screen
-    // is unreferenced — no manual cleanup on screen close.
-    private record ScreenRenderData(List<ScreenPanelAdapter> menuMatches,
-                                     List<SlotGroupMatch> slotGroupMatches) {}
+    // Per-screen cache of MenuContext matches populated at screen-open.
+    // Only the menu-context match list is static per-screen (targeting is
+    // class-ancestry against screen.getClass(), which doesn't change once
+    // the screen opens). SlotGroupContext matches re-resolve per frame
+    // because menu.slots can mutate mid-session (creative tab switches;
+    // future modded dynamic menus). See M8 §5.4 + §8.2 for the rationale.
+    //
+    // WeakHashMap keyed on Screen so entries GC when the screen is
+    // unreferenced — no manual cleanup on screen close.
+    private record ScreenRenderData(List<ScreenPanelAdapter> menuMatches) {}
 
     private static final Map<AbstractContainerScreen<?>, ScreenRenderData> SCREEN_DATA =
             Collections.synchronizedMap(new WeakHashMap<>());
@@ -218,28 +221,10 @@ public final class ScreenPanelRegistry {
             }
         }
 
-        // ── SlotGroupContext matching ───────────────────────────────────
-        // Resolve the opened menu's slot groups once per screen-open; the
-        // result is re-used per-frame to compute slot-group bounds. Match
-        // any registered adapter whose declared targets overlap this menu's
-        // resolved categories.
-        Map<SlotGroupCategory, List<Slot>> resolved = SlotGroupCategories.of(acs.getMenu());
-        List<SlotGroupMatch> slotGroupMatches = new ArrayList<>();
-        for (SlotGroupPanelAdapter adapter : registeredSlotGroupSnapshot()) {
-            List<SlotGroupCategory> targets = adapter.getTargets();
-            if (targets == null) continue;
-            for (SlotGroupCategory category : targets) {
-                List<Slot> slots = resolved.get(category);
-                if (slots == null || slots.isEmpty()) continue;
-                slotGroupMatches.add(new SlotGroupMatch(adapter, category, slots));
-            }
-        }
-
-        if (menuMatches.isEmpty() && slotGroupMatches.isEmpty()) return;
-
-        // Cache the match lists per-screen for the library-owned render
-        // path (MenuKitPanelRenderMixin) and the click hook below.
-        SCREEN_DATA.put(acs, new ScreenRenderData(menuMatches, slotGroupMatches));
+        // Cache the menu-context match list. SlotGroupContext matches
+        // resolve per-frame inside renderMatchingPanels / the click hook
+        // below because menu.slots can mutate mid-session.
+        SCREEN_DATA.put(acs, new ScreenRenderData(menuMatches));
 
         // Click dispatch via Fabric's hook — input doesn't have a render-
         // ordering constraint so no mixin is needed here. Render dispatch
@@ -250,17 +235,36 @@ public final class ScreenPanelRegistry {
             for (ScreenPanelAdapter adapter : menuMatches) {
                 adapter.mouseClicked(frame, event.x(), event.y(), event.button(), acs);
             }
-            for (SlotGroupMatch match : slotGroupMatches) {
-                SlotGroupBounds sgBounds = computeSlotGroupBounds(match.slots, acs);
-                match.adapter.mouseClicked(sgBounds, match.category,
-                        event.x(), event.y(), event.button(), acs);
-            }
+            // Re-resolve slot groups per click — creative-tab transitions
+            // and any future dynamic menu mutate menu.slots between clicks.
+            dispatchSlotGroupClicks(acs, event.x(), event.y(), event.button());
             // Return true — vanilla continues processing clicks that missed
             // any adapter's interactive element. Per M8 §8.3, future
             // cancellation-aware behavior will be added via
             // ScreenPanelAdapter.cancelsUnhandledClicks(boolean).
             return true;
         });
+    }
+
+    /**
+     * Re-resolves slot groups for the given screen's menu and dispatches a
+     * click to every matching (adapter, category) pair. Called per click
+     * from the {@code ScreenMouseEvents.allowMouseClick} hook.
+     */
+    private static void dispatchSlotGroupClicks(AbstractContainerScreen<?> screen,
+                                                  double mouseX, double mouseY, int button) {
+        Map<SlotGroupCategory, List<Slot>> resolved = SlotGroupCategories.of(screen.getMenu());
+        if (resolved.isEmpty()) return;
+        for (SlotGroupPanelAdapter adapter : registeredSlotGroupSnapshot()) {
+            List<SlotGroupCategory> targets = adapter.getTargets();
+            if (targets == null) continue;
+            for (SlotGroupCategory category : targets) {
+                List<Slot> slots = resolved.get(category);
+                if (slots == null || slots.isEmpty()) continue;
+                SlotGroupBounds bounds = computeSlotGroupBounds(slots, screen);
+                adapter.mouseClicked(bounds, category, mouseX, mouseY, button, screen);
+            }
+        }
     }
 
     /**
@@ -280,24 +284,31 @@ public final class ScreenPanelRegistry {
                                              int mouseX, int mouseY) {
         ScreenRenderData data = SCREEN_DATA.get(screen);
         if (data == null) return;
+
+        // MenuContext: cached at screen-open, iterate.
         ScreenBounds frame = frameBounds(screen);
         for (ScreenPanelAdapter adapter : data.menuMatches) {
             adapter.render(graphics, frame, mouseX, mouseY, screen);
         }
-        for (SlotGroupMatch match : data.slotGroupMatches) {
-            SlotGroupBounds sgBounds = computeSlotGroupBounds(match.slots, screen);
-            match.adapter.render(graphics, sgBounds, match.category, mouseX, mouseY, screen);
+
+        // SlotGroupContext: re-resolve per frame. Creative-tab switches
+        // and other dynamic menu mutations change menu.slots; caching the
+        // resolved map at screen-open would produce stale bounds. Per-frame
+        // resolution is cheap (resolvers do slot-index subList slicing on
+        // menu.slots).
+        Map<SlotGroupCategory, List<Slot>> resolved = SlotGroupCategories.of(screen.getMenu());
+        if (resolved.isEmpty()) return;
+        for (SlotGroupPanelAdapter adapter : registeredSlotGroupSnapshot()) {
+            List<SlotGroupCategory> targets = adapter.getTargets();
+            if (targets == null) continue;
+            for (SlotGroupCategory category : targets) {
+                List<Slot> slots = resolved.get(category);
+                if (slots == null || slots.isEmpty()) continue;
+                SlotGroupBounds bounds = computeSlotGroupBounds(slots, screen);
+                adapter.render(graphics, bounds, category, mouseX, mouseY, screen);
+            }
         }
     }
-
-    /**
-     * Captures a matched (adapter, category, slots) tuple for per-frame
-     * slot-group dispatch. Resolved once at screen-open so the per-frame
-     * render loop doesn't re-walk resolvers.
-     */
-    private record SlotGroupMatch(SlotGroupPanelAdapter adapter,
-                                   SlotGroupCategory category,
-                                   List<Slot> slots) {}
 
     /**
      * Computes the bounding rectangle enclosing the given slots in screen

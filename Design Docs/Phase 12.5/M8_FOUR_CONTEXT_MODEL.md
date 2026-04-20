@@ -168,16 +168,19 @@ A category's bounding box in screen space is the rectangle enclosing all registe
 public record SlotGroupBounds(int leftPos, int topPos, int imageWidth, int imageHeight) { }
 ```
 
-Computed per frame (screen leftPos/topPos shift on resize and recipe-book toggle). The category→slot mapping is cached per-screen-open; only the bounds rectangle re-runs.
+Computed per frame (screen leftPos/topPos shift on resize and recipe-book toggle). Slot groups are **re-resolved per frame** via `SlotGroupCategories.of(menu)` — no cache on the category→slot mapping. The resolver call itself is cheap (subList slicing against `menu.slots`), so per-frame dispatch cost is negligible even with several registered adapters.
 
-**Caching constraint.** If a menu adds slots dynamically mid-session, the cached category map goes stale — the adapter renders against the originally resolved slot set and the new slots won't appear in the bounding box. Re-resolution is not supported in v1; see §12 "Runtime category mutation." Menus with dynamic slot sets (rare in vanilla; potentially present in modded menus) either (a) register a resolver that includes all eventual slots at menu-open time, or (b) live outside SlotGroupContext and decorate via the lambda escape hatch.
+**Per-frame resolution, not per-open caching.** The earliest draft of §5.4 specified resolving once per screen-open and caching the result. V2 probe validation exposed that this is wrong for menus whose slot composition changes mid-session. The shipped model re-resolves on every render frame and every click, so slot-composition changes take effect immediately. Cost is bounded by resolver complexity, which for all vanilla resolvers is constant-time sub-list slicing on a small list.
 
-**Canonical example: `CreativeModeInventoryScreen.ItemPickerMenu`.** Vanilla's creative-inventory screen is the practical case that makes this non-goal concrete. Two characteristics disqualify it from v1 SlotGroupContext coverage, both surfaced during V2 probe validation:
+**Canonical dynamic case: `CreativeModeInventoryScreen.ItemPickerMenu`.** Vanilla's creative-inventory screen rebuilds `menu.slots` on every tab switch — non-INVENTORY tabs expose 45 creative items + 9 hotbar (54 slots); the INVENTORY tab exposes the player's full inventory layout (1 result + 4 crafting + 4 armor + 27 inv + 9 hotbar + 1 offhand = 46 slots). The shipped `ItemPickerMenu` resolver discriminates by slot count:
 
-1. **Not `InventoryMenu`.** Creative uses a dedicated inner class `CreativeModeInventoryScreen.ItemPickerMenu` that extends `AbstractContainerMenu` directly, not `InventoryMenu`. M8's exact-class resolver map (§5.3) finds no match on `ItemPickerMenu.class` and returns an empty category set.
-2. **Slot composition changes per tab.** `ItemPickerMenu.setSelectedTab(...)` rebuilds the slot list entirely — non-INVENTORY tabs expose 45 creative items + 9 hotbar slots; the INVENTORY tab exposes the player's full inventory (1 result + 4 crafting + 4 armor + 27 inv + 9 hotbar + 1 offhand = 46 slots). A resolver that handled one tab would produce stale slot bounds after any tab switch.
+- Size 46 → INVENTORY tab. Resolves `CRAFTING_OUTPUT`, `CRAFTING_INPUT`, `PLAYER_ARMOR`, `PLAYER_INVENTORY`, `PLAYER_HOTBAR`, `PLAYER_OFFHAND` — identical to `InventoryMenu`'s layout.
+- Size 54 → non-INVENTORY tab. Only `PLAYER_HOTBAR` resolves (hotbar is visually present on every creative tab); main inventory, armor, and offhand are absent and correctly skip.
+- Other sizes → empty map. Silent skip rather than partial match.
 
-Together these make ItemPickerMenu the canonical v1 skip case. A SlotGroupContext probe targeting `PLAYER_INVENTORY` correctly does not fire on the creative screen — the behavior is expected, not a bug. M8 v2 dynamic-resolver support (see §12) would address this class of menu.
+A probe targeting `PLAYER_INVENTORY` correctly fires only on the INVENTORY tab and disappears when any other tab is selected. This is what "per-frame resolution" buys — slot-group visibility tracks the underlying slot-group reality without any consumer-side intervention.
+
+**Bounds recomputation follows.** Because the slot list can be different each frame, `computeSlotGroupBounds` (in `ScreenPanelRegistry`) runs per render call against the currently-resolved slots. Resize, recipe-book toggle, and tab-switch transitions all take effect on the next rendered frame with no stale-bounds window.
 
 ### 5.5 Region — SlotGroupRegion
 
@@ -493,7 +496,7 @@ Result: panels above slots, tooltips + cursor above panels. Principle 9 layering
 
 **Click dispatch stays on `ScreenMouseEvents.allowMouseClick`.** Input events don't have a render-ordering constraint — `allowMouseClick` fires per-click regardless of where in the render pipeline it sits — so no mixin is needed for input. Only render dispatch moved to the mixin path.
 
-Per-screen match lists populated at screen-open are cached in `ScreenPanelRegistry.SCREEN_DATA` (WeakHashMap keyed on the `AbstractContainerScreen` instance). The mixin reads this map to find the panels matching the current screen; the click hook reads the same cached list. Cache entries GC when the screen is unreferenced — no manual cleanup on screen close.
+**Cached matches: MenuContext only; SlotGroupContext resolves per frame.** The per-screen cache in `ScreenPanelRegistry.SCREEN_DATA` (WeakHashMap keyed on the `AbstractContainerScreen` instance) stores only the MenuContext match list — that list is a function of `screen.getClass()` which doesn't change mid-session, so caching is safe. SlotGroupContext matches re-resolve per frame (render path) and per click (input path) because `menu.slots` can mutate — see §5.4's ItemPickerMenu case. Cache entries GC when the screen is unreferenced — no manual cleanup on screen close.
 
 ### 8.3 Cancellation decision
 
@@ -640,7 +643,7 @@ V2 section and elsewhere: rename "InventoryContext" → "MenuContext". Add SlotG
 - **"Any category" targeting for SlotGroupContext.** No `.onAny()`. Categories are the point.
 - **Category inheritance.** `PLAYER_INVENTORY` is not a "parent" of anything. Tags are flat.
 - **Chrome for slot groups.** The slot group's bounding box is inside the screen frame; the screen's chrome is handled by M7 at the screen level.
-- **Runtime category mutation.** A menu's resolver returns its category map once per screen-open; re-resolution is not supported. If a menu adds slots dynamically mid-session (rare), the consumer rebuilds the screen. See §5.4's canonical example (`ItemPickerMenu`) for what this non-goal means in practice. **Future work — M8 v2 dynamic resolvers.** When evidence accumulates for dynamic-slot-menu support (creative inventory today; modded menus with tab-like transitions tomorrow), the library can extend resolvers to re-run on menu state changes. Not Phase 12.5 scope; Phase 13 evidence-gatherer.
+- **~~Runtime category mutation.~~** (Withdrawn.) Draft v1 read this as a non-goal with a future-v2 pointer. V2 probe validation exposed that the non-goal wasn't actually justified — the resolver interface is already shaped such that per-frame re-resolution is cheap and correct. §5.4 now documents per-frame resolution as the shipped model, and `ItemPickerMenu` is the canonical dynamic case the model supports. Nothing about runtime category mutation is deferred anymore; dropping the non-goal entry rather than leaving it as a crossed-out historical artifact in steady state.
 - **Multiple region systems per context.** Each context has one Region enum (`MenuRegion`, `SlotGroupRegion`, `HudRegion`, `StandaloneRegion`). No sub-regions or nested regions in v1.
 - **Back-compat shims for the rename.** `InventoryRegion` is removed, not deprecated. Phase 12.5 is pre-1.0; breaking rename is cheap. See Principle 11's evidence basis.
 - **Unregister / removal APIs.** Adapters and resolvers are process-lifetime, same as M7.
