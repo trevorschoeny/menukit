@@ -183,3 +183,13 @@ Items deferred across phases. Scan this list at phase boundaries.
   Capture this in Phase 12's STORY.md updates or equivalent external documentation.
 
 - **`MKPanel.Style` enum extraction** — resolved during Step 5 as a concrete cleanup, not deferred. Live callers (`core/Button`, `hud/MKHudPanel`, `hud/MKHudPanelDef`, `hud/MKHudNotification`, `screen/MenuKitHandledScreen`) are updated to use `core/PanelStyle` instead; rendering helpers move out of `panel/MKPanel.java` before that file is deleted.
+
+## Phase 12.5 M3 scope-down — follow-on items
+
+Surfaced during M3 smoke; full resolution record lives in `Phase 11/POST_PHASE_11.md` M3 entry.
+
+- **Sandboxes in-UI Settings button click.** `SandboxScreen.settingsButton` (top-right) doesn't open the config screen — `setScreen(yaclScreen)` takes effect but the screen never becomes visible. Working hypothesis: press-release propagation across the screen transition (vanilla `Button.onPress` fires on mouse-press, subsequent release hits the newly-active YACL screen at same coords). Failure likely pre-existed M3 (structurally identical click path). ModMenu entry works — users can configure. Target: Phase 13 sandboxes refactor; mitigation options documented in POST_PHASE_11.md.
+
+- **MenuKit own-config primitive.** Wait-for-real-need candidate. If MenuKit later grows user-facing toggles of its own (beyond the `SHOW_ITEM_TIPS` hardcode retired in M3), that's when it ships a library-internal GSON-backed single-file config — no YACL, no ModMenu, just its own JSON under its mod-id. Trigger: a second or third own-toggle surfacing. Until then, hardcode-on is the default.
+
+- **Keybind-category-sharing review (Phase 13 public-release prep).** §11 scope-down preserved `getKeybindCategory()` as Layer A on the rationale that grouping is a real user-facing coordination primitive. Question that surfaced during M3 smoke: when a non-Trevor author adopts MenuKit, their mod isn't necessarily part of a "family" — MenuKit shipping a grouping primitive may be the same shape of ecosystem-shaping assumption Layer B was. Trigger: public-release prep begins. If the answer is "keybind-sharing leaves too," MKFamily's Layer A shrinks further to identity + mod-id roster only.
