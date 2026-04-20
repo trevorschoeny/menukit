@@ -426,6 +426,8 @@ The boundary enforces library integrity — the validator can't become a back-ch
 
 ## 11. M3 disposition — resolved: scope down (Disposition 2)
 
+**Status: shipped in-phase.** Layer B removed from MenuKit; IP / shulker-palette / sandboxes each own a standalone YACL config screen + ModMenu entry; agreeable-allays unchanged (pure Layer A consumer). Full resolution record — including advisor rulings on storage (Reading C for orphan IP mixin reads, hardcode `SHOW_ITEM_TIPS`, disposition (a) for in-UI config buttons) — folded into `Phase 11/POST_PHASE_11.md`'s M3 entry.
+
 Advisor round-1 resolved M3 as **scope down to grouping only**. The mechanism has two layers tangled together:
 
 > **Layer A — shared identity + keybind-category sharing.** Library-shaped. Consumers register under a family ID; MenuKit returns the canonical instance; keybind categories merge in-game. This is the same pattern as M5's registration-order stacking — a library-owned coordination primitive for cross-mod claims on a shared resource (keybind categories in this case, inventory regions in M5's).

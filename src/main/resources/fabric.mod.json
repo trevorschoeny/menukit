@@ -10,17 +10,12 @@
   "environment": "*",
   "entrypoints": {
     "main": ["com.trevorschoeny.menukit.MenuKit"],
-    "client": ["com.trevorschoeny.menukit.MenuKitClient"],
-    "modmenu": ["com.trevorschoeny.menukit.gui.ModMenuIntegration"]
+    "client": ["com.trevorschoeny.menukit.MenuKitClient"]
   },
   "mixins": ["menukit.mixins.json", "menukit-examples.mixins.json"],
   "depends": {
     "fabricloader": ">=0.15.0",
     "fabric-api": "*",
     "minecraft": "~1.21"
-  },
-  "suggests": {
-    "modmenu": "*",
-    "yet_another_config_lib_v3": "*"
   }
 }
