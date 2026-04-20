@@ -172,9 +172,9 @@ Computed per frame (screen leftPos/topPos shift on resize and recipe-book toggle
 
 **Per-frame resolution, not per-open caching.** The earliest draft of §5.4 specified resolving once per screen-open and caching the result. V2 probe validation exposed that this is wrong for menus whose slot composition changes mid-session. The shipped model re-resolves on every render frame and every click, so slot-composition changes take effect immediately. Cost is bounded by resolver complexity, which for all vanilla resolvers is constant-time sub-list slicing on a small list.
 
-**Canonical dynamic case: `CreativeModeInventoryScreen.ItemPickerMenu`.** Vanilla's creative-inventory screen rebuilds `menu.slots` on every tab switch — non-INVENTORY tabs expose 45 creative items + 9 hotbar (54 slots); the INVENTORY tab exposes the player's full inventory layout (1 result + 4 crafting + 4 armor + 27 inv + 9 hotbar + 1 offhand = 46 slots). The shipped `ItemPickerMenu` resolver discriminates by slot count:
+**Canonical dynamic case: `CreativeModeInventoryScreen.ItemPickerMenu`.** Vanilla's creative-inventory screen rebuilds `menu.slots` on every tab switch — non-INVENTORY tabs expose 45 creative items + 9 hotbar (54 slots); the INVENTORY tab exposes the player's full inventory layout (1 result + 4 crafting + 4 armor + 27 inv + 9 hotbar + 1 offhand = 46 `SlotWrapper`s) plus a vanilla-added `destroyItemSlot` trash bin, totalling 47 slots. The shipped `ItemPickerMenu` resolver discriminates by slot count:
 
-- Size 46 → INVENTORY tab. Resolves `CRAFTING_OUTPUT`, `CRAFTING_INPUT`, `PLAYER_ARMOR`, `PLAYER_INVENTORY`, `PLAYER_HOTBAR`, `PLAYER_OFFHAND` — identical to `InventoryMenu`'s layout.
+- Size 47 → INVENTORY tab. Resolves `CRAFTING_OUTPUT`, `CRAFTING_INPUT`, `PLAYER_ARMOR`, `PLAYER_INVENTORY`, `PLAYER_HOTBAR`, `PLAYER_OFFHAND` — identical to `InventoryMenu`'s layout for indices 0–45. Index 46 (the trash bin) isn't a named category and is correctly skipped.
 - Size 54 → non-INVENTORY tab. Only `PLAYER_HOTBAR` resolves (hotbar is visually present on every creative tab); main inventory, armor, and offhand are absent and correctly skip.
 - Other sizes → empty map. Silent skip rather than partial match.
 
