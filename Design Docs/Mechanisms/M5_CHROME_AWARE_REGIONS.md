@@ -1,8 +1,10 @@
-# M7 — Chrome-aware MenuContext regions
+# M5 — Chrome-aware MenuContext regions
 
-*(Originally titled "Chrome-aware inventory regions"; renamed during the M8 four-context reframe — see `M8_FOUR_CONTEXT_MODEL.md`. The chrome registry's job is unchanged; what's now called MenuContext is what this doc originally called inventory-context. `InventoryChrome` → `MenuChrome`, `InventoryRegion` → `MenuRegion` throughout.)*
+*(Previously numbered M5. Renumbered during Phase 13 doc reorganization after M3 [MKFamily] deletion and M6 [client-side slots] archival.)*
 
-**Status: shipped. M8 renamed `InventoryChrome` → `MenuChrome`; otherwise unchanged.**
+*(Originally titled "Chrome-aware inventory regions"; renamed during the M6 four-context reframe — see `M6_FOUR_CONTEXT_MODEL.md`. The chrome registry's job is unchanged; what's now called MenuContext is what this doc originally called inventory-context. `InventoryChrome` → `MenuChrome`, `InventoryRegion` → `MenuRegion` throughout.)*
+
+**Status: shipped. M6 renamed `InventoryChrome` → `MenuChrome`; otherwise unchanged.**
 
 Phase 12.5 V2 validation surfaced that regions anchor to the **declared inventory frame** (`imageWidth × imageHeight`) but not to the **effective visible boundary** of the screen — which includes vanilla chrome each `AbstractContainerScreen` subclass hand-draws outside its declared frame. Concrete symptoms:
 
@@ -12,7 +14,7 @@ Phase 12.5 V2 validation surfaced that regions anchor to the **declared inventor
 
 The frame-edge dynamics already work — `AbstractContainerScreen` mutates `leftPos` / `topPos` on `init()` and on recipe-book toggle, and MenuKit reads those fields per-frame via `AbstractContainerScreenAccessor`. What's missing is the library-owned encoding of "what chrome each screen subclass draws outside its frame."
 
-M7 introduces this encoding as a new library primitive.
+M5 introduces this encoding as a new library primitive.
 
 ---
 
@@ -35,10 +37,10 @@ The consequence for MenuKit's region system: **`MenuRegion.TOP_ALIGN_RIGHT` mean
 
 ## 2. Why this is a library primitive, not a consumer concern
 
-The existing M5 §11 non-goal language reads:
+The existing M4 §11 non-goal language reads:
 > Vanilla-HUD-element awareness. Regions do not know about vanilla hotbar / XP bar / boss bar / chat. Consumers that need clearance from vanilla HUD use the `.anchor(...)` path with manual offset.
 
-This has been implicitly read as also covering inventory chrome. M7 takes the position that inventory chrome is categorically different from HUD chrome:
+This has been implicitly read as also covering inventory chrome. M5 takes the position that inventory chrome is categorically different from HUD chrome:
 
 - **HUD chrome** (hotbar, XP bar, boss bar, chat) is drawn in the HUD overlay at screen-edge-relative positions. It doesn't move when a container screen opens. A HUD panel that clears the hotbar does so at screen coordinates. Consumers who need hotbar clearance know their HUD panel's geometry and solve it locally via `.anchor(..., offsetY)`.
 - **Inventory chrome** (creative tabs, recipe book widget) is drawn by specific `AbstractContainerScreen` subclasses at positions computed from their `leftPos` / `topPos`. It's the same vanilla-screen-specific knowledge the library already encodes elsewhere (M4 vanilla-slot-injection, `MKHasClickedOutsideMixin`, `StorageContainerAdapter`). Each consumer that builds an inventory-context decoration with chrome-aware placement would have to rediscover the same chrome extents.
@@ -47,17 +49,17 @@ The library-not-platform principle (THESIS §1) says the library provides mechan
 
 Leaving inventory-chrome knowledge scattered across consumers fails two tests:
 1. **Rule of Three.** Current consumers targeting creative or recipe-book contexts: V2 probes, IP settings gear (already hits creative tab row), sandboxes, any future mod. Chrome-awareness is already Rule-of-Three satisfied.
-2. **"Just works" north star.** `TOP_ALIGN_LEFT` should mean the same thing to a consumer in survival as in creative. Without M7, it means "above the frame" in survival and "under the tabs" in creative — two behaviors for one API.
+2. **"Just works" north star.** `TOP_ALIGN_LEFT` should mean the same thing to a consumer in survival as in creative. Without M5, it means "above the frame" in survival and "under the tabs" in creative — two behaviors for one API.
 
-M7 closes this. The library owns inventory-chrome knowledge; consumers read via the existing region system; modded screens extend the registry for their own chrome.
+M5 closes this. The library owns inventory-chrome knowledge; consumers read via the existing region system; modded screens extend the registry for their own chrome.
 
-## 2.5 M7 as a Principle 9 instance
+## 2.5 M5 as a Principle 9 instance
 
 THESIS Principle 9 — *"Rendering pipelines are uniform across contexts; embedding is context-specific"* — landed with Phase 12.5's V4 work. Principle 9's test sentence: *"when a rendering behavior varies between contexts, does the variation have a named reason rooted in the screen's relationship to gameplay, not in the container's implementation?"*
 
-M7 is the second concrete instance of Principle 9 forcing a gap closure (after `ScreenPanelAdapter` completeness). Apply the test to the chrome-overlap observation: `MenuRegion.TOP_ALIGN_RIGHT` produces different visible behavior in survival vs. creative. Is there a gameplay-rooted reason? No. The variation is in the container's implementation — each subclass draws chrome in its own render method at subclass-computed positions. That's an implementation detail of the embedding, but the region's *semantic meaning* ("top edge of the visible inventory screen") should be invariant across subclasses.
+M5 is the second concrete instance of Principle 9 forcing a gap closure (after `ScreenPanelAdapter` completeness). Apply the test to the chrome-overlap observation: `MenuRegion.TOP_ALIGN_RIGHT` produces different visible behavior in survival vs. creative. Is there a gameplay-rooted reason? No. The variation is in the container's implementation — each subclass draws chrome in its own render method at subclass-computed positions. That's an implementation detail of the embedding, but the region's *semantic meaning* ("top edge of the visible inventory screen") should be invariant across subclasses.
 
-When a region declaration produces different visible behavior across screen subclasses without a gameplay-rooted reason, that's a Principle 9 violation and the library owns closing it. M7 is this specific closure: a library-owned chrome registry that makes `TOP_ALIGN_RIGHT` mean the same thing everywhere.
+When a region declaration produces different visible behavior across screen subclasses without a gameplay-rooted reason, that's a Principle 9 violation and the library owns closing it. M5 is this specific closure: a library-owned chrome registry that makes `TOP_ALIGN_RIGHT` mean the same thing everywhere.
 
 This pattern — "region semantics diverge across subclasses without named reason → library closes" — is worth citing in future chrome-shaped discussions.
 
@@ -122,7 +124,7 @@ Exact-class is predictable: every screen gets exactly the chrome registered for 
 
 ### 3.2 Integration with `RegionMath`
 
-`RegionMath.resolveMenu(region, bounds, pw, ph, prefix)` currently uses `bounds.leftPos` / `topPos` / `imageWidth` / `imageHeight` directly. After M7, the origin functions in `RegionRegistry.menuOriginFn` produce chrome-extended bounds before calling `RegionMath`:
+`RegionMath.resolveMenu(region, bounds, pw, ph, prefix)` currently uses `bounds.leftPos` / `topPos` / `imageWidth` / `imageHeight` directly. After M5, the origin functions in `RegionRegistry.menuOriginFn` produce chrome-extended bounds before calling `RegionMath`:
 
 ```java
 public static ScreenOriginFn menuOriginFn(Panel panel, MenuRegion region) {
@@ -186,19 +188,19 @@ Same for `ScreenPanelAdapter.mouseClicked(bounds, mouseX, mouseY, button)` → `
 
 Breaking change. One line per consumer call site to update. Phase 13a review checklist picks it up.
 
-### 4.3 M5 §11 non-goal amendment
+### 4.3 M4 §11 non-goal amendment
 
 Current wording:
 > **Vanilla-HUD-element awareness.** Regions do not know about vanilla hotbar / XP bar / boss bar / chat. Consumers that need clearance from vanilla HUD use the `.anchor(...)` path with manual offset.
 
-Amended wording (lands with M7):
-> **Vanilla-HUD-element awareness.** Regions do not know about vanilla hotbar / XP bar / boss bar / chat. Consumers that need clearance from vanilla HUD use the `.anchor(...)` path with manual offset. **Inventory chrome** (creative tabs, recipe book widget) is handled by M7 — consumers get chrome-aware region placement automatically; modded screens register their own chrome extents.
+Amended wording (lands with M5):
+> **Vanilla-HUD-element awareness.** Regions do not know about vanilla hotbar / XP bar / boss bar / chat. Consumers that need clearance from vanilla HUD use the `.anchor(...)` path with manual offset. **Inventory chrome** (creative tabs, recipe book widget) is handled by M5 — consumers get chrome-aware region placement automatically; modded screens register their own chrome extents.
 
 ## 5. V2 chrome-overlap sub-check — what changes
 
-Pre-M7 proposal was: "switch tabs; inventory probes should stay at the `CreativeModeInventoryScreen`'s frame edges (they'll visually overlap tabs — document as expected, M5 §11 non-goal)."
+Pre-M5 proposal was: "switch tabs; inventory probes should stay at the `CreativeModeInventoryScreen`'s frame edges (they'll visually overlap tabs — document as expected, M4 §11 non-goal)."
 
-Post-M7: "switch tabs; inventory probes land at the chrome-extended edges. `TOP_ALIGN_RIGHT` lands above the top tab row, not under it. `BOTTOM_ALIGN_RIGHT` lands below the bottom tab row, not over it. Recipe book toggle on survival: `LEFT_ALIGN_TOP` lands left of the widget, not behind it."
+Post-M5: "switch tabs; inventory probes land at the chrome-extended edges. `TOP_ALIGN_RIGHT` lands above the top tab row, not under it. `BOTTOM_ALIGN_RIGHT` lands below the bottom tab row, not over it. Recipe book toggle on survival: `LEFT_ALIGN_TOP` lands left of the widget, not behind it."
 
 The sub-check ships green because the library closed the gap, not because the test was re-scoped.
 
@@ -207,8 +209,8 @@ The sub-check ships green because the library closed the gap, not because the te
 - **Vanilla-chrome-inside-frame awareness.** Some screens have chrome inside the declared frame (furnace flame indicator, brewing stand bubbles above potion slots). These are inside `imageWidth × imageHeight` and overlap with slot positions, not with region anchors. Out of scope.
 - **Per-region chrome override.** All regions for a given screen share the same chrome. No `TOP_ALIGN_LEFT_IGNORE_CHROME` variant. Consumers that want flush-frame anchoring on a chrome-having screen use the `.anchor()` lambda path.
 - **Chrome detection automation.** No scanning of vanilla render methods to auto-derive chrome. The registry is declaration-based.
-- **Chrome-aware layout for `PanelPosition`-based inventory menus.** M5 §7 standalone-screen layout is region-agnostic; M7 changes nothing there. The MenuKit-native inventory-menu layout path (`MenuKitHandledScreen`) uses `PanelPosition`, not regions — also unaffected. M7 is scoped to region-based injection into vanilla screens.
-- **HUD chrome awareness.** Explicitly out of scope per amended M5 §11. The screen-based registry model doesn't apply to HUD render — there's no "current screen" during HUD render. If HUD-chrome awareness emerges as a need, it's a separate primitive with its own design pass.
+- **Chrome-aware layout for `PanelPosition`-based inventory menus.** M5 §7 standalone-screen layout is region-agnostic; M5 changes nothing there. The MenuKit-native inventory-menu layout path (`MenuKitHandledScreen`) uses `PanelPosition`, not regions — also unaffected. M5 is scoped to region-based injection into vanilla screens.
+- **HUD chrome awareness.** Explicitly out of scope per amended M4 §11. The screen-based registry model doesn't apply to HUD render — there's no "current screen" during HUD render. If HUD-chrome awareness emerges as a need, it's a separate primitive with its own design pass.
 
 ## 7. Implementation plan
 
@@ -219,8 +221,8 @@ The sub-check ships green because the library closed the gap, not because the te
 5. `ScreenPanelAdapter.render(graphics, bounds, mouseX, mouseY, screen)` + `mouseClicked(bounds, mouseX, mouseY, button, screen)` — signature changes. Thread the screen parameter through to the origin function.
 6. V4.2's `V4CrossInventoryDecoration` call sites — update `adapter.render` / `adapter.mouseClicked` signatures (one line each).
 7. Recipe-book chrome-provider implementation — reads `AbstractRecipeBookScreen`'s recipe-book state via cast + accessor; returns `ChromeExtents(0, 147, 0, 0)` when open, `NONE` when closed.
-8. M5 §11 non-goal amendment (§4.3).
-9. V2 resumes: main matrix + chrome-overlap sub-check both run against the M7-enabled library.
+8. M4 §11 non-goal amendment (§4.3).
+9. V2 resumes: main matrix + chrome-overlap sub-check both run against the M5-enabled library.
 
 One commit. Small additive library surface (~60-80 LOC for `MenuChrome` + two providers + `RegionRegistry` lambda update + `ScreenPanelAdapter` signature change). Consumer updates: 2 call sites in V4.2.
 

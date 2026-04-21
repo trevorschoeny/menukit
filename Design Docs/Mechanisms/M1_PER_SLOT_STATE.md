@@ -1,6 +1,6 @@
 # M1 — Unified Per-Slot Persistent State
 
-**Phase 12 mechanism — persistence-shaped** (per `Phase 11/POST_PHASE_11.md`).
+**Phase 12 mechanism — persistence-shaped** (per `Phases/11/POST_PHASE_11.md`).
 
 **Status: Resolved — ready for implementation.**
 
@@ -99,7 +99,7 @@ The library provides a `resolvePersistentKey(Container)` function that switches 
 
 State in M1 is **by-reference to its owner**: the player UUID, block-entity position + dimension, or entity UUID *identifies* the state's home, and the owner's Fabric attachment holds it. Lifecycle alignment follows naturally — the owner dies, the state dies. Block broken → BE's attachment gone. Entity killed → entity's attachment gone. Player removed from the save → player's attachment gone. No library-level GC, no reference-counting, no WeakReference tracking. Ownership is structural, cleanup is structural.
 
-This matches the M5 §4A framing from a different angle. M5 distinguished by-value (flows in layout) from by-reference (fixed coord that others depend on). M1 is a third kind: by-reference-to-owner (state whose home is determined by the structural owner of the slot, and whose lifetime is the owner's). The three patterns coexist without conflict because each answers a different question — where does the panel render, where does the backdrop go, and where does per-slot state live.
+This matches the M4 §4A framing from a different angle. M5 distinguished by-value (flows in layout) from by-reference (fixed coord that others depend on). M1 is a third kind: by-reference-to-owner (state whose home is determined by the structural owner of the slot, and whose lifetime is the owner's). The three patterns coexist without conflict because each answers a different question — where does the panel render, where does the backdrop go, and where does per-slot state live.
 
 The `Modded(Identifier, CompoundTag)` case applies **library-not-platform** correctly: the library hands off key shape to the consumer (mod defines the tag structure), stores opaquely (library never parses the payload), and doesn't try to understand modded storage semantics. The library's responsibility is to thread the payload through the attachment read/write path; the mod's responsibility is to define what the payload means.
 

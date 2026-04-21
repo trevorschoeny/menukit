@@ -1,8 +1,10 @@
-# M4 — Vanilla Menu Slot Injection
+# M3 — Vanilla Menu Slot Injection
 
-**Phase 12 mechanism — integration-shaped** (per `Phase 11/POST_PHASE_11.md`).
+*(Previously numbered M4. Renumbered during Phase 13 doc reorganization after the original M3 [MKFamily] was deleted from the library.)*
 
-**Status: Mechanism shipped in Phase 12 checkpoint `4ed9793`. Visual layer pattern established via M5 §5.6 (shared-constants lambda on `ScreenPanelAdapter`). F15 option (a) still the approved path for Phase 13c.**
+**Phase 12 mechanism — integration-shaped** (per `Phases/11/POST_PHASE_11.md`).
+
+**Status: Mechanism shipped in Phase 12 checkpoint `4ed9793`. Visual layer pattern established via M4 §5.6 (shared-constants lambda on `ScreenPanelAdapter`). F15 option (a) still the approved path for Phase 13c.**
 
 **Enables:** F8 (equipment panel), F9 (pockets panels — pending UI-structure clarification for Phase 13b), F15 (peek panel UI — confirmed as M4 use case after M6 dissolution).
 
@@ -30,7 +32,7 @@ The original design described slot backgrounds rendered via `SlotRendering.drawS
 
 The root cause investigation was deprioritized: the advisor called the investigation a red herring because Phase 11 decorations (SettingsGearDecoration, LockOverlayDecoration) render through the Panel + ScreenPanelAdapter path successfully, and that's the path grafted-slot backdrops should use anyway.
 
-**Shipped pattern (M5 §5.6 "Grafted-slot visual layers").** Backdrops for grafted slots are **by-reference to the handler-layer slot coordinates** — they trace the fixed `(x, y)` positions declared at `addSlot()` time. They're not by-value stackable decorations and don't use region stacking. Pattern:
+**Shipped pattern (M4 §5.6 "Grafted-slot visual layers").** Backdrops for grafted slots are **by-reference to the handler-layer slot coordinates** — they trace the fixed `(x, y)` positions declared at `addSlot()` time. They're not by-value stackable decorations and don't use region stacking. Pattern:
 
 ```java
 // Consumer's shared-constants file
@@ -398,4 +400,4 @@ Naming this now prevents Phase 13 surprise. The exact simplification depends on 
 
 **Additive to MenuKit.** Existing `MenuKitSlot`, `SlotGroup`, `Panel`, `InteractionPolicy`, `Storage` used as-is. No breaking changes. Existing consumers continue working unchanged.
 
-**Status: Mechanism shipped (12a checkpoint `4ed9793`). Visual-layer pattern established (M5 §5.6). F15 option (a) still approved for Phase 13c implementation against M4's shipped primitive.** See the "Implementation findings" section near the top of this doc for what superseded the original design assumptions — read that first before this summary.
+**Status: Mechanism shipped (12a checkpoint `4ed9793`). Visual-layer pattern established (M4 §5.6). F15 option (a) still approved for Phase 13c implementation against M4's shipped primitive.** See the "Implementation findings" section near the top of this doc for what superseded the original design assumptions — read that first before this summary.

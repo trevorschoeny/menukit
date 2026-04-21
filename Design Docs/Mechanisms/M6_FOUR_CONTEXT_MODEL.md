@@ -1,8 +1,12 @@
-# M8 — Four-Context Model + SlotGroupContext
+# M6 — Four-Context Model + SlotGroupContext
 
-**Status: advisor round-1 signed off; adjustments applied. Ready to implement per §14 sequencing.**
+*(Previously numbered M6. Renumbered during Phase 13 doc reorganization after M3 [MKFamily] deletion and the original M6 [client-side slots, dissolved] archival.)*
 
-Phase 12.5's work on V2 (probe validation under vanilla chrome), M7 (chrome-aware regions), and V4 (native-screen + cross-context parity) surfaced a lurking structural issue: what MenuKit calls a "context" conflates two things — (1) an implementation boundary with its own rendering pipeline, and (2) a consumer mental model of what a panel is anchored to. The two maps have never been cleanly aligned. As long as MenuKit had two inventory-context paths (player-inventory decorations vs. container-inventory decorations) and a soft "HUD / inventory / standalone" trichotomy elsewhere, consumers and the library were doing different decompositions and meeting in the middle through convention.
+**Status: shipped during Phase 12.5. Doc-renumbering note above; original implementation status preserved below.**
+
+**Original status (preserved): advisor round-1 signed off; adjustments applied. Ready to implement per §14 sequencing.**
+
+Phase 12.5's work on V2 (probe validation under vanilla chrome), M5 (chrome-aware regions), and V4 (native-screen + cross-context parity) surfaced a lurking structural issue: what MenuKit calls a "context" conflates two things — (1) an implementation boundary with its own rendering pipeline, and (2) a consumer mental model of what a panel is anchored to. The two maps have never been cleanly aligned. As long as MenuKit had two inventory-context paths (player-inventory decorations vs. container-inventory decorations) and a soft "HUD / inventory / standalone" trichotomy elsewhere, consumers and the library were doing different decompositions and meeting in the middle through convention.
 
 This doc lands the alignment. Contexts become consumer mental models. Four contexts — **MenuContext**, **SlotGroupContext**, **HudContext**, **StandaloneContext** — cover every panel a consumer might want to place. The consumer's single question is *"what am I anchoring this to?"* and the answer names the context. The rendering pipeline underneath may share between MenuContext and SlotGroupContext (both render into the same AbstractContainerScreen render path), but that's an implementation detail below the line the consumer sees.
 
@@ -73,7 +77,7 @@ Drop the count — *"The following principles govern every design decision in Me
 
 ## 3. The four contexts
 
-**MenuContext.** Panels anchored to the frame of an `AbstractContainerScreen`. Consumer declares target screen classes via `.on(ClassA.class, ClassB.class)` or `.onAny()`. Chrome-aware (M7 applies). Replaces the former name "InventoryContext" throughout the library.
+**MenuContext.** Panels anchored to the frame of an `AbstractContainerScreen`. Consumer declares target screen classes via `.on(ClassA.class, ClassB.class)` or `.onAny()`. Chrome-aware (M5 applies). Replaces the former name "InventoryContext" throughout the library.
 
 **SlotGroupContext.** Panels anchored to a slot group's bounding box, wherever that group renders. Consumer declares target slot-group category via `.on(SlotGroupCategory.PLAYER_INVENTORY)`. Bounds are the rectangle enclosing all slots in the category, recomputed per frame. Chrome is screen-owned, not slot-owned; SlotGroupContext does not participate in chrome.
 
@@ -103,7 +107,7 @@ Adapters must declare which screen classes they apply to. See §7. MenuContext t
 
 ### 4.4 Chrome
 
-MenuContext panels consult `MenuChrome` (formerly `InventoryChrome`) per-frame to resolve chrome-extended bounds before delegating to `RegionMath`. Existing M7 machinery carries forward unchanged except for the rename. Vanilla providers landing today (`CreativeModeInventoryScreen`, `InventoryScreen`, `CraftingScreen`) re-register against the new name.
+MenuContext panels consult `MenuChrome` (formerly `InventoryChrome`) per-frame to resolve chrome-extended bounds before delegating to `RegionMath`. Existing M5 machinery carries forward unchanged except for the rename. Vanilla providers landing today (`CreativeModeInventoryScreen`, `InventoryScreen`, `CraftingScreen`) re-register against the new name.
 
 ### 4.5 Adapter type
 
@@ -201,7 +205,7 @@ SlotGroupContext panels render inside the same `AbstractContainerScreen.render` 
 
 ### 5.8 Chrome, visibility, overflow — inherited semantics
 
-- **Chrome.** SlotGroupContext bounding box is always inside the frame — slot groups render in-frame — so M7/MenuChrome doesn't apply. No separate chrome registry for slot groups.
+- **Chrome.** SlotGroupContext bounding box is always inside the frame — slot groups render in-frame — so M5/MenuChrome doesn't apply. No separate chrome registry for slot groups.
 - **Visibility.** Same `panel.isVisible()` gate as every other context.
 - **Overflow.** Same `RegionMath.resolveInventory` overflow cutoff applies; the bounds argument is the slot-group bounding box rather than the frame. (`RegionMath` stays agnostic — it takes a bounds rectangle.)
 - **Stacking + padding.** Same `RegionRegistry.axialPrefix` path, but registered against `SlotGroupCategory + SlotGroupRegion` rather than `MenuRegion`. Parallel registry state.
@@ -522,15 +526,15 @@ The registry pipeline dispatches render / input to region-based adapters by call
 - **Region-based adapter:** `new ScreenPanelAdapter(panel, MenuRegion)` → registered with `ScreenPanelRegistry` via `.on(...)` / `.onAny()` → registry calls `render` / `mouseClicked` per-frame.
 - **Lambda-based adapter:** `new ScreenPanelAdapter(panel, ScreenOriginFn)` → not registered with `ScreenPanelRegistry` → consumer's own mixin calls `render` / `mouseClicked` directly.
 
-Both paths use the same public methods; different ownership of the call site. The only "API change" at the method-signature level is that `ScreenOriginFn.compute(bounds, screen)` takes the screen parameter (landed in the M7 commit). No API gets removed.
+Both paths use the same public methods; different ownership of the call site. The only "API change" at the method-signature level is that `ScreenOriginFn.compute(bounds, screen)` takes the screen parameter (landed in the M5 commit). No API gets removed.
 
-**`RegionProbes.renderInventoryProbes(...)` transition.** Probes currently render via `ProbeRenderMixin` walking `RegionProbes`' adapter list directly. Post-M8, probes should use `.onAny()` on their region-based adapters and let the registry dispatch them. The `renderInventoryProbes` static method and the two probe mixins (`ProbeRenderMixin`, `ProbeRenderRecipeBookMixin`) become obsolete — their job transfers to the registry. Confirmed during V2 close-out.
+**`RegionProbes.renderInventoryProbes(...)` transition.** Probes currently render via `ProbeRenderMixin` walking `RegionProbes`' adapter list directly. Post-M6, probes should use `.onAny()` on their region-based adapters and let the registry dispatch them. The `renderInventoryProbes` static method and the two probe mixins (`ProbeRenderMixin`, `ProbeRenderRecipeBookMixin`) become obsolete — their job transfers to the registry. Confirmed during V2 close-out.
 
 ---
 
-## 9. M7 interaction and rename (InventoryChrome → MenuChrome)
+## 9. M5 interaction and rename (InventoryChrome → MenuChrome)
 
-M7 machinery stays structurally identical. What changes:
+M5 machinery stays structurally identical. What changes:
 
 - `InventoryChrome` class → `MenuChrome` class.
 - `ChromeExtents` record unchanged (same fields, same `NONE` constant).
@@ -541,19 +545,19 @@ M7 machinery stays structurally identical. What changes:
 
 **SlotGroupContext does not have chrome.** Slot groups render inside the screen frame; their bounding box is already inside the chrome-extended region. A panel anchored to a slot group's edge is anchored inside the frame too. Chrome is the screen's concern, not the slot group's.
 
-MenuContext panels continue to benefit from M7 exactly as today. `RegionRegistry.menuOriginFn` (renamed from `inventoryOriginFn`) consults `MenuChrome.of(screen)` per frame, extends bounds, delegates to `RegionMath.resolveMenu` (renamed from `resolveInventory`).
+MenuContext panels continue to benefit from M5 exactly as today. `RegionRegistry.menuOriginFn` (renamed from `inventoryOriginFn`) consults `MenuChrome.of(screen)` per frame, extends bounds, delegates to `RegionMath.resolveMenu` (renamed from `resolveInventory`).
 
 ---
 
-## 10. M5 §11 non-goal amendment
+## 10. M4 §11 non-goal amendment
 
-Current §11 reads (after M7 landed):
+Current §11 reads (after M5 landed):
 
-> Vanilla-HUD-element awareness. Regions do not know about vanilla hotbar / XP bar / boss bar / chat. Consumers that need clearance from vanilla HUD use the `.anchor(...)` path with manual offset (see §5.4). **Inventory chrome** (creative tabs, recipe book widget) is handled by M7 — see `Phase 12.5/M7_CHROME_AWARE_REGIONS.md`. Consumers get chrome-aware region placement automatically; modded screens register their own chrome extents via `InventoryChrome.register(...)`.
+> Vanilla-HUD-element awareness. Regions do not know about vanilla hotbar / XP bar / boss bar / chat. Consumers that need clearance from vanilla HUD use the `.anchor(...)` path with manual offset (see §5.4). **Inventory chrome** (creative tabs, recipe book widget) is handled by M5 — see `Phase 12.5/M5_CHROME_AWARE_REGIONS.md`. Consumers get chrome-aware region placement automatically; modded screens register their own chrome extents via `InventoryChrome.register(...)`.
 
 Replacement text:
 
-> **Chrome awareness is scoped per context.** *MenuContext* chrome (creative tabs, recipe book widget, any AbstractContainerScreen drawing outside its declared frame) is library-owned via M7/MenuChrome — see `Phase 12.5/M7_CHROME_AWARE_REGIONS.md`. Consumers get chrome-aware region placement automatically; modded screens register their own chrome extents via `MenuChrome.register(...)`. *HudContext* chrome (vanilla hotbar, XP bar, boss bar, chat) remains a non-goal — HUD panels needing clearance from vanilla HUD elements solve locally via manual offset. *SlotGroupContext* and *StandaloneContext* do not have chrome concerns — slot-group bounding boxes are always inside the screen frame (chrome is the parent screen's problem), and standalone screens are MenuKit-owned end-to-end.
+> **Chrome awareness is scoped per context.** *MenuContext* chrome (creative tabs, recipe book widget, any AbstractContainerScreen drawing outside its declared frame) is library-owned via M5/MenuChrome — see `Phase 12.5/M5_CHROME_AWARE_REGIONS.md`. Consumers get chrome-aware region placement automatically; modded screens register their own chrome extents via `MenuChrome.register(...)`. *HudContext* chrome (vanilla hotbar, XP bar, boss bar, chat) remains a non-goal — HUD panels needing clearance from vanilla HUD elements solve locally via manual offset. *SlotGroupContext* and *StandaloneContext* do not have chrome concerns — slot-group bounding boxes are always inside the screen frame (chrome is the parent screen's problem), and standalone screens are MenuKit-owned end-to-end.
 
 References to "InventoryContext" elsewhere in M5 update to "MenuContext." §11's other non-goals (grafted-slot backdrop panels, dynamic panel construction, vanilla-menu-element-anchored regions, priority stacking, user override) are unchanged, but text explaining them drops "inventory-context" framing where it appears.
 
@@ -594,7 +598,7 @@ References to "InventoryContext" elsewhere in M5 update to "MenuContext." §11's
 
 Phase 12.5 is a library-restructure phase, not a consumer-migration phase. Consumer modules (inventory-plus, sandboxes, shulker-palette) are touched only for mechanical renames in file references (`InventoryRegion` → `MenuRegion`, imports updated, etc.). Their adapter shape — lambda-based `ScreenOriginFn` with consumer-owned mixin scoping — stays unchanged. Any decision to migrate these to the new region-based targeting API is Phase 13a's call, per-consumer.
 
-Matches how M5 and M7 bounded their scope: landed library primitives, deferred consumer migrations. M7's §11.3 list called out the same deferral; M8 follows the pattern.
+Matches how M5 and M5 bounded their scope: landed library primitives, deferred consumer migrations. M5's §11.3 list called out the same deferral; M6 follows the pattern.
 
 **In-scope for Phase 12.5:**
 
@@ -627,11 +631,11 @@ Matches how M5 and M7 bounded their scope: landed library primitives, deferred c
 
 Add Principles 10 and 11 in full (§2.1, §2.2). Update intro sentence per §2.3.
 
-### 11.6 M5, M7 design docs
+### 11.6 M5, M5 design docs
 
-- M5 §11: amend per §10 above.
+- M4 §11: amend per §10 above.
 - M5 elsewhere: rename "InventoryContext" / "InventoryRegion" references to "MenuContext" / "MenuRegion".
-- M7: rename "InventoryChrome" references to "MenuChrome". Update the Status section to note the rename.
+- M5: rename "InventoryChrome" references to "MenuChrome". Update the Status section to note the rename.
 
 ### 11.7 Phase 12.5 DESIGN.md
 
@@ -643,11 +647,11 @@ V2 section and elsewhere: rename "InventoryContext" → "MenuContext". Add SlotG
 
 - **"Any category" targeting for SlotGroupContext.** No `.onAny()`. Categories are the point.
 - **Category inheritance.** `PLAYER_INVENTORY` is not a "parent" of anything. Tags are flat.
-- **Chrome for slot groups.** The slot group's bounding box is inside the screen frame; the screen's chrome is handled by M7 at the screen level.
+- **Chrome for slot groups.** The slot group's bounding box is inside the screen frame; the screen's chrome is handled by M5 at the screen level.
 - **~~Runtime category mutation.~~** (Withdrawn.) Draft v1 read this as a non-goal with a future-v2 pointer. V2 probe validation exposed that the non-goal wasn't actually justified — the resolver interface is already shaped such that per-frame re-resolution is cheap and correct. §5.4 now documents per-frame resolution as the shipped model, and `ItemPickerMenu` is the canonical dynamic case the model supports. Nothing about runtime category mutation is deferred anymore; dropping the non-goal entry rather than leaving it as a crossed-out historical artifact in steady state.
 - **Multiple region systems per context.** Each context has one Region enum (`MenuRegion`, `SlotGroupRegion`, `HudRegion`, `StandaloneRegion`). No sub-regions or nested regions in v1.
 - **Back-compat shims for the rename.** `InventoryRegion` is removed, not deprecated. Phase 12.5 is pre-1.0; breaking rename is cheap. See Principle 11's evidence basis.
-- **Unregister / removal APIs.** Adapters and resolvers are process-lifetime, same as M7.
+- **Unregister / removal APIs.** Adapters and resolvers are process-lifetime, same as M5.
 
 ---
 
@@ -687,16 +691,16 @@ Per brief's sequencing, executed after round-1 sign-off:
 4. `ScreenPanelRegistry` listener pipeline.
 5. SlotGroupContext machinery (`SlotGroupRegion`, `SlotGroupCategory`, `SlotGroupCategories` registry, `SlotGroupPanelAdapter`, 20 vanilla resolvers).
 6. THESIS.md Principles 10 + 11.
-7. M5 §11 amendment, M7 rename, Phase 12.5 DESIGN updates.
+7. M4 §11 amendment, M5 rename, Phase 12.5 DESIGN updates.
 8. V2 resumes against new model: probe mixin guard removal, MenuContext probes, SlotGroupContext probes (PLAYER_INVENTORY + CHEST_STORAGE), chrome-adaptation test on CraftingScreen / FurnaceScreen / SmokerScreen / BlastFurnaceScreen.
 
-Phase 12.5 close-out (task #59) captures the reframe as highest-value output alongside Principles 9, 10, 11 + M7 + adapter targeting + SlotGroupContext.
+Phase 12.5 close-out (task #59) captures the reframe as highest-value output alongside Principles 9, 10, 11 + M5 + adapter targeting + SlotGroupContext.
 
 ---
 
 ## 15. Principle 9 continuity note
 
-This restructure is the third Principle 9 instance (after ScreenPanelAdapter completeness and M7). Apply the Principle 9 test: *"when a rendering behavior varies between contexts, does the variation have a named reason rooted in the screen's relationship to gameplay, not in the container's implementation?"*
+This restructure is the third Principle 9 instance (after ScreenPanelAdapter completeness and M5). Apply the Principle 9 test: *"when a rendering behavior varies between contexts, does the variation have a named reason rooted in the screen's relationship to gameplay, not in the container's implementation?"*
 
 MenuContext's `TOP_ALIGN_LEFT` vs. SlotGroupContext's `TOP_ALIGN_LEFT` produce different visible placements. Is there a gameplay-rooted reason? **Yes.** MenuContext anchors to "the screen's frame" — a gameplay concept (the screen is a UI surface). SlotGroupContext anchors to "the slot group's bounding box" — also a gameplay concept (the slot group is a categorized inventory section). The variation is gameplay-rooted; both contexts are principled.
 
@@ -704,4 +708,4 @@ Contrast: a hypothetical "InventoryContext vs. ContainerContext" split, where `T
 
 ---
 
-**End of M8.** Advisor round-1 signed off (§13). Implementation proceeds per §14 sequencing: MenuRegion rename → adapter targeting → ScreenPanelRegistry → SlotGroupContext machinery → THESIS Principles 10+11 → M5/M7/DESIGN updates → V2 resumes.
+**End of M6.** Advisor round-1 signed off (§13). Implementation proceeds per §14 sequencing: MenuRegion rename → adapter targeting → ScreenPanelRegistry → SlotGroupContext machinery → THESIS Principles 10+11 → M5/M5/DESIGN updates → V2 resumes.

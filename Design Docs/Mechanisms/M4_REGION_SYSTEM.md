@@ -1,14 +1,16 @@
-# M5 — Context-Scoped Region System
+# M4 — Context-Scoped Region System
 
-**Phase 12 mechanism — layout-shaped** (per `Phase 11/POST_PHASE_11.md`).
+*(Previously numbered M5. Renumbered during Phase 13 doc reorganization after M3 [MKFamily] was deleted from the library.)*
+
+**Phase 12 mechanism — layout-shaped** (per `Phases/11/POST_PHASE_11.md`).
 
 **Status: Resolved — ready for implementation, pending F9 UI-structure clarification for §7.**
 
-**Post-M8 terminology update (Phase 12.5).** `InventoryRegion` was renamed to `MenuRegion` and `InventoryChrome` to `MenuChrome` as part of the four-context reframe — "inventory" was misleading because both regions apply to every `AbstractContainerScreen`, not just the player-inventory screen. See `Phase 12.5/M8_FOUR_CONTEXT_MODEL.md` for the reframe rationale and the full naming map. This doc has been updated to the new names; the semantics described are unchanged.
+**Post-M6 terminology update (Phase 12.5).** `InventoryRegion` was renamed to `MenuRegion` and `InventoryChrome` to `MenuChrome` as part of the four-context reframe — "inventory" was misleading because both regions apply to every `AbstractContainerScreen`, not just the player-inventory screen. See `Mechanisms/M6_FOUR_CONTEXT_MODEL.md` for the reframe rationale and the full naming map. This doc has been updated to the new names; the semantics described are unchanged.
 
 **Enables:** Phase 13a migrations (settings gear, sandboxes buttons, pocket-panel for F9 once UI clarified), and future cross-mod panel placement without coordinate-level coordination. **Grafted-slot backdrops (F8 equipment, F15 peek, and any grafted-slot visual layer) do not use regions** — see §4A and §11.
 
-**Companion doc:** `M5_REGION_SPECS.md` — authoritative specification of the 25 region names, anchors, and flow directions. This doc is the HOW; the specs doc is the WHAT.
+**Companion doc:** `M4_SPECS.md` — authoritative specification of the 25 region names, anchors, and flow directions. This doc is the HOW; the specs doc is the WHAT.
 
 ---
 
@@ -715,9 +717,9 @@ The eight questions that were open during the draft pass are now resolved per ad
 
 ## 11. Non-goals / out of scope
 
-- **Grafted-slot backdrop panels (F8, F15, any future M4 consumer) migrate to SlotGroupContext post-M8.** The pre-M8 non-goal here read as "do not use regions" because the only available region path was by-value stacking that drifted with visibility changes. Post-M8, the natural home is `SlotGroupPanelAdapter` — the consumer registers a `SlotGroupCategory` for the grafted slot group, and decorates via the category-keyed adapter path. The by-reference/by-value distinction resolves itself: the slot group's bounding box tracks its own slots per-frame, and the decoration panel anchors to that bounding box rather than to a stacking-position-within-a-region. The "fixed-anchor, non-stacking region variant" the old note flagged as a Rule-of-Three reconsideration is dissolved — SlotGroupContext answers the problem directly.
+- **Grafted-slot backdrop panels (F8, F15, any future M4 consumer) migrate to SlotGroupContext post-M6.** The pre-M6 non-goal here read as "do not use regions" because the only available region path was by-value stacking that drifted with visibility changes. Post-M6, the natural home is `SlotGroupPanelAdapter` — the consumer registers a `SlotGroupCategory` for the grafted slot group, and decorates via the category-keyed adapter path. The by-reference/by-value distinction resolves itself: the slot group's bounding box tracks its own slots per-frame, and the decoration panel anchors to that bounding box rather than to a stacking-position-within-a-region. The "fixed-anchor, non-stacking region variant" the old note flagged as a Rule-of-Three reconsideration is dissolved — SlotGroupContext answers the problem directly.
 - **Dynamic panel construction is unsupported.** The library contract assumes consumers construct exactly one adapter per logical panel at mod init, as a `static final` field. There is no `unregister()` API and no `WeakReference` fallback. Consumers needing per-session UI use raw `ScreenOriginFn` lambdas (opt out of regions).
-- **Chrome awareness is scoped per context** (post-M8 refinement). *MenuContext* chrome (creative tabs, recipe book widget, any `AbstractContainerScreen` drawing outside its declared frame) is library-owned via M7/MenuChrome — see `Phase 12.5/M7_CHROME_AWARE_REGIONS.md`. Consumers get chrome-aware region placement automatically; modded screens register their own chrome extents via `MenuChrome.register(...)`. *HudContext* chrome (vanilla hotbar, XP bar, boss bar, chat) remains a non-goal — HUD panels needing clearance from vanilla HUD elements solve locally via manual offset. *SlotGroupContext* and *StandaloneContext* do not have chrome concerns — slot-group bounding boxes are always inside the screen frame (chrome is the parent screen's problem), and standalone screens are MenuKit-owned end-to-end.
+- **Chrome awareness is scoped per context** (post-M6 refinement). *MenuContext* chrome (creative tabs, recipe book widget, any `AbstractContainerScreen` drawing outside its declared frame) is library-owned via M5/MenuChrome — see `Mechanisms/M5_CHROME_AWARE_REGIONS.md`. Consumers get chrome-aware region placement automatically; modded screens register their own chrome extents via `MenuChrome.register(...)`. *HudContext* chrome (vanilla hotbar, XP bar, boss bar, chat) remains a non-goal — HUD panels needing clearance from vanilla HUD elements solve locally via manual offset. *SlotGroupContext* and *StandaloneContext* do not have chrome concerns — slot-group bounding boxes are always inside the screen frame (chrome is the parent screen's problem), and standalone screens are MenuKit-owned end-to-end.
 - **Vanilla-menu-element-anchored regions.** No "above crafting grid" region — consumers manually offset via `ScreenOriginFn` if they need menu-internal placement. The shulker palette toggle is the canonical example.
 - **Priority stacking.** Registration order only. No consumer-supplied priority knob.
 - **User override.** No runtime API for the player to re-stack or relocate regions.
@@ -802,10 +804,91 @@ Every future rendering context MenuKit adds — tooltip overlay, boss-bar overla
 
 Library additions landed. V4.2 inventory decoration ships against the new primitives — consumer code is scenario-wiring-only, no origin math, no background painting, no padding hacks. 13a migration list filed. `/mkverify v4 cross inventory` validates render parity with HUD + standalone per the V4.2 test.
 
-### M7 chrome — follow-on
+### M5 chrome — follow-on
 
-`ScreenPanelAdapter` completeness closed the rendering-pipeline gap (padding + auto-background). A separate class of gap, `MenuRegion` chrome-awareness, surfaced during V2 probe validation and resolved via **M7 — chrome-aware inventory regions** (`Phase 12.5/M7_CHROME_AWARE_REGIONS.md`). M7 introduces `MenuChrome` registry + per-screen `ChromeProvider` functional interface, consulted by `RegionRegistry.menuOriginFn` before delegating to pure `RegionMath`.
+`ScreenPanelAdapter` completeness closed the rendering-pipeline gap (padding + auto-background). A separate class of gap, `MenuRegion` chrome-awareness, surfaced during V2 probe validation and resolved via **M5 — chrome-aware inventory regions** (`Mechanisms/M5_CHROME_AWARE_REGIONS.md`). M5 introduces `MenuChrome` registry + per-screen `ChromeProvider` functional interface, consulted by `RegionRegistry.menuOriginFn` before delegating to pure `RegionMath`.
 
 v1 ships providers for `CreativeModeInventoryScreen` (static `ChromeExtents(25, 0, 0, 26)` — visible-tab-edge alignment, derived from vanilla's `checkTabHovering` hit-test geometry) and `InventoryScreen` (dynamic recipe-book chrome via vanilla's `RecipeBookComponent.updateTabs` formula). Other recipe-book screens (CraftingScreen, FurnaceScreen, SmokerScreen, BlastFurnaceScreen) extend the v1 scope once V2's completeness pass validates the pattern.
 
-M7 closes what Principle 9 predicts for region anchoring: `TOP_ALIGN_LEFT` means the same thing regardless of which screen subclass hosts it — the screen's chrome is library knowledge, not consumer burden. The §11 non-goal language updates accordingly — **inventory chrome** (creative tabs, recipe book widget) is now a library concern via M7; **HUD chrome** (hotbar, XP bar, boss bar, chat) remains consumer-owned per the original non-goal.
+M5 closes what Principle 9 predicts for region anchoring: `TOP_ALIGN_LEFT` means the same thing regardless of which screen subclass hosts it — the screen's chrome is library knowledge, not consumer burden. The §11 non-goal language updates accordingly — **inventory chrome** (creative tabs, recipe book widget) is now a library concern via M5; **HUD chrome** (hotbar, XP bar, boss bar, chat) remains consumer-owned per the original non-goal.
+
+---
+
+## 13. Appendix — Region catalog
+
+*(Merged here during Phase 13 doc reorganization from the standalone `M4_SPECS.md` file (originally `M5_REGION_SPECS.md`). Authoritative reference for region names, anchors, and flow directions across the three contexts.)*
+
+### MenuContext / Standalone — 8 regions (the SIDE_ALIGN_END convention)
+
+Left side: `LEFT_ALIGN_TOP` starts at top, flows down. `LEFT_ALIGN_BOTTOM` starts at bottom, flows up.
+
+Right side: `RIGHT_ALIGN_TOP` starts at top, flows down. `RIGHT_ALIGN_BOTTOM` starts at bottom, flows up.
+
+Top side: `TOP_ALIGN_LEFT` starts at left, flows right. `TOP_ALIGN_RIGHT` starts at right, flows left.
+
+Bottom side: `BOTTOM_ALIGN_LEFT` starts at left, flows right. `BOTTOM_ALIGN_RIGHT` starts at right, flows left.
+
+#### Positioning behavior
+
+- Regions track `leftPos`, `topPos`, `imageWidth`, `imageHeight` of the container screen. When the recipe book opens and the inventory slides right, all regions move with it.
+- Side regions (LEFT, RIGHT) position panels adjacent to the menu frame's edge with a small gap (2px from the frame edge to the first panel, then 2px between stacked panels).
+- Top/bottom regions position panels adjacent to the menu frame's top/bottom edge with the same gap behavior.
+
+### HudContext — 9 regions
+
+Positioned relative to the screen edges during normal gameplay (no menu open). The screen is the full game window.
+
+| Region | Anchor position | Flow direction | Example consumer |
+|--------|----------------|----------------|------------------|
+| `TOP_LEFT` | Top-left corner of the screen | Down ↓ | Debug info area |
+| `TOP_RIGHT` | Top-right corner of the screen | Down ↓ | Effects, scoreboard |
+| `TOP_CENTER` | Top-center of the screen | Down ↓ | Titles, notifications |
+| `LEFT_CENTER` | Left side, vertically centered | Down ↓ | — |
+| `RIGHT_CENTER` | Right side, vertically centered | Down ↓ | — |
+| `BOTTOM_LEFT` | Bottom-left corner of the screen | Up ↑ | Above chat |
+| `BOTTOM_RIGHT` | Bottom-right corner of the screen | Up ↑ | Item pickup log area |
+| `BOTTOM_CENTER` | Bottom-center, above hotbar | Up ↑ | Pocket HUD |
+| `CENTER` | Below the crosshair, horizontally centered | Down ↓ | Agreeable-allays action hint |
+
+#### CENTER region behavior
+
+`CENTER` is positioned below the crosshair and stacks downward like any other region. No special single-panel constraint — normal stacking applies. Mod consumers are expected to use this region responsibly (transient/contextual panels, not persistent UI). This is a social contract, not a technical enforcement.
+
+#### HUD-specific notes
+
+- HUD regions don't track a menu frame (there is none). They track screen edges and screen center.
+- Vanilla's own HUD elements (hotbar, XP bar, health, hunger, boss bar, chat) are not managed by the region system. Consumer panels may overlap with vanilla HUD elements. This is a v1 limitation — consumers accept it and position accordingly.
+- Corner regions have a small inset from the screen edges (matching vanilla's debug screen positioning convention).
+
+### StandaloneContext — 8 regions
+
+Standalone screens are MenuKit-native screens built with `MenuKitScreenHandler`. The main panel is the screen's primary content. Other mods (or the same mod) can attach additional panels around the main panel using the same side-and-alignment model as MenuContext.
+
+The main panel is treated the same way MenuContext treats the vanilla menu frame — 8 regions positioned outside it.
+
+| Region | Anchor position | Flow direction |
+|--------|----------------|----------------|
+| `LEFT_ALIGN_TOP` | Top of the left side, outside the main panel | Down ↓ |
+| `LEFT_ALIGN_BOTTOM` | Bottom of the left side, outside the main panel | Up ↑ |
+| `RIGHT_ALIGN_TOP` | Top of the right side, outside the main panel | Down ↓ |
+| `RIGHT_ALIGN_BOTTOM` | Bottom of the right side, outside the main panel | Up ↑ |
+| `TOP_ALIGN_LEFT` | Left end of the top side, outside the main panel | Right → |
+| `TOP_ALIGN_RIGHT` | Right end of the top side, outside the main panel | Left ← |
+| `BOTTOM_ALIGN_LEFT` | Left end of the bottom side, outside the main panel | Right → |
+| `BOTTOM_ALIGN_RIGHT` | Right end of the bottom side, outside the main panel | Left ← |
+
+#### Standalone-specific notes
+
+- Regions track the main panel's position and dimensions, same as MenuContext regions track the menu frame.
+- Same naming convention as MenuContext (`SIDE_ALIGN_END`). The enum values are distinct types per Principle 10 (`MenuRegion` vs `StandaloneRegion`); the spatial concept is shared.
+- If the standalone screen has no main panel (unusual), regions have nothing to anchor to. Behavior: no regions active, consumers fall back to manual positioning.
+
+### Catalog summary
+
+| Context | Region count | Naming convention | Anchor frame |
+|---------|-------------|-------------------|--------------|
+| MenuContext | 8 | `SIDE_ALIGN_END` | Vanilla menu frame |
+| HudContext | 9 | `POSITION` (+ CENTER) | Screen edges + crosshair |
+| StandaloneContext | 8 | `SIDE_ALIGN_END` | Main panel |
+
+Total: 25 named regions across 3 contexts. V1 scope: registration-order stacking, 2px gap default, cutoff overflow. No priority, no user override. Chrome awareness via M5 (MenuContext only); see `M5_CHROME_AWARE_REGIONS.md`. Slot-group anchoring is a separate context (SlotGroupContext per M6 four-context model); SlotGroupContext has its own region enum (`SlotGroupRegion`) with the same 8 SIDE_ALIGN_END values.
