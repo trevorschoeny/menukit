@@ -10,7 +10,7 @@ For Phase 11 state, see [Phases/11/shulker-palette/REPORT.md](../../Phases/11/sh
 
 ## Architectural decisions
 
-*Populated as design decisions are made outside the Phase 11 refactor scope.*
+**MKFamily migration (Phase 14a).** Previously joined the `trevmods` family for shared identity (no keybinds, no surviving queries — pure no-op post-Phase-12.5 scope-down). With MKFamily removed from MenuKit in Phase 14a, shulker-palette's family block was deleted entirely. No replacement needed; SP contributes no section to vanilla's Controls screen.
 
 ## Known issues
 

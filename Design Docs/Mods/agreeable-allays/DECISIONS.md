@@ -8,7 +8,7 @@ For Phase 11 state, see [Phases/11/final-consumers/REPORT.md](../../Phases/11/fi
 
 ## Architectural decisions
 
-Previously a pure MKFamily Layer A consumer (`family.getKeybindCategory()` + `modId(...)`). With MKFamily removal (Phase 13 carry-forward), agreeable-allays needs to declare its own `KeyMapping` category directly.
+**MKFamily migration (Phase 14a).** Previously a pure MKFamily Layer A consumer that retrieved `family.getKeybindCategory()` + called `modId(...)`. With MKFamily removed from MenuKit in Phase 14a, agreeable-allays' family block was deleted entirely — the retrieved `category` variable was never read (AA registers no keybinds; only the HUD action-hint panel survives). No replacement needed; AA contributes no section to vanilla's Controls screen.
 
 ## Known issues
 

@@ -96,11 +96,21 @@ MenuKit primitive for persistent per-slot metadata that survives menu transition
 `SlotIdentity` record `(Container, int containerSlot)` + static factory `SlotIdentity.of(Slot)`. Zero-dependency primitive for cross-menu stable slot identity.
 **Status:** shipped in Phase 11 IP. M1 builds on it.
 
-**M3 — MKFamily — DELETED (Phase 13 follow-on).**
+**M3 — MKFamily — DELETED (executed Phase 14a).**
 
-**Status (current, Phase 13):** Trevor decided during Phase 13 doc reorganization that the entire mod-family concept doesn't belong in MenuKit. Library code removal (`MenuKit.family()`, `MKFamily` class, ~115 lines) + 4 consumer mod migrations (each declares its own `KeyMapping` category directly instead of going through `family.getKeybindCategory()`) are carry-forward to Phase 14 prep or a dedicated Phase 13.5 sub-phase. M3 slot in the Mechanisms/ folder is unfilled — the next library mechanism (formerly M4 vanilla slot injection) renumbered into M3.
+**Status (current, Phase 14a):** MKFamily and the mod-family concept are out of MenuKit. `MenuKit.family()`, `MKFamily.java` (the full class), and the orphaned `com.trevorschoeny.menukit.config` package are deleted. The four consumer mods migrated:
+- **inventory-plus** — direct `KeyMapping.Category.register(Identifier.fromNamespaceAndPath("inventory-plus", "inventory-plus"))`. 1:1 swap.
+- **sandboxes** — same pattern with the sandboxes mod-id. 1:1 swap.
+- **shulker-palette** — pure deletion. SP had no keybinds; the family call was a post-scope-down no-op.
+- **agreeable-allays** — pure deletion. AA retrieved `category` but never used it (no keybinds in client init).
 
-*(Below content preserved as historical record of the Phase 12.5 scope-down state, before the Phase 13 deletion decision.)*
+Validator V8 scenario (which exercised MKFamily Layer A) deleted — compiler enforces absence; an absence-probe has no architectural value. M3 slot in the `Mechanisms/` folder remains unfilled (M3-as-vanilla-slot-injection from Phase 13 renumbering is unrelated to the historical M3 MKFamily slot).
+
+User-facing effect: vanilla Controls screen now shows `Inventory Plus` and `Sandboxes` as separate sections instead of a single shared "Trev's Mods" section. Intended end-state per Trevor's Phase 13 decision; SP/AA contribute no section since they have no keybinds.
+
+*(Below content preserved as historical record of the Phase 12.5 scope-down state, which preceded the Phase 13 deletion decision and Phase 14a execution.)*
+
+*(Phase 12.5 scope-down record preserved below.)*
 
 **Status (Phase 12.5, historical):** resolved in Phase 12.5, disposition 2 (scope down to grouping only). See `menukit/Design Docs/Phases/12.5/DESIGN.md` §11 for the scope-down rationale; the advisor rulings + implementation record are folded into this entry rather than a separate sub-phase REPORT (M3 is library cleanup, not a validation scenario).
 

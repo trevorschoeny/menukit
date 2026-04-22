@@ -8,7 +8,7 @@ For Phase 11 state, see [Phases/11/final-consumers/REPORT.md](../../Phases/11/fi
 
 ## Architectural decisions
 
-*Populated as design decisions are made outside the Phase 11 refactor scope.*
+**MKFamily migration (Phase 14a).** Replaced `MenuKit.family("trevmods").getKeybindCategory()` with direct `KeyMapping.Category.register(Identifier.fromNamespaceAndPath("sandboxes", "sandboxes"))`. Sandboxes' keybind now registers under its own Controls-screen section instead of a shared "Trev's Mods" section.
 
 ## Known issues
 

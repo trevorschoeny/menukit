@@ -23,7 +23,7 @@ This document is the authoritative phase roadmap. Individual phase design docs f
 
 ---
 
-## Phase 13 — Doc Reorganization ← current
+## Phase 13 — Doc Reorganization
 
 **Scope.** Restructure `Design Docs/` into a navigable hierarchy; archive stale docs; renumber cross-references to match the new phase numbering (Phase 13a–13e consumer-migration references from `Phase 11/POST_PHASE_11.md` → 15a–15e); refresh canonical docs (NORTH_STAR, THESIS, CONTEXTS, PALETTE) for any drift from Phase 12 / 12.5 shipped work.
 
@@ -49,13 +49,13 @@ This document is the authoritative phase roadmap. Individual phase design docs f
 
 **Scope.** Ship remaining MenuKit primitives and UI additions before consumer migrations swing in. Expanded during Phase 13 planning to incorporate two new mechanisms (M7 Storage Attachment Taxonomy + M8 Layout Composition) plus modal/dialog primitives alongside the original palette gaps. Organized into four sub-phases for tractability.
 
-### Sub-phase 14a — MKFamily removal
+### Sub-phase 14a — MKFamily removal ← current
 
 Clean break before larger work. Carries forward from Phase 13 doc reorg decision.
 
 - **Library:** delete `MenuKit.family()`, `MKFamily` class, related types (~115 lines). The mod-family concept doesn't belong in MenuKit.
-- **Consumer migration** (4 mods): each declares its own `KeyMapping` category directly instead of going through `family.getKeybindCategory()`. Small per-mod migration.
-- **Validator:** delete or repurpose V8 scenario (currently tests MKFamily Layer A — the feature is going away).
+- **Consumer migration** (4 mods): each declares its own `KeyMapping` category directly instead of going through `family.getKeybindCategory()`. Small per-mod migration. *Adjusted during 14a execution: SP and AA had no surviving keybinds, so their migrations were pure deletions rather than 1:1 swaps. IP and sandboxes received the real `Category.register(...)` swap.*
+- **Validator:** delete or repurpose V8 scenario (currently tests MKFamily Layer A — the feature is going away). *Resolved 14a: deleted (compiler enforces absence; absence-probe has no architectural value).*
 - **Stale-config note:** users may have `config/menukit-family-*.json` files orphaned on disk after removal; no runtime effect, left alone.
 
 ### Sub-phase 14b — M7 Storage Attachment Taxonomy
@@ -245,4 +245,4 @@ This plan is not frozen. Findings during any phase can trigger scope adjustments
 
 ---
 
-**Current phase: 13 (Doc Reorganization) — step 1 of mini-plan complete (this doc).**
+**Current phase: 14a (MKFamily removal).**

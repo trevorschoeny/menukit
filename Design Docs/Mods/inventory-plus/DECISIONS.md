@@ -10,7 +10,7 @@ Migration to MenuKit's completed library occurs in Phase 15a–15c per [PHASES.m
 
 ## Architectural decisions
 
-*Populated as design decisions are made outside the Phase 11 refactor scope.*
+**MKFamily migration (Phase 14a).** Replaced `MenuKit.family("trevmods").getKeybindCategory()` with direct `KeyMapping.Category.register(Identifier.fromNamespaceAndPath("inventory-plus", "inventory-plus"))`. All seven IP keybinds (sort, move-matching, lock, peek, autofill, pocket-cycle left/right) now register under inventory-plus's own Controls-screen section instead of a shared "Trev's Mods" section.
 
 ## Known issues
 
