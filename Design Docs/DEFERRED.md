@@ -45,6 +45,11 @@ Items deferred across phases. Scan this list at phase boundaries.
 - **Per-panel PANEL_PADDING configuration** (if panel padding becomes variable)
   Currently a global constant in `MenuKitHandledScreen`. Both slot positioning and element positioning use it. If it ever becomes per-panel, both code paths need to consult the panel's padding value.
 
+- **MenuKit-to-MenuKit screen swap primitive** (when a consumer builds multi-screen navigation)
+  Navigating between MenuKit screens today goes through vanilla's `player.openMenu`, which closes the current container (`ContainerClose` packet) before opening the next (`OpenScreen` packet). The brief close → world-view → open transit causes the client to un-grab and re-grab the mouse, resetting cursor position to screen center. Observable when validator hub buttons (and "Back to Hub" decorations) transition between scenario screens — cursor snaps to center every swap. Not a validator bug; a vanilla round-trip artifact.
+  Sketch: a new C2S+S2C packet pair that tells the client "replace the current screen's handler with this new one" without going through `ContainerClose` → `OpenScreen`. Client swaps the handler in-place, preserving cursor position and menu sync ID continuity.
+  Defer until a consumer mod builds multi-screen navigation with cursor continuity as a requirement. Right now only the validator's internal tooling hits this, and the dev-client-only audience accepts the cosmetic reset.
+
 ## Phase 5 Cleanup
 
 - **MenuKitTestSetup removal** — convert to proper test framework or remove entirely
