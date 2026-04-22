@@ -49,7 +49,7 @@ This document is the authoritative phase roadmap. Individual phase design docs f
 
 **Scope.** Ship remaining MenuKit primitives and UI additions before consumer migrations swing in. Expanded during Phase 13 planning to incorporate two new mechanisms (M7 Storage Attachment Taxonomy + M8 Layout Composition) plus modal/dialog primitives alongside the original palette gaps. Organized into four sub-phases for tractability.
 
-### Sub-phase 14a — MKFamily removal ← current
+### Sub-phase 14a — MKFamily removal
 
 Clean break before larger work. Carries forward from Phase 13 doc reorg decision.
 
@@ -58,7 +58,7 @@ Clean break before larger work. Carries forward from Phase 13 doc reorg decision
 - **Validator:** delete or repurpose V8 scenario (currently tests MKFamily Layer A — the feature is going away). *Resolved 14a: deleted (compiler enforces absence; absence-probe has no architectural value).*
 - **Stale-config note:** users may have `config/menukit-family-*.json` files orphaned on disk after removal; no runtime effect, left alone.
 
-### Sub-phase 14b — M7 Storage Attachment Taxonomy
+### Sub-phase 14b — M7 Storage Attachment Taxonomy ← current
 
 New mechanism formalizing where slot-group contents persist, by owner type.
 
@@ -245,4 +245,4 @@ This plan is not frozen. Findings during any phase can trigger scope adjustments
 
 ---
 
-**Current phase: 14a (MKFamily removal).**
+**Current phase: 14b (M7 Storage Attachment Taxonomy).**
