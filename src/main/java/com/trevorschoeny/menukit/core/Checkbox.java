@@ -133,6 +133,33 @@ public class Checkbox implements PanelElement {
         return () -> label;
     }
 
+    // ── M8 Layout Spec ─────────────────────────────────────────────────
+
+    /**
+     * Returns an {@link com.trevorschoeny.menukit.core.layout.ElementSpec}
+     * for static label. Width inferred from font metrics + box + gap;
+     * height is {@link #BOX_SIZE}.
+     */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            boolean initialState, Component label, Consumer<Boolean> onToggle) {
+        return spec(initialState, label, onToggle, null);
+    }
+
+    /** Layout spec for static label with optional disabled-predicate. */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            boolean initialState, Component label, Consumer<Boolean> onToggle,
+            @Nullable BooleanSupplier disabledWhen) {
+        int labelWidth = Minecraft.getInstance().font.width(label);
+        int w = BOX_SIZE + LABEL_GAP + labelWidth;
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return w; }
+            @Override public int height() { return BOX_SIZE; }
+            @Override public PanelElement at(int x, int y) {
+                return new Checkbox(x, y, initialState, label, onToggle, disabledWhen);
+            }
+        };
+    }
+
     // ── PanelElement Implementation ────────────────────────────────────
 
     @Override public int getChildX() { return childX; }

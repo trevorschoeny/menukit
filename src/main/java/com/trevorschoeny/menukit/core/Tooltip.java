@@ -64,6 +64,41 @@ public class Tooltip implements PanelElement {
         this.textSupplier = text;
     }
 
+    // ── M8 Layout Spec ─────────────────────────────────────────────────
+
+    /**
+     * Returns an {@link com.trevorschoeny.menukit.core.layout.ElementSpec}
+     * for a static-text tooltip. Width inferred from font metrics + padding.
+     */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(Component text) {
+        int textW = Minecraft.getInstance().font.width(text);
+        int w = textW + 2 * PADDING;
+        int h = Minecraft.getInstance().font.lineHeight + 2 * PADDING;
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return w; }
+            @Override public int height() { return h; }
+            @Override public PanelElement at(int x, int y) {
+                return new Tooltip(x, y, text);
+            }
+        };
+    }
+
+    /**
+     * Layout spec for supplier-driven tooltip text with consumer-declared
+     * dimensions. Required for dynamic content — consumer locks max-width
+     * up front so layout stays stable as supplier values change.
+     */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            int width, int height, Supplier<Component> text) {
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return width; }
+            @Override public int height() { return height; }
+            @Override public PanelElement at(int x, int y) {
+                return new Tooltip(x, y, text);
+            }
+        };
+    }
+
     // ── PanelElement Implementation ────────────────────────────────────
 
     @Override public int getChildX() { return childX; }

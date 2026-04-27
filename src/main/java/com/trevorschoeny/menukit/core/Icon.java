@@ -71,6 +71,35 @@ public class Icon implements PanelElement {
         this(childX, childY, width, height, (Supplier<Identifier>) () -> sprite);
     }
 
+    // ── M8 Layout Spec ─────────────────────────────────────────────────
+
+    /**
+     * Returns an {@link com.trevorschoeny.menukit.core.layout.ElementSpec}
+     * for a fixed-sprite icon.
+     */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            int width, int height, Identifier sprite) {
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return width; }
+            @Override public int height() { return height; }
+            @Override public PanelElement at(int x, int y) {
+                return new Icon(x, y, width, height, sprite);
+            }
+        };
+    }
+
+    /** Layout spec for supplier-driven sprite. */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            int width, int height, Supplier<Identifier> spriteSupplier) {
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return width; }
+            @Override public int height() { return height; }
+            @Override public PanelElement at(int x, int y) {
+                return new Icon(x, y, width, height, spriteSupplier);
+            }
+        };
+    }
+
     /**
      * Creates an Icon whose sprite is driven by a supplier.
      */

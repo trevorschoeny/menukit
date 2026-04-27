@@ -160,6 +160,34 @@ public class ProgressBar implements PanelElement {
         return () -> boxed;
     }
 
+    // ── M8 Layout Spec ─────────────────────────────────────────────────
+
+    /**
+     * Returns an {@link com.trevorschoeny.menukit.core.layout.ElementSpec}
+     * for a default-styled progress bar (left-to-right, default colors,
+     * no label).
+     */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            int width, int height, Supplier<Float> value) {
+        return spec(width, height, value, DEFAULT_DIRECTION,
+                DEFAULT_FILL_COLOR, DEFAULT_BG_COLOR, null);
+    }
+
+    /** Layout spec with full configuration. */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            int width, int height, Supplier<Float> value,
+            Direction direction, int fillColor, int bgColor,
+            @Nullable Supplier<Component> label) {
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return width; }
+            @Override public int height() { return height; }
+            @Override public PanelElement at(int x, int y) {
+                return new ProgressBar(x, y, width, height, value,
+                        direction, fillColor, bgColor, label);
+            }
+        };
+    }
+
     // ── PanelElement Implementation ────────────────────────────────────
 
     @Override public int getChildX() { return childX; }

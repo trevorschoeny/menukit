@@ -56,6 +56,48 @@ public class ItemDisplay implements PanelElement {
         this(childX, childY, DEFAULT_SIZE, wrap(stack), true, true);
     }
 
+    // ── M8 Layout Spec ─────────────────────────────────────────────────
+
+    /**
+     * Returns an {@link com.trevorschoeny.menukit.core.layout.ElementSpec}
+     * for a fixed-stack item display at default size with count + durability
+     * overlays.
+     */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(ItemStack stack) {
+        return spec(DEFAULT_SIZE, stack, true, true);
+    }
+
+    /** Layout spec with explicit size and overlay flags, fixed stack. */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            int size, ItemStack stack, boolean showCount, boolean showDurability) {
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return size; }
+            @Override public int height() { return size; }
+            @Override public PanelElement at(int x, int y) {
+                return new ItemDisplay(x, y, size, stack, showCount, showDurability);
+            }
+        };
+    }
+
+    /** Layout spec for supplier-driven stack at default size with overlays. */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            Supplier<ItemStack> stack) {
+        return spec(DEFAULT_SIZE, stack, true, true);
+    }
+
+    /** Layout spec with explicit size, overlay flags, supplier-driven stack. */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            int size, Supplier<ItemStack> stack,
+            boolean showCount, boolean showDurability) {
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return size; }
+            @Override public int height() { return size; }
+            @Override public PanelElement at(int x, int y) {
+                return new ItemDisplay(x, y, size, stack, showCount, showDurability);
+            }
+        };
+    }
+
     /**
      * Creates an ItemDisplay with a fixed stack, explicit size, and
      * explicit overlay visibility.

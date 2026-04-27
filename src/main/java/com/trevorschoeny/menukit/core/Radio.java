@@ -105,6 +105,33 @@ public class Radio<T> implements PanelElement {
         this.disabledWhen = disabledWhen;
     }
 
+    // ── M8 Layout Spec ─────────────────────────────────────────────────
+
+    /**
+     * Returns an {@link com.trevorschoeny.menukit.core.layout.ElementSpec}
+     * for a Radio with static label. Width inferred from font metrics +
+     * box + gap.
+     */
+    public static <T> com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            T value, Component label, RadioGroup<T> group) {
+        return spec(value, label, group, null);
+    }
+
+    /** Layout spec for static label with optional disabled-predicate. */
+    public static <T> com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            T value, Component label, RadioGroup<T> group,
+            @Nullable BooleanSupplier disabledWhen) {
+        int labelWidth = Minecraft.getInstance().font.width(label);
+        int w = BOX_SIZE + LABEL_GAP + labelWidth;
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return w; }
+            @Override public int height() { return BOX_SIZE; }
+            @Override public PanelElement at(int x, int y) {
+                return new Radio<>(x, y, value, label, group, disabledWhen);
+            }
+        };
+    }
+
     /** Wraps a fixed label into a one-shot supplier, unifying the render path. */
     private static Supplier<Component> wrap(Component label) {
         return () -> label;

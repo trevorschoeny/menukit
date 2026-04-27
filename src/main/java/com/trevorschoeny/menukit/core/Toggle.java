@@ -111,6 +111,31 @@ public class Toggle implements PanelElement {
         this.disabledWhen = disabledWhen;
     }
 
+    // ── M8 Layout Spec ─────────────────────────────────────────────────
+
+    /**
+     * Returns an {@link com.trevorschoeny.menukit.core.layout.ElementSpec}
+     * for use in {@link com.trevorschoeny.menukit.core.layout.Row} or
+     * {@link com.trevorschoeny.menukit.core.layout.Column} layouts.
+     */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            int width, int height, boolean initialState, Consumer<Boolean> onToggle) {
+        return spec(width, height, initialState, onToggle, null);
+    }
+
+    /** Layout spec with optional disabled-predicate. */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            int width, int height, boolean initialState,
+            Consumer<Boolean> onToggle, @Nullable BooleanSupplier disabledWhen) {
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return width; }
+            @Override public int height() { return height; }
+            @Override public PanelElement at(int x, int y) {
+                return new Toggle(x, y, width, height, initialState, onToggle, disabledWhen);
+            }
+        };
+    }
+
     // ── PanelElement Implementation ────────────────────────────────────
 
     @Override public int getChildX() { return childX; }
