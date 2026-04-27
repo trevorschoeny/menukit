@@ -106,6 +106,42 @@ public class Divider implements PanelElement {
         return new Divider(childX, childY, thickness, length, color);
     }
 
+    // ── M8 Layout Specs ────────────────────────────────────────────────
+
+    /** Layout spec for a horizontal divider with default color + thickness. */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec horizontalSpec(int length) {
+        return horizontalSpec(length, DEFAULT_COLOR, DEFAULT_THICKNESS);
+    }
+
+    /** Layout spec for a horizontal divider with explicit color + thickness. */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec horizontalSpec(
+            int length, int color, int thickness) {
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return length; }
+            @Override public int height() { return thickness; }
+            @Override public PanelElement at(int x, int y) {
+                return Divider.horizontal(x, y, length, color, thickness);
+            }
+        };
+    }
+
+    /** Layout spec for a vertical divider with default color + thickness. */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec verticalSpec(int length) {
+        return verticalSpec(length, DEFAULT_COLOR, DEFAULT_THICKNESS);
+    }
+
+    /** Layout spec for a vertical divider with explicit color + thickness. */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec verticalSpec(
+            int length, int color, int thickness) {
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return thickness; }
+            @Override public int height() { return length; }
+            @Override public PanelElement at(int x, int y) {
+                return Divider.vertical(x, y, length, color, thickness);
+            }
+        };
+    }
+
     // ── PanelElement Implementation ────────────────────────────────────
 
     @Override public int getChildX() { return childX; }

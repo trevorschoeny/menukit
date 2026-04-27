@@ -58,7 +58,7 @@ Clean break before larger work. Carries forward from Phase 13 doc reorg decision
 - **Validator:** delete or repurpose V8 scenario (currently tests MKFamily Layer A — the feature is going away). *Resolved 14a: deleted (compiler enforces absence; absence-probe has no architectural value).*
 - **Stale-config note:** users may have `config/menukit-family-*.json` files orphaned on disk after removal; no runtime effect, left alone.
 
-### Sub-phase 14b — M7 Storage Attachment Taxonomy ← current
+### Sub-phase 14b — M7 Storage Attachment Taxonomy
 
 New mechanism formalizing where slot-group contents persist, by owner type.
 
@@ -74,7 +74,7 @@ New mechanism formalizing where slot-group contents persist, by owner type.
 - **Absorbs and generalizes #7** (M1 storage-layer wiring, filed from Phase 12.5). M1 covered per-slot METADATA persistence; M7 covers per-slot CONTENT persistence. They share owner-attachment infrastructure. See `Phases/12.5/V5_7_FINDING_M1_STORAGE_WIRING.md` for the finding that led here.
 - Design-doc-first. Ships to `Mechanisms/M7_STORAGE_ATTACHMENT.md`.
 
-### Sub-phase 14c — M8 Layout Composition
+### Sub-phase 14c — M8 Layout Composition ← current
 
 New mechanism for row/column/grid layout helpers.
 
@@ -245,4 +245,4 @@ This plan is not frozen. Findings during any phase can trigger scope adjustments
 
 ---
 
-**Current phase: 14b (M7 Storage Attachment Taxonomy).**
+**Current phase: 14c (M8 Layout Composition).**

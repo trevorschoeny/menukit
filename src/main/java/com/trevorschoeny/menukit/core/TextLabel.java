@@ -96,6 +96,50 @@ public class TextLabel implements PanelElement {
         return () -> text;
     }
 
+    // ── M8 Layout Spec ─────────────────────────────────────────────────
+
+    /**
+     * Returns an {@link com.trevorschoeny.menukit.core.layout.ElementSpec}
+     * for static text. Width inferred from font metrics at spec construction
+     * (single-shot evaluation of {@code text.getString()} via
+     * {@code font.width(text)}); height is {@code font.lineHeight}.
+     *
+     * <p><b>Static text only.</b> For supplier-driven dynamic text, use the
+     * explicit-dimension overload {@link #spec(int, int, Supplier)} —
+     * supplier values can vary frame-to-frame and auto-inferred width
+     * from a single supplier evaluation would freeze layout against a
+     * stale snapshot.
+     */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(Component text) {
+        int w = Minecraft.getInstance().font.width(text);
+        int h = Minecraft.getInstance().font.lineHeight;
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return w; }
+            @Override public int height() { return h; }
+            @Override public PanelElement at(int x, int y) {
+                return new TextLabel(x, y, text);
+            }
+        };
+    }
+
+    /**
+     * Returns an {@link com.trevorschoeny.menukit.core.layout.ElementSpec}
+     * for supplier-driven text with consumer-declared dimensions. Required
+     * path for dynamic content — Row/Column layout stays stable as
+     * supplier values change at runtime because the consumer locks the
+     * width up front.
+     */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            int width, int height, Supplier<Component> text) {
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return width; }
+            @Override public int height() { return height; }
+            @Override public PanelElement at(int x, int y) {
+                return new TextLabel(x, y, text);
+            }
+        };
+    }
+
     // ── PanelElement Implementation ────────────────────────────────────
 
     @Override public int getChildX() { return childX; }

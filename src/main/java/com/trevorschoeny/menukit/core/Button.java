@@ -94,6 +94,35 @@ public class Button implements PanelElement {
         this(childX, childY, width, height, text, onClick, null);
     }
 
+    // ── M8 Layout Spec ─────────────────────────────────────────────────
+
+    /**
+     * Returns an {@link com.trevorschoeny.menukit.core.layout.ElementSpec}
+     * for use in {@link com.trevorschoeny.menukit.core.layout.Row} or
+     * {@link com.trevorschoeny.menukit.core.layout.Column} layouts.
+     * Always-enabled variant.
+     */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            int width, int height, Component text, Consumer<Button> onClick) {
+        return spec(width, height, text, onClick, null);
+    }
+
+    /**
+     * Layout spec with optional disabled-predicate. See
+     * {@link #Button(int, int, int, int, Component, Consumer, BooleanSupplier)}.
+     */
+    public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
+            int width, int height, Component text, Consumer<Button> onClick,
+            @Nullable BooleanSupplier disabledWhen) {
+        return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
+            @Override public int width()  { return width; }
+            @Override public int height() { return height; }
+            @Override public PanelElement at(int x, int y) {
+                return new Button(x, y, width, height, text, onClick, disabledWhen);
+            }
+        };
+    }
+
     // ── PanelElement Implementation ────────────────────────────────────
 
     @Override public int getChildX() { return childX; }
