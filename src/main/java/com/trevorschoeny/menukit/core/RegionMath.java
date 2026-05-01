@@ -58,10 +58,17 @@ public final class RegionMath {
         int imageWidth = bounds.imageWidth();
         int imageHeight = bounds.imageHeight();
 
-        // Overflow check along the flow axis.
-        int available = region.isHorizontalFlow() ? imageWidth : imageHeight;
-        int selfExtent = region.isHorizontalFlow() ? pw : ph;
-        if (prefix + selfExtent > available) return Optional.empty();
+        // Overflow check — semantics vary by region.
+        // - CENTER doesn't stack and must fit within both axes.
+        // - Edge regions (the other 8) check overflow along their flow axis,
+        //   accounting for prefix from previously-stacked panels.
+        if (region == MenuRegion.CENTER) {
+            if (pw > imageWidth || ph > imageHeight) return Optional.empty();
+        } else {
+            int available = region.isHorizontalFlow() ? imageWidth : imageHeight;
+            int selfExtent = region.isHorizontalFlow() ? pw : ph;
+            if (prefix + selfExtent > available) return Optional.empty();
+        }
 
         ScreenOrigin origin = switch (region) {
             case RIGHT_ALIGN_TOP -> new ScreenOrigin(
@@ -88,6 +95,12 @@ public final class RegionMath {
             case BOTTOM_ALIGN_RIGHT -> new ScreenOrigin(
                     leftPos + imageWidth - pw - prefix,
                     topPos + imageHeight + STACK_GAP);
+            // CENTER: centered within the menu's container frame. Single-position
+            // anchor — multiple panels in CENTER overlap (consumer is expected
+            // to gate visibility so only one is up at a time, e.g., modal dialogs).
+            case CENTER -> new ScreenOrigin(
+                    leftPos + (imageWidth - pw) / 2,
+                    topPos + (imageHeight - ph) / 2);
         };
         return Optional.of(origin);
     }

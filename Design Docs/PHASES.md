@@ -74,7 +74,7 @@ New mechanism formalizing where slot-group contents persist, by owner type.
 - **Absorbs and generalizes #7** (M1 storage-layer wiring, filed from Phase 12.5). M1 covered per-slot METADATA persistence; M7 covers per-slot CONTENT persistence. They share owner-attachment infrastructure. See `Phases/12.5/V5_7_FINDING_M1_STORAGE_WIRING.md` for the finding that led here.
 - Design-doc-first. Ships to `Mechanisms/M7_STORAGE_ATTACHMENT.md`.
 
-### Sub-phase 14c — M8 Layout Composition ← current
+### Sub-phase 14c — M8 Layout Composition
 
 New mechanism for row/column/grid layout helpers.
 
@@ -85,7 +85,7 @@ New mechanism for row/column/grid layout helpers.
 - **Critical design framing:** layout HELPERS that compute child positions, NOT nested containers. Preserves THESIS "Panel is the ceiling of composition." Row/Column/Grid wrap a list of elements with computed child offsets that the parent Panel renders directly; no new container abstraction below Panel.
 - Design-doc-first. Ships to `Mechanisms/M8_LAYOUT_COMPOSITION.md`.
 
-### Sub-phase 14d — Palette additions
+### Sub-phase 14d — Palette additions ← current (14d-1: dialogs shipped)
 
 UI-focused additions — V0 palette-gap inventory from Phase 12.5 plus dialog primitives.
 
@@ -184,6 +184,7 @@ Each gets its own mini-design-doc under `Elements/`. Each follows design-doc-fir
 - Gradle build decision: independent per-repo builds vs shared parent build? Decide when we get here.
 - Preserve git history per-mod via `git filter-repo` or equivalent.
 - Inter-mod dependencies (if shulker-palette depends on inventory-plus): resolve via published artifacts.
+- **Silcrow Agency setup — review BEFORE splitting.** Each new repo gets a Silcrow Agency configuration (decision-record skill + agents). Plan the per-repo Silcrow Agency shape — which decisions/agents per mod, shared conventions vs per-repo overrides — as a pre-split work item. Splitting first then retrofitting Silcrow is harder than scaffolding it into the split itself.
 
 **Exit criteria.**
 - Each repo builds independently.
@@ -245,4 +246,4 @@ This plan is not frozen. Findings during any phase can trigger scope adjustments
 
 ---
 
-**Current phase: 14c (M8 Layout Composition).**
+**Current phase: 14d-1 (Dialogs — ConfirmDialog + AlertDialog + modal primitive). Closed; ready for 14d-2.**

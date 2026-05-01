@@ -352,6 +352,13 @@ public final class ScreenPanelAdapter {
         int panelWidth = panel.getWidth() + 2 * padding;
         int panelHeight = panel.getHeight() + 2 * padding;
 
+        // Phase 14d-1 modal dim-behind: rendered by ScreenPanelRegistry
+        // in a separate pass between non-modal and modal adapters, so
+        // the dim covers BOTH vanilla content AND non-modal MK panels.
+        // Per-adapter dim was order-fragile (only worked when modal
+        // happened to iterate last); pass-based dim is architecturally
+        // correct.
+
         // Auto-render the panel background when the declared style is
         // not NONE. Consumers who want flush-element rendering without a
         // background use PanelStyle.NONE on their Panel.
@@ -362,12 +369,33 @@ public final class ScreenPanelAdapter {
                     panel.getStyle());
         }
 
+        // Phase 14d-1 modal hover suppression for non-modal panels.
+        // Reuses RenderContext's existing "no input dispatch" sentinel
+        // (mouseX = -1) — the same convention HUDs use. Semantically this
+        // render pass has no input visible to the elements, so
+        // hasMouseInput() returns false and isHovered() short-circuits to
+        // false. All PanelElement kinds (Button, Toggle, Checkbox, future
+        // widgets) inherit the inert behavior automatically through the
+        // existing context API; no per-element mixins.
+        //
+        // Modal panel itself keeps real coords so its OWN buttons detect
+        // hover and dispatch clicks normally. Single check at the
+        // RenderContext construction site — architectural fix at the right
+        // level using the right existing primitive.
+        int effectiveMouseX = mouseX;
+        int effectiveMouseY = mouseY;
+        if (!panel.cancelsUnhandledClicks()
+                && ScreenPanelRegistry.hasVisibleModalOnScreen(screen)) {
+            effectiveMouseX = -1;
+            effectiveMouseY = -1;
+        }
+
         // Content origin is the panel origin shifted inward by padding.
         // Elements' childX / childY are relative to this content origin,
         // matching MenuKitScreen and MKHudPanel semantics.
         RenderContext ctx = new RenderContext(
                 graphics, origin.x() + padding, origin.y() + padding,
-                mouseX, mouseY);
+                effectiveMouseX, effectiveMouseY);
 
         for (PanelElement element : panel.getElements()) {
             if (!element.isVisible()) continue;
