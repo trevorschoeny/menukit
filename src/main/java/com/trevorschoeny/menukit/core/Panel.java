@@ -67,6 +67,18 @@ public class Panel {
     // (Toggle.linked): consumer holds the state; library reads via supplier.
     private @Nullable Supplier<Boolean> visibilitySupplier;
 
+    // Modal click-eating flag (Phase 14d-1). When true, dispatchers hosting
+    // this panel eat unhandled clicks (clicks that didn't hit any of this
+    // panel's interactive elements) instead of passing them through to the
+    // underlying screen. Combined with supplier-driven visibility, this is
+    // the modal-dialog primitive — when the dialog is visible, click outside
+    // its elements goes nowhere; when hidden, dispatch is unchanged.
+    //
+    // Currently consulted by ScreenPanelRegistry's allowMouseClick hook for
+    // MenuContext dispatch. MenuKit-native screen dispatch is deferred to a
+    // follow-on phase (see Design Docs/Elements/DIALOGS.md §4.5 finding).
+    private boolean cancelsUnhandledClicks = false;
+
     // Set during handler construction — typed via PanelOwner interface
     // so Panel doesn't depend on the screen package.
     private @Nullable PanelOwner owner;
@@ -278,6 +290,56 @@ public class Panel {
             this.visible = true;
         }
         return this;
+    }
+
+    // ── Modal click-eating ──────────────────────────────────────────────
+
+    /**
+     * Sets whether this panel eats unhandled clicks. Chainable.
+     *
+     * <p>When {@code true} and the panel is visible, dispatchers hosting this
+     * panel eat clicks that didn't hit any of this panel's interactive
+     * elements rather than passing them through to the underlying screen.
+     * The canonical use is modal dialogs — combined with supplier-driven
+     * visibility, the dialog blocks underlying input while open.
+     *
+     * <p>The flag is consulted at the dispatch boundary, not at click time on
+     * individual elements. Elements that are clicked dispatch normally; only
+     * unhandled clicks (no element consumed) are eaten.
+     *
+     * <p><b>Dispatcher coverage in v1:</b>
+     * <ul>
+     *   <li>MenuContext via {@link com.trevorschoeny.menukit.inject.ScreenPanelAdapter}
+     *       — supported. {@code ScreenPanelRegistry}'s {@code allowMouseClick}
+     *       hook returns false for unhandled clicks when this flag is set on
+     *       any matching adapter's panel.</li>
+     *   <li>MenuKit-native screens ({@code MenuKitScreen} subclasses) —
+     *       not yet supported. Adding modal dialog support to native screens
+     *       is filed as a follow-on architectural decision (see
+     *       {@code Design Docs/Elements/DIALOGS.md} §4.5 finding).</li>
+     *   <li>Vanilla standalone-screen decoration via consumer mixin —
+     *       supported by consumer reading the flag in their own
+     *       {@code mouseClicked} mixin and calling
+     *       {@code cir.setReturnValue(true)} when set + unhandled.</li>
+     * </ul>
+     *
+     * <p>Default: {@code false} — non-modal panels pass unhandled clicks
+     * through (existing pre-14d-1 behavior).
+     *
+     * @param value {@code true} to make this panel eat unhandled clicks
+     * @return this panel, for chaining
+     */
+    public Panel cancelsUnhandledClicks(boolean value) {
+        this.cancelsUnhandledClicks = value;
+        return this;
+    }
+
+    /**
+     * Returns whether this panel is configured to eat unhandled clicks.
+     * See {@link #cancelsUnhandledClicks(boolean)} for semantics.
+     */
+    public boolean cancelsUnhandledClicks() {
+        return cancelsUnhandledClicks;
     }
 
     // ── Owner Reference ─────────────────────────────────────────────────

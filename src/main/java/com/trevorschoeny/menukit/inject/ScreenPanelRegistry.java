@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit.inject;
 
+import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.SlotGroupCategory;
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 
@@ -232,17 +233,32 @@ public final class ScreenPanelRegistry {
         // render path can't use ScreenEvents.afterRender (tooltip layering).
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
             ScreenBounds frame = frameBounds(acs);
+            boolean consumed = false;
+            boolean anyModal = false;
             for (ScreenPanelAdapter adapter : menuMatches) {
-                adapter.mouseClicked(frame, event.x(), event.y(), event.button(), acs);
+                if (adapter.mouseClicked(frame, event.x(), event.y(), event.button(), acs)) {
+                    consumed = true;
+                }
+                // Track modality on visible panels — invisible panels' flags
+                // are dormant. Per Phase 14d-1 dialog primitive: when any
+                // visible matched panel has cancelsUnhandledClicks(true),
+                // unhandled clicks (didn't hit an interactive element) are
+                // eaten from vanilla rather than passed through.
+                Panel panel = adapter.getPanel();
+                if (panel.isVisible() && panel.cancelsUnhandledClicks()) {
+                    anyModal = true;
+                }
             }
             // Re-resolve slot groups per click — creative-tab transitions
             // and any future dynamic menu mutate menu.slots between clicks.
+            // SlotGroupContext panels don't participate in modality (dialogs
+            // are MenuContext-only per DIALOGS.md §4.5); slot-group dispatch
+            // doesn't affect the modal-eat decision below.
             dispatchSlotGroupClicks(acs, event.x(), event.y(), event.button());
-            // Return true — vanilla continues processing clicks that missed
-            // any adapter's interactive element. Per M8 §8.3, future
-            // cancellation-aware behavior will be added via
-            // ScreenPanelAdapter.cancelsUnhandledClicks(boolean).
-            return true;
+            // Modal click-eat decision — extracted to a pure static method
+            // so /mkverify probes can exercise the logic without spinning up
+            // a real screen.
+            return !shouldEatUnhandledClick(anyModal, consumed);
         });
     }
 
@@ -285,11 +301,43 @@ public final class ScreenPanelRegistry {
         ScreenRenderData data = SCREEN_DATA.get(screen);
         if (data == null) return;
 
-        // MenuContext: cached at screen-open, iterate.
+        // Phase 14d-1 two-pass modal render order:
+        //   (1) non-modal MenuContext adapters render first
+        //   (2) if any modal panel visible: render dim overlay covering
+        //       full screen window — covers vanilla + step-(1) panels
+        //   (3) modal adapters render last on top of dim
+        //
+        // Single-pass per-adapter dim (round-3 v1) was order-fragile —
+        // only worked when modal iterated last. Two-pass enforces the
+        // visual order architecturally regardless of registration order.
         ScreenBounds frame = frameBounds(screen);
+
+        // Pass 1 — non-modal adapters.
         for (ScreenPanelAdapter adapter : data.menuMatches) {
+            if (adapter.getPanel().cancelsUnhandledClicks()) continue;
             adapter.render(graphics, frame, mouseX, mouseY, screen);
         }
+
+        // Pass 2 — dim overlay if any modal visible. ~75% black, covers
+        // full screen window. Tuned to match vanilla's confirm-screen
+        // darkening (§4.10 smoke verdict).
+        if (hasVisibleModalOnScreen(screen)) {
+            graphics.fill(0, 0, screen.width, screen.height, 0xC0000000);
+        }
+
+        // Pass 3 — modal adapters render on top of dim.
+        for (ScreenPanelAdapter adapter : data.menuMatches) {
+            if (!adapter.getPanel().cancelsUnhandledClicks()) continue;
+            adapter.render(graphics, frame, mouseX, mouseY, screen);
+        }
+
+        // Phase 14d-1 modal tooltip suppression — handled by
+        // MenuKitTooltipSuppressMixin (HEAD-cancellable on
+        // GuiGraphics.setTooltipForNextFrameInternal). Round-2
+        // implementation finding: the render-path clear approach was
+        // insufficient because creative-mode tab tooltips queue AFTER
+        // super.render returns. Suppressing at the queueing site is
+        // robust. See ScreenPanelRegistry.hasAnyVisibleModal.
 
         // SlotGroupContext: re-resolve per frame. Creative-tab switches
         // and other dynamic menu mutations change menu.slots; caching the
@@ -308,6 +356,181 @@ public final class ScreenPanelRegistry {
                 adapter.render(graphics, bounds, category, mouseX, mouseY, screen);
             }
         }
+    }
+
+    /**
+     * Pure decision used by the {@code allowMouseClick} hook to determine
+     * whether an unhandled click should be eaten from vanilla.
+     *
+     * <p>Returns {@code true} when there is at least one visible matched
+     * panel with {@link Panel#cancelsUnhandledClicks() cancelsUnhandledClicks}
+     * set AND no adapter consumed the click — modal-active, click-missed,
+     * eat from vanilla.
+     *
+     * <p>Returns {@code false} otherwise — either nothing modal is up, or
+     * something consumed the click (in which case the click was already
+     * dispatched correctly to a panel element and shouldn't be eaten
+     * additionally).
+     *
+     * <p>Extracted from the click-hook closure so {@code /mkverify} probes
+     * can test the decision without instantiating a screen.
+     *
+     * @param anyModalVisible true when at least one matched adapter's panel
+     *                        is visible and has {@code cancelsUnhandledClicks(true)}
+     * @param consumed        true when at least one matched adapter
+     *                        consumed the click
+     * @return {@code true} if the dispatcher should eat the click,
+     *         {@code false} if vanilla should process it normally
+     */
+    public static boolean shouldEatUnhandledClick(boolean anyModalVisible, boolean consumed) {
+        return anyModalVisible && !consumed;
+    }
+
+    /**
+     * Phase 14d-1 modal mechanism — pure decision called from the
+     * {@code MenuKitModalClickEatMixin} mixins (multi-target on
+     * {@code Screen.mouseClicked} + the three vanilla
+     * {@code AbstractContainerScreen} subclasses that override it). Fires at
+     * the HEAD of each {@code mouseClicked} entry point so it can short-
+     * circuit subclass-specific click handling (e.g., creative-mode tabs)
+     * BEFORE that handling runs — the failure mode the simpler
+     * {@code allowMouseClick} hook can't catch when subclass overrides
+     * pre-empt their {@code super.mouseClicked(...)} call.
+     *
+     * <p>The decision: a click should be eaten when (a) at least one
+     * registered adapter on the current screen has a visible panel with
+     * {@link Panel#cancelsUnhandledClicks() cancelsUnhandledClicks(true)}
+     * set, AND (b) the click coordinate is outside the bounds of every
+     * such modal panel. Clicks inside any modal's bounds pass through
+     * to that modal's element dispatch.
+     *
+     * <p>The "any-modal-eats-non-bounds" semantic — clicks outside every
+     * visible modal are eaten regardless of cross-mod ordering. Two mods'
+     * modal panels coexist independently; each consumer is expected to
+     * gate their own modal visibility so only one is up at a time
+     * per-consumer. Cross-mod overlap of modal panels is consumer
+     * ergonomics, not library mediation. See DIALOGS.md §10 round-2
+     * Principle 1 audit.
+     *
+     * @param screen the current screen (any {@link Screen} subclass)
+     * @param mouseX click x-coordinate (screen space)
+     * @param mouseY click y-coordinate (screen space)
+     * @return {@code true} if the dispatching mixin should cancel the
+     *         click via {@code cir.setReturnValue(true)}
+     */
+    /**
+     * Phase 14d-1 modal click dispatch — combined dispatch + eat decision.
+     *
+     * <p>When a modal panel is visible on the current screen:
+     * <ul>
+     *   <li><b>Click inside any modal's bounds</b> — dispatches to that
+     *       modal's adapter (so its button elements get the click), then
+     *       returns {@code true} to signal eat. The vanilla screen
+     *       hierarchy never sees the click — no slot pickup, no tab
+     *       switching, no other dispatchers see the event. The modal owns
+     *       the click entirely.</li>
+     *   <li><b>Click outside every modal's bounds</b> — returns {@code true}
+     *       (eat) without dispatching. Modal blocks underlying interaction.</li>
+     *   <li><b>No modal visible</b> — returns {@code false}, vanilla dispatch
+     *       proceeds normally and existing non-modal adapters fire via
+     *       the Fabric {@code allowMouseClick} hook.</li>
+     * </ul>
+     *
+     * <p>Round-2 fix for the post-smoke bug "click on Confirm button picks
+     * up item behind it" — previous version only eat-without-dispatch for
+     * outside clicks; inside clicks fell through, slots got picked up
+     * before the button was reached via Fabric's hook. Combining dispatch
+     * with eat at the mixin entry point ensures atomic modal-click handling.
+     */
+    public static boolean dispatchModalClick(Screen screen,
+                                              double mouseX, double mouseY,
+                                              int button) {
+        if (!(screen instanceof AbstractContainerScreen<?> acs)) return false;
+        ScreenRenderData data = SCREEN_DATA.get(acs);
+        if (data == null) return false;
+
+        ScreenBounds frame = frameBounds(acs);
+        ScreenPanelAdapter modalToDispatch = null;
+
+        // First pass — find any visible modal and check if click is inside.
+        boolean anyModal = false;
+        for (ScreenPanelAdapter adapter : data.menuMatches) {
+            Panel panel = adapter.getPanel();
+            if (!panel.isVisible() || !panel.cancelsUnhandledClicks()) continue;
+            anyModal = true;
+            var origin = adapter.getOrigin(frame, acs);
+            if (origin.isEmpty()) continue;
+            int padding = adapter.getPadding();
+            int pw = panel.getWidth() + 2 * padding;
+            int ph = panel.getHeight() + 2 * padding;
+            int x = origin.get().x();
+            int y = origin.get().y();
+            if (mouseX >= x && mouseX < x + pw
+                    && mouseY >= y && mouseY < y + ph) {
+                modalToDispatch = adapter;
+                break;
+            }
+        }
+
+        if (!anyModal) return false; // No modal — let vanilla dispatch.
+
+        if (modalToDispatch != null) {
+            // Click inside modal bounds — dispatch to its element layer
+            // so buttons get the click. The dispatch happens at the mixin
+            // entry point (HEAD of the most-derived screen mouseClicked),
+            // which is BEFORE any vanilla click handling (slot pickup,
+            // tab switch, etc.). After dispatch, eat — the vanilla chain
+            // doesn't see this click.
+            modalToDispatch.mouseClicked(frame, mouseX, mouseY, button, acs);
+        }
+
+        // Modal up + click outside any modal: also eat (modal blocks
+        // underlying interaction). Modal up + click inside: ate after
+        // dispatch above. Either way, return true to cancel the screen's
+        // mouseClicked chain.
+        return true;
+    }
+
+
+    /**
+     * Phase 14d-1 modal tooltip suppression — query for "is any modal
+     * panel visible on the current screen?" Called from
+     * {@code MenuKitTooltipSuppressMixin} which mixins
+     * {@code GuiGraphics.setTooltipForNextFrameInternal} at HEAD-cancellable
+     * to suppress tooltip queueing while a modal is up.
+     *
+     * <p>Round-2 implementation finding (post-smoke): the original
+     * accessor-based queue-clear approach was insufficient because
+     * {@code CreativeModeInventoryScreen.render} queues tab-hover tooltips
+     * AFTER {@code super.render()} returns (and thus after our render
+     * path's clear). The {@code deferredTooltip} field is a single
+     * last-write-wins Runnable; subsequent setTooltipForNextFrame calls
+     * after our clear simply re-queue. Suppressing at the queueing site
+     * is the robust mechanism. Same architectural shape as click-eat:
+     * library-wide HEAD-cancellable mixin gated on per-Panel modal flag.
+     */
+    public static boolean hasVisibleModalOnScreen(AbstractContainerScreen<?> screen) {
+        ScreenRenderData data = SCREEN_DATA.get(screen);
+        if (data == null) return false;
+        for (ScreenPanelAdapter adapter : data.menuMatches) {
+            Panel panel = adapter.getPanel();
+            if (panel.isVisible() && panel.cancelsUnhandledClicks()) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Phase 14d-1 modal tooltip suppression — query for "is any modal
+     * panel visible on the currently-active screen?" Tooltip suppression
+     * mixin doesn't have a screen reference at its inject point; it
+     * checks {@code Minecraft.getInstance().screen} via this helper.
+     */
+    public static boolean hasAnyVisibleModal() {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc == null) return false;
+        var screen = mc.screen;
+        if (!(screen instanceof AbstractContainerScreen<?> acs)) return false;
+        return hasVisibleModalOnScreen(acs);
     }
 
     /**

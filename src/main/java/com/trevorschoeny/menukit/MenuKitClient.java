@@ -71,6 +71,38 @@ public class MenuKitClient implements ClientModInitializer {
         // checkpoint sees all region-based adapters that completed their
         // targeting declarations during mod init.
         ScreenPanelRegistry.init();
+
+        // Phase 14d-1 — smoke-test ConfirmDialog adapter. Deferred to render
+        // thread via Minecraft.execute(...) because the dialog builder calls
+        // TextLabel.spec(...) → font.width(...), and font isn't reliably
+        // available during onInitializeClient (still inside the Minecraft
+        // constructor). The runnable fires on the next render-thread tick,
+        // after font initialization completes — and before any inventory
+        // screen could open, so the orphan checkpoint sees the adapter as
+        // properly registered. Dev tooling only; lives in ContractVerification
+        // alongside /mkverify dialog command.
+        Minecraft.getInstance().execute(
+                com.trevorschoeny.menukit.verification.ContractVerification::wireDialogSmoke);
+
+        // Phase 14d-1 modal cursor suppression — architectural mechanism.
+        // Window has a global allowCursorChanges flag; setAllowCursorChanges(false)
+        // coerces all selectCursor calls to CursorType.DEFAULT (verified in
+        // vanilla bytecode — selectCursor early-returns DEFAULT when
+        // allowCursorChanges is false). Single vanilla-flag toggle replaces
+        // per-widget hover-suppression patches.
+        //
+        // Synced per-tick: flag = !hasAnyVisibleModal(). When modal becomes
+        // visible, cursor stays as DEFAULT regardless of what hover code
+        // requests; when modal hides, cursor resumes vanilla behavior.
+        // Per-tick (20Hz) is sufficient because cursor state only matters
+        // at user-visible granularity; lower-frequency updates avoid the
+        // need for state tracking on visibility transitions.
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.getWindow() != null) {
+                client.getWindow().setAllowCursorChanges(
+                        !com.trevorschoeny.menukit.inject.ScreenPanelRegistry.hasAnyVisibleModal());
+            }
+        });
     }
 
     // ══════════════════════════════════════════════════════════════════════
