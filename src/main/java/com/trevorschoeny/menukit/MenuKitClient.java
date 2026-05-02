@@ -72,22 +72,9 @@ public class MenuKitClient implements ClientModInitializer {
         // targeting declarations during mod init.
         ScreenPanelRegistry.init();
 
-        // Phase 14d-1 — smoke-test ConfirmDialog adapter. Deferred to render
-        // thread via Minecraft.execute(...) because the dialog builder calls
-        // TextLabel.spec(...) → font.width(...), and font isn't reliably
-        // available during onInitializeClient (still inside the Minecraft
-        // constructor). The runnable fires on the next render-thread tick,
-        // after font initialization completes — and before any inventory
-        // screen could open, so the orphan checkpoint sees the adapter as
-        // properly registered. Dev tooling only; lives in ContractVerification
-        // alongside /mkverify dialog command.
-        Minecraft.getInstance().execute(
-                com.trevorschoeny.menukit.verification.ContractVerification::wireDialogSmoke);
-        Minecraft.getInstance().execute(
-                com.trevorschoeny.menukit.verification.ContractVerification::wireScrollSmoke);
-        // M9 opacity smoke — verifies click-through prohibition.
-        Minecraft.getInstance().execute(
-                com.trevorschoeny.menukit.verification.ContractVerification::wireOpacitySmoke);
+        // Phase 14d-2.7 — visual smoke wireups (dialog, scroll, opacity)
+        // migrated to validator/.../scenarios/smoke per the testing
+        // convention's library/validator split.
 
         // Phase 14d-1 / M9 modal-tracking cursor suppression — architectural
         // mechanism. Window has a global allowCursorChanges flag;

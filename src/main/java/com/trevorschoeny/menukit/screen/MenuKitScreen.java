@@ -193,6 +193,73 @@ public class MenuKitScreen extends Screen {
         return false;
     }
 
+    // ── Scroll + release dispatch (Phase 14d-2.6 primitive-gap fold-inline) ─
+    //
+    // ScreenPanelAdapter (the MenuContext path) dispatches scroll + release
+    // to elements via Fabric's ScreenMouseEvents. MenuKitScreen
+    // (StandaloneContext) didn't have parallel plumbing because no
+    // consumer surfaced the need until the Test Hub (Phase 14d-2.6) wanted
+    // a ScrollContainer inside a MenuKit-native standalone screen. Adding
+    // here as a primitive-gap fold-inline per TESTING_CONVENTIONS.md
+    // structural test sentence.
+    //
+    // Shape mirrors ScreenPanelAdapter's element dispatch:
+    //   - mouseScrolled: hit-tested against element bounds (only the
+    //     element under the cursor receives scroll)
+    //   - mouseReleased: NOT hit-tested (every visible element receives
+    //     release for drag-end detection — fires regardless of cursor
+    //     position, per 14d-2 ScrollContainer plumbing)
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY,
+                                  double scrollX, double scrollY) {
+        if (dispatchElementScroll(mouseX, mouseY, scrollX, scrollY)) {
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    }
+
+    private boolean dispatchElementScroll(double mouseX, double mouseY,
+                                           double scrollX, double scrollY) {
+        List<Panel> reversed = panels.reversed();
+        for (Panel panel : reversed) {
+            if (!panel.isVisible()) continue;
+            PanelBounds bounds = panelBounds.get(panel.getId());
+            if (bounds == null) continue;
+
+            int contentX = leftPos + bounds.x() + PANEL_PADDING;
+            int contentY = topPos + bounds.y() + PANEL_PADDING;
+
+            for (PanelElement element : panel.getElements()) {
+                if (!element.isVisible()) continue;
+
+                double relX = mouseX - contentX - element.getChildX();
+                double relY = mouseY - contentY - element.getChildY();
+                if (relX >= 0 && relX < element.getWidth()
+                        && relY >= 0 && relY < element.getHeight()) {
+                    if (element.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean mouseReleased(MouseButtonEvent event) {
+        // Release fires for every visible element regardless of cursor
+        // position — drag-end detection per 14d-2 ScrollContainer plumbing.
+        for (Panel panel : panels) {
+            if (!panel.isVisible()) continue;
+            for (PanelElement element : panel.getElements()) {
+                if (!element.isVisible()) continue;
+                element.mouseReleased(event.x(), event.y(), event.button());
+            }
+        }
+        return super.mouseReleased(event);
+    }
+
     // ── Panel Access ────────────────────────────────────────────────────
 
     /** Returns the ordered list of panels (immutable). */
