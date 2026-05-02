@@ -144,7 +144,20 @@ public final class PanelRendering {
      * highlight/shadow edges with a medium gray fill.
      */
     public static void renderSlotBackground(GuiGraphics graphics, int x, int y) {
-        int w = 18, h = 18;
+        renderInsetRect(graphics, x, y, 18, 18);
+    }
+
+    /**
+     * Renders a vanilla-accurate inset rectangle of arbitrary dimensions
+     * — same shadow/highlight/fill pattern as slot backgrounds, but for
+     * non-slot recessed regions (scrollbar tracks, custom recessed inset
+     * areas). Lighter-weight than {@link PanelStyle#INSET} (no outer black
+     * border + heavy bevel) — matches vanilla's subtle recess for tracks
+     * and similar narrow inset chrome.
+     */
+    public static void renderInsetRect(GuiGraphics graphics,
+                                       int x, int y, int w, int h) {
+        if (w <= 0 || h <= 0) return;
         // Top and left edge (dark — inset look)
         graphics.fill(x, y, x + w - 1, y + 1, SLOT_SHADOW);            // top
         graphics.fill(x, y, x + 1, y + h - 1, SLOT_SHADOW);            // left
@@ -152,6 +165,8 @@ public final class PanelRendering {
         graphics.fill(x + 1, y + h - 1, x + w, y + h, SLOT_HIGHLIGHT); // bottom
         graphics.fill(x + w - 1, y + 1, x + w, y + h, SLOT_HIGHLIGHT); // right
         // Fill interior
-        graphics.fill(x + 1, y + 1, x + w - 1, y + h - 1, SLOT_FILL);
+        if (w > 2 && h > 2) {
+            graphics.fill(x + 1, y + 1, x + w - 1, y + h - 1, SLOT_FILL);
+        }
     }
 }
