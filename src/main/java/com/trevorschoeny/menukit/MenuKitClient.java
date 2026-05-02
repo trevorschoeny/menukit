@@ -83,6 +83,8 @@ public class MenuKitClient implements ClientModInitializer {
         // alongside /mkverify dialog command.
         Minecraft.getInstance().execute(
                 com.trevorschoeny.menukit.verification.ContractVerification::wireDialogSmoke);
+        Minecraft.getInstance().execute(
+                com.trevorschoeny.menukit.verification.ContractVerification::wireScrollSmoke);
 
         // Phase 14d-1 modal cursor suppression — architectural mechanism.
         // Window has a global allowCursorChanges flag; setAllowCursorChanges(false)

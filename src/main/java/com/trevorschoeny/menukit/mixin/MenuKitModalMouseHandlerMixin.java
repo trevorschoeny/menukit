@@ -98,11 +98,24 @@ public abstract class MenuKitModalMouseHandlerMixin {
     )
     private void menukit$eatModalScroll(long window, double xOffset, double yOffset,
                                         CallbackInfo ci) {
-        // Scroll button is irrelevant for the dispatch decision — scroll
-        // events don't dispatch to modal elements (no scroll handler on
-        // dialog panels v1). Just eat if modal up regardless of position.
+        // Phase 14d-2 fold-inline: modal-aware scroll dispatch. Round-3
+        // 14d-1 was wholesale-eat-when-modal because dialogs had no
+        // scrollable content. ScrollContainer-inside-modal needs scroll
+        // INSIDE modal bounds to reach the modal's elements. Same dispatch
+        // shape as click-eat (dispatchModalClick): inside modal → dispatch
+        // to modal's adapter then eat; outside modal → eat without dispatch;
+        // no modal → pass through (Fabric allowMouseScroll handles non-modal
+        // scroll dispatch via ScreenPanelRegistry.onScreenInit).
         var mc = Minecraft.getInstance();
-        if (mc != null && ScreenPanelRegistry.hasAnyVisibleModal()) {
+        if (mc == null || mc.screen == null) return;
+        if (!ScreenPanelRegistry.hasAnyVisibleModal()) return;
+        // Compute scaled coords from current mouse position (same formula
+        // as the click mixin — getScreenWidth/Height for HiDPI correctness).
+        var mcWindow = mc.getWindow();
+        if (mcWindow == null) return;
+        double scaledX = xpos * mcWindow.getGuiScaledWidth() / mcWindow.getScreenWidth();
+        double scaledY = ypos * mcWindow.getGuiScaledHeight() / mcWindow.getScreenHeight();
+        if (ScreenPanelRegistry.dispatchModalScroll(mc.screen, scaledX, scaledY, xOffset, yOffset)) {
             ci.cancel();
         }
     }

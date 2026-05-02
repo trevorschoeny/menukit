@@ -439,4 +439,66 @@ public final class ScreenPanelAdapter {
         }
         return false;
     }
+
+    /**
+     * Dispatches a mouse-wheel scroll to any visible element under the cursor.
+     * Same hit-test logic as {@link #mouseClicked}; returns whether any
+     * element consumed the scroll.
+     *
+     * <p>Added in Phase 14d-2 alongside {@code ScrollContainer} — the first
+     * element kind that consumes scroll input. Existing elements default
+     * {@link PanelElement#mouseScrolled false} and pass through.
+     *
+     * @return {@code true} if an element consumed the scroll.
+     */
+    public boolean mouseScrolled(ScreenBounds screenBounds,
+                                 double mouseX, double mouseY,
+                                 double scrollX, double scrollY,
+                                 AbstractContainerScreen<?> screen) {
+        if (!panel.isVisible()) return false;
+
+        ScreenOrigin origin = originFn.compute(screenBounds, screen);
+        if (origin == ScreenOrigin.OUT_OF_REGION) return false;
+
+        int contentX = origin.x() + padding;
+        int contentY = origin.y() + padding;
+
+        for (PanelElement element : panel.getElements()) {
+            if (!element.isVisible()) continue;
+
+            int sx = contentX + element.getChildX();
+            int sy = contentY + element.getChildY();
+            if (mouseX < sx || mouseX >= sx + element.getWidth()) continue;
+            if (mouseY < sy || mouseY >= sy + element.getHeight()) continue;
+
+            if (element.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Dispatches a mouse-release event to all visible elements. Unlike
+     * {@link #mouseClicked}, this is NOT hit-tested against element bounds
+     * — release fires for every visible element so drag-end detection
+     * works when the cursor has moved off the element during drag.
+     *
+     * <p>Added in Phase 14d-2 alongside {@code ScrollContainer} for
+     * scrollbar-drag end detection. Existing elements default
+     * {@link PanelElement#mouseReleased false}.
+     */
+    public boolean mouseReleased(ScreenBounds screenBounds,
+                                 double mouseX, double mouseY, int button,
+                                 AbstractContainerScreen<?> screen) {
+        if (!panel.isVisible()) return false;
+        boolean consumed = false;
+        for (PanelElement element : panel.getElements()) {
+            if (!element.isVisible()) continue;
+            if (element.mouseReleased(mouseX, mouseY, button)) {
+                consumed = true;
+            }
+        }
+        return consumed;
+    }
 }

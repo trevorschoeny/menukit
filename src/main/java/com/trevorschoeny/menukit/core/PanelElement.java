@@ -146,4 +146,56 @@ public interface PanelElement {
     default boolean mouseClicked(double mouseX, double mouseY, int button) {
         return false;
     }
+
+    /**
+     * Called when the user scrolls the mouse wheel with the cursor over this
+     * element's bounds. The container hit-tests before calling — implementations
+     * know the cursor is within bounds.
+     *
+     * <p>Returns true if this element consumed the scroll (preventing further
+     * dispatch). Default returns {@code false}, so non-scrollable elements
+     * (Button, TextLabel, etc.) don't need to override it.
+     *
+     * <p>{@code scrollX} / {@code scrollY} are the wheel deltas — typically
+     * scrollY is non-zero (vertical wheel) and scrollX is zero (horizontal
+     * wheel, less common).
+     *
+     * <p>Added in Phase 14d-2 alongside {@code ScrollContainer}, the first
+     * element that consumes scroll input. Existing elements default false
+     * and continue to work unchanged.
+     *
+     * @param mouseX  screen-space mouse X
+     * @param mouseY  screen-space mouse Y
+     * @param scrollX horizontal wheel delta (typically 0)
+     * @param scrollY vertical wheel delta (positive = up, negative = down)
+     * @return true if consumed, false to let the scroll fall through
+     */
+    default boolean mouseScrolled(double mouseX, double mouseY,
+                                  double scrollX, double scrollY) {
+        return false;
+    }
+
+    /**
+     * Called when the user releases a mouse button anywhere on the screen
+     * (not hit-tested against this element's bounds — the release fires
+     * regardless of cursor position, so drag-end detection works even when
+     * the user drags off the element). Default returns {@code false} for
+     * elements that don't track press/release state.
+     *
+     * <p>Added in Phase 14d-2 alongside ScrollContainer to support
+     * scrollbar drag — drag is initiated in {@link #mouseClicked}, and
+     * ends when {@code mouseReleased} fires (typically off-element since
+     * the cursor moved during drag). Existing elements default false and
+     * continue to work unchanged.
+     *
+     * <p>Coordinate space: screen-space, same as {@link #mouseClicked}.
+     *
+     * @param mouseX  screen-space mouse X at release
+     * @param mouseY  screen-space mouse Y at release
+     * @param button  mouse button (0=left, 1=right, 2=middle)
+     * @return true if consumed (rare for release events)
+     */
+    default boolean mouseReleased(double mouseX, double mouseY, int button) {
+        return false;
+    }
 }

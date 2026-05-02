@@ -260,6 +260,39 @@ public final class ScreenPanelRegistry {
             // a real screen.
             return !shouldEatUnhandledClick(anyModal, consumed);
         });
+
+        // Phase 14d-2 — scroll dispatch via Fabric's allowMouseScroll hook.
+        // Mirrors the click hook above: dispatches scroll events to matching
+        // adapters' element layer (so ScrollContainer receives scroll
+        // input). Modal-aware path is handled at the MouseHandler-level
+        // mixin BEFORE this hook fires (the mixin cancels for outside-
+        // modal scrolls and dispatches inside-modal scrolls directly).
+        // This hook serves the non-modal case: regular scroll dispatch to
+        // any adapter whose elements include a ScrollContainer.
+        ScreenMouseEvents.allowMouseScroll(screen).register((s, mouseX, mouseY, hAmount, vAmount) -> {
+            ScreenBounds frame = frameBounds(acs);
+            for (ScreenPanelAdapter adapter : menuMatches) {
+                if (adapter.mouseScrolled(frame, mouseX, mouseY, hAmount, vAmount, acs)) {
+                    // Element consumed — eat from vanilla so screen.mouseScrolled
+                    // doesn't double-dispatch (e.g., to creative-tab scroll).
+                    return false;
+                }
+            }
+            return true;
+        });
+
+        // Phase 14d-2 — release dispatch via Fabric's allowMouseRelease hook.
+        // Used by ScrollContainer (and future draggable elements) to detect
+        // drag end. Unlike click dispatch, release fires for every visible
+        // element regardless of cursor position — drag-end is detected
+        // even when the user has dragged the cursor off the element.
+        ScreenMouseEvents.allowMouseRelease(screen).register((s, event) -> {
+            ScreenBounds frame = frameBounds(acs);
+            for (ScreenPanelAdapter adapter : menuMatches) {
+                adapter.mouseReleased(frame, event.x(), event.y(), event.button(), acs);
+            }
+            return true;
+        });
     }
 
     /**
@@ -488,6 +521,75 @@ public final class ScreenPanelRegistry {
         // underlying interaction). Modal up + click inside: ate after
         // dispatch above. Either way, return true to cancel the screen's
         // mouseClicked chain.
+        return true;
+    }
+
+    /**
+     * Phase 14d-2 modal-aware scroll dispatch helper. Returns the matching
+     * adapter whose modal panel contains the cursor, or {@code null} if no
+     * modal is visible OR the cursor is outside every visible modal's
+     * bounds.
+     *
+     * <p>Used by {@code MenuKitModalMouseHandlerMixin.onScroll} (paralleling
+     * the click dispatch in {@link #dispatchModalClick}): when modal up,
+     * scroll inside modal bounds dispatches to the modal's adapter (so a
+     * ScrollContainer inside a modal dialog can receive scroll input);
+     * scroll outside is eaten.
+     *
+     * <p>Also used by ScrollContainer-inside-non-modal scenarios — the
+     * Fabric {@code allowMouseScroll} hook in {@link #onScreenInit} routes
+     * scrolls to non-modal adapters via {@link ScreenPanelAdapter#mouseScrolled}.
+     *
+     * @return the modal adapter whose panel contains the cursor, or {@code null}
+     */
+    public static ScreenPanelAdapter findModalAtPoint(Screen screen,
+                                                      double mouseX, double mouseY) {
+        if (!(screen instanceof AbstractContainerScreen<?> acs)) return null;
+        ScreenRenderData data = SCREEN_DATA.get(acs);
+        if (data == null) return null;
+        ScreenBounds frame = frameBounds(acs);
+        for (ScreenPanelAdapter adapter : data.menuMatches) {
+            Panel panel = adapter.getPanel();
+            if (!panel.isVisible() || !panel.cancelsUnhandledClicks()) continue;
+            var origin = adapter.getOrigin(frame, acs);
+            if (origin.isEmpty()) continue;
+            int padding = adapter.getPadding();
+            int pw = panel.getWidth() + 2 * padding;
+            int ph = panel.getHeight() + 2 * padding;
+            int x = origin.get().x();
+            int y = origin.get().y();
+            if (mouseX >= x && mouseX < x + pw
+                    && mouseY >= y && mouseY < y + ph) {
+                return adapter;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Phase 14d-2 modal-aware scroll dispatch — used by
+     * {@code MenuKitModalMouseHandlerMixin.onScroll} when modal is up. If
+     * cursor is inside a modal, dispatch the scroll to that modal's
+     * elements (so a ScrollContainer inside the modal scrolls); return
+     * true. If cursor is outside every modal, return true to signal
+     * "modal is up, scroll outside should be eaten" — caller cancels.
+     * If no modal visible, returns false — caller passes scroll through
+     * to normal dispatch.
+     */
+    public static boolean dispatchModalScroll(Screen screen,
+                                              double mouseX, double mouseY,
+                                              double scrollX, double scrollY) {
+        if (!(screen instanceof AbstractContainerScreen<?> acs)) return false;
+        if (!hasVisibleModalOnScreen(acs)) return false;
+        ScreenPanelAdapter target = findModalAtPoint(screen, mouseX, mouseY);
+        if (target != null) {
+            // Cursor inside a modal — dispatch scroll to its elements.
+            ScreenBounds frame = frameBounds(acs);
+            target.mouseScrolled(frame, mouseX, mouseY, scrollX, scrollY, acs);
+        }
+        // Whether dispatched or not, return true to signal "eat" — modal
+        // is up; vanilla scroll dispatch shouldn't reach the underlying
+        // screen.
         return true;
     }
 
