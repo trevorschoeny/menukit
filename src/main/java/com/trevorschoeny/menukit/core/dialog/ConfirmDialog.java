@@ -18,8 +18,8 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Builder for a modal confirm/cancel dialog. Composes a {@link Panel} from
  * existing primitives ({@link TextLabel}, {@link Button}, M8 layout helpers)
- * and ships it with {@link Panel#cancelsUnhandledClicks(boolean) modal
- * click-eating} pre-configured.
+ * and ships it with {@link Panel#modal() modal flags} pre-configured
+ * (opaque + dimsBehind + tracksAsModal).
  *
  * <p>The returned Panel is added to the consumer's UI like any other panel.
  * Visibility is consumer-managed via {@link Panel#showWhen} per Principle 8
@@ -167,8 +167,8 @@ public final class ConfirmDialog {
          * Construct the configured dialog Panel. The returned Panel:
          * <ul>
          *   <li>has {@link PanelStyle#RAISED} background</li>
-         *   <li>has {@link Panel#cancelsUnhandledClicks(boolean)
-         *       cancelsUnhandledClicks(true)} pre-set (modal)</li>
+         *   <li>has {@link Panel#modal()} pre-set (opaque + dimsBehind +
+         *       tracksAsModal)</li>
          *   <li>starts hidden (initial visibility {@code false}) — consumer
          *       sets {@link Panel#showWhen(java.util.function.Supplier)} to
          *       drive visibility from their state</li>
@@ -216,7 +216,7 @@ public final class ConfirmDialog {
                     PanelStyle.RAISED,
                     PanelPosition.BODY,
                     /*toggleKey=*/ -1)
-                    .cancelsUnhandledClicks(true);
+                    .modal();
         }
 
         private static void requireField(Object value, String name) {

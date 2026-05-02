@@ -85,24 +85,34 @@ public class MenuKitClient implements ClientModInitializer {
                 com.trevorschoeny.menukit.verification.ContractVerification::wireDialogSmoke);
         Minecraft.getInstance().execute(
                 com.trevorschoeny.menukit.verification.ContractVerification::wireScrollSmoke);
+        // M9 opacity smoke — verifies click-through prohibition.
+        Minecraft.getInstance().execute(
+                com.trevorschoeny.menukit.verification.ContractVerification::wireOpacitySmoke);
 
-        // Phase 14d-1 modal cursor suppression — architectural mechanism.
-        // Window has a global allowCursorChanges flag; setAllowCursorChanges(false)
-        // coerces all selectCursor calls to CursorType.DEFAULT (verified in
-        // vanilla bytecode — selectCursor early-returns DEFAULT when
-        // allowCursorChanges is false). Single vanilla-flag toggle replaces
-        // per-widget hover-suppression patches.
+        // Phase 14d-1 / M9 modal-tracking cursor suppression — architectural
+        // mechanism. Window has a global allowCursorChanges flag;
+        // setAllowCursorChanges(false) coerces all selectCursor calls to
+        // CursorType.DEFAULT (verified in vanilla bytecode — selectCursor
+        // early-returns DEFAULT when allowCursorChanges is false). Single
+        // vanilla-flag toggle replaces per-widget hover-suppression
+        // patches.
         //
-        // Synced per-tick: flag = !hasAnyVisibleModal(). When modal becomes
-        // visible, cursor stays as DEFAULT regardless of what hover code
-        // requests; when modal hides, cursor resumes vanilla behavior.
-        // Per-tick (20Hz) is sufficient because cursor state only matters
-        // at user-visible granularity; lower-frequency updates avoid the
-        // need for state tracking on visibility transitions.
+        // Synced per-tick: flag = !hasAnyVisibleModalTracking(). When a
+        // tracksAsModal panel becomes visible, cursor stays as DEFAULT
+        // regardless of what hover code requests; when modal-tracking
+        // hides, cursor resumes vanilla behavior. Per-tick (20Hz) is
+        // sufficient because cursor state only matters at user-visible
+        // granularity; lower-frequency updates avoid the need for state
+        // tracking on visibility transitions.
+        //
+        // M9 §4.7 asymmetry: cursor lock stays gated on tracksAsModal
+        // (window-state suppression scoped to modal-tracking) — non-modal
+        // opaque panels do NOT lock cursor (cursor is a window-edge state,
+        // not pointer-driven; localizing would flicker on edge crossings).
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.getWindow() != null) {
                 client.getWindow().setAllowCursorChanges(
-                        !com.trevorschoeny.menukit.inject.ScreenPanelRegistry.hasAnyVisibleModal());
+                        !com.trevorschoeny.menukit.inject.ScreenPanelRegistry.hasAnyVisibleModalTracking());
             }
         });
     }

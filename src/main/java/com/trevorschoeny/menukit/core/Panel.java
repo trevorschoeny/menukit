@@ -67,17 +67,39 @@ public class Panel {
     // (Toggle.linked): consumer holds the state; library reads via supplier.
     private @Nullable Supplier<Boolean> visibilitySupplier;
 
-    // Modal click-eating flag (Phase 14d-1). When true, dispatchers hosting
-    // this panel eat unhandled clicks (clicks that didn't hit any of this
-    // panel's interactive elements) instead of passing them through to the
-    // underlying screen. Combined with supplier-driven visibility, this is
-    // the modal-dialog primitive — when the dialog is visible, click outside
-    // its elements goes nowhere; when hidden, dispatch is unchanged.
+    // Opacity / dim / modal-tracking flags (Phase 14d-2.5 M9 mechanism).
     //
-    // Currently consulted by ScreenPanelRegistry's allowMouseClick hook for
-    // MenuContext dispatch. MenuKit-native screen dispatch is deferred to a
-    // follow-on phase (see Design Docs/Elements/DIALOGS.md §4.5 finding).
-    private boolean cancelsUnhandledClicks = false;
+    // Three independent flags compose the "modal" semantic. The 14d-1 single-
+    // flag `cancelsUnhandledClicks` bundled all three concerns; M9 factors
+    // them so future primitives (popovers, dropdowns) can opt into pieces
+    // independently. See Design Docs/Mechanisms/M9_PANEL_OPACITY.md.
+    //
+    // - `opaque` (default TRUE): interaction opacity. When the panel is
+    //   visible, input arriving at coords within the panel's bounds is
+    //   handled by the panel; vanilla underneath never sees it. Default-true
+    //   delivers Trevor's click-through prohibition principle: visible
+    //   panels are interaction-opaque over their bounds. Consumers wanting
+    //   transparent overlays opt out via `opaque(false)`.
+    //
+    // - `dimsBehind` (default FALSE): visual dim layer. When this panel is
+    //   visible, ScreenPanelRegistry's render path inserts a translucent-
+    //   black quad over the underlying screen before drawing this panel.
+    //   Real modals set this true; non-modal opaque panels (decoration,
+    //   popups) leave it false.
+    //
+    // - `tracksAsModal` (default FALSE): global modal-tracking. When this
+    //   panel is visible, the library locks the OS cursor (no clickable-
+    //   feedback over vanilla widgets) and eats keystrokes other than
+    //   Escape. Real modals set this true; non-modal opaque panels leave
+    //   it false (cursor + keyboard work normally outside the panel's
+    //   bounds).
+    //
+    // The Panel.modal() sugar sets all three to true — canonical real-modal
+    // pattern. Independent flag setters are exposed for non-canonical
+    // compositions (popovers, click-blockers, etc.).
+    private boolean opaque = true;
+    private boolean dimsBehind = false;
+    private boolean tracksAsModal = false;
 
     // Set during handler construction — typed via PanelOwner interface
     // so Panel doesn't depend on the screen package.
@@ -292,54 +314,139 @@ public class Panel {
         return this;
     }
 
-    // ── Modal click-eating ──────────────────────────────────────────────
+    // ── Opacity / dim / modal-tracking (M9) ────────────────────────────
 
     /**
-     * Sets whether this panel eats unhandled clicks. Chainable.
+     * Sets whether this panel is interaction-opaque over its bounds. Chainable.
      *
-     * <p>When {@code true} and the panel is visible, dispatchers hosting this
-     * panel eat clicks that didn't hit any of this panel's interactive
-     * elements rather than passing them through to the underlying screen.
-     * The canonical use is modal dialogs — combined with supplier-driven
-     * visibility, the dialog blocks underlying input while open.
+     * <p>When {@code true} and the panel is visible, input arriving at coords
+     * within the panel's bounding box (clicks, hover, tooltip queueing) is
+     * handled by the panel and does not pass through to vanilla widgets
+     * underneath. Empty space within the panel's bounds eats input;
+     * tooltips for items behind the panel are suppressed; slot hover
+     * returns null.
      *
-     * <p>The flag is consulted at the dispatch boundary, not at click time on
-     * individual elements. Elements that are clicked dispatch normally; only
-     * unhandled clicks (no element consumed) are eaten.
+     * <p>This is Trevor's click-through prohibition principle (Phase 14d-2):
+     * visible panels are interaction-opaque over their bounds. Default-true
+     * makes opacity the path-of-least-friction; consumers wanting
+     * transparent overlays opt out explicitly.
      *
-     * <p><b>Dispatcher coverage in v1:</b>
-     * <ul>
-     *   <li>MenuContext via {@link com.trevorschoeny.menukit.inject.ScreenPanelAdapter}
-     *       — supported. {@code ScreenPanelRegistry}'s {@code allowMouseClick}
-     *       hook returns false for unhandled clicks when this flag is set on
-     *       any matching adapter's panel.</li>
-     *   <li>MenuKit-native screens ({@code MenuKitScreen} subclasses) —
-     *       not yet supported. Adding modal dialog support to native screens
-     *       is filed as a follow-on architectural decision (see
-     *       {@code Design Docs/Elements/DIALOGS.md} §4.5 finding).</li>
-     *   <li>Vanilla standalone-screen decoration via consumer mixin —
-     *       supported by consumer reading the flag in their own
-     *       {@code mouseClicked} mixin and calling
-     *       {@code cir.setReturnValue(true)} when set + unhandled.</li>
-     * </ul>
+     * <p>The interaction footprint is the panel's bounding box, regardless
+     * of {@link PanelStyle}. {@code PanelStyle.NONE + opaque(true)} is the
+     * "click blocker" pattern (invisible but blocks input). {@code
+     * PanelStyle.NONE + opaque(false)} is the rare transparent-overlay
+     * escape hatch.
      *
-     * <p>Default: {@code false} — non-modal panels pass unhandled clicks
-     * through (existing pre-14d-1 behavior).
+     * <p><b>Dispatcher coverage:</b> region-based {@code ScreenPanelAdapter}
+     * panels participate automatically via the unified registry. Lambda-path
+     * adapters must call {@code .activeOn(Screen, boundsSupplier)} from
+     * their consumer mixin's {@code init()} to register their bounds for
+     * opacity dispatch. See M9 §4.4 + {@code ScreenPanelAdapter.activeOn}.
      *
-     * @param value {@code true} to make this panel eat unhandled clicks
+     * <p>Default: {@code true} (M9 default-flip from the 14d-1
+     * {@code cancelsUnhandledClicks} default of {@code false}).
+     *
+     * @param isOpaque {@code true} to make this panel interaction-opaque
      * @return this panel, for chaining
      */
-    public Panel cancelsUnhandledClicks(boolean value) {
-        this.cancelsUnhandledClicks = value;
+    public Panel opaque(boolean isOpaque) {
+        this.opaque = isOpaque;
         return this;
     }
 
+    /** Returns whether this panel is interaction-opaque. See {@link #opaque(boolean)}. */
+    public boolean isOpaque() {
+        return opaque;
+    }
+
     /**
-     * Returns whether this panel is configured to eat unhandled clicks.
-     * See {@link #cancelsUnhandledClicks(boolean)} for semantics.
+     * Sets whether the screen dims visually behind this panel when visible.
+     * Chainable.
+     *
+     * <p>When {@code true} and the panel is visible, the dispatcher renders
+     * a translucent-black quad over the underlying screen before drawing
+     * this panel. Used by real modal dialogs to visually distinguish them
+     * from regular decoration.
+     *
+     * <p>Independent of {@link #opaque(boolean)} — a panel can be opaque
+     * without dimming (popovers, dropdowns) and could in principle be
+     * transparent-with-dim (unusual; not a current use case). Independent
+     * of {@link #tracksAsModal(boolean)} — dim is purely visual; modal
+     * tracking governs cursor + keyboard.
+     *
+     * <p>Default: {@code false}.
+     *
+     * @param dims {@code true} to dim the screen behind this panel
+     * @return this panel, for chaining
      */
-    public boolean cancelsUnhandledClicks() {
-        return cancelsUnhandledClicks;
+    public Panel dimsBehind(boolean dims) {
+        this.dimsBehind = dims;
+        return this;
+    }
+
+    /** Returns whether this panel dims the screen behind it. See {@link #dimsBehind(boolean)}. */
+    public boolean dimsBehind() {
+        return dimsBehind;
+    }
+
+    /**
+     * Sets whether this panel participates in global modal tracking.
+     * Chainable.
+     *
+     * <p>When {@code true} and the panel is visible, the library applies
+     * window-state suppressions:
+     * <ul>
+     *   <li><b>Cursor lock</b> — {@code Window.setAllowCursorChanges(false)}
+     *       per-tick; the OS cursor stays as DEFAULT regardless of vanilla
+     *       widgets requesting clickable-feedback (creative tabs, etc.).</li>
+     *   <li><b>Keyboard suppression</b> — keystrokes other than Escape are
+     *       eaten before reaching the underlying screen. Escape closes the
+     *       screen as normal v1 behavior.</li>
+     *   <li><b>Outside-bounds click eating</b> — clicks outside any visible
+     *       opaque panel are eaten while a tracksAsModal panel is up
+     *       (preserves modal-blocking semantic).</li>
+     * </ul>
+     *
+     * <p>Pointer-driven suppressions (slot hover, tooltip queueing) are
+     * governed by {@link #opaque(boolean)} bounds-locally — they do NOT
+     * require {@code tracksAsModal}. The asymmetry is principled: pointer
+     * position localizes naturally; cursor + keyboard are window-state
+     * concerns appropriately scoped to modal-tracking. See M9 §4.7.
+     *
+     * <p>Default: {@code false}.
+     *
+     * @param tracks {@code true} to participate in modal tracking
+     * @return this panel, for chaining
+     */
+    public Panel tracksAsModal(boolean tracks) {
+        this.tracksAsModal = tracks;
+        return this;
+    }
+
+    /** Returns whether this panel participates in modal tracking. See {@link #tracksAsModal(boolean)}. */
+    public boolean tracksAsModal() {
+        return tracksAsModal;
+    }
+
+    /**
+     * Builder convenience setting all three modal flags to {@code true}.
+     * Equivalent to {@code opaque(true).dimsBehind(true).tracksAsModal(true)}.
+     *
+     * <p>Canonical "real modal" pattern — sets the whole bundle in one call.
+     * Consumers building non-canonical compositions (popovers, dropdowns,
+     * click-blockers) reach for the independent flag setters.
+     *
+     * <p><b>Undefined combination warning:</b> {@code opaque(false) +
+     * tracksAsModal(true)} is logically nonsensical (clicks pass through
+     * but Escape closes + cursor locks). Consumers constructing this
+     * combination almost certainly have a bug; v1 doesn't reject the
+     * combination but documents it as undefined. Future phases may
+     * fold-on-evidence to reject at builder time. See M9 §4.3.
+     *
+     * @return this panel, for chaining
+     */
+    public Panel modal() {
+        return opaque(true).dimsBehind(true).tracksAsModal(true);
     }
 
     // ── Owner Reference ─────────────────────────────────────────────────

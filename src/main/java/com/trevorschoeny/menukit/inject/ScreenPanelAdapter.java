@@ -8,12 +8,14 @@ import com.trevorschoeny.menukit.core.PanelStyle;
 import com.trevorschoeny.menukit.core.RenderContext;
 
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Bundles the mechanical parts of rendering a {@link Panel} inside a vanilla
@@ -263,6 +265,99 @@ public final class ScreenPanelAdapter {
         }
     }
 
+    // ── Lambda-path opacity registration (M9) ──────────────────────────
+    //
+    // Lambda-based adapters render through their consumer's own mixin and
+    // are exempt from the region-based ScreenPanelRegistry dispatch path.
+    // Pre-M9, this meant lambda panels were also exempt from the modal
+    // mechanism (click-eat, hover suppression, tooltip suppression).
+    //
+    // M9's click-through prohibition is a library-wide invariant, so
+    // lambda panels participate via these two methods: consumer's mixin
+    // calls .activeOn(this, () -> ScreenBounds(...)) in init() (TAIL),
+    // and .deactivate(this) in removed() (TAIL). The library tracks the
+    // (Screen, adapter, boundsSupplier) triple in its unified opacity
+    // registry; the four input-handler mixins consult the registry for
+    // opacity dispatch decisions. The escape-hatch property — consumer
+    // owns rendering and dispatch in their own mixin — is preserved;
+    // the library only learns about bounds for opacity purposes.
+    //
+    // See M9 §4.4 for the full design including failure-mode analysis.
+
+    /**
+     * Registers this lambda-based adapter as active on the given screen
+     * with the supplied bounds-supplier for opacity dispatch (M9). Called
+     * from the consumer's mixin during {@code init()} ({@code @At("TAIL")}).
+     *
+     * <p>The {@code boundsSupplier} returns the current
+     * {@link ScreenBounds} for the screen — typically
+     * {@code () -> new ScreenBounds(0, 0, this.width, this.height)} for
+     * a vanilla standalone screen, or per-frame computed bounds for an
+     * inventory-style screen. The supplier is evaluated each time the
+     * library queries this adapter's opacity bounds (per click, per
+     * hover, per tooltip). Cheap-supplier discipline applies — keep the
+     * supplier free of allocations or expensive lookups.
+     *
+     * <p>Region-based adapters do NOT call this method — they participate
+     * in opacity dispatch automatically via {@link ScreenPanelRegistry}'s
+     * targeting + region resolution. Calling on a region-based adapter
+     * throws.
+     *
+     * <p><b>Failure mode — consumer forgets {@code activeOn}.</b> The
+     * panel renders correctly via the consumer's mixin (since rendering
+     * is consumer-owned for lambda adapters) but the M9 opacity
+     * invariant doesn't apply — clicks pass through to vanilla widgets
+     * underneath, hover/tooltip leak from below. The library does NOT
+     * enforce registration; lambda is the escape hatch and consumers
+     * accept the explicit responsibility. See M9 §4.4 failure-mode
+     * analysis.
+     *
+     * @param screen          the screen this adapter is active on
+     * @param boundsSupplier  per-call screen-bounds computation
+     * @return this adapter, for chaining
+     * @throws IllegalStateException if the adapter is region-based
+     */
+    public ScreenPanelAdapter activeOn(Screen screen,
+                                        Supplier<ScreenBounds> boundsSupplier) {
+        if (regionBased) {
+            throw new IllegalStateException(
+                    "Adapter for panel '" + panel.getId() + "' is region-based; " +
+                    ".activeOn() applies to lambda-based adapters only. " +
+                    "Region-based adapters participate in opacity dispatch " +
+                    "automatically via ScreenPanelRegistry's targeting (.on/.onAny).");
+        }
+        if (screen == null || boundsSupplier == null) {
+            throw new IllegalArgumentException(
+                    "Adapter for panel '" + panel.getId() + "': activeOn(...) " +
+                    "requires non-null screen + boundsSupplier.");
+        }
+        ScreenPanelRegistry.registerLambdaActive(screen, this, boundsSupplier);
+        return this;
+    }
+
+    /**
+     * Unregisters this lambda-based adapter from the given screen for
+     * opacity dispatch (M9). Called from the consumer's mixin during
+     * {@code removed()} ({@code @At("TAIL")}).
+     *
+     * <p>Idempotent — calling on an unregistered (screen, adapter) pair
+     * is a no-op. Calling on a region-based adapter throws.
+     *
+     * @param screen the screen to deactivate from
+     * @return this adapter, for chaining
+     * @throws IllegalStateException if the adapter is region-based
+     */
+    public ScreenPanelAdapter deactivate(Screen screen) {
+        if (regionBased) {
+            throw new IllegalStateException(
+                    "Adapter for panel '" + panel.getId() + "' is region-based; " +
+                    ".deactivate() applies to lambda-based adapters only.");
+        }
+        if (screen == null) return this;
+        ScreenPanelRegistry.unregisterLambdaActive(screen, this);
+        return this;
+    }
+
     // ── Targeting queries (for ScreenPanelRegistry dispatch, step 3) ────
 
     /** True if the adapter was constructed with a region rather than a lambda. */
@@ -326,6 +421,27 @@ public final class ScreenPanelAdapter {
         return Optional.of(origin);
     }
 
+    /**
+     * M9 lambda-path origin query — accepts any {@link Screen} subclass.
+     * For lambda-based adapters active on standalone vanilla screens
+     * (PauseScreen, OptionsScreen, etc.) where the consumer's mixin
+     * registers via {@link #activeOn} but the screen isn't an
+     * {@link AbstractContainerScreen}.
+     *
+     * <p>Casts {@code screen} to {@code AbstractContainerScreen} when
+     * possible (so chrome-aware region functions still work); passes
+     * {@code null} otherwise (lambda origin functions ignore the
+     * parameter per {@link ScreenOriginFn#compute} javadoc).
+     */
+    public Optional<ScreenOrigin> getOriginForScreen(ScreenBounds screenBounds,
+                                                      @Nullable Screen screen) {
+        if (!panel.isVisible()) return Optional.empty();
+        AbstractContainerScreen<?> acs = (screen instanceof AbstractContainerScreen<?> a) ? a : null;
+        ScreenOrigin origin = originFn.compute(screenBounds, acs);
+        if (origin == ScreenOrigin.OUT_OF_REGION) return Optional.empty();
+        return Optional.of(origin);
+    }
+
     // ── Render + input ─────────────────────────────────────────────────
 
     /**
@@ -369,23 +485,31 @@ public final class ScreenPanelAdapter {
                     panel.getStyle());
         }
 
-        // Phase 14d-1 modal hover suppression for non-modal panels.
-        // Reuses RenderContext's existing "no input dispatch" sentinel
-        // (mouseX = -1) — the same convention HUDs use. Semantically this
-        // render pass has no input visible to the elements, so
-        // hasMouseInput() returns false and isHovered() short-circuits to
-        // false. All PanelElement kinds (Button, Toggle, Checkbox, future
-        // widgets) inherit the inert behavior automatically through the
-        // existing context API; no per-element mixins.
+        // Phase 14d-1 / M9 modal-tracking hover suppression for
+        // non-modal-tracking panels. Reuses RenderContext's existing "no
+        // input dispatch" sentinel (mouseX = -1) — the same convention
+        // HUDs use. Semantically this render pass has no input visible
+        // to the elements, so hasMouseInput() returns false and
+        // isHovered() short-circuits to false. All PanelElement kinds
+        // (Button, Toggle, Checkbox, future widgets) inherit the inert
+        // behavior automatically through the existing context API; no
+        // per-element mixins.
         //
-        // Modal panel itself keeps real coords so its OWN buttons detect
-        // hover and dispatch clicks normally. Single check at the
-        // RenderContext construction site — architectural fix at the right
-        // level using the right existing primitive.
+        // The modal-tracking panel itself keeps real coords so its OWN
+        // buttons detect hover and dispatch clicks normally. Single check
+        // at the RenderContext construction site — architectural fix at
+        // the right level using the right existing primitive.
+        //
+        // Non-modal-tracking opaque panels (popovers, dropdowns) get
+        // bounds-driven hover suppression via the unified registry's
+        // findOpaquePanelAt query in the slot-hover + tooltip mixins —
+        // not via this -1 sentinel. The -1 sentinel here specifically
+        // covers "modal-tracking is up; non-modal-tracking MK panels are
+        // behind the dim and should look inert."
         int effectiveMouseX = mouseX;
         int effectiveMouseY = mouseY;
-        if (!panel.cancelsUnhandledClicks()
-                && ScreenPanelRegistry.hasVisibleModalOnScreen(screen)) {
+        if (!panel.tracksAsModal()
+                && ScreenPanelRegistry.hasVisibleModalTrackingOnScreen(screen)) {
             effectiveMouseX = -1;
             effectiveMouseY = -1;
         }
