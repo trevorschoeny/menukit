@@ -39,11 +39,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <h3>Library-not-platform check</h3>
  *
  * Same shape as the click-eat mixin: library-wide HEAD-cancellable
- * inject gated on per-Panel modal flag (consulted via
- * {@link ScreenPanelRegistry#hasAnyVisibleModal()}). Two mods both
- * shipping modal panels coexist independently; the mixin checks "any
- * visible modal panel" without taking ownership across mods. The mixin
- * is observational/dispatch-policy at a single hook point.
+ * inject gated on per-Panel opacity (consulted via
+ * {@link ScreenPanelRegistry#hasAnyVisibleOpaquePanelAtCursor()}). Two
+ * mods both shipping opaque panels coexist independently; the mixin
+ * checks "any visible opaque panel covers the cursor" without taking
+ * ownership across mods. The mixin is observational/dispatch-policy
+ * at a single hook point.
+ *
+ * <p>M9 generalization: scope changed from "any modal visible" (global
+ * suppression) to "cursor inside any opaque panel" (bounds-localized).
+ * Modal dialogs still suppress correctly because they're opaque and
+ * cover their bounds; non-modal opaque panels (popovers, dropdowns)
+ * also suppress within their bounds. See M9 §4.7.
  *
  * <h3>Round-2 implementation finding (filed in DIALOGS.md §10)</h3>
  *
@@ -74,8 +81,19 @@ public abstract class MenuKitTooltipSuppressMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void menukit$suppressTooltipWhenModal(CallbackInfo ci) {
-        if (ScreenPanelRegistry.hasAnyVisibleModal()) {
+    private void menukit$suppressTooltipWhenOpaque(CallbackInfo ci) {
+        // M9: pointer-driven tooltip suppression honors both panel scopes:
+        //   - tracksAsModal panel visible → suppress GLOBALLY (modal
+        //     claims the whole screen; tooltips behind don't render per
+        //     Trevor's principle, including for vanilla widgets like
+        //     creative tabs that lie outside the modal's bounds).
+        //   - else if cursor inside any visible opaque panel → suppress
+        //     LOCALLY (bounds-local for non-modal opaque panels — items
+        //     outside the popover still tooltip normally).
+        //   - else → don't suppress; vanilla tooltip queues normally.
+        // See M9 §4.7 for the scope-asymmetry framing.
+        if (ScreenPanelRegistry.hasAnyVisibleModalTracking()
+                || ScreenPanelRegistry.hasAnyVisibleOpaquePanelAtCursor()) {
             ci.cancel();
         }
     }

@@ -18,8 +18,8 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Builder for a modal acknowledge dialog. Composes a {@link Panel} from
  * existing primitives ({@link TextLabel}, {@link Button}, M8 layout helpers)
- * and ships it with {@link Panel#cancelsUnhandledClicks(boolean) modal
- * click-eating} pre-configured.
+ * and ships it with {@link Panel#modal() modal flags} pre-configured
+ * (opaque + dimsBehind + tracksAsModal).
  *
  * <p>Structurally a subset of {@link ConfirmDialog}: same shell (title +
  * body + button row), one button instead of two. Use case: information
@@ -129,8 +129,8 @@ public final class AlertDialog {
         }
 
         /**
-         * Construct the configured dialog Panel. Modal-by-default
-         * ({@link Panel#cancelsUnhandledClicks(boolean) cancelsUnhandledClicks(true)});
+         * Construct the configured dialog Panel. Modal-by-default via
+         * {@link Panel#modal()} (sets opaque + dimsBehind + tracksAsModal);
          * starts hidden (visibility set via {@link Panel#showWhen}).
          *
          * @throws IllegalStateException if any required field
@@ -164,7 +164,7 @@ public final class AlertDialog {
                     PanelStyle.RAISED,
                     PanelPosition.BODY,
                     /*toggleKey=*/ -1)
-                    .cancelsUnhandledClicks(true);
+                    .modal();
         }
 
         private static void requireField(Object value, String name) {

@@ -50,7 +50,13 @@ public abstract class MenuKitModalKeyboardHandlerMixin {
     private void menukit$eatModalKey(long window, int action, KeyEvent event,
                                      CallbackInfo ci) {
         if (event.key() == GLFW_KEY_ESCAPE) return; // Always allow Escape.
-        if (ScreenPanelRegistry.hasAnyVisibleModal()) {
+        // M9: gate on tracksAsModal (window-state suppression scoped to
+        // modal-tracking panels per §4.7). Non-modal opaque panels do NOT
+        // suppress keyboard — keyboard isn't pointer-driven and can't
+        // localize to bounds; eating keys whenever any opaque panel is
+        // visible would suppress every keystroke whenever any non-modal
+        // MK decoration is visible (overly aggressive).
+        if (ScreenPanelRegistry.hasAnyVisibleModalTracking()) {
             ci.cancel();
         }
     }

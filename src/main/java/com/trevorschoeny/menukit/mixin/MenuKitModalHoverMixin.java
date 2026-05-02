@@ -65,9 +65,19 @@ public abstract class MenuKitModalHoverMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void menukit$suppressHoverWhenModal(double mouseX, double mouseY,
-                                                CallbackInfoReturnable<Slot> cir) {
-        if (ScreenPanelRegistry.hasAnyVisibleModal()) {
+    private void menukit$suppressHoverWhenOpaque(double mouseX, double mouseY,
+                                                  CallbackInfoReturnable<Slot> cir) {
+        // M9: pointer-driven hover suppression honors both panel scopes:
+        //   - tracksAsModal panel visible → suppress GLOBALLY (modal
+        //     claims the whole screen; everything behind is inert per
+        //     Trevor's principle).
+        //   - else if cursor inside any visible opaque panel → suppress
+        //     LOCALLY (bounds-local for non-modal opaque panels like
+        //     popovers / dropdowns covering slot edges).
+        //   - else → don't suppress; vanilla hover proceeds normally.
+        // See M9 §4.7 for the scope-asymmetry framing.
+        if (ScreenPanelRegistry.hasAnyVisibleModalTracking()
+                || ScreenPanelRegistry.hasAnyVisibleOpaquePanelAt(mouseX, mouseY)) {
             cir.setReturnValue(null);
         }
     }
