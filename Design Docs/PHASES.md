@@ -85,7 +85,7 @@ New mechanism for row/column/grid layout helpers.
 - **Critical design framing:** layout HELPERS that compute child positions, NOT nested containers. Preserves THESIS "Panel is the ceiling of composition." Row/Column/Grid wrap a list of elements with computed child offsets that the parent Panel renders directly; no new container abstraction below Panel.
 - Design-doc-first. Ships to `Mechanisms/M8_LAYOUT_COMPOSITION.md`.
 
-### Sub-phase 14d — Palette additions ← current (14d-1: dialogs shipped; 14d-2: scroll container shipped; 14d-2.5: M9 panel-opacity mechanism shipped; 14d-2.7: test surface comprehensive cleanup shipped; 14d-3: TextField shipped — wraps vanilla EditBox + new PanelElement lifecycle hooks)
+### Sub-phase 14d — Palette additions ← current (14d-1: dialogs shipped; 14d-2: scroll container shipped; 14d-2.5: M9 panel-opacity mechanism shipped; 14d-2.7: test surface comprehensive cleanup shipped; 14d-3: TextField shipped — wraps vanilla EditBox + new PanelElement lifecycle hooks; 14d-4: Slider shipped — wraps vanilla AbstractSliderButton, no new primitives)
 
 UI-focused additions — V0 palette-gap inventory from Phase 12.5 plus dialog primitives.
 
@@ -246,4 +246,4 @@ This plan is not frozen. Findings during any phase can trigger scope adjustments
 
 ---
 
-**Current phase: 14d-3 (TextField). Closed; ready for 14d-4 (slider, dropdown).**
+**Current phase: 14d-4 (Slider). Closed; ready for 14d-5 (Dropdown).**
