@@ -26,7 +26,8 @@
     "MKGuiMixin",
     "MKKeyBindsScreenMixin",
     "MKKeyMappingMixin",
-    "MKRecipeBookAccessor"
+    "MKRecipeBookAccessor",
+    "ScreenAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

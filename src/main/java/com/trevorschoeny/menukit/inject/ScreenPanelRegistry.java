@@ -179,12 +179,22 @@ public final class ScreenPanelRegistry {
     static void registerLambdaActive(net.minecraft.client.gui.screens.Screen screen,
                                       ScreenPanelAdapter adapter,
                                       java.util.function.Supplier<ScreenBounds> boundsSupplier) {
+        boolean newRegistration;
         synchronized (LAMBDA_ACTIVE) {
             List<LambdaActiveEntry> entries = LAMBDA_ACTIVE.computeIfAbsent(
                     screen, k -> new ArrayList<>());
             // Replace existing entry for this adapter if present (idempotent).
+            newRegistration = entries.stream().noneMatch(e -> e.adapter() == adapter);
             entries.removeIf(e -> e.adapter() == adapter);
             entries.add(new LambdaActiveEntry(adapter, boundsSupplier));
+        }
+        // Phase 14d-3 — fire onAttach on first registration only
+        // (idempotent re-registrations skip; matches addRenderableWidget
+        // semantics where adding the same widget twice is a vanilla error).
+        if (newRegistration) {
+            for (var element : adapter.getPanel().getElements()) {
+                element.onAttach(screen);
+            }
         }
     }
 
@@ -195,12 +205,20 @@ public final class ScreenPanelRegistry {
      */
     static void unregisterLambdaActive(net.minecraft.client.gui.screens.Screen screen,
                                         ScreenPanelAdapter adapter) {
+        boolean wasRegistered;
         synchronized (LAMBDA_ACTIVE) {
             List<LambdaActiveEntry> entries = LAMBDA_ACTIVE.get(screen);
             if (entries == null) return;
+            wasRegistered = entries.stream().anyMatch(e -> e.adapter() == adapter);
             entries.removeIf(e -> e.adapter() == adapter);
             if (entries.isEmpty()) {
                 LAMBDA_ACTIVE.remove(screen);
+            }
+        }
+        // Phase 14d-3 — fire onDetach on actual unregistration only.
+        if (wasRegistered) {
+            for (var element : adapter.getPanel().getElements()) {
+                element.onDetach(screen);
             }
         }
     }
@@ -284,6 +302,29 @@ public final class ScreenPanelRegistry {
         // resolve per-frame inside renderMatchingPanels / the click hook
         // below because menu.slots can mutate mid-session.
         SCREEN_DATA.put(acs, new ScreenRenderData(menuMatches));
+
+        // Phase 14d-3 — fire onAttach lifecycle hook on each matched
+        // adapter's panel elements so widget-wrapping elements (TextField
+        // etc.) can register vanilla widgets via screen.addRenderableWidget.
+        // Mirrored by onDetach fired from ScreenEvents.remove below.
+        for (ScreenPanelAdapter adapter : menuMatches) {
+            for (var element : adapter.getPanel().getElements()) {
+                element.onAttach(screen);
+            }
+        }
+        // Lambda-active adapters fire onAttach when .activeOn is called
+        // (registerLambdaActive); onDetach when .deactivate runs.
+
+        // ScreenEvents.remove fires when the screen is being removed.
+        // Fire onDetach so widget-wrapping elements can unregister via
+        // screen.removeWidget. Mirrors the onAttach above.
+        ScreenEvents.remove(screen).register(removed -> {
+            for (ScreenPanelAdapter adapter : menuMatches) {
+                for (var element : adapter.getPanel().getElements()) {
+                    element.onDetach(removed);
+                }
+            }
+        });
 
         // Click dispatch via Fabric's hook — input doesn't have a render-
         // ordering constraint so no mixin is needed here. Render dispatch

@@ -67,6 +67,26 @@ public class MenuKitScreen extends Screen {
     protected void init() {
         super.init();
         computeLayout();
+        // Phase 14d-3 — fire onAttach lifecycle hook on each panel
+        // element so widget-wrapping elements (TextField etc.) can
+        // register vanilla widgets via addRenderableWidget.
+        for (Panel panel : panels) {
+            for (PanelElement element : panel.getElements()) {
+                element.onAttach(this);
+            }
+        }
+    }
+
+    @Override
+    public void removed() {
+        // Phase 14d-3 — fire onDetach so widget-wrapping elements can
+        // unregister via screen.removeWidget. Mirror of init's onAttach.
+        for (Panel panel : panels) {
+            for (PanelElement element : panel.getElements()) {
+                element.onDetach(this);
+            }
+        }
+        super.removed();
     }
 
     // ── Layout ──────────────────────────────────────────────────────────

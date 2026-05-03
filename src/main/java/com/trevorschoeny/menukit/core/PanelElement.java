@@ -198,4 +198,45 @@ public interface PanelElement {
     default boolean mouseReleased(double mouseX, double mouseY, int button) {
         return false;
     }
+
+    /**
+     * Phase 14d-3 — screen-attach lifecycle hook. Called when the
+     * containing screen reaches its {@code init()} boundary (or when a
+     * lambda-path adapter registers via {@code .activeOn}). Default
+     * no-op for elements that don't need lifecycle hooks.
+     *
+     * <p>Use case: elements that wrap vanilla widgets (e.g., {@code TextField}
+     * wraps {@link net.minecraft.client.gui.components.EditBox}) need to
+     * register the wrapped widget via {@code screen.addRenderableWidget(...)}
+     * so vanilla's screen widget pipeline routes charTyped/keyPressed to
+     * it when focused. Without onAttach, the wrapped widget never enters
+     * vanilla's input dispatch and IME / focus / tab navigation don't work.
+     *
+     * <p>v1 fires once per screen lifetime (at init); does NOT fire on
+     * panel visibility changes mid-screen-life. Visibility-driven
+     * attach/detach is deferred — see {@code DEFERRED.md} 14d-3 follow-ons.
+     *
+     * <p>Coordinate space note: at onAttach time the screen has been
+     * laid out (super.init() ran before MenuKit's lifecycle hooks fire),
+     * so panel bounds + leftPos/topPos are available. Elements that
+     * register vanilla widgets typically need to update widget coords
+     * per-frame in {@link #render} regardless of attach-time positions.
+     *
+     * @param screen the vanilla Screen the panel is attached to
+     */
+    default void onAttach(net.minecraft.client.gui.screens.Screen screen) {}
+
+    /**
+     * Phase 14d-3 — screen-detach lifecycle hook. Called when the
+     * containing screen reaches its {@code removed()} boundary (or when
+     * a lambda-path adapter calls {@code .deactivate}). Default no-op.
+     *
+     * <p>Mirrors {@link #onAttach}: elements that registered vanilla
+     * widgets via {@code screen.addRenderableWidget} should remove them
+     * via {@code screen.removeWidget(...)} so vanilla's pipeline cleans
+     * up references.
+     *
+     * @param screen the vanilla Screen the panel was attached to
+     */
+    default void onDetach(net.minecraft.client.gui.screens.Screen screen) {}
 }

@@ -226,6 +226,14 @@ Surfaced during the M9 design draft (Phase 14d-2.5). Full design lives in `Desig
 
 - **Lambda consumer mods need `.activeOn` migration.** M9's lambda registration is opt-in; consumers using lambda-path `ScreenPanelAdapter` who don't update their mixins to call `.activeOn(...)` will see click-through bugs for their panels (the M9 invariant doesn't apply to un-registered lambda adapters). **In-tree: zero affected probes** (all in-tree probes are region-based). **Out-of-tree: consumer mods with lambda-path panels need updates** — inventory-plus equipment/peek panels, shulker-palette toggle panels, agreeable-allays decorations, etc. Library-not-platform: consumer migrates at their own pace. The doc note in M9 + this DEFERRED entry serve as the explicit notice.
 
+## Phase 14d-3 follow-on items
+
+Surfaced during the TextField design (Phase 14d-3). Full design lives in `Design Docs/Elements/TEXT_FIELD.md`.
+
+- **Modals with text input.** Phase 14d-3 ships TextField for non-modal panels (MenuContext + StandaloneContext, no `tracksAsModal`). Inside a modal, M9's `MenuKitModalKeyboardHandlerMixin.keyPress` eats keystrokes (except Escape) when modal-tracking is up — text input doesn't work because the mixin pre-empts before vanilla's pipeline routes keys to the focused widget. **Trigger:** first concrete consumer needs a modal text-input prompt (e.g., "name your sandbox" dialog, "rename loadout" prompt). **Architectural shape:** refine `MenuKitModalKeyboardHandlerMixin.keyPress` to dispatch keystrokes to the focused widget before applying the modal-eat gate — same pattern as 14d-2.5's symmetric press/release fold-inline (where MouseHandler-level eat needed to dispatch BEFORE eating). **Estimated cost:** ~15 LOC + smoke verification (~5 minutes implementation, plus the smoke iteration). Pattern is known; fold-on-evidence.
+
+- **Visibility-driven PanelElement lifecycle (`onAttach`/`onDetach`).** Phase 14d-3 ships lifecycle hooks called at screen init/removed boundaries only. Hide/show transitions of a panel mid-screen-life don't fire detach/re-attach — the EditBox stays registered with the screen across visibility changes. v1 acceptable per Q7 verdict + javadoc gotcha note. **Trigger:** consumer surfaces a use case where a wrapped widget needs to fully detach/re-attach on panel visibility flip (e.g., to free up vanilla widget focus cycle, or to suppress invisible-widget keystroke routing). **Architectural shape:** call onDetach when panel.setVisible(false) and onAttach when panel.setVisible(true); requires panel-level visibility-change observers (existing PanelOwner.onPanelVisibilityChanged is the hook). Defer until evidence; the vanilla widget framework handles invisible widgets correctly enough today.
+
 ## Phase 14d-2.7 follow-on items
 
 Surfaced during the test surface comprehensive cleanup (Phase 14d-2.7). Full design lives in `Design Docs/TESTING_CONVENTIONS.md`.
