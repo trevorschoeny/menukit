@@ -125,6 +125,100 @@ public interface PanelElement {
     // ── Input ──────────────────────────────────────────────────────────
 
     /**
+     * Phase 14d-5 — active overlay bounds for exclusive-claim dispatch.
+     * Called by the screen dispatchers BEFORE {@link #hitTest} as the
+     * first dispatch pass: any element returning a non-null rect from
+     * this method gets <b>exclusive</b> ownership of clicks (and scrolls)
+     * that fall inside the returned region. The dispatcher routes the
+     * input solely to this element regardless of {@link #mouseClicked}'s
+     * return value, then short-circuits — no other element (including
+     * vanilla widgets behind) sees the click.
+     *
+     * <p>This is the element-level parallel to M9's panel-level modal
+     * click-eat ({@code Panel.tracksAsModal}). The use case is the same:
+     * an element that draws a transient interactive overlay outside its
+     * layout bounds (e.g., {@link com.trevorschoeny.menukit.core.Dropdown}'s
+     * popover when open) needs the overlay region to be inherently inert
+     * to anything behind it. Without this primitive, a click on a
+     * popover item would also fire whichever element's layout bounds
+     * happened to overlap the popover's screen region (e.g., a button
+     * paint-occluded by the popover but still hit-testable).
+     *
+     * <p>Default returns {@code null} — no active overlay. Existing
+     * elements (Button, TextField, Slider, ScrollContainer, etc.) inherit
+     * unchanged. Override only when you need a transient region that's
+     * exclusively yours.
+     *
+     * <p><b>Coordinate space:</b> screen-space (same as the dispatchers
+     * read mouse positions). The returned rect is consumed as
+     * {@code [x, y, width, height]}.
+     *
+     * <p><b>When to use overlay vs hitTest:</b>
+     * <ul>
+     *   <li><b>Overlay</b> — the element claims an exclusive region; the
+     *       region "eats" all clicks/scrolls inside it (modal-like). Use
+     *       when nothing behind the region should see the input
+     *       (popovers, transient action menus).</li>
+     *   <li><b>hitTest</b> — the element wants to be considered for
+     *       dispatch when cursor is at a non-default position; if it
+     *       doesn't consume, dispatch falls through to other elements.
+     *       Use when the element extends its interactive surface but
+     *       isn't claiming exclusivity (extended trigger zones).</li>
+     * </ul>
+     *
+     * @return {@code [x, y, width, height]} of the active overlay region,
+     *         or {@code null} if no overlay is active
+     */
+    default int @org.jspecify.annotations.Nullable [] getActiveOverlayBounds() {
+        return null;
+    }
+
+    /**
+     * Phase 14d-5 — interaction-bounds hit test. Called by the screen
+     * dispatchers (MenuKitScreen, MenuKitHandledScreen, ScreenPanelAdapter)
+     * before {@link #mouseClicked} and {@link #mouseScrolled} to decide
+     * whether this element should receive the input event.
+     *
+     * <p>Default implementation tests against the element's layout bounds —
+     * exactly equivalent to the inline screen-space bounds-check the
+     * dispatchers performed pre-14d-5. Existing elements (Button, TextField,
+     * Slider, ScrollContainer, etc.) inherit unchanged.
+     *
+     * <p><b>Override for elements whose interaction surface differs from
+     * their layout bounds.</b> Phase 14d-5's {@code Dropdown} is the
+     * canonical case: its popover renders OUTSIDE the trigger's layout
+     * bounds when open, and clicks on the popover area need to reach the
+     * Dropdown so it can route them internally (select-or-dismiss). Other
+     * future cases: tooltips with embedded action buttons, expandable inline
+     * editors, hover-with-click-targets.
+     *
+     * <p>The split between layout bounds and interaction bounds is
+     * deliberate: panel auto-size logic uses {@code getWidth} / {@code getHeight}
+     * for layout, while the dispatcher uses {@code hitTest} for input
+     * routing. An element can claim a larger interaction surface (popover)
+     * without disturbing layout (which would cause panel reflow).
+     *
+     * <p>Coordinate space: same as {@link #mouseClicked} — screen-space
+     * mouse coordinates. {@code contentX} / {@code contentY} are the panel
+     * content origin (panel position + padding); the element's screen-space
+     * top-left is {@code contentX + getChildX(), contentY + getChildY()}.
+     * The dispatcher passes its own pre-computed contentX/contentY so the
+     * element doesn't need to re-derive layout state.
+     *
+     * @param mouseX   screen-space mouse X
+     * @param mouseY   screen-space mouse Y
+     * @param contentX panel content origin X (panel.x + padding)
+     * @param contentY panel content origin Y (panel.y + padding)
+     * @return true if this element wants to receive the input event
+     */
+    default boolean hitTest(double mouseX, double mouseY, int contentX, int contentY) {
+        int sx = contentX + getChildX();
+        int sy = contentY + getChildY();
+        return mouseX >= sx && mouseX < sx + getWidth()
+            && mouseY >= sy && mouseY < sy + getHeight();
+    }
+
+    /**
      * Called when the mouse is clicked on this element. The dispatcher
      * hit-tests against the element's bounds before calling this method, so
      * implementations know the click is within bounds.

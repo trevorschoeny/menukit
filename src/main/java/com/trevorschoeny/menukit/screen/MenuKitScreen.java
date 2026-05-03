@@ -186,9 +186,40 @@ public class MenuKitScreen extends Screen {
      * Dispatches a click to panel elements in reverse panel order (the
      * last-declared panel's elements get first crack, matching visual
      * z-order). Returns true if any element consumed the click.
+     *
+     * <p>Phase 14d-5 — two-pass dispatch:
+     * <ol>
+     *   <li><b>Pass 1: active-overlay claims.</b> Any element with an
+     *       {@link PanelElement#getActiveOverlayBounds active overlay}
+     *       (e.g., Dropdown's popover when open) gets exclusive dispatch
+     *       over its overlay region — the click is dropped or consumed
+     *       by that element regardless of {@code mouseClicked}'s return,
+     *       so behind elements stay innately inert (parallel to M9's
+     *       panel-level modal click-eat, at element granularity).</li>
+     *   <li><b>Pass 2: normal hit-test.</b> If no active overlay claims
+     *       the click, fall through to standard {@link PanelElement#hitTest}-
+     *       gated dispatch on each element's layout bounds.</li>
+     * </ol>
      */
     private boolean dispatchElementClick(double mouseX, double mouseY, int button) {
         List<Panel> reversed = panels.reversed();
+
+        // ── Pass 1: active-overlay exclusive claims ───────────────────
+        for (Panel panel : reversed) {
+            if (!panel.isVisible()) continue;
+            for (PanelElement element : panel.getElements()) {
+                if (!element.isVisible()) continue;
+                int[] overlay = element.getActiveOverlayBounds();
+                if (overlay != null
+                        && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
+                        && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
+                    element.mouseClicked(mouseX, mouseY, button);
+                    return true;     // exclusive — no further dispatch
+                }
+            }
+        }
+
+        // ── Pass 2: normal hit-test dispatch ──────────────────────────
         for (Panel panel : reversed) {
             if (!panel.isVisible()) continue;
             PanelBounds bounds = panelBounds.get(panel.getId());
@@ -200,10 +231,8 @@ public class MenuKitScreen extends Screen {
             for (PanelElement element : panel.getElements()) {
                 if (!element.isVisible()) continue;
 
-                double relX = mouseX - contentX - element.getChildX();
-                double relY = mouseY - contentY - element.getChildY();
-                if (relX >= 0 && relX < element.getWidth()
-                        && relY >= 0 && relY < element.getHeight()) {
+                // hit-test via PanelElement.hitTest (default = layout-bounds)
+                if (element.hitTest(mouseX, mouseY, contentX, contentY)) {
                     if (element.mouseClicked(mouseX, mouseY, button)) {
                         return true;
                     }
@@ -241,7 +270,26 @@ public class MenuKitScreen extends Screen {
 
     private boolean dispatchElementScroll(double mouseX, double mouseY,
                                            double scrollX, double scrollY) {
+        // Same two-pass dispatch as dispatchElementClick — see its
+        // javadoc for the overlay-claim-then-hit-test rationale.
         List<Panel> reversed = panels.reversed();
+
+        // Pass 1: active-overlay exclusive claims
+        for (Panel panel : reversed) {
+            if (!panel.isVisible()) continue;
+            for (PanelElement element : panel.getElements()) {
+                if (!element.isVisible()) continue;
+                int[] overlay = element.getActiveOverlayBounds();
+                if (overlay != null
+                        && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
+                        && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
+                    element.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+                    return true;     // exclusive
+                }
+            }
+        }
+
+        // Pass 2: normal hit-test
         for (Panel panel : reversed) {
             if (!panel.isVisible()) continue;
             PanelBounds bounds = panelBounds.get(panel.getId());
@@ -253,10 +301,7 @@ public class MenuKitScreen extends Screen {
             for (PanelElement element : panel.getElements()) {
                 if (!element.isVisible()) continue;
 
-                double relX = mouseX - contentX - element.getChildX();
-                double relY = mouseY - contentY - element.getChildY();
-                if (relX >= 0 && relX < element.getWidth()
-                        && relY >= 0 && relY < element.getHeight()) {
+                if (element.hitTest(mouseX, mouseY, contentX, contentY)) {
                     if (element.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) {
                         return true;
                     }

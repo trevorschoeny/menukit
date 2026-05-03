@@ -549,13 +549,24 @@ public final class ScreenPanelAdapter {
         int contentX = origin.x() + padding;
         int contentY = origin.y() + padding;
 
+        // Phase 14d-5 — two-pass dispatch:
+        //   Pass 1: active-overlay claims (Dropdown popover when open).
+        //   Pass 2: normal hit-test dispatch.
+        for (PanelElement element : panel.getElements()) {
+            if (!element.isVisible()) continue;
+            int[] overlay = element.getActiveOverlayBounds();
+            if (overlay != null
+                    && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
+                    && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
+                element.mouseClicked(mouseX, mouseY, button);
+                return true;     // exclusive
+            }
+        }
+
         for (PanelElement element : panel.getElements()) {
             if (!element.isVisible()) continue;
 
-            int sx = contentX + element.getChildX();
-            int sy = contentY + element.getChildY();
-            if (mouseX < sx || mouseX >= sx + element.getWidth()) continue;
-            if (mouseY < sy || mouseY >= sy + element.getHeight()) continue;
+            if (!element.hitTest(mouseX, mouseY, contentX, contentY)) continue;
 
             if (element.mouseClicked(mouseX, mouseY, button)) {
                 return true;
@@ -587,13 +598,22 @@ public final class ScreenPanelAdapter {
         int contentX = origin.x() + padding;
         int contentY = origin.y() + padding;
 
+        // Phase 14d-5 — two-pass dispatch matching mouseClicked.
+        for (PanelElement element : panel.getElements()) {
+            if (!element.isVisible()) continue;
+            int[] overlay = element.getActiveOverlayBounds();
+            if (overlay != null
+                    && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
+                    && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
+                element.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+                return true;     // exclusive
+            }
+        }
+
         for (PanelElement element : panel.getElements()) {
             if (!element.isVisible()) continue;
 
-            int sx = contentX + element.getChildX();
-            int sy = contentY + element.getChildY();
-            if (mouseX < sx || mouseX >= sx + element.getWidth()) continue;
-            if (mouseY < sy || mouseY >= sy + element.getHeight()) continue;
+            if (!element.hitTest(mouseX, mouseY, contentX, contentY)) continue;
 
             if (element.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) {
                 return true;
