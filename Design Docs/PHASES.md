@@ -85,7 +85,7 @@ New mechanism for row/column/grid layout helpers.
 - **Critical design framing:** layout HELPERS that compute child positions, NOT nested containers. Preserves THESIS "Panel is the ceiling of composition." Row/Column/Grid wrap a list of elements with computed child offsets that the parent Panel renders directly; no new container abstraction below Panel.
 - Design-doc-first. Ships to `Mechanisms/M8_LAYOUT_COMPOSITION.md`.
 
-### Sub-phase 14d — Palette additions ← current (14d-1: dialogs shipped; 14d-2: scroll container shipped; 14d-2.5: M9 panel-opacity mechanism shipped; 14d-2.7: test surface comprehensive cleanup shipped; 14d-3: TextField shipped — wraps vanilla EditBox + new PanelElement lifecycle hooks; 14d-4: Slider shipped — wraps vanilla AbstractSliderButton, no new primitives; 14d-5: Dropdown shipped — bespoke composition + new PanelElement.hitTest primitive)
+### Sub-phase 14d — Palette additions (closed: 14d-1 dialogs; 14d-2 ScrollContainer; 14d-2.5 M9 panel-opacity mechanism; 14d-2.7 test surface cleanup; 14d-3 TextField — wraps vanilla EditBox + PanelElement lifecycle hooks; 14d-4 Slider — wraps vanilla AbstractSliderButton, no new primitives; 14d-5 Dropdown — bespoke composition + PanelElement.hitTest + getActiveOverlayBounds primitives)
 
 UI-focused additions — V0 palette-gap inventory from Phase 12.5 plus dialog primitives.
 
@@ -100,9 +100,9 @@ Each gets its own mini-design-doc under `Elements/`. Each follows design-doc-fir
 
 ### Phase 14 exit criteria
 
-- All four sub-phases shipped per their individual exit criteria.
-- `/mkverify all` contracts remain green; new contracts added for M7 (attachment round-trips) and M8 (layout-computation correctness).
-- Phase 14 REPORT at `Phases/14/REPORT.md`.
+- All four sub-phases shipped per their individual exit criteria. *(Phase 14 ran 10 sub-phases — 14a, 14b, 14c, plus 14d-1 / 14d-2 / 14d-2.5 / 14d-2.7 / 14d-3 / 14d-4 / 14d-5 — with one superseded sub-phase, 14d-2.6, scrapped after the heuristic-4 audit-existing-surface miss.)*
+- Inventory Test-button contracts (M1–M18) remain green; new contracts added for M7 (attachment round-trips), M8 (layout-computation correctness), and the palette-element builder validations (M11 dialogs, M12 ScrollContainer, M13 modal-scroll, M14 opacity dispatch, M15 lambda lifecycle, M16 TextField, M17 Slider, M18 Dropdown). *(`/mkverify all` chat command was deleted in 14d-2.7 per TESTING_CONVENTIONS.md; the canonical entry point is now the inventory Test button.)*
+- Phase 14 REPORT at `Phases/14/REPORT.md`. *(Closed.)*
 
 ### Phase 14 sequencing rationale
 
@@ -246,4 +246,4 @@ This plan is not frozen. Findings during any phase can trigger scope adjustments
 
 ---
 
-**Current phase: 14d-5 (Dropdown). Closed; ready for Phase 14 close → Phase 15 consumer migrations.**
+**Current phase: 14 closed. Phase 15 (consumer migrations) next — start with 15a (inventory-plus settings gear + sandboxes buttons → M5 regions; sort-lock migration to M1).**
