@@ -1,7 +1,6 @@
 package com.trevorschoeny.menukit.inject;
 
 import com.trevorschoeny.menukit.core.Panel;
-import com.trevorschoeny.menukit.core.SlotGroupCategory;
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
@@ -9,7 +8,6 @@ import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.world.inventory.Slot;
 
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -86,15 +84,9 @@ public final class ScreenPanelRegistry {
     private static final List<ScreenPanelAdapter> REGISTERED =
             Collections.synchronizedList(new ArrayList<>());
 
-    // Parallel tracking for SlotGroupContext adapters. Distinct sets rather
-    // than a shared abstract base because SlotGroupPanelAdapter has a
-    // different render signature (takes SlotGroupBounds + category) than
-    // ScreenPanelAdapter — unifying would dilute the call sites.
-    private static final Set<SlotGroupPanelAdapter> PENDING_SLOT_GROUP =
-            Collections.synchronizedSet(new HashSet<>());
-
-    private static final List<SlotGroupPanelAdapter> REGISTERED_SLOT_GROUP =
-            Collections.synchronizedList(new ArrayList<>());
+    // Post-§0042 split: SlotGroupContext adapter tracking + dispatch lives in
+    // menukit-containers' SlotGroupPanelRegistry. This registry handles only
+    // MenuContext + lambda-active opacity dispatch on Screen subclasses.
 
     private static volatile boolean checkpointRun = false;
 
@@ -150,22 +142,9 @@ public final class ScreenPanelRegistry {
         REGISTERED.add(adapter);
     }
 
-    /**
-     * Called from {@link SlotGroupPanelAdapter}'s constructor — marks the
-     * slot-group adapter as pending (awaiting {@code .on(...)}).
-     */
-    static void trackPendingSlotGroup(SlotGroupPanelAdapter adapter) {
-        PENDING_SLOT_GROUP.add(adapter);
-    }
-
-    /**
-     * Called from {@link SlotGroupPanelAdapter#on}. Moves the adapter from
-     * pending to registered.
-     */
-    static void markSlotGroupTargetingDeclared(SlotGroupPanelAdapter adapter) {
-        PENDING_SLOT_GROUP.remove(adapter);
-        REGISTERED_SLOT_GROUP.add(adapter);
-    }
+    // Post-§0042 split: SlotGroupPanelAdapter pending/registered tracking +
+    // its corresponding API surface lives in menukit-containers' parallel
+    // SlotGroupPanelRegistry.
 
     // ── Lambda-path opacity registration (M9) ───────────────────────────
 
@@ -239,19 +218,8 @@ public final class ScreenPanelRegistry {
         }
     }
 
-    /** Returns an unmodifiable snapshot of orphan SlotGroupContext adapters. */
-    public static Set<SlotGroupPanelAdapter> pendingSlotGroupSnapshot() {
-        synchronized (PENDING_SLOT_GROUP) {
-            return Set.copyOf(PENDING_SLOT_GROUP);
-        }
-    }
-
-    /** Returns an unmodifiable snapshot of registered SlotGroupContext adapters. */
-    public static List<SlotGroupPanelAdapter> registeredSlotGroupSnapshot() {
-        synchronized (REGISTERED_SLOT_GROUP) {
-            return List.copyOf(REGISTERED_SLOT_GROUP);
-        }
-    }
+    // Post-§0042 split: SlotGroupContext snapshots live on
+    // menukit-containers' SlotGroupPanelRegistry.
 
     // ── Initialization ──────────────────────────────────────────────────
 
@@ -360,12 +328,15 @@ public final class ScreenPanelRegistry {
                     opaqueAtCursor = true;
                 }
             }
-            // Re-resolve slot groups per click — creative-tab transitions
-            // and any future dynamic menu mutate menu.slots between clicks.
-            // SlotGroupContext panels don't participate in modality (dialogs
-            // are MenuContext-only per DIALOGS.md §4.5); slot-group dispatch
-            // doesn't affect the opaque-eat decision below.
-            dispatchSlotGroupClicks(acs, event.x(), event.y(), event.button());
+            // Post-§0042 split: SlotGroupContext click dispatch lives on
+            // menukit-containers' SlotGroupPanelRegistry, which registers its
+            // own ScreenMouseEvents.allowMouseClick listener via its own
+            // ScreenEvents.AFTER_INIT hookup. Behavior change: when a
+            // MenuContext modal eats a click, the slot-group dispatch no
+            // longer fires (Fabric's allowMouseClick stops at first false
+            // return). Modal blocks all interaction — this is the correct
+            // UX. See 16a REPORT for the rationale.
+
             // M9 opaque-dispatch decision — extracted to a pure static
             // method so /mkverify probes can exercise the logic without
             // spinning up a real screen.
@@ -406,26 +377,9 @@ public final class ScreenPanelRegistry {
         });
     }
 
-    /**
-     * Re-resolves slot groups for the given screen's menu and dispatches a
-     * click to every matching (adapter, category) pair. Called per click
-     * from the {@code ScreenMouseEvents.allowMouseClick} hook.
-     */
-    private static void dispatchSlotGroupClicks(AbstractContainerScreen<?> screen,
-                                                  double mouseX, double mouseY, int button) {
-        Map<SlotGroupCategory, List<Slot>> resolved = SlotGroupCategories.of(screen.getMenu());
-        if (resolved.isEmpty()) return;
-        for (SlotGroupPanelAdapter adapter : registeredSlotGroupSnapshot()) {
-            List<SlotGroupCategory> targets = adapter.getTargets();
-            if (targets == null) continue;
-            for (SlotGroupCategory category : targets) {
-                List<Slot> slots = resolved.get(category);
-                if (slots == null || slots.isEmpty()) continue;
-                SlotGroupBounds bounds = computeSlotGroupBounds(slots, screen);
-                adapter.mouseClicked(bounds, category, mouseX, mouseY, button, screen);
-            }
-        }
-    }
+    // Post-§0042 split: dispatchSlotGroupClicks moved to
+    // menukit-containers' SlotGroupPanelRegistry along with the slot-group
+    // adapter tracking and the AFTER_INIT listener that registers it.
 
     /**
      * Called from {@link com.trevorschoeny.menukit.mixin.MenuKitPanelRenderMixin}
@@ -490,23 +444,10 @@ public final class ScreenPanelRegistry {
         // hasAnyVisibleModal → hasAnyVisibleOpaquePanelAtCursor;
         // pointer-driven bounds-localized suppression.
 
-        // SlotGroupContext: re-resolve per frame. Creative-tab switches
-        // and other dynamic menu mutations change menu.slots; caching the
-        // resolved map at screen-open would produce stale bounds. Per-frame
-        // resolution is cheap (resolvers do slot-index subList slicing on
-        // menu.slots).
-        Map<SlotGroupCategory, List<Slot>> resolved = SlotGroupCategories.of(screen.getMenu());
-        if (resolved.isEmpty()) return;
-        for (SlotGroupPanelAdapter adapter : registeredSlotGroupSnapshot()) {
-            List<SlotGroupCategory> targets = adapter.getTargets();
-            if (targets == null) continue;
-            for (SlotGroupCategory category : targets) {
-                List<Slot> slots = resolved.get(category);
-                if (slots == null || slots.isEmpty()) continue;
-                SlotGroupBounds bounds = computeSlotGroupBounds(slots, screen);
-                adapter.render(graphics, bounds, category, mouseX, mouseY, screen);
-            }
-        }
+        // Post-§0042 split: SlotGroupContext per-frame render loop moved to
+        // menukit-containers' SlotGroupPanelRegistry.renderMatchingPanels,
+        // which is invoked by a separate mixin (SlotGroupPanelRenderMixin)
+        // injecting at the same point on AbstractContainerScreen.render.
     }
 
     /**
@@ -937,33 +878,9 @@ public final class ScreenPanelRegistry {
         return findOpaquePanelAt(mc.screen, scaledX, scaledY) != null;
     }
 
-    /**
-     * Computes the bounding rectangle enclosing the given slots in screen
-     * space. Slots store {@code x}/{@code y} relative to the screen frame;
-     * the returned bounds are absolute (includes {@code leftPos}/{@code topPos}).
-     * Standard slot visual is 16×16.
-     */
-    private static SlotGroupBounds computeSlotGroupBounds(List<Slot> slots,
-                                                           AbstractContainerScreen<?> screen) {
-        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
-        for (Slot slot : slots) {
-            int sx = slot.x;
-            int sy = slot.y;
-            if (sx < minX) minX = sx;
-            if (sy < minY) minY = sy;
-            if (sx + 16 > maxX) maxX = sx + 16;
-            if (sy + 16 > maxY) maxY = sy + 16;
-        }
-        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
-        int frameLeft = acc.trevorMod$getLeftPos();
-        int frameTop = acc.trevorMod$getTopPos();
-        return new SlotGroupBounds(
-                frameLeft + minX,
-                frameTop + minY,
-                maxX - minX,
-                maxY - minY);
-    }
+    // Post-§0042 split: computeSlotGroupBounds moved to menukit-containers'
+    // SlotGroupPanelRegistry — references vanilla Slot + SlotGroupBounds
+    // (containers).
 
     /**
      * Reads the screen's frame bounds via
@@ -1001,36 +918,26 @@ public final class ScreenPanelRegistry {
      */
     public static void validateTargetingDeclared() {
         Set<ScreenPanelAdapter> pendingMenu = pendingSnapshot();
-        Set<SlotGroupPanelAdapter> pendingSlotGroup = pendingSlotGroupSnapshot();
-        if (pendingMenu.isEmpty() && pendingSlotGroup.isEmpty()) return;
+        if (pendingMenu.isEmpty()) return;
 
         StringBuilder msg = new StringBuilder("MenuKit: ");
-        if (!pendingMenu.isEmpty()) {
-            msg.append(pendingMenu.size())
-               .append(" region-based ScreenPanelAdapter(s) constructed but never " +
-                       "declared targeting (.on / .onAny). Panel IDs: ");
-            boolean first = true;
-            for (ScreenPanelAdapter adapter : pendingMenu) {
-                if (!first) msg.append(", ");
-                msg.append(adapter.getPanel().getId());
-                first = false;
-            }
-        }
-        if (!pendingSlotGroup.isEmpty()) {
-            if (!pendingMenu.isEmpty()) msg.append("; ");
-            msg.append(pendingSlotGroup.size())
-               .append(" SlotGroupPanelAdapter(s) constructed but never declared " +
-                       "targeting (.on(SlotGroupCategory...)). Panel IDs: ");
-            boolean first = true;
-            for (SlotGroupPanelAdapter adapter : pendingSlotGroup) {
-                if (!first) msg.append(", ");
-                msg.append(adapter.getPanel().getId());
-                first = false;
-            }
+        msg.append(pendingMenu.size())
+           .append(" region-based ScreenPanelAdapter(s) constructed but never " +
+                   "declared targeting (.on / .onAny). Panel IDs: ");
+        boolean first = true;
+        for (ScreenPanelAdapter adapter : pendingMenu) {
+            if (!first) msg.append(", ");
+            msg.append(adapter.getPanel().getId());
+            first = false;
         }
         msg.append(". Fix by adding the missing .on(...) call(s).");
         String message = msg.toString();
         LOGGER.error("[ScreenPanelRegistry] {}", message);
         throw new IllegalStateException(message);
     }
+
+    // Post-§0042 split: SlotGroupPanelAdapter orphan validation runs
+    // independently in menukit-containers' SlotGroupPanelRegistry's own
+    // checkpoint. Both checkpoints fire on first screen-open and throw
+    // independently if their respective pending sets are non-empty.
 }

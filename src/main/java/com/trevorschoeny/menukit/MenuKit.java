@@ -70,32 +70,24 @@ public class MenuKit implements ModInitializer {
         init();
     }
 
-    /** Server-safe initialization. Retained for symmetry and
-     *  consumer-ordering (mods can call {@code MenuKit.init()} explicitly
-     *  before their own registration if needed). Also registers the
-     *  contract-verification harness ({@code /mkverify} command suite +
-     *  test MenuType) so phase verification can be re-run at any time. */
+    /** Common-side initialization for the MenuKit artifact. Post-§0042 split:
+     *  M1 state-machinery init + verification init moved to
+     *  {@code MenuKitContainers} (the `menukit-containers` artifact). MenuKit
+     *  has no common-side state to register (HUD registration is lazy via
+     *  consumer {@link #registerHud} calls). Retained as a no-op log so
+     *  consumer mods that explicitly call {@code MenuKit.init()} for ordering
+     *  continue to compile and produce a visible init trace. */
     public static void init() {
         LOGGER.info("[MenuKit] Initialized");
-        // M1 per-slot state — attachments + shared networking types register
-        // here (attachment registration must run on both sides; networking
-        // payload-type registration is also symmetric).
-        com.trevorschoeny.menukit.state.SlotStateAttachments.register();
-        com.trevorschoeny.menukit.state.SlotStateHooks.registerCommon();
-        com.trevorschoeny.menukit.state.SlotStateHooks.registerServer();
-        com.trevorschoeny.menukit.verification.ContractVerification.initServer();
     }
 
-    /** Client-safe initialization. Invoked from
-     *  {@link MenuKitClient#onInitializeClient()}. Registers the
-     *  verification test-screen factory.
-     *
-     *  <p>Phase 14d-2.7: RegionProbes registration migrated to validator
-     *  (consumer-side test scaffolding per TESTING_CONVENTIONS.md). */
+    /** Client-side initialization for the MenuKit artifact. Invoked from
+     *  {@link MenuKitClient#onInitializeClient()}. Post-§0042 split: M1
+     *  client-state init + verification client init moved to
+     *  {@code MenuKitContainersClient}. Retained as a no-op log for symmetry
+     *  with {@link #init()}. */
     public static void initClient() {
         LOGGER.info("[MenuKit] Client initialized");
-        com.trevorschoeny.menukit.state.SlotStateHooks.registerClient();
-        com.trevorschoeny.menukit.verification.ContractVerification.initClient();
     }
 
     // ══════════════════════════════════════════════════════════════════════

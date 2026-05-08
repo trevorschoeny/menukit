@@ -2,7 +2,6 @@ package com.trevorschoeny.menukit;
 
 import com.trevorschoeny.menukit.inject.MenuChrome;
 import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
-import com.trevorschoeny.menukit.inject.VanillaSlotGroupResolvers;
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevorschoeny.menukit.mixin.MKRecipeBookAccessor;
 
@@ -58,18 +57,15 @@ public class MenuKitClient implements ClientModInitializer {
         // chrome-aware origin resolution. See M7 design doc §3.3 for scope.
         registerVanillaMenuChrome();
 
-        // M8 — vanilla slot-group resolvers for SlotGroupContext dispatch.
-        // Must register before ScreenPanelRegistry.init so the first screen-
-        // open can resolve categories correctly. See M8 §6 for the 22 menu
-        // classes covered.
-        VanillaSlotGroupResolvers.registerAll();
+        // Post-§0042 split: VanillaSlotGroupResolvers.registerAll moved to
+        // MenuKitContainersClient — slot-group resolvers are slot-related and
+        // live in the menukit-containers artifact.
 
         // M8 — library-owned ScreenEvents.AFTER_INIT dispatch for MenuContext
-        // + SlotGroupContext adapters. Replaces per-consumer listener
-        // boilerplate. See M8_FOUR_CONTEXT_MODEL.md §8 for design. Registered
-        // after chrome + resolvers so the first screen-open's orphan
-        // checkpoint sees all region-based adapters that completed their
-        // targeting declarations during mod init.
+        // adapters. Replaces per-consumer listener boilerplate. See
+        // M8_FOUR_CONTEXT_MODEL.md §8 for design. SlotGroupContext dispatch
+        // happens via menukit-containers' parallel SlotGroupPanelRegistry,
+        // which registers its own AFTER_INIT listener.
         ScreenPanelRegistry.init();
 
         // Phase 14d-2.7 — visual smoke wireups (dialog, scroll, opacity)
