@@ -1,0 +1,63 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// MenuKit — the UI library for Fabric mods. HUD panels, widgets, layouts,
+// modal panels, region anchoring, click-through prohibition, recipe-book
+// awareness — all client-only. Compile-time enforced as `environment: client`
+// so consumer mods depending only on this artifact cannot accidentally
+// reference server-coupled APIs (those live in :menukit-containers).
+//
+// Per §0042: this artifact retains the bare `menukit` mod ID. The slot
+// extension (MenuKit: Containers) is published separately as menukit-containers.
+//
+// Produces menukit-1.0.0.jar — no dependency on any other subproject.
+// ═══════════════════════════════════════════════════════════════════════════
+
+plugins {
+    id 'fabric-loom' version '1.14-SNAPSHOT'
+    id 'java'
+    id 'com.modrinth.minotaur' version '2.+'
+}
+
+version = property('mod_version')
+group   = property('maven_group')
+
+base.archivesName = 'menukit'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    maven { url 'https://maven.fabricmc.net/' }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${property('minecraft_version')}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${property('loader_version')}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${property('fabric_version')}"
+}
+
+loom {
+    runs {
+        client { ideConfigGenerated = false }
+        server { ideConfigGenerated = false }
+    }
+}
+
+jar {
+    from('LICENSE') { rename { "${it}_${project.name}" } }
+}
+
+// ── Modrinth Publishing ────────────────────────────────────────────────
+// MenuKit retains the bare `menukit` Modrinth project ID per §0042.
+modrinth {
+    token = System.getenv("MODRINTH_TOKEN")
+    projectId = "menukit"
+    versionNumber = property('mod_version')
+    versionName = "MenuKit ${property('mod_version')}"
+    versionType = "beta"
+    uploadFile = remapJar
+    gameVersions = [property('minecraft_version')]
+    loaders = ["fabric"]
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "menukit",
+  "version": "1.0.0",
+  "name": "MenuKit",
+  "icon": "icon.png",
+  "description": "MenuKit is the UI library for Fabric mods. HUD panels, widgets, layouts, modal panels on vanilla menus, region anchoring, click-through prohibition, recipe-book awareness — all client-only. For custom container menus and slot state, see MenuKit: Containers.",
+  "authors": ["trevorschoeny"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "main": ["com.trevorschoeny.menukit.MenuKit"],
+    "client": ["com.trevorschoeny.menukit.MenuKitClient"]
+  },
+  "mixins": ["menukit.mixins.json", "menukit-examples.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric-api": "*",
+    "minecraft": "~1.21"
+  }
+}

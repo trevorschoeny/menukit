@@ -1,0 +1,28 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.trevorschoeny.menukit.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "AbstractContainerScreenAccessor",
+    "KeyMappingAccessor",
+    "MKGuiMixin",
+    "MKHasClickedOutsideContainerMixin",
+    "MKHasClickedOutsideCreativeMixin",
+    "MKHasClickedOutsideMixin",
+    "MKKeyBindsScreenMixin",
+    "MKKeyMappingMixin",
+    "MKRecipeBookAccessor",
+    "MenuKitModalHoverMixin",
+    "MenuKitModalKeyboardHandlerMixin",
+    "MenuKitModalMouseHandlerMixin",
+    "MenuKitPanelRenderMixin",
+    "MenuKitRecipeBookPanelRenderMixin",
+    "MenuKitTooltipSuppressMixin",
+    "ScreenAccessor",
+    "SlotPositionAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
