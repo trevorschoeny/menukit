@@ -129,16 +129,40 @@ public class MKContractScreen extends MenuKitScreen {
         return List.of(panel);
     }
 
+    /** Max character length per displayed line (truncate longer to "…"). */
+    private static final int MAX_LINE_CHARS = 72;
+
     /**
      * Formats a contract result as a colored line. Pass = green, fail = red.
-     * Detail appended in gray if present.
+     * Detail appended in gray if present. Truncates the combined line to
+     * {@link #MAX_LINE_CHARS} so long contracts don't blow out the panel
+     * width (MenuKitScreen centers the panel — over-wide content sticks
+     * out beyond the visible area).
      */
     private static Component formatResult(ContractResult r) {
         ChatFormatting nameColor = r.passed() ? ChatFormatting.GREEN : ChatFormatting.RED;
         String marker = r.passed() ? "[PASS] " : "[FAIL] ";
-        var line = Component.literal(marker + r.name()).withStyle(nameColor);
-        if (!r.detail().isEmpty()) {
-            line.append(Component.literal(" — " + r.detail()).withStyle(ChatFormatting.GRAY));
+        String namePart = marker + r.name();
+        String detailPart = r.detail().isEmpty() ? "" : " — " + r.detail();
+        // Truncate the combined line to MAX_LINE_CHARS. Prefer trimming the
+        // detail (less semantic loss) before trimming the name.
+        int combined = namePart.length() + detailPart.length();
+        if (combined > MAX_LINE_CHARS) {
+            int excess = combined - MAX_LINE_CHARS;
+            if (detailPart.length() > excess + 1) {
+                detailPart = detailPart.substring(0, detailPart.length() - excess - 1) + "…";
+            } else {
+                // Detail can't absorb the trim; truncate the name instead.
+                detailPart = "";
+                int nameMax = MAX_LINE_CHARS - 1;
+                if (namePart.length() > nameMax) {
+                    namePart = namePart.substring(0, nameMax) + "…";
+                }
+            }
+        }
+        var line = Component.literal(namePart).withStyle(nameColor);
+        if (!detailPart.isEmpty()) {
+            line.append(Component.literal(detailPart).withStyle(ChatFormatting.GRAY));
         }
         return line;
     }
