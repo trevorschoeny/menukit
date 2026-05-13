@@ -2,6 +2,8 @@ package com.trevorschoeny.menukit;
 
 import com.trevorschoeny.menukit.inject.MenuChrome;
 import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
+import com.trevorschoeny.menukit.inject.SlotGroupPanelRegistry;
+import com.trevorschoeny.menukit.inject.VanillaSlotGroupResolvers;
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevorschoeny.menukit.mixin.MKRecipeBookAccessor;
 
@@ -57,16 +59,27 @@ public class MenuKitClient implements ClientModInitializer {
         // chrome-aware origin resolution. See M7 design doc §3.3 for scope.
         registerVanillaMenuChrome();
 
-        // Post-§0042 split: VanillaSlotGroupResolvers.registerAll moved to
-        // MenuKitContainersClient — slot-group resolvers are slot-related and
-        // live in the menukit-containers artifact.
+        // M8 — vanilla slot-group resolvers for SlotGroupContext dispatch.
+        // Per §0043 (Complete-on-Side Feature Ownership): observation idioms
+        // including slot-group recognition are MK-side, complete in MK
+        // without MKC. Resolvers register the 22 vanilla menu classes (M8 §6)
+        // so consumer mods anchoring panels to recognized slot groups work
+        // even when MKC is not loaded.
+        VanillaSlotGroupResolvers.registerAll();
 
         // M8 — library-owned ScreenEvents.AFTER_INIT dispatch for MenuContext
         // adapters. Replaces per-consumer listener boilerplate. See
-        // M8_FOUR_CONTEXT_MODEL.md §8 for design. SlotGroupContext dispatch
-        // happens via menukit-containers' parallel SlotGroupPanelRegistry,
-        // which registers its own AFTER_INIT listener.
+        // M8_FOUR_CONTEXT_MODEL.md §8 for design.
         ScreenPanelRegistry.init();
+
+        // M8 — parallel ScreenEvents.AFTER_INIT dispatch for SlotGroupContext
+        // adapters. Per §0043: SlotGroupPanelRegistry is MK-complete; MKC,
+        // when loaded, contributes additional owned-SlotGroup dispatch through
+        // its own facade rather than completing this feature.
+        //
+        // Ordering: VanillaSlotGroupResolvers.registerAll() above must run
+        // first so the first screen-open can resolve categories correctly.
+        SlotGroupPanelRegistry.init();
 
         // Phase 14d-2.7 — visual smoke wireups (dialog, scroll, opacity)
         // migrated to validator/.../scenarios/smoke per the testing
