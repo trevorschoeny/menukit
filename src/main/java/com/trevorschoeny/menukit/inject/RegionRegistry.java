@@ -321,9 +321,36 @@ public final class RegionRegistry {
             URL url = codeSource.getLocation();
             if (url == null) return caller.getPackageName();
             Path callerPath = Paths.get(url.toURI()).toAbsolutePath().normalize();
+
+            // Pass 1: direct match. Catches production jars (caller path
+            // EQUALS the mod's jar path) and the dev case where a mod's
+            // origin happens to be a directory containing the caller's
+            // classes (caller path starts with mod path).
             for (var mod : FabricLoader.getInstance().getAllMods()) {
                 for (Path modPath : mod.getOrigin().getPaths()) {
-                    if (callerPath.equals(modPath.toAbsolutePath().normalize())) {
+                    Path normalModPath = modPath.toAbsolutePath().normalize();
+                    if (callerPath.equals(normalModPath)
+                            || callerPath.startsWith(normalModPath)) {
+                        return mod.getMetadata().getId();
+                    }
+                }
+            }
+
+            // Pass 2: gradle/Loom dev-mode fallback. The launching mod's
+            // origin paths typically point at .../build/resources/main
+            // (the dir containing fabric.mod.json) while classes load from
+            // the sibling .../build/classes/java/main. Pass 1 misses this
+            // because resources and classes are siblings, not parent/child.
+            //
+            // Resolve via shared 'build' ancestor: if the mod's origin path
+            // passes through a 'build' directory AND the caller's class path
+            // also lives under the same 'build' dir, they belong to the same
+            // gradle subproject — i.e., the same mod.
+            for (var mod : FabricLoader.getInstance().getAllMods()) {
+                for (Path modPath : mod.getOrigin().getPaths()) {
+                    Path normalModPath = modPath.toAbsolutePath().normalize();
+                    Path buildDir = findBuildAncestor(normalModPath);
+                    if (buildDir != null && callerPath.startsWith(buildDir)) {
                         return mod.getMetadata().getId();
                     }
                 }
@@ -332,6 +359,25 @@ public final class RegionRegistry {
             // Fall through to package-name fallback.
         }
         return caller.getPackageName();
+    }
+
+    /**
+     * Walks up {@code path}'s ancestors looking for a directory named
+     * {@code "build"}; returns that directory, or {@code null} if no
+     * 'build' ancestor exists. Used by the gradle/Loom dev-mode fallback
+     * in {@link #findModIdForClass} to resolve mod ownership when the
+     * caller's classes and the mod's origin path are siblings rather
+     * than parent/child.
+     */
+    private static @org.jspecify.annotations.Nullable Path findBuildAncestor(Path path) {
+        Path current = path;
+        while (current != null) {
+            if ("build".equals(String.valueOf(current.getFileName()))) {
+                return current;
+            }
+            current = current.getParent();
+        }
+        return null;
     }
 
     /**
