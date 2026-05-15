@@ -49,7 +49,24 @@ public final class PanelLayout {
 
         Map<String, PanelBounds> bounds = new LinkedHashMap<>();
 
-        // Phase 1: Position body panels — vertical stack starting at titleHeight
+        // Phase 1: Position body panels — vertical stack starting at titleHeight,
+        // horizontally CENTER-ALIGNED around x=0 so multi-BODY layouts with
+        // mixed widths align by their centers instead of their left edges.
+        //
+        // Phase 16h root-fix: pre-16h, BODY panels were left-anchored at x=0,
+        // so a layout with (e.g.) a narrow middle panel + wide player inventory
+        // panel would have those two panels' CENTERS misaligned — middle's
+        // center at width/2, player's at much-larger-width/2. Combined with
+        // relative-anchored panels (leftOf/rightOf) producing their own
+        // visual-row center, the BODY column would end up offset from the
+        // relative row's center, making the whole layout look misaligned no
+        // matter what the consumer-screen's centering math did.
+        //
+        // Center-aligning BODY panels around x=0 makes their centers stack
+        // vertically. Single-BODY layouts are visually identical (one panel
+        // is centered either way). Relative panels still anchor off their
+        // BODY anchor's position; with the anchor center-aligned, relative
+        // chains stay symmetric.
         int bodyY = titleHeight;
         for (Panel panel : panels) {
             if (!panel.isVisible()) continue;
@@ -58,7 +75,8 @@ public final class PanelLayout {
             int[] size = sizes.get(panel.getId());
             if (size == null) continue;
 
-            bounds.put(panel.getId(), new PanelBounds(0, bodyY, size[0], size[1]));
+            int x = -size[0] / 2; // center the panel around x=0
+            bounds.put(panel.getId(), new PanelBounds(x, bodyY, size[0], size[1]));
             bodyY += size[1] + bodyGap;
         }
 
