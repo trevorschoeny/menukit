@@ -418,6 +418,31 @@ public class Panel {
     }
 
     /**
+     * Returns the pinned width set via {@link #size(int,int)} or
+     * {@link #pinnedWidth(int)}, or {@code -1} if no pinned width is
+     * declared. Exposed for consumer-screen layout code that needs to
+     * distinguish "consumer declared a fixed width" from "panel
+     * auto-sized" — e.g., MKC's {@code MenuKitHandledScreen.computePanelSize}
+     * which uses pinned-when-set and slot+element max otherwise. The
+     * panel's auto-sized {@link #getWidth()} aggregates from elements
+     * only, so callers needing the slot-aware width can't infer
+     * "pinned vs auto" from {@code getWidth()} alone.
+     */
+    public int getPinnedWidth() {
+        return pinnedWidth;
+    }
+
+    /**
+     * Returns the pinned height set via {@link #size(int,int)} or
+     * {@link #pinnedHeight(int)}, or {@code -1} if no pinned height is
+     * declared. See {@link #getPinnedWidth()} for the symmetric
+     * "pinned vs auto" rationale.
+     */
+    public int getPinnedHeight() {
+        return pinnedHeight;
+    }
+
+    /**
      * Sets only the pinned height (width stays auto-sized). Trigger for
      * auto-scroll without auto-wrap — content scrolls vertically when it
      * exceeds the pinned height; text doesn't wrap (long lines clip
