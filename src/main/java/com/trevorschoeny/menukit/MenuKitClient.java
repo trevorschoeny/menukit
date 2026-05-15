@@ -4,13 +4,12 @@ import com.trevorschoeny.menukit.inject.MenuChrome;
 import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
 import com.trevorschoeny.menukit.inject.SlotGroupPanelRegistry;
 import com.trevorschoeny.menukit.inject.VanillaSlotGroupResolvers;
+import com.trevorschoeny.menukit.input.CursorContinuity;
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevorschoeny.menukit.mixin.MKRecipeBookAccessor;
-import com.trevorschoeny.menukit.screen.MenuKitScreen;
 
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
@@ -83,17 +82,12 @@ public class MenuKitClient implements ClientModInitializer {
         // first so the first screen-open can resolve categories correctly.
         SlotGroupPanelRegistry.init();
 
-        // Phase 16h — cursor preservation restore hook. Registered as a
-        // universal ScreenEvents.AFTER_INIT listener so it fires for ANY
-        // screen open (vanilla or MK). The handler is a no-op when no
-        // stash is pending; with a stash present it teleports the OS
-        // cursor to the captured position via GLFW.glfwSetCursorPos and
-        // clears the stash (one-shot semantic). Consumer screens opt
-        // into the CAPTURE side via MenuKitScreen.preserveCursorContinuity;
-        // the RESTORE side is universal so MK→vanilla transitions
-        // preserve cursor too.
-        ScreenEvents.AFTER_INIT.register((client, screen, sw, sh) ->
-                MenuKitScreen.restoreStashedCursorIfAny());
+        // Phase 16h — cursor preservation restore hook. Universal
+        // AFTER_INIT listener that fires for any screen open (vanilla,
+        // MK, MKC, third-party). Consumer screens opt into the capture
+        // side per-instance via CursorContinuity.enableFor or the
+        // chainable wrappers on MenuKitScreen / MenuKitHandledScreen.
+        CursorContinuity.registerRestoreHook();
 
         // Phase 14d-2.7 — visual smoke wireups (dialog, scroll, opacity)
         // migrated to validator/.../scenarios/smoke per the testing

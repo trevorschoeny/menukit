@@ -6,15 +6,12 @@ import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.PanelLayout;
 import com.trevorschoeny.menukit.core.PanelRendering;
 import com.trevorschoeny.menukit.core.RenderContext;
+import com.trevorschoeny.menukit.input.CursorContinuity;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
-
-import org.jspecify.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -62,29 +59,6 @@ public class MenuKitScreen extends Screen {
     private int leftPos = 0;
     private int topPos = 0;
 
-    // ── Phase 16h cursor preservation ──────────────────────────────────
-    //
-    // Library-not-platform discipline (§0019): opt-in per-screen. Default
-    // false; consumers chain {@link #preserveCursorContinuity(boolean)}
-    // after super() in their subclass constructor to enable.
-    //
-    // Mechanism (M9-cursor): on {@link #removed} the OS cursor position is
-    // sampled via {@code GLFW.glfwGetCursorPos} and stashed on the static
-    // {@link #stashedCursorPos} field. The next screen's init() — any
-    // screen, vanilla or MK — restores via {@code GLFW.glfwSetCursorPos}
-    // through the {@link #restoreStashedCursorIfAny} hook wired from
-    // {@code MenuKitClient.onInitializeClient} (registers on Fabric's
-    // {@code ScreenEvents.AFTER_INIT}). The stash is a one-shot — cleared
-    // on restore so it doesn't apply to unrelated screen opens later.
-    private boolean preserveCursorContinuity = false;
-
-    /**
-     * Static stash for cursor pos across screen transitions. Null = no
-     * stash pending. Updated by removed(), consumed by
-     * {@link #restoreStashedCursorIfAny()}.
-     */
-    private static double @Nullable [] stashedCursorPos = null;
-
     protected MenuKitScreen(Component title, List<Panel> panels) {
         super(title);
         this.panels = List.copyOf(panels);
@@ -92,14 +66,15 @@ public class MenuKitScreen extends Screen {
 
     /**
      * Phase 16h — opt this screen into cursor-position preservation across
-     * transitions. When enabled, the cursor position is captured on
-     * {@link #removed} (via {@code GLFW.glfwGetCursorPos}) and restored on
-     * the next screen's init (via the
-     * {@code MenuKitClient}-registered {@code ScreenEvents.AFTER_INIT}
-     * hook calling {@link #restoreStashedCursorIfAny}).
+     * transitions. Thin chainable wrapper over
+     * {@link CursorContinuity#enableFor(Screen)} — the canonical
+     * cursor-continuity mechanism lives in {@code CursorContinuity} so the
+     * same opt-in path works for {@link MenuKitScreen},
+     * {@code MenuKitHandledScreen}, and any other {@code Screen}
+     * subclass. See that utility for lifecycle semantics.
      *
-     * <p><b>Default false</b> per library-not-platform discipline (§0019).
-     * Consumers chain this on the screen subclass to opt in:
+     * <p><b>Default off</b> per library-not-platform discipline (§0019).
+     * Consumers chain after {@code super(...)} in their constructor:
      * <pre>{@code
      * public MyScreen() {
      *     super(title, panels);
@@ -107,47 +82,21 @@ public class MenuKitScreen extends Screen {
      * }
      * }</pre>
      *
-     * <p>Only the screen being LEFT needs the flag set — the restore side
+     * <p>Only the screen being LEFT needs the opt-in — the restore side
      * is universal (any screen's init reads the stash). For a clean
-     * back-and-forth flow, set the flag on both endpoints (the hub AND
-     * the sub-screen) so transitions in both directions preserve.
+     * back-and-forth flow, opt in on both endpoints (the hub AND the
+     * sub-screen) so transitions in both directions preserve.
      *
      * @param preserve {@code true} to enable cursor preservation on this
-     *                 screen's exit.
+     *                 screen's exit. {@code false} is a no-op (the
+     *                 per-screen Fabric listener can't be cleanly
+     *                 unregistered; see {@code CursorContinuity}'s
+     *                 one-way semantics note).
      * @return this screen, for chaining.
      */
     protected MenuKitScreen preserveCursorContinuity(boolean preserve) {
-        this.preserveCursorContinuity = preserve;
+        if (preserve) CursorContinuity.enableFor(this);
         return this;
-    }
-
-    /**
-     * Returns whether this screen will capture the cursor position on
-     * exit. See {@link #preserveCursorContinuity(boolean)}.
-     */
-    public boolean isPreservingCursorContinuity() {
-        return preserveCursorContinuity;
-    }
-
-    /**
-     * Restores the stashed cursor position if one is pending, then clears
-     * the stash. Wired from {@code MenuKitClient.onInitializeClient} as a
-     * {@code ScreenEvents.AFTER_INIT} listener so it fires after ANY
-     * screen's init — including vanilla screens — letting MK→vanilla
-     * transitions preserve cursor too. One-shot semantics: after a restore
-     * fires, the stash is cleared so unrelated subsequent screen opens
-     * don't get the same cursor pose.
-     */
-    public static void restoreStashedCursorIfAny() {
-        if (stashedCursorPos == null) return;
-        Minecraft mc = Minecraft.getInstance();
-        if (mc == null || mc.getWindow() == null) {
-            stashedCursorPos = null; // avoid stale state if window vanished
-            return;
-        }
-        GLFW.glfwSetCursorPos(mc.getWindow().handle(),
-                stashedCursorPos[0], stashedCursorPos[1]);
-        stashedCursorPos = null;
     }
 
     @Override
@@ -166,26 +115,14 @@ public class MenuKitScreen extends Screen {
 
     @Override
     public void removed() {
-        // Phase 16h — capture cursor position before tearing down if the
-        // consumer opted into cursor preservation. The next screen's init
-        // (any screen, vanilla or MK) consumes the stash via the
-        // ScreenEvents.AFTER_INIT hook in MenuKitClient. Captured before
-        // onDetach + super.removed so the cursor sample reflects the
-        // user's last-known position on this screen (subsequent teardown
-        // can't move the cursor, but capturing first is the cleanest
-        // ordering).
-        if (preserveCursorContinuity) {
-            Minecraft mc = Minecraft.getInstance();
-            if (mc != null && mc.getWindow() != null) {
-                double[] xpos = new double[1];
-                double[] ypos = new double[1];
-                GLFW.glfwGetCursorPos(mc.getWindow().handle(), xpos, ypos);
-                stashedCursorPos = new double[]{xpos[0], ypos[0]};
-            }
-        }
-
         // Phase 14d-3 — fire onDetach so widget-wrapping elements can
         // unregister via screen.removeWidget. Mirror of init's onAttach.
+        //
+        // Phase 16h note: cursor capture used to live here as a custom
+        // override branch. It's now handled by CursorContinuity (which
+        // registers a per-screen ScreenEvents.remove listener when the
+        // consumer opts in), so removed() goes back to its single
+        // concern — element detach lifecycle.
         for (Panel panel : panels) {
             for (PanelElement element : panel.getElements()) {
                 element.onDetach(this);
