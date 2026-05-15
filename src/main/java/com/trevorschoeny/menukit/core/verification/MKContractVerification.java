@@ -667,12 +667,13 @@ public final class MKContractVerification {
         // ── Region-based adapter rejects activeOn / deactivate ───────────
         // (Region-based adapters participate via .on/.onAny automatically;
         // .activeOn is for lambda escape hatch only.)
-        var regionAdapter = new com.trevorschoeny.menukit.inject.ScreenPanelAdapter(
-                new com.trevorschoeny.menukit.core.Panel(
-                        "v15-region-panel", java.util.List.of(), true,
-                        com.trevorschoeny.menukit.core.PanelStyle.RAISED,
-                        com.trevorschoeny.menukit.core.PanelPosition.BODY, -1),
-                com.trevorschoeny.menukit.core.MenuRegion.RIGHT_ALIGN_TOP);
+        //
+        // Cached + invisible: the construction itself is the contract under
+        // test, and the registry has no unregister API — so reconstructing
+        // on each call (e.g. each MkHubScreen open) leaked panels into
+        // RegionRegistry indefinitely. The visible=false flag keeps the
+        // probe out of every consumer's axial-prefix walk regardless.
+        var regionAdapter = cachedM15RegionAdapter();
 
         boolean threwOnRegionActiveOn = false;
         try {
@@ -696,6 +697,31 @@ public final class MKContractVerification {
         LOGGER.info("[Verify.M15] VERDICT — {}/{} cases pass ({})",
                 passed, total, failed == 0 ? "PASS" : "FAIL — see above");
         return counts;
+    }
+
+    /**
+     * One-time-constructed region adapter used by {@link #m15LambdaLifecycle}
+     * to verify the construction contract of region-based adapters. Cached
+     * because {@link com.trevorschoeny.menukit.inject.RegionRegistry} has
+     * no unregister API — without caching, each contract run (one per
+     * MkHubScreen open) leaked a new entry into the RIGHT_ALIGN_TOP list,
+     * permanently shifting every consumer's axial-prefix walk. The panel
+     * is {@code visible=false} so it never contributes to that walk even
+     * once.
+     */
+    private static com.trevorschoeny.menukit.inject.ScreenPanelAdapter
+            m15CachedRegionAdapter = null;
+
+    private static com.trevorschoeny.menukit.inject.ScreenPanelAdapter cachedM15RegionAdapter() {
+        if (m15CachedRegionAdapter == null) {
+            m15CachedRegionAdapter = new com.trevorschoeny.menukit.inject.ScreenPanelAdapter(
+                    new com.trevorschoeny.menukit.core.Panel(
+                            "v15-region-panel", java.util.List.of(), /*visible=*/ false,
+                            com.trevorschoeny.menukit.core.PanelStyle.RAISED,
+                            com.trevorschoeny.menukit.core.PanelPosition.BODY, -1),
+                    com.trevorschoeny.menukit.core.MenuRegion.RIGHT_ALIGN_TOP);
+        }
+        return m15CachedRegionAdapter;
     }
 
     private static void checkM15(int[] counts, String label, boolean condition) {
