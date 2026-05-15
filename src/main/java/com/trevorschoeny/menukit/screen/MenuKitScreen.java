@@ -92,19 +92,23 @@ public class MenuKitScreen extends Screen {
     // ── Layout ──────────────────────────────────────────────────────────
 
     /**
-     * Returns the size of a panel based on its elements' bounds plus padding.
-     * Standalone-screen panels have no slot groups — size comes from elements.
+     * Returns the outer size (background extent, including padding) of a
+     * panel for layout. Defers to {@link Panel#getWidth()} and
+     * {@link Panel#getHeight()} for the content extent — those handle
+     * pinned dims (M5) and Phase 16g auto-scroll wrapping authoritatively.
+     * The screen's job is just to add its own {@link #PANEL_PADDING} to
+     * produce the outer bounds.
+     *
+     * <p>Phase 16g bug fix: prior versions re-iterated panel elements and
+     * computed extent locally, bypassing pinned dims and missing the
+     * scroll-container-outer-width contribution when auto-scroll fired.
+     * Using the panel's own size methods keeps the screen and the panel
+     * agreeing on size in all configurations.
      */
     private int[] computePanelSize(Panel panel) {
-        int maxRight = 0;
-        int maxBottom = 0;
-        for (PanelElement el : panel.getElements()) {
-            maxRight = Math.max(maxRight, el.getChildX() + el.getWidth());
-            maxBottom = Math.max(maxBottom, el.getChildY() + el.getHeight());
-        }
         return new int[]{
-                maxRight + 2 * PANEL_PADDING,
-                maxBottom + 2 * PANEL_PADDING
+                panel.getWidth() + 2 * PANEL_PADDING,
+                panel.getHeight() + 2 * PANEL_PADDING
         };
     }
 

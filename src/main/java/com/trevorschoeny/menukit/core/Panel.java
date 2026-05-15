@@ -44,6 +44,19 @@ import java.util.function.Supplier;
  */
 public class Panel {
 
+    // ── Interior padding (Phase 16g) ────────────────────────────────────
+    // The consumer-side screen (MenuKitScreen, MenuKitHandledScreen,
+    // ScreenPanelAdapter) reserves PANEL_PADDING pixels between the panel
+    // background and where elements actually render. Panel needs to know
+    // this same value to compute the wrap-width budget for auto-wrap and
+    // the viewport dims for auto-scroll. Kept as a Panel-side mirror of
+    // the canonical 7px screen padding. If a consumer ever uses a
+    // different padding, they'd need to compensate by adjusting
+    // pinnedWidth / pinnedHeight accordingly — the assumption is
+    // documented but not enforced (no hook back to the screen because
+    // Panel is context-neutral).
+    public static final int INTERIOR_PADDING = 7;
+
     private final String id;
     private final List<PanelElement> elements;
     private final PanelStyle style;
@@ -57,8 +70,40 @@ public class Panel {
     // panels whose dynamic element visibility would otherwise cause
     // getWidth/getHeight to collapse to zero, which would jitter the
     // stacking of subsequent panels in a region.
+    //
+    // Phase 16g — these pinned dims double as triggers for auto-wrap +
+    // auto-scroll:
+    //   - pinnedWidth set → every child TextLabel wraps to fit the panel's
+    //     content width (pinnedWidth − 2 × INTERIOR_PADDING, minus the
+    //     scrollbar reserve when pinnedHeight is also set).
+    //   - pinnedHeight set + aggregate content height > pinnedHeight →
+    //     getElements() returns a single internal ScrollContainer wrapping
+    //     the original elements; mouse-wheel scrolls; scrollbar appears.
+    // Both are always-on for bounded panels (no opt-in flag) per Trev's
+    // 16g architectural call.
     private int pinnedWidth = -1;
     private int pinnedHeight = -1;
+
+    // ── Phase 16g Auto-Scroll state ────────────────────────────────────
+    // Scroll offset (0.0 - 1.0) for the auto-scroll wrap. Panel owns the
+    // state directly here rather than delegating to a consumer-side field
+    // because auto-scroll is an internal Panel concern — the consumer
+    // never sees the inner ScrollContainer. Mutable; updated by
+    // ScrollContainer's callback when the user scrolls.
+    private double scrollOffset = 0.0;
+
+    // Cached internal ScrollContainer for auto-scroll mode. Constructed
+    // lazily on first getElements() call after pinnedHeight triggers
+    // overflow, then reused across frames so its drag state + cached
+    // render origin stay stable. Rebuilt only when pinnedHeight /
+    // pinnedWidth change (the only mutable inputs to its construction).
+    private @Nullable ScrollContainer cachedScrollContainer;
+
+    // Tracks whether the configuration pass (wrap-width propagation +
+    // scroll-container construction) has run since the last pinned-dim
+    // change. The configuration pass is idempotent and cheap, but skipping
+    // when nothing changed saves a per-frame walk over elements.
+    private boolean configurationDirty = true;
 
     // Supplier-driven visibility (Phase 10). When non-null, this takes precedence
     // over the imperative `visible` field — isVisible() reads the supplier, and
@@ -154,8 +199,186 @@ public class Panel {
 
     // ── Elements ────────────────────────────────────────────────────────
 
-    /** Returns the panel's elements — buttons, text labels, etc. (immutable). */
-    public List<PanelElement> getElements() { return elements; }
+    /**
+     * Returns the effective element list for layout / render / input
+     * dispatch.
+     *
+     * <p>Normal mode (no pinnedHeight, or content fits within pinnedHeight):
+     * returns the panel's original declared elements.
+     *
+     * <p>Auto-scroll mode (pinnedHeight set + aggregate content height
+     * exceeds pinnedHeight): returns a single internal
+     * {@link ScrollContainer} wrapping the original elements. The screen
+     * iterates this list opaquely — the ScrollContainer dispatches render,
+     * click, scroll, and release to its children internally. From the
+     * screen's POV, the swap is transparent: it's "an element," and
+     * elements know how to render and route input.
+     *
+     * <p><b>Lifecycle note:</b> {@code onAttach} / {@code onDetach}
+     * propagation to children stops at the ScrollContainer in auto-scroll
+     * mode (ScrollContainer doesn't currently propagate those lifecycle
+     * hooks to its children). For wrap-only demos this is fine; for
+     * interactive elements requiring widget registration (TextField etc.)
+     * inside a scrolling panel, the lack of propagation is a known
+     * pre-existing limitation of ScrollContainer, not introduced here.
+     */
+    public List<PanelElement> getElements() {
+        ensureConfigured();
+        if (cachedScrollContainer != null) {
+            return List.of(cachedScrollContainer);
+        }
+        return elements;
+    }
+
+    /**
+     * Returns the raw original elements declared at construction,
+     * regardless of auto-scroll wrapping. Used internally by the
+     * configuration pass and any consumer that needs to bypass the
+     * effective-list swap (rare).
+     */
+    public List<PanelElement> getRawElements() {
+        return elements;
+    }
+
+    // ── Phase 16g Configuration Pass ───────────────────────────────────
+
+    /**
+     * Runs the wrap + scroll configuration pass if pinned dims have
+     * changed since the last pass. Idempotent and cheap; safe to call
+     * from any size/element accessor.
+     *
+     * <p><b>Semantic note on pinned dims:</b> {@code pinnedWidth} and
+     * {@code pinnedHeight} represent the panel's <i>content extent</i>
+     * (matching the existing M5 contract — what {@link #getWidth()} /
+     * {@link #getHeight()} return). The consumer-side screen adds its own
+     * {@code PANEL_PADDING} on top to produce the panel's outer (background)
+     * extent. So a panel with {@code pinnedWidth=80} renders 80px of
+     * content + 2 × 7px of background padding = 94px outer.
+     *
+     * <p>Two responsibilities:
+     * <ol>
+     *   <li><b>Auto-wrap propagation</b> — when {@code pinnedWidth} is set,
+     *       walks {@link #elements} and calls {@code setWrapWidth} on every
+     *       {@link TextLabel} child. Budget = {@code pinnedWidth} (the
+     *       content extent), minus the scrollbar reserve when
+     *       {@code pinnedHeight} is also set (always-reserve, since
+     *       post-wrap overflow can't be known until wrap is computed —
+     *       see comment in body).</li>
+     *   <li><b>Auto-scroll wrap</b> — when {@code pinnedHeight} is set AND
+     *       aggregate content height (after wrap propagation, so wrapped
+     *       heights are accurate) exceeds {@code pinnedHeight}, builds an
+     *       internal {@link ScrollContainer} wrapping all original
+     *       elements. {@link #getElements()} then returns this wrapper.
+     *       ScrollContainer outer width = {@code pinnedWidth} if set,
+     *       otherwise aggregate child width + scrollbar reserve.</li>
+     * </ol>
+     */
+    private void ensureConfigured() {
+        if (!configurationDirty) return;
+        configurationDirty = false;
+
+        // ── Step 1: wrap-width propagation ─────────────────────────────
+        if (pinnedWidth >= 0) {
+            // pinnedWidth IS the content extent (per M5 contract). The
+            // wrap budget equals pinnedWidth directly — no padding
+            // subtraction. When pinnedHeight is also set, the scrollbar
+            // reserve (track + gutter) reduces the budget further; we
+            // deduct it unconditionally because post-wrap overflow can't
+            // be known until AFTER wrap is computed (circular dependency).
+            // Always-reserving simplifies the math at the cost of a few
+            // pixels of unused space on pinnedHeight-set panels that
+            // don't actually overflow.
+            int wrapBudget = pinnedWidth;
+            if (pinnedHeight >= 0) {
+                wrapBudget -= (ScrollContainer.TRACK_WIDTH
+                        + ScrollContainer.SCROLLER_GUTTER);
+            }
+            if (wrapBudget < 1) wrapBudget = 1; // never zero/negative
+
+            for (PanelElement e : elements) {
+                if (e instanceof TextLabel label) {
+                    label.setWrapWidth(wrapBudget);
+                }
+            }
+        } else {
+            // pinnedWidth cleared — clear any wrap state from a prior pass.
+            for (PanelElement e : elements) {
+                if (e instanceof TextLabel label) {
+                    label.setWrapWidth(0);
+                }
+            }
+        }
+
+        // ── Step 2: auto-scroll wrap ───────────────────────────────────
+        cachedScrollContainer = null;
+        if (pinnedHeight >= 0) {
+            // Aggregate content height after wrap propagation. Now
+            // TextLabels report their wrapped (multi-line) heights, so
+            // this measurement reflects the real visual extent.
+            int contentHeight = aggregateRawContentHeight();
+            int viewportHeight = pinnedHeight;
+            if (viewportHeight > 0 && contentHeight > viewportHeight) {
+                // Overflow → build a ScrollContainer over the original
+                // elements. Outer width comes from pinnedWidth if set
+                // (Panel's content area), otherwise the aggregate child
+                // width plus scrollbar reserve so children get their
+                // natural width and the scrollbar has room.
+                int outerWidth;
+                if (pinnedWidth >= 0) {
+                    outerWidth = pinnedWidth;
+                } else {
+                    outerWidth = aggregateRawContentWidth()
+                            + ScrollContainer.TRACK_WIDTH
+                            + ScrollContainer.SCROLLER_GUTTER;
+                }
+                // ScrollContainer.Builder.size() rejects widths <= track +
+                // gutter + 1 (= 17). Skip scroll silently if budget too
+                // tight — content overflows but no crash.
+                int minScrollWidth = ScrollContainer.TRACK_WIDTH
+                        + ScrollContainer.SCROLLER_GUTTER + 1;
+                if (outerWidth > minScrollWidth) {
+                    cachedScrollContainer = ScrollContainer.builder()
+                            .at(0, 0)
+                            .size(outerWidth, viewportHeight)
+                            .content(elements)
+                            .scrollOffset(() -> scrollOffset, v -> scrollOffset = v)
+                            .build();
+                }
+            }
+        }
+    }
+
+    /**
+     * Aggregate content height from the raw elements, used by the
+     * configuration pass to detect scroll overflow. Walks the raw element
+     * list (NOT {@link #getElements()}, to avoid recursion through the
+     * configuration pass) and returns the max {@code childY + height}.
+     */
+    private int aggregateRawContentHeight() {
+        int max = 0;
+        for (PanelElement e : elements) {
+            if (!e.isVisible()) continue;
+            int bottom = e.getChildY() + e.getHeight();
+            if (bottom > max) max = bottom;
+        }
+        return max;
+    }
+
+    /**
+     * Aggregate content width from the raw elements. Used by the
+     * configuration pass when auto-scroll fires without an explicit
+     * {@code pinnedWidth} — gives the ScrollContainer a natural outer
+     * width based on the widest child.
+     */
+    private int aggregateRawContentWidth() {
+        int max = 0;
+        for (PanelElement e : elements) {
+            if (!e.isVisible()) continue;
+            int right = e.getChildX() + e.getWidth();
+            if (right > max) max = right;
+        }
+        return max;
+    }
 
     // ── Size (for M5 region stacking) ──────────────────────────────────
 
@@ -174,6 +397,36 @@ public class Panel {
     public Panel size(int w, int h) {
         this.pinnedWidth = w;
         this.pinnedHeight = h;
+        // Pinned dims feed wrap-width + scroll-viewport calculations, so
+        // re-run the configuration pass on next access.
+        this.configurationDirty = true;
+        this.cachedScrollContainer = null;
+        return this;
+    }
+
+    /**
+     * Sets only the pinned width (height stays auto-sized). Trigger for
+     * auto-wrap without auto-scroll — text wraps to the pinned width but
+     * vertical extent grows naturally to fit the wrapped content.
+     * Chainable.
+     */
+    public Panel pinnedWidth(int w) {
+        this.pinnedWidth = w;
+        this.configurationDirty = true;
+        this.cachedScrollContainer = null;
+        return this;
+    }
+
+    /**
+     * Sets only the pinned height (width stays auto-sized). Trigger for
+     * auto-scroll without auto-wrap — content scrolls vertically when it
+     * exceeds the pinned height; text doesn't wrap (long lines clip
+     * horizontally inside the scissor). Chainable.
+     */
+    public Panel pinnedHeight(int h) {
+        this.pinnedHeight = h;
+        this.configurationDirty = true;
+        this.cachedScrollContainer = null;
         return this;
     }
 
@@ -192,8 +445,13 @@ public class Panel {
      */
     public int getWidth() {
         if (pinnedWidth >= 0) return pinnedWidth;
+        // Iterate the EFFECTIVE element list (via getElements) so that
+        // when auto-scroll fires without an explicit pinnedWidth, the
+        // ScrollContainer's outer width (which includes scrollbar reserve)
+        // contributes to the panel's reported size. Falls through to raw
+        // elements when no scroll wrapper is active.
         int extent = 0;
-        for (PanelElement e : elements) {
+        for (PanelElement e : getElements()) {
             if (!e.isVisible()) continue;
             int right = e.getChildX() + e.getWidth();
             if (right > extent) extent = right;
@@ -208,8 +466,11 @@ public class Panel {
      */
     public int getHeight() {
         if (pinnedHeight >= 0) return pinnedHeight;
+        // Iterate effective elements — see getWidth() comment for the
+        // auto-scroll rationale (scroll container's outer extent must
+        // factor in even when only pinnedHeight is set).
         int extent = 0;
-        for (PanelElement e : elements) {
+        for (PanelElement e : getElements()) {
             if (!e.isVisible()) continue;
             int bottom = e.getChildY() + e.getHeight();
             if (bottom > extent) extent = bottom;
