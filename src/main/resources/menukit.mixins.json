@@ -19,6 +19,7 @@
     "MenuKitPanelRenderMixin",
     "MenuKitRecipeBookPanelRenderMixin",
     "MenuKitTooltipSuppressMixin",
+    "MouseHandlerCursorPosAccessor",
     "ScreenAccessor",
     "SlotGroupPanelRenderMixin",
     "SlotPositionAccessor"

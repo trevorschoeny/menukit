@@ -1,13 +1,13 @@
 package com.trevorschoeny.menukit.input;
 
+import com.trevorschoeny.menukit.mixin.MouseHandlerCursorPosAccessor;
+
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.Set;
@@ -87,8 +87,6 @@ public final class CursorContinuity {
 
     private CursorContinuity() {}
 
-    private static final Logger LOGGER = LoggerFactory.getLogger("MenuKit/CursorContinuity");
-
     /**
      * Static stash for cursor pos pending restore. Null = no stash. Updated
      * by per-screen capture lambda, consumed by {@link #restoreIfAny}.
@@ -144,8 +142,6 @@ public final class CursorContinuity {
      */
     public static void enableFor(Screen screen) {
         pendingOptIn.add(screen);
-        LOGGER.info("[cursor] enableFor: {} (intent recorded; capture is universal)",
-                screen.getClass().getSimpleName());
     }
 
     /**
@@ -160,9 +156,6 @@ public final class CursorContinuity {
         double[] ypos = new double[1];
         GLFW.glfwGetCursorPos(mc.getWindow().handle(), xpos, ypos);
         stashed = new double[]{xpos[0], ypos[0]};
-        LOGGER.info("[cursor] capture: stashed=({}, {}) from screen={}",
-                xpos[0], ypos[0],
-                mc.screen != null ? mc.screen.getClass().getSimpleName() : "null");
     }
 
     /**
@@ -180,16 +173,20 @@ public final class CursorContinuity {
             stashed = null; // avoid stale stash if window vanished
             return;
         }
-        // Diagnostic — log current cursor pos vs the position we're about to
-        // restore. Helps distinguish "we moved the cursor" vs "something
-        // else moved it before us."
-        double[] curX = new double[1];
-        double[] curY = new double[1];
-        GLFW.glfwGetCursorPos(mc.getWindow().handle(), curX, curY);
-        LOGGER.info("[cursor] restore: current=({}, {}) -> stashed=({}, {}) on screen={}",
-                curX[0], curY[0], stashed[0], stashed[1],
-                mc.screen != null ? mc.screen.getClass().getSimpleName() : "null");
         GLFW.glfwSetCursorPos(mc.getWindow().handle(), stashed[0], stashed[1]);
+
+        // Phase 16h — also sync Minecraft's internal MouseHandler fields.
+        // glfwSetCursorPos doesn't fire GLFW's cursor-position callback for
+        // programmatic moves, so MouseHandler.xpos/ypos remain stuck at
+        // whatever vanilla last wrote (typically window-center on the V5
+        // async-open path). Writing through the accessor mixin keeps the
+        // OS cursor and internal handler state aligned — without this,
+        // hover detection and any code reading mouseHandler.xpos()/ypos()
+        // gets a stale centered position until the next physical mouse move.
+        ((MouseHandlerCursorPosAccessor) (Object) mc.mouseHandler)
+                .menuKit$setXpos(stashed[0]);
+        ((MouseHandlerCursorPosAccessor) (Object) mc.mouseHandler)
+                .menuKit$setYpos(stashed[1]);
         stashed = null;
     }
 
@@ -241,8 +238,6 @@ public final class CursorContinuity {
             // preservation" marker. Drain it as a no-op acknowledgment.
             pendingOptIn.remove(screen);
             ScreenEvents.remove(screen).register(s -> capture());
-            LOGGER.info("[cursor] AFTER_INIT: wired universal capture for {}",
-                    screen.getClass().getSimpleName());
 
             // Restore stashed cursor for the new screen.
             restoreIfAny();
