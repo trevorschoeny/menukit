@@ -45,4 +45,20 @@ public enum HudRegion {
      * 15px crosshair sprite at any GUI scale.
      */
     public static final int CENTER_CROSSHAIR_CLEARANCE = 16;
+
+    /**
+     * Returns a {@link RegionAnchor} pairing this region with an explicit
+     * stacking priority. Use when sibling HUD panels in the same region
+     * need deterministic ordering — pass the result anywhere a
+     * {@link HudRegion} is accepted.
+     *
+     * <p>Lower priority renders first (closer to the region's anchor edge).
+     * Default priority is {@link RegionAnchor#DEFAULT_PRIORITY} (100); the
+     * registering mod's modId is the tiebreaker.
+     *
+     * @see RegionAnchor
+     */
+    public RegionAnchor<HudRegion> priority(int priority) {
+        return new RegionAnchor<>(this, priority);
+    }
 }

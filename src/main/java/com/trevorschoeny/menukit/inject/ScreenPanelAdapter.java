@@ -5,6 +5,7 @@ import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.PanelRendering;
 import com.trevorschoeny.menukit.core.PanelStyle;
+import com.trevorschoeny.menukit.core.RegionAnchor;
 import com.trevorschoeny.menukit.core.RenderContext;
 
 import net.minecraft.client.gui.GuiGraphics;
@@ -173,10 +174,33 @@ public final class ScreenPanelAdapter {
      * {@link RegionRegistry} for the deduplication semantics).
      */
     public ScreenPanelAdapter(Panel panel, MenuRegion region, int padding) {
+        this(panel, region, padding, RegionAnchor.DEFAULT_PRIORITY);
+    }
+
+    /**
+     * Region-aware constructor accepting a {@link RegionAnchor} — region
+     * paired with an explicit stacking priority. Use when sibling panels
+     * in the same region need deterministic ordering relative to each
+     * other (e.g., {@code MenuRegion.RIGHT_ALIGN_TOP.priority(50)}).
+     * Phase 16i. Same constructor body as the {@link MenuRegion} +
+     * {@code padding} overload otherwise.
+     */
+    public ScreenPanelAdapter(Panel panel, RegionAnchor<MenuRegion> anchor) {
+        this(panel, anchor.region(), DEFAULT_PADDING, anchor.priority());
+    }
+
+    /** Region-aware constructor with both explicit padding and priority. */
+    public ScreenPanelAdapter(Panel panel, RegionAnchor<MenuRegion> anchor, int padding) {
+        this(panel, anchor.region(), padding, anchor.priority());
+    }
+
+    /** Internal canonical constructor — the four other region-based
+     *  overloads delegate here. */
+    private ScreenPanelAdapter(Panel panel, MenuRegion region, int padding, int priority) {
         this.panel = panel;
         this.padding = padding;
         this.regionBased = true;
-        RegionRegistry.registerMenu(panel, region, padding);
+        RegionRegistry.registerMenu(panel, region, padding, priority);
         this.originFn = RegionRegistry.menuOriginFn(panel, region);
         ScreenPanelRegistry.trackPending(this);
     }

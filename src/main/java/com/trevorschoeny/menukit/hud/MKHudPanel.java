@@ -79,6 +79,7 @@ public class MKHudPanel {
         // "consumer called .anchor()" from "anchor left at its TOP_LEFT default"
         // (the field can't tell us which — it's never null).
         private com.trevorschoeny.menukit.core.HudRegion region;  // null unless .region() called
+        private int regionPriority = com.trevorschoeny.menukit.core.RegionAnchor.DEFAULT_PRIORITY;
         private boolean anchorSet = false;
         private boolean regionSet = false;
 
@@ -124,6 +125,19 @@ public class MKHudPanel {
             }
             this.region = region;
             this.regionSet = true;
+            return this;
+        }
+
+        /**
+         * Region overload accepting a {@link com.trevorschoeny.menukit.core.RegionAnchor}
+         * — region paired with an explicit stacking priority. Phase 16i.
+         * Equivalent to {@code .region(anchor.region())} but passes the
+         * priority through to the registry so this panel sorts deterministically
+         * relative to other panels in the same region.
+         */
+        public Builder region(com.trevorschoeny.menukit.core.RegionAnchor<com.trevorschoeny.menukit.core.HudRegion> anchor) {
+            region(anchor.region());
+            this.regionPriority = anchor.priority();
             return this;
         }
 
@@ -304,7 +318,7 @@ public class MKHudPanel {
             );
             MenuKit.registerHud(def);
             if (regionSet) {
-                com.trevorschoeny.menukit.inject.RegionRegistry.registerHud(def, region);
+                com.trevorschoeny.menukit.inject.RegionRegistry.registerHud(def, region, regionPriority);
             }
         }
     }

@@ -71,4 +71,21 @@ public enum MenuRegion {
             case CENTER -> false;
         };
     }
+
+    /**
+     * Returns a {@link RegionAnchor} pairing this region with an explicit
+     * stacking priority. Use when sibling panels in the same region need
+     * deterministic ordering relative to each other — pass the result
+     * anywhere a {@link MenuRegion} is accepted.
+     *
+     * <p>Lower priority renders first (closer to the region's anchor edge).
+     * Default priority (when {@code priority(int)} is not called) is
+     * {@link RegionAnchor#DEFAULT_PRIORITY} (100); the registering mod's
+     * modId serves as the tiebreaker for siblings sharing a priority.
+     *
+     * @see RegionAnchor
+     */
+    public RegionAnchor<MenuRegion> priority(int priority) {
+        return new RegionAnchor<>(this, priority);
+    }
 }
