@@ -15,65 +15,73 @@ import java.util.WeakHashMap;
 
 /**
  * Phase 16h — utility for preserving OS cursor position across screen
- * transitions. Decoupled from any particular {@link Screen} base class:
- * the consumer opts a Screen instance in via {@link #enableFor(Screen)},
- * the library captures cursor pos on that screen's removal via Fabric's
- * per-screen {@code ScreenEvents.remove}, and the universal AFTER_INIT
- * hook (wired once from {@code MenuKitClient}) restores on the next
- * screen's init — any next screen, any base class.
+ * transitions. Universal capture: every screen's {@code removed()}
+ * stashes the cursor; the next screen's {@code init()} (any screen,
+ * vanilla or MK or MKC or third-party) restores from the stash via the
+ * AFTER_INIT hook. Single utility class, no base-class coupling, no
+ * per-consumer opt-in required.
+ *
+ * <h3>Why universal capture (not per-consumer opt-in)</h3>
+ *
+ * Earlier 16h drafts made capture opt-in: consumers called
+ * {@link #enableFor(Screen)} on their screens to register a per-screen
+ * remove listener. Diagnostic logging then surfaced the actual problem:
+ * vanilla / platform / OS layer was already moving the OS cursor to
+ * window center on certain screen transitions (consistent ~427,240
+ * coords on every InventoryScreen open in an 854×480 dev window).
+ * Capture-on-opt-in couldn't help across vanilla→MK or vanilla→MKC
+ * transitions because vanilla screens (the LEAVING side) weren't
+ * opt-in candidates.
+ *
+ * <p>The right shape: capture is universal (every screen.removed()
+ * stashes), restore is universal (every screen.init() restores).
+ * Opt-in was wrong-shaped — cursor continuity is a defensive measure
+ * against vanilla/platform quirks, not a feature consumers selectively
+ * enable. The result is "your cursor stays where it was, always" — the
+ * principle of least surprise.
  *
  * <h3>Why a utility class instead of base-class methods</h3>
  *
- * Earlier 16h drafts coupled cursor continuity to {@code MenuKitScreen}
+ * Earlier 16h drafts also coupled cursor continuity to {@code MenuKitScreen}
  * via a {@code removed()} override + static stash on that class. That
- * forced parallel duplication on {@code MenuKitHandledScreen} (which
- * extends a different vanilla base), and any future Screen type
- * consumers might subclass (vanilla {@code Screen}, third-party screens,
- * mod-defined screens not extending either MK base) would need yet
- * another duplication.
- *
- * <p>The root cause: cursor continuity is a transition-behavior, not a
- * property of any specific Screen hierarchy. Putting the mechanism in a
- * utility with a single-entry opt-in lets any {@code Screen} instance
- * participate — including vanilla subclasses that consumers can't modify
- * to add a base-class override. Per-screen capture rides on Fabric's
- * {@code ScreenEvents.remove(screen)} registry, which exists for exactly
- * this kind of per-screen lifecycle hook.
- *
- * <h3>Usage</h3>
- *
- * <pre>{@code
- * public MyScreen() {
- *     super(...);
- *     CursorContinuity.enableFor(this);
- * }
- * }</pre>
- *
- * Both {@code MenuKitScreen} and {@code MenuKitHandledScreen} expose
- * thin chainable wrappers ({@code .preserveCursorContinuity(true)}) that
- * delegate here — convenience for those subclass paths. The utility
- * itself is the canonical entry point and works for any Screen.
+ * forced parallel duplication on {@code MenuKitHandledScreen} (different
+ * vanilla base) and any future Screen type. The root cause: cursor
+ * continuity is a transition-behavior, not a property of any Screen
+ * hierarchy. Putting the mechanism in a utility decouples it from base
+ * classes — and now also from per-consumer registration, since capture
+ * rides on Fabric's universal AFTER_INIT (which fires for every screen
+ * including vanilla).
  *
  * <h3>Lifecycle semantics</h3>
  *
  * <ul>
- *   <li><b>Capture:</b> on {@code Screen.removed()}. Per-screen
- *       {@code ScreenEvents.remove} fires the capture lambda.</li>
- *   <li><b>Restore:</b> on the next screen's {@code init()} via the
- *       universal {@code ScreenEvents.AFTER_INIT} hook. One-shot — the
- *       stash is cleared after restore so subsequent unrelated screen
- *       opens don't get a stale cursor position.</li>
- *   <li><b>One-way per-instance:</b> {@link #enableFor(Screen)} registers
- *       a listener; there's no symmetric disable. Screens are short-lived
- *       and decisions are typically constructor-time. If runtime on/off
- *       becomes a need, a WeakHashMap-based registry can be added later.</li>
+ *   <li><b>Capture (universal):</b> every screen's {@code removed()}
+ *       stashes the current OS cursor pos via
+ *       {@code GLFW.glfwGetCursorPos}. Wired in AFTER_INIT for every
+ *       screen so the listener exists before its eventual removed()
+ *       fires.</li>
+ *   <li><b>Restore (universal):</b> every screen's {@code init()}
+ *       reads the stash via {@code GLFW.glfwSetCursorPos}; one-shot,
+ *       cleared after restore so subsequent unrelated opens don't get
+ *       a stale pose.</li>
  * </ul>
  *
  * <h3>Library-not-platform alignment (§0019)</h3>
  *
- * Opt-in per-screen, no ambient behavior. Default off. Consumers
- * explicitly call {@link #enableFor(Screen)} (or the base-class
- * chainable wrapper) per-screen-instance to participate.
+ * Universal capture/restore is library-not-platform-compatible
+ * <i>because</i> it counters a platform misbehavior (vanilla / OS
+ * centering cursor on screen transitions). If the platform did the
+ * right thing by default, the library wouldn't need to act; since
+ * vanilla doesn't, the library compensates uniformly. There's no
+ * ambient behavior beyond "cursor stays where it was" — which is the
+ * intuitively-correct user-facing default.
+ *
+ * <p>The {@link #enableFor(Screen)} entry point (and the
+ * {@code preserveCursorContinuity} chainable wrappers on the MK and
+ * MKC screen base classes) are kept as no-op-with-documentation entry
+ * points for backward compatibility with the earlier opt-in API. They
+ * record intent but don't affect behavior — capture happens for every
+ * screen regardless.
  */
 public final class CursorContinuity {
 
@@ -111,32 +119,33 @@ public final class CursorContinuity {
                     Collections.newSetFromMap(new WeakHashMap<>()));
 
     /**
-     * Opts the given screen in to cursor-position preservation. When this
-     * screen's {@code removed()} fires (vanilla lifecycle), the current OS
-     * cursor position is captured via {@code GLFW.glfwGetCursorPos} and
-     * stashed; the next screen to open consumes the stash via the
-     * universal restore hook.
+     * Historical opt-in entry point — kept for backward compatibility
+     * with the earlier per-consumer opt-in API and the chainable
+     * wrappers on the MK / MKC screen base classes
+     * ({@code preserveCursorContinuity}).
      *
-     * <p>Constructor-safe: this method records the opt-in but does NOT
-     * register Fabric's per-screen {@code ScreenEvents.remove} listener
-     * directly — that would throw {@code IllegalStateException} when
-     * called before the screen has been initialized (per Fabric's lazy
-     * per-screen event registry). The actual listener wiring happens in
-     * the universal AFTER_INIT hook (see {@link #registerRestoreHook}),
-     * which fires AFTER each screen's first init() — at which point
-     * {@code ScreenEvents.remove(screen)} is safe to call.
+     * <p><b>No-op as of the 16h root-fix iteration:</b> capture is now
+     * universal — every screen's {@code removed()} stashes the cursor
+     * regardless of whether {@code enableFor} was called. The reason for
+     * the change is documented on the class javadoc above; the short
+     * version is that vanilla/platform code centers the cursor on
+     * certain screen transitions, and the opt-in shape couldn't fix
+     * vanilla→MK or vanilla→MKC transitions because vanilla screens
+     * weren't opt-in candidates.
      *
-     * <p>Re-init (screen resize) is idempotent: the opt-in set entry is
-     * cleared once the per-screen listener is wired, so subsequent
-     * AFTER_INIT firings for the same screen instance don't double-wire.
+     * <p>Still safe to call from screen constructors. Just records the
+     * intent in {@link #pendingOptIn} for diagnostic visibility; the
+     * AFTER_INIT hook wires the actual per-screen capture listener
+     * universally, regardless of whether the screen is in this set.
      *
-     * @param screen the screen to enable cursor preservation for; the
-     *               registration is tied to this specific instance.
+     * @param screen the screen the consumer "asked" for cursor
+     *               preservation on; recorded but no behavior change
+     *               (universal capture already handles it).
      */
     public static void enableFor(Screen screen) {
         pendingOptIn.add(screen);
-        LOGGER.info("[cursor] enableFor: {} added to pendingOptIn (size now {})",
-                screen.getClass().getSimpleName(), pendingOptIn.size());
+        LOGGER.info("[cursor] enableFor: {} (intent recorded; capture is universal)",
+                screen.getClass().getSimpleName());
     }
 
     /**
@@ -205,20 +214,37 @@ public final class CursorContinuity {
      */
     public static void registerRestoreHook() {
         ScreenEvents.AFTER_INIT.register((client, screen, sw, sh) -> {
-            // Drain pending opt-in for this screen, if any. Wiring the
-            // per-screen ScreenEvents.remove listener here is safe —
-            // the screen has been init'd, Fabric's per-screen event
-            // registry is available.
-            if (pendingOptIn.remove(screen)) {
-                ScreenEvents.remove(screen).register(s -> capture());
-                LOGGER.info("[cursor] AFTER_INIT: drained {} from pendingOptIn, wired remove listener (size now {})",
-                        screen.getClass().getSimpleName(), pendingOptIn.size());
-            } else {
-                LOGGER.info("[cursor] AFTER_INIT for {} (not in pendingOptIn)",
-                        screen.getClass().getSimpleName());
-            }
-            // Restore stashed cursor for the new screen (any screen,
-            // not just opted-in ones — the restore side is universal).
+            // Phase 16h root-fix: register a per-screen capture listener
+            // UNIVERSALLY — on every screen, not just opted-in ones.
+            //
+            // The opt-in semantic (only-opted-in screens capture) was
+            // wrong-shaped. Diagnostic logs surfaced that vanilla / OS /
+            // some platform layer mysteriously centers the OS cursor on
+            // certain screen transitions (consistently at window center
+            // — readable via glfwGetCursorPos in the next screen's
+            // AFTER_INIT). For the V5 case specifically, this only
+            // happens on the async (C2S/S2C-mediated) Test MKC path, not
+            // the synchronous Test MK path — so capture-on-opt-in alone
+            // never gave a chance to record the pre-jump cursor pos for
+            // Inventory→V5 transitions (Inventory isn't an MK opt-in
+            // candidate).
+            //
+            // Making capture universal: every screen's removed() now
+            // stashes the cursor before vanilla / platform code has a
+            // chance to displace it. Restore in this same AFTER_INIT
+            // then teleports the OS cursor back to that stashed pos —
+            // canceling any platform-level cursor centering.
+            //
+            // pendingOptIn is no longer load-bearing (every screen wires
+            // automatically), but kept for backward compat — its
+            // semantic was an explicit "this consumer wanted cursor
+            // preservation" marker. Drain it as a no-op acknowledgment.
+            pendingOptIn.remove(screen);
+            ScreenEvents.remove(screen).register(s -> capture());
+            LOGGER.info("[cursor] AFTER_INIT: wired universal capture for {}",
+                    screen.getClass().getSimpleName());
+
+            // Restore stashed cursor for the new screen.
             restoreIfAny();
         });
     }
