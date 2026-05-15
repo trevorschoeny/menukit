@@ -60,6 +60,20 @@ public final class SlotGroupRegionRegistry {
     }
 
     /**
+     * Phase 16j R5 — removes a previously-registered SlotGroupContext
+     * panel from every (category, region) bucket it appears in and clears
+     * its per-panel metadata. Idempotent. Symmetric counterpart to
+     * {@link #registerSlotGroup}.
+     */
+    public static void unregisterSlotGroup(Panel panel) {
+        for (List<Panel> list : SLOT_GROUP.values()) {
+            list.remove(panel);
+        }
+        SLOT_GROUP_PADDING.remove(panel);
+        WARNED_SLOT_GROUP.remove(panel);
+    }
+
+    /**
      * Axial prefix for a SlotGroupContext panel anchored in a given
      * (category, region) pair. Walks the per-key panel list, skipping
      * hidden panels, and sums extent + {@link RegionMath#STACK_GAP} for

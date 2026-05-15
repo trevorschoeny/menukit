@@ -78,6 +78,16 @@ public final class SlotGroupPanelRegistry {
         REGISTERED.add(adapter);
     }
 
+    /**
+     * Phase 16j R5 — removes a SlotGroupContext adapter from PENDING +
+     * REGISTERED. Called from {@code SlotGroupPanelAdapter.unregister()}.
+     * Idempotent.
+     */
+    public static void untrack(SlotGroupPanelAdapter adapter) {
+        PENDING.remove(adapter);
+        REGISTERED.remove(adapter);
+    }
+
     /** Returns an unmodifiable snapshot of orphan slot-group adapters. */
     public static Set<SlotGroupPanelAdapter> pendingSnapshot() {
         synchronized (PENDING) {

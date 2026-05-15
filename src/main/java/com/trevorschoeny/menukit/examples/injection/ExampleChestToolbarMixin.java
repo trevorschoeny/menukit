@@ -82,7 +82,8 @@ public abstract class ExampleChestToolbarMixin {
             ScreenOriginFns.aboveSlotGrid(/* gridX */ 8,
                                           /* gridY */ 18,
                                           /* panelHeight */ 9,
-                                          /* gap */ 14)
+                                          /* gap */ 14),
+            ScreenPanelAdapter.DEFAULT_PADDING
     );
 
     @Unique

@@ -2,11 +2,11 @@ package com.trevorschoeny.menukit.screen;
 
 import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.PanelBounds;
+import com.trevorschoeny.menukit.core.PanelDispatch;
 import com.trevorschoeny.menukit.core.PanelElement;
-import com.trevorschoeny.menukit.core.PanelLayout;
 import com.trevorschoeny.menukit.core.PanelRendering;
+import com.trevorschoeny.menukit.core.PanelTreeLayout;
 import com.trevorschoeny.menukit.core.RenderContext;
-import com.trevorschoeny.menukit.input.CursorContinuity;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -62,41 +62,6 @@ public class MenuKitScreen extends Screen {
     protected MenuKitScreen(Component title, List<Panel> panels) {
         super(title);
         this.panels = List.copyOf(panels);
-    }
-
-    /**
-     * Phase 16h — opt this screen into cursor-position preservation across
-     * transitions. Thin chainable wrapper over
-     * {@link CursorContinuity#enableFor(Screen)} — the canonical
-     * cursor-continuity mechanism lives in {@code CursorContinuity} so the
-     * same opt-in path works for {@link MenuKitScreen},
-     * {@code MenuKitHandledScreen}, and any other {@code Screen}
-     * subclass. See that utility for lifecycle semantics.
-     *
-     * <p><b>Default off</b> per library-not-platform discipline (§0019).
-     * Consumers chain after {@code super(...)} in their constructor:
-     * <pre>{@code
-     * public MyScreen() {
-     *     super(title, panels);
-     *     this.preserveCursorContinuity(true);
-     * }
-     * }</pre>
-     *
-     * <p>Only the screen being LEFT needs the opt-in — the restore side
-     * is universal (any screen's init reads the stash). For a clean
-     * back-and-forth flow, opt in on both endpoints (the hub AND the
-     * sub-screen) so transitions in both directions preserve.
-     *
-     * @param preserve {@code true} to enable cursor preservation on this
-     *                 screen's exit. {@code false} is a no-op (the
-     *                 per-screen Fabric listener can't be cleanly
-     *                 unregistered; see {@code CursorContinuity}'s
-     *                 one-way semantics note).
-     * @return this screen, for chaining.
-     */
-    protected MenuKitScreen preserveCursorContinuity(boolean preserve) {
-        if (preserve) CursorContinuity.enableFor(this);
-        return this;
     }
 
     @Override
@@ -155,27 +120,16 @@ public class MenuKitScreen extends Screen {
     }
 
     private void computeLayout() {
-        Map<String, int[]> sizes = new LinkedHashMap<>();
-        for (Panel panel : panels) {
-            sizes.put(panel.getId(), computePanelSize(panel));
-        }
-
-        panelBounds = PanelLayout.resolve(panels, sizes, BODY_GAP, RELATIVE_GAP, TITLE_HEIGHT);
-
-        // Center the resolved layout on the screen. Total bounds are the max
-        // extent across all panels including relative ones (which may be
-        // outside the body column).
-        int minX = 0, minY = 0, maxX = 0, maxY = 0;
-        for (PanelBounds b : panelBounds.values()) {
-            minX = Math.min(minX, b.x());
-            minY = Math.min(minY, b.y());
-            maxX = Math.max(maxX, b.x() + b.width());
-            maxY = Math.max(maxY, b.y() + b.height());
-        }
-        int layoutWidth = maxX - minX;
-        int layoutHeight = maxY - minY;
-        leftPos = (width - layoutWidth) / 2 - minX;
-        topPos = (height - layoutHeight) / 2 - minY;
+        // Phase 16j R1 — delegate to shared PanelTreeLayout primitive.
+        // MK has no minimum image size (standalone screens are sized by
+        // their content); pass 0 for both min dims.
+        var layout = PanelTreeLayout.resolve(
+                panels, this::computePanelSize,
+                BODY_GAP, RELATIVE_GAP, TITLE_HEIGHT,
+                /*minImageWidth=*/ 0, /*minImageHeight=*/ 0);
+        panelBounds = layout.bounds();
+        leftPos = (width  - layout.totalWidth())  / 2 - layout.layoutOriginX();
+        topPos  = (height - layout.totalHeight()) / 2 - layout.layoutOriginY();
     }
 
     // ── Rendering ───────────────────────────────────────────────────────
@@ -210,11 +164,7 @@ public class MenuKitScreen extends Screen {
             int contentX = leftPos + bounds.x() + PANEL_PADDING;
             int contentY = topPos + bounds.y() + PANEL_PADDING;
             RenderContext ctx = new RenderContext(graphics, contentX, contentY, mouseX, mouseY);
-
-            for (PanelElement element : panel.getElements()) {
-                if (!element.isVisible()) continue;
-                element.render(ctx);
-            }
+            PanelDispatch.renderElements(panel, ctx);
         }
     }
 

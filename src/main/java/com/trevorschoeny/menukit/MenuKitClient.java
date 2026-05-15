@@ -82,11 +82,12 @@ public class MenuKitClient implements ClientModInitializer {
         // first so the first screen-open can resolve categories correctly.
         SlotGroupPanelRegistry.init();
 
-        // Phase 16h — cursor preservation restore hook. Universal
-        // AFTER_INIT listener that fires for any screen open (vanilla,
-        // MK, MKC, third-party). Consumer screens opt into the capture
-        // side per-instance via CursorContinuity.enableFor or the
-        // chainable wrappers on MenuKitScreen / MenuKitHandledScreen.
+        // Phase 16h — cursor preservation. Universal AFTER_INIT listener
+        // that fires for any screen open (vanilla, MK, MKC, third-party)
+        // and wires a per-screen remove listener to stash the cursor.
+        // Restore reads the stash on the next screen's init. No consumer
+        // opt-in — the mechanism counters vanilla / OS cursor centering
+        // on screen transitions. See CursorContinuity javadoc.
         CursorContinuity.registerRestoreHook();
 
         // Phase 14d-2.7 — visual smoke wireups (dialog, scroll, opacity)

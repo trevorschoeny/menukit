@@ -259,22 +259,14 @@ public final class MKContractVerification {
                 modalPanel.tracksAsModal());
 
         // ── ScreenPanelRegistry.shouldEatOpaqueDispatch decision ─────────
-        // Truth table for M9's opaque-eat decision: cursor inside an
-        // opaque panel → eat (vanilla doesn't see the click); outside →
-        // pass through (Fabric allowMouseClick handles non-opaque
-        // dispatch normally).
-        checkM10(counts, "decision: not-opaque + not-consumed → pass through",
+        // M9's opaque-eat decision: cursor inside an opaque panel → eat;
+        // outside → pass through.
+        checkM10(counts, "decision: not-opaque → pass through",
                 !com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                        .shouldEatOpaqueDispatch(false, false));
-        checkM10(counts, "decision: not-opaque + consumed → pass through",
-                !com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                        .shouldEatOpaqueDispatch(false, true));
-        checkM10(counts, "decision: opaque + not-consumed → EAT",
+                        .shouldEatOpaqueDispatch(false));
+        checkM10(counts, "decision: opaque → EAT",
                 com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                        .shouldEatOpaqueDispatch(true, false));
-        checkM10(counts, "decision: opaque + consumed → EAT",
-                com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                        .shouldEatOpaqueDispatch(true, true));
+                        .shouldEatOpaqueDispatch(true));
 
         // ── MenuRegion.CENTER resolver — sanity check the new region ─────
         // Centered at (50, 60) within a 176×166 frame (vanilla menu sized)
@@ -562,21 +554,13 @@ public final class MKContractVerification {
                 !threwOnUndefined);
 
         // ── shouldEatOpaqueDispatch decision (re-verified at V14 layer) ──
-        // M9 default-true: opaque-at-cursor eats regardless of consumed.
-        // Outside opaque: never eats at this layer (modal-tracking outside
-        // is a separate decision in dispatchOpaqueClick, not this helper).
-        checkM14(counts, "shouldEatOpaqueDispatch(true, true) → EAT",
+        // M9: opaque-at-cursor eats. Outside opaque: passes through.
+        checkM14(counts, "shouldEatOpaqueDispatch(true) → EAT",
                 com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                        .shouldEatOpaqueDispatch(true, true));
-        checkM14(counts, "shouldEatOpaqueDispatch(true, false) → EAT",
-                com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                        .shouldEatOpaqueDispatch(true, false));
-        checkM14(counts, "shouldEatOpaqueDispatch(false, true) → pass through",
+                        .shouldEatOpaqueDispatch(true));
+        checkM14(counts, "shouldEatOpaqueDispatch(false) → pass through",
                 !com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                        .shouldEatOpaqueDispatch(false, true));
-        checkM14(counts, "shouldEatOpaqueDispatch(false, false) → pass through",
-                !com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                        .shouldEatOpaqueDispatch(false, false));
+                        .shouldEatOpaqueDispatch(false));
 
         // ── Null-screen / no-client guards (helpers don't NPE) ───────────
         var nullFind = com.trevorschoeny.menukit.inject.ScreenPanelRegistry
@@ -640,7 +624,9 @@ public final class MKContractVerification {
 
         com.trevorschoeny.menukit.inject.ScreenPanelAdapter lambdaAdapter =
                 new com.trevorschoeny.menukit.inject.ScreenPanelAdapter(p,
-                        (bounds, screen) -> new com.trevorschoeny.menukit.inject.ScreenOrigin(0, 0));
+                        (com.trevorschoeny.menukit.inject.ScreenOriginFn)
+                                (bounds, screen) -> new com.trevorschoeny.menukit.inject.ScreenOrigin(0, 0),
+                        com.trevorschoeny.menukit.inject.ScreenPanelAdapter.DEFAULT_PADDING);
         checkM15(counts, "lambda-based adapter constructs",
                 lambdaAdapter != null && !lambdaAdapter.isRegionBased());
 
@@ -668,12 +654,17 @@ public final class MKContractVerification {
         // (Region-based adapters participate via .on/.onAny automatically;
         // .activeOn is for lambda escape hatch only.)
         //
-        // Cached + invisible: the construction itself is the contract under
-        // test, and the registry has no unregister API — so reconstructing
-        // on each call (e.g. each MkHubScreen open) leaked panels into
-        // RegionRegistry indefinitely. The visible=false flag keeps the
-        // probe out of every consumer's axial-prefix walk regardless.
-        var regionAdapter = cachedM15RegionAdapter();
+        // Phase 16j R5: construct the adapter, verify its shape, then
+        // unregister() it. The registry's new symmetric register/unregister
+        // pair means contract code can construct probe adapters without
+        // leaking entries into the consumer's axial-prefix walk.
+        var regionAdapter = new com.trevorschoeny.menukit.inject.ScreenPanelAdapter(
+                new com.trevorschoeny.menukit.core.Panel(
+                        "v15-region-panel", java.util.List.of(), /*visible=*/ false,
+                        com.trevorschoeny.menukit.core.PanelStyle.RAISED,
+                        com.trevorschoeny.menukit.core.PanelPosition.BODY, -1),
+                com.trevorschoeny.menukit.core.MenuRegion.RIGHT_ALIGN_TOP,
+                com.trevorschoeny.menukit.inject.ScreenPanelAdapter.DEFAULT_PADDING);
 
         boolean threwOnRegionActiveOn = false;
         try {
@@ -692,36 +683,15 @@ public final class MKContractVerification {
         checkM15(counts, "region-based adapter constructed (smoke verifies activeOn rejection)",
                 regionAdapter != null && regionAdapter.isRegionBased());
 
+        // Phase 16j R5: unregister the probe adapter so it doesn't leak
+        // into the consumer's registry across repeated contract runs.
+        regionAdapter.unregister();
+
         int total = counts[0], failed = counts[1];
         int passed = total - failed;
         LOGGER.info("[Verify.M15] VERDICT — {}/{} cases pass ({})",
                 passed, total, failed == 0 ? "PASS" : "FAIL — see above");
         return counts;
-    }
-
-    /**
-     * One-time-constructed region adapter used by {@link #m15LambdaLifecycle}
-     * to verify the construction contract of region-based adapters. Cached
-     * because {@link com.trevorschoeny.menukit.inject.RegionRegistry} has
-     * no unregister API — without caching, each contract run (one per
-     * MkHubScreen open) leaked a new entry into the RIGHT_ALIGN_TOP list,
-     * permanently shifting every consumer's axial-prefix walk. The panel
-     * is {@code visible=false} so it never contributes to that walk even
-     * once.
-     */
-    private static com.trevorschoeny.menukit.inject.ScreenPanelAdapter
-            m15CachedRegionAdapter = null;
-
-    private static com.trevorschoeny.menukit.inject.ScreenPanelAdapter cachedM15RegionAdapter() {
-        if (m15CachedRegionAdapter == null) {
-            m15CachedRegionAdapter = new com.trevorschoeny.menukit.inject.ScreenPanelAdapter(
-                    new com.trevorschoeny.menukit.core.Panel(
-                            "v15-region-panel", java.util.List.of(), /*visible=*/ false,
-                            com.trevorschoeny.menukit.core.PanelStyle.RAISED,
-                            com.trevorschoeny.menukit.core.PanelPosition.BODY, -1),
-                    com.trevorschoeny.menukit.core.MenuRegion.RIGHT_ALIGN_TOP);
-        }
-        return m15CachedRegionAdapter;
     }
 
     private static void checkM15(int[] counts, String label, boolean condition) {

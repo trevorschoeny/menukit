@@ -66,7 +66,8 @@ public final class ExampleKeybindTriggeredPanel {
     /** Shared adapter. Positioned just above the screen frame's top-left corner. */
     public static final ScreenPanelAdapter ADAPTER = new ScreenPanelAdapter(
             PANEL,
-            ScreenOriginFns.fromScreenTopLeft(/* dx */ 4, /* dy */ -24)
+            ScreenOriginFns.fromScreenTopLeft(/* dx */ 4, /* dy */ -24),
+            ScreenPanelAdapter.DEFAULT_PADDING
     );
 
     /** Bundle the vanilla screen fields into a {@link ScreenBounds}. */

@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit;
 
-import com.trevorschoeny.menukit.core.PanelElement;
+import com.trevorschoeny.menukit.core.PanelDispatch;
 import com.trevorschoeny.menukit.core.PanelRendering;
 import com.trevorschoeny.menukit.core.PanelStyle;
 import com.trevorschoeny.menukit.core.RenderContext;
@@ -176,10 +176,7 @@ public class MenuKit implements ModInitializer {
             int contentX = pos[0] + def.padding();
             int contentY = pos[1] + def.padding();
             RenderContext ctx = new RenderContext(graphics, contentX, contentY, -1, -1);
-            for (PanelElement element : def.elements()) {
-                if (!element.isVisible()) continue;
-                element.render(ctx);
-            }
+            PanelDispatch.renderElements(def.elements(), ctx);
         }
 
         // ── Active notifications ──────────────────────────────────────────

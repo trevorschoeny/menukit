@@ -134,6 +134,30 @@ public final class RegionRegistry {
     }
 
     /**
+     * Removes a previously-registered MenuContext panel from every region
+     * list it appears in and clears its per-panel metadata (padding,
+     * priority, modId, registration sequence, overflow warning state).
+     *
+     * <p>Phase 16j R5 — the registry was append-only prior to this. Use
+     * via {@link ScreenPanelAdapter#unregister()}; this method is the
+     * registry-side primitive. Idempotent: unregistering a non-registered
+     * panel is a no-op.
+     *
+     * <p>After unregister, the panel can be re-registered with a fresh
+     * {@link #registerMenu} call (e.g., via constructing a new adapter).
+     */
+    public static void unregisterMenu(Panel panel) {
+        for (List<Panel> list : MENU.values()) {
+            list.remove(panel);
+        }
+        MENU_PADDING.remove(panel);
+        MENU_PRIORITY.remove(panel);
+        MENU_MODID.remove(panel);
+        MENU_REG_SEQ.remove(panel);
+        WARNED_MENU.remove(panel);
+    }
+
+    /**
      * Computes the axial stacking prefix for a panel — total extent (plus gap)
      * contributed by visible preceding panels in the same region. Each panel's
      * axial extent includes its registered padding. Panels registered before
@@ -250,6 +274,26 @@ public final class RegionRegistry {
     /** Back-compat overload — uses {@link RegionAnchor#DEFAULT_PRIORITY}. */
     public static void registerHud(MKHudPanelDef def, HudRegion region) {
         registerHud(def, region, RegionAnchor.DEFAULT_PRIORITY);
+    }
+
+    /**
+     * Removes a previously-registered HUD panel def from every region
+     * list it appears in and clears its per-def metadata. Phase 16j R5.
+     * Idempotent. Symmetric counterpart to
+     * {@link #registerHud(MKHudPanelDef, HudRegion, int)}.
+     *
+     * <p>Note: this does NOT unregister the HUD panel def from
+     * {@code MenuKit}'s top-level HUD list (the render-each-frame
+     * collection). Use {@code MenuKit.unregisterHud(def)} for that.
+     */
+    public static void unregisterHud(MKHudPanelDef def) {
+        for (List<MKHudPanelDef> list : HUD.values()) {
+            list.remove(def);
+        }
+        HUD_PRIORITY.remove(def);
+        HUD_MODID.remove(def);
+        HUD_REG_SEQ.remove(def);
+        WARNED_HUD.remove(def);
     }
 
     /**

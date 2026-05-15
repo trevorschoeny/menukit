@@ -127,18 +127,31 @@ public final class ScreenPanelAdapter {
     private boolean targetedAny = false;
 
     // ── Constructors ────────────────────────────────────────────────────
+    //
+    // Phase 16j H3 — constructor sprawl consolidated. Four public surfaces
+    // remain, organized by orthogonal axes:
+    //
+    //   Placement     | Padding
+    //   ──────────────┼──────────
+    //   ScreenOriginFn| explicit
+    //   MenuRegion    | explicit
+    //   RegionAnchor  | default (DEFAULT_PADDING)
+    //   RegionAnchor  | explicit
+    //
+    // The "MenuRegion + default padding" + "ScreenOriginFn + default
+    // padding" convenience overloads were dropped — consumers pass
+    // padding explicitly (typically DEFAULT_PADDING or 0).
+    //
+    // The "anchor + default padding" overload stays because it's the
+    // 16i ergonomic happy path (priority specified inline via
+    // MenuRegion.X.priority(N)).
 
     /**
-     * Constructs an adapter with a consumer-supplied origin function and
-     * default content padding ({@link #DEFAULT_PADDING}).
-     */
-    public ScreenPanelAdapter(Panel panel, ScreenOriginFn originFn) {
-        this(panel, originFn, DEFAULT_PADDING);
-    }
-
-    /**
-     * Constructs an adapter with a consumer-supplied origin function and
-     * explicit content padding.
+     * Constructs a lambda-based adapter with a consumer-supplied origin
+     * function and explicit content padding. Lambda-based adapters
+     * compose placement entirely from the {@code originFn}; they don't
+     * register with {@link RegionRegistry} and don't participate in
+     * stacking. See the {@code .activeOn} / {@code .deactivate} API.
      */
     public ScreenPanelAdapter(Panel panel, ScreenOriginFn originFn, int padding) {
         this.panel = panel;
@@ -148,30 +161,17 @@ public final class ScreenPanelAdapter {
     }
 
     /**
-     * Region-aware constructor using default content padding. See
-     * {@link #ScreenPanelAdapter(Panel, MenuRegion, int)} for the
-     * padding-accepting overload.
-     */
-    public ScreenPanelAdapter(Panel panel, MenuRegion region) {
-        this(panel, region, DEFAULT_PADDING);
-    }
-
-    /**
      * Region-aware constructor with explicit padding. Registers the panel
      * into the given {@link MenuRegion} via {@link RegionRegistry} with
-     * the declared padding so stacking math and overflow checks both account
-     * for it.
+     * the declared padding so stacking math and overflow checks both
+     * account for it. Uses {@link RegionAnchor#DEFAULT_PRIORITY} for
+     * sibling ordering; pair with the {@link RegionAnchor} constructor
+     * below for explicit priority.
      *
-     * <p><b>Singleton contract.</b> Construct exactly one adapter per logical
-     * panel, typically as a {@code static final} field at mod init. Dynamic
-     * construction is unsupported — each call appends to the registry and
-     * there is no {@code unregister()}. See M5 design doc §6.1.
-     *
-     * <p>Render and input dispatch short-circuit when the region resolver
-     * returns {@link ScreenOrigin#OUT_OF_REGION} (panel overflows the
-     * region's available space). The registry logs a one-shot warning the
-     * first time a panel overflows a given region (see
-     * {@link RegionRegistry} for the deduplication semantics).
+     * <p>Per-instance lifecycle: construct adapters typically as a
+     * {@code static final} field at mod init. For test/verification or
+     * runtime UI swaps, call {@link #unregister()} when done. See M5
+     * design doc §6.1.
      */
     public ScreenPanelAdapter(Panel panel, MenuRegion region, int padding) {
         this(panel, region, padding, RegionAnchor.DEFAULT_PRIORITY);
@@ -182,8 +182,7 @@ public final class ScreenPanelAdapter {
      * paired with an explicit stacking priority. Use when sibling panels
      * in the same region need deterministic ordering relative to each
      * other (e.g., {@code MenuRegion.RIGHT_ALIGN_TOP.priority(50)}).
-     * Phase 16i. Same constructor body as the {@link MenuRegion} +
-     * {@code padding} overload otherwise.
+     * Uses {@link #DEFAULT_PADDING}.
      */
     public ScreenPanelAdapter(Panel panel, RegionAnchor<MenuRegion> anchor) {
         this(panel, anchor.region(), DEFAULT_PADDING, anchor.priority());
@@ -194,8 +193,8 @@ public final class ScreenPanelAdapter {
         this(panel, anchor.region(), padding, anchor.priority());
     }
 
-    /** Internal canonical constructor — the four other region-based
-     *  overloads delegate here. */
+    /** Internal canonical constructor — public region-based overloads
+     *  delegate here. */
     private ScreenPanelAdapter(Panel panel, MenuRegion region, int padding, int priority) {
         this.panel = panel;
         this.padding = padding;
@@ -203,6 +202,37 @@ public final class ScreenPanelAdapter {
         RegionRegistry.registerMenu(panel, region, padding, priority);
         this.originFn = RegionRegistry.menuOriginFn(panel, region);
         ScreenPanelRegistry.trackPending(this);
+    }
+
+    // ── Teardown ────────────────────────────────────────────────────────
+
+    /**
+     * Phase 16j R5 — removes this adapter from every internal registry
+     * collection: the per-region MENU list (if region-based), the
+     * per-screen match cache, the PENDING/REGISTERED tracking sets,
+     * and any lambda-active entry. After {@code unregister()} the
+     * adapter contributes nothing to layout, dispatch, or rendering.
+     *
+     * <p>Intended for code paths that construct adapters outside mod-init
+     * (test/verification, runtime UI swaps, hot-reload-style workflows).
+     * Most consumers don't need this — they construct adapters as
+     * {@code static final} fields and never unregister.
+     *
+     * <p>Idempotent: calling {@code unregister()} twice is safe. The
+     * adapter object itself is not reusable after unregister — to
+     * resume a registration, construct a new adapter.
+     *
+     * <p>Note: the underlying {@link Panel} can be reused with a new
+     * adapter after this; the panel itself isn't owned by the adapter.
+     * Per-Panel metadata (priority, modId, padding) was cleared by
+     * {@link RegionRegistry#unregisterMenu}, so re-registering picks up
+     * fresh values from the new constructor call.
+     */
+    public void unregister() {
+        if (regionBased) {
+            RegionRegistry.unregisterMenu(panel);
+        }
+        ScreenPanelRegistry.untrack(this);
     }
 
     // ── Targeting API (region-based adapters) ───────────────────────────
@@ -544,11 +574,7 @@ public final class ScreenPanelAdapter {
         RenderContext ctx = new RenderContext(
                 graphics, origin.x() + padding, origin.y() + padding,
                 effectiveMouseX, effectiveMouseY);
-
-        for (PanelElement element : panel.getElements()) {
-            if (!element.isVisible()) continue;
-            element.render(ctx);
-        }
+        com.trevorschoeny.menukit.core.PanelDispatch.renderElements(panel, ctx);
     }
 
     /**

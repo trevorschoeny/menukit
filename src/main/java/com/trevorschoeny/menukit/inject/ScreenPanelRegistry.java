@@ -142,6 +142,28 @@ public final class ScreenPanelRegistry {
         REGISTERED.add(adapter);
     }
 
+    /**
+     * Phase 16j R5 — removes an adapter from every internal tracking
+     * collection. Called from {@link ScreenPanelAdapter#unregister()};
+     * pairs the constructor-time {@link #trackPending}/
+     * {@link #markTargetingDeclared} flow with a symmetric teardown.
+     *
+     * <p>Removes from: PENDING set, REGISTERED list, every cached
+     * per-screen match list in {@code SCREEN_DATA}, and any lambda-active
+     * entry in {@code LAMBDA_ACTIVE}. Idempotent. After untrack the
+     * adapter cannot be re-registered without constructing a new one.
+     */
+    static void untrack(ScreenPanelAdapter adapter) {
+        PENDING.remove(adapter);
+        REGISTERED.remove(adapter);
+        for (ScreenRenderData data : SCREEN_DATA.values()) {
+            data.menuMatches().remove(adapter);
+        }
+        for (List<LambdaActiveEntry> entries : LAMBDA_ACTIVE.values()) {
+            entries.removeIf(e -> e.adapter() == adapter);
+        }
+    }
+
     // Post-§0042 split: SlotGroupPanelAdapter pending/registered tracking +
     // its corresponding API surface lives in menukit-containers' parallel
     // SlotGroupPanelRegistry.
@@ -300,12 +322,13 @@ public final class ScreenPanelRegistry {
         // render path can't use ScreenEvents.afterRender (tooltip layering).
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
             ScreenBounds frame = frameBounds(acs);
-            boolean consumed = false;
             boolean opaqueAtCursor = false;
             for (ScreenPanelAdapter adapter : menuMatches) {
-                if (adapter.mouseClicked(frame, event.x(), event.y(), event.button(), acs)) {
-                    consumed = true;
-                }
+                // Dispatch the click to this adapter; per-element handling
+                // returns true when an element consumed it but we don't
+                // need that bit downstream — M9 eats based on opaque-
+                // coverage alone.
+                adapter.mouseClicked(frame, event.x(), event.y(), event.button(), acs);
                 // M9 click-through prohibition: when cursor is inside any
                 // visible opaque panel's bounds, the click is eaten from
                 // vanilla regardless of whether an element consumed it.
@@ -340,7 +363,7 @@ public final class ScreenPanelRegistry {
             // M9 opaque-dispatch decision — extracted to a pure static
             // method so /mkverify probes can exercise the logic without
             // spinning up a real screen.
-            return !shouldEatOpaqueDispatch(opaqueAtCursor, consumed);
+            return !shouldEatOpaqueDispatch(opaqueAtCursor);
         });
 
         // Phase 14d-2 — scroll dispatch via Fabric's allowMouseScroll hook.
@@ -456,35 +479,12 @@ public final class ScreenPanelRegistry {
      *
      * <p>Returns {@code true} when the cursor is inside any visible opaque
      * panel's bounds — vanilla shouldn't see the click since the panel is
-     * sitting opaquely over the coords. Whether or not an MK element
-     * consumed the click, vanilla doesn't see it.
-     *
-     * <p>Returns {@code false} otherwise — no opaque panel covers the
-     * cursor; vanilla can process normally.
-     *
-     * <p>Note: the {@code consumed} flag is no longer load-bearing in the
-     * eat decision (M9 default-true means most panels are opaque; even
-     * empty-space clicks within an opaque panel's bounds eat). It's kept
-     * as a parameter for /mkverify probe expressivity and in case of
-     * future opaque-but-don't-eat semantics.
+     * sitting opaquely over the coords. Returns {@code false} otherwise.
      *
      * <p>Extracted from the click-hook closure so {@code /mkverify} probes
      * can test the decision without instantiating a screen.
-     *
-     * @param opaqueAtCursor true when cursor is inside any visible opaque
-     *                       panel's bounds on the current screen
-     * @param consumed       true when at least one matched adapter
-     *                       consumed the click via element dispatch
-     * @return {@code true} if the dispatcher should eat the click,
-     *         {@code false} if vanilla should process it normally
      */
-    public static boolean shouldEatOpaqueDispatch(boolean opaqueAtCursor, boolean consumed) {
-        // M9: if cursor inside an opaque panel, eat — regardless of whether
-        // an element consumed. The opaque panel "owns" the coords; vanilla
-        // shouldn't see input there. Consumed is preserved as a parameter
-        // for probe coverage of the (consumed-but-not-opaque) edge case
-        // which simply passes through (existing behavior; vanilla sees the
-        // click and the element layer also dispatched).
+    public static boolean shouldEatOpaqueDispatch(boolean opaqueAtCursor) {
         return opaqueAtCursor;
     }
 

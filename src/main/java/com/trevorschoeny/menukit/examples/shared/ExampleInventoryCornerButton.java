@@ -78,7 +78,8 @@ public final class ExampleInventoryCornerButton {
             // 16px above the top of the frame — sits above the inventory title.
             ScreenOriginFns.fromScreenTopRight(/* panelWidth */ 11,
                                                /* dx */ -4,
-                                               /* dy */ -16)
+                                               /* dy */ -16),
+            ScreenPanelAdapter.DEFAULT_PADDING
     );
 
     /** Bundle the vanilla screen fields into a {@link ScreenBounds}. */
