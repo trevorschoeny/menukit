@@ -61,8 +61,11 @@ modrinth {
     projectId = "menukit"
     versionNumber = property('mod_version')
     versionName = "MenuKit ${property('mod_version')}"
-    versionType = "beta"
+    versionType = "release"
     uploadFile = remapJar
     gameVersions = [property('minecraft_version')]
     loaders = ["fabric"]
+    dependencies {
+        required.project "fabric-api"
+    }
 }
