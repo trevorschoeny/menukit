@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.input.MouseButtonInfo;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -62,6 +63,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * {@code scaled = raw * window.getGuiScaledWidth() / window.getWidth()}
  * (and the height-axis equivalent).
  */
+@ApiStatus.Internal
 @Mixin(MouseHandler.class)
 public abstract class MenuKitModalMouseHandlerMixin {
 

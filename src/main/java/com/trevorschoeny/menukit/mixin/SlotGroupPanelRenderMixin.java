@@ -5,6 +5,7 @@ import com.trevorschoeny.menukit.inject.SlotGroupPanelRegistry;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -24,6 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * why this injection point (vs {@code ScreenEvents.afterRender}) — tooltip
  * layering per Principle 9.
  */
+@ApiStatus.Internal
 @Mixin(AbstractContainerScreen.class)
 public abstract class SlotGroupPanelRenderMixin {
 

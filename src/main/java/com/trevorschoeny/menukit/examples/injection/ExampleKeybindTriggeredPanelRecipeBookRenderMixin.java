@@ -14,6 +14,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Phase 10 injection example: Pattern 1 — supplementary render mixin that
@@ -53,6 +54,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <p><b>Dev-only.</b> See {@link DevOnlyExampleMixinsPlugin}.
  */
 @Mixin(AbstractRecipeBookScreen.class)
+@ApiStatus.Internal
 public abstract class ExampleKeybindTriggeredPanelRecipeBookRenderMixin
         extends AbstractContainerScreen<AbstractContainerMenu> {
 

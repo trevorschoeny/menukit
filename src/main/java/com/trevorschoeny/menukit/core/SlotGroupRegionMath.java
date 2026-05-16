@@ -4,6 +4,7 @@ import com.trevorschoeny.menukit.inject.ScreenOrigin;
 import com.trevorschoeny.menukit.inject.SlotGroupBounds;
 
 import java.util.Optional;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Pure coordinate resolver for SlotGroupContext regions.
@@ -20,6 +21,7 @@ import java.util.Optional;
  * {@link SlotGroupRegion} (slot-group enum) and {@link SlotGroupBounds}
  * (slot-group bounding rectangle) — slot-related types per §0042.
  */
+@ApiStatus.Internal
 public final class SlotGroupRegionMath {
 
     private SlotGroupRegionMath() {}

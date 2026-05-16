@@ -22,6 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Phase 10 injection example: Pattern 2 — button or small panel at a slot-grid
@@ -43,6 +44,7 @@ import java.util.List;
  * <p><b>Dev-only.</b> See {@link DevOnlyExampleMixinsPlugin}.
  */
 @Mixin(AbstractContainerScreen.class)
+@ApiStatus.Internal
 public abstract class ExampleChestToolbarMixin {
 
     @Shadow protected int leftPos;

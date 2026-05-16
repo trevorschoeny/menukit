@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.WeakHashMap;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Internal registry mapping M5 regions to their registered panels. Holds
@@ -45,6 +46,7 @@ import java.util.WeakHashMap;
  * MenuContext {@link ScreenPanelAdapter} overload and the HUD panel
  * builder register and resolve on their behalf.
  */
+@ApiStatus.Internal
 public final class RegionRegistry {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("menukit");

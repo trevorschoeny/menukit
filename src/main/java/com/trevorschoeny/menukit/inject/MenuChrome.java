@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashMap;
 import java.util.Map;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Library-owned registry of vanilla-menu-chrome extents — the pixel
@@ -38,6 +39,7 @@ import java.util.Map;
  * be a one-frame visual transition as the provider picks up the new state.
  * In practice imperceptible; acceptable for current cases.
  */
+@ApiStatus.Internal
 public final class MenuChrome {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("menukit");

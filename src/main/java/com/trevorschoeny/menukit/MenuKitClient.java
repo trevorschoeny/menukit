@@ -148,7 +148,7 @@ public class MenuKitClient implements ClientModInitializer {
      */
     private static MenuChrome.ChromeExtents recipeBookChromeFor(
             AbstractContainerScreenAccessor screenAcc, int screenWidth) {
-        int currentLeftPos = screenAcc.trevorMod$getLeftPos();
+        int currentLeftPos = screenAcc.menuKit$getLeftPos();
         int tabLeft = (screenWidth - 147) / 2 - 116;
         int chromeLeft = currentLeftPos - tabLeft;
         if (chromeLeft <= 0) return MenuChrome.ChromeExtents.NONE;

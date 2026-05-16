@@ -36,6 +36,11 @@ dependencies {
     mappings loom.officialMojangMappings()
     modImplementation "net.fabricmc:fabric-loader:${property('loader_version')}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${property('fabric_version')}"
+
+    // @ApiStatus.Internal markers. Compile-only so consumers don't transitively
+    // depend on jetbrains-annotations at runtime; the annotation is a doc/IDE
+    // signal, never required at execution time.
+    compileOnly 'org.jetbrains:annotations:24.1.0'
 }
 
 loom {

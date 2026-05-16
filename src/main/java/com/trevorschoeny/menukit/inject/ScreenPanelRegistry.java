@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Library-owned registry of MenuContext {@link ScreenPanelAdapter}s that
@@ -65,6 +66,7 @@ import java.util.WeakHashMap;
  * mixin. {@link ScreenPanelAdapter#on} / {@link ScreenPanelAdapter#onAny}
  * throw if called on them.
  */
+@ApiStatus.Internal
 public final class ScreenPanelRegistry {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("menukit");
@@ -890,10 +892,10 @@ public final class ScreenPanelRegistry {
     private static ScreenBounds frameBounds(AbstractContainerScreen<?> screen) {
         AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
         return new ScreenBounds(
-                acc.trevorMod$getLeftPos(),
-                acc.trevorMod$getTopPos(),
-                acc.trevorMod$getImageWidth(),
-                acc.trevorMod$getImageHeight());
+                acc.menuKit$getLeftPos(),
+                acc.menuKit$getTopPos(),
+                acc.menuKit$getImageWidth(),
+                acc.menuKit$getImageHeight());
     }
 
     @SuppressWarnings("unchecked")

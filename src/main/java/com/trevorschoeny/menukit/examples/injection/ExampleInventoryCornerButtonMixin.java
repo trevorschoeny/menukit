@@ -15,6 +15,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Phase 10 injection example: Pattern 3 — panel at vanilla-screen-bounds corner.
@@ -56,6 +57,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * <p><b>Dev-only.</b> See {@link DevOnlyExampleMixinsPlugin}.
  */
 @Mixin(AbstractContainerScreen.class)
+@ApiStatus.Internal
 public abstract class ExampleInventoryCornerButtonMixin {
 
     @Shadow protected int leftPos;

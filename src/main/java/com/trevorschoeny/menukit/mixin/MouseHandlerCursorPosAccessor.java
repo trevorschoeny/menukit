@@ -1,6 +1,7 @@
 package com.trevorschoeny.menukit.mixin;
 
 import net.minecraft.client.MouseHandler;
+import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.gen.Accessor;
@@ -30,6 +31,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
  *
  * <p>Same module + same convention as {@code SlotPositionAccessor}.
  */
+@ApiStatus.Internal
 @Mixin(MouseHandler.class)
 public interface MouseHandlerCursorPosAccessor {
 

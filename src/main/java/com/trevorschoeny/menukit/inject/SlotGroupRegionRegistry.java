@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Internal registry for SlotGroupContext panel registrations.
@@ -29,6 +30,7 @@ import java.util.WeakHashMap;
  * <p><b>Internal only.</b> Consumers don't call this directly — the
  * {@link SlotGroupPanelAdapter#on} method registers on their behalf.
  */
+@ApiStatus.Internal
 public final class SlotGroupRegionRegistry {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("menukit-containers");

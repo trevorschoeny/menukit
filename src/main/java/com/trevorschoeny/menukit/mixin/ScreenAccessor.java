@@ -4,6 +4,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
@@ -28,6 +29,7 @@ import org.spongepowered.asm.mixin.gen.Invoker;
  * still receives charTyped/keyPressed/focus dispatch via vanilla's
  * {@code Screen.children()} pipeline.
  */
+@ApiStatus.Internal
 @Mixin(Screen.class)
 public interface ScreenAccessor {
 

@@ -7,6 +7,7 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
 import java.util.List;
 import java.util.Set;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Mixin-config plugin that gates the Phase 10 injection examples on the
@@ -23,6 +24,7 @@ import java.util.Set;
  * in the dev client (Fabric Loom's {@code runClient} and similar), {@code false}
  * in every other environment.
  */
+@ApiStatus.Internal
 public final class DevOnlyExampleMixinsPlugin implements IMixinConfigPlugin {
 
     @Override

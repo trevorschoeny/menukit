@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * MK-side contract verification — runs the pure-MK contracts that don't touch
@@ -44,6 +45,7 @@ import java.util.Optional;
  * ({@code :validator-mk}) calls {@link #runAll()} directly; no MKC types are
  * referenced anywhere in the contract bodies.
  */
+@ApiStatus.Internal
 public final class MKContractVerification {
 
     private MKContractVerification() {}

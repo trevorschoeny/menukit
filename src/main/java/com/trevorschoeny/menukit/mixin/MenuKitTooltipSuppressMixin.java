@@ -4,6 +4,7 @@ import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
 
 import net.minecraft.client.gui.GuiGraphics;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -61,6 +62,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * intent (modality is a per-Panel property; library-wide dispatch
  * mechanism makes it work) while delivering on the modal contract.
  */
+@ApiStatus.Internal
 @Mixin(GuiGraphics.class)
 public abstract class MenuKitTooltipSuppressMixin {
 

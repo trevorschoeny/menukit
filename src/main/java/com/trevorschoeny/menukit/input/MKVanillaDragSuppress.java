@@ -4,6 +4,7 @@ import com.trevorschoeny.menukit.MenuKit;
 
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Suppresses vanilla's quick-craft drag-distribution system so that custom
@@ -20,6 +21,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
  *
  * <p>Part of the <b>MenuKit</b> gesture-to-action framework.
  */
+@ApiStatus.Internal
 public final class MKVanillaDragSuppress {
 
     private static boolean suppressed = false;

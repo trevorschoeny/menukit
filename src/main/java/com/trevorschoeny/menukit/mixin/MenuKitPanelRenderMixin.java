@@ -5,6 +5,7 @@ import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -57,6 +58,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * §8.2 for the design note explaining this deviation from the initial
  * spec.
  */
+@ApiStatus.Internal
 @Mixin(AbstractContainerScreen.class)
 public abstract class MenuKitPanelRenderMixin {
 

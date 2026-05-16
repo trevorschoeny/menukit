@@ -5,6 +5,7 @@ import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
 import net.minecraft.client.KeyboardHandler;
 import net.minecraft.client.input.KeyEvent;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -36,6 +37,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * key while dialog is up, hotbar number-keys for some reason), fold a
  * per-key allowlist post-smoke.
  */
+@ApiStatus.Internal
 @Mixin(KeyboardHandler.class)
 public abstract class MenuKitModalKeyboardHandlerMixin {
 

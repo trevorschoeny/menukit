@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Library-owned registry of SlotGroupContext {@link SlotGroupPanelAdapter}s
@@ -45,6 +46,7 @@ import java.util.Set;
  * correct UX (modal blocks all interaction) and matches user expectations.
  * Documented in 16a REPORT §3.
  */
+@ApiStatus.Internal
 public final class SlotGroupPanelRegistry {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("menukit-containers");
@@ -220,8 +222,8 @@ public final class SlotGroupPanelRegistry {
             if (sy + 16 > maxY) maxY = sy + 16;
         }
         AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
-        int frameLeft = acc.trevorMod$getLeftPos();
-        int frameTop = acc.trevorMod$getTopPos();
+        int frameLeft = acc.menuKit$getLeftPos();
+        int frameTop = acc.menuKit$getTopPos();
         return new SlotGroupBounds(
                 frameLeft + minX,
                 frameTop + minY,

@@ -6,6 +6,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -63,6 +64,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <p>See {@code menukit/Design Docs/Phase 12.5/V5_6_FINDING_RECIPEBOOK_RENDER_OVERRIDE.md}
  * for the finding that surfaced this and the design rationale.
  */
+@ApiStatus.Internal
 @Mixin(AbstractRecipeBookScreen.class)
 public abstract class MenuKitRecipeBookPanelRenderMixin {
 

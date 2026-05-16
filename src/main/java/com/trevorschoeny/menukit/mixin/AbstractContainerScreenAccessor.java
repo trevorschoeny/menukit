@@ -2,6 +2,7 @@ package com.trevorschoeny.menukit.mixin;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
+import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
@@ -18,23 +19,24 @@ import java.util.Set;
  *
  * Usage: cast the InventoryScreen instance to this interface via (AbstractContainerScreenAccessor)(Object)this
  */
+@ApiStatus.Internal
 @Mixin(AbstractContainerScreen.class)
 public interface AbstractContainerScreenAccessor {
 
     @Accessor("leftPos")
-    int trevorMod$getLeftPos();
+    int menuKit$getLeftPos();
 
     @Accessor("topPos")
-    int trevorMod$getTopPos();
+    int menuKit$getTopPos();
 
     @Accessor("imageWidth")
-    int trevorMod$getImageWidth();
+    int menuKit$getImageWidth();
 
     @Accessor("imageHeight")
-    int trevorMod$getImageHeight();
+    int menuKit$getImageHeight();
 
     @Accessor("hoveredSlot")
-    Slot trevorMod$getHoveredSlot();
+    Slot menuKit$getHoveredSlot();
 
     // ── Vanilla quick-craft state ────────────────────────────────────────
     //

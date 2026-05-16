@@ -7,6 +7,7 @@ import net.minecraft.client.Minecraft;
 
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Phase 16h — utility for preserving OS cursor position across screen
@@ -58,6 +59,7 @@ import org.lwjgl.glfw.GLFW;
  * ambient behavior beyond "cursor stays where it was" — which is the
  * intuitively-correct user-facing default.
  */
+@ApiStatus.Internal
 public final class CursorContinuity {
 
     private CursorContinuity() {}

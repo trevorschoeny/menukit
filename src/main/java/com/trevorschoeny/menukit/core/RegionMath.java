@@ -4,6 +4,7 @@ import com.trevorschoeny.menukit.inject.ScreenBounds;
 import com.trevorschoeny.menukit.inject.ScreenOrigin;
 
 import java.util.Optional;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Pure coordinate resolver for M5 regions. Given explicit inputs — anchor-frame
@@ -23,6 +24,7 @@ import java.util.Optional;
  * maps {@code Optional.empty()} to {@link ScreenOrigin#OUT_OF_REGION} so
  * existing {@code ScreenOriginFn} signatures stay stable. See §6.5.
  */
+@ApiStatus.Internal
 public final class RegionMath {
 
     private RegionMath() {}

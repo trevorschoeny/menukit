@@ -11,6 +11,7 @@ import org.lwjgl.glfw.GLFW;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.Consumer;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Shared, callback-driven capture engine for multi-key keybind recording.
@@ -45,6 +46,7 @@ import java.util.function.Consumer;
  *
  * <p>Part of the <b>MenuKit</b> framework.
  */
+@ApiStatus.Internal
 public class MKKeybindCapture {
 
     // ── Constants ────────────────────────────────────────────────────────────

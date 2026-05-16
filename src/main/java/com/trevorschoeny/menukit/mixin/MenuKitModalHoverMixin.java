@@ -5,6 +5,7 @@ import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -51,6 +52,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * concept — so the mixin lives at the screen-class level. AbstractContainerScreen
  * covers all inventory-screen subclasses uniformly.
  */
+@ApiStatus.Internal
 @Mixin(AbstractContainerScreen.class)
 public abstract class MenuKitModalHoverMixin {
 
