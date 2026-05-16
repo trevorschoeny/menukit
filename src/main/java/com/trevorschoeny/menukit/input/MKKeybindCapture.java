@@ -15,9 +15,9 @@ import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Shared, callback-driven capture engine for multi-key keybind recording.
- * Both the YACL settings widget ({@link MKKeybindController.KeybindWidget})
- * and the vanilla Controls screen ({@code MKKeyBindsScreenMixin}) delegate
- * to a single instance of this class during capture sessions.
+ * Consumer-built capture UIs (such as YACL-based keybind widgets) and the
+ * vanilla Controls screen ({@code MKKeyBindsScreenMixin}) delegate to a
+ * single instance of this class during capture sessions.
  *
  * <h3>High Water Mark pattern</h3>
  * <p>Two sets track the capture session:
