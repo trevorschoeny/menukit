@@ -2,6 +2,7 @@ package com.trevorschoeny.menukit.input;
 
 import com.trevorschoeny.menukit.mixin.MouseHandlerCursorPosAccessor;
 
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 
@@ -47,6 +48,14 @@ import org.jetbrains.annotations.ApiStatus;
  *       glfwSetCursorPos alone wouldn't update the internal handler
  *       state; the mixin sync covers that gap. One-shot, cleared after
  *       restore so subsequent unrelated opens don't get a stale pose.</li>
+ *   <li><b>HUD invalidation (Phase 17 follow-up):</b> a per-tick listener
+ *       clears the stash whenever {@code Minecraft.screen == null}.
+ *       Reason: HUD → first-screen-open should center the cursor
+ *       (vanilla default), not restore from a long-stale stash left over
+ *       from the last screen the user closed. Chained
+ *       screen → screen transitions don't tick through HUD (setScreen is
+ *       synchronous: remove → set new screen → init), so the stash
+ *       survives those. Only an actual close-to-HUD frame invalidates.</li>
  * </ul>
  *
  * <h3>Library-not-platform alignment (§0019)</h3>
@@ -126,6 +135,12 @@ public final class CursorContinuity {
      *       cursor and clear the stash.</li>
      * </ol>
      *
+     * <p>Also wires a per-tick HUD-invalidation listener (see class javadoc
+     * "HUD invalidation"): whenever {@code Minecraft.screen == null}, clear
+     * any pending stash so the next HUD → screen-open lands with vanilla's
+     * centering behavior. Chained screen → screen transitions don't tick
+     * through HUD and therefore preserve the stash for restore.
+     *
      * <p>Call once from the library's client-init entry point. Idempotent
      * at the cost of duplicate listeners — but typically called exactly
      * once.
@@ -134,6 +149,16 @@ public final class CursorContinuity {
         ScreenEvents.AFTER_INIT.register((client, screen, sw, sh) -> {
             ScreenEvents.remove(screen).register(s -> capture());
             restoreIfAny();
+        });
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            // HUD frame — invalidate any stash so next screen-open centers
+            // (vanilla default). Chained screen → screen transitions are
+            // synchronous within setScreen() and never tick through here
+            // with screen == null, so this only triggers on real
+            // close-to-HUD events.
+            if (client.screen == null && stashed != null) {
+                stashed = null;
+            }
         });
     }
 }
