@@ -79,7 +79,10 @@ public class MKHudNotification {
         this.height = height;
     }
 
+    /** The unique key this notification was registered under. */
     public String getKey() { return key; }
+
+    /** Total display duration in milliseconds (excludes slide-in but includes fade-out). */
     public int getDurationMs() { return durationMs; }
 
     /**
@@ -168,6 +171,12 @@ public class MKHudNotification {
     // Builder
     // ═══════════════════════════════════════════════════════════════════
 
+    /**
+     * Creates a new notification builder.
+     *
+     * @param key unique identifier used to trigger this notification at runtime
+     *            (see {@link MenuKit#notify(String, String)})
+     */
     public static Builder builder(String key) {
         return new Builder(key);
     }
@@ -186,6 +195,7 @@ public class MKHudNotification {
 
         Builder(String key) { this.key = key; }
 
+        /** Sets the screen-edge anchor and offset (default: TOP_CENTER, 0, 10). */
         public Builder anchor(MKHudAnchor anchor, int offsetX, int offsetY) {
             this.anchor = anchor;
             this.offsetX = offsetX;
@@ -193,14 +203,28 @@ public class MKHudNotification {
             return this;
         }
 
+        /** Total display duration in milliseconds; includes fade-out (default 3000). */
         public Builder duration(int ms) { this.durationMs = ms; return this; }
+
+        /** Fade-out duration at the tail end of the total duration (default 500). */
         public Builder fadeOut(int ms) { this.fadeMs = ms; return this; }
+
+        /** Direction the notification slides in from (default TOP). */
         public Builder slideFrom(SlideDirection dir) { this.slideFrom = dir; return this; }
+
+        /** Slide-in animation distance in pixels (default 20). */
         public Builder slideDistance(int pixels) { this.slideDistance = pixels; return this; }
+
+        /** Background style (default RAISED). */
         public Builder style(PanelStyle style) { this.style = style; return this; }
+
+        /** Inner padding between panel edge and content (default 6). */
         public Builder padding(int padding) { this.padding = padding; return this; }
+
+        /** Explicit panel size; if 0, auto-sized from content. */
         public Builder size(int width, int height) { this.width = width; this.height = height; return this; }
 
+        /** Builds and registers the notification template with MenuKit. */
         public void build() {
             MKHudNotification notification = new MKHudNotification(
                     key, anchor, offsetX, offsetY,
