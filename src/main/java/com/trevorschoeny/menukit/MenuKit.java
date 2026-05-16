@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Mod entry point for MenuKit, plus thin facades for the orthogonal
@@ -42,6 +43,7 @@ import java.util.Map;
  * anything truly process-wide (HUD overlays, notification triggers) is the
  * only thing that lives here.
  */
+@ApiStatus.Internal
 public class MenuKit implements ModInitializer {
 
     /** MenuKit's own logger — independent of any consuming mod's logger. */

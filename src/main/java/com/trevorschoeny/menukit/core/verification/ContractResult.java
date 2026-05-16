@@ -1,5 +1,7 @@
 package com.trevorschoeny.menukit.core.verification;
 
+import org.jetbrains.annotations.ApiStatus;
+
 /**
  * A single contract result — pass/fail with a human-readable name and detail.
  *
@@ -20,6 +22,7 @@ package com.trevorschoeny.menukit.core.verification;
  * @param passed  true if the contract passed
  * @param detail  free-form detail string; empty if no detail to report
  */
+@ApiStatus.Internal
 public record ContractResult(String name, boolean passed, String detail) {
 
     /** Convenience factory for passing contracts with no detail. */

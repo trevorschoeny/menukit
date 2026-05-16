@@ -24,6 +24,7 @@ import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Client-side entry point for MenuKit.
@@ -43,6 +44,7 @@ import java.util.List;
  * <p>Both exist here because they're cross-cutting concerns that benefit
  * every inventory screen, not features tied to any single consumer mod.
  */
+@ApiStatus.Internal
 public class MenuKitClient implements ClientModInitializer {
 
     @Override

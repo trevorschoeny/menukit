@@ -8,6 +8,7 @@ import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Detects keybind conflicts between an {@link MKKeybind} and all registered
@@ -26,6 +27,7 @@ import java.util.List;
  *
  * <p>Part of the <b>MenuKit</b> framework.
  */
+@ApiStatus.Internal
 public final class MKKeybindConflicts {
 
     private MKKeybindConflicts() {

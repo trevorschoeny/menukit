@@ -15,6 +15,7 @@ import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Standalone screen for displaying contract results. Takes a
@@ -50,6 +51,7 @@ import java.util.List;
  * {@link com.trevorschoeny.menukit.core.ScrollContainer} wrap if scrolling
  * becomes necessary.
  */
+@ApiStatus.Internal
 public class MKContractScreen extends MenuKitScreen {
 
     /** Height of each result row (matches default font line height + small padding). */

@@ -1,6 +1,7 @@
 package com.trevorschoeny.menukit.core.verification;
 
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * A slot-free abstraction for running a contract suite and producing results.
@@ -26,6 +27,7 @@ import java.util.List;
  * the other via callback-back-edges.
  */
 @FunctionalInterface
+@ApiStatus.Internal
 public interface ContractRunner {
 
     /**
