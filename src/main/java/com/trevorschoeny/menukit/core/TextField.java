@@ -13,6 +13,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * Single-line editable text field. Phase 14d-3 — wraps vanilla
@@ -79,6 +80,9 @@ public class TextField implements PanelElement {
     /** Track which screen we're attached to so detach knows what to remove from. */
     private @Nullable Screen attachedScreen;
 
+    /** Optional hover-triggered tooltip set via {@link #tooltip(Component)}. */
+    private @Nullable Supplier<Component> tooltipSupplier;
+
     private TextField(Builder b) {
         this.childX = b.childX;
         this.childY = b.childY;
@@ -131,6 +135,37 @@ public class TextField implements PanelElement {
             // sentinel mouse coords so EditBox.isHovered returns false.
             editBox.render(ctx.graphics(), -1, -1, 0f);
         }
+
+        // Tooltip — fires over the text-field bounds. Useful for "what
+        // format does this field accept" disclosure. Queued for end-of-
+        // frame flush.
+        if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
+            Component ttText = tooltipSupplier.get();
+            if (ttText != null) {
+                ctx.graphics().setTooltipForNextFrame(
+                        Minecraft.getInstance().font, ttText,
+                        ctx.mouseX(), ctx.mouseY());
+            }
+        }
+    }
+
+    // ── Tooltip (optional hover-triggered configuration) ──────────────
+
+    /**
+     * Attaches a hover-triggered tooltip with fixed text. Returns this
+     * TextField for method chaining.
+     */
+    public TextField tooltip(Component text) {
+        return tooltip(() -> text);
+    }
+
+    /**
+     * Attaches a hover-triggered tooltip with supplier-driven text. Returns
+     * this TextField for method chaining.
+     */
+    public TextField tooltip(Supplier<Component> supplier) {
+        this.tooltipSupplier = supplier;
+        return this;
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ package com.trevorschoeny.menukit.inject;
 
 import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
+import com.trevorschoeny.menukit.mixin.ScreenAccessor;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
@@ -294,6 +295,24 @@ public final class ScreenPanelRegistry {
         // resolve per-frame inside renderMatchingPanels / the click hook
         // below because menu.slots can mutate mid-session.
         SCREEN_DATA.put(acs, new ScreenRenderData(menuMatches));
+
+        // Phase 17 — render dispatch via Screen.addRenderableOnly instead
+        // of a mixin INVOKE injection. Renderables iterate during
+        // Screen.render BEFORE the end-of-frame tooltip flush, so widgets
+        // calling GuiGraphics.setTooltipForNextFrame during render get
+        // their tooltip drawn in the same frame. The mixin path
+        // (MenuKitPanelRenderMixin, removed in Phase 17) injected at
+        // INVOKE renderCarriedItem — correct stratum for visual ordering
+        // but the renderables-iteration path is the standard MC integration
+        // point and matches how vanilla widgets render.
+        //
+        // The Renderable is auto-cleared by Screen.clearWidgets() on next
+        // init() — no manual removal needed.
+        if (!menuMatches.isEmpty()) {
+            ((ScreenAccessor) screen).menuKit$addRenderableOnly(
+                    (graphics, mx, my, partialTick) ->
+                            renderMatchingPanels(acs, graphics, mx, my));
+        }
 
         // Phase 14d-3 — fire onAttach lifecycle hook on each matched
         // adapter's panel elements so widget-wrapping elements (TextField

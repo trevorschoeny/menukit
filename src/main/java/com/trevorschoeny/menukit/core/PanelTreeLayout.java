@@ -89,6 +89,12 @@ public record PanelTreeLayout(
         boolean anyVisible = false;
         for (Panel panel : panels) {
             if (!panel.isVisible()) continue;
+            // Phase 17 — skip overlay panels (Panel.dimsBehind()) from the
+            // bounds aggregation that drives screen centering. They're
+            // positioned independently (screen-centered) by the render
+            // layer; including them in the centering math would shift the
+            // body stack whenever an overlay's visibility toggles.
+            if (panel.dimsBehind()) continue;
             PanelBounds b = bounds.get(panel.getId());
             if (b == null) continue;
             anyVisible = true;

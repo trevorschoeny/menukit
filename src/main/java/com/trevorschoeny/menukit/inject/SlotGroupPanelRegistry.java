@@ -147,6 +147,17 @@ public final class SlotGroupPanelRegistry {
             dispatchSlotGroupClicks(acs, event.x(), event.y(), event.button());
             return true; // passthrough — vanilla still processes
         });
+
+        // Phase 17 — render dispatch via Screen.addRenderableOnly instead
+        // of a mixin INVOKE injection. Matches the same shift on the
+        // ScreenPanelRegistry side; the SlotGroupPanelRenderMixin was
+        // removed in Phase 17. See ScreenPanelRegistry.onScreenInit's
+        // companion block for the rationale. Registered AFTER the MK-side
+        // render renderable so slot-group panels paint on top (matching
+        // the prior "MenuKit first, slot-group second" stratum order).
+        ((com.trevorschoeny.menukit.mixin.ScreenAccessor) screen).menuKit$addRenderableOnly(
+                (graphics, mx, my, partialTick) ->
+                        renderMatchingPanels(acs, graphics, mx, my));
     }
 
     /**

@@ -1,5 +1,9 @@
 package com.trevorschoeny.menukit.core;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
+
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
@@ -63,6 +67,19 @@ public class Panel {
     private final PanelPosition position;
     private final int toggleKey; // GLFW key code that toggles visibility, or -1 for none
     private boolean visible;
+
+    /**
+     * Optional panel-level hover-triggered tooltip. Fires when the cursor is
+     * over the panel's outer bounds regardless of which child element (if
+     * any) is also hovered. Consumers who want tooltips that fire only on
+     * specific children should put tooltips on those children — child
+     * tooltips can overlap with this one and both will queue
+     * (last-call-wins per vanilla's {@code setTooltipForNextFrame} semantics,
+     * so child-render order determines which wins; the element pass runs
+     * before this panel-level tooltip pass, so the panel tooltip wins by
+     * default — see {@link #maybeQueueTooltip}).
+     */
+    private @Nullable Supplier<Component> tooltipSupplier;
 
     // ── Size pinning (M5 region stacking) ──────────────────────────────
     // When pinnedWidth >= 0, getWidth() returns pinnedWidth regardless of
@@ -733,6 +750,65 @@ public class Panel {
      */
     public Panel modal() {
         return opaque(true).dimsBehind(true).tracksAsModal(true);
+    }
+
+    // ── Tooltip (panel-level hover-triggered configuration) ───────────
+
+    /**
+     * Attaches a hover-triggered tooltip that fires whenever the cursor is
+     * over the panel's outer bounds. Returns this panel for chaining.
+     *
+     * <p>Useful for "what is this panel for" disclosure on collapsible /
+     * configurable panels. Consumers who want tooltips that fire only on
+     * specific children should put tooltips on those children — child
+     * tooltips are queued during the element-render pass and the
+     * panel-level tooltip is queued after, so by vanilla's
+     * last-call-wins semantics the panel tooltip takes precedence when
+     * both are configured AND the cursor is over a child.
+     */
+    public Panel tooltip(Component text) {
+        return tooltip(() -> text);
+    }
+
+    /**
+     * Attaches a hover-triggered tooltip with supplier-driven text.
+     * Supplier invoked each frame while the panel is hovered. Returns this
+     * panel for chaining.
+     */
+    public Panel tooltip(Supplier<Component> supplier) {
+        this.tooltipSupplier = supplier;
+        return this;
+    }
+
+    /** Returns the configured tooltip supplier (nullable), for callers that need to inspect. */
+    public @Nullable Supplier<Component> getTooltipSupplier() {
+        return tooltipSupplier;
+    }
+
+    /**
+     * Queues the panel-level tooltip (if configured) when the cursor is
+     * over the given outer rect. Called by each panel-rendering site
+     * (MenuKitScreen, MenuKitHandledScreen, ScreenPanelAdapter,
+     * SlotGroupPanelAdapter) AFTER element rendering. No-op when the
+     * tooltip supplier is unset or the cursor is out of bounds.
+     *
+     * <p>Skips when {@code hasMouseInput} is {@code false} — HUD contexts
+     * use sentinel {@code mouseX = -1} per RenderContext conventions, so
+     * the hit test would happen to miss, but the explicit gate makes the
+     * intent clear and saves the supplier call.
+     */
+    public void maybeQueueTooltip(GuiGraphics graphics,
+                                  int panelX, int panelY,
+                                  int panelWidth, int panelHeight,
+                                  int mouseX, int mouseY,
+                                  boolean hasMouseInput) {
+        if (tooltipSupplier == null || !hasMouseInput) return;
+        if (mouseX < panelX || mouseX >= panelX + panelWidth) return;
+        if (mouseY < panelY || mouseY >= panelY + panelHeight) return;
+        Component text = tooltipSupplier.get();
+        if (text == null) return;
+        graphics.setTooltipForNextFrame(
+                Minecraft.getInstance().font, text, mouseX, mouseY);
     }
 
     // ── Owner Reference ─────────────────────────────────────────────────

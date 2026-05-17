@@ -5,6 +5,7 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.Nullable;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -28,6 +29,8 @@ import java.util.function.Supplier;
  * <ul>
  *   <li><b>Normal:</b> raised panel background, white text with shadow</li>
  *   <li><b>Hovered:</b> raised panel background + translucent highlight, white text</li>
+ *   <li><b>Pressed:</b> inset panel background (sunken bevel) while a left-click is held —
+ *       a tactile "the player is pushing this button" affordance. Cleared on release</li>
  *   <li><b>Disabled:</b> dark panel background, gray text</li>
  * </ul>
  *
@@ -65,6 +68,13 @@ public class Button implements PanelElement {
     // Hover state — updated each render frame. Not persisted.
     // Read by mouseClicked to gate the click on hover.
     private boolean hovered = false;
+
+    // Press affordance — true while a left-click is held down on this button.
+    // Set in mouseClicked, cleared in mouseReleased. Drives the INSET
+    // background style so the button visually depresses while held, returning
+    // to RAISED on release. Pure cosmetic state; the actual click action
+    // already fired on mouseClicked.
+    private boolean pressed = false;
 
     /**
      * @param childX       X position within panel content area
@@ -141,6 +151,9 @@ public class Button implements PanelElement {
     /** Returns whether the mouse is currently over this button (updated each frame). */
     public boolean isHovered() { return hovered; }
 
+    /** Returns whether a left-click is currently held down on this button. */
+    public boolean isPressed() { return pressed; }
+
     // ── Tooltip (optional hover-triggered configuration) ───────────────
 
     /**
@@ -185,6 +198,26 @@ public class Button implements PanelElement {
         // false regardless of where the mouse cursor actually is.
         hovered = isHovered(ctx);
 
+        // Press-affordance ground-truth sync. mouseReleased dispatches
+        // reliably when press and release happen on the same screen, but
+        // some Buttons (e.g., validator-mk's persistent inventory Test
+        // button) live across screen transitions: a click that navigates
+        // to a new screen sees the release dispatched to the new screen,
+        // never to this button instance. Without this sync, `pressed`
+        // would stick true until the next mouseReleased on this button's
+        // screen — which might never come. Polling GLFW's actual mouse
+        // state at render time keeps `pressed` honest regardless of where
+        // the release event was routed.
+        if (pressed && Minecraft.getInstance() != null
+                && Minecraft.getInstance().getWindow() != null) {
+            int btnState = GLFW.glfwGetMouseButton(
+                    Minecraft.getInstance().getWindow().handle(),
+                    GLFW.GLFW_MOUSE_BUTTON_LEFT);
+            if (btnState == GLFW.GLFW_RELEASE) {
+                pressed = false;
+            }
+        }
+
         renderBackground(ctx, sx, sy);
         renderContent(ctx, sx, sy);
 
@@ -222,6 +255,11 @@ public class Button implements PanelElement {
         boolean disabled = isDisabled();
         if (disabled) {
             PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, PanelStyle.DARK);
+        } else if (pressed) {
+            // Press affordance — INSET sprite (sunken bevel) signals "the
+            // button is currently being pushed down." Skips the hover overlay
+            // since the depressed look is itself the feedback.
+            PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, PanelStyle.INSET);
         } else {
             PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, PanelStyle.RAISED);
             if (hovered) {
@@ -274,8 +312,27 @@ public class Button implements PanelElement {
         // be true here. Keep the check as defensive symmetry.
         if (!hovered) return false;
 
+        // Set press-affordance state BEFORE invoking onClick. Order matters
+        // for click handlers that immediately query button visual state.
+        pressed = true;
         onClick.accept(this);
         return true;
+    }
+
+    /**
+     * Clears the press-affordance state on left-button release. Fires
+     * regardless of cursor position (the dispatcher routes release events
+     * un-hit-tested per {@link PanelElement#mouseReleased}), so a
+     * press-then-drag-off still releases the visual depression. Returns
+     * {@code false} — release isn't "consumed" in the usual sense; we just
+     * piggyback on the dispatch to reset cosmetic state.
+     */
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (button == 0) {
+            pressed = false;
+        }
+        return false;
     }
 
     // ── Icon-only Button variant ───────────────────────────────────────
@@ -361,6 +418,132 @@ public class Button implements PanelElement {
                     RenderPipelines.GUI_TEXTURED, id,
                     sx + INSET, sy + INSET, iconSize, iconSize,
                     alpha);
+        }
+    }
+
+    // ── Custom-sprite Button variant ───────────────────────────────────
+
+    /**
+     * Creates a Button whose <i>entire background</i> is a consumer-supplied
+     * sprite, replacing the default RAISED / INSET / DARK panel styles. The
+     * sprite is responsible for the whole button look — frame, fill, any
+     * decoration. Use this when the default panel-style chrome doesn't fit
+     * (themed buttons, embossed buttons, sprite-art buttons, etc.).
+     *
+     * <p>Per-state rendering:
+     * <ul>
+     *   <li><b>Normal:</b> sprite drawn as-is.</li>
+     *   <li><b>Hovered:</b> sprite + translucent white overlay (same hover
+     *       affordance as the default Button).</li>
+     *   <li><b>Pressed:</b> sprite rendered through a custom GLSL pipeline
+     *       that inverts each pixel's HSL <i>lightness</i> while preserving
+     *       hue and saturation. Blacks → whites, dark blues → light blues,
+     *       light greys → dark greys. Reads as "this button is being pushed
+     *       down" without relying on a separate pressed-state texture.</li>
+     *   <li><b>Disabled:</b> sprite + dark translucent overlay (~50% black).</li>
+     * </ul>
+     *
+     * <p>Optional text label sits on top of the sprite, centered, using the
+     * same font/color rules as a default Button. Pass {@link Component#empty()}
+     * for a sprite-only button.
+     *
+     * @param childX  X position within panel content area
+     * @param childY  Y position within panel content area
+     * @param width   button width in pixels
+     * @param height  button height in pixels
+     * @param sprite  the sprite identifier to use as the button background
+     * @param label   centered text label, or {@link Component#empty()} for sprite-only
+     * @param onClick fired on left-click when enabled
+     */
+    public static Button sprite(int childX, int childY, int width, int height,
+                                Identifier sprite, Component label,
+                                Consumer<Button> onClick) {
+        return new SpriteButton(childX, childY, width, height, label,
+                (Supplier<Identifier>) () -> sprite, onClick);
+    }
+
+    /**
+     * Sprite-only convenience overload — equivalent to
+     * {@link #sprite(int, int, int, int, Identifier, Component, Consumer)}
+     * with {@link Component#empty()} as the label.
+     */
+    public static Button sprite(int childX, int childY, int width, int height,
+                                Identifier sprite, Consumer<Button> onClick) {
+        return sprite(childX, childY, width, height, sprite, Component.empty(), onClick);
+    }
+
+    /**
+     * Supplier-driven sprite overload. The supplier is invoked each frame,
+     * enabling state-swap patterns (e.g.,
+     * {@code () -> isMuted ? muteOn : muteOff}). The brightness-inverted
+     * pressed state still applies — the inversion runs on whatever sprite
+     * the supplier currently returns.
+     */
+    public static Button sprite(int childX, int childY, int width, int height,
+                                Supplier<Identifier> sprite, Component label,
+                                Consumer<Button> onClick) {
+        return new SpriteButton(childX, childY, width, height, label, sprite, onClick);
+    }
+
+    /**
+     * Sprite-only supplier overload. See
+     * {@link #sprite(int, int, int, int, Supplier, Component, Consumer)}.
+     */
+    public static Button sprite(int childX, int childY, int width, int height,
+                                Supplier<Identifier> sprite, Consumer<Button> onClick) {
+        return sprite(childX, childY, width, height, sprite, Component.empty(), onClick);
+    }
+
+    /**
+     * Custom-sprite Button specialization. Overrides {@link #renderBackground}
+     * to paint a consumer-supplied sprite (with state-driven variations)
+     * instead of the default panel-style backgrounds. {@link #renderContent}
+     * is inherited — the centered text label still renders on top.
+     * Package-private — consumers use the {@link #sprite(int, int, int, int, Identifier, Consumer)}
+     * factory methods, which return {@code Button}.
+     */
+    static final class SpriteButton extends Button {
+        /** Hover overlay color — same translucent white as the default Button. */
+        private static final int HOVER_OVERLAY = 0x30FFFFFF;
+        /** Disabled overlay color — ~50% black darkens the sprite as the disabled affordance. */
+        private static final int DISABLED_OVERLAY = 0x80000000;
+
+        private final Supplier<Identifier> spriteSupplier;
+
+        SpriteButton(int childX, int childY, int width, int height,
+                     Component text, Supplier<Identifier> sprite,
+                     Consumer<Button> onClick) {
+            super(childX, childY, width, height, text, onClick);
+            this.spriteSupplier = sprite;
+        }
+
+        @Override
+        protected void renderBackground(RenderContext ctx, int sx, int sy) {
+            Identifier id = spriteSupplier.get();
+            if (id == null) return;
+            int w = getWidth();
+            int h = getHeight();
+
+            if (isDisabled()) {
+                // Sprite + dark overlay.
+                ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);
+                ctx.graphics().fill(sx, sy, sx + w, sy + h, DISABLED_OVERLAY);
+            } else if (isPressed()) {
+                // Sprite through the HSL-lightness-inversion pipeline.
+                // No additional overlay — the inverted lightness IS the
+                // pressed-state affordance.
+                ctx.graphics().blitSprite(
+                        MenuKitRenderPipelines.GUI_BRIGHTNESS_INVERTED, id, sx, sy, w, h);
+            } else {
+                // Normal sprite.
+                ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);
+                if (isHovered()) {
+                    // Translucent white overlay — same hover affordance as
+                    // the default Button. Inset by 1px (mirrors the default).
+                    ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1,
+                            HOVER_OVERLAY);
+                }
+            }
         }
     }
 }

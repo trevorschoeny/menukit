@@ -82,6 +82,12 @@ public class ProgressBar implements PanelElement {
     private final int bgColor;
     private final @Nullable Supplier<Component> label;
 
+    /**
+     * Optional hover-triggered tooltip. Useful for "what is this bar measuring"
+     * disclosure on decorative bars where the label alone isn't enough.
+     */
+    private @Nullable Supplier<Component> tooltipSupplier;
+
     // ── Constructors: fixed value ─────────────────────────────────────
 
     /**
@@ -240,6 +246,35 @@ public class ProgressBar implements PanelElement {
                 graphics.drawString(mc.font, text, tx, ty, 0xFFFFFFFF, true);
             }
         }
+
+        // Tooltip — queues if cursor is over the bar bounds.
+        if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
+            Component ttText = tooltipSupplier.get();
+            if (ttText != null) {
+                graphics.setTooltipForNextFrame(
+                        Minecraft.getInstance().font, ttText,
+                        ctx.mouseX(), ctx.mouseY());
+            }
+        }
+    }
+
+    // ── Tooltip (optional hover-triggered configuration) ──────────────
+
+    /**
+     * Attaches a hover-triggered tooltip with fixed text. Returns this
+     * ProgressBar for method chaining.
+     */
+    public ProgressBar tooltip(Component text) {
+        return tooltip(() -> text);
+    }
+
+    /**
+     * Attaches a hover-triggered tooltip with supplier-driven text. Returns
+     * this ProgressBar for method chaining.
+     */
+    public ProgressBar tooltip(Supplier<Component> supplier) {
+        this.tooltipSupplier = supplier;
+        return this;
     }
 
     // mouseClicked, isVisible, isHovered inherit defaults from PanelElement.

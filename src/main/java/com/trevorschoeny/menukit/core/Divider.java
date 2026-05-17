@@ -1,5 +1,12 @@
 package com.trevorschoeny.menukit.core;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+
+import org.jspecify.annotations.Nullable;
+
+import java.util.function.Supplier;
+
 /**
  * A horizontal or vertical line separating content sections within a panel.
  * Pure visual, no interaction, no state.
@@ -45,6 +52,9 @@ public class Divider implements PanelElement {
     private final int width;
     private final int height;
     private final int color;
+
+    /** Optional hover-triggered tooltip. Useful for "what does this section separate" disclosure. */
+    private @Nullable Supplier<Component> tooltipSupplier;
 
     private Divider(int childX, int childY, int width, int height, int color) {
         this.childX = childX;
@@ -154,9 +164,40 @@ public class Divider implements PanelElement {
         int x = ctx.originX() + childX;
         int y = ctx.originY() + childY;
         ctx.graphics().fill(x, y, x + width, y + height, color);
+
+        // Tooltip — fires over the divider bounds. Useful even on a 1px
+        // line: hover area is the declared width × height, which can be
+        // padded by the consumer if needed.
+        if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
+            Component ttText = tooltipSupplier.get();
+            if (ttText != null) {
+                ctx.graphics().setTooltipForNextFrame(
+                        Minecraft.getInstance().font, ttText,
+                        ctx.mouseX(), ctx.mouseY());
+            }
+        }
     }
 
     // mouseClicked, isVisible, isHovered inherit defaults from PanelElement.
+
+    // ── Tooltip (optional hover-triggered configuration) ──────────────
+
+    /**
+     * Attaches a hover-triggered tooltip with fixed text. Returns this
+     * Divider for method chaining.
+     */
+    public Divider tooltip(Component text) {
+        return tooltip(() -> text);
+    }
+
+    /**
+     * Attaches a hover-triggered tooltip with supplier-driven text. Returns
+     * this Divider for method chaining.
+     */
+    public Divider tooltip(Supplier<Component> supplier) {
+        this.tooltipSupplier = supplier;
+        return this;
+    }
 
     /** Returns the divider's ARGB color. */
     public int getColor() { return color; }

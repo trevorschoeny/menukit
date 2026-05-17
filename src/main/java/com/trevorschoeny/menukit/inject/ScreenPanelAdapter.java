@@ -575,6 +575,14 @@ public final class ScreenPanelAdapter {
                 graphics, origin.x() + padding, origin.y() + padding,
                 effectiveMouseX, effectiveMouseY);
         com.trevorschoeny.menukit.core.PanelDispatch.renderElements(panel, ctx);
+
+        // Panel-level tooltip — fires over the panel's outer bounds
+        // (background-inclusive). Uses effectiveMouseX/Y so a modal-
+        // suppressed adapter doesn't queue its tooltip (matches the
+        // hover suppression applied to children).
+        panel.maybeQueueTooltip(graphics,
+                origin.x(), origin.y(), panelWidth, panelHeight,
+                effectiveMouseX, effectiveMouseY, ctx.hasMouseInput());
     }
 
     /**

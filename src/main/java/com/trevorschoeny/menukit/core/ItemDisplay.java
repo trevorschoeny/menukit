@@ -1,7 +1,10 @@
 package com.trevorschoeny.menukit.core;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
+
+import org.jspecify.annotations.Nullable;
 
 import java.util.function.Supplier;
 
@@ -45,6 +48,14 @@ public class ItemDisplay implements PanelElement {
     private final Supplier<ItemStack> stackSupplier;
     private final boolean showCount;
     private final boolean showDurability;
+
+    /**
+     * Optional hover-triggered tooltip. Overrides any item-intrinsic tooltip
+     * vanilla would otherwise show (vanilla item tooltips on hover are an
+     * inventory-screen feature; ItemDisplay is decorative and doesn't get
+     * them by default — this is an opt-in helper).
+     */
+    private @Nullable Supplier<Component> tooltipSupplier;
 
     // ── Constructors: fixed stack ─────────────────────────────────────
 
@@ -185,6 +196,36 @@ public class ItemDisplay implements PanelElement {
                 graphics.renderItemDecorations(mc.font, stack, drawX, drawY);
             }
         }
+
+        // Tooltip — fires when cursor is over the icon bounds. Queue via
+        // setTooltipForNextFrame so the end-of-frame flush draws it.
+        if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
+            Component ttText = tooltipSupplier.get();
+            if (ttText != null) {
+                graphics.setTooltipForNextFrame(
+                        mc.font, ttText, ctx.mouseX(), ctx.mouseY());
+            }
+        }
+    }
+
+    // ── Tooltip (optional hover-triggered configuration) ──────────────
+
+    /**
+     * Attaches a hover-triggered tooltip with fixed text. Returns this
+     * ItemDisplay for method chaining.
+     */
+    public ItemDisplay tooltip(Component text) {
+        return tooltip(() -> text);
+    }
+
+    /**
+     * Attaches a hover-triggered tooltip with supplier-driven text.
+     * Supplier invoked each frame while hovered. Returns this ItemDisplay
+     * for method chaining.
+     */
+    public ItemDisplay tooltip(Supplier<Component> supplier) {
+        this.tooltipSupplier = supplier;
+        return this;
     }
 
     // mouseClicked, isVisible, isHovered inherit defaults from PanelElement.

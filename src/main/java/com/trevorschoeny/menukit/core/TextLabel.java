@@ -4,6 +4,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -68,6 +70,12 @@ public class TextLabel implements PanelElement {
     // semantics baked in would invert that dependency. See Panel.java's
     // propagateConfiguration() for the propagation entry point.
     private int wrapWidth = 0;
+
+    /**
+     * Optional hover-triggered tooltip. Useful for truncated labels or
+     * jargon-heavy text that benefits from disclosure on hover.
+     */
+    private @Nullable Supplier<Component> tooltipSupplier;
 
     // ── Constructors: fixed text ──────────────────────────────────────
 
@@ -252,11 +260,38 @@ public class TextLabel implements PanelElement {
                 ctx.graphics().drawString(font, line, x, lineY, color, shadow);
                 lineY += font.lineHeight;
             }
-            return;
+        } else {
+            // Legacy single-line path.
+            ctx.graphics().drawString(font, text, x, y, color, shadow);
         }
 
-        // Legacy single-line path.
-        ctx.graphics().drawString(font, text, x, y, color, shadow);
+        // Tooltip — queues if cursor is over the label bounds.
+        if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
+            Component ttText = tooltipSupplier.get();
+            if (ttText != null) {
+                ctx.graphics().setTooltipForNextFrame(
+                        font, ttText, ctx.mouseX(), ctx.mouseY());
+            }
+        }
+    }
+
+    // ── Tooltip (optional hover-triggered configuration) ──────────────
+
+    /**
+     * Attaches a hover-triggered tooltip with fixed text. Returns this
+     * TextLabel for method chaining.
+     */
+    public TextLabel tooltip(Component text) {
+        return tooltip(() -> text);
+    }
+
+    /**
+     * Attaches a hover-triggered tooltip with supplier-driven text. Returns
+     * this TextLabel for method chaining.
+     */
+    public TextLabel tooltip(Supplier<Component> supplier) {
+        this.tooltipSupplier = supplier;
+        return this;
     }
 
     // mouseClicked inherits the default no-op from PanelElement.

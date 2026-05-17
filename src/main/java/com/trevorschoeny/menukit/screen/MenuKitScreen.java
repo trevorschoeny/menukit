@@ -76,6 +76,107 @@ public class MenuKitScreen extends Screen {
                 element.onAttach(this);
             }
         }
+        // Phase 17 — register panel rendering as a vanilla Renderable so it
+        // participates in Screen.render's renderables iteration. The
+        // iteration fires BEFORE the end-of-frame tooltip flush, so widgets
+        // calling GuiGraphics.setTooltipForNextFrame during render get their
+        // tooltip drawn in the same frame. Pre-Phase-17 we rendered panels
+        // AFTER super.render in this class's own render() override — that
+        // still beat the tooltip flush in theory, but routing through the
+        // standard renderables iteration is the architecturally clean path
+        // and matches how vanilla buttons participate.
+        //
+        // Added AFTER super.init() so MK panels render AFTER any vanilla-added
+        // renderables (their order in the renderables list = paint order).
+        // Cleared by Screen.clearWidgets() on next init() — re-register on
+        // every init() (including resize) keeps the registration fresh.
+        this.addRenderableOnly(this::renderPanels);
+    }
+
+    /**
+     * Renders all visible panels in two passes: backgrounds first, then
+     * element layers. Called from the renderables iteration registered in
+     * {@link #init()}. Pre-Phase-17 this body lived in {@code render()}
+     * after {@code super.render(...)}; moved into a {@link Renderable} so
+     * tooltip-flush ordering is correct.
+     *
+     * <p>Recomputes layout each frame so panels whose visibility is
+     * supplier-driven (e.g., a modal panel gated by {@link Panel#showWhen})
+     * get bounds entries when they become visible mid-screen. Matches
+     * {@code MenuKitHandledScreen.renderBg}'s per-frame
+     * {@code computeLayout()} for the same reason. Cheap — a few additions
+     * per panel.
+     */
+    private void renderPanels(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        computeLayout();
+
+        // ── Modal state survey ────────────────────────────────────────
+        // anyDimBehind   → render a dim overlay between non-dim and dim panels
+        // anyTracksModal → suppress hover/clicks on non-modal-tracking panels
+        boolean anyDimBehind = false;
+        boolean anyTracksModal = false;
+        for (Panel p : panels) {
+            if (!p.isVisible()) continue;
+            if (p.dimsBehind()) anyDimBehind = true;
+            if (p.tracksAsModal()) anyTracksModal = true;
+        }
+
+        // ── Pass 1: non-dim panels ────────────────────────────────────
+        // Non-modal-tracking panels render with sentinel mouse coords
+        // when a modal is up, so their widgets behave inert (no hover,
+        // no tooltip, no element-level click hit-test). Mirrors how
+        // ScreenPanelAdapter handles modal-tracking on vanilla screens.
+        for (Panel p : panels) {
+            if (!p.isVisible() || p.dimsBehind()) continue;
+            boolean suppressMouse = anyTracksModal && !p.tracksAsModal();
+            renderSinglePanel(p, graphics,
+                    suppressMouse ? -1 : mouseX,
+                    suppressMouse ? -1 : mouseY);
+        }
+
+        // ── Pass 2: dim overlay (between non-dim and dim panels) ──────
+        // Covers the full screen (vanilla bg + non-dim panels) so dim
+        // panels read as visually elevated. ~75% black — matches the
+        // ScreenPanelRegistry value (kept consistent across render paths).
+        if (anyDimBehind) {
+            graphics.fill(0, 0, this.width, this.height, 0xC0000000);
+        }
+
+        // ── Pass 3: dim panels on top of dim ──────────────────────────
+        // Dim panels keep real mouse coords — they're the active surface.
+        for (Panel p : panels) {
+            if (!p.isVisible() || !p.dimsBehind()) continue;
+            renderSinglePanel(p, graphics, mouseX, mouseY);
+        }
+    }
+
+    /**
+     * Renders a single panel's background + elements + panel-level tooltip.
+     * Called per-panel from the modal-aware 3-pass loop in
+     * {@link #renderPanels}. {@code mouseX}/{@code mouseY} may be sentinel
+     * {@code -1} when modal-tracking has suppressed this panel's interactive
+     * state — in that case the panel's elements receive the sentinel via
+     * {@link RenderContext} and behave inert.
+     */
+    private void renderSinglePanel(Panel panel, GuiGraphics graphics, int mouseX, int mouseY) {
+        int[] rect = effectivePanelScreenBounds(panel);
+        if (rect == null) return;
+        int x = rect[0], y = rect[1], w = rect[2], h = rect[3];
+
+        // Background
+        PanelRendering.renderPanel(graphics, x, y, w, h, panel.getStyle());
+
+        // Elements
+        int contentX = x + PANEL_PADDING;
+        int contentY = y + PANEL_PADDING;
+        RenderContext ctx = new RenderContext(graphics, contentX, contentY, mouseX, mouseY);
+        PanelDispatch.renderElements(panel, ctx);
+
+        // Panel-level tooltip — fires over the panel's outer bounds.
+        // Queued AFTER element render so it wins last-call-wins
+        // semantics for setTooltipForNextFrame.
+        panel.maybeQueueTooltip(graphics, x, y, w, h,
+                mouseX, mouseY, ctx.hasMouseInput());
     }
 
     @Override
@@ -119,6 +220,46 @@ public class MenuKitScreen extends Screen {
         };
     }
 
+    /**
+     * Returns the panel's screen-space bounds as
+     * {@code [x, y, width, height]}. Used by render + input dispatch so
+     * they agree on where the panel actually is.
+     *
+     * <p>Two layout regimes:
+     * <ul>
+     *   <li><b>Overlay panels</b> ({@link Panel#dimsBehind} true) — auto-
+     *       centered on the screen. Their declared {@link PanelPosition}
+     *       and the layout-computed bounds in {@link #panelBounds} are
+     *       ignored. An overlay's defining property is "covers the screen
+     *       above the dim layer"; BODY-stacking semantics don't fit.
+     *       This is what makes {@code Panel.modal()} read as "modal
+     *       overlay" on {@link MenuKitScreen} without consumers also
+     *       configuring a position mode.</li>
+     *   <li><b>Layout panels</b> (everything else) — use the bounds
+     *       computed by {@link PanelTreeLayout}, translated by
+     *       {@link #leftPos}/{@link #topPos}.</li>
+     * </ul>
+     */
+    private int[] effectivePanelScreenBounds(Panel panel) {
+        int[] size = computePanelSize(panel);
+        int outerW = size[0], outerH = size[1];
+
+        if (panel.dimsBehind()) {
+            int x = (this.width - outerW) / 2;
+            int y = (this.height - outerH) / 2;
+            return new int[]{x, y, outerW, outerH};
+        }
+
+        PanelBounds bounds = panelBounds.get(panel.getId());
+        if (bounds == null) return null;
+        return new int[]{
+                leftPos + bounds.x(),
+                topPos + bounds.y(),
+                bounds.width(),
+                bounds.height()
+        };
+    }
+
     private void computeLayout() {
         // Phase 16j R1 — delegate to shared PanelTreeLayout primitive.
         // MK has no minimum image size (standalone screens are sized by
@@ -133,40 +274,13 @@ public class MenuKitScreen extends Screen {
     }
 
     // ── Rendering ───────────────────────────────────────────────────────
-
-    @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
-        // Vanilla Screen.render() calls renderBackground() internally (which
-        // applies the blur effect). Calling renderBackground() explicitly
-        // here AND then super.render() triggers blur twice and fails the
-        // "Can only blur once per frame" check in 1.21.x. Let super handle
-        // the background; panels render afterward so they layer on top.
-        super.render(graphics, mouseX, mouseY, delta);
-
-        // Panel backgrounds
-        for (Panel panel : panels) {
-            if (!panel.isVisible()) continue;
-            PanelBounds bounds = panelBounds.get(panel.getId());
-            if (bounds == null) continue;
-
-            PanelRendering.renderPanel(graphics,
-                    leftPos + bounds.x(), topPos + bounds.y(),
-                    bounds.width(), bounds.height(),
-                    panel.getStyle());
-        }
-
-        // Panel elements
-        for (Panel panel : panels) {
-            if (!panel.isVisible()) continue;
-            PanelBounds bounds = panelBounds.get(panel.getId());
-            if (bounds == null) continue;
-
-            int contentX = leftPos + bounds.x() + PANEL_PADDING;
-            int contentY = topPos + bounds.y() + PANEL_PADDING;
-            RenderContext ctx = new RenderContext(graphics, contentX, contentY, mouseX, mouseY);
-            PanelDispatch.renderElements(panel, ctx);
-        }
-    }
+    //
+    // Panel rendering is registered as a vanilla Renderable in init() (see
+    // renderPanels above). No explicit render() override needed — vanilla's
+    // Screen.render iterates renderables, calls our renderPanels callback,
+    // and the end-of-frame tooltip flush happens AFTER that. Widgets
+    // calling GuiGraphics.setTooltipForNextFrame during render get their
+    // tooltip drawn in the same frame.
 
     // ── Input ───────────────────────────────────────────────────────────
 
@@ -175,7 +289,26 @@ public class MenuKitScreen extends Screen {
         if (dispatchElementClick(event.x(), event.y(), event.button())) {
             return true;
         }
+        // Modal click-eat: when a tracksAsModal panel is visible and the
+        // click landed OUTSIDE its bounds (so dispatchElementClick above
+        // didn't route to one of its elements), eat the click so the
+        // underlying screen doesn't receive it either. Mirrors
+        // ScreenPanelRegistry.dispatchOpaqueClick's behavior for vanilla
+        // container screens. Click-eat returns BEFORE super.mouseClicked
+        // so the underlying Screen's machinery (e.g., creative-tab
+        // selection) doesn't fire.
+        if (anyVisibleModalTrackingPanel()) {
+            return true;
+        }
         return super.mouseClicked(event, flag);
+    }
+
+    /** Returns true if at least one visible panel has {@code tracksAsModal()} set. */
+    private boolean anyVisibleModalTrackingPanel() {
+        for (Panel p : panels) {
+            if (p.isVisible() && p.tracksAsModal()) return true;
+        }
+        return false;
     }
 
     /**
@@ -198,11 +331,20 @@ public class MenuKitScreen extends Screen {
      * </ol>
      */
     private boolean dispatchElementClick(double mouseX, double mouseY, int button) {
+        // Modal-aware dispatch: when a tracksAsModal panel is visible, only
+        // its own elements are eligible to receive the click — clicks on
+        // underlying panels' elements are inert. Mirrors how
+        // ScreenPanelAdapter passes mouseX = -1 to non-modal-tracking
+        // panels during render, but for click dispatch we filter the panel
+        // list directly. Underlying panel elements never see the click.
+        boolean modalUp = anyVisibleModalTrackingPanel();
+
         List<Panel> reversed = panels.reversed();
 
         // ── Pass 1: active-overlay exclusive claims ───────────────────
         for (Panel panel : reversed) {
             if (!panel.isVisible()) continue;
+            if (modalUp && !panel.tracksAsModal()) continue; // modal-blocked
             for (PanelElement element : panel.getElements()) {
                 if (!element.isVisible()) continue;
                 int[] overlay = element.getActiveOverlayBounds();
@@ -218,11 +360,12 @@ public class MenuKitScreen extends Screen {
         // ── Pass 2: normal hit-test dispatch ──────────────────────────
         for (Panel panel : reversed) {
             if (!panel.isVisible()) continue;
-            PanelBounds bounds = panelBounds.get(panel.getId());
-            if (bounds == null) continue;
+            if (modalUp && !panel.tracksAsModal()) continue; // modal-blocked
+            int[] rect = effectivePanelScreenBounds(panel);
+            if (rect == null) continue;
 
-            int contentX = leftPos + bounds.x() + PANEL_PADDING;
-            int contentY = topPos + bounds.y() + PANEL_PADDING;
+            int contentX = rect[0] + PANEL_PADDING;
+            int contentY = rect[1] + PANEL_PADDING;
 
             for (PanelElement element : panel.getElements()) {
                 if (!element.isVisible()) continue;
@@ -268,11 +411,15 @@ public class MenuKitScreen extends Screen {
                                            double scrollX, double scrollY) {
         // Same two-pass dispatch as dispatchElementClick — see its
         // javadoc for the overlay-claim-then-hit-test rationale.
+        // Same modal-aware filter: when modal-tracking is up, only
+        // tracksAsModal panels are eligible.
+        boolean modalUp = anyVisibleModalTrackingPanel();
         List<Panel> reversed = panels.reversed();
 
         // Pass 1: active-overlay exclusive claims
         for (Panel panel : reversed) {
             if (!panel.isVisible()) continue;
+            if (modalUp && !panel.tracksAsModal()) continue;
             for (PanelElement element : panel.getElements()) {
                 if (!element.isVisible()) continue;
                 int[] overlay = element.getActiveOverlayBounds();
@@ -288,11 +435,12 @@ public class MenuKitScreen extends Screen {
         // Pass 2: normal hit-test
         for (Panel panel : reversed) {
             if (!panel.isVisible()) continue;
-            PanelBounds bounds = panelBounds.get(panel.getId());
-            if (bounds == null) continue;
+            if (modalUp && !panel.tracksAsModal()) continue;
+            int[] rect = effectivePanelScreenBounds(panel);
+            if (rect == null) continue;
 
-            int contentX = leftPos + bounds.x() + PANEL_PADDING;
-            int contentY = topPos + bounds.y() + PANEL_PADDING;
+            int contentX = rect[0] + PANEL_PADDING;
+            int contentY = rect[1] + PANEL_PADDING;
 
             for (PanelElement element : panel.getElements()) {
                 if (!element.isVisible()) continue;
@@ -311,6 +459,10 @@ public class MenuKitScreen extends Screen {
     public boolean mouseReleased(MouseButtonEvent event) {
         // Release fires for every visible element regardless of cursor
         // position — drag-end detection per 14d-2 ScrollContainer plumbing.
+        // Release is NOT modal-filtered — an underlying widget that started
+        // a drag (before the modal opened) needs its release to fire so it
+        // can clean up drag state. Mirrors ScreenPanelRegistry's release
+        // dispatch which fires for every adapter regardless of modal.
         for (Panel panel : panels) {
             if (!panel.isVisible()) continue;
             for (PanelElement element : panel.getElements()) {

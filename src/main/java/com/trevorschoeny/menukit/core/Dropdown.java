@@ -168,6 +168,13 @@ public final class Dropdown<T> implements PanelElement {
     private final Supplier<@Nullable T> selectionSupplier;
     private final Consumer<T> selectionConsumer;
     private final int maxVisibleItems;
+    /**
+     * Optional per-item tooltip function. When non-null and the user hovers
+     * a popover row, the tooltip is queued via
+     * {@link net.minecraft.client.gui.GuiGraphics#setTooltipForNextFrame}.
+     * Set via {@link Builder#itemTooltip(Function)}.
+     */
+    private final @Nullable Function<T, Component> itemTooltipFn;
 
     // ── Internal mutable state ─────────────────────────────────────────
     //
@@ -185,6 +192,14 @@ public final class Dropdown<T> implements PanelElement {
     /** First-visible row index when items.size() > maxVisibleItems. */
     private volatile int scrollOffset = 0;
 
+    /**
+     * Optional hover-triggered tooltip on the dropdown trigger. Set via
+     * {@link #tooltip(Component)} / {@link #tooltip(Supplier)}. Only fires
+     * when the popover is closed — once open, the popover is the
+     * interactive surface and a hover tooltip would compete with it.
+     */
+    private volatile @Nullable Supplier<Component> tooltipSupplier;
+
     private Dropdown(Builder<T> b) {
         this.childX = b.childX;
         this.childY = b.childY;
@@ -195,6 +210,7 @@ public final class Dropdown<T> implements PanelElement {
         this.selectionSupplier = b.selectionSupplier;
         this.selectionConsumer = b.selectionConsumer;
         this.maxVisibleItems = b.maxVisibleItems;
+        this.itemTooltipFn = b.itemTooltipFn;
     }
 
     // ── PanelElement protocol ──────────────────────────────────────────
@@ -258,6 +274,40 @@ public final class Dropdown<T> implements PanelElement {
         if (open) {
             renderPopover(ctx, triggerX, triggerY);
         }
+
+        // ── Tooltip (hover trigger, only when popover is closed) ──────
+        // Queue via setTooltipForNextFrame so the end-of-frame flush
+        // picks it up. Skip when popover is open — popover IS the
+        // interactive surface; competing tooltip would clutter.
+        if (triggerHovered && !open && tooltipSupplier != null && ctx.hasMouseInput()) {
+            Component ttText = tooltipSupplier.get();
+            if (ttText != null) {
+                ctx.graphics().setTooltipForNextFrame(
+                        Minecraft.getInstance().font, ttText,
+                        ctx.mouseX(), ctx.mouseY());
+            }
+        }
+    }
+
+    // ── Tooltip (optional hover-triggered configuration) ──────────────
+
+    /**
+     * Attaches a hover-triggered tooltip with fixed text. Returns this
+     * Dropdown for method chaining. Tooltip fires only when the popover
+     * is closed (an open popover IS the interactive surface).
+     */
+    public Dropdown<T> tooltip(Component text) {
+        return tooltip(() -> text);
+    }
+
+    /**
+     * Attaches a hover-triggered tooltip with supplier-driven text.
+     * Supplier invoked each frame while hovered. Returns this Dropdown
+     * for method chaining.
+     */
+    public Dropdown<T> tooltip(Supplier<Component> supplier) {
+        this.tooltipSupplier = supplier;
+        return this;
     }
 
     private void renderTriggerBackground(GuiGraphics graphics, int sx, int sy, boolean hovered) {
@@ -342,6 +392,18 @@ public final class Dropdown<T> implements PanelElement {
                 graphics.fill(px + 1, rowY,
                         px + pw - 1 - (scrollable ? SCROLLBAR_W : 0), rowY + ROW_HEIGHT,
                         COLOR_HOVER_OVERLAY);
+
+                // Per-item tooltip — queues when the hovered row has one.
+                // setTooltipForNextFrame is last-call-wins; queue happens
+                // INSIDE the popover render which runs after the trigger
+                // render, so this win condition is straightforward.
+                if (itemTooltipFn != null) {
+                    Component ttText = itemTooltipFn.apply(item);
+                    if (ttText != null) {
+                        graphics.setTooltipForNextFrame(
+                                font, ttText, ctx.mouseX(), ctx.mouseY());
+                    }
+                }
             }
             // Selection highlight (this item == current selection)
             if (currentSelection != null && currentSelection.equals(item)) {
@@ -574,6 +636,7 @@ public final class Dropdown<T> implements PanelElement {
         private @Nullable Supplier<@Nullable T> selectionSupplier = null;
         private @Nullable Consumer<T> selectionConsumer = null;
         private int maxVisibleItems = DEFAULT_MAX_VISIBLE;
+        private @Nullable Function<T, Component> itemTooltipFn = null;
 
         private Builder() {}
 
@@ -640,6 +703,22 @@ public final class Dropdown<T> implements PanelElement {
                         "maxVisibleItems must be positive, got " + n);
             }
             this.maxVisibleItems = n;
+            return this;
+        }
+
+        /**
+         * Optional: per-item tooltip function. When set, hovering a
+         * popover row queues {@code fn.apply(item)} as the next-frame
+         * tooltip — companion to the trigger-level {@link Dropdown#tooltip}
+         * helper. Trigger and item tooltips are mutually exclusive in
+         * time (trigger fires only when popover is closed; item fires
+         * only when open), so they coexist without competing.
+         *
+         * <p>Returning {@code null} from {@code fn} for a given item
+         * suppresses the tooltip for that row.
+         */
+        public Builder<T> itemTooltip(Function<T, Component> fn) {
+            this.itemTooltipFn = Objects.requireNonNull(fn, "itemTooltipFn must not be null");
             return this;
         }
 

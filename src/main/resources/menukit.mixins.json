@@ -16,12 +16,10 @@
     "MenuKitModalHoverMixin",
     "MenuKitModalKeyboardHandlerMixin",
     "MenuKitModalMouseHandlerMixin",
-    "MenuKitPanelRenderMixin",
     "MenuKitRecipeBookPanelRenderMixin",
     "MenuKitTooltipSuppressMixin",
     "MouseHandlerCursorPosAccessor",
     "ScreenAccessor",
-    "SlotGroupPanelRenderMixin",
     "SlotPositionAccessor"
   ],
   "injectors": {

@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleFunction;
 import java.util.function.DoubleSupplier;
+import java.util.function.Supplier;
 
 /**
  * Continuous-value slider control. Phase 14d-4 — wraps vanilla
@@ -113,6 +114,9 @@ public class Slider implements PanelElement {
     /** Track which screen we're attached to so detach knows what to remove from. */
     private @Nullable Screen attachedScreen;
 
+    /** Optional hover-triggered tooltip set via {@link #tooltip(Component)}. */
+    private @Nullable Supplier<Component> tooltipSupplier;
+
     private Slider(Builder b) {
         this.childX = b.childX;
         this.childY = b.childY;
@@ -171,6 +175,38 @@ public class Slider implements PanelElement {
             // sentinel mouse coords so the slider's hover state stays false.
             slider.render(ctx.graphics(), -1, -1, 0f);
         }
+
+        // Tooltip — fires over the slider track bounds. Skipped if the user
+        // is actively dragging (slider.isHoveredOrFocused captures drag focus
+        // too; combining ctx.isHovered() with that wouldn't change behavior
+        // since drag implies hover). Queued for end-of-frame flush.
+        if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
+            Component ttText = tooltipSupplier.get();
+            if (ttText != null) {
+                ctx.graphics().setTooltipForNextFrame(
+                        net.minecraft.client.Minecraft.getInstance().font,
+                        ttText, ctx.mouseX(), ctx.mouseY());
+            }
+        }
+    }
+
+    // ── Tooltip (optional hover-triggered configuration) ──────────────
+
+    /**
+     * Attaches a hover-triggered tooltip with fixed text. Returns this
+     * Slider for method chaining.
+     */
+    public Slider tooltip(Component text) {
+        return tooltip(() -> text);
+    }
+
+    /**
+     * Attaches a hover-triggered tooltip with supplier-driven text. Returns
+     * this Slider for method chaining.
+     */
+    public Slider tooltip(Supplier<Component> supplier) {
+        this.tooltipSupplier = supplier;
+        return this;
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────

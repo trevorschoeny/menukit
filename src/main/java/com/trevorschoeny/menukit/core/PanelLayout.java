@@ -70,6 +70,12 @@ public final class PanelLayout {
         int bodyY = titleHeight;
         for (Panel panel : panels) {
             if (!panel.isVisible()) continue;
+            // Phase 17 — overlay panels (Panel.dimsBehind()) are positioned
+            // independently of the body stack by the screen's render layer
+            // (auto-centered on screen, ignoring PanelPosition). They must
+            // not contribute layout space here, or visibility-toggling an
+            // overlay would shift the underlying body stack. Skip them.
+            if (panel.dimsBehind()) continue;
             if (panel.getPosition().mode() != PanelPosition.Mode.BODY) continue;
 
             int[] size = sizes.get(panel.getId());
@@ -83,6 +89,9 @@ public final class PanelLayout {
         // Phase 2: Position relative panels — offset from their anchor
         for (Panel panel : panels) {
             if (!panel.isVisible()) continue;
+            // Same overlay exception — relative chains anchored to an
+            // overlay would have no meaningful position.
+            if (panel.dimsBehind()) continue;
             if (panel.getPosition().mode() == PanelPosition.Mode.BODY) continue;
 
             String anchorId = panel.getPosition().anchorPanelId();

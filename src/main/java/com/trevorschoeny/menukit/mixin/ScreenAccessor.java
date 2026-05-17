@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit.mixin;
 
+import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
@@ -14,6 +15,15 @@ import org.spongepowered.asm.mixin.gen.Invoker;
  * com.trevorschoeny.menukit.core.TextField} to register its wrapped
  * {@code EditBox} for input dispatch (children + narratables) WITHOUT
  * adding it to the renderables list.
+ *
+ * <p>Phase 17 — also exposes {@code Screen.addRenderableOnly} so library
+ * code outside the Screen subclass (e.g.
+ * {@link com.trevorschoeny.menukit.inject.ScreenPanelRegistry}) can register
+ * MK panel rendering as a vanilla {@code Renderable}. Renderables participate
+ * in {@code Screen.render}'s renderables iteration, which fires BEFORE the
+ * end-of-frame tooltip flush — so widgets calling
+ * {@code GuiGraphics.setTooltipForNextFrame} during render get their tooltip
+ * picked up in the same frame's flush.
  *
  * <p>Why not {@code addRenderableWidget} (or Fabric's {@code Screens.getButtons}
  * which has the same effect)? Both add the widget to the renderables list,
@@ -38,4 +48,13 @@ public interface ScreenAccessor {
 
     @Invoker("removeWidget")
     void menuKit$removeWidget(GuiEventListener widget);
+
+    /**
+     * Exposes {@code Screen.addRenderableOnly} so library code outside the
+     * Screen hierarchy can register a {@link Renderable} that participates
+     * in the renderables iteration. Phase 17 — needed so MK panel rendering
+     * fires before the end-of-frame tooltip flush.
+     */
+    @Invoker("addRenderableOnly")
+    <T extends Renderable> T menuKit$addRenderableOnly(T renderable);
 }
