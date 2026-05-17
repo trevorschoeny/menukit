@@ -1,7 +1,10 @@
 package com.trevorschoeny.menukit.core;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+
 import org.jspecify.annotations.Nullable;
 
 import java.util.function.BooleanSupplier;
@@ -22,6 +25,11 @@ import java.util.function.Supplier;
  *   <li><b>Disabled:</b> {@link PanelStyle#DARK} background; no hover highlight;
  *   clicks are ignored</li>
  * </ul>
+ *
+ * <p>For a sprite-backed toggle, see
+ * {@link #sprite(int, int, int, int, boolean, Consumer, Identifier)} — the
+ * on state renders the same sprite through MenuKit's HSL-lightness
+ * inversion pipeline, so consumers don't author two textures.
  *
  * <p>Toggle ships no built-in label or icon. For a labeled toggle, compose
  * a {@link TextLabel} alongside or use {@code Checkbox} (settings-ready
@@ -244,8 +252,15 @@ public class Toggle implements PanelElement {
 
     // ── Rendering ──────────────────────────────────────────────────────
 
+    /**
+     * Orchestrates the render pass: hover-state update, background paint
+     * (via the extension hook), tooltip dispatch. Final by design — the
+     * extension surface for consumer subclasses is
+     * {@link #renderBackground(RenderContext, int, int, boolean, boolean, boolean)},
+     * not this orchestration method.
+     */
     @Override
-    public void render(RenderContext ctx) {
+    public final void render(RenderContext ctx) {
         int sx = ctx.originX() + childX;
         int sy = ctx.originY() + childY;
 
@@ -257,17 +272,8 @@ public class Toggle implements PanelElement {
         // consumer-supplied BooleanSupplier (e.g., Toggle.linked).
         boolean disabled = isDisabled();
         boolean on = currentState();
-        PanelStyle bg = disabled ? PanelStyle.DARK
-                      : on       ? PanelStyle.INSET
-                                 : PanelStyle.RAISED;
 
-        PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, bg);
-
-        // Hover highlight — same pattern as Button
-        if (!disabled && hovered) {
-            ctx.graphics().fill(sx + 1, sy + 1, sx + width - 1, sy + height - 1,
-                    0x30FFFFFF);
-        }
+        renderBackground(ctx, sx, sy, on, disabled, hovered);
 
         // Hover-triggered tooltip — deferred to end-of-frame by vanilla.
         if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
@@ -277,6 +283,35 @@ public class Toggle implements PanelElement {
                         Minecraft.getInstance().font, ttText,
                         ctx.mouseX(), ctx.mouseY());
             }
+        }
+    }
+
+    /**
+     * Paints the toggle's full visual — background and any state-dependent
+     * overlays. Called from {@link #render(RenderContext)} after hover and
+     * on/off state have been resolved for the frame. Default implementation
+     * uses {@link PanelStyle} backgrounds (RAISED off, INSET on, DARK
+     * disabled) plus the translucent white hover highlight.
+     *
+     * <p><b>Stable extension point for consumer Toggle subclasses.</b>
+     * The signature {@code (RenderContext, int sx, int sy, boolean on,
+     * boolean disabled, boolean hovered)} and the semantic contract —
+     * {@code sx}/{@code sy} are the absolute screen-space top-left of
+     * the toggle; this hook owns ALL state-dependent painting (subclasses
+     * paint their own hover/disabled overlays) — are maintained across
+     * MenuKit versions. Consumer subclasses may rely on these properties.
+     */
+    protected void renderBackground(RenderContext ctx, int sx, int sy,
+                                     boolean on, boolean disabled, boolean hovered) {
+        PanelStyle bg = disabled ? PanelStyle.DARK
+                      : on       ? PanelStyle.INSET
+                                 : PanelStyle.RAISED;
+        PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, bg);
+
+        // Hover highlight — same pattern as Button
+        if (!disabled && hovered) {
+            ctx.graphics().fill(sx + 1, sy + 1, sx + width - 1, sy + height - 1,
+                    0x30FFFFFF);
         }
     }
 
@@ -341,6 +376,155 @@ public class Toggle implements PanelElement {
                                 BooleanSupplier state,
                                 Runnable onToggle) {
         return new LinkedToggle(childX, childY, width, height, state, onToggle);
+    }
+
+    // ── Sprite-backed Toggle variant ───────────────────────────────────
+
+    /**
+     * Creates a Toggle whose visual is a consumer-supplied sprite. The off
+     * state renders the sprite as-is; the on state renders the sprite through
+     * {@link com.trevorschoeny.menukit.core.MenuKitRenderPipelines#GUI_BRIGHTNESS_INVERTED
+     * the HSL-lightness-inversion pipeline} so the same sprite asset
+     * communicates both states without the consumer authoring a second
+     * "toggled" texture. Hue + saturation are preserved through the
+     * inversion; only the per-pixel lightness flips. Hover overlay applies
+     * on top of either state; disabled adds a dark overlay.
+     *
+     * <p>Pairs with the static-state Toggle constructor — state is owned
+     * inside the element. For consumer-owned state, use the
+     * {@link #spriteLinked(int, int, int, int, BooleanSupplier, Runnable, Identifier)
+     * spriteLinked} variant.
+     *
+     * @param childX       X position within panel content area
+     * @param childY       Y position within panel content area
+     * @param width        toggle width in pixels (typically matches sprite width)
+     * @param height       toggle height in pixels (typically matches sprite height)
+     * @param initialState starting boolean state
+     * @param onToggle     fired on each state change with the new state
+     * @param sprite       sprite identifier for both off and on states (on state
+     *                     is rendered through the HSL-inversion pipeline)
+     */
+    public static Toggle sprite(int childX, int childY, int width, int height,
+                                 boolean initialState, Consumer<Boolean> onToggle,
+                                 Identifier sprite) {
+        return new SpriteToggle(childX, childY, width, height,
+                initialState, onToggle, (Supplier<Identifier>) () -> sprite);
+    }
+
+    /**
+     * Sprite-driven Toggle whose sprite is computed per-frame from a
+     * {@link Supplier}. Enables state-swap patterns where on/off should use
+     * different sprite assets entirely (rather than the default HSL-inversion
+     * of one sprite). For the inversion-based pattern, prefer
+     * {@link #sprite(int, int, int, int, boolean, Consumer, Identifier)}.
+     */
+    public static Toggle sprite(int childX, int childY, int width, int height,
+                                 boolean initialState, Consumer<Boolean> onToggle,
+                                 Supplier<Identifier> sprite) {
+        return new SpriteToggle(childX, childY, width, height,
+                initialState, onToggle, sprite);
+    }
+
+    /**
+     * {@link #linked Linked} + {@link #sprite sprite} combination: consumer-
+     * owned state, sprite-backed visual with HSL-inversion on the on state.
+     */
+    public static Toggle spriteLinked(int childX, int childY, int width, int height,
+                                       BooleanSupplier state, Runnable onToggle,
+                                       Identifier sprite) {
+        return new SpriteLinkedToggle(childX, childY, width, height,
+                state, onToggle, (Supplier<Identifier>) () -> sprite);
+    }
+
+    /**
+     * Sprite-backed Toggle specialization. Overrides
+     * {@link #renderBackground} to paint a consumer-supplied sprite instead
+     * of the default {@link PanelStyle} backgrounds. Off state uses vanilla's
+     * {@link RenderPipelines#GUI_TEXTURED}; on state uses MenuKit's
+     * brightness-inversion pipeline so the same sprite reads as "toggled."
+     * Package-private — consumers reach this via
+     * {@link #sprite(int, int, int, int, boolean, Consumer, Identifier)}.
+     */
+    static class SpriteToggle extends Toggle {
+        /** Hover overlay color — same translucent white as default Toggle. */
+        private static final int HOVER_OVERLAY = 0x30FFFFFF;
+        /** Disabled overlay color — ~50% black darkens the sprite. */
+        private static final int DISABLED_OVERLAY = 0x80000000;
+
+        private final Supplier<Identifier> spriteSupplier;
+
+        SpriteToggle(int childX, int childY, int width, int height,
+                     boolean initialState, Consumer<Boolean> onToggle,
+                     Supplier<Identifier> sprite) {
+            super(childX, childY, width, height, initialState, onToggle);
+            this.spriteSupplier = sprite;
+        }
+
+        @Override
+        protected void renderBackground(RenderContext ctx, int sx, int sy,
+                                         boolean on, boolean disabled, boolean hovered) {
+            Identifier id = spriteSupplier.get();
+            if (id == null) return;
+            int w = getWidth();
+            int h = getHeight();
+
+            if (disabled) {
+                // Off-state sprite + dark overlay. Disabled overrides the
+                // toggled-state visual; whatever the consumer expects to
+                // see for a disabled control wins over the on/off look.
+                ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);
+                ctx.graphics().fill(sx, sy, sx + w, sy + h, DISABLED_OVERLAY);
+            } else if (on) {
+                // Toggled — HSL-lightness inversion of the same sprite.
+                // Animation, alpha edges, etc. all pass through unchanged;
+                // only the per-pixel lightness flips.
+                ctx.graphics().blitSprite(
+                        MenuKitRenderPipelines.GUI_BRIGHTNESS_INVERTED, id, sx, sy, w, h);
+            } else {
+                // Off — sprite as-is.
+                ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);
+            }
+
+            // Hover overlay on top of either state. Mirrors default Toggle
+            // hover treatment; gives consistent hover feedback regardless of
+            // whether the toggle is on or off.
+            if (!disabled && hovered) {
+                ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1,
+                        HOVER_OVERLAY);
+            }
+        }
+    }
+
+    /**
+     * {@link SpriteToggle} + {@link LinkedToggle} composition: sprite visual
+     * with HSL-inversion on the on state, plus consumer-owned state via
+     * {@link BooleanSupplier} + {@link Runnable}. Package-private — consumers
+     * reach this via
+     * {@link #spriteLinked(int, int, int, int, BooleanSupplier, Runnable, Identifier)}.
+     */
+    static final class SpriteLinkedToggle extends SpriteToggle {
+        private final BooleanSupplier stateSupplier;
+        private final Runnable onToggleRunnable;
+
+        SpriteLinkedToggle(int childX, int childY, int width, int height,
+                           BooleanSupplier state, Runnable onToggle,
+                           Supplier<Identifier> sprite) {
+            // Super's Consumer<Boolean> is a dummy — applyState override
+            // below replaces state-commit behavior, same shape as LinkedToggle.
+            super(childX, childY, width, height, state.getAsBoolean(), b -> {}, sprite);
+            this.stateSupplier = state;
+            this.onToggleRunnable = onToggle;
+        }
+
+        @Override
+        protected boolean currentState() {
+            return stateSupplier.getAsBoolean();
+        }
+
+        @Override
+        protected void applyState(boolean newState) {
+            onToggleRunnable.run();
+        }
     }
 
     /**
