@@ -129,7 +129,7 @@ import java.util.function.Supplier;
  *
  * @param <T> selection value type; identity via {@code T.equals()}
  */
-public final class Dropdown<T> implements PanelElement {
+public final class Dropdown<T> extends AbstractPanelElement {
 
     // ── Layout / render constants ──────────────────────────────────────
 
@@ -192,13 +192,13 @@ public final class Dropdown<T> implements PanelElement {
     /** First-visible row index when items.size() > maxVisibleItems. */
     private volatile int scrollOffset = 0;
 
-    /**
-     * Optional hover-triggered tooltip on the dropdown trigger. Set via
-     * {@link #tooltip(Component)} / {@link #tooltip(Supplier)}. Only fires
-     * when the popover is closed — once open, the popover is the
-     * interactive surface and a hover tooltip would compete with it.
-     */
-    private volatile @Nullable Supplier<Component> tooltipSupplier;
+    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2). The
+    // dropdown-specific trigger gating ("only fire when popover closed")
+    // lives in render() below — base only holds the supplier. (Pre-hoist,
+    // this field was `volatile @Nullable`; the base field is non-volatile
+    // because chainable .tooltip() is a single-threaded construction-time
+    // setter in practice — if cross-thread mutation surfaces as a real
+    // case, revisit.)
 
     private Dropdown(Builder<T> b) {
         this.childX = b.childX;
@@ -279,6 +279,7 @@ public final class Dropdown<T> implements PanelElement {
         // Queue via setTooltipForNextFrame so the end-of-frame flush
         // picks it up. Skip when popover is open — popover IS the
         // interactive surface; competing tooltip would clutter.
+        Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (triggerHovered && !open && tooltipSupplier != null && ctx.hasMouseInput()) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
@@ -289,24 +290,23 @@ public final class Dropdown<T> implements PanelElement {
         }
     }
 
-    // ── Tooltip (optional hover-triggered configuration) ──────────────
+    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
 
-    /**
-     * Attaches a hover-triggered tooltip with fixed text. Returns this
-     * Dropdown for method chaining. Tooltip fires only when the popover
-     * is closed (an open popover IS the interactive surface).
-     */
+    @Override
     public Dropdown<T> tooltip(Component text) {
-        return tooltip(() -> text);
+        super.tooltip(text);
+        return this;
     }
 
-    /**
-     * Attaches a hover-triggered tooltip with supplier-driven text.
-     * Supplier invoked each frame while hovered. Returns this Dropdown
-     * for method chaining.
-     */
-    public Dropdown<T> tooltip(Supplier<Component> supplier) {
-        this.tooltipSupplier = supplier;
+    @Override
+    public Dropdown<T> tooltip(@Nullable Supplier<Component> supplier) {
+        super.tooltip(supplier);
+        return this;
+    }
+
+    @Override
+    public Dropdown<T> showWhen(@Nullable Supplier<Boolean> supplier) {
+        super.showWhen(supplier);
         return this;
     }
 

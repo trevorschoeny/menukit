@@ -27,7 +27,7 @@ import java.util.function.Supplier;
  *
  * @see PanelElement The interface this implements
  */
-public class Tooltip implements PanelElement {
+public class Tooltip extends AbstractPanelElement {
 
     /** Padding on all sides of the tooltip text, in pixels. */
     public static final int PADDING = 4;

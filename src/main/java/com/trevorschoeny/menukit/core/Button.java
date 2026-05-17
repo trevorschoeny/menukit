@@ -50,7 +50,7 @@ import java.util.function.Supplier;
  * @see PanelElement  The interface this implements
  * @see TextLabel     Non-interactive text element
  */
-public class Button implements PanelElement {
+public class Button extends AbstractPanelElement {
 
     private final int childX;
     private final int childY;
@@ -60,10 +60,8 @@ public class Button implements PanelElement {
     private final Consumer<Button> onClick;
     private final @Nullable BooleanSupplier disabledWhen;
 
-    // Optional hover-triggered tooltip. Set via .tooltip(...) during
-    // construction chain; post-construction configuration per the Tooltip
-    // design doc's setter convention (optional orthogonal feature).
-    private @Nullable Supplier<Component> tooltipSupplier;
+    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2). Access
+    // via getTooltipSupplier() in render().
 
     // Hover state — updated each render frame. Not persisted.
     // Read by mouseClicked to gate the click on hover.
@@ -156,26 +154,29 @@ public class Button implements PanelElement {
 
     // ── Tooltip (optional hover-triggered configuration) ───────────────
 
-    /**
-     * Attaches a hover-triggered tooltip with fixed text. Returns this
-     * Button for method chaining. Tooltip renders at the mouse position
-     * using vanilla's tooltip styling.
-     *
-     * <p>Post-construction configuration setter — intended to be called
-     * once during the construction chain. See
-     * {@code Design Docs/Element Design Docs/TOOLTIP_DESIGN_DOC.md}.
-     */
+    // ── Chainable configuration (Phase 18r-2: covariant returns over
+    //    AbstractPanelElement) ───────────────────────────────────────────
+    //
+    // showWhen + tooltip live on AbstractPanelElement; these overrides
+    // narrow the return type to Button so consumers can keep chaining
+    // Button-specific helpers (none currently follow tooltip/showWhen in
+    // practice, but covariance future-proofs the chain).
+
+    @Override
     public Button tooltip(Component text) {
-        return tooltip(() -> text);
+        super.tooltip(text);
+        return this;
     }
 
-    /**
-     * Attaches a hover-triggered tooltip with supplier-driven text. The
-     * supplier is invoked each frame while hovered. Returns this Button
-     * for method chaining.
-     */
-    public Button tooltip(Supplier<Component> supplier) {
-        this.tooltipSupplier = supplier;
+    @Override
+    public Button tooltip(@Nullable Supplier<Component> supplier) {
+        super.tooltip(supplier);
+        return this;
+    }
+
+    @Override
+    public Button showWhen(@Nullable Supplier<Boolean> supplier) {
+        super.showWhen(supplier);
         return this;
     }
 
@@ -225,6 +226,7 @@ public class Button implements PanelElement {
         // draw to end-of-frame (correct z-ordering above items and other
         // elements). The 1.21.11 method name is setTooltipForNextFrame;
         // earlier versions called this renderTooltip.
+        Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {

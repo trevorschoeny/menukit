@@ -58,7 +58,7 @@ import java.util.function.Supplier;
  * @see PanelElement The interface this implements
  * @see Toggle       The general boolean primitive
  */
-public class Checkbox implements PanelElement {
+public class Checkbox extends AbstractPanelElement {
 
     /** Size of the checkbox square, in pixels. */
     public static final int BOX_SIZE = 10;
@@ -91,8 +91,7 @@ public class Checkbox implements PanelElement {
     // Mutable state — same narrow exception as Toggle (see Toggle javadoc).
     private boolean state;
 
-    // Optional hover-triggered tooltip (post-construction configuration).
-    private @Nullable Supplier<Component> tooltipSupplier;
+    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
 
     // Render-frame state.
     private boolean hovered = false;
@@ -200,16 +199,23 @@ public class Checkbox implements PanelElement {
     /** Returns whether the mouse is currently over this element (updated each frame). */
     public boolean isHovered() { return hovered; }
 
-    // ── Tooltip (optional post-construction configuration) ─────────────
+    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
 
-    /** Attaches a hover-triggered tooltip with fixed text. Returns this for chaining. */
+    @Override
     public Checkbox tooltip(Component text) {
-        return tooltip(() -> text);
+        super.tooltip(text);
+        return this;
     }
 
-    /** Attaches a hover-triggered tooltip with supplier-driven text. Returns this for chaining. */
-    public Checkbox tooltip(Supplier<Component> supplier) {
-        this.tooltipSupplier = supplier;
+    @Override
+    public Checkbox tooltip(@Nullable Supplier<Component> supplier) {
+        super.tooltip(supplier);
+        return this;
+    }
+
+    @Override
+    public Checkbox showWhen(@Nullable Supplier<Boolean> supplier) {
+        super.showWhen(supplier);
         return this;
     }
 
@@ -260,6 +266,7 @@ public class Checkbox implements PanelElement {
         }
 
         // Hover-triggered tooltip — deferred to end-of-frame.
+        Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {

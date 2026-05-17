@@ -77,7 +77,7 @@ import java.util.function.DoubleSupplier;
  *
  * @see PanelElement The interface this implements
  */
-public class ScrollContainer implements PanelElement {
+public class ScrollContainer extends AbstractPanelElement {
 
     /** Width of the scrollbar handle sprite, in pixels. Matches vanilla
      *  {@code CreativeModeInventoryScreen.SCROLLER_WIDTH}. */

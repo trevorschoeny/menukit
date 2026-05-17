@@ -102,7 +102,7 @@ import java.util.function.Supplier;
  * trigger as TextField's modal case; defer until concrete consumer
  * surfaces the need.
  */
-public class Slider implements PanelElement {
+public class Slider extends AbstractPanelElement {
 
     private final int childX;
     private final int childY;
@@ -114,8 +114,7 @@ public class Slider implements PanelElement {
     /** Track which screen we're attached to so detach knows what to remove from. */
     private @Nullable Screen attachedScreen;
 
-    /** Optional hover-triggered tooltip set via {@link #tooltip(Component)}. */
-    private @Nullable Supplier<Component> tooltipSupplier;
+    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
 
     private Slider(Builder b) {
         this.childX = b.childX;
@@ -180,6 +179,7 @@ public class Slider implements PanelElement {
         // is actively dragging (slider.isHoveredOrFocused captures drag focus
         // too; combining ctx.isHovered() with that wouldn't change behavior
         // since drag implies hover). Queued for end-of-frame flush.
+        Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
@@ -190,22 +190,23 @@ public class Slider implements PanelElement {
         }
     }
 
-    // ── Tooltip (optional hover-triggered configuration) ──────────────
+    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
 
-    /**
-     * Attaches a hover-triggered tooltip with fixed text. Returns this
-     * Slider for method chaining.
-     */
+    @Override
     public Slider tooltip(Component text) {
-        return tooltip(() -> text);
+        super.tooltip(text);
+        return this;
     }
 
-    /**
-     * Attaches a hover-triggered tooltip with supplier-driven text. Returns
-     * this Slider for method chaining.
-     */
-    public Slider tooltip(Supplier<Component> supplier) {
-        this.tooltipSupplier = supplier;
+    @Override
+    public Slider tooltip(@Nullable Supplier<Component> supplier) {
+        super.tooltip(supplier);
+        return this;
+    }
+
+    @Override
+    public Slider showWhen(@Nullable Supplier<Boolean> supplier) {
+        super.showWhen(supplier);
         return this;
     }
 

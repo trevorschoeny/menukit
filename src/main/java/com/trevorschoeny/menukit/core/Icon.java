@@ -49,7 +49,7 @@ import java.util.function.Supplier;
  * @see Button        Interactive button element (Phase 9 adds icon-only variant)
  * @see TextLabel     Text rendering primitive
  */
-public class Icon implements PanelElement {
+public class Icon extends AbstractPanelElement {
 
     private final int childX;
     private final int childY;
@@ -57,8 +57,7 @@ public class Icon implements PanelElement {
     private final int height;
     private final Supplier<Identifier> spriteSupplier;
 
-    // Optional hover-triggered tooltip (post-construction configuration).
-    private @Nullable Supplier<Component> tooltipSupplier;
+    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
 
     // Transient hover state — updated each frame. Does not make Icon
     // interactive; exists only to gate tooltip rendering.
@@ -131,6 +130,7 @@ public class Icon implements PanelElement {
                 width, height);
 
         // Hover-triggered tooltip — deferred to end-of-frame.
+        Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
@@ -141,18 +141,26 @@ public class Icon implements PanelElement {
         }
     }
 
-    // mouseClicked, isVisible inherit their defaults from PanelElement.
+    // mouseClicked inherits from PanelElement. isVisible + setVisible
+    // inherit from AbstractPanelElement (Phase 18r-2).
 
-    // ── Tooltip (optional post-construction configuration) ─────────────
+    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
 
-    /** Attaches a hover-triggered tooltip with fixed text. Returns this for chaining. */
+    @Override
     public Icon tooltip(Component text) {
-        return tooltip(() -> text);
+        super.tooltip(text);
+        return this;
     }
 
-    /** Attaches a hover-triggered tooltip with supplier-driven text. Returns this for chaining. */
-    public Icon tooltip(Supplier<Component> supplier) {
-        this.tooltipSupplier = supplier;
+    @Override
+    public Icon tooltip(@Nullable Supplier<Component> supplier) {
+        super.tooltip(supplier);
+        return this;
+    }
+
+    @Override
+    public Icon showWhen(@Nullable Supplier<Boolean> supplier) {
+        super.showWhen(supplier);
         return this;
     }
 

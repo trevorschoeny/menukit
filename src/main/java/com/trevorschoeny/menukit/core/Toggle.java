@@ -57,7 +57,7 @@ import java.util.function.Supplier;
  * @see PanelElement The interface this implements
  * @see Button       Non-toggling interactive primitive
  */
-public class Toggle implements PanelElement {
+public class Toggle extends AbstractPanelElement {
 
     private final int childX;
     private final int childY;
@@ -70,8 +70,7 @@ public class Toggle implements PanelElement {
     // discipline, documented in the class javadoc above.
     private boolean state;
 
-    // Optional hover-triggered tooltip (post-construction configuration).
-    private @Nullable Supplier<Component> tooltipSupplier;
+    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
 
     // Render-frame state — hover updated each render, read by mouseClicked.
     private boolean hovered = false;
@@ -231,22 +230,23 @@ public class Toggle implements PanelElement {
         applyState(newState);
     }
 
-    // ── Tooltip (optional post-construction configuration) ─────────────
+    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
 
-    /**
-     * Attaches a hover-triggered tooltip with fixed text. Returns this
-     * Toggle for method chaining.
-     */
+    @Override
     public Toggle tooltip(Component text) {
-        return tooltip(() -> text);
+        super.tooltip(text);
+        return this;
     }
 
-    /**
-     * Attaches a hover-triggered tooltip with supplier-driven text.
-     * Returns this Toggle for method chaining.
-     */
-    public Toggle tooltip(Supplier<Component> supplier) {
-        this.tooltipSupplier = supplier;
+    @Override
+    public Toggle tooltip(@Nullable Supplier<Component> supplier) {
+        super.tooltip(supplier);
+        return this;
+    }
+
+    @Override
+    public Toggle showWhen(@Nullable Supplier<Boolean> supplier) {
+        super.showWhen(supplier);
         return this;
     }
 
@@ -276,6 +276,7 @@ public class Toggle implements PanelElement {
         renderBackground(ctx, sx, sy, on, disabled, hovered);
 
         // Hover-triggered tooltip — deferred to end-of-frame by vanilla.
+        Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {

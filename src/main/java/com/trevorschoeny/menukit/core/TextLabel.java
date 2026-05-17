@@ -43,7 +43,7 @@ import java.util.function.Supplier;
  * @see PanelElement  The interface this implements
  * @see Button        Interactive button element
  */
-public class TextLabel implements PanelElement {
+public class TextLabel extends AbstractPanelElement {
 
     /** Dark gray with shadow off — matches vanilla container labels on light backgrounds. */
     public static final int COLOR_DARK = 0xFF404040;
@@ -71,11 +71,7 @@ public class TextLabel implements PanelElement {
     // propagateConfiguration() for the propagation entry point.
     private int wrapWidth = 0;
 
-    /**
-     * Optional hover-triggered tooltip. Useful for truncated labels or
-     * jargon-heavy text that benefits from disclosure on hover.
-     */
-    private @Nullable Supplier<Component> tooltipSupplier;
+    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
 
     // ── Constructors: fixed text ──────────────────────────────────────
 
@@ -266,6 +262,7 @@ public class TextLabel implements PanelElement {
         }
 
         // Tooltip — queues if cursor is over the label bounds.
+        Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
@@ -275,24 +272,26 @@ public class TextLabel implements PanelElement {
         }
     }
 
-    // ── Tooltip (optional hover-triggered configuration) ──────────────
+    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
 
-    /**
-     * Attaches a hover-triggered tooltip with fixed text. Returns this
-     * TextLabel for method chaining.
-     */
+    @Override
     public TextLabel tooltip(Component text) {
-        return tooltip(() -> text);
+        super.tooltip(text);
+        return this;
     }
 
-    /**
-     * Attaches a hover-triggered tooltip with supplier-driven text. Returns
-     * this TextLabel for method chaining.
-     */
-    public TextLabel tooltip(Supplier<Component> supplier) {
-        this.tooltipSupplier = supplier;
+    @Override
+    public TextLabel tooltip(@Nullable Supplier<Component> supplier) {
+        super.tooltip(supplier);
+        return this;
+    }
+
+    @Override
+    public TextLabel showWhen(@Nullable Supplier<Boolean> supplier) {
+        super.showWhen(supplier);
         return this;
     }
 
     // mouseClicked inherits the default no-op from PanelElement.
+    // isVisible + setVisible inherit from AbstractPanelElement (Phase 18r-2).
 }

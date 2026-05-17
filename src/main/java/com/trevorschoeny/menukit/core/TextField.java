@@ -69,7 +69,7 @@ import java.util.function.Supplier;
  *   <li><b>HudContext:</b> no — HUDs are render-only.</li>
  * </ul>
  */
-public class TextField implements PanelElement {
+public class TextField extends AbstractPanelElement {
 
     private final int childX;
     private final int childY;
@@ -80,8 +80,7 @@ public class TextField implements PanelElement {
     /** Track which screen we're attached to so detach knows what to remove from. */
     private @Nullable Screen attachedScreen;
 
-    /** Optional hover-triggered tooltip set via {@link #tooltip(Component)}. */
-    private @Nullable Supplier<Component> tooltipSupplier;
+    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
 
     private TextField(Builder b) {
         this.childX = b.childX;
@@ -139,6 +138,7 @@ public class TextField implements PanelElement {
         // Tooltip — fires over the text-field bounds. Useful for "what
         // format does this field accept" disclosure. Queued for end-of-
         // frame flush.
+        Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
@@ -149,22 +149,23 @@ public class TextField implements PanelElement {
         }
     }
 
-    // ── Tooltip (optional hover-triggered configuration) ──────────────
+    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
 
-    /**
-     * Attaches a hover-triggered tooltip with fixed text. Returns this
-     * TextField for method chaining.
-     */
+    @Override
     public TextField tooltip(Component text) {
-        return tooltip(() -> text);
+        super.tooltip(text);
+        return this;
     }
 
-    /**
-     * Attaches a hover-triggered tooltip with supplier-driven text. Returns
-     * this TextField for method chaining.
-     */
-    public TextField tooltip(Supplier<Component> supplier) {
-        this.tooltipSupplier = supplier;
+    @Override
+    public TextField tooltip(@Nullable Supplier<Component> supplier) {
+        super.tooltip(supplier);
+        return this;
+    }
+
+    @Override
+    public TextField showWhen(@Nullable Supplier<Boolean> supplier) {
+        super.showWhen(supplier);
         return this;
     }
 

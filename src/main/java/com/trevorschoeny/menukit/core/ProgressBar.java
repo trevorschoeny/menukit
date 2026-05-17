@@ -53,7 +53,7 @@ import java.util.function.Supplier;
  *
  * @see PanelElement The interface this implements
  */
-public class ProgressBar implements PanelElement {
+public class ProgressBar extends AbstractPanelElement {
 
     /** Fill direction for the progress bar. */
     public enum Direction {
@@ -82,11 +82,7 @@ public class ProgressBar implements PanelElement {
     private final int bgColor;
     private final @Nullable Supplier<Component> label;
 
-    /**
-     * Optional hover-triggered tooltip. Useful for "what is this bar measuring"
-     * disclosure on decorative bars where the label alone isn't enough.
-     */
-    private @Nullable Supplier<Component> tooltipSupplier;
+    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
 
     // ── Constructors: fixed value ─────────────────────────────────────
 
@@ -248,6 +244,7 @@ public class ProgressBar implements PanelElement {
         }
 
         // Tooltip — queues if cursor is over the bar bounds.
+        Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
@@ -258,26 +255,28 @@ public class ProgressBar implements PanelElement {
         }
     }
 
-    // ── Tooltip (optional hover-triggered configuration) ──────────────
+    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
 
-    /**
-     * Attaches a hover-triggered tooltip with fixed text. Returns this
-     * ProgressBar for method chaining.
-     */
+    @Override
     public ProgressBar tooltip(Component text) {
-        return tooltip(() -> text);
-    }
-
-    /**
-     * Attaches a hover-triggered tooltip with supplier-driven text. Returns
-     * this ProgressBar for method chaining.
-     */
-    public ProgressBar tooltip(Supplier<Component> supplier) {
-        this.tooltipSupplier = supplier;
+        super.tooltip(text);
         return this;
     }
 
-    // mouseClicked, isVisible, isHovered inherit defaults from PanelElement.
+    @Override
+    public ProgressBar tooltip(@Nullable Supplier<Component> supplier) {
+        super.tooltip(supplier);
+        return this;
+    }
+
+    @Override
+    public ProgressBar showWhen(@Nullable Supplier<Boolean> supplier) {
+        super.showWhen(supplier);
+        return this;
+    }
+
+    // mouseClicked + isHovered inherit from PanelElement. isVisible +
+    // setVisible inherit from AbstractPanelElement (Phase 18r-2).
 
     // ── Element Queries ────────────────────────────────────────────────
 

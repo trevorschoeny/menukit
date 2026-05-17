@@ -41,7 +41,7 @@ import java.util.function.Supplier;
  * @see RadioGroup The coordinator
  * @see Checkbox   Multi-select sibling
  */
-public class Radio<T> implements PanelElement {
+public class Radio<T> extends AbstractPanelElement {
 
     /** Size of the radio square, in pixels. */
     public static final int BOX_SIZE = 10;
@@ -68,8 +68,7 @@ public class Radio<T> implements PanelElement {
     private final RadioGroup<T> group;
     private final @Nullable BooleanSupplier disabledWhen;
 
-    // Optional hover-triggered tooltip (post-construction configuration).
-    private @Nullable Supplier<Component> tooltipSupplier;
+    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
 
     // Render-frame state.
     private boolean hovered = false;
@@ -172,16 +171,23 @@ public class Radio<T> implements PanelElement {
     /** Returns whether the mouse is over this Radio (updated each frame). */
     public boolean isHovered() { return hovered; }
 
-    // ── Tooltip (optional post-construction configuration) ─────────────
+    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
 
-    /** Attaches a hover-triggered tooltip with fixed text. Returns this for chaining. */
+    @Override
     public Radio<T> tooltip(Component text) {
-        return tooltip(() -> text);
+        super.tooltip(text);
+        return this;
     }
 
-    /** Attaches a hover-triggered tooltip with supplier-driven text. Returns this for chaining. */
-    public Radio<T> tooltip(Supplier<Component> supplier) {
-        this.tooltipSupplier = supplier;
+    @Override
+    public Radio<T> tooltip(@Nullable Supplier<Component> supplier) {
+        super.tooltip(supplier);
+        return this;
+    }
+
+    @Override
+    public Radio<T> showWhen(@Nullable Supplier<Boolean> supplier) {
+        super.showWhen(supplier);
         return this;
     }
 
@@ -226,6 +232,7 @@ public class Radio<T> implements PanelElement {
         }
 
         // Hover-triggered tooltip — deferred to end-of-frame.
+        Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {

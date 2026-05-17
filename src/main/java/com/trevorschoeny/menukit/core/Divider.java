@@ -39,7 +39,7 @@ import java.util.function.Supplier;
  *
  * @see PanelElement  The interface this implements
  */
-public class Divider implements PanelElement {
+public class Divider extends AbstractPanelElement {
 
     /** Default separator color — vanilla inventory-label dark gray. */
     public static final int DEFAULT_COLOR = 0xFF404040;
@@ -53,8 +53,7 @@ public class Divider implements PanelElement {
     private final int height;
     private final int color;
 
-    /** Optional hover-triggered tooltip. Useful for "what does this section separate" disclosure. */
-    private @Nullable Supplier<Component> tooltipSupplier;
+    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
 
     private Divider(int childX, int childY, int width, int height, int color) {
         this.childX = childX;
@@ -168,6 +167,7 @@ public class Divider implements PanelElement {
         // Tooltip — fires over the divider bounds. Useful even on a 1px
         // line: hover area is the declared width × height, which can be
         // padded by the consumer if needed.
+        Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
@@ -178,24 +178,26 @@ public class Divider implements PanelElement {
         }
     }
 
-    // mouseClicked, isVisible, isHovered inherit defaults from PanelElement.
+    // mouseClicked, isHovered inherit defaults from PanelElement. isVisible
+    // + setVisible inherit from AbstractPanelElement (Phase 18r-2).
 
-    // ── Tooltip (optional hover-triggered configuration) ──────────────
+    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
 
-    /**
-     * Attaches a hover-triggered tooltip with fixed text. Returns this
-     * Divider for method chaining.
-     */
+    @Override
     public Divider tooltip(Component text) {
-        return tooltip(() -> text);
+        super.tooltip(text);
+        return this;
     }
 
-    /**
-     * Attaches a hover-triggered tooltip with supplier-driven text. Returns
-     * this Divider for method chaining.
-     */
-    public Divider tooltip(Supplier<Component> supplier) {
-        this.tooltipSupplier = supplier;
+    @Override
+    public Divider tooltip(@Nullable Supplier<Component> supplier) {
+        super.tooltip(supplier);
+        return this;
+    }
+
+    @Override
+    public Divider showWhen(@Nullable Supplier<Boolean> supplier) {
+        super.showWhen(supplier);
         return this;
     }
 

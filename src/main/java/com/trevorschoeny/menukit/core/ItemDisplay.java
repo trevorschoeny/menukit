@@ -37,7 +37,7 @@ import java.util.function.Supplier;
  * @see PanelElement The interface this implements
  * @see Icon         The sprite-rendering primitive (non-item case)
  */
-public class ItemDisplay implements PanelElement {
+public class ItemDisplay extends AbstractPanelElement {
 
     /** Native item render size — vanilla renders items at this size. */
     public static final int DEFAULT_SIZE = 16;
@@ -49,13 +49,11 @@ public class ItemDisplay implements PanelElement {
     private final boolean showCount;
     private final boolean showDurability;
 
-    /**
-     * Optional hover-triggered tooltip. Overrides any item-intrinsic tooltip
-     * vanilla would otherwise show (vanilla item tooltips on hover are an
-     * inventory-screen feature; ItemDisplay is decorative and doesn't get
-     * them by default — this is an opt-in helper).
-     */
-    private @Nullable Supplier<Component> tooltipSupplier;
+    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2). The
+    // ItemDisplay-specific semantic — "overrides any item-intrinsic
+    // tooltip vanilla would otherwise show; opt-in since ItemDisplay is
+    // decorative" — is consumer-facing intent; the base just holds the
+    // supplier and ItemDisplay.render() owns when to queue it.
 
     // ── Constructors: fixed stack ─────────────────────────────────────
 
@@ -199,6 +197,7 @@ public class ItemDisplay implements PanelElement {
 
         // Tooltip — fires when cursor is over the icon bounds. Queue via
         // setTooltipForNextFrame so the end-of-frame flush draws it.
+        Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
@@ -208,27 +207,28 @@ public class ItemDisplay implements PanelElement {
         }
     }
 
-    // ── Tooltip (optional hover-triggered configuration) ──────────────
+    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
 
-    /**
-     * Attaches a hover-triggered tooltip with fixed text. Returns this
-     * ItemDisplay for method chaining.
-     */
+    @Override
     public ItemDisplay tooltip(Component text) {
-        return tooltip(() -> text);
-    }
-
-    /**
-     * Attaches a hover-triggered tooltip with supplier-driven text.
-     * Supplier invoked each frame while hovered. Returns this ItemDisplay
-     * for method chaining.
-     */
-    public ItemDisplay tooltip(Supplier<Component> supplier) {
-        this.tooltipSupplier = supplier;
+        super.tooltip(text);
         return this;
     }
 
-    // mouseClicked, isVisible, isHovered inherit defaults from PanelElement.
+    @Override
+    public ItemDisplay tooltip(@Nullable Supplier<Component> supplier) {
+        super.tooltip(supplier);
+        return this;
+    }
+
+    @Override
+    public ItemDisplay showWhen(@Nullable Supplier<Boolean> supplier) {
+        super.showWhen(supplier);
+        return this;
+    }
+
+    // mouseClicked + isHovered inherit from PanelElement. isVisible +
+    // setVisible inherit from AbstractPanelElement (Phase 18r-2).
 
     // ── Element Queries ────────────────────────────────────────────────
 
