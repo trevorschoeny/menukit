@@ -5,6 +5,7 @@ import com.trevorschoeny.menukit.core.PanelBounds;
 import com.trevorschoeny.menukit.core.PanelDispatch;
 import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.PanelRendering;
+import com.trevorschoeny.menukit.core.PanelStyle;
 import com.trevorschoeny.menukit.core.PanelTreeLayout;
 import com.trevorschoeny.menukit.core.RenderContext;
 
@@ -41,7 +42,13 @@ import java.util.Map;
  */
 public class MenuKitScreen extends Screen {
 
-    /** Padding inside each panel (pixels from panel edge to content). */
+    /**
+     * Padding inside each styled panel (pixels from panel edge to content).
+     * Phase 18r — actual padding applied is style-conditional via
+     * {@link Panel#interiorPadding()}: {@code PANEL_PADDING} for styled
+     * panels (RAISED / DARK / INSET), {@code 0} for {@link PanelStyle#NONE}.
+     * The constant is retained for consumers who want the styled-panel value.
+     */
     protected static final int PANEL_PADDING = 7;
     /** Vertical gap between body panels. */
     protected static final int BODY_GAP = 14;
@@ -166,9 +173,11 @@ public class MenuKitScreen extends Screen {
         // Background
         PanelRendering.renderPanel(graphics, x, y, w, h, panel.getStyle());
 
-        // Elements
-        int contentX = x + PANEL_PADDING;
-        int contentY = y + PANEL_PADDING;
+        // Elements — interior padding is style-conditional (0 for NONE,
+        // PANEL_PADDING otherwise) per Panel.interiorPadding().
+        int padding = panel.interiorPadding();
+        int contentX = x + padding;
+        int contentY = y + padding;
         RenderContext ctx = new RenderContext(graphics, contentX, contentY, mouseX, mouseY);
         PanelDispatch.renderElements(panel, ctx);
 
@@ -214,9 +223,10 @@ public class MenuKitScreen extends Screen {
      * agreeing on size in all configurations.
      */
     private int[] computePanelSize(Panel panel) {
+        int padding = panel.interiorPadding();
         return new int[]{
-                panel.getWidth() + 2 * PANEL_PADDING,
-                panel.getHeight() + 2 * PANEL_PADDING
+                panel.getWidth() + 2 * padding,
+                panel.getHeight() + 2 * padding
         };
     }
 
@@ -364,8 +374,9 @@ public class MenuKitScreen extends Screen {
             int[] rect = effectivePanelScreenBounds(panel);
             if (rect == null) continue;
 
-            int contentX = rect[0] + PANEL_PADDING;
-            int contentY = rect[1] + PANEL_PADDING;
+            int padding = panel.interiorPadding();
+            int contentX = rect[0] + padding;
+            int contentY = rect[1] + padding;
 
             for (PanelElement element : panel.getElements()) {
                 if (!element.isVisible()) continue;
@@ -439,8 +450,9 @@ public class MenuKitScreen extends Screen {
             int[] rect = effectivePanelScreenBounds(panel);
             if (rect == null) continue;
 
-            int contentX = rect[0] + PANEL_PADDING;
-            int contentY = rect[1] + PANEL_PADDING;
+            int padding = panel.interiorPadding();
+            int contentX = rect[0] + padding;
+            int contentY = rect[1] + padding;
 
             for (PanelElement element : panel.getElements()) {
                 if (!element.isVisible()) continue;

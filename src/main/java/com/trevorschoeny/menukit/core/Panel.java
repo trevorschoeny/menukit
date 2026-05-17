@@ -48,17 +48,19 @@ import java.util.function.Supplier;
  */
 public class Panel {
 
-    // ── Interior padding (Phase 16g) ────────────────────────────────────
+    // ── Interior padding (Phase 16g; per-style in Phase 18r) ───────────
     // The consumer-side screen (MenuKitScreen, MenuKitHandledScreen,
-    // ScreenPanelAdapter) reserves PANEL_PADDING pixels between the panel
-    // background and where elements actually render. Panel needs to know
-    // this same value to compute the wrap-width budget for auto-wrap and
-    // the viewport dims for auto-scroll. Kept as a Panel-side mirror of
-    // the canonical 7px screen padding. If a consumer ever uses a
-    // different padding, they'd need to compensate by adjusting
-    // pinnedWidth / pinnedHeight accordingly — the assumption is
-    // documented but not enforced (no hook back to the screen because
-    // Panel is context-neutral).
+    // ScreenPanelAdapter) reserves padding pixels between the panel
+    // background and where elements actually render. Panel-side mirror
+    // of the canonical screen padding.
+    //
+    // INTERIOR_PADDING is the value for STYLED panels (RAISED / DARK /
+    // INSET) — those need breathing room between a visible frame and the
+    // elements inside. For PanelStyle.NONE there's no visible frame to
+    // space FROM, so the per-style query {@link #interiorPadding()}
+    // returns 0 — element edge = panel edge. Render sites that care about
+    // per-style behavior call {@link #interiorPadding()}; the constant
+    // remains for consumers who explicitly want the styled value.
     public static final int INTERIOR_PADDING = 7;
 
     private final String id;
@@ -207,6 +209,34 @@ public class Panel {
 
     /** Returns the visual style for this panel's background. */
     public PanelStyle getStyle() { return style; }
+
+    /**
+     * Returns the content padding the panel needs between its outer
+     * (background) bounds and the element-render origin, in pixels.
+     *
+     * <p>Style-conditional:
+     * <ul>
+     *   <li>{@link PanelStyle#NONE} → {@code 0}. The panel has no visible
+     *       frame, so there's nothing for elements to space FROM — the
+     *       element edge IS the panel edge. Hover/click/tooltip bounds
+     *       collapse onto the element extent.</li>
+     *   <li>All other styles ({@link PanelStyle#RAISED},
+     *       {@link PanelStyle#DARK}, {@link PanelStyle#INSET}) →
+     *       {@link #INTERIOR_PADDING} ({@code 7}). Breathing room
+     *       between the visible frame and the elements inside.</li>
+     * </ul>
+     *
+     * <p>Consumed by every render context that computes outer bounds
+     * from element extent (or vice versa): {@code MenuKitScreen},
+     * {@code MenuKitHandledScreen}, and the default-padding overloads of
+     * {@link com.trevorschoeny.menukit.inject.ScreenPanelAdapter} +
+     * {@link com.trevorschoeny.menukit.inject.SlotGroupPanelAdapter}.
+     * Explicit-padding adapter overloads bypass this — the consumer is
+     * in control.
+     */
+    public int interiorPadding() {
+        return style == PanelStyle.NONE ? 0 : INTERIOR_PADDING;
+    }
 
     /** Returns how this panel is positioned in the layout. */
     public PanelPosition getPosition() { return position; }

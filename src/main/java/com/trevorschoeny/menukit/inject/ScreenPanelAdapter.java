@@ -182,10 +182,15 @@ public final class ScreenPanelAdapter {
      * paired with an explicit stacking priority. Use when sibling panels
      * in the same region need deterministic ordering relative to each
      * other (e.g., {@code MenuRegion.RIGHT_ALIGN_TOP.priority(50)}).
-     * Uses {@link #DEFAULT_PADDING}.
+     *
+     * <p>Padding defers to {@link Panel#interiorPadding()} — {@code 0} for
+     * {@link com.trevorschoeny.menukit.core.PanelStyle#NONE} (element edge
+     * = panel edge), {@link #DEFAULT_PADDING} for styled panels. Consumers
+     * who want a different value pass it via the explicit-padding
+     * constructor overload.
      */
     public ScreenPanelAdapter(Panel panel, RegionAnchor<MenuRegion> anchor) {
-        this(panel, anchor.region(), DEFAULT_PADDING, anchor.priority());
+        this(panel, anchor.region(), panel.interiorPadding(), anchor.priority());
     }
 
     /** Region-aware constructor with both explicit padding and priority. */
