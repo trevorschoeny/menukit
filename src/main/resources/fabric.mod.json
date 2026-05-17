@@ -12,7 +12,7 @@
     "main": ["com.trevorschoeny.menukit.MenuKit"],
     "client": ["com.trevorschoeny.menukit.MenuKitClient"]
   },
-  "mixins": ["menukit.mixins.json", "menukit-examples.mixins.json"],
+  "mixins": ["menukit.mixins.json"],
   "depends": {
     "fabricloader": ">=0.15.0",
     "fabric-api": "*",
