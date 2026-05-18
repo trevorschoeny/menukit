@@ -5,13 +5,10 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "AbstractContainerScreenAccessor",
-    "KeyMappingAccessor",
     "MKGuiMixin",
     "MKHasClickedOutsideContainerMixin",
     "MKHasClickedOutsideCreativeMixin",
     "MKHasClickedOutsideMixin",
-    "MKKeyBindsScreenMixin",
-    "MKKeyMappingMixin",
     "MKRecipeBookAccessor",
     "MenuKitModalHoverMixin",
     "MenuKitModalKeyboardHandlerMixin",
