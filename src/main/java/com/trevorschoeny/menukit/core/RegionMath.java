@@ -173,4 +173,75 @@ public final class RegionMath {
         };
         return Optional.of(origin);
     }
+
+    /**
+     * Region-relative placement for {@link VanillaScreenRegion}s on a vanilla
+     * non-container screen (Options, Controls, KeyBinds, etc.).
+     *
+     * <p>Parallel to {@link #resolveHud}: anchored to the screen's
+     * GUI-scaled w × h, with {@link VanillaScreenRegion#EDGE_INSET} from
+     * each edge. The only semantic difference vs HUD positioning is that
+     * vanilla screens have NO crosshair behind them — the {@link
+     * VanillaScreenRegion#CENTER} region anchors to the true screen
+     * center, no crosshair clearance offset.
+     *
+     * <p>Returns {@link Optional#empty()} when {@code prefix + ph} exceeds
+     * the available axis extent — caller treats as "this panel doesn't fit
+     * in its region this frame" and skips render. {@link
+     * com.trevorschoeny.menukit.inject.ScreenOrigin#OUT_OF_REGION} is the
+     * adapter-side sentinel for the same condition.
+     *
+     * @param region  the destination region
+     * @param sw      GUI-scaled screen width
+     * @param sh      GUI-scaled screen height
+     * @param pw      the panel's width (padding-inclusive)
+     * @param ph      the panel's height (padding-inclusive)
+     * @param prefix  total height of visible preceding panels in the same
+     *                region, plus one {@link #STACK_GAP} per preceding panel
+     */
+    public static Optional<ScreenOrigin> resolveVanillaScreen(
+            VanillaScreenRegion region, int sw, int sh,
+            int pw, int ph, int prefix) {
+
+        int inset = VanillaScreenRegion.EDGE_INSET;
+
+        int available = switch (region) {
+            case TOP_LEFT, TOP_CENTER, TOP_RIGHT,
+                 BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT -> sh - inset * 2;
+            case LEFT_CENTER, RIGHT_CENTER -> sh / 2 - inset;
+            case CENTER -> sh / 2 - inset;
+        };
+        if (prefix + ph > available) return Optional.empty();
+
+        ScreenOrigin origin = switch (region) {
+            case TOP_LEFT -> new ScreenOrigin(
+                    inset,
+                    inset + prefix);
+            case TOP_CENTER -> new ScreenOrigin(
+                    (sw - pw) / 2,
+                    inset + prefix);
+            case TOP_RIGHT -> new ScreenOrigin(
+                    sw - pw - inset,
+                    inset + prefix);
+            case LEFT_CENTER -> new ScreenOrigin(
+                    inset,
+                    sh / 2 + prefix);
+            case RIGHT_CENTER -> new ScreenOrigin(
+                    sw - pw - inset,
+                    sh / 2 + prefix);
+            case BOTTOM_LEFT -> new ScreenOrigin(
+                    inset,
+                    sh - ph - inset - prefix);
+            case BOTTOM_CENTER -> new ScreenOrigin(
+                    (sw - pw) / 2,
+                    sh - ph - inset - prefix);
+            case BOTTOM_RIGHT -> new ScreenOrigin(
+                    sw - pw - inset,
+                    sh - ph - inset - prefix);
+            case CENTER -> new ScreenOrigin(
+                    (sw - pw) / 2,
+                    (sh - ph) / 2 + prefix);
+        };
+        return Optional.of(origin);
+    }
 }

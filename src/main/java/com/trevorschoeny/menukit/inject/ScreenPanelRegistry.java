@@ -275,11 +275,20 @@ public final class ScreenPanelRegistry {
         if (!checkpointRun) {
             checkpointRun = true;
             validateTargetingDeclared();
+            // Phase 18s — vanilla adapters orphan checkpoint runs alongside.
+            VanillaScreenPanelRegistry.validateTargetingDeclared();
         }
 
-        // MenuContext + SlotGroupContext dispatch only for AbstractContainerScreen —
-        // other screen types (title, pause menu, etc.) are outside scope.
-        if (!(screen instanceof AbstractContainerScreen<?> acs)) return;
+        // Phase 18s — branch on screen type:
+        //   - Container screens (inventory, chest, furnace, etc.) → existing
+        //     MenuContext + SlotGroupContext dispatch below.
+        //   - Non-container screens (Options, Controls, KeyBinds, world-
+        //     select, server-list, title, etc.) → VanillaScreenPanelRegistry
+        //     parallel dispatch path. Same AFTER_INIT event, two paths.
+        if (!(screen instanceof AbstractContainerScreen<?> acs)) {
+            VanillaScreenPanelRegistry.onScreenInit(screen);
+            return;
+        }
 
         // ── MenuContext matching ────────────────────────────────────────
         Class<? extends AbstractContainerScreen<?>> screenClass =

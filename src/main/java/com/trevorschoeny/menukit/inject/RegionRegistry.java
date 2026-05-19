@@ -5,6 +5,7 @@ import com.trevorschoeny.menukit.core.MenuRegion;
 import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.RegionAnchor;
 import com.trevorschoeny.menukit.core.RegionMath;
+import com.trevorschoeny.menukit.core.VanillaScreenRegion;
 import com.trevorschoeny.menukit.hud.MKHudPanelDef;
 
 import net.fabricmc.loader.api.FabricLoader;
@@ -59,6 +60,8 @@ public final class RegionRegistry {
             new EnumMap<>(MenuRegion.class);
     private static final Map<HudRegion, List<MKHudPanelDef>> HUD =
             new EnumMap<>(HudRegion.class);
+    private static final Map<VanillaScreenRegion, List<Panel>> VANILLA_SCREEN =
+            new EnumMap<>(VanillaScreenRegion.class);
 
     // Per-panel content padding — set at registration time so axial-prefix
     // stacking and overflow math can include padding when deriving axial extent.
@@ -81,6 +84,13 @@ public final class RegionRegistry {
     private static final Map<MKHudPanelDef, Integer> HUD_PRIORITY = new HashMap<>();
     private static final Map<MKHudPanelDef, String> HUD_MODID = new HashMap<>();
     private static final Map<MKHudPanelDef, Integer> HUD_REG_SEQ = new HashMap<>();
+    // Phase 18s — VanillaScreenContext per-panel sort metadata, same shape as
+    // the Menu/HUD tables. Padding is stored per-panel because the
+    // VanillaScreenPanelAdapter accepts an explicit padding constructor arg.
+    private static final Map<Panel, Integer> VANILLA_SCREEN_PADDING = new HashMap<>();
+    private static final Map<Panel, Integer> VANILLA_SCREEN_PRIORITY = new HashMap<>();
+    private static final Map<Panel, String>  VANILLA_SCREEN_MODID = new HashMap<>();
+    private static final Map<Panel, Integer> VANILLA_SCREEN_REG_SEQ = new HashMap<>();
     private static int registrationCounter = 0;
 
     // Deduplication state for the one-shot OUT_OF_REGION warn. First
@@ -331,6 +341,122 @@ public final class RegionRegistry {
                 .thenComparing(d -> HUD_MODID.getOrDefault(d, ""))
                 .thenComparingInt(d -> HUD_REG_SEQ.getOrDefault(d, Integer.MAX_VALUE)));
         return sorted;
+    }
+
+    // ── VanillaScreenContext (Phase 18s) ───────────────────────────────
+    //
+    // Parallel to HUD's shape — no chrome (vanilla non-container screens
+    // have none), single registration → stacking, deterministic sort by
+    // (priority, modId, regSeq). The dispatch path lives in
+    // VanillaScreenPanelRegistry; this registry holds the per-region
+    // stacking state + the originFn factory the adapter consults each
+    // frame.
+
+    /**
+     * Registers a VanillaScreenContext panel into a region with explicit
+     * padding + priority. Called from
+     * {@link VanillaScreenPanelAdapter}'s region constructor. Padding
+     * participates in axial-prefix stacking (panel's reported size +
+     * 2× padding contributes to subsequent siblings' offset); priority +
+     * captured modId drive deterministic sort.
+     */
+    public static void registerVanillaScreen(Panel panel, VanillaScreenRegion region,
+                                              int padding, int priority) {
+        VANILLA_SCREEN.computeIfAbsent(region, r -> new ArrayList<>()).add(panel);
+        VANILLA_SCREEN_PADDING.put(panel, padding);
+        VANILLA_SCREEN_PRIORITY.put(panel, priority);
+        VANILLA_SCREEN_MODID.put(panel, captureCallerModId());
+        VANILLA_SCREEN_REG_SEQ.put(panel, registrationCounter++);
+    }
+
+    /**
+     * Removes a previously-registered VanillaScreenContext panel from every
+     * region list it appears in and clears its per-panel metadata. Idempotent.
+     */
+    public static void unregisterVanillaScreen(Panel panel) {
+        for (List<Panel> list : VANILLA_SCREEN.values()) {
+            list.remove(panel);
+        }
+        VANILLA_SCREEN_PADDING.remove(panel);
+        VANILLA_SCREEN_PRIORITY.remove(panel);
+        VANILLA_SCREEN_MODID.remove(panel);
+        VANILLA_SCREEN_REG_SEQ.remove(panel);
+    }
+
+    /**
+     * Axial prefix (vertical pixels) for a VanillaScreenContext panel —
+     * sum of preceding visible panels' heights + padding + STACK_GAP per
+     * preceding panel.
+     *
+     * @throws IllegalStateException if {@code self} is not registered in {@code region}
+     */
+    public static int axialPrefix(Panel self, VanillaScreenRegion region) {
+        List<Panel> panels = sortedVanillaScreenPanels(region);
+        int prefix = 0;
+        for (Panel p : panels) {
+            if (p == self) return prefix;
+            if (!p.isVisible()) continue;
+            int pad = VANILLA_SCREEN_PADDING.getOrDefault(p, 0);
+            int extent = p.getHeight() + 2 * pad;
+            prefix += extent + VanillaScreenRegion.STACK_GAP;
+        }
+        throw new IllegalStateException(
+                "Panel '" + self.getId() + "' is not registered in VanillaScreenRegion." + region);
+    }
+
+    /**
+     * Builds a region-aware {@link VanillaScreenOriginFn} for a panel. The
+     * returned lambda consults the registry per-frame (for stacking prefix
+     * + registered padding) and the screen's GUI-scaled dimensions to
+     * produce a screen-space origin — or {@link ScreenOrigin#OUT_OF_REGION}
+     * when the panel overflows its region.
+     */
+    public static VanillaScreenOriginFn vanillaScreenOriginFn(Panel panel,
+                                                                VanillaScreenRegion region) {
+        return (sw, sh, screen) -> {
+            int pad = VANILLA_SCREEN_PADDING.getOrDefault(panel, 0);
+            int pw = panel.getWidth() + 2 * pad;
+            int ph = panel.getHeight() + 2 * pad;
+            int prefix = axialPrefix(panel, region);
+
+            var result = RegionMath.resolveVanillaScreen(region, sw, sh, pw, ph, prefix);
+            if (result.isEmpty()) {
+                warnVanillaScreenOverflowOnce(panel, region, pw, ph, prefix, sw, sh);
+                return ScreenOrigin.OUT_OF_REGION;
+            }
+            return result.get();
+        };
+    }
+
+    /** Sorts vanilla-screen panels by the deterministic key. */
+    private static List<Panel> sortedVanillaScreenPanels(VanillaScreenRegion region) {
+        List<Panel> panels = VANILLA_SCREEN.getOrDefault(region, List.of());
+        if (panels.size() <= 1) return panels;
+        List<Panel> sorted = new ArrayList<>(panels);
+        sorted.sort(Comparator
+                .comparingInt((Panel p) -> VANILLA_SCREEN_PRIORITY.getOrDefault(p, RegionAnchor.DEFAULT_PRIORITY))
+                .thenComparing(p -> VANILLA_SCREEN_MODID.getOrDefault(p, ""))
+                .thenComparingInt(p -> VANILLA_SCREEN_REG_SEQ.getOrDefault(p, Integer.MAX_VALUE)));
+        return sorted;
+    }
+
+    // Deduplication state for one-shot OUT_OF_REGION warn on vanilla-screen
+    // overflow. Parallel to WARNED_MENU / WARNED_HUD.
+    private static final Map<Panel, Set<VanillaScreenRegion>> WARNED_VANILLA_SCREEN =
+            Collections.synchronizedMap(new WeakHashMap<>());
+
+    private static void warnVanillaScreenOverflowOnce(Panel panel, VanillaScreenRegion region,
+                                                       int pw, int ph, int prefix,
+                                                       int sw, int sh) {
+        Set<VanillaScreenRegion> warned = WARNED_VANILLA_SCREEN
+                .computeIfAbsent(panel, p -> Collections.synchronizedSet(
+                        EnumSet.noneOf(VanillaScreenRegion.class)));
+        if (!warned.add(region)) return;
+        LOGGER.warn(
+                "[RegionRegistry] Panel '{}' overflows VanillaScreenRegion.{} — extent " +
+                "{}×{}px (including padding) + prefix {}px exceeds screen {}×{}. " +
+                "Silent OUT_OF_REGION until this panel + region pair is resized.",
+                panel.getId(), region, pw, ph, prefix, sw, sh);
     }
 
     // ── modId capture (Phase 16i) ──────────────────────────────────────
