@@ -263,6 +263,14 @@ public final class VanillaScreenPanelAdapter {
      * landed inside the panel's outer bounds but no element claimed it
      * (eats the click per the input-contract — panels are opaque to
      * vanilla-widget dispatch within their bounds).
+     *
+     * <p><b>Pass ordering matters.</b> The active-overlay pass runs FIRST,
+     * unconditionally — overlay extents ({@link PanelElement#getActiveOverlayBounds})
+     * can reach OUTSIDE the panel's outer layout bounds (Dropdown popovers,
+     * etc.), so gating the overlay loop on an {@code inPanel} check would
+     * swallow popover clicks. Bug surfaced by Imp@Keybindery on 2026-05-19
+     * (controls-screen Sort/Filter dropdowns lost their selection clicks);
+     * fix landed in {@code menukit/(this commit)}.
      */
     public boolean mouseClicked(int sw, int sh, double mouseX, double mouseY,
                                  int button, Screen screen) {
@@ -271,19 +279,11 @@ public final class VanillaScreenPanelAdapter {
         ScreenOrigin origin = originFn.compute(sw, sh, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return false;
 
-        int panelWidth = panel.getWidth() + 2 * padding;
-        int panelHeight = panel.getHeight() + 2 * padding;
-
-        // Bounds check — if click is outside the panel's outer rect, fall
-        // through to vanilla without claiming.
-        boolean inPanel = mouseX >= origin.x() && mouseX < origin.x() + panelWidth
-                       && mouseY >= origin.y() && mouseY < origin.y() + panelHeight;
-        if (!inPanel) return false;
-
-        int contentX = origin.x() + padding;
-        int contentY = origin.y() + padding;
-
-        // Two-pass dispatch matching ScreenPanelAdapter (active-overlay first).
+        // ── Pass 1: active-overlay exclusive claims ────────────────────
+        // Runs unconditionally — overlay extents may reach outside the
+        // panel's outer bounds (Dropdown popover etc.). The overlay
+        // bounds ARE the source of truth for these elements, not layout
+        // bounds.
         for (PanelElement element : panel.getElements()) {
             if (!element.isVisible()) continue;
             int[] overlay = element.getActiveOverlayBounds();
@@ -294,6 +294,17 @@ public final class VanillaScreenPanelAdapter {
                 return true;
             }
         }
+
+        // ── Pass 2: in-panel hit-test + opacity eat ────────────────────
+        int panelWidth = panel.getWidth() + 2 * padding;
+        int panelHeight = panel.getHeight() + 2 * padding;
+
+        boolean inPanel = mouseX >= origin.x() && mouseX < origin.x() + panelWidth
+                       && mouseY >= origin.y() && mouseY < origin.y() + panelHeight;
+        if (!inPanel) return false;  // outside both overlay AND panel → vanilla handles
+
+        int contentX = origin.x() + padding;
+        int contentY = origin.y() + padding;
 
         for (PanelElement element : panel.getElements()) {
             if (!element.isVisible()) continue;

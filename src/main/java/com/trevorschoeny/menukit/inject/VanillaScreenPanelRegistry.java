@@ -151,6 +151,27 @@ public final class VanillaScreenPanelRegistry {
         // screen if they want a different active set.
         List<VanillaScreenPanelAdapter> activeMatches = List.copyOf(matches);
 
+        // ── Element lifecycle (onAttach / onDetach) ───────────────────
+        // Widget-wrapping elements (TextField, Keybindery's SearchBox,
+        // any PanelElement that owns a vanilla AbstractWidget) need to
+        // register their widget with the screen via screen.addWidget at
+        // attach time so the widget gets its font/init/etc. set up.
+        // Without onAttach, EditBox.font is null → NPE on first render.
+        // Bug surfaced by Keybindery on 2026-05-22 (KeyBinds screen crash).
+        // Mirrors the container-screen path's onAttach/onDetach loop.
+        for (VanillaScreenPanelAdapter adapter : activeMatches) {
+            for (var element : adapter.getPanel().getElements()) {
+                element.onAttach(screen);
+            }
+        }
+        net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.remove(screen).register(removed -> {
+            for (VanillaScreenPanelAdapter adapter : activeMatches) {
+                for (var element : adapter.getPanel().getElements()) {
+                    element.onDetach(removed);
+                }
+            }
+        });
+
         // ── Render hook ──────────────────────────────────────────────
         // Register a Renderable that iterates active adapters and renders
         // each. Renderables fire INSIDE Screen.render's renderable loop,
