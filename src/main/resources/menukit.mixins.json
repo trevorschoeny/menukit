@@ -10,6 +10,7 @@
     "MKHasClickedOutsideCreativeMixin",
     "MKHasClickedOutsideMixin",
     "MKRecipeBookAccessor",
+    "MenuKitListHoverSuppressMixin",
     "MenuKitModalHoverMixin",
     "MenuKitModalKeyboardHandlerMixin",
     "MenuKitModalMouseHandlerMixin",
