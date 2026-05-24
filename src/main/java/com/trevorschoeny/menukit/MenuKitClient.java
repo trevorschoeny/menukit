@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit;
 
+import com.trevorschoeny.menukit.core.MKFocus;
 import com.trevorschoeny.menukit.inject.MenuChrome;
 import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
 import com.trevorschoeny.menukit.inject.SlotGroupPanelRegistry;
@@ -83,6 +84,15 @@ public class MenuKitClient implements ClientModInitializer {
         // Ordering: VanillaSlotGroupResolvers.registerAll() above must run
         // first so the first screen-open can resolve categories correctly.
         SlotGroupPanelRegistry.init();
+
+        // Phase 18r-5 follow-up — MK-managed focus janitor. Wires
+        // ScreenMouseEvents.afterMouseClick on every opened screen so a
+        // focused MK-managed widget (e.g. TextField, Keybindery's SearchBox)
+        // releases focus when the user clicks anywhere outside its bounds.
+        // Compensates for vanilla's setFocused-on-claim-only semantics
+        // combined with MK's panel-click-eat suppressing the natural flow.
+        // See MKFocus class javadoc for the full design.
+        MKFocus.init();
 
         // Phase 16h — cursor preservation. Universal AFTER_INIT listener
         // that fires for any screen open (vanilla, MK, MKC, third-party)

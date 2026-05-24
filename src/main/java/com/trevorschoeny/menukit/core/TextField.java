@@ -1,7 +1,5 @@
 package com.trevorschoeny.menukit.core;
 
-import com.trevorschoeny.menukit.mixin.ScreenAccessor;
-
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -244,7 +242,13 @@ public class TextField extends AbstractPanelElement {
         // initialized by onAttach time, so font is non-null. See the
         // field-block comment above for why we can't construct earlier.
         ensureEditBox();
-        ((ScreenAccessor) screen).menuKit$addWidget(editBox);
+        // MKFocus.addWidget wraps the screen's input-pipeline registration
+        // and opts the EditBox into MK-managed focus semantics — the
+        // focus-janitor mixin will clear focus when the user clicks
+        // outside the EditBox's bounds. See MKFocus class javadoc for
+        // why this matters (MK's panel-eat suppresses vanilla's natural
+        // focus-transition flow).
+        MKFocus.addWidget(screen, editBox);
     }
 
     @Override
@@ -252,9 +256,9 @@ public class TextField extends AbstractPanelElement {
         if (attachedScreen == screen) {
             // Null-guard: if onDetach is called before onAttach ever
             // ran (e.g. a panel was discarded before its first attach),
-            // editBox is still null. Skip removeWidget rather than NPE.
+            // editBox is still null. Skip removal rather than NPE.
             if (editBox != null) {
-                ((ScreenAccessor) screen).menuKit$removeWidget(editBox);
+                MKFocus.removeWidget(screen, editBox);
             }
             attachedScreen = null;
         }

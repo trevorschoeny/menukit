@@ -127,6 +127,58 @@ public final class VanillaScreenPanelRegistry {
         throw new IllegalStateException(message);
     }
 
+    // ── Opacity / overlay queries ──────────────────────────────────────
+
+    /**
+     * Post-Phase 18r-5: is the cursor inside ANY registered vanilla-screen
+     * adapter's panel bounds OR any of its elements' active overlay bounds
+     * on the given screen? Used by the widget-hover-suppression mixin so
+     * vanilla widgets covered by an MK panel or a dropdown popover stop
+     * highlighting on hover.
+     *
+     * <p>Iterates the REGISTERED set (filtered by class-ancestry match
+     * against the given screen) rather than a per-screen cached match list
+     * — VanillaScreenPanelRegistry doesn't cache matches statically (the
+     * dispatch path captures matches in a closure inside
+     * {@link #onScreenInit}). Per-call iteration cost is bounded by the
+     * total adapter count, which is small for vanilla-screen panels.
+     */
+    public static boolean hasOpaqueRegionAt(Screen screen,
+                                             double mouseX, double mouseY) {
+        if (screen == null) return false;
+        int sw = screen.width;
+        int sh = screen.height;
+        for (VanillaScreenPanelAdapter adapter : REGISTERED) {
+            if (!adapter.matches(screen)) continue;
+            var panel = adapter.getPanel();
+            if (!panel.isVisible()) continue;
+            var origin = adapter.getOriginForScreen(sw, sh, screen);
+            if (origin.isEmpty()) continue;
+            int padding = adapter.getPadding();
+            int pw = panel.getWidth() + 2 * padding;
+            int ph = panel.getHeight() + 2 * padding;
+            int ox = origin.get().x();
+            int oy = origin.get().y();
+            // Panel bounds
+            if (mouseX >= ox && mouseX < ox + pw
+                    && mouseY >= oy && mouseY < oy + ph) {
+                return true;
+            }
+            // Element overlay bounds (e.g., open Dropdown popovers that
+            // extend beyond the panel's own footprint).
+            for (var element : panel.getElements()) {
+                if (!element.isVisible()) continue;
+                int[] overlay = element.getActiveOverlayBounds();
+                if (overlay != null
+                        && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
+                        && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     // ── Per-screen dispatch ────────────────────────────────────────────
 
     /**

@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit.inject;
 
+import com.trevorschoeny.menukit.core.MKFocus;
 import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.PanelDispatch;
 import com.trevorschoeny.menukit.core.PanelElement;
@@ -291,6 +292,7 @@ public final class VanillaScreenPanelAdapter {
                     && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
                     && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
                 element.mouseClicked(mouseX, mouseY, button);
+                MKFocus.blurOnOutsideBounds(screen, mouseX, mouseY);
                 return true;
             }
         }
@@ -310,11 +312,24 @@ public final class VanillaScreenPanelAdapter {
             if (!element.isVisible()) continue;
             if (!element.hitTest(mouseX, mouseY, contentX, contentY)) continue;
             if (element.mouseClicked(mouseX, mouseY, button)) {
+                // Element claimed. Apply unified focus-janitor rule —
+                // if a focused MK widget exists and the click was
+                // outside its bounds, blur. This mirrors vanilla's
+                // "claimant gets focus, others lose it" semantics for
+                // non-focus-taking MK elements (buttons, dropdowns).
+                // Elements that DO take focus (e.g., TextField → EditBox)
+                // are protected by the inside-bounds check.
+                MKFocus.blurOnOutsideBounds(screen, mouseX, mouseY);
                 return true;
             }
         }
 
         // In-panel but no element claimed → still eat (opacity contract).
+        // Same unified rule — focused MK widget outside the click point
+        // gets blurred. Vanilla's natural focus-transition path is
+        // SUPPRESSED by our eat (vanilla never sees the click), so the
+        // layer that eats owns restoring sensible focus state.
+        MKFocus.blurOnOutsideBounds(screen, mouseX, mouseY);
         return true;
     }
 

@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit.mixin;
 
+import com.trevorschoeny.menukit.core.MKFocus;
 import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -78,8 +79,12 @@ public abstract class MenuKitModalHoverMixin {
         //     popovers / dropdowns covering slot edges).
         //   - else → don't suppress; vanilla hover proceeds normally.
         // See M9 §4.7 for the scope-asymmetry framing.
+        // Post-Phase 18r-5: isCursorOverOpaqueRegion includes ACTIVE
+        // ELEMENT OVERLAYS (Dropdown popovers, etc.) in addition to
+        // panel bounds — so a slot under an open dropdown popover that
+        // extends beyond the panel also gets its hover suppressed.
         if (ScreenPanelRegistry.hasAnyVisibleModalTracking()
-                || ScreenPanelRegistry.hasAnyVisibleOpaquePanelAt(mouseX, mouseY)) {
+                || MKFocus.isCursorOverOpaqueRegion(mouseX, mouseY)) {
             cir.setReturnValue(null);
         }
     }

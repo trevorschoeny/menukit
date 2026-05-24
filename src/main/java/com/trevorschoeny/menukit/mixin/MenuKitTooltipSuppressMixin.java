@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit.mixin;
 
+import com.trevorschoeny.menukit.core.MKFocus;
 import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
 
 import net.minecraft.client.gui.GuiGraphics;
@@ -94,8 +95,12 @@ public abstract class MenuKitTooltipSuppressMixin {
         //     outside the popover still tooltip normally).
         //   - else → don't suppress; vanilla tooltip queues normally.
         // See M9 §4.7 for the scope-asymmetry framing.
+        // Post-Phase 18r-5: isCursorOverOpaqueRegionAtCursor includes
+        // ACTIVE ELEMENT OVERLAYS (Dropdown popovers, etc.) in addition
+        // to panel bounds — so vanilla widget tooltips behind a dropdown
+        // popover that extends beyond the panel also get suppressed.
         if (ScreenPanelRegistry.hasAnyVisibleModalTracking()
-                || ScreenPanelRegistry.hasAnyVisibleOpaquePanelAtCursor()) {
+                || MKFocus.isCursorOverOpaqueRegionAtCursor()) {
             ci.cancel();
         }
     }

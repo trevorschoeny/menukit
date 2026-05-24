@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit.inject;
 
+import com.trevorschoeny.menukit.core.MKFocus;
 import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevorschoeny.menukit.mixin.ScreenAccessor;
@@ -558,12 +559,27 @@ public final class ScreenPanelRegistry {
                 target.mouseClicked(bounds, mouseX, mouseY, button,
                         screen instanceof AbstractContainerScreen<?> acs ? acs : null);
             }
+            // Apply unified focus-janitor rule. Vanilla never sees this
+            // click (we're about to eat), so the natural setFocused-on-
+            // claim flow can't fire. Whether or not an MK element
+            // claimed, if a focused MK widget exists and the click was
+            // outside its bounds, blur. Clicks INSIDE the focused
+            // widget's bounds (e.g., clicking an already-focused
+            // TextField) are protected by the bounds check inside the
+            // helper.
+            MKFocus.blurOnOutsideBounds(screen, mouseX, mouseY);
             return true;
         }
 
         // No opaque panel under cursor. If a tracksAsModal panel is
         // visible, eat anyway (modal blocks outside-bounds interaction).
         if (hasAnyVisibleModalTracking()) {
+            // Intentionally do NOT clearFocus here. The user clicked
+            // outside the modal's bounds entirely; widgets focused
+            // INSIDE the modal should retain focus (the modal-eat is
+            // about blocking the underlying interaction, not about
+            // tearing down the modal's own input state). Empty-panel-
+            // space-clear semantics apply to in-panel clicks only.
             return true;
         }
 
@@ -894,6 +910,67 @@ public final class ScreenPanelRegistry {
      * {@code Window.getScreenWidth/Height} (logical pixels) for HiDPI
      * correctness, NOT {@code getWidth/Height} (framebuffer pixels).
      */
+    /**
+     * Post-Phase 18r-5: complement to {@link #hasAnyVisibleOpaquePanelAt}
+     * for ELEMENT-LEVEL active overlays — Dropdown popovers and any other
+     * element whose {@code getActiveOverlayBounds()} extends beyond its
+     * owning panel's bounds. The panel-bounds query misses these; this
+     * query catches them.
+     *
+     * <p>Used by the widget-hover-suppression mixin so vanilla widgets
+     * (buttons, list rows) covered by an open dropdown popover stop
+     * highlighting on hover. The opacity-eat input path already routes
+     * the CLICK away from them; this closes the visual loop.
+     */
+    public static boolean hasActiveOverlayAt(double mouseX, double mouseY) {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc == null) return false;
+        Screen screen = mc.screen;
+        if (screen == null) return false;
+
+        // Container-screen region adapters.
+        if (screen instanceof AbstractContainerScreen<?> acs) {
+            ScreenRenderData data = SCREEN_DATA.get(acs);
+            if (data != null) {
+                for (ScreenPanelAdapter adapter : data.menuMatches) {
+                    Panel panel = adapter.getPanel();
+                    if (!panel.isVisible()) continue;
+                    for (var element : panel.getElements()) {
+                        if (!element.isVisible()) continue;
+                        int[] overlay = element.getActiveOverlayBounds();
+                        if (overlay != null
+                                && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
+                                && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Lambda-active adapters (any Screen subclass).
+        synchronized (LAMBDA_ACTIVE) {
+            List<LambdaActiveEntry> entries = LAMBDA_ACTIVE.get(screen);
+            if (entries != null) {
+                for (LambdaActiveEntry entry : entries) {
+                    Panel panel = entry.adapter().getPanel();
+                    if (!panel.isVisible()) continue;
+                    for (var element : panel.getElements()) {
+                        if (!element.isVisible()) continue;
+                        int[] overlay = element.getActiveOverlayBounds();
+                        if (overlay != null
+                                && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
+                                && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
     public static boolean hasAnyVisibleOpaquePanelAtCursor() {
         var mc = net.minecraft.client.Minecraft.getInstance();
         if (mc == null) return false;
