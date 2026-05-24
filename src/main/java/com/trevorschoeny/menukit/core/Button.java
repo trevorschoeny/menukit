@@ -287,15 +287,17 @@ public class Button extends AbstractPanelElement {
      * composite visuals) while keeping the default panel-style background.
      */
     protected void renderContent(RenderContext ctx, int sx, int sy) {
-        // Text — centered within the button bounds
-        // 1.21.11 ARGB requirement: colors must have a non-zero alpha byte
-        // or drawString silently discards the text (ARGB.alpha(color) != 0 guard).
-        var font = Minecraft.getInstance().font;
-        int textWidth = font.width(text);
-        int textX = sx + (width - textWidth) / 2;
-        int textY = sy + (height - font.lineHeight) / 2;
+        // Text — centered within button bounds, scroll-on-overflow.
+        // MKText.renderCentered handles both the fits case (centered
+        // static draw) AND the overflow case (vanilla's scroll-back-
+        // and-forth animation, same as vanilla Button's label).
+        //
+        // 1.21.11 ARGB requirement: colors must have a non-zero alpha
+        // byte or the underlying draw silently discards the text
+        // (ARGB.alpha(color) != 0 guard).
         int textColor = isDisabled() ? 0xFF808080 : 0xFFFFFFFF;
-        ctx.graphics().drawString(font, text, textX, textY, textColor, true);
+        MKText.renderCentered(ctx.graphics(), text, sx, sy, width, height,
+                textColor, true);
     }
 
     // ── Click Handling ─────────────────────────────────────────────────

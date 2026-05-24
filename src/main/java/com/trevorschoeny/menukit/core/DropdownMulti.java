@@ -292,14 +292,14 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
         Set<T> currentSelection = selectionSupplier.get();
         Component text = triggerLabelFn.apply(Set.copyOf(currentSelection));
 
+        // Trigger text — scroll-on-overflow via MKText (replaces
+        // truncate-with-ellipsis). Matches Dropdown's trigger pattern.
         int textAreaW = triggerWidth - CHEVRON_RESERVED_W - 2 * TRIGGER_TEXT_PAD_X;
-        Component drawn = (font.width(text) > textAreaW)
-                ? truncateToWidth(font, text, textAreaW)
-                : text;
-
-        int textX = sx + TRIGGER_TEXT_PAD_X;
-        int textY = sy + (triggerHeight - font.lineHeight) / 2;
-        graphics.drawString(font, drawn, textX, textY, COLOR_TEXT, true);
+        int textAreaX = sx + TRIGGER_TEXT_PAD_X;
+        MKText.render(graphics, text, net.minecraft.client.gui.TextAlignment.LEFT,
+                textAreaX, textAreaX + textAreaW,
+                sy, sy + triggerHeight,
+                COLOR_TEXT, true);
 
         // Chevron — same convention as Dropdown.
         Component chevron = Component.literal(open ? "▲" : "▼");
@@ -412,13 +412,14 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
                         markX, markY, CHECKMARK_SPRITE_W, CHECKMARK_SPRITE_H);
             }
 
+            // Row text — scroll-on-overflow via MKText (replaces
+            // truncate-with-ellipsis).
             Component itemText = labelFn.apply(item);
-            Component drawn = (font.width(itemText) > rowsContentW)
-                    ? truncateToWidth(font, itemText, rowsContentW)
-                    : itemText;
             int textX = px + 1 + POPOVER_TEXT_PAD_X + CHECKMARK_COL_W;
-            int textY = rowY + (ROW_HEIGHT - font.lineHeight) / 2;
-            graphics.drawString(font, drawn, textX, textY, COLOR_TEXT, true);
+            MKText.render(graphics, itemText, net.minecraft.client.gui.TextAlignment.LEFT,
+                    textX, textX + rowsContentW,
+                    rowY, rowY + ROW_HEIGHT,
+                    COLOR_TEXT, true);
         }
 
         // ── Scrollbar (regular-rows region only) ──────────────────────
@@ -454,14 +455,15 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
                     COLOR_HOVER_OVERLAY);
         }
 
+        // Action row text — scroll-on-overflow via MKText. Same shape
+        // as regular item rows, just italic.
         MutableComponent italic = Component.empty()
                 .append(label).withStyle(ChatFormatting.ITALIC);
-        Component drawn = (font.width(italic) > contentW)
-                ? truncateToWidth(font, italic, contentW)
-                : italic;
         int textX = px + 1 + POPOVER_TEXT_PAD_X;
-        int textY = rowY + (ROW_HEIGHT - font.lineHeight) / 2;
-        graphics.drawString(font, drawn, textX, textY, COLOR_TEXT, true);
+        MKText.render(graphics, italic, net.minecraft.client.gui.TextAlignment.LEFT,
+                textX, textX + contentW,
+                rowY, rowY + ROW_HEIGHT,
+                COLOR_TEXT, true);
     }
 
     // ── Popover geometry ───────────────────────────────────────────────

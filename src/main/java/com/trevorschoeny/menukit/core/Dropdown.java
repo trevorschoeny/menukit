@@ -329,17 +329,18 @@ public final class Dropdown<T> extends AbstractPanelElement {
         T sel = selectionSupplier.get();
         Component text = (sel != null) ? labelFn.apply(sel) : Component.empty();
 
-        // Truncate-by-width if the text overflows the available trigger
-        // space (trigger width minus chevron reservation minus padding).
+        // Trigger text — left-aligned with text padding, vertically
+        // centered. Scroll-on-overflow via MKText: when the selection
+        // text is wider than the available trigger space (trigger
+        // width minus chevron reservation minus padding), vanilla's
+        // back-and-forth scroll animation kicks in. Replaces the
+        // pre-18s-follow-up truncate-with-ellipsis behavior.
         int textAreaW = triggerWidth - CHEVRON_RESERVED_W - 2 * TRIGGER_TEXT_PAD_X;
-        Component drawn = (font.width(text) > textAreaW)
-                ? truncateToWidth(font, text, textAreaW)
-                : text;
-
-        // Vertically center text inside trigger; left-align with text padding.
-        int textX = sx + TRIGGER_TEXT_PAD_X;
-        int textY = sy + (triggerHeight - font.lineHeight) / 2;
-        graphics.drawString(font, drawn, textX, textY, COLOR_TEXT, true);
+        int textAreaX = sx + TRIGGER_TEXT_PAD_X;
+        MKText.render(graphics, text, net.minecraft.client.gui.TextAlignment.LEFT,
+                textAreaX, textAreaX + textAreaW,
+                sy, sy + triggerHeight,
+                COLOR_TEXT, true);
 
         // Chevron on the right edge — ▼ when closed, ▲ when open.
         // Centered vertically; reserved space already excluded from text area.
@@ -412,14 +413,16 @@ public final class Dropdown<T> extends AbstractPanelElement {
                         COLOR_SELECTED_OVERLAY);
             }
 
-            // Row text — truncate-by-width if it overflows the row content area.
+            // Row text — left-aligned with text padding, vertically
+            // centered in the row. Scroll-on-overflow via MKText:
+            // long item labels scroll back-and-forth within the row
+            // content area instead of being truncated with ellipsis.
             Component itemText = labelFn.apply(item);
-            Component drawn = (font.width(itemText) > rowsContentW)
-                    ? truncateToWidth(font, itemText, rowsContentW)
-                    : itemText;
             int textX = px + 1 + POPOVER_TEXT_PAD_X;
-            int textY = rowY + (ROW_HEIGHT - font.lineHeight) / 2;
-            graphics.drawString(font, drawn, textX, textY, COLOR_TEXT, true);
+            MKText.render(graphics, itemText, net.minecraft.client.gui.TextAlignment.LEFT,
+                    textX, textX + rowsContentW,
+                    rowY, rowY + ROW_HEIGHT,
+                    COLOR_TEXT, true);
         }
 
         // Scrollbar — solid thumb on right edge when items > maxVisibleItems.

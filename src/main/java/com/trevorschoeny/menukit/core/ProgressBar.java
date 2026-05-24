@@ -231,15 +231,16 @@ public class ProgressBar extends AbstractPanelElement {
             }
         }
 
-        // Optional label — centered on the 2D bar bounds
+        // Optional label — centered on the 2D bar bounds.
+        // Scroll-on-overflow via MKText: when the label is longer than
+        // the bar's width, it scrolls back and forth within the bar
+        // instead of overflowing the bar bounds.
         if (label != null) {
             Component text = label.get();
             if (text != null) {
-                var mc = Minecraft.getInstance();
-                int tw = mc.font.width(text);
-                int tx = drawX + (width - tw) / 2;
-                int ty = drawY + (height - mc.font.lineHeight) / 2;
-                graphics.drawString(mc.font, text, tx, ty, 0xFFFFFFFF, true);
+                MKText.renderCentered(graphics, text,
+                        drawX, drawY, width, height,
+                        0xFFFFFFFF, true);
             }
         }
 
