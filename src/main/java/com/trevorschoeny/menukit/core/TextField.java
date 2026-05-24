@@ -75,7 +75,34 @@ public class TextField extends AbstractPanelElement {
     private final int childY;
     private final int width;
     private final int height;
-    private final MenuKitEditBox editBox;
+
+    // ── Deferred construction (Phase 18r-5 follow-up) ─────────────────
+    //
+    // The wrapped EditBox is NOT constructed in the TextField constructor
+    // — it's lazily constructed in onAttach() via ensureEditBox(). The
+    // reason: vanilla EditBox's constructor caches `Minecraft.getInstance()
+    // .font` into its own `this.font` field at construction time. If a
+    // consumer mod creates a TextField at Fabric `onInitializeClient` time
+    // (the natural entry point for "wire up my UI"), `Minecraft.getInstance()
+    // .font` is null — the font atlas hasn't loaded yet. That null gets
+    // baked into the EditBox permanently → crash on first render. By
+    // deferring EditBox construction to onAttach (which runs at screen-
+    // init, well after font load), we guarantee a valid font reference.
+    //
+    // Builder config is stashed in these fields and replayed by
+    // ensureEditBox() the first time the element is attached.
+    private final Component label;
+    private final @Nullable String initialValue;
+    private final @Nullable Integer maxLength;
+    private final @Nullable Boolean bordered;
+    private final @Nullable Boolean editable;
+    private final @Nullable Component hint;
+    private final @Nullable Predicate<String> filter;
+    private final @Nullable Consumer<String> onChange;
+    private final @Nullable Consumer<String> onSubmit;
+
+    /** Lazily constructed in onAttach() via ensureEditBox(). Null until first attach. */
+    private @Nullable MenuKitEditBox editBox;
 
     /** Track which screen we're attached to so detach knows what to remove from. */
     private @Nullable Screen attachedScreen;
@@ -88,19 +115,42 @@ public class TextField extends AbstractPanelElement {
         this.width = b.width;
         this.height = b.height;
 
+        // Stash builder config for deferred EditBox construction.
+        // See the field-block comment above for the rationale, and
+        // ensureEditBox() for where these are applied.
+        this.label = b.label;
+        this.initialValue = b.initialValue;
+        this.maxLength = b.maxLength;
+        this.bordered = b.bordered;
+        this.editable = b.editable;
+        this.hint = b.hint;
+        this.filter = b.filter;
+        this.onChange = b.onChange;
+        this.onSubmit = b.onSubmit;
+    }
+
+    /**
+     * Lazily constructs the wrapped EditBox and applies stashed builder
+     * config. Called from onAttach() — at that point Minecraft is fully
+     * initialized and {@code Minecraft.getInstance().font} is non-null.
+     *
+     * <p>Idempotent: returns immediately if editBox is already constructed.
+     */
+    private void ensureEditBox() {
+        if (editBox != null) return;
         var font = Minecraft.getInstance().font;
         // EditBox starts at (0, 0); per-frame render() updates to match
         // panel content origin.
-        this.editBox = new MenuKitEditBox(font, 0, 0, width, height,
-                b.label, b.onSubmit);
+        editBox = new MenuKitEditBox(font, 0, 0, width, height,
+                label, onSubmit);
 
-        if (b.maxLength != null) editBox.setMaxLength(b.maxLength);
-        if (b.bordered != null) editBox.setBordered(b.bordered);
-        if (b.editable != null) editBox.setEditable(b.editable);
-        if (b.hint != null) editBox.setHint(b.hint);
-        if (b.filter != null) editBox.setFilter(b.filter);
-        if (b.onChange != null) editBox.setResponder(b.onChange);
-        if (b.initialValue != null) editBox.setValue(b.initialValue);
+        if (maxLength != null) editBox.setMaxLength(maxLength);
+        if (bordered != null) editBox.setBordered(bordered);
+        if (editable != null) editBox.setEditable(editable);
+        if (hint != null) editBox.setHint(hint);
+        if (filter != null) editBox.setFilter(filter);
+        if (onChange != null) editBox.setResponder(onChange);
+        if (initialValue != null) editBox.setValue(initialValue);
     }
 
     // ── PanelElement protocol ──────────────────────────────────────────
@@ -112,6 +162,12 @@ public class TextField extends AbstractPanelElement {
 
     @Override
     public void render(RenderContext ctx) {
+        // Null-guard: EditBox is lazily constructed in onAttach(). If
+        // render() somehow runs before onAttach (lifecycle bug, or a
+        // detached element being defensively rendered), skip — a silent
+        // skip is preferable to an NPE crash mid-frame.
+        if (editBox == null) return;
+
         // Update wrapped EditBox screen-space coords to match the panel's
         // current content origin + this element's panel-local position.
         int screenX = ctx.originX() + childX;
@@ -184,13 +240,22 @@ public class TextField extends AbstractPanelElement {
         // Idempotent: checking attachedScreen prevents double-attach.
         if (attachedScreen == screen) return;
         attachedScreen = screen;
+        // Lazy-construct the EditBox here — Minecraft is fully
+        // initialized by onAttach time, so font is non-null. See the
+        // field-block comment above for why we can't construct earlier.
+        ensureEditBox();
         ((ScreenAccessor) screen).menuKit$addWidget(editBox);
     }
 
     @Override
     public void onDetach(Screen screen) {
         if (attachedScreen == screen) {
-            ((ScreenAccessor) screen).menuKit$removeWidget(editBox);
+            // Null-guard: if onDetach is called before onAttach ever
+            // ran (e.g. a panel was discarded before its first attach),
+            // editBox is still null. Skip removeWidget rather than NPE.
+            if (editBox != null) {
+                ((ScreenAccessor) screen).menuKit$removeWidget(editBox);
+            }
             attachedScreen = null;
         }
     }
@@ -203,6 +268,10 @@ public class TextField extends AbstractPanelElement {
      * lens; getValue is the read-side counterpart for direct access.
      */
     public String getValue() {
+        // Pre-attach: EditBox doesn't exist yet — return the builder's
+        // initialValue (or empty string) as the canonical pre-attach
+        // value source. Once attached, return the live EditBox value.
+        if (editBox == null) return initialValue != null ? initialValue : "";
         return editBox.getValue();
     }
 
@@ -221,11 +290,20 @@ public class TextField extends AbstractPanelElement {
      * responder).
      */
     public void setValue(String value) {
+        // Pre-attach: silently no-op. Consumers setting initial state
+        // before attach should use Builder.initialValue(); setValue is
+        // for post-attach imperative mutation. We can't lazy-construct
+        // here because the consumer may be in onInitializeClient where
+        // font is still null — exactly the crash this whole pattern
+        // exists to prevent.
+        if (editBox == null) return;
         editBox.setValue(value);
     }
 
     /** Returns whether the wrapped EditBox is currently focused. */
     public boolean isFocused() {
+        // Pre-attach: no EditBox means no focus possible.
+        if (editBox == null) return false;
         return editBox.isFocused();
     }
 
