@@ -54,9 +54,33 @@ public final class PanelDispatch {
      * (a record) rather than {@code Panel}.
      */
     public static void renderElements(java.util.List<PanelElement> elements, RenderContext ctx) {
+        // Phase 18s follow-up — two-pass render so elements with
+        // transient overlays (Dropdown popovers, etc.) always draw on
+        // top regardless of declaration order.
+        //
+        // Pass 1: every visible element's base render. Layout-bounds
+        // content paints in declaration order (later elements draw over
+        // earlier ones, as before).
+        //
+        // Pass 2: every visible element's renderOverlay (default no-op).
+        // The element with an active overlay paints its overlay AFTER
+        // every sibling's base render — so an open Dropdown popover
+        // visually obscures any sibling element underneath it, no
+        // matter where in the elements list the Dropdown was declared.
+        //
+        // Sibling to the input-side fix: getActiveOverlayBounds + the
+        // panel-adapter active-overlay dispatch Pass 1 (see
+        // VanillaScreenPanelAdapter.mouseClicked) make clicks under an
+        // overlay route exclusively to the overlay's owner. Together
+        // they make overlays inert-on-top in both render AND input
+        // dimensions.
         for (PanelElement element : elements) {
             if (!element.isVisible()) continue;
             element.render(ctx);
+        }
+        for (PanelElement element : elements) {
+            if (!element.isVisible()) continue;
+            element.renderOverlay(ctx);
         }
     }
 }

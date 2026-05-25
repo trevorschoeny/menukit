@@ -122,6 +122,33 @@ public interface PanelElement {
      */
     void render(RenderContext ctx);
 
+    /**
+     * Phase 18s follow-up — second-pass render hook for ELEMENTS that
+     * draw transient overlays extending outside their layout bounds
+     * (Dropdown popovers, future tooltip-like floats, expand-on-click
+     * editors). Called by the dispatcher AFTER every element's
+     * {@link #render(RenderContext)} has run, so overlays always paint
+     * on top regardless of element declaration order.
+     *
+     * <p>Default: no-op. Most elements render entirely inside their
+     * layout bounds and don't need this. Override when an element has
+     * a draws-outside-bounds region that must win z-order against
+     * sibling elements (e.g., an open Dropdown's popover that should
+     * obscure a later-declared button below it).
+     *
+     * <p><b>Sibling to {@link #getActiveOverlayBounds}</b> — that
+     * method is the INPUT-side primitive for exclusive overlay claim;
+     * this is the RENDER-side primitive for the same conceptual
+     * overlay. An element with an active overlay typically implements
+     * both: getActiveOverlayBounds returns the overlay's bounds (input
+     * claim), renderOverlay paints it. Together they make overlays
+     * inert-on-top regardless of consumer element ordering.
+     *
+     * @param ctx per-frame render context, same instance passed to
+     *            {@link #render(RenderContext)} on the base pass
+     */
+    default void renderOverlay(RenderContext ctx) {}
+
     // ── Input ──────────────────────────────────────────────────────────
 
     /**

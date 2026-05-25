@@ -80,24 +80,19 @@ import java.util.function.Supplier;
  * No {@code .openDirection()} builder option in v1; AUTO only. Defer
  * override to evidence per the principle of <i>fold-on-evidence</i>.
  *
- * <h3>Render order discipline (sharp edge of bespoke composition)</h3>
+ * <h3>Render-overlay z-order (Phase 18t)</h3>
  *
- * Because the popover renders via direct {@code ctx.graphics()} calls
- * inside Dropdown's {@link #render} (rather than as a separate render
- * pass), it follows normal element declaration order. <b>Two consumer
- * rules:</b>
+ * The popover renders via {@link #renderOverlay} — the second pass
+ * {@link PanelDispatch#renderElements} runs after every element's base
+ * {@link #render}. Result: an open popover always paints on top of every
+ * sibling element regardless of declaration order. Consumers no longer
+ * need to declare Dropdowns LAST — any order works.
  *
- * <ol>
- *   <li><b>Dropdown must be the LAST element declared</b> in any panel
- *       containing it; later elements paint on top of the popover.</li>
- *   <li><b>If multiple Dropdowns coexist in a panel, the LAST-declared
- *       one wins Z-order</b> — earlier dropdowns' popovers paint under
- *       later elements (including other Dropdowns' triggers/popovers).</li>
- * </ol>
- *
- * Future fold-on-evidence: if multi-dropdown panels become common, hoist
- * popover render to a separate {@code renderOverlay} pass on PanelElement.
- * Not in v1 — single new primitive ({@code hitTest}) is the right scope.
+ * <p>The one residual ordering rule: when multiple Dropdowns are open
+ * simultaneously (rare — typically only one popover is open at a time),
+ * later-declared Dropdowns' popovers paint over earlier-declared ones,
+ * because {@code renderOverlay} iterates in declaration order too. In
+ * the common single-open case this is invisible.
  *
  * <h3>Cross-context applicability</h3>
  *
@@ -176,6 +171,15 @@ public final class Dropdown<T> extends AbstractPanelElement {
      */
     private final @Nullable Function<T, Component> itemTooltipFn;
 
+    /**
+     * Phase 18s follow-up — visual style for the trigger background only.
+     * Defaults to {@link ControlStyle#MK}. {@link ControlStyle#VANILLA}
+     * picks vanilla Minecraft's button sprite atlas. Popover always
+     * stays {@link PanelStyle#RAISED} regardless — popover is a container
+     * for choices, not itself a button.
+     */
+    private final ControlStyle controlStyle;
+
     // ── Internal mutable state ─────────────────────────────────────────
     //
     // open/scrollOffset are UI-mode state — internal to the dropdown,
@@ -211,6 +215,7 @@ public final class Dropdown<T> extends AbstractPanelElement {
         this.selectionConsumer = b.selectionConsumer;
         this.maxVisibleItems = b.maxVisibleItems;
         this.itemTooltipFn = b.itemTooltipFn;
+        this.controlStyle = b.controlStyle;
     }
 
     // ── PanelElement protocol ──────────────────────────────────────────
@@ -267,13 +272,11 @@ public final class Dropdown<T> extends AbstractPanelElement {
         renderTriggerBackground(ctx.graphics(), triggerX, triggerY, triggerHovered);
         renderTriggerContent(ctx.graphics(), triggerX, triggerY);
 
-        // ── Popover ────────────────────────────────────────────────────
-        // Renders only when open. Direct ctx.graphics() draws — popover is
-        // OUTSIDE element layout bounds so panel auto-size doesn't grow
-        // with it. See render-order discipline in class JavaDoc.
-        if (open) {
-            renderPopover(ctx, triggerX, triggerY);
-        }
+        // Popover is now rendered in renderOverlay() — see the override
+        // below. Moved from this base render() in the Phase 18s follow-up
+        // so the popover always paints AFTER every sibling element's
+        // base render (z-order is no longer order-of-declaration
+        // dependent on the consumer side).
 
         // ── Tooltip (hover trigger, only when popover is closed) ──────
         // Queue via setTooltipForNextFrame so the end-of-frame flush
@@ -310,8 +313,37 @@ public final class Dropdown<T> extends AbstractPanelElement {
         return this;
     }
 
+    /**
+     * Phase 18s follow-up — popover renders on the overlay pass so it
+     * always wins z-order regardless of consumer element-declaration
+     * order. Pairs with {@link #getActiveOverlayBounds} for the input-
+     * side exclusive claim — together they make the open popover both
+     * visually on top AND inert-to-anything-underneath.
+     *
+     * <p>Uses the trigger screen-position cached during the base
+     * {@link #render} pass (renderOverlay runs in the same frame, so
+     * the cache is fresh).
+     */
+    @Override
+    public void renderOverlay(RenderContext ctx) {
+        if (!open) return;
+        renderPopover(ctx, lastTriggerScreenX, lastTriggerScreenY);
+    }
+
     private void renderTriggerBackground(GuiGraphics graphics, int sx, int sy, boolean hovered) {
-        // Same look as Button: RAISED panel + translucent highlight on hover.
+        if (controlStyle == ControlStyle.VANILLA) {
+            // Vanilla style — sprite atlas encodes hover state directly,
+            // no overlay needed. When popover is open we suppress the
+            // "highlighted" sprite (matches MK's open-look behavior:
+            // the popover itself signals interactive state, the trigger
+            // doesn't need extra hover affordance).
+            ControlStyle.renderVanillaButton(graphics,
+                    sx, sy, triggerWidth, triggerHeight,
+                    true,
+                    hovered && !open);
+            return;
+        }
+        // MK style (default) — RAISED panel + translucent highlight on hover.
         // When popover is open, render with the open-look (no extra hover
         // highlight; the popover itself signals interactive state).
         PanelRendering.renderPanel(graphics, sx, sy, triggerWidth, triggerHeight, PanelStyle.RAISED);
@@ -361,8 +393,15 @@ public final class Dropdown<T> extends AbstractPanelElement {
         int[] popover = computePopoverBounds(triggerX, triggerY);
         int px = popover[0], py = popover[1], pw = popover[2], ph = popover[3];
 
-        // Background — RAISED panel for visual continuity with trigger.
-        PanelRendering.renderPanel(graphics, px, py, pw, ph, PanelStyle.RAISED);
+        // Background — visual continuity with the trigger style.
+        // MK: RAISED panel. VANILLA: darker gray (widget/button_disabled
+        // sprite) so the popover reads as a distinct surface beneath the
+        // lighter widget/button trigger above it.
+        if (controlStyle == ControlStyle.VANILLA) {
+            ControlStyle.renderVanillaPopoverBackground(graphics, px, py, pw, ph);
+        } else {
+            PanelRendering.renderPanel(graphics, px, py, pw, ph, PanelStyle.RAISED);
+        }
 
         // Visible row range (after applying scroll offset).
         int visibleCount = visibleRowCount();
@@ -640,8 +679,22 @@ public final class Dropdown<T> extends AbstractPanelElement {
         private @Nullable Consumer<T> selectionConsumer = null;
         private int maxVisibleItems = DEFAULT_MAX_VISIBLE;
         private @Nullable Function<T, Component> itemTooltipFn = null;
+        private ControlStyle controlStyle = ControlStyle.MK;
 
         private Builder() {}
+
+        /**
+         * Phase 18s follow-up — selects the trigger's visual style.
+         * {@link ControlStyle#MK} (default) uses MenuKit's RAISED-panel
+         * look; {@link ControlStyle#VANILLA} uses Minecraft's standard
+         * widget/button sprite atlas (square corners, gray gradient).
+         * The popover always stays RAISED regardless — popover is a
+         * container for choices, not itself a button.
+         */
+        public Builder<T> style(ControlStyle style) {
+            this.controlStyle = (style != null) ? style : ControlStyle.MK;
+            return this;
+        }
 
         /** Panel-local position. Default (0, 0). */
         public Builder<T> at(int childX, int childY) {

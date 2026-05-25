@@ -168,6 +168,12 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
     private final @Nullable Component clearAllLabel;
     private final @Nullable Runnable  clearAllAction;
 
+    /**
+     * Phase 18s follow-up — visual style for trigger background only.
+     * See {@link Dropdown}'s {@code controlStyle} javadoc for rationale.
+     */
+    private final ControlStyle controlStyle;
+
     // ── Mutable state ──────────────────────────────────────────────────
     // (Mirrors Dropdown's narrow exception. open + scrollOffset are
     // internal UI state; the selection lives on the consumer's Set, not
@@ -197,6 +203,7 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
         this.selectAllAction = b.selectAllAction;
         this.clearAllLabel = b.clearAllLabel;
         this.clearAllAction = b.clearAllAction;
+        this.controlStyle = b.controlStyle;
     }
 
     // ── PanelElement protocol ──────────────────────────────────────────
@@ -232,9 +239,10 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
         renderTriggerBackground(ctx.graphics(), triggerX, triggerY, triggerHovered);
         renderTriggerContent(ctx.graphics(), triggerX, triggerY);
 
-        if (open) {
-            renderPopover(ctx, triggerX, triggerY);
-        }
+        // Popover moved to renderOverlay() in Phase 18s follow-up — see
+        // override below. Ensures the popover always wins z-order
+        // against later-declared sibling elements without consumers
+        // having to manage declaration order.
 
         // Trigger-level tooltip — only when popover is closed (popover IS
         // the interactive surface when open; competing tooltip would clutter).
@@ -269,12 +277,32 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
         return this;
     }
 
+    /**
+     * Phase 18s follow-up — popover renders on the overlay pass so it
+     * always wins z-order regardless of consumer element-declaration
+     * order. See {@link Dropdown#renderOverlay} for full rationale.
+     */
+    @Override
+    public void renderOverlay(RenderContext ctx) {
+        if (!open) return;
+        renderPopover(ctx, lastTriggerScreenX, lastTriggerScreenY);
+    }
+
     // ── Trigger paint ──────────────────────────────────────────────────
 
     private void renderTriggerBackground(GuiGraphics graphics, int sx, int sy, boolean hovered) {
-        // Same look as Dropdown / Button: RAISED panel + translucent
-        // hover highlight (suppressed when popover is open since the
-        // popover itself signals interactive state).
+        if (controlStyle == ControlStyle.VANILLA) {
+            // Vanilla style — sprite atlas encodes hover state directly.
+            // See Dropdown.renderTriggerBackground for full rationale.
+            ControlStyle.renderVanillaButton(graphics,
+                    sx, sy, triggerWidth, triggerHeight,
+                    true,
+                    hovered && !open);
+            return;
+        }
+        // MK style (default): RAISED panel + translucent hover highlight
+        // (suppressed when popover is open since the popover itself
+        // signals interactive state).
         PanelRendering.renderPanel(graphics, sx, sy, triggerWidth, triggerHeight, PanelStyle.RAISED);
         if (hovered && !open) {
             graphics.fill(sx + 1, sy + 1, sx + triggerWidth - 1, sy + triggerHeight - 1,
@@ -333,8 +361,14 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
         int[] popover = computePopoverBounds(triggerX, triggerY);
         int px = popover[0], py = popover[1], pw = popover[2], ph = popover[3];
 
-        // Background.
-        PanelRendering.renderPanel(graphics, px, py, pw, ph, PanelStyle.RAISED);
+        // Background — matches trigger style. MK: RAISED panel.
+        // VANILLA: widget/button_disabled sprite. See
+        // Dropdown.renderPopover for full rationale.
+        if (controlStyle == ControlStyle.VANILLA) {
+            ControlStyle.renderVanillaPopoverBackground(graphics, px, py, pw, ph);
+        } else {
+            PanelRendering.renderPanel(graphics, px, py, pw, ph, PanelStyle.RAISED);
+        }
 
         Font font = Minecraft.getInstance().font;
         Set<T> currentSelection = selectionSupplier.get();
@@ -673,8 +707,18 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
         private @Nullable Runnable  selectAllAction = null;
         private @Nullable Component clearAllLabel = null;
         private @Nullable Runnable  clearAllAction = null;
+        private ControlStyle controlStyle = ControlStyle.MK;
 
         private Builder() {}
+
+        /**
+         * Phase 18s follow-up — selects the trigger's visual style.
+         * See {@link Dropdown.Builder#style} for full rationale.
+         */
+        public Builder<T> style(ControlStyle style) {
+            this.controlStyle = (style != null) ? style : ControlStyle.MK;
+            return this;
+        }
 
         /** Panel-local position. Default (0, 0). */
         public Builder<T> at(int childX, int childY) {

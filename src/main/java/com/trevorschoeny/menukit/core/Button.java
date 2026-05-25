@@ -74,6 +74,12 @@ public class Button extends AbstractPanelElement {
     // already fired on mouseClicked.
     private boolean pressed = false;
 
+    // Phase 18s follow-up — visual style for the button background.
+    // Defaults to MK (existing look). VANILLA uses vanilla Minecraft's
+    // widget/button sprite atlas. Set via .style(ControlStyle); see
+    // {@link ControlStyle} for the design rationale.
+    private ControlStyle controlStyle = ControlStyle.MK;
+
     /**
      * @param childX       X position within panel content area
      * @param childY       Y position within panel content area
@@ -174,6 +180,21 @@ public class Button extends AbstractPanelElement {
         return this;
     }
 
+    /**
+     * Phase 18s follow-up — selects the button's visual style.
+     * {@link ControlStyle#MK} (default) uses MenuKit's RAISED-panel
+     * look; {@link ControlStyle#VANILLA} uses Minecraft's standard
+     * widget/button sprite atlas (square corners, gray gradient).
+     * Returns {@code this} for chaining.
+     */
+    public Button style(ControlStyle style) {
+        this.controlStyle = (style != null) ? style : ControlStyle.MK;
+        return this;
+    }
+
+    /** Returns the current visual style. */
+    public ControlStyle getStyle() { return controlStyle; }
+
     @Override
     public Button showWhen(@Nullable Supplier<Boolean> supplier) {
         super.showWhen(supplier);
@@ -255,6 +276,20 @@ public class Button extends AbstractPanelElement {
      */
     protected void renderBackground(RenderContext ctx, int sx, int sy) {
         boolean disabled = isDisabled();
+        if (controlStyle == ControlStyle.VANILLA) {
+            // Vanilla style — single blit of vanilla's widget/button
+            // sprite atlas. The atlas itself encodes the per-state
+            // visual (highlighted sprite IS the hover affordance, no
+            // overlay needed; disabled sprite IS the gray-out, no
+            // separate dark fill). Vanilla doesn't have a distinct
+            // pressed visual either — pressed reuses highlighted.
+            ControlStyle.renderVanillaButton(ctx.graphics(),
+                    sx, sy, width, height,
+                    !disabled,
+                    hovered || pressed);
+            return;
+        }
+        // MK style (default) — RAISED panel with state overlays.
         if (disabled) {
             PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, PanelStyle.DARK);
         } else if (pressed) {
