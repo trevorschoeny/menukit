@@ -7,6 +7,8 @@ import net.minecraft.client.gui.TextAlignment;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.TextColor;
+import net.minecraft.util.Mth;
+import net.minecraft.util.Util;
 
 /**
  * Shared text-rendering helper for MK widgets that render single-line
@@ -150,5 +152,90 @@ public final class MKText {
         Font font = Minecraft.getInstance().font;
         render(graphics, text, TextAlignment.LEFT, x, x + width, y, y + font.lineHeight,
                 color, shadow);
+    }
+
+    // ── Scroll-from-time variant ───────────────────────────────────────
+    //
+    // Vanilla's ActiveTextCollector.acceptScrolling uses GLOBAL system
+    // time as the scroll-cycle clock, so the phase at any given moment
+    // depends on Util.getMillis() % cyclePeriod — text could be at the
+    // start, middle, or end of its scroll when the consumer first
+    // displays it. Fine for persistently-visible widgets (Button label,
+    // ProgressBar) where there's no meaningful "appears at moment X."
+    // Bad UX for transient surfaces (Dropdown popover items): when the
+    // user opens a dropdown, items already mid-scroll feel disorienting
+    // — they don't see the item's beginning, just whatever phase
+    // happens to be active.
+    //
+    // The {@link #renderFromOpenTime} variant reorients the cycle so
+    // {@code openTimeMillis} maps to "text at beginning visible." The
+    // math is vanilla's exact formula (cos+sin smoothing, 0.5 sec/
+    // pixel, 3-sec minimum cycle), just with an explicit time origin
+    // instead of global system time.
+
+    /**
+     * Same as {@link #render} but the scroll cycle is anchored to
+     * {@code openTimeMillis} — at that instant the text is at its
+     * beginning (left-most position, fully visible from the start);
+     * the scroll then smoothly traverses to the end and back, repeating
+     * every {@code max(scrollDistance * 0.5, 3.0)} seconds (vanilla's
+     * cycle period formula).
+     *
+     * <p>When the text fits within bounds, falls through to the static-
+     * draw path same as {@link #render} — {@code openTimeMillis} is
+     * ignored because no scrolling occurs.
+     *
+     * <p>Use for transient overlay surfaces (Dropdown popover items,
+     * future modal toast text, etc.) where "open moment" is a meaningful
+     * event the user expects the scroll to anchor to. For persistently-
+     * visible widgets stick with {@link #render} — global-time sync
+     * across all such widgets reads as intentional.
+     *
+     * @param openTimeMillis the {@link Util#getMillis} value at the
+     *                       "open" instant. The scroll cycle's phase=0
+     *                       (text at beginning) lands at this time.
+     */
+    public static void renderFromOpenTime(GuiGraphics graphics, Component text,
+                                           TextAlignment align,
+                                           int x1, int x2, int y1, int y2,
+                                           int color, boolean shadow,
+                                           long openTimeMillis) {
+        Font font = Minecraft.getInstance().font;
+        int boundsW = x2 - x1;
+        int textW = font.width(text);
+        if (textW <= boundsW) {
+            // Fits — same static-draw path as render(). openTimeMillis
+            // is irrelevant because no scrolling occurs.
+            int textX = switch (align) {
+                case LEFT -> x1;
+                case CENTER -> x1 + (boundsW - textW) / 2;
+                case RIGHT -> x2 - textW;
+            };
+            int boundsH = y2 - y1;
+            int textY = y1 + (boundsH - font.lineHeight) / 2;
+            graphics.drawString(font, text, textX, textY, color, shadow);
+            return;
+        }
+
+        // Overflows — replicate vanilla's scroll math with explicit
+        // time origin. See ActiveTextCollector.defaultScrollingHelper
+        // bytecode for the source formula.
+        int scrollDistance = textW - boundsW;
+        double cyclePeriod = Math.max(scrollDistance * 0.5, 3.0);  // sec
+        // Add half-period offset so elapsedSec=0 → phase=0 (text at
+        // beginning). Vanilla's raw formula has phase=1 at t=0 (text
+        // at END); we want the opposite for the open-the-dropdown UX.
+        double elapsedSec = (Util.getMillis() - openTimeMillis) / 1000.0
+                          + cyclePeriod / 2.0;
+        double cosT = Math.cos(2.0 * Math.PI * elapsedSec / cyclePeriod);
+        double phase = Math.sin(Math.PI / 2.0 * cosT) / 2.0 + 0.5;
+        int scrollOffset = (int) Mth.lerp(phase, 0.0, scrollDistance);
+
+        int textX = x1 - scrollOffset;
+        int boundsH = y2 - y1;
+        int textY = y1 + (boundsH - font.lineHeight) / 2;
+        graphics.enableScissor(x1, y1, x2, y2);
+        graphics.drawString(font, text, textX, textY, color, shadow);
+        graphics.disableScissor();
     }
 }

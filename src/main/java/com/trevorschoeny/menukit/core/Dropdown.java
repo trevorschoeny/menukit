@@ -5,6 +5,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
+import net.minecraft.util.Util;
 
 import org.jspecify.annotations.Nullable;
 
@@ -195,6 +196,18 @@ public final class Dropdown<T> extends AbstractPanelElement {
     private volatile boolean open = false;
     /** First-visible row index when items.size() > maxVisibleItems. */
     private volatile int scrollOffset = 0;
+
+    /**
+     * Captured {@link Util#getMillis} value at the moment the popover
+     * was last opened. Passed to {@link MKText#renderFromOpenTime} so
+     * long item-text scroll cycles start at "beginning visible" when
+     * the user opens the dropdown (instead of mid-cycle at whatever
+     * phase global system time happens to be in). Volatile because
+     * render reads it on the render thread and the open transition
+     * sets it on the input thread. Stale value when popover is closed
+     * — only read inside the {@code if (open)} branch of renderPopover.
+     */
+    private volatile long popoverOpenMillis = 0L;
 
     // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2). The
     // dropdown-specific trigger gating ("only fire when popover closed")
@@ -453,15 +466,18 @@ public final class Dropdown<T> extends AbstractPanelElement {
             }
 
             // Row text — left-aligned with text padding, vertically
-            // centered in the row. Scroll-on-overflow via MKText:
-            // long item labels scroll back-and-forth within the row
-            // content area instead of being truncated with ellipsis.
+            // centered in the row. Scroll-on-overflow via MKText, with
+            // the scroll cycle anchored to popoverOpenMillis so long
+            // labels start at "text beginning visible" when the user
+            // opens the popover (rather than mid-cycle at whatever
+            // phase global system time happens to be in).
             Component itemText = labelFn.apply(item);
             int textX = px + 1 + POPOVER_TEXT_PAD_X;
-            MKText.render(graphics, itemText, net.minecraft.client.gui.TextAlignment.LEFT,
+            MKText.renderFromOpenTime(graphics, itemText, net.minecraft.client.gui.TextAlignment.LEFT,
                     textX, textX + rowsContentW,
                     rowY, rowY + ROW_HEIGHT,
-                    COLOR_TEXT, true);
+                    COLOR_TEXT, true,
+                    popoverOpenMillis);
         }
 
         // Scrollbar — solid thumb on right edge when items > maxVisibleItems.
@@ -590,6 +606,9 @@ public final class Dropdown<T> extends AbstractPanelElement {
             open = true;
             // Reset scroll to top each time we open — predictable UX.
             scrollOffset = 0;
+            // Capture open-time so long item-text scrolls start at
+            // "text beginning visible" when the popover appears.
+            popoverOpenMillis = Util.getMillis();
         } else {
             open = false;
         }

@@ -8,6 +8,7 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.util.Mth;
+import net.minecraft.util.Util;
 
 import org.jspecify.annotations.Nullable;
 
@@ -181,6 +182,13 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
 
     private volatile boolean open = false;
     private volatile int scrollOffset = 0;
+    /**
+     * Captured {@link Util#getMillis} at the moment the popover was
+     * last opened — anchors item-text scroll cycles to "beginning
+     * visible" on open. See {@link Dropdown#popoverOpenMillis} for the
+     * full rationale.
+     */
+    private volatile long popoverOpenMillis = 0L;
 
     // Trigger screen-position cache — see same javadoc on Dropdown's
     // fields for race-safety rationale.
@@ -446,14 +454,16 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
                         markX, markY, CHECKMARK_SPRITE_W, CHECKMARK_SPRITE_H);
             }
 
-            // Row text — scroll-on-overflow via MKText (replaces
-            // truncate-with-ellipsis).
+            // Row text — scroll-on-overflow via MKText, anchored to
+            // popoverOpenMillis so long item labels start at "text
+            // beginning visible" when the popover opens.
             Component itemText = labelFn.apply(item);
             int textX = px + 1 + POPOVER_TEXT_PAD_X + CHECKMARK_COL_W;
-            MKText.render(graphics, itemText, net.minecraft.client.gui.TextAlignment.LEFT,
+            MKText.renderFromOpenTime(graphics, itemText, net.minecraft.client.gui.TextAlignment.LEFT,
                     textX, textX + rowsContentW,
                     rowY, rowY + ROW_HEIGHT,
-                    COLOR_TEXT, true);
+                    COLOR_TEXT, true,
+                    popoverOpenMillis);
         }
 
         // ── Scrollbar (regular-rows region only) ──────────────────────
@@ -489,15 +499,18 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
                     COLOR_HOVER_OVERLAY);
         }
 
-        // Action row text — scroll-on-overflow via MKText. Same shape
-        // as regular item rows, just italic.
+        // Action row text — scroll-on-overflow via MKText, anchored to
+        // popoverOpenMillis so long action labels start at "text
+        // beginning visible" when the popover opens. Same shape as
+        // regular item rows, just italic.
         MutableComponent italic = Component.empty()
                 .append(label).withStyle(ChatFormatting.ITALIC);
         int textX = px + 1 + POPOVER_TEXT_PAD_X;
-        MKText.render(graphics, italic, net.minecraft.client.gui.TextAlignment.LEFT,
+        MKText.renderFromOpenTime(graphics, italic, net.minecraft.client.gui.TextAlignment.LEFT,
                 textX, textX + contentW,
                 rowY, rowY + ROW_HEIGHT,
-                COLOR_TEXT, true);
+                COLOR_TEXT, true,
+                popoverOpenMillis);
     }
 
     // ── Popover geometry ───────────────────────────────────────────────
@@ -592,6 +605,9 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
         if (!open) {
             open = true;
             scrollOffset = 0;
+            // Capture open-time so long item-text scrolls start at
+            // "text beginning visible" when the popover appears.
+            popoverOpenMillis = Util.getMillis();
         } else {
             open = false;
         }
