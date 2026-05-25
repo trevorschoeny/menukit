@@ -29,6 +29,7 @@ java {
 
 repositories {
     maven { url 'https://maven.fabricmc.net/' }
+    maven { url 'https://maven.isxander.dev/releases/' }  // YACL — for the YACL-controller pressed-overlay mixin (modCompileOnly)
 }
 
 dependencies {
@@ -41,6 +42,13 @@ dependencies {
     // depend on jetbrains-annotations at runtime; the annotation is a doc/IDE
     // signal, never required at execution time.
     compileOnly 'org.jetbrains:annotations:24.1.0'
+
+    // YACL — compile-only so MK can reference YACL classes in
+    // MenuKitYaclControllerPressedMixin (@Pseudo target). MK does NOT
+    // depend on YACL at runtime — the mixin uses @Pseudo to be
+    // tolerant of YACL absence (silently skips). YACL only enters the
+    // runtime environment via consumer mods that bundle it per §0031.
+    modCompileOnly "dev.isxander:yet-another-config-lib:3.8.1+1.21.11-fabric"
 }
 
 loom {

@@ -96,6 +96,49 @@ public enum ControlStyle {
     }
 
     /**
+     * Phase 18t follow-up — renders the "pressed/engaged" visual overlay
+     * for a vanilla-styled control. Drawn on top of the existing button
+     * sprite to communicate "this is being pressed (Button) or this
+     * control is engaged (Dropdown trigger while popover open)."
+     *
+     * <p>Two layered effects:
+     * <ul>
+     *   <li><b>Inverted inner bevel</b> — vanilla's button sprite has a
+     *       1px raised bevel (lighter top/left, darker bottom/right).
+     *       The overlay swaps those: darker top/left, lighter
+     *       bottom/right — visually reads as "sunken in."</li>
+     *   <li><b>Translucent dark fill across the interior</b> — softens
+     *       the button's brightness, reinforcing the pressed-in
+     *       reading.</li>
+     * </ul>
+     *
+     * <p>Drawn over the outer 1px frame (untouched) and over the
+     * existing sprite's bevel pixels (replaced by the inverted
+     * lines). The interior dark overlay covers the gradient region
+     * inside the bevel.
+     */
+    public static void renderVanillaPressedOverlay(GuiGraphics graphics,
+                                                    int x, int y,
+                                                    int width, int height) {
+        // Inverted bevel: 1px inside the outer frame.
+        // Top: dark (inverted from vanilla's light).
+        graphics.fill(x + 1, y + 1, x + width - 1, y + 2, 0xFF373737);
+        // Left: dark.
+        graphics.fill(x + 1, y + 1, x + 2, y + height - 1, 0xFF373737);
+        // Bottom: light gray (inverted from vanilla's dark — NOT pure
+        // white, which read as too harsh against the gray button
+        // surface; light gray sits in the same family as vanilla's
+        // own bevel highlights).
+        graphics.fill(x + 1, y + height - 2, x + width - 1, y + height - 1, 0xFF888888);
+        // Right: light gray.
+        graphics.fill(x + width - 2, y + 1, x + width - 1, y + height - 1, 0xFF888888);
+
+        // Translucent dark overlay across the interior (inside the
+        // inverted bevel). Softens brightness, reinforces "pressed in."
+        graphics.fill(x + 2, y + 2, x + width - 2, y + height - 2, 0x40000000);
+    }
+
+    /**
      * Renders a vanilla-styled popover background for an open dropdown
      * (or any future overlay container that should match the VANILLA
      * trigger aesthetic). Uses {@code widget/button_disabled} — vanilla's

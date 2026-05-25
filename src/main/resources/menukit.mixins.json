@@ -16,7 +16,10 @@
     "MenuKitModalMouseHandlerMixin",
     "MenuKitRecipeBookPanelRenderMixin",
     "MenuKitTooltipSuppressMixin",
+    "MenuKitVanillaButtonPressedMixin",
     "MenuKitWidgetHoverSuppressMixin",
+    "MenuKitYaclControllerOverlayMixin",
+    "MenuKitYaclWidgetPressedMixin",
     "MouseHandlerCursorPosAccessor",
     "ScreenAccessor",
     "SlotPositionAccessor"

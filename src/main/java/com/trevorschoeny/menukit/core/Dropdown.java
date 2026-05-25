@@ -345,15 +345,19 @@ public final class Dropdown<T> extends AbstractPanelElement {
 
     private void renderTriggerBackground(GuiGraphics graphics, int sx, int sy, boolean hovered) {
         if (controlStyle == ControlStyle.VANILLA) {
-            // Vanilla style — sprite atlas encodes hover state directly,
-            // no overlay needed. When popover is open we suppress the
-            // "highlighted" sprite (matches MK's open-look behavior:
-            // the popover itself signals interactive state, the trigger
-            // doesn't need extra hover affordance).
+            // Vanilla style — sprite atlas encodes hover state directly.
+            // When popover is open we suppress the highlighted sprite
+            // AND apply the pressed-overlay so the trigger visually
+            // reads "engaged / popover-active." Maps to MK Button's
+            // pressed visual at the dropdown-trigger semantic level.
             ControlStyle.renderVanillaButton(graphics,
                     sx, sy, triggerWidth, triggerHeight,
                     true,
                     hovered && !open);
+            if (open) {
+                ControlStyle.renderVanillaPressedOverlay(graphics,
+                        sx, sy, triggerWidth, triggerHeight);
+            }
             return;
         }
         // MK style (default) — RAISED panel + translucent highlight on hover.

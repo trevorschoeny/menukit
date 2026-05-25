@@ -277,16 +277,21 @@ public class Button extends AbstractPanelElement {
     protected void renderBackground(RenderContext ctx, int sx, int sy) {
         boolean disabled = isDisabled();
         if (controlStyle == ControlStyle.VANILLA) {
-            // Vanilla style — single blit of vanilla's widget/button
-            // sprite atlas. The atlas itself encodes the per-state
-            // visual (highlighted sprite IS the hover affordance, no
-            // overlay needed; disabled sprite IS the gray-out, no
-            // separate dark fill). Vanilla doesn't have a distinct
-            // pressed visual either — pressed reuses highlighted.
+            // Vanilla style — sprite atlas + optional pressed overlay.
+            // Base sprite picks per state (default / highlighted /
+            // disabled). When pressed (and not disabled), the
+            // renderVanillaPressedOverlay draws an inverted-bevel +
+            // dark-fill overlay on top — vanilla's own atlas has no
+            // distinct pressed visual, so MK synthesizes one for
+            // consumer-feedback parity with the MK INSET pressed state.
             ControlStyle.renderVanillaButton(ctx.graphics(),
                     sx, sy, width, height,
                     !disabled,
                     hovered || pressed);
+            if (pressed && !disabled) {
+                ControlStyle.renderVanillaPressedOverlay(ctx.graphics(),
+                        sx, sy, width, height);
+            }
             return;
         }
         // MK style (default) — RAISED panel with state overlays.

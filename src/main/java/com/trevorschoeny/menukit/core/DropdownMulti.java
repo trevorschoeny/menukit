@@ -301,11 +301,16 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
     private void renderTriggerBackground(GuiGraphics graphics, int sx, int sy, boolean hovered) {
         if (controlStyle == ControlStyle.VANILLA) {
             // Vanilla style — sprite atlas encodes hover state directly.
-            // See Dropdown.renderTriggerBackground for full rationale.
+            // When popover open, overlay the pressed visual. See
+            // Dropdown.renderTriggerBackground for full rationale.
             ControlStyle.renderVanillaButton(graphics,
                     sx, sy, triggerWidth, triggerHeight,
                     true,
                     hovered && !open);
+            if (open) {
+                ControlStyle.renderVanillaPressedOverlay(graphics,
+                        sx, sy, triggerWidth, triggerHeight);
+            }
             return;
         }
         // MK style (default): RAISED panel + translucent hover highlight
