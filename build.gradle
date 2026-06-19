@@ -70,6 +70,16 @@ modrinth {
     versionNumber = property('mod_version')
     versionName = "MenuKit ${property('mod_version')}"
     versionType = "release"
+    changelog = '''MenuKit 1.1.0
+
+UI polish and new widgets:
+- New control styling system with vanilla-matched pressed visuals.
+- New multi-select dropdown widget; dropdowns reset scroll when opened.
+- Text scrolls on overflow across widgets; smarter focus and overlay-aware hover/tooltip handling.
+- New panel-element base with chainable visibility and tooltip suppliers; per-style panel padding.
+- Fixes: text-field font-cache crash; overlay and lifecycle fixes for panels on vanilla screens.
+
+Additive update - no breaking changes; existing APIs and slot-state channels work unchanged.'''
     uploadFile = remapJar
     gameVersions = [property('minecraft_version')]
     loaders = ["fabric"]

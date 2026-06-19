@@ -25,7 +25,7 @@ repositories {
 }
 
 dependencies {
-    modImplementation 'maven.modrinth:menukit:1.0.0'
+    modImplementation 'maven.modrinth:menukit:1.1.0'
 }
 ```
 
@@ -81,10 +81,11 @@ The button appears in the upper-right of vanilla `InventoryScreen` and `Creative
 ## Feature highlights
 
 - **Region anchoring system.** Eight edge regions (LEFT/RIGHT × ALIGN_TOP/BOTTOM, TOP/BOTTOM × ALIGN_LEFT/RIGHT) plus CENTER. Panels stack in the region's flow direction. Multi-mod-friendly by design — deterministic stacking order across mods via alphabetical-by-modId with optional priority override.
-- **Element library.** `Button`, `Toggle`, `Checkbox`, `Radio`, `RadioGroup`, `Icon`, `Divider`, `ItemDisplay`, `ProgressBar`, `Slider`, `TextField`, `TextLabel`, `Tooltip`, `ScrollContainer`, `Dropdown`.
+- **Element library.** `Button`, `Toggle`, `Checkbox`, `Radio`, `RadioGroup`, `Icon`, `Divider`, `ItemDisplay`, `ProgressBar`, `Slider`, `TextField`, `TextLabel`, `Tooltip`, `ScrollContainer`, `Dropdown`, `DropdownMulti` (multi-select).
 - **Modal overlays.** Proper click-through prohibition over vanilla menus. Modals respect Esc, focus traversal, and z-ordering.
 - **Recipe-book awareness.** Panels track the recipe-book panel's open/closed state so they don't fight for screen real estate.
-- **Auto-wrap + auto-scroll.** `TextLabel.setWrapWidth()` triggers automatic line wrapping; `ScrollContainer` provides scrollable regions with mouse-wheel input.
+- **Auto-wrap + auto-scroll.** `TextLabel.setWrapWidth()` triggers automatic line wrapping; `ScrollContainer` provides scrollable regions with mouse-wheel input; long text scrolls into view on overflow.
+- **Control styling.** Elements opt into MenuKit-styled or vanilla-matched looks — including vanilla-style pressed visuals — so your UI can blend in or stand apart.
 - **Universal cursor capture.** Compensates for vanilla teleporting the cursor to window center on screen transitions.
 - **Stable, opinionated layout.** Pinned-width / pinned-height stacking primitives keep panels predictable across resolutions.
 
