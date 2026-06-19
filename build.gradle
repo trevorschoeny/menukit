@@ -17,7 +17,7 @@ plugins {
     id 'com.modrinth.minotaur' version '2.+'
 }
 
-version = property('mod_version')
+version = property('menukit_version')
 group   = property('maven_group')
 
 base.archivesName = 'menukit'
@@ -67,8 +67,8 @@ jar {
 modrinth {
     token = System.getenv("MODRINTH_TOKEN")
     projectId = "menukit"
-    versionNumber = property('mod_version')
-    versionName = "MenuKit ${property('mod_version')}"
+    versionNumber = property('menukit_version')
+    versionName = "MenuKit ${property('menukit_version')}"
     versionType = "release"
     changelog = '''MenuKit 1.1.0
 
