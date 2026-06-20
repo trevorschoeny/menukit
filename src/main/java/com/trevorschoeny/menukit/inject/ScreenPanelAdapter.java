@@ -11,6 +11,8 @@ import com.trevorschoeny.menukit.core.RenderContext;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 
 import org.jspecify.annotations.Nullable;
 
@@ -255,6 +257,12 @@ public final class ScreenPanelAdapter {
      * CreativeModeInventoryScreen.class)} covers both the survival and
      * creative player-inventory screens (and modded subclasses of either).
      *
+     * <p><b>Player inventory (§0051):</b> {@code InventoryScreen} (survival) and
+     * {@code CreativeModeInventoryScreen} (creative) are <em>sibling</em> classes
+     * — neither extends the other — so {@code .on(InventoryScreen.class)} alone is
+     * <b>survival-only</b> and silently misses creative. Use
+     * {@link #onPlayerInventory()} to target the player inventory in both modes.
+     *
      * <p>Call exactly once per region-based adapter. Duplicate declarations
      * throw {@link IllegalStateException}. Calling on a lambda-based adapter
      * throws — lambda adapters are scoped by the consumer's own mixin, not
@@ -303,6 +311,26 @@ public final class ScreenPanelAdapter {
         this.targetedAny = true;
         ScreenPanelRegistry.markTargetingDeclared(this);
         return this;
+    }
+
+    /**
+     * Declares this adapter fires on the player inventory in <b>both</b> game
+     * modes — the survival {@link InventoryScreen} and the creative
+     * {@link CreativeModeInventoryScreen}. The two are sibling classes (neither
+     * extends the other), so {@code .on(InventoryScreen.class)} alone is
+     * survival-only and silently misses creative (§0051). This is the turnkey
+     * both-modes target, so a consumer decorating the player inventory cannot
+     * accidentally ship a survival-only panel.
+     *
+     * <p>Equivalent to
+     * {@code .on(InventoryScreen.class, CreativeModeInventoryScreen.class)}.
+     *
+     * @return this adapter, for chaining
+     * @throws IllegalStateException if the adapter is lambda-based or if
+     *         targeting was already declared
+     */
+    public ScreenPanelAdapter onPlayerInventory() {
+        return on(InventoryScreen.class, CreativeModeInventoryScreen.class);
     }
 
     private void requireRegionBased() {
