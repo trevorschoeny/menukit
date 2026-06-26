@@ -25,7 +25,8 @@
     "MenuKitYaclWidgetPressedMixin",
     "MouseHandlerCursorPosAccessor",
     "ScreenAccessor",
-    "SlotPositionAccessor"
+    "SlotPositionAccessor",
+    "SlotWrapperAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
