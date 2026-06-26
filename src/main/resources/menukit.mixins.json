@@ -11,6 +11,8 @@
     "MKHasClickedOutsideMixin",
     "MKRecipeBookAccessor",
     "MenuKitCreativeTabHoverMixin",
+    "MenuKitGraftInputMixin",
+    "MenuKitGraftRenderMixin",
     "MenuKitListHoverSuppressMixin",
     "MenuKitModalHoverMixin",
     "MenuKitModalKeyboardHandlerMixin",
