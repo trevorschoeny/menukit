@@ -4,6 +4,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.AbstractFurnaceMenu;
 import net.minecraft.world.inventory.BrewingStandMenu;
+import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
@@ -73,6 +74,7 @@ public class HandlerRecognizerRegistry {
     static {
         // Built-in recognizers for vanilla edge cases where
         // container-identity grouping produces wrong results.
+        recognizers.add(HandlerRecognizerRegistry::recognizeInventoryMenu);
         recognizers.add(HandlerRecognizerRegistry::recognizeFurnace);
         recognizers.add(HandlerRecognizerRegistry::recognizeBrewingStand);
     }
@@ -300,6 +302,53 @@ public class HandlerRecognizerRegistry {
         groups.addAll(groupSlotsByContainerIdentity(handler, 5, handler.slots.size()));
 
         return groups;
+    }
+
+    // ── Built-in Recognizer: Player Inventory Menu ─────────────────────
+    // InventoryMenu's armor / main / hotbar / offhand slots all share the player
+    // Inventory container, so the default identity grouper lumps the whole player
+    // inventory into one "player_inventory" blob. This splits them into the
+    // structural groups consumers expect, by InventoryMenu's published slot-index
+    // ranges. Slots past the offhand are mod grafts appended to InventoryMenu —
+    // identity-grouped so they're observed too, not swallowed into vanilla groups.
+
+    private static @Nullable List<VirtualSlotGroup> recognizeInventoryMenu(
+            AbstractContainerMenu handler) {
+        if (!(handler instanceof InventoryMenu)) return null;
+        // 1 result + 4 craft + 4 armor + 27 inv + 9 hotbar + 1 offhand = 46.
+        if (handler.slots.size() < InventoryMenu.SHIELD_SLOT + 1) return null;
+
+        List<VirtualSlotGroup> groups = new ArrayList<>();
+        groups.add(new VirtualSlotGroup("crafting_output",
+                List.of(handler.slots.get(InventoryMenu.RESULT_SLOT)),
+                InteractionPolicy.output((stack, player) -> {}),
+                QuickMoveParticipation.EXPORTS, 100));
+        groups.add(new VirtualSlotGroup("crafting_input",
+                slotRange(handler, InventoryMenu.CRAFT_SLOT_START, InventoryMenu.CRAFT_SLOT_END),
+                InteractionPolicy.free(), QuickMoveParticipation.BOTH, 100));
+        groups.add(new VirtualSlotGroup("armor",
+                slotRange(handler, InventoryMenu.ARMOR_SLOT_START, InventoryMenu.ARMOR_SLOT_END),
+                InteractionPolicy.free(), QuickMoveParticipation.BOTH, 100));
+        groups.add(new VirtualSlotGroup("main_inventory",
+                slotRange(handler, InventoryMenu.INV_SLOT_START, InventoryMenu.INV_SLOT_END),
+                InteractionPolicy.free(), QuickMoveParticipation.BOTH, 0));
+        groups.add(new VirtualSlotGroup("hotbar",
+                slotRange(handler, InventoryMenu.USE_ROW_SLOT_START, InventoryMenu.USE_ROW_SLOT_END),
+                InteractionPolicy.free(), QuickMoveParticipation.BOTH, 0));
+        groups.add(new VirtualSlotGroup("offhand",
+                List.of(handler.slots.get(InventoryMenu.SHIELD_SLOT)),
+                InteractionPolicy.free(), QuickMoveParticipation.BOTH, 100));
+
+        if (handler.slots.size() > InventoryMenu.SHIELD_SLOT + 1) {
+            groups.addAll(groupSlotsByContainerIdentity(
+                    handler, InventoryMenu.SHIELD_SLOT + 1, handler.slots.size()));
+        }
+        return groups;
+    }
+
+    /** Immutable view of slots {@code [from, to)} for range-based recognizers. */
+    private static List<Slot> slotRange(AbstractContainerMenu handler, int from, int to) {
+        return List.copyOf(handler.slots.subList(from, to));
     }
 
 }
