@@ -58,9 +58,13 @@ public final class SlotWindowResolver {
      */
     public static Optional<Slot> resolve(AbstractContainerScreen<?> screen, Address address) {
         AbstractContainerMenu menu = screen.getMenu();
-        if (!ownerMatches(menu, address.owner())) return Optional.empty();
         return switch (address.kind()) {
-            case VANILLA_SLOT -> vanillaSlot(menu, address);
+            // Vanilla slots are menu-intrinsic: the owner gate (family+scope == the
+            // live menu) IS the held-handle no-op for them.
+            case VANILLA_SLOT -> ownerMatches(menu, address.owner())
+                    ? vanillaSlot(menu, address) : Optional.empty();
+            // Created slots are menu-INDEPENDENT (identity = panel + decl); the
+            // port's scan is itself the presence check, so no family gate applies.
             case CREATED_SLOT -> created(menu, address).map(CreatedSlotResolver.CreatedResolution::slot);
             // Panel + element resolution lands with the handle (Phase 6, panel registry).
             case PANEL, PANEL_ELEMENT -> Optional.empty();
@@ -75,13 +79,14 @@ public final class SlotWindowResolver {
      */
     public static Optional<SlotScreenRect> resolvePosition(AbstractContainerScreen<?> screen, Address address) {
         AbstractContainerMenu menu = screen.getMenu();
-        if (!ownerMatches(menu, address.owner())) return Optional.empty();
         AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
         int left = acc.mk$getLeftPos();
         int top = acc.mk$getTopPos();
         return switch (address.kind()) {
-            case VANILLA_SLOT -> vanillaSlot(menu, address)
-                    .map(s -> new SlotScreenRect(left + s.x, top + s.y, 16, 16));
+            // Vanilla: menu-family gate (held-handle no-op). Created: scan is the check.
+            case VANILLA_SLOT -> ownerMatches(menu, address.owner())
+                    ? vanillaSlot(menu, address).map(s -> new SlotScreenRect(left + s.x, top + s.y, 16, 16))
+                    : Optional.empty();
             case CREATED_SLOT -> created(menu, address)
                     .map(r -> new SlotScreenRect(left + r.frameX(), top + r.frameY(), 16, 16));
             case PANEL, PANEL_ELEMENT -> Optional.empty();
