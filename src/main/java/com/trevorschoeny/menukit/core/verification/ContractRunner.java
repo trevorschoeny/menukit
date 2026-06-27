@@ -12,7 +12,7 @@ import org.jetbrains.annotations.ApiStatus;
  * compose their own contract lists targeting MK-only features — palette
  * smokes, region observation against vanilla menus, layout/opacity probes)
  * and MKC-side consumer mods (which may compose contract lists targeting
- * MKC-only features — owned slot state, slot grafting, storage attachments).
+ * MKC-only features — owned slot state, slot registering, storage attachments).
  *
  * <p>The interface is intentionally minimal — just a {@code run()} method
  * returning a list of {@link ContractResult}s. Implementations are free to

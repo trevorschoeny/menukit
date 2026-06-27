@@ -5,7 +5,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import java.util.List;
 
 /**
- * Which screens a grafted-slot presence (or any screen-complete feature) applies
+ * Which screens a registered-slot presence (or any screen-complete feature) applies
  * to — the consumer-facing expression of inventory-screen parity's
  * <b>default-on, opt-out-per-screen</b> rule.
  *
@@ -48,7 +48,7 @@ public final class ScreenMatcher {
 
     /**
      * Every inventory-bearing screen <em>except</em> the named ones (and their
-     * subclasses). The clean way to opt a graft out of a specific screen, e.g.
+     * subclasses). The clean way to opt a slot out of a specific screen, e.g.
      * {@code allExcept(CreativeModeInventoryScreen.class)}.
      */
     public static ScreenMatcher allExcept(Class<?>... screens) {
@@ -58,7 +58,7 @@ public final class ScreenMatcher {
 
     /**
      * Only the named screens (and their subclasses). Full narrowing — use when a
-     * graft genuinely belongs on a closed set of screens rather than everywhere.
+     * slot genuinely belongs on a closed set of screens rather than everywhere.
      */
     public static ScreenMatcher only(Class<?>... screens) {
         if (screens.length == 0) {

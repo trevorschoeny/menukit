@@ -17,10 +17,10 @@ import java.util.List;
  * concepts that don't translate to observed screens.
  *
  * <p>The wildcard return type on {@link #getSlots} is deliberate:
- * {@link SlotGroup} returns {@code List<MenuKitSlot>} (a valid covariant
+ * {@link SlotGroup} returns {@code List<MKCSlot>} (a valid covariant
  * override), while {@link VirtualSlotGroup} returns {@code List<Slot>}.
  * Consumers writing group-level behavior work with {@code Slot} directly;
- * consumers needing {@code MenuKitSlot}-specific behavior do an
+ * consumers needing {@code MKCSlot}-specific behavior do an
  * {@code instanceof} check after the call.
  *
  * @see SlotGroup          MenuKit-native implementation
@@ -68,7 +68,7 @@ public interface SlotGroupLike {
 
     /**
      * Returns this group's slots. The wildcard allows {@link SlotGroup}
-     * to return {@code List<MenuKitSlot>} and {@link VirtualSlotGroup}
+     * to return {@code List<MKCSlot>} and {@link VirtualSlotGroup}
      * to return {@code List<Slot>}.
      *
      * @param handler the handler whose slot list contains this group's slots

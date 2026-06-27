@@ -7,10 +7,10 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * Shared slot-rendering utility for grafted slots that live outside a
+ * Shared slot-rendering utility for registered slots that live outside a
  * vanilla container texture. Used by M4 consumer code to render slot
- * backgrounds, hover highlights, ghost icons, and items for grafted
- * {@link MenuKitSlot} instances.
+ * backgrounds, hover highlights, ghost icons, and items for registered
+ * {@link MKCSlot} instances.
  *
  * <p>Parallel to {@link PanelRendering}, which handles panel-level backgrounds.
  *

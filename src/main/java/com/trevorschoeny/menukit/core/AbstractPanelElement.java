@@ -116,8 +116,8 @@ public abstract class AbstractPanelElement implements PanelElement {
     // childX/childY are the element's position within the panel's content
     // area (after padding). They were per-element {@code final} fields until
     // §0047; hoisted here and made mutable so an element can be repositioned
-    // at runtime, exactly mirroring how a grafted MenuKitSlot carries a
-    // mutable graftX/graftY (setGraftPosition). The render + input paths
+    // at runtime, exactly mirroring how a registered MKCSlot carries a
+    // mutable renderX/renderY (setRenderPosition). The render + input paths
     // already read position via getChildX()/getChildY() every frame, so a
     // mutation takes effect on the next frame with NO dispatcher changes.
     //
@@ -146,7 +146,7 @@ public abstract class AbstractPanelElement implements PanelElement {
      * {@code contentX + getChildX()}) both read position via the getters every
      * frame, so the new position takes effect on the next frame. Panel
      * auto-size (which walks {@code getChildX()+getWidth()}) likewise reflects
-     * it. Mirrors {@code MenuKitSlot.setGraftPosition(x, y)} on the slot side.
+     * it. Mirrors {@code MKCSlot.setRenderPosition(x, y)} on the slot side.
      *
      * @param x new panel-local X
      * @param y new panel-local Y

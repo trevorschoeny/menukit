@@ -309,7 +309,7 @@ public class HandlerRecognizerRegistry {
     // Inventory container, so the default identity grouper lumps the whole player
     // inventory into one "player_inventory" blob. This splits them into the
     // structural groups consumers expect, by InventoryMenu's published slot-index
-    // ranges. Slots past the offhand are mod grafts appended to InventoryMenu —
+    // ranges. Slots past the offhand are mod slots appended to InventoryMenu —
     // identity-grouped so they're observed too, not swallowed into vanilla groups.
 
     private static @Nullable List<VirtualSlotGroup> recognizeInventoryMenu(

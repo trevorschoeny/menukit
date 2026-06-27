@@ -15,7 +15,7 @@ import net.minecraft.resources.Identifier;
  * themselves with fills, matching vanilla's inventory panel look.
  *
  * <p>Part of the canonical MenuKit hierarchy:
- * Screen → Panel → SlotGroup → MenuKitSlot
+ * Screen → Panel → SlotGroup → MKCSlot
  */
 public final class PanelRendering {
 

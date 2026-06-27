@@ -19,7 +19,7 @@ import java.util.function.Supplier;
  * at native 16×16 centered within the 20×22 slot.
  *
  * <p>This is a display-only element — no interaction. For interactive
- * slots, use a {@code MenuKitSlot} inside a {@code Panel} on a
+ * slots, use a {@code MKCSlot} inside a {@code Panel} on a
  * {@code MenuKitScreenHandler}.
  *
  * <p>Implements {@link PanelElement}. Phase 8 may subsume this into a

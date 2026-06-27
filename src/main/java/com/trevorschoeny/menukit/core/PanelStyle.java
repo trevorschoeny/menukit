@@ -8,7 +8,7 @@ package com.trevorschoeny.menukit.core;
  * utilities (e.g., {@code MKPanel.renderPanel()}).
  *
  * <p>Part of the canonical MenuKit hierarchy:
- * Screen → Panel → SlotGroup → MenuKitSlot
+ * Screen → Panel → SlotGroup → MKCSlot
  */
 public enum PanelStyle {
     /** Raised — vanilla inventory panel look (9-slice sprite with rounded corners). */
