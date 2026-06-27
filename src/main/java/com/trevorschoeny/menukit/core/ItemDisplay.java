@@ -42,8 +42,6 @@ public class ItemDisplay extends AbstractPanelElement {
     /** Native item render size — vanilla renders items at this size. */
     public static final int DEFAULT_SIZE = 16;
 
-    private final int childX;
-    private final int childY;
     private final int size;
     private final Supplier<ItemStack> stackSupplier;
     private final boolean showCount;
@@ -161,8 +159,6 @@ public class ItemDisplay extends AbstractPanelElement {
 
     // ── PanelElement Implementation ────────────────────────────────────
 
-    @Override public int getChildX() { return childX; }
-    @Override public int getChildY() { return childY; }
     @Override public int getWidth() { return size; }
     @Override public int getHeight() { return size; }
 

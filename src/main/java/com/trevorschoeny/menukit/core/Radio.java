@@ -61,8 +61,6 @@ public class Radio<T> extends AbstractPanelElement {
     /** Color of the selection indicator (visible against INSET dark interior). */
     public static final int INDICATOR_COLOR = 0xFF606060;
 
-    private final int childX;
-    private final int childY;
     private final T value;
     private final Supplier<Component> labelSupplier;
     private final RadioGroup<T> group;
@@ -138,8 +136,6 @@ public class Radio<T> extends AbstractPanelElement {
 
     // ── PanelElement Implementation ────────────────────────────────────
 
-    @Override public int getChildX() { return childX; }
-    @Override public int getChildY() { return childY; }
 
     @Override
     public int getWidth() {

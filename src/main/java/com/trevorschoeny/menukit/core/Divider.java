@@ -47,8 +47,6 @@ public class Divider extends AbstractPanelElement {
     /** Default thickness in pixels. */
     public static final int DEFAULT_THICKNESS = 1;
 
-    private final int childX;
-    private final int childY;
     private final int width;
     private final int height;
     private final int color;
@@ -153,8 +151,6 @@ public class Divider extends AbstractPanelElement {
 
     // ── PanelElement Implementation ────────────────────────────────────
 
-    @Override public int getChildX() { return childX; }
-    @Override public int getChildY() { return childY; }
     @Override public int getWidth() { return width; }
     @Override public int getHeight() { return height; }
 

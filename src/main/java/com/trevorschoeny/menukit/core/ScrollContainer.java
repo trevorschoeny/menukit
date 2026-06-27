@@ -117,8 +117,6 @@ public class ScrollContainer extends AbstractPanelElement {
     /** Pixels scrolled per mouse-wheel tick. Tuned for typical content. */
     public static final int SCROLL_PIXELS_PER_TICK = 10;
 
-    private final int childX;
-    private final int childY;
     private final int width;
     private final int height;
     private final List<PanelElement> content;
@@ -237,8 +235,6 @@ public class ScrollContainer extends AbstractPanelElement {
 
     // ── PanelElement Implementation ───────────────────────────────────────
 
-    @Override public int getChildX() { return childX; }
-    @Override public int getChildY() { return childY; }
     @Override public int getWidth()  { return width; }
     @Override public int getHeight() { return height; }
 

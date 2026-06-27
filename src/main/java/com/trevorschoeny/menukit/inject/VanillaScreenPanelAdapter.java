@@ -305,6 +305,13 @@ public final class VanillaScreenPanelAdapter {
                        && mouseY >= origin.y() && mouseY < origin.y() + panelHeight;
         if (!inPanel) return false;  // outside both overlay AND panel → vanilla handles
 
+        // M9 per-element opacity: a non-opaque element under the cursor is a
+        // click-through hole — pass the click through to vanilla instead of
+        // eating it (and don't dispatch to the panel's own elements here).
+        if (ScreenPanelRegistry.panelHoleAt(panel, origin, padding, mouseX, mouseY)) {
+            return false;
+        }
+
         int contentX = origin.x() + padding;
         int contentY = origin.y() + padding;
 
@@ -383,5 +390,23 @@ public final class VanillaScreenPanelAdapter {
             }
         }
         return consumed;
+    }
+
+    /**
+     * Dispatches a key press to this adapter's visible elements (keyboard-nav
+     * completion — keyboard parallel to {@link #mouseClicked}). NOT hit-tested;
+     * every visible element is offered the key until one consumes it. Returns
+     * true once consumed so the caller eats the key from vanilla. Canonical
+     * consumer: an open {@link com.trevorschoeny.menukit.core.Dropdown}.
+     */
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (!panel.isVisible()) return false;
+        for (PanelElement element : panel.getElements()) {
+            if (!element.isVisible()) continue;
+            if (element.keyPressed(keyCode, scanCode, modifiers)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

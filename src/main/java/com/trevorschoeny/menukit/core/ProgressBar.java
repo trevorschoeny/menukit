@@ -72,8 +72,6 @@ public class ProgressBar extends AbstractPanelElement {
     /** Default direction — left-to-right. */
     public static final Direction DEFAULT_DIRECTION = Direction.LEFT_TO_RIGHT;
 
-    private final int childX;
-    private final int childY;
     private final int width;
     private final int height;
     private final Supplier<Float> valueSupplier;
@@ -192,8 +190,6 @@ public class ProgressBar extends AbstractPanelElement {
 
     // ── PanelElement Implementation ────────────────────────────────────
 
-    @Override public int getChildX() { return childX; }
-    @Override public int getChildY() { return childY; }
     @Override public int getWidth() { return width; }
     @Override public int getHeight() { return height; }
 

@@ -7,6 +7,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.util.Util;
 
+import org.lwjgl.glfw.GLFW;
+
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
@@ -155,8 +157,6 @@ public final class Dropdown<T> extends AbstractPanelElement {
 
     // ── Builder-supplied state (immutable) ─────────────────────────────
 
-    private final int childX;
-    private final int childY;
     private final int triggerWidth;
     private final int triggerHeight;
     private final List<T> items;
@@ -198,6 +198,17 @@ public final class Dropdown<T> extends AbstractPanelElement {
     private volatile int scrollOffset = 0;
 
     /**
+     * Keyboard-nav highlighted row index (completion of the input model).
+     * {@code -1} = no keyboard highlight yet (reset on each open); becomes
+     * {@code 0..items.size()-1} once the user presses an arrow key in the
+     * open popover. Distinct from mouse hover (computed from cursor position
+     * in render) and from the selection (held by {@link #selectionSupplier}).
+     * Volatile for the same render-thread/input-thread reason as
+     * {@link #open}/{@link #scrollOffset}.
+     */
+    private volatile int highlightedIndex = -1;
+
+    /**
      * Captured {@link Util#getMillis} value at the moment the popover
      * was last opened. Passed to {@link MKText#renderFromOpenTime} so
      * long item-text scroll cycles start at "beginning visible" when
@@ -233,8 +244,6 @@ public final class Dropdown<T> extends AbstractPanelElement {
 
     // ── PanelElement protocol ──────────────────────────────────────────
 
-    @Override public int getChildX() { return childX; }
-    @Override public int getChildY() { return childY; }
     @Override public int getWidth()  { return triggerWidth; }
     @Override public int getHeight() { return triggerHeight; }
 
@@ -462,6 +471,15 @@ public final class Dropdown<T> extends AbstractPanelElement {
                     }
                 }
             }
+            // Keyboard-nav highlight — the arrow-key-selected row. Same
+            // overlay as hover so mouse and keyboard share one affordance;
+            // gated on !rowHovered to avoid additive double-draw when the
+            // cursor and keyboard highlight land on the same row.
+            if (i == highlightedIndex && !rowHovered) {
+                graphics.fill(px + 1, rowY,
+                        px + pw - 1 - (scrollable ? SCROLLBAR_W : 0), rowY + ROW_HEIGHT,
+                        COLOR_HOVER_OVERLAY);
+            }
             // Selection highlight (this item == current selection)
             if (currentSelection != null && currentSelection.equals(item)) {
                 graphics.fill(px + 1, rowY,
@@ -610,6 +628,9 @@ public final class Dropdown<T> extends AbstractPanelElement {
             open = true;
             // Reset scroll to top each time we open — predictable UX.
             scrollOffset = 0;
+            // Keyboard highlight resets each open; the first arrow key seeds
+            // it to the current selection (see keyPressed / initialHighlight).
+            highlightedIndex = -1;
             // Capture open-time so long item-text scrolls start at
             // "text beginning visible" when the popover appears.
             popoverOpenMillis = Util.getMillis();
@@ -669,6 +690,95 @@ public final class Dropdown<T> extends AbstractPanelElement {
         int delta = (scrollY > 0) ? -1 : (scrollY < 0 ? 1 : 0);
         scrollOffset = clampScrollOffset(scrollOffset + delta);
         return true;
+    }
+
+    /**
+     * Keyboard navigation — the keyboard counterpart to {@link #mouseClicked},
+     * completing the dropdown's input model. Scoped to the OPEN popover: a
+     * closed dropdown returns false and consumes nothing, because there is no
+     * keyboard-focus model to arbitrate which of several on-screen dropdowns
+     * owns a key — opening stays mouse-driven, and a closed dropdown never
+     * swallows a sibling's or vanilla's keystroke.
+     *
+     * <ul>
+     *   <li><b>Up / Down</b> — move the highlighted row (the first press
+     *       reveals the highlight at the current selection); auto-scrolls to
+     *       keep it visible.</li>
+     *   <li><b>Enter</b> — select the highlighted row and close.</li>
+     *   <li><b>Escape</b> — close the popover (consumed, so the underlying
+     *       screen stays open: Esc dismisses the dropdown first).</li>
+     * </ul>
+     */
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (!open || items.isEmpty()) return false;
+
+        switch (keyCode) {
+            case GLFW.GLFW_KEY_DOWN -> {
+                highlightedIndex = (highlightedIndex < 0)
+                        ? initialHighlight()
+                        : Math.min(items.size() - 1, highlightedIndex + 1);
+                ensureHighlightVisible();
+                return true;
+            }
+            case GLFW.GLFW_KEY_UP -> {
+                highlightedIndex = (highlightedIndex < 0)
+                        ? initialHighlight()
+                        : Math.max(0, highlightedIndex - 1);
+                ensureHighlightVisible();
+                return true;
+            }
+            case GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER -> {
+                if (highlightedIndex >= 0 && highlightedIndex < items.size()) {
+                    T picked = items.get(highlightedIndex);
+                    T current = selectionSupplier.get();
+                    // Only fire the consumer if the selection actually changed
+                    // (matches handlePopoverClick's equality gate).
+                    if (current == null || !current.equals(picked)) {
+                        selectionConsumer.accept(picked);
+                    }
+                }
+                open = false;
+                return true;
+            }
+            case GLFW.GLFW_KEY_ESCAPE -> {
+                open = false;
+                return true;
+            }
+            default -> {
+                return false; // other keys fall through to vanilla
+            }
+        }
+    }
+
+    /**
+     * Index the keyboard highlight seeds to on its first arrow press after the
+     * popover opens: the current selection's row if present, else the first
+     * row.
+     */
+    private int initialHighlight() {
+        T current = selectionSupplier.get();
+        if (current != null) {
+            int idx = items.indexOf(current);
+            if (idx >= 0) return idx;
+        }
+        return 0;
+    }
+
+    /**
+     * Scrolls the popover so the keyboard-highlighted row stays within the
+     * visible window. Reuses the same scroll-offset clamping as wheel scroll
+     * ({@link #mouseScrolled}).
+     */
+    private void ensureHighlightVisible() {
+        if (highlightedIndex < 0) return;
+        int visible = visibleRowCount();
+        int first = clampScrollOffset(scrollOffset);
+        if (highlightedIndex < first) {
+            scrollOffset = clampScrollOffset(highlightedIndex);
+        } else if (highlightedIndex >= first + visible) {
+            scrollOffset = clampScrollOffset(highlightedIndex - visible + 1);
+        }
     }
 
     // ── Trigger screen-position cache ──────────────────────────────────

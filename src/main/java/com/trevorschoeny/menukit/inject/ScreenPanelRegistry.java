@@ -2,10 +2,12 @@ package com.trevorschoeny.menukit.inject;
 
 import com.trevorschoeny.menukit.core.MKFocus;
 import com.trevorschoeny.menukit.core.Panel;
+import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevorschoeny.menukit.mixin.ScreenAccessor;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -378,7 +380,13 @@ public final class ScreenPanelRegistry {
                 int x = origin.get().x();
                 int y = origin.get().y();
                 if (event.x() >= x && event.x() < x + pw
-                        && event.y() >= y && event.y() < y + ph) {
+                        && event.y() >= y && event.y() < y + ph
+                        // M9 per-element opacity: a non-opaque element under
+                        // the cursor punches a click-through hole, so this
+                        // opaque panel does NOT eat — the click reaches the
+                        // slot behind it.
+                        && !panelHoleAt(panel, origin.get(), padding,
+                                event.x(), event.y())) {
                     opaqueAtCursor = true;
                 }
             }
@@ -395,6 +403,24 @@ public final class ScreenPanelRegistry {
             // method so /mkverify probes can exercise the logic without
             // spinning up a real screen.
             return !shouldEatOpaqueDispatch(opaqueAtCursor);
+        });
+
+        // Keyboard dispatch via Fabric's allowKeyPress hook — the keyboard
+        // parallel to the allowMouseClick hook above. Routes key presses to
+        // the panel element layer so elements like Dropdown can do keyboard
+        // navigation (arrows/Enter/Escape). Returns false (eat from vanilla)
+        // when an element consumes, so vanilla doesn't also act on the key
+        // (e.g., hotbar number keys, creative search focus). Not hit-tested —
+        // keyboard isn't pointer-localized; each visible adapter is offered
+        // the key until one consumes.
+        ScreenKeyboardEvents.allowKeyPress(screen).register((s, keyEvent) -> {
+            for (ScreenPanelAdapter adapter : menuMatches) {
+                if (adapter.keyPressed(keyEvent.key(), keyEvent.scancode(),
+                        keyEvent.modifiers())) {
+                    return false;  // eat from vanilla
+                }
+            }
+            return true;
         });
 
         // Phase 14d-2 — scroll dispatch via Fabric's allowMouseScroll hook.
@@ -735,7 +761,9 @@ public final class ScreenPanelRegistry {
                     if (origin.isEmpty()) continue;
                     if (containsPoint(origin.get(), adapter.getPadding(),
                             panel.getWidth(), panel.getHeight(),
-                            mouseX, mouseY)) {
+                            mouseX, mouseY)
+                            && !panelHoleAt(panel, origin.get(),
+                                    adapter.getPadding(), mouseX, mouseY)) {
                         result = adapter; // overwrite — last-z wins
                     }
                 }
@@ -756,7 +784,9 @@ public final class ScreenPanelRegistry {
                     if (origin.isEmpty()) continue;
                     if (containsPoint(origin.get(), adapter.getPadding(),
                             panel.getWidth(), panel.getHeight(),
-                            mouseX, mouseY)) {
+                            mouseX, mouseY)
+                            && !panelHoleAt(panel, origin.get(),
+                                    adapter.getPadding(), mouseX, mouseY)) {
                         result = adapter;
                     }
                 }
@@ -776,6 +806,35 @@ public final class ScreenPanelRegistry {
         int y = origin.y();
         return mouseX >= x && mouseX < x + pw
                 && mouseY >= y && mouseY < y + ph;
+    }
+
+    /**
+     * M9 per-element opacity — true if a visible, non-opaque element of this
+     * panel covers the cursor, punching a click-through "hole" so the opaque
+     * panel does NOT claim input at this point (it falls through to lower
+     * panels / the slots behind it). Element screen bounds are composed exactly
+     * as the dispatchers compose them: content origin (panel origin + padding)
+     * plus the element's childX/childY (see {@link PanelElement#hitTest}).
+     *
+     * <p>Per-element opacity completes M9's panel-level opacity: panel opacity
+     * is bounding-box click-eating (input, not visual alpha); a non-opaque
+     * element opts its own bounds out of that eating. Default-opaque elements
+     * are unaffected, so existing panels behave exactly as before.
+     */
+    static boolean panelHoleAt(Panel panel, ScreenOrigin origin, int padding,
+                                        double mouseX, double mouseY) {
+        int contentX = origin.x() + padding;
+        int contentY = origin.y() + padding;
+        for (PanelElement el : panel.getElements()) {
+            if (!el.isVisible() || el.isElementOpaque()) continue;
+            int ex = contentX + el.getChildX();
+            int ey = contentY + el.getChildY();
+            if (mouseX >= ex && mouseX < ex + el.getWidth()
+                    && mouseY >= ey && mouseY < ey + el.getHeight()) {
+                return true; // cursor is over a click-through hole
+            }
+        }
+        return false;
     }
 
     /**

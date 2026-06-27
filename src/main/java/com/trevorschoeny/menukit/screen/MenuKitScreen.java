@@ -11,6 +11,7 @@ import com.trevorschoeny.menukit.core.RenderContext;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
@@ -311,6 +312,41 @@ public class MenuKitScreen extends Screen {
             return true;
         }
         return super.mouseClicked(event, flag);
+    }
+
+    @Override
+    public boolean keyPressed(KeyEvent event) {
+        // Offer the key to panel elements first (Dropdown arrow/Enter/Escape
+        // nav). If none consumes, fall through to vanilla's own handling
+        // (focused widgets, Escape-to-close, etc.). Keyboard parallel to the
+        // mouseClicked dispatch above.
+        if (dispatchElementKeyPress(event.key(), event.scancode(), event.modifiers())) {
+            return true;
+        }
+        return super.keyPressed(event);
+    }
+
+    /**
+     * Dispatches a key press to panel elements in reverse panel order (top-
+     * most panel's elements first, matching z-order and the click dispatch).
+     * NOT hit-tested — keyboard events aren't pointer-localized, so each
+     * visible element is offered the key until one consumes it. Modal-aware:
+     * when a {@code tracksAsModal} panel is visible, only its own elements are
+     * eligible (mirrors {@link #dispatchElementClick}).
+     */
+    private boolean dispatchElementKeyPress(int keyCode, int scanCode, int modifiers) {
+        boolean modalUp = anyVisibleModalTrackingPanel();
+        for (Panel panel : panels.reversed()) {
+            if (!panel.isVisible()) continue;
+            if (modalUp && !panel.tracksAsModal()) continue; // modal-blocked
+            for (PanelElement element : panel.getElements()) {
+                if (!element.isVisible()) continue;
+                if (element.keyPressed(keyCode, scanCode, modifiers)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Returns true if at least one visible panel has {@code tracksAsModal()} set. */

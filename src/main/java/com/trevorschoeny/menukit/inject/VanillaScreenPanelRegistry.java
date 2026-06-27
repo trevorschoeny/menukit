@@ -2,6 +2,7 @@ package com.trevorschoeny.menukit.inject;
 
 import com.trevorschoeny.menukit.mixin.ScreenAccessor;
 
+import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 
 import net.minecraft.client.gui.components.Renderable;
@@ -161,7 +162,12 @@ public final class VanillaScreenPanelRegistry {
             int oy = origin.get().y();
             // Panel bounds
             if (mouseX >= ox && mouseX < ox + pw
-                    && mouseY >= oy && mouseY < oy + ph) {
+                    && mouseY >= oy && mouseY < oy + ph
+                    // M9 per-element opacity: a non-opaque element under the
+                    // cursor punches a click-through hole, so this panel does
+                    // not claim the point (hover/tooltip fall through behind it).
+                    && !ScreenPanelRegistry.panelHoleAt(panel, origin.get(),
+                            padding, mouseX, mouseY)) {
                 return true;
             }
             // Element overlay bounds (e.g., open Dropdown popovers that
@@ -251,6 +257,20 @@ public final class VanillaScreenPanelRegistry {
             for (VanillaScreenPanelAdapter adapter : activeMatches) {
                 if (adapter.mouseClicked(sw, sh, event.x(), event.y(),
                         event.button(), s)) {
+                    return false;  // eat from vanilla
+                }
+            }
+            return true;
+        });
+
+        // ── Keyboard dispatch ────────────────────────────────────────
+        // Keyboard parallel to the click hook above. Routes key presses to
+        // the panel element layer (Dropdown arrow/Enter/Escape nav). Eats
+        // from vanilla when an element consumes. Not hit-tested.
+        ScreenKeyboardEvents.allowKeyPress(screen).register((s, keyEvent) -> {
+            for (VanillaScreenPanelAdapter adapter : activeMatches) {
+                if (adapter.keyPressed(keyEvent.key(), keyEvent.scancode(),
+                        keyEvent.modifiers())) {
                     return false;  // eat from vanilla
                 }
             }

@@ -69,8 +69,6 @@ import java.util.function.Supplier;
  */
 public class TextField extends AbstractPanelElement {
 
-    private final int childX;
-    private final int childY;
     private final int width;
     private final int height;
 
@@ -153,8 +151,6 @@ public class TextField extends AbstractPanelElement {
 
     // ── PanelElement protocol ──────────────────────────────────────────
 
-    @Override public int getChildX() { return childX; }
-    @Override public int getChildY() { return childY; }
     @Override public int getWidth()  { return width; }
     @Override public int getHeight() { return height; }
 

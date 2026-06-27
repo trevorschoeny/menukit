@@ -111,6 +111,51 @@ public abstract class AbstractPanelElement implements PanelElement {
         return this;
     }
 
+    // ── Position (§0047 — mutable presentation; identity stays frozen) ──
+    //
+    // childX/childY are the element's position within the panel's content
+    // area (after padding). They were per-element {@code final} fields until
+    // §0047; hoisted here and made mutable so an element can be repositioned
+    // at runtime, exactly mirroring how a grafted MenuKitSlot carries a
+    // mutable graftX/graftY (setGraftPosition). The render + input paths
+    // already read position via getChildX()/getChildY() every frame, so a
+    // mutation takes effect on the next frame with NO dispatcher changes.
+    //
+    // Identity (§0022 sync-critical core) is unaffected — position is pure
+    // client-side presentation; the server neither renders nor syncs it.
+    // Concrete subclasses assign these in their constructors exactly as before
+    // (the prior {@code this.childX = childX} assignments are unchanged; the
+    // fields just live here now instead of being re-declared in each element).
+
+    /** Element X within the panel content area. Mutable since §0047. */
+    protected int childX;
+
+    /** Element Y within the panel content area. Mutable since §0047. */
+    protected int childY;
+
+    @Override public int getChildX() { return childX; }
+    @Override public int getChildY() { return childY; }
+
+    /**
+     * Moves this element's presentation position at runtime (§0047). Position
+     * is mutable presentation, not frozen structure — the element's identity,
+     * index, and sync participation are untouched. Client-side only.
+     *
+     * <p>The render path ({@code ctx.originX() + getChildX()}) and the input
+     * path ({@link PanelElement#hitTest}, which composes
+     * {@code contentX + getChildX()}) both read position via the getters every
+     * frame, so the new position takes effect on the next frame. Panel
+     * auto-size (which walks {@code getChildX()+getWidth()}) likewise reflects
+     * it. Mirrors {@code MenuKitSlot.setGraftPosition(x, y)} on the slot side.
+     *
+     * @param x new panel-local X
+     * @param y new panel-local Y
+     */
+    public void setChildPosition(int x, int y) {
+        this.childX = x;
+        this.childY = y;
+    }
+
     // ── Tooltip (hover-triggered) ──────────────────────────────────────
     //
     // Hoisted in Phase 18r-2 from per-widget duplication (Button, Toggle,
@@ -162,5 +207,40 @@ public abstract class AbstractPanelElement implements PanelElement {
      */
     protected @Nullable Supplier<Component> getTooltipSupplier() {
         return tooltipSupplier;
+    }
+
+    // ── Per-element opacity (M9 completion — input click-through hole) ──
+    //
+    // M9 panel opacity is an INPUT-layer property: an opaque panel eats clicks
+    // over its bounds so they don't fall through to the slots/screen behind it
+    // (bounding-box opacity, not visual alpha — M9 §4.1). Per-element opacity
+    // completes that capability at element granularity: an element marked
+    // non-opaque punches a click-through "hole" in an otherwise-opaque panel,
+    // so clicks (and hover/tooltip) over that element reach whatever is behind
+    // the panel. Default true — every element inherits the panel's opaque
+    // behavior unless it opts out.
+
+    private boolean elementOpaque = true;
+
+    /**
+     * Sets whether this element is interaction-opaque (M9). When {@code false},
+     * clicks/hover/tooltip over this element's bounds are NOT eaten by an
+     * opaque panel — they pass through to the slots or screen behind it (a
+     * "hole"). Default {@code true} (inherit the panel's opaque behavior).
+     *
+     * <p>Input-layer only, matching M9's panel opacity (bounding-box, not
+     * visual alpha). Rendering is unaffected — a transparent hole that should
+     * also look empty simply has no element drawn over it.
+     *
+     * @return this element, for chaining
+     */
+    public AbstractPanelElement setElementOpaque(boolean opaque) {
+        this.elementOpaque = opaque;
+        return this;
+    }
+
+    @Override
+    public boolean isElementOpaque() {
+        return elementOpaque;
     }
 }

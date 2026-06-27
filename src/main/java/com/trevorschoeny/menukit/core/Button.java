@@ -52,8 +52,6 @@ import java.util.function.Supplier;
  */
 public class Button extends AbstractPanelElement {
 
-    private final int childX;
-    private final int childY;
     private final int width;
     private final int height;
     private final Component text;
@@ -139,8 +137,6 @@ public class Button extends AbstractPanelElement {
 
     // ── PanelElement Implementation ────────────────────────────────────
 
-    @Override public int getChildX() { return childX; }
-    @Override public int getChildY() { return childY; }
     @Override public int getWidth() { return width; }
     @Override public int getHeight() { return height; }
 

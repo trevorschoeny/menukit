@@ -51,8 +51,6 @@ public class TextLabel extends AbstractPanelElement {
     /** White with shadow on — readable on dark panel backgrounds. */
     public static final int COLOR_LIGHT = 0xFFFFFFFF;
 
-    private final int childX;
-    private final int childY;
     private final Supplier<Component> textSupplier;
     private final int color;
     private final boolean shadow;
@@ -162,8 +160,6 @@ public class TextLabel extends AbstractPanelElement {
 
     // ── PanelElement Implementation ────────────────────────────────────
 
-    @Override public int getChildX() { return childX; }
-    @Override public int getChildY() { return childY; }
 
     @Override
     public int getWidth() {

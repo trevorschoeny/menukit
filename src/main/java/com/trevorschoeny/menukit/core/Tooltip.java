@@ -35,8 +35,6 @@ public class Tooltip extends AbstractPanelElement {
     /** Default text color — vanilla inventory-label dark gray. */
     public static final int DEFAULT_TEXT_COLOR = 0xFF404040;
 
-    private final int childX;
-    private final int childY;
     private final Supplier<Component> textSupplier;
 
     /**
@@ -101,8 +99,6 @@ public class Tooltip extends AbstractPanelElement {
 
     // ── PanelElement Implementation ────────────────────────────────────
 
-    @Override public int getChildX() { return childX; }
-    @Override public int getChildY() { return childY; }
 
     @Override
     public int getWidth() {

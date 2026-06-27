@@ -10,6 +10,8 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.util.Mth;
 import net.minecraft.util.Util;
 
+import org.lwjgl.glfw.GLFW;
+
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
@@ -147,8 +149,6 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
 
     // ── Immutable config ───────────────────────────────────────────────
 
-    private final int childX;
-    private final int childY;
     private final int triggerWidth;
     private final int triggerHeight;
     private final List<T> items;
@@ -182,6 +182,15 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
 
     private volatile boolean open = false;
     private volatile int scrollOffset = 0;
+
+    /**
+     * Keyboard-nav highlighted item index (completion of the input model;
+     * mirrors {@link Dropdown}). {@code -1} = no keyboard highlight yet (reset
+     * on each open); {@code 0..items.size()-1} once the user arrows in the
+     * open popover. Indexes the regular-item region only — the pinned action
+     * rows (Select all / Clear all) stay mouse-only.
+     */
+    private volatile int highlightedIndex = -1;
     /**
      * Captured {@link Util#getMillis} at the moment the popover was
      * last opened — anchors item-text scroll cycles to "beginning
@@ -216,8 +225,6 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
 
     // ── PanelElement protocol ──────────────────────────────────────────
 
-    @Override public int getChildX() { return childX; }
-    @Override public int getChildY() { return childY; }
     @Override public int getWidth()  { return triggerWidth; }
     @Override public int getHeight() { return triggerHeight; }
 
@@ -445,6 +452,15 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
                 }
             }
 
+            // Keyboard-nav highlight — the arrow-key-selected row. Same
+            // overlay as hover; gated on !rowHovered to avoid additive
+            // double-draw when cursor and keyboard land on the same row.
+            if (i == highlightedIndex && !rowHovered) {
+                graphics.fill(px + 1, rowY,
+                        px + pw - 1 - (scrollable ? SCROLLBAR_W : 0), rowY + ROW_HEIGHT,
+                        COLOR_HOVER_OVERLAY);
+            }
+
             boolean isSelected = currentSelection.contains(item);
             if (isSelected) {
                 graphics.fill(px + 1, rowY,
@@ -610,6 +626,8 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
         if (!open) {
             open = true;
             scrollOffset = 0;
+            // Keyboard highlight resets each open (see keyPressed).
+            highlightedIndex = -1;
             // Capture open-time so long item-text scrolls start at
             // "text beginning visible" when the popover appears.
             popoverOpenMillis = Util.getMillis();
@@ -706,6 +724,73 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
         int delta = (scrollY > 0) ? -1 : (scrollY < 0 ? 1 : 0);
         scrollOffset = clampScrollOffset(scrollOffset + delta);
         return true;
+    }
+
+    /**
+     * Keyboard navigation over the regular-item region — the keyboard
+     * counterpart to {@link #mouseClicked}, completing the input model and
+     * mirroring {@link Dropdown}. Scoped to the OPEN popover (no focus model;
+     * a closed dropdown consumes nothing). The pinned action rows stay
+     * mouse-only.
+     *
+     * <ul>
+     *   <li><b>Up / Down</b> — move the highlighted item; auto-scrolls.</li>
+     *   <li><b>Enter / Space</b> — toggle the highlighted item's membership;
+     *       stays open (the multi-select session continues — the keyboard
+     *       analog of a row click).</li>
+     *   <li><b>Escape</b> — close the popover.</li>
+     * </ul>
+     */
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (!open || items.isEmpty()) return false;
+
+        switch (keyCode) {
+            case GLFW.GLFW_KEY_DOWN -> {
+                highlightedIndex = (highlightedIndex < 0)
+                        ? 0
+                        : Math.min(items.size() - 1, highlightedIndex + 1);
+                ensureHighlightVisible();
+                return true;
+            }
+            case GLFW.GLFW_KEY_UP -> {
+                highlightedIndex = (highlightedIndex < 0)
+                        ? 0
+                        : Math.max(0, highlightedIndex - 1);
+                ensureHighlightVisible();
+                return true;
+            }
+            case GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER, GLFW.GLFW_KEY_SPACE -> {
+                if (highlightedIndex >= 0 && highlightedIndex < items.size()) {
+                    // Toggle membership — stays open (multi-select session,
+                    // mirroring the row-click path).
+                    selectionConsumer.accept(items.get(highlightedIndex));
+                }
+                return true;
+            }
+            case GLFW.GLFW_KEY_ESCAPE -> {
+                open = false;
+                return true;
+            }
+            default -> {
+                return false; // other keys fall through to vanilla
+            }
+        }
+    }
+
+    /**
+     * Scrolls the popover so the keyboard-highlighted item stays within the
+     * visible window. Reuses the wheel-scroll clamping.
+     */
+    private void ensureHighlightVisible() {
+        if (highlightedIndex < 0) return;
+        int visible = visibleRowCount();
+        int first = clampScrollOffset(scrollOffset);
+        if (highlightedIndex < first) {
+            scrollOffset = clampScrollOffset(highlightedIndex);
+        } else if (highlightedIndex >= first + visible) {
+            scrollOffset = clampScrollOffset(highlightedIndex - visible + 1);
+        }
     }
 
     // ── Builder ────────────────────────────────────────────────────────

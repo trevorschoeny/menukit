@@ -321,6 +321,46 @@ public interface PanelElement {
     }
 
     /**
+     * Keyboard input dispatch — completes the element input model alongside
+     * {@link #mouseClicked} / {@link #mouseScrolled}. Called by the screen
+     * dispatchers on a key press while the element's panel is active. Unlike
+     * the mouse methods this is NOT hit-tested: keyboard events aren't
+     * localized to a cursor position, so every visible element on an active
+     * panel is offered the key until one consumes it.
+     *
+     * <p>Returns true if this element consumed the keystroke (stopping further
+     * dispatch and suppressing vanilla's own handling of it). Default returns
+     * {@code false}, so non-keyboard elements (Button, TextLabel, …) are
+     * unaffected.
+     *
+     * <p>{@code keyCode} / {@code scanCode} / {@code modifiers} are GLFW codes,
+     * matching vanilla's {@code GuiEventListener.keyPressed}. The canonical
+     * consumer is {@link Dropdown} — arrow keys move the highlighted option,
+     * Enter selects it, Escape dismisses the popover.
+     *
+     * @param keyCode   GLFW key code
+     * @param scanCode  platform-specific scan code
+     * @param modifiers GLFW modifier bitfield (shift/ctrl/alt)
+     * @return true if consumed, false to let the key fall through
+     */
+    default boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        return false;
+    }
+
+    /**
+     * Returns whether this element is interaction-opaque (M9 per-element
+     * opacity). When {@code false}, clicks/hover/tooltip over this element's
+     * bounds pass through an opaque panel to the slots/screen behind it (a
+     * click-through "hole"); when {@code true} (default) the element inherits
+     * the panel's opaque click-eating behavior.
+     *
+     * <p>Input-layer only — mirrors M9's panel opacity (bounding-box, not
+     * visual alpha). The panel's click-consumption ({@code ScreenPanelRegistry})
+     * consults this before eating a click that lands on this element's bounds.
+     */
+    default boolean isElementOpaque() { return true; }
+
+    /**
      * Phase 14d-3 — screen-attach lifecycle hook. Called when the
      * containing screen reaches its {@code init()} boundary (or when a
      * lambda-path adapter registers via {@code .activeOn}). Default

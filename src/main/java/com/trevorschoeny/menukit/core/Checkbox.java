@@ -82,8 +82,6 @@ public class Checkbox extends AbstractPanelElement {
     /** Muted label color when disabled. */
     public static final int DISABLED_LABEL_COLOR = 0xFF808080;
 
-    private final int childX;
-    private final int childY;
     private final Supplier<Component> labelSupplier;
     private final Consumer<Boolean> onToggle;
     private final @Nullable BooleanSupplier disabledWhen;
@@ -161,8 +159,6 @@ public class Checkbox extends AbstractPanelElement {
 
     // ── PanelElement Implementation ────────────────────────────────────
 
-    @Override public int getChildX() { return childX; }
-    @Override public int getChildY() { return childY; }
 
     @Override
     public int getWidth() {

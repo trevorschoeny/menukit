@@ -736,4 +736,23 @@ public final class ScreenPanelAdapter {
         }
         return consumed;
     }
+
+    /**
+     * Dispatches a key press to this adapter's visible elements (keyboard-nav
+     * completion — the keyboard parallel to {@link #mouseClicked}). NOT
+     * hit-tested: keyboard events aren't localized to a cursor position, so
+     * every visible element is offered the key until one consumes it. Returns
+     * true once an element consumes, so the caller eats the key from vanilla.
+     * Canonical consumer: an open {@link com.trevorschoeny.menukit.core.Dropdown}.
+     */
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (!panel.isVisible()) return false;
+        for (PanelElement element : panel.getElements()) {
+            if (!element.isVisible()) continue;
+            if (element.keyPressed(keyCode, scanCode, modifiers)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
