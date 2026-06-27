@@ -128,6 +128,21 @@ public final class ScreenPanelAdapter {
     /** True when {@link #onAny()} has been called. Mutually exclusive with {@link #targets}. */
     private boolean targetedAny = false;
 
+    /**
+     * Declared {@link ScreenMatcher} when {@link #onMatching} was called. Null
+     * otherwise. Mutually exclusive with {@link #targets} / {@link #targetedAny}.
+     *
+     * <p>This is the parity-shaped targeting mode: instead of an explicit class
+     * list ({@code .on}) or unconditional ({@code .onAny}), the adapter delegates
+     * its {@link #matches} decision to a {@link ScreenMatcher} — the same
+     * default-on/opt-out-per-screen primitive registered-slot parity uses. It is
+     * what lets the container-parity registration ({@code MKCContainerPanel})
+     * wire a panel's chrome with {@code ScreenMatcher.all()} as the default and a
+     * per-screen exclusion as the opt-out, in one place, without a second
+     * targeting vocabulary.
+     */
+    private @Nullable ScreenMatcher matcher = null;
+
     // ── Constructors ────────────────────────────────────────────────────
     //
     // Phase 16j H3 — constructor sprawl consolidated. Four public surfaces
@@ -333,6 +348,38 @@ public final class ScreenPanelAdapter {
         return on(InventoryScreen.class, CreativeModeInventoryScreen.class);
     }
 
+    /**
+     * Declares this adapter fires on every screen a {@link ScreenMatcher}
+     * accepts — the parity-shaped targeting mode. Where {@link #on} is an
+     * explicit class list and {@link #onAny} is unconditional, this delegates
+     * the per-screen decision to the matcher, so {@link ScreenMatcher#all()}
+     * (default-on everywhere) with a {@link ScreenMatcher#allExcept} opt-out is
+     * expressible as a single targeting declaration.
+     *
+     * <p>This is the seam the container-parity registration
+     * ({@code MKCContainerPanel}) uses to wire a registered panel's chrome:
+     * one parity scope drives both the slot projection (MKC side) and the
+     * chrome targeting (here), so the two cannot drift.
+     *
+     * @param matcher the screen scope; must be non-null
+     * @return this adapter, for chaining
+     * @throws IllegalStateException if the adapter is lambda-based or if
+     *         targeting was already declared
+     */
+    public ScreenPanelAdapter onMatching(ScreenMatcher matcher) {
+        requireRegionBased();
+        requireUndeclared();
+        if (matcher == null) {
+            throw new IllegalArgumentException(
+                    "Adapter for panel '" + panel.getId() + "': onMatching(...) "
+                    + "requires a non-null ScreenMatcher. Use ScreenMatcher.all() "
+                    + "for the everywhere default.");
+        }
+        this.matcher = matcher;
+        ScreenPanelRegistry.markTargetingDeclared(this);
+        return this;
+    }
+
     private void requireRegionBased() {
         if (!regionBased) {
             throw new IllegalStateException(
@@ -345,10 +392,10 @@ public final class ScreenPanelAdapter {
     }
 
     private void requireUndeclared() {
-        if (targets != null || targetedAny) {
+        if (targets != null || targetedAny || matcher != null) {
             throw new IllegalStateException(
                     "Adapter for panel '" + panel.getId() + "' already declared " +
-                    "targeting. Call .on(...) or .onAny() exactly once.");
+                    "targeting. Call .on(...) / .onAny() / .onMatching(...) exactly once.");
         }
     }
 
@@ -452,9 +499,9 @@ public final class ScreenPanelAdapter {
         return regionBased;
     }
 
-    /** True if {@code .on(...)} or {@code .onAny()} has been called. */
+    /** True if {@code .on(...)}, {@code .onAny()}, or {@code .onMatching(...)} has been called. */
     public boolean isTargetingDeclared() {
-        return targets != null || targetedAny;
+        return targets != null || targetedAny || matcher != null;
     }
 
     /**
@@ -466,6 +513,7 @@ public final class ScreenPanelAdapter {
      */
     public boolean matches(Class<? extends AbstractContainerScreen<?>> screenClass) {
         if (targetedAny) return true;
+        if (matcher != null) return matcher.matches(screenClass);
         if (targets == null) return false;
         for (Class<? extends AbstractContainerScreen<?>> target : targets) {
             if (target.isAssignableFrom(screenClass)) return true;
