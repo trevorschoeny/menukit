@@ -390,6 +390,35 @@ public interface PanelElement {
     default boolean isInteractive() { return false; }
 
     /**
+     * The element's explicit, stable declaration id within its panel, or
+     * {@code null} to use the default identity (its registration position in
+     * the panel's element list).
+     *
+     * <p><b>The panel-element identity contract (THE ONE WINDOW, Address
+     * keystone).</b> Every addressable thing needs a deterministic,
+     * reopen-stable identity so the window can resolve it by address across
+     * a screen reopen (Minecraft rebuilds the menu and all elements each
+     * open). For a panel element that identity is, by default, its
+     * <em>registration position</em> in the panel's immutable, consumer-built
+     * element list — the same deterministic registration-order basis a created
+     * slot uses for its {@code localIndex}. Position-as-identity is stable as
+     * long as the consumer builds the element list in the same order each open
+     * (the normal case).
+     *
+     * <p>This accessor is the explicit <em>override</em> for when list order is
+     * not a reliable identity (e.g. a consumer who conditionally includes some
+     * elements and wants a fixed handle regardless of order): supply a stable
+     * string and the window keys on it instead of position. Mirrors the
+     * consumer-supplied-string precedent a created slot has via its panel id.
+     *
+     * <p>Default {@code null} (custom consumer elements implementing this
+     * interface directly inherit position-based identity). Library elements
+     * extending {@code AbstractPanelElement} can set an explicit id via
+     * {@code declId(String)}.
+     */
+    default @org.jspecify.annotations.Nullable String getElementDeclId() { return null; }
+
+    /**
      * Phase 14d-3 — screen-attach lifecycle hook. Called when the
      * containing screen reaches its {@code init()} boundary (or when a
      * lambda-path adapter registers via {@code .activeOn}). Default

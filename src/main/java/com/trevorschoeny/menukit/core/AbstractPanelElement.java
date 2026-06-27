@@ -243,4 +243,41 @@ public abstract class AbstractPanelElement implements PanelElement {
     public boolean isElementOpaque() {
         return elementOpaque;
     }
+
+    // ── Declaration id (THE ONE WINDOW — Address keystone) ─────────────
+    //
+    // Phase 0 of the window unification: a panel element needs a
+    // deterministic, reopen-stable identity so the window can resolve it by
+    // address across a screen reopen. By default that identity is the
+    // element's registration position in its panel's immutable element list
+    // (the localIndex precedent — computed where the address is minted, not
+    // a runtime counter). This OPTIONAL field is the consumer-supplied
+    // override for when list order isn't a reliable handle (the panel-id
+    // precedent). See {@link PanelElement#getElementDeclId()} for the full
+    // identity contract. Purely additive identity data — no behavior.
+
+    /**
+     * Optional explicit declaration id. {@code null} means identity falls back
+     * to registration position in the panel's element list. Set via
+     * {@link #declId(String)}.
+     */
+    private @Nullable String elementDeclId;
+
+    /**
+     * Assigns an explicit, stable declaration id for this element within its
+     * panel, overriding the default position-based identity. Use when the
+     * element list order is not a reliable handle. Returns this element for
+     * chaining.
+     *
+     * @param id a stable id, unique within the owning panel
+     */
+    public AbstractPanelElement declId(String id) {
+        this.elementDeclId = id;
+        return this;
+    }
+
+    @Override
+    public @Nullable String getElementDeclId() {
+        return elementDeclId;
+    }
 }
