@@ -1,7 +1,7 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.core.ControlStyle;
-import com.trevorschoeny.menukit.core.MenuKitPressedTracker;
+import com.trevorschoeny.menukit.core.MKPressedTracker;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
@@ -57,7 +57,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <h3>Mechanism</h3>
  *
  * Per-instance press tracking via a {@link Unique} field
- * {@code menukit$pressed}, set on {@code onClick} (when the press
+ * {@code mk$pressed}, set on {@code onClick} (when the press
  * originates on THIS button via vanilla's dispatch) and cleared in
  * the next render frame after the mouse is released. The render-time
  * draw is gated on hover so dragging off the button while holding
@@ -72,27 +72,27 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @ApiStatus.Internal
 @Mixin(AbstractButton.class)
-public abstract class MenuKitVanillaButtonPressedMixin {
+public abstract class MKVanillaButtonPressedMixin {
 
     @Inject(method = "onClick", at = @At("TAIL"))
-    private void menukit$markPressed(MouseButtonEvent event, boolean alreadyHandled,
+    private void mk$markPressed(MouseButtonEvent event, boolean alreadyHandled,
                                       CallbackInfo ci) {
         // Vanilla's dispatch only calls onClick when isMouseOver is true,
         // so reaching here means the press originated on this button.
-        MenuKitPressedTracker.markPressed(this);
+        MKPressedTracker.markPressed(this);
     }
 
     @Inject(method = "renderWidget", at = @At("TAIL"))
-    private void menukit$drawVanillaPressedOverlay(GuiGraphics graphics, int mouseX,
+    private void mk$drawVanillaPressedOverlay(GuiGraphics graphics, int mouseX,
                                                     int mouseY, float partialTick,
                                                     CallbackInfo ci) {
-        // Press tracking via shared MenuKitPressedTracker — the same
+        // Press tracking via shared MKPressedTracker — the same
         // tracker the YACL mixins use, so all "vanilla-style pressed
         // visual" code paths share one source of truth.
         // isPressedAndCheckRelease auto-clears the whole map when
         // GLFW reports mouse released, so stale entries drain on the
         // next render frame (sub-perceptible).
-        if (!MenuKitPressedTracker.isPressedAndCheckRelease(this)) return;
+        if (!MKPressedTracker.isPressedAndCheckRelease(this)) return;
 
         // Don't draw the overlay when the user has dragged off the
         // button (mouse still held but no longer over us). Matches

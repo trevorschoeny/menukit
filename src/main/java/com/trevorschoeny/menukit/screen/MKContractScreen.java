@@ -52,7 +52,7 @@ import org.jetbrains.annotations.ApiStatus;
  * becomes necessary.
  */
 @ApiStatus.Internal
-public class MKContractScreen extends MenuKitScreen {
+public class MKContractScreen extends MKScreen {
 
     /** Height of each result row (matches default font line height + small padding). */
     private static final int ROW_HEIGHT = 11;
@@ -77,7 +77,7 @@ public class MKContractScreen extends MenuKitScreen {
 
     /**
      * Runs the contract runner and builds the panel list. Static so it can
-     * be passed to the {@link MenuKitScreen} super constructor.
+     * be passed to the {@link MKScreen} super constructor.
      */
     private static List<Panel> buildPanels(ContractRunner runner) {
         List<ContractResult> results = runner.run();
@@ -138,7 +138,7 @@ public class MKContractScreen extends MenuKitScreen {
      * Formats a contract result as a colored line. Pass = green, fail = red.
      * Detail appended in gray if present. Truncates the combined line to
      * {@link #MAX_LINE_CHARS} so long contracts don't blow out the panel
-     * width (MenuKitScreen centers the panel — over-wide content sticks
+     * width (MKScreen centers the panel — over-wide content sticks
      * out beyond the visible area).
      */
     private static Component formatResult(ContractResult r) {

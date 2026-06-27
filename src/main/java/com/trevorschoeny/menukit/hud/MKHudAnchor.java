@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.hud;
 
-import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.MK;
 
 /**
  * Screen-edge anchor positions for HUD panels.

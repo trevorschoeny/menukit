@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.input;
 
-import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.MK;
 
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -42,14 +42,14 @@ public final class MKVanillaDragSuppress {
         var acc = (AbstractContainerScreenAccessor) screen;
 
         // Cancel any in-progress vanilla quick-craft
-        if (acc.menuKit$isQuickCrafting()) {
-            acc.menuKit$setIsQuickCrafting(false);
-            acc.menuKit$getQuickCraftSlots().clear();
+        if (acc.mk$isQuickCrafting()) {
+            acc.mk$setIsQuickCrafting(false);
+            acc.mk$getQuickCraftSlots().clear();
         }
 
         // Tell vanilla to ignore the next mouse release — prevents it from
         // processing a phantom click when our custom drag ends
-        acc.menuKit$setSkipNextRelease(true);
+        acc.mk$setSkipNextRelease(true);
 
         suppressed = true;
     }

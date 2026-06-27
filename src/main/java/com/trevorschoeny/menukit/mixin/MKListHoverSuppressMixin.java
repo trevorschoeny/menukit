@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Phase 18s follow-up — scroll-list row-hover suppression. Sibling to
- * {@link MenuKitWidgetHoverSuppressMixin} but for vanilla scroll-list
+ * {@link MKWidgetHoverSuppressMixin} but for vanilla scroll-list
  * row highlights, which DON'T go through {@code AbstractWidget.isHovered}.
  *
  * <h3>Why this needs its own mixin</h3>
@@ -49,7 +49,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @ApiStatus.Internal
 @Mixin(AbstractSelectionList.class)
-public abstract class MenuKitListHoverSuppressMixin {
+public abstract class MKListHoverSuppressMixin {
 
     // Entry is protected on AbstractSelectionList; can't reference it
     // from outside the vanilla package. Mixin's bytecode-level handling
@@ -59,7 +59,7 @@ public abstract class MenuKitListHoverSuppressMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void menukit$suppressListHoverWhenOpaque(CallbackInfoReturnable<?> cir) {
+    private void mk$suppressListHoverWhenOpaque(CallbackInfoReturnable<?> cir) {
         // Unified inertness predicate (modal-global OR covered) — same question
         // every other suppressor asks.
         if (MKFocus.isInertUnderPanelAtCursor()) {

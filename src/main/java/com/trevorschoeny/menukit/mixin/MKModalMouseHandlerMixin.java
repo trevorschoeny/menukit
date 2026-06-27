@@ -65,7 +65,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @ApiStatus.Internal
 @Mixin(MouseHandler.class)
-public abstract class MenuKitModalMouseHandlerMixin {
+public abstract class MKModalMouseHandlerMixin {
 
     @Shadow private double xpos;
     @Shadow private double ypos;
@@ -103,7 +103,7 @@ public abstract class MenuKitModalMouseHandlerMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void menukit$eatModalButton(long window, MouseButtonInfo button, int action,
+    private void mk$eatModalButton(long window, MouseButtonInfo button, int action,
                                         CallbackInfo ci) {
         if (action == 0) {
             // Release: dispatch to opaque adapters for drag-end + eat
@@ -142,7 +142,7 @@ public abstract class MenuKitModalMouseHandlerMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void menukit$eatModalScroll(long window, double xOffset, double yOffset,
+    private void mk$eatModalScroll(long window, double xOffset, double yOffset,
                                         CallbackInfo ci) {
         // M9: opaque-scroll dispatch. Cursor inside an opaque panel →
         // dispatch scroll to that panel's elements (so a ScrollContainer

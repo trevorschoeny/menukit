@@ -102,7 +102,7 @@ import java.util.function.Supplier;
  * <ul>
  *   <li><b>MenuContext (inventory menus):</b> yes — settings panels,
  *       enum selectors.</li>
- *   <li><b>StandaloneContext (MenuKitScreen):</b> yes — full-screen
+ *   <li><b>StandaloneContext (MKScreen):</b> yes — full-screen
  *       MenuKit-native UIs.</li>
  *   <li><b>SlotGroupContext:</b> no — slot-group anchors are for slot
  *       decorations only.</li>

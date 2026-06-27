@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.mixin;
 
-import com.trevorschoeny.menukit.core.MenuKitPressedTracker;
+import com.trevorschoeny.menukit.core.MKPressedTracker;
 
 import dev.isxander.yacl3.gui.AbstractWidget;
 
@@ -16,13 +16,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * <b>ACCEPTED aesthetic-only exception to §0019</b> (see
- * {@link MenuKitVanillaButtonPressedMixin} class javadoc for the
+ * {@link MKVanillaButtonPressedMixin} class javadoc for the
  * full carve-out rationale).
  *
- * <p>YACL counterpart to {@link MenuKitVanillaButtonPressedMixin} —
+ * <p>YACL counterpart to {@link MKVanillaButtonPressedMixin} —
  * tracks press state on {@link AbstractWidget} instances (YACL's own
  * base, sibling-not-subclass of vanilla's AbstractWidget). Pairs with
- * {@code MenuKitYaclControllerOverlayMixin} which reads the tracked
+ * {@code MKYaclControllerOverlayMixin} which reads the tracked
  * state at render time.
  *
  * <h3>{@code @Pseudo} for soft loading</h3>
@@ -42,12 +42,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * target — it needs the method body in the target's own bytecode. So
  * the split: this mixin on AbstractWidget for press tracking; the
  * sibling overlay mixin on ControllerWidget for render. Both share
- * state via {@link MenuKitPressedTracker}.
+ * state via {@link MKPressedTracker}.
  */
 @ApiStatus.Internal
 @Pseudo
 @Mixin(AbstractWidget.class)
-public abstract class MenuKitYaclWidgetPressedMixin {
+public abstract class MKYaclWidgetPressedMixin {
 
     // Mojang-mapped names: method_25402 → mouseClicked, method_25406
     // → mouseReleased. MK builds with officialMojangMappings, so the
@@ -56,25 +56,25 @@ public abstract class MenuKitYaclWidgetPressedMixin {
 
     @Inject(method = "mouseClicked(Lnet/minecraft/client/input/MouseButtonEvent;Z)Z",
             at = @At("TAIL"))
-    private void menukit$trackPress(MouseButtonEvent event, boolean alreadyHandled,
+    private void mk$trackPress(MouseButtonEvent event, boolean alreadyHandled,
                                      CallbackInfoReturnable<Boolean> cir) {
         // Only mark pressed when YACL's dispatch confirmed the click
         // was claimed by this widget (return value true = "I'm
         // handling this click"). Filters out cursor-over-widget
         // clicks that didn't actually fire on us.
         if (Boolean.TRUE.equals(cir.getReturnValue())) {
-            MenuKitPressedTracker.markPressed(this);
+            MKPressedTracker.markPressed(this);
         }
     }
 
     @Inject(method = "mouseReleased(Lnet/minecraft/client/input/MouseButtonEvent;)Z",
             at = @At("TAIL"))
-    private void menukit$clearOnRelease(MouseButtonEvent event,
+    private void mk$clearOnRelease(MouseButtonEvent event,
                                          CallbackInfoReturnable<Boolean> cir) {
         // Explicit clear on release. The tracker also auto-clears
         // when GLFW reports release at next isPressedAndCheckRelease
         // call, but the explicit path is cleaner when YACL routes
         // the release event to us directly.
-        MenuKitPressedTracker.clearPressed(this);
+        MKPressedTracker.clearPressed(this);
     }
 }

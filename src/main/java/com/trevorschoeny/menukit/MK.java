@@ -27,24 +27,24 @@ import org.jetbrains.annotations.ApiStatus;
  *
  * <p>MenuKit's canonical surface lives elsewhere:
  * <ul>
- *   <li><b>Screens:</b> {@code com.trevorschoeny.menukit.screen.MenuKitScreenHandler}
- *       + {@code MenuKitHandledScreen}</li>
+ *   <li><b>Screens:</b> {@code com.trevorschoeny.menukit.screen.MKCScreenHandler}
+ *       + {@code MKCHandledScreen}</li>
  *   <li><b>Composition:</b> {@code com.trevorschoeny.menukit.core.Panel},
  *       {@code SlotGroup}, {@code SlotGroupLike}</li>
  *   <li><b>Elements:</b> {@code PanelElement}, {@code Button}, {@code TextLabel}</li>
  *   <li><b>Observed screens:</b> {@code HandlerRecognizerRegistry},
  *       {@code VirtualSlotGroup}</li>
  *   <li><b>Per-screen events:</b>
- *       {@code MenuKitHandledScreen.ScreenEventListener}</li>
+ *       {@code MKCHandledScreen.ScreenEventListener}</li>
  * </ul>
  *
  * <p>This class intentionally stays small. Anything screen-scoped lives on
- * {@code MenuKitHandledScreen}; anything group-scoped lives on {@code SlotGroup};
+ * {@code MKCHandledScreen}; anything group-scoped lives on {@code SlotGroup};
  * anything truly process-wide (HUD overlays, notification triggers) is the
  * only thing that lives here.
  */
 @ApiStatus.Internal
-public class MenuKit implements ModInitializer {
+public class MK implements ModInitializer {
 
     /** MenuKit's own logger — independent of any consuming mod's logger. */
     public static final Logger LOGGER = LoggerFactory.getLogger("menukit");
@@ -74,19 +74,19 @@ public class MenuKit implements ModInitializer {
 
     /** Common-side initialization for the MenuKit artifact. Post-§0042 split:
      *  M1 state-machinery init + verification init moved to
-     *  {@code MenuKitContainers} (the `menukit-containers` artifact). MenuKit
+     *  {@code MKC} (the `menukit-containers` artifact). MenuKit
      *  has no common-side state to register (HUD registration is lazy via
      *  consumer {@link #registerHud} calls). Retained as a no-op log so
-     *  consumer mods that explicitly call {@code MenuKit.init()} for ordering
+     *  consumer mods that explicitly call {@code MK.init()} for ordering
      *  continue to compile and produce a visible init trace. */
     public static void init() {
         LOGGER.info("[MenuKit] Initialized");
     }
 
     /** Client-side initialization for the MenuKit artifact. Invoked from
-     *  {@link MenuKitClient#onInitializeClient()}. Post-§0042 split: M1
+     *  {@link MKClient#onInitializeClient()}. Post-§0042 split: M1
      *  client-state init + verification client init moved to
-     *  {@code MenuKitContainersClient}. Retained as a no-op log for symmetry
+     *  {@code MKCClient}. Retained as a no-op log for symmetry
      *  with {@link #init()}. */
     public static void initClient() {
         LOGGER.info("[MenuKit] Client initialized");

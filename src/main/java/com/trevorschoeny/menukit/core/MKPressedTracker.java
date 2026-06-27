@@ -8,19 +8,19 @@ import java.util.WeakHashMap;
 
 /**
  * <b>ACCEPTED aesthetic-only exception to §0019</b> (see
- * {@code MenuKitVanillaButtonPressedMixin} class javadoc for the
+ * {@code MKVanillaButtonPressedMixin} class javadoc for the
  * full carve-out rationale).
  *
  * <p>Shared press-state tracker for the "vanilla-style pressed-visual
  * on every clickable" exploration. Used by:
  *
  * <ul>
- *   <li>{@code MenuKitVanillaButtonPressedMixin} — tracks press on
+ *   <li>{@code MKVanillaButtonPressedMixin} — tracks press on
  *       vanilla {@code AbstractButton} instances</li>
- *   <li>{@code MenuKitYaclWidgetPressedMixin} — tracks press on
+ *   <li>{@code MKYaclWidgetPressedMixin} — tracks press on
  *       YACL {@code AbstractWidget} instances (when YACL is loaded;
  *       silently skips otherwise via {@code @Pseudo})</li>
- *   <li>{@code MenuKitYaclControllerOverlayMixin} — reads the press
+ *   <li>{@code MKYaclControllerOverlayMixin} — reads the press
  *       state at render time on YACL {@code ControllerWidget}
  *       instances</li>
  * </ul>
@@ -44,9 +44,9 @@ import java.util.WeakHashMap;
  * (release-off-widget, screen-swap-mid-press) drain on the next
  * query.
  */
-public final class MenuKitPressedTracker {
+public final class MKPressedTracker {
 
-    private MenuKitPressedTracker() {}
+    private MKPressedTracker() {}
 
     private static final WeakHashMap<Object, Boolean> PRESSED = new WeakHashMap<>();
 

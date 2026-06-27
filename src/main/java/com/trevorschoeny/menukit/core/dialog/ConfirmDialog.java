@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * Dialogs target MenuContext (vanilla container screen decoration) and
  * StandaloneContext (decorating vanilla standalone screens via mixin).
- * MenuKit-native screens ({@code MenuKitScreen} subclasses) need a separate
+ * MenuKit-native screens ({@code MKScreen} subclasses) need a separate
  * dispatch path that's filed as a follow-on architectural decision — see
  * {@code Design Docs/Elements/DIALOGS.md} §4.5. SlotGroupContext and HudContext
  * don't apply (anchor mismatch / no input dispatch).

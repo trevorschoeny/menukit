@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.hud;
 
-import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.MK;
 
 import com.trevorschoeny.menukit.core.PanelRendering;
 import com.trevorschoeny.menukit.core.PanelStyle;
@@ -20,10 +20,10 @@ import java.util.List;
  * a duration, then fades out.
  *
  * <p>Built as a template at mod init, triggered at runtime via
- * {@link MenuKit#notify(String, String)} or {@link MenuKit#notify(String, String, ItemStack)}.
+ * {@link MK#notify(String, String)} or {@link MK#notify(String, String, ItemStack)}.
  *
  * <p>This is the only stateful HUD element — animation state is tracked
- * in {@link MenuKit}'s active notification map, not on this object.
+ * in {@link MK}'s active notification map, not on this object.
  *
  * <p>Usage:
  * <pre>{@code
@@ -37,7 +37,7 @@ import java.util.List;
  *     .build();
  *
  * // Trigger at runtime
- * MenuKit.notify("alert", "First Diamond!");
+ * MK.notify("alert", "First Diamond!");
  * }</pre>
  *
  * <p>Part of the <b>MenuKit</b> framework.
@@ -175,7 +175,7 @@ public class MKHudNotification {
      * Creates a new notification builder.
      *
      * @param key unique identifier used to trigger this notification at runtime
-     *            (see {@link MenuKit#notify(String, String)})
+     *            (see {@link MK#notify(String, String)})
      */
     public static Builder builder(String key) {
         return new Builder(key);
@@ -231,7 +231,7 @@ public class MKHudNotification {
                     durationMs, fadeMs, slideFrom, slideDistance,
                     style, padding, width, height
             );
-            MenuKit.registerNotification(notification);
+            MK.registerNotification(notification);
         }
     }
 }

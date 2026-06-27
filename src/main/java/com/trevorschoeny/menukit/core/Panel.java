@@ -26,7 +26,7 @@ import java.util.function.Supplier;
  * context-specific container holding the panel, not on the panel itself.
  *
  * <p>For inventory menus specifically, slot groups are associated with a
- * panel by id through the owning {@code MenuKitScreenHandler}'s group map.
+ * panel by id through the owning {@code MKCScreenHandler}'s group map.
  * The panel itself does not hold them.
  *
  * <h3>Visibility: imperative or supplier-driven</h3>
@@ -49,7 +49,7 @@ import java.util.function.Supplier;
 public class Panel {
 
     // ── Interior padding (Phase 16g; per-style in Phase 18r) ───────────
-    // The consumer-side screen (MenuKitScreen, MenuKitHandledScreen,
+    // The consumer-side screen (MKScreen, MKCHandledScreen,
     // ScreenPanelAdapter) reserves padding pixels between the panel
     // background and where elements actually render. Panel-side mirror
     // of the canonical screen padding.
@@ -227,8 +227,8 @@ public class Panel {
      * </ul>
      *
      * <p>Consumed by every render context that computes outer bounds
-     * from element extent (or vice versa): {@code MenuKitScreen},
-     * {@code MenuKitHandledScreen}, and the default-padding overloads of
+     * from element extent (or vice versa): {@code MKScreen},
+     * {@code MKCHandledScreen}, and the default-padding overloads of
      * {@link com.trevorschoeny.menukit.inject.ScreenPanelAdapter} +
      * {@link com.trevorschoeny.menukit.inject.SlotGroupPanelAdapter}.
      * Explicit-padding adapter overloads bypass this — the consumer is
@@ -469,7 +469,7 @@ public class Panel {
      * {@link #pinnedWidth(int)}, or {@code -1} if no pinned width is
      * declared. Exposed for consumer-screen layout code that needs to
      * distinguish "consumer declared a fixed width" from "panel
-     * auto-sized" — e.g., MKC's {@code MenuKitHandledScreen.computePanelSize}
+     * auto-sized" — e.g., MKC's {@code MKCHandledScreen.computePanelSize}
      * which uses pinned-when-set and slot+element max otherwise. The
      * panel's auto-sized {@link #getWidth()} aggregates from elements
      * only, so callers needing the slot-aware width can't infer
@@ -818,7 +818,7 @@ public class Panel {
     /**
      * Queues the panel-level tooltip (if configured) when the cursor is
      * over the given outer rect. Called by each panel-rendering site
-     * (MenuKitScreen, MenuKitHandledScreen, ScreenPanelAdapter,
+     * (MKScreen, MKCHandledScreen, ScreenPanelAdapter,
      * SlotGroupPanelAdapter) AFTER element rendering. No-op when the
      * tooltip supplier is unset or the cursor is out of bounds.
      *

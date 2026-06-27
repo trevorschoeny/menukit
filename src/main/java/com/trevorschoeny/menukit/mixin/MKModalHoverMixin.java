@@ -54,7 +54,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @ApiStatus.Internal
 @Mixin(AbstractContainerScreen.class)
-public abstract class MenuKitModalHoverMixin {
+public abstract class MKModalHoverMixin {
 
     /**
      * Fires at HEAD of {@code getHoveredSlot}. When a modal panel is visible
@@ -67,7 +67,7 @@ public abstract class MenuKitModalHoverMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void menukit$suppressHoverWhenOpaque(double mouseX, double mouseY,
+    private void mk$suppressHoverWhenOpaque(double mouseX, double mouseY,
                                                   CallbackInfoReturnable<Slot> cir) {
         // M9: pointer-driven hover suppression honors both panel scopes:
         //   - tracksAsModal panel visible → suppress GLOBALLY (modal

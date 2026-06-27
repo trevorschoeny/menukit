@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * Library-private mixin that dispatches MenuContext + SlotGroupContext
  * panel rendering into {@link AbstractRecipeBookScreen#render}'s base
  * stratum — the recipe-book-aware counterpart to
- * {@link MenuKitPanelRenderMixin}.
+ * {@link MKPanelRenderMixin}.
  *
  * <h3>Why this mixin exists</h3>
  *
@@ -26,7 +26,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * pushes a stratum for the recipe-book overlay, pushes another stratum for
  * the cursor, and finally calls {@code renderCarriedItem}. Because
  * {@code AbstractContainerScreen.render} is never invoked for recipe-book-
- * hosted screens, {@link MenuKitPanelRenderMixin}'s inject point is
+ * hosted screens, {@link MKPanelRenderMixin}'s inject point is
  * silent-inert for every {@link AbstractRecipeBookScreen} subclass —
  * {@link net.minecraft.client.gui.screens.inventory.InventoryScreen},
  * {@link net.minecraft.client.gui.screens.inventory.CraftingScreen},
@@ -38,7 +38,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * mixin, every region-based {@link com.trevorschoeny.menukit.inject.ScreenPanelAdapter}
  * targeting one of them via {@code .on(Class...)} silently fails to
  * render. The bug shipped with Phase 12.5 V2's tooltip-layering fix (which
- * introduced {@link MenuKitPanelRenderMixin}) and sat invisible until V5.6
+ * introduced {@link MKPanelRenderMixin}) and sat invisible until V5.6
  * exercised a crafting-table backdrop.
  *
  * <h3>Injection point rationale</h3>
@@ -47,7 +47,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * slots + labels render, before the first {@code GuiGraphics.nextStratum()}
  * call. Panels render on the base stratum alongside slots — above them,
  * below the recipe-book overlay if visible, below cursor and tooltips.
- * Matches {@link MenuKitPanelRenderMixin}'s layering contract (panels-above-
+ * Matches {@link MKPanelRenderMixin}'s layering contract (panels-above-
  * slots, cursor-above-panels, tooltips-on-top).
  *
  * <p>Narrow-window-with-recipe-book-open path ({@code widthTooNarrow &&
@@ -57,7 +57,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * panels there would be out of place.
  *
  * <p><b>Click dispatch stays on Fabric's hook</b>, same as
- * {@link MenuKitPanelRenderMixin}. {@code ScreenMouseEvents.allowMouseClick}
+ * {@link MKPanelRenderMixin}. {@code ScreenMouseEvents.allowMouseClick}
  * fires per-click regardless of render pipeline, so no click mixin is
  * needed here.
  *
@@ -66,7 +66,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @ApiStatus.Internal
 @Mixin(AbstractRecipeBookScreen.class)
-public abstract class MenuKitRecipeBookPanelRenderMixin {
+public abstract class MKRecipeBookPanelRenderMixin {
 
     /**
      * Fires after {@code renderContents} returns (slots + labels drawn),
@@ -83,7 +83,7 @@ public abstract class MenuKitRecipeBookPanelRenderMixin {
             ),
             require = 1
     )
-    private void menuKit$renderPanels(GuiGraphics graphics, int mouseX, int mouseY,
+    private void mk$renderPanels(GuiGraphics graphics, int mouseX, int mouseY,
                                         float partialTick, CallbackInfo ci) {
         AbstractContainerScreen<?> self = (AbstractContainerScreen<?>) (Object) this;
         ScreenPanelRegistry.renderMatchingPanels(self, graphics, mouseX, mouseY);

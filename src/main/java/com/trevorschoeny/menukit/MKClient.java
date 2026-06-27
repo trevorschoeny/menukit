@@ -46,11 +46,11 @@ import org.jetbrains.annotations.ApiStatus;
  * every inventory screen, not features tied to any single consumer mod.
  */
 @ApiStatus.Internal
-public class MenuKitClient implements ClientModInitializer {
+public class MKClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        MenuKit.initClient();
+        MK.initClient();
 
         // Item Tips — enriched tooltips showing durability and food stats.
         // Registered at the framework level because it benefits ALL inventory
@@ -160,7 +160,7 @@ public class MenuKitClient implements ClientModInitializer {
      */
     private static MenuChrome.ChromeExtents recipeBookChromeFor(
             AbstractContainerScreenAccessor screenAcc, int screenWidth) {
-        int currentLeftPos = screenAcc.menuKit$getLeftPos();
+        int currentLeftPos = screenAcc.mk$getLeftPos();
         int tabLeft = (screenWidth - 147) / 2 - 116;
         int chromeLeft = currentLeftPos - tabLeft;
         if (chromeLeft <= 0) return MenuChrome.ChromeExtents.NONE;
@@ -216,7 +216,7 @@ public class MenuKitClient implements ClientModInitializer {
     private static MenuChrome.ChromeExtents recipeBookChromeIfOpen(
             AbstractRecipeBookScreen<?> screen) {
         var rbAccessor = (MKRecipeBookAccessor) screen;
-        if (!rbAccessor.menuKit$getRecipeBookComponent().isVisible()) {
+        if (!rbAccessor.mk$getRecipeBookComponent().isVisible()) {
             return MenuChrome.ChromeExtents.NONE;
         }
         if (screen.width < 379) {
@@ -337,7 +337,7 @@ public class MenuKitClient implements ClientModInitializer {
         }
 
         var accessor = (MKRecipeBookAccessor) mc.screen;
-        return accessor.menuKit$getRecipeBookComponent().isVisible();
+        return accessor.mk$getRecipeBookComponent().isVisible();
     }
 
     /**
@@ -356,7 +356,7 @@ public class MenuKitClient implements ClientModInitializer {
         }
 
         var accessor = (MKRecipeBookAccessor) mc.screen;
-        var recipeBook = accessor.menuKit$getRecipeBookComponent();
+        var recipeBook = accessor.mk$getRecipeBookComponent();
 
         // Only toggle if the current state differs from the requested state.
         // toggleVisibility() is a flip, so calling it when already in the

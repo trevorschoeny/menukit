@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.input;
 
-import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.MK;
 
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;

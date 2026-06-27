@@ -55,7 +55,7 @@ import org.jetbrains.annotations.ApiStatus;
  *       the screen class, cache the match list in {@link #SCREEN_DATA}
  *       and register a {@code ScreenMouseEvents.allowMouseClick} hook.
  *       Render dispatch runs via
- *       {@link com.trevorschoeny.menukit.mixin.MenuKitPanelRenderMixin}
+ *       {@link com.trevorschoeny.menukit.mixin.MKPanelRenderMixin}
  *       (injects at {@code INVOKE renderCarriedItem} so panels land in
  *       the right render stratum — see M8 §8.2 for why Fabric's
  *       {@code afterRender} is the wrong hook for render). Fabric handles
@@ -253,7 +253,7 @@ public final class ScreenPanelRegistry {
 
     /**
      * Registers the library-owned {@link ScreenEvents#AFTER_INIT} listener.
-     * Called once from {@code MenuKitClient.onInitializeClient}. After this,
+     * Called once from {@code MKClient.onInitializeClient}. After this,
      * any region-based adapter that declared targeting will render on
      * matching screens without the consumer writing per-screen boilerplate.
      */
@@ -313,7 +313,7 @@ public final class ScreenPanelRegistry {
         // Screen.render BEFORE the end-of-frame tooltip flush, so widgets
         // calling GuiGraphics.setTooltipForNextFrame during render get
         // their tooltip drawn in the same frame. The mixin path
-        // (MenuKitPanelRenderMixin, removed in Phase 17) injected at
+        // (MKPanelRenderMixin, removed in Phase 17) injected at
         // INVOKE renderCarriedItem — correct stratum for visual ordering
         // but the renderables-iteration path is the standard MC integration
         // point and matches how vanilla widgets render.
@@ -321,7 +321,7 @@ public final class ScreenPanelRegistry {
         // The Renderable is auto-cleared by Screen.clearWidgets() on next
         // init() — no manual removal needed.
         if (!menuMatches.isEmpty()) {
-            ((ScreenAccessor) screen).menuKit$addRenderableOnly(
+            ((ScreenAccessor) screen).mk$addRenderableOnly(
                     (graphics, mx, my, partialTick) ->
                             renderMatchingPanels(acs, graphics, mx, my));
         }
@@ -351,7 +351,7 @@ public final class ScreenPanelRegistry {
 
         // Click dispatch via Fabric's hook — input doesn't have a render-
         // ordering constraint so no mixin is needed here. Render dispatch
-        // happens via MenuKitPanelRenderMixin; see §8.2 of M8 for why the
+        // happens via MKPanelRenderMixin; see §8.2 of M8 for why the
         // render path can't use ScreenEvents.afterRender (tooltip layering).
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
             ScreenBounds frame = frameBounds(acs);
@@ -441,7 +441,7 @@ public final class ScreenPanelRegistry {
     // adapter tracking and the AFTER_INIT listener that registers it.
 
     /**
-     * Called from {@link com.trevorschoeny.menukit.mixin.MenuKitPanelRenderMixin}
+     * Called from {@link com.trevorschoeny.menukit.mixin.MKPanelRenderMixin}
      * at the injection point in {@code AbstractContainerScreen.render}
      * (before {@code renderCarriedItem}). Dispatches all matching MenuContext
      * and SlotGroupContext adapters for the current screen. No-op for
@@ -494,7 +494,7 @@ public final class ScreenPanelRegistry {
         }
 
         // Phase 14d-1 / M9 tooltip suppression — handled by
-        // MenuKitTooltipSuppressMixin (HEAD-cancellable on
+        // MKTooltipSuppressMixin (HEAD-cancellable on
         // GuiGraphics.setTooltipForNextFrameInternal). Round-2
         // implementation finding: the render-path clear approach was
         // insufficient because creative-mode tab tooltips queue AFTER
@@ -526,7 +526,7 @@ public final class ScreenPanelRegistry {
 
     /**
      * M9 opaque click dispatch — combined dispatch + eat decision called
-     * from {@code MenuKitModalMouseHandlerMixin} at the HEAD of
+     * from {@code MKModalMouseHandlerMixin} at the HEAD of
      * {@code MouseHandler.onButton}. Fires before any per-Screen routing
      * so subclass-specific click handling (creative-mode tabs, etc.)
      * doesn't pre-empt the opacity decision.
@@ -595,7 +595,7 @@ public final class ScreenPanelRegistry {
     /**
      * M9 opaque release dispatch — symmetric counterpart to {@link
      * #dispatchCoveredClick}. Called from
-     * {@code MenuKitModalMouseHandlerMixin.onButton} when {@code action == 0}
+     * {@code MKModalMouseHandlerMixin.onButton} when {@code action == 0}
      * (GLFW_RELEASE).
      *
      * <p><b>Why this exists (smoke fold-inline finding):</b>
@@ -683,7 +683,7 @@ public final class ScreenPanelRegistry {
 
     /**
      * M9 opaque scroll dispatch — parallels {@link #dispatchCoveredClick}.
-     * Called from {@code MenuKitModalMouseHandlerMixin.onScroll} at the
+     * Called from {@code MKModalMouseHandlerMixin.onScroll} at the
      * HEAD of {@code MouseHandler.onScroll}.
      *
      * <p>Cursor inside an opaque panel: dispatch scroll to its elements;
@@ -953,8 +953,8 @@ public final class ScreenPanelRegistry {
      * the current screen? Gates global suppressions (cursor lock, keyboard
      * eating, outside-bounds click eating).
      *
-     * <p>Used by {@code MenuKitModalKeyboardHandlerMixin}, the per-tick
-     * cursor-lock callback in {@code MenuKitClient}, and {@link
+     * <p>Used by {@code MKModalKeyboardHandlerMixin}, the per-tick
+     * cursor-lock callback in {@code MKClient}, and {@link
      * #dispatchCoveredClick} / {@link #dispatchCoveredScroll}.
      */
     public static boolean hasVisibleModalTrackingOnScreen(AbstractContainerScreen<?> screen) {
@@ -1048,7 +1048,7 @@ public final class ScreenPanelRegistry {
      * coords passed in).
      *
      * <p>Same coordinate-conversion formula as
-     * {@code MenuKitModalMouseHandlerMixin} — uses
+     * {@code MKModalMouseHandlerMixin} — uses
      * {@code Window.getScreenWidth/Height} (logical pixels) for HiDPI
      * correctness, NOT {@code getWidth/Height} (framebuffer pixels).
      */
@@ -1139,10 +1139,10 @@ public final class ScreenPanelRegistry {
     private static ScreenBounds frameBounds(AbstractContainerScreen<?> screen) {
         AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
         return new ScreenBounds(
-                acc.menuKit$getLeftPos(),
-                acc.menuKit$getTopPos(),
-                acc.menuKit$getImageWidth(),
-                acc.menuKit$getImageHeight());
+                acc.mk$getLeftPos(),
+                acc.mk$getTopPos(),
+                acc.mk$getImageWidth(),
+                acc.mk$getImageHeight());
     }
 
     @SuppressWarnings("unchecked")

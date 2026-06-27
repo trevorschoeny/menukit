@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.mixin;
 
-import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.MK;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
@@ -28,8 +28,8 @@ public class MKGuiMixin {
      * Renders all registered MenuKit HUD panels.
      */
     @Inject(method = "render", at = @At("RETURN"))
-    private void menuKit$renderHud(GuiGraphics graphics, DeltaTracker deltaTracker, CallbackInfo ci) {
+    private void mk$renderHud(GuiGraphics graphics, DeltaTracker deltaTracker, CallbackInfo ci) {
         if (minecraft.player == null || minecraft.options.hideGui) return;
-        MenuKit.renderHud(graphics, deltaTracker);
+        MK.renderHud(graphics, deltaTracker);
     }
 }

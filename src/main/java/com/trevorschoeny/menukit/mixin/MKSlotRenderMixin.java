@@ -43,10 +43,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * registered-slot type).
  */
 @Mixin(AbstractContainerScreen.class)
-public abstract class MenuKitSlotRenderMixin {
+public abstract class MKSlotRenderMixin {
 
     @Inject(method = "renderContents", at = @At("HEAD"))
-    private void menuKit$slotPrepare(GuiGraphics graphics, int mouseX, int mouseY,
+    private void mk$slotPrepare(GuiGraphics graphics, int mouseX, int mouseY,
                                       float partialTick, CallbackInfo ci) {
         SlotScreenDispatcher.firePrepare(
                 (AbstractContainerScreen<?>) (Object) this, mouseX, mouseY);
@@ -60,7 +60,7 @@ public abstract class MenuKitSlotRenderMixin {
                     shift = At.Shift.AFTER
             )
     )
-    private void menuKit$slotRender(GuiGraphics graphics, int mouseX, int mouseY,
+    private void mk$slotRender(GuiGraphics graphics, int mouseX, int mouseY,
                                      float partialTick, CallbackInfo ci) {
         SlotScreenDispatcher.fireRender(
                 (AbstractContainerScreen<?>) (Object) this, graphics, mouseX, mouseY, partialTick);

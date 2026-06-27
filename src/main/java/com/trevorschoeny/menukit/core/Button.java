@@ -576,7 +576,7 @@ public class Button extends AbstractPanelElement {
                 // No additional overlay — the inverted lightness IS the
                 // pressed-state affordance.
                 ctx.graphics().blitSprite(
-                        MenuKitRenderPipelines.GUI_BRIGHTNESS_INVERTED, id, sx, sy, w, h);
+                        MKRenderPipelines.GUI_BRIGHTNESS_INVERTED, id, sx, sy, w, h);
             } else {
                 // Normal sprite.
                 ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);

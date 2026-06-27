@@ -29,7 +29,7 @@ public final class SlotScreenDispatcher {
 
     /**
      * The single registered-slot hook, or null when MenuKit-Containers is absent.
-     * Written once from {@code MenuKitContainersClient.onInitializeClient}, read
+     * Written once from {@code MKCClient.onInitializeClient}, read
      * from the render/input threads — hence volatile.
      */
     private static volatile @Nullable SlotScreenHook hook = null;

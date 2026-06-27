@@ -24,19 +24,19 @@ import java.util.Set;
 public interface AbstractContainerScreenAccessor {
 
     @Accessor("leftPos")
-    int menuKit$getLeftPos();
+    int mk$getLeftPos();
 
     @Accessor("topPos")
-    int menuKit$getTopPos();
+    int mk$getTopPos();
 
     @Accessor("imageWidth")
-    int menuKit$getImageWidth();
+    int mk$getImageWidth();
 
     @Accessor("imageHeight")
-    int menuKit$getImageHeight();
+    int mk$getImageHeight();
 
     @Accessor("hoveredSlot")
-    Slot menuKit$getHoveredSlot();
+    Slot mk$getHoveredSlot();
 
     // ── Vanilla quick-craft state ────────────────────────────────────────
     //
@@ -46,17 +46,17 @@ public interface AbstractContainerScreenAccessor {
     // a custom drag mode takes over.
 
     @Accessor("isQuickCrafting")
-    boolean menuKit$isQuickCrafting();
+    boolean mk$isQuickCrafting();
 
     @Accessor("isQuickCrafting")
-    void menuKit$setIsQuickCrafting(boolean value);
+    void mk$setIsQuickCrafting(boolean value);
 
     @Accessor("quickCraftingButton")
-    int menuKit$getQuickCraftingButton();
+    int mk$getQuickCraftingButton();
 
     @Accessor("quickCraftSlots")
-    Set<Slot> menuKit$getQuickCraftSlots();
+    Set<Slot> mk$getQuickCraftSlots();
 
     @Accessor("skipNextRelease")
-    void menuKit$setSkipNextRelease(boolean value);
+    void mk$setSkipNextRelease(boolean value);
 }

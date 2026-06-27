@@ -64,7 +64,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @ApiStatus.Internal
 @Mixin(GuiGraphics.class)
-public abstract class MenuKitTooltipSuppressMixin {
+public abstract class MKTooltipSuppressMixin {
 
     /**
      * Fires at HEAD of every tooltip-queue call. When a visible modal
@@ -83,7 +83,7 @@ public abstract class MenuKitTooltipSuppressMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void menukit$suppressTooltipWhenOpaque(CallbackInfo ci) {
+    private void mk$suppressTooltipWhenOpaque(CallbackInfo ci) {
         // M9: pointer-driven tooltip suppression honors both panel scopes:
         //   - tracksAsModal panel visible → suppress GLOBALLY (modal
         //     claims the whole screen; tooltips behind don't render per

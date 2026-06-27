@@ -107,7 +107,7 @@ public class Slider extends AbstractPanelElement {
     private final int width;
     private final int height;
     private final DoubleSupplier valueSupplier;
-    private final MenuKitSlider slider;
+    private final MKSlider slider;
 
     /** Track which screen we're attached to so detach knows what to remove from. */
     private @Nullable Screen attachedScreen;
@@ -124,7 +124,7 @@ public class Slider extends AbstractPanelElement {
         // Pull initial value from consumer state via supplier; clamp to
         // the [0, 1] contract before passing to vanilla.
         double initialValue = clamp01(valueSupplier.getAsDouble());
-        this.slider = new MenuKitSlider(0, 0, width, height,
+        this.slider = new MKSlider(0, 0, width, height,
                 b.labelFn.apply(initialValue), initialValue,
                 b.valueConsumer, b.labelFn);
     }
@@ -215,13 +215,13 @@ public class Slider extends AbstractPanelElement {
     public void onAttach(Screen screen) {
         if (attachedScreen == screen) return;
         attachedScreen = screen;
-        ((ScreenAccessor) screen).menuKit$addWidget(slider);
+        ((ScreenAccessor) screen).mk$addWidget(slider);
     }
 
     @Override
     public void onDetach(Screen screen) {
         if (attachedScreen == screen) {
-            ((ScreenAccessor) screen).menuKit$removeWidget(slider);
+            ((ScreenAccessor) screen).mk$removeWidget(slider);
             attachedScreen = null;
         }
     }
@@ -316,7 +316,7 @@ public class Slider extends AbstractPanelElement {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // MenuKitSlider — AbstractSliderButton subclass wiring vanilla's
+    // MKSlider — AbstractSliderButton subclass wiring vanilla's
     // abstract methods to the lens callbacks
     // ──────────────────────────────────────────────────────────────────
 
@@ -338,14 +338,14 @@ public class Slider extends AbstractPanelElement {
      * <p>Per Q3 advisor verdict (round 1 sign-off): subclass over mixin —
      * subclass is per-element scoped (only affects MenuKit's wrapped
      * sliders), mixin would affect ALL AbstractSliderButton instances
-     * ecosystem-wide. Same precedent as TextField's MenuKitEditBox.
+     * ecosystem-wide. Same precedent as TextField's MKEditBox.
      */
-    private static final class MenuKitSlider extends AbstractSliderButton {
+    private static final class MKSlider extends AbstractSliderButton {
 
         private final DoubleConsumer valueConsumer;
         private final DoubleFunction<Component> labelFn;
 
-        MenuKitSlider(int x, int y, int width, int height,
+        MKSlider(int x, int y, int width, int height,
                       Component initialMessage, double initialValue,
                       DoubleConsumer valueConsumer,
                       DoubleFunction<Component> labelFn) {

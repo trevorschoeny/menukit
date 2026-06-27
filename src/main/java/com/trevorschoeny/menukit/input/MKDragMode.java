@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.input;
 
-import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.MK;
 
 import net.minecraft.world.inventory.Slot;
 import org.jspecify.annotations.Nullable;
@@ -12,7 +12,7 @@ import java.util.function.Predicate;
  * Defines a custom drag behavior that activates when specific conditions are met
  * during a click-drag across inventory slots.
  *
- * <p>Register via {@code MenuKit.dragMode("my_mode").when(...).onSlotEntered(...).register()}.
+ * <p>Register via {@code MK.dragMode("my_mode").when(...).onSlotEntered(...).register()}.
  *
  * <p>Part of the <b>MenuKit</b> drag mode API.
  */

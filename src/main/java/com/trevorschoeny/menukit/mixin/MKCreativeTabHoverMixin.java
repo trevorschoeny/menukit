@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * §0051 Fix 3 — creative tab-hover suppression under a modal. The cosmetic
- * companion to {@link MenuKitModalHoverMixin}.
+ * companion to {@link MKModalHoverMixin}.
  *
  * <p>That mixin suppresses <em>slot</em> hover by returning {@code null} from
  * {@code getHoveredSlot}; but a creative <b>tab</b> still glows through a modal,
@@ -32,13 +32,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * {@link ScreenPanelRegistry#hasAnyVisibleModalTracking()} signal the other
  * modal mixins use: a visible modal claims the whole screen, so its screen-level
  * chrome (the tabs) must not light up behind it. Matches the creative-aware
- * stance of {@link MenuKitTooltipSuppressMixin}, which already suppresses the
+ * stance of {@link MKTooltipSuppressMixin}, which already suppresses the
  * tab <em>tooltip</em> under a modal — this closes the matching tab
  * <em>highlight</em>.
  */
 @ApiStatus.Internal
 @Mixin(CreativeModeInventoryScreen.class)
-public abstract class MenuKitCreativeTabHoverMixin {
+public abstract class MKCreativeTabHoverMixin {
 
     /**
      * HEAD of {@code checkTabHovering}. When the tab position is inert under a
@@ -58,7 +58,7 @@ public abstract class MenuKitCreativeTabHoverMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void menukit$suppressTabHoverWhenModal(GuiGraphics guiGraphics, CreativeModeTab tab,
+    private void mk$suppressTabHoverWhenModal(GuiGraphics guiGraphics, CreativeModeTab tab,
                                                    int mouseX, int mouseY,
                                                    CallbackInfoReturnable<Boolean> cir) {
         if (MKFocus.isInertUnderPanel(mouseX, mouseY)) {

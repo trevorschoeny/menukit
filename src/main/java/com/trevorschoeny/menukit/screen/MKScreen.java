@@ -39,9 +39,9 @@ import java.util.Map;
  * drag modes are not implemented — they'll land in later phases as the
  * element palette surfaces need for them.
  *
- * @see MenuKitHandledScreen inventory-menu analogue (holds slots + sync)
+ * @see MKCHandledScreen inventory-menu analogue (holds slots + sync)
  */
-public class MenuKitScreen extends Screen {
+public class MKScreen extends Screen {
 
     /**
      * Padding inside each styled panel (pixels from panel edge to content).
@@ -67,7 +67,7 @@ public class MenuKitScreen extends Screen {
     private int leftPos = 0;
     private int topPos = 0;
 
-    protected MenuKitScreen(Component title, List<Panel> panels) {
+    protected MKScreen(Component title, List<Panel> panels) {
         super(title);
         this.panels = List.copyOf(panels);
     }
@@ -111,7 +111,7 @@ public class MenuKitScreen extends Screen {
      * <p>Recomputes layout each frame so panels whose visibility is
      * supplier-driven (e.g., a modal panel gated by {@link Panel#showWhen})
      * get bounds entries when they become visible mid-screen. Matches
-     * {@code MenuKitHandledScreen.renderBg}'s per-frame
+     * {@code MKCHandledScreen.renderBg}'s per-frame
      * {@code computeLayout()} for the same reason. Cheap — a few additions
      * per panel.
      */
@@ -244,7 +244,7 @@ public class MenuKitScreen extends Screen {
      *       ignored. An overlay's defining property is "covers the screen
      *       above the dim layer"; BODY-stacking semantics don't fit.
      *       This is what makes {@code Panel.modal()} read as "modal
-     *       overlay" on {@link MenuKitScreen} without consumers also
+     *       overlay" on {@link MKScreen} without consumers also
      *       configuring a position mode.</li>
      *   <li><b>Layout panels</b> (everything else) — use the bounds
      *       computed by {@link PanelTreeLayout}, translated by
@@ -431,7 +431,7 @@ public class MenuKitScreen extends Screen {
     // ── Scroll + release dispatch (Phase 14d-2.6 primitive-gap fold-inline) ─
     //
     // ScreenPanelAdapter (the MenuContext path) dispatches scroll + release
-    // to elements via Fabric's ScreenMouseEvents. MenuKitScreen
+    // to elements via Fabric's ScreenMouseEvents. MKScreen
     // (StandaloneContext) didn't have parallel plumbing because no
     // consumer surfaced the need until the Test Hub (Phase 14d-2.6) wanted
     // a ScrollContainer inside a MenuKit-native standalone screen. Adding

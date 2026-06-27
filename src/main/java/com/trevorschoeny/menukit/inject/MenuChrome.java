@@ -77,7 +77,7 @@ public final class MenuChrome {
      * warning log (same pattern as {@code MKSlotState.register}).
      *
      * <p>Called at mod init — library-shipped providers register during
-     * {@code MenuKitClient.onInitializeClient}; modded consumers register
+     * {@code MKClient.onInitializeClient}; modded consumers register
      * from their own {@code ClientModInitializer}.
      *
      * @param screenClass the concrete screen class

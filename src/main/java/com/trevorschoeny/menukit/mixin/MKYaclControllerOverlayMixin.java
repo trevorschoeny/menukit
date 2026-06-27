@@ -1,7 +1,7 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.core.ControlStyle;
-import com.trevorschoeny.menukit.core.MenuKitPressedTracker;
+import com.trevorschoeny.menukit.core.MKPressedTracker;
 
 import dev.isxander.yacl3.api.utils.Dimension;
 import dev.isxander.yacl3.gui.controllers.ControllerWidget;
@@ -17,13 +17,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * <b>ACCEPTED aesthetic-only exception to §0019</b> (see
- * {@link MenuKitVanillaButtonPressedMixin} class javadoc for the
+ * {@link MKVanillaButtonPressedMixin} class javadoc for the
  * full carve-out rationale).
  *
  * <p>Render-time overlay for YACL controller widgets (toggles,
  * sliders, dropdowns, color-pickers) when they're being pressed.
- * Reads press state from {@link MenuKitPressedTracker} (set by
- * {@link MenuKitYaclWidgetPressedMixin} on the AbstractWidget
+ * Reads press state from {@link MKPressedTracker} (set by
+ * {@link MKYaclWidgetPressedMixin} on the AbstractWidget
  * superclass). Both YACL mixins use {@code @Pseudo} so they
  * silently skip when YACL isn't loaded.
  *
@@ -36,16 +36,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @ApiStatus.Internal
 @Pseudo
 @Mixin(ControllerWidget.class)
-public abstract class MenuKitYaclControllerOverlayMixin {
+public abstract class MKYaclControllerOverlayMixin {
 
     // Mojang-mapped: method_25394 → render. See sibling mixin's
     // comment about MK using officialMojangMappings.
     @Inject(method = "render(Lnet/minecraft/client/gui/GuiGraphics;IIF)V",
             at = @At("TAIL"))
-    private void menukit$drawPressedOverlay(GuiGraphics graphics, int mouseX,
+    private void mk$drawPressedOverlay(GuiGraphics graphics, int mouseX,
                                              int mouseY, float partialTick,
                                              CallbackInfo ci) {
-        if (!MenuKitPressedTracker.isPressedAndCheckRelease(this)) return;
+        if (!MKPressedTracker.isPressedAndCheckRelease(this)) return;
 
         // isHovered() is on ControllerWidget (not the YACL AbstractWidget
         // base). getDimension() is inherited from AbstractWidget. Cast

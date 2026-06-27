@@ -32,9 +32,9 @@ import org.jetbrains.annotations.ApiStatus;
  * on first draw, not at class-load time.
  */
 @ApiStatus.Internal
-public final class MenuKitRenderPipelines {
+public final class MKRenderPipelines {
 
-    private MenuKitRenderPipelines() {}
+    private MKRenderPipelines() {}
 
     /**
      * GUI textured pipeline whose fragment shader inverts the per-pixel

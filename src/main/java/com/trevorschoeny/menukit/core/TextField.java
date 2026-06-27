@@ -98,7 +98,7 @@ public class TextField extends AbstractPanelElement {
     private final @Nullable Consumer<String> onSubmit;
 
     /** Lazily constructed in onAttach() via ensureEditBox(). Null until first attach. */
-    private @Nullable MenuKitEditBox editBox;
+    private @Nullable MKEditBox editBox;
 
     /** Track which screen we're attached to so detach knows what to remove from. */
     private @Nullable Screen attachedScreen;
@@ -137,7 +137,7 @@ public class TextField extends AbstractPanelElement {
         var font = Minecraft.getInstance().font;
         // EditBox starts at (0, 0); per-frame render() updates to match
         // panel content origin.
-        editBox = new MenuKitEditBox(font, 0, 0, width, height,
+        editBox = new MKEditBox(font, 0, 0, width, height,
                 label, onSubmit);
 
         if (maxLength != null) editBox.setMaxLength(maxLength);
@@ -232,7 +232,7 @@ public class TextField extends AbstractPanelElement {
         // manually in render() so it draws AFTER the panel background —
         // sidestepping the "panel background covers widget" bug that
         // would happen if the EditBox were registered as a renderable
-        // (panel backgrounds render after super.render in MenuKitScreen).
+        // (panel backgrounds render after super.render in MKScreen).
         //
         // Idempotent: checking attachedScreen prevents double-attach.
         if (attachedScreen == screen) return;
@@ -437,7 +437,7 @@ public class TextField extends AbstractPanelElement {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // MenuKitEditBox — subclass that captures Enter for onSubmit
+    // MKEditBox — subclass that captures Enter for onSubmit
     // ──────────────────────────────────────────────────────────────────
 
     /**
@@ -449,11 +449,11 @@ public class TextField extends AbstractPanelElement {
      * per-element scoped (only affects MenuKit's wrapped EditBoxes),
      * mixin would affect ALL EditBox instances ecosystem-wide.
      */
-    private static final class MenuKitEditBox extends EditBox {
+    private static final class MKEditBox extends EditBox {
 
         private final @Nullable Consumer<String> onSubmit;
 
-        MenuKitEditBox(net.minecraft.client.gui.Font font,
+        MKEditBox(net.minecraft.client.gui.Font font,
                        int x, int y, int width, int height,
                        Component label,
                        @Nullable Consumer<String> onSubmit) {

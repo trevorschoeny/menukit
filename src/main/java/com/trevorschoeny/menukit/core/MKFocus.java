@@ -55,7 +55,7 @@ import java.util.WeakHashMap;
  *
  * Consumer mods that register focusable widgets via MK (TextField,
  * Keybindery's SearchBox, future MK-adjacent input widgets) call
- * {@link #addWidget} instead of {@code ScreenAccessor.menuKit$addWidget}
+ * {@link #addWidget} instead of {@code ScreenAccessor.mk$addWidget}
  * directly. This wraps the underlying registration AND opts the widget
  * into MK-managed focus semantics. Pair with {@link #removeWidget} on
  * teardown.
@@ -91,7 +91,7 @@ public final class MKFocus {
      * Registers the global {@code ScreenEvents.AFTER_INIT} listener that
      * wires {@code ScreenMouseEvents.afterMouseClick} on every opened
      * screen for outside-bounds focus janitor. Called once from
-     * {@code MenuKitClient.onInitializeClient}.
+     * {@code MKClient.onInitializeClient}.
      *
      * <p>The per-screen listeners are GC'd naturally when the screen
      * instance is collected; no explicit teardown.
@@ -161,10 +161,10 @@ public final class MKFocus {
     /**
      * Registers a widget with the given screen for input dispatch AND
      * MK-managed focus semantics. Wraps
-     * {@link ScreenAccessor#menuKit$addWidget} — the widget is added to
+     * {@link ScreenAccessor#mk$addWidget} — the widget is added to
      * the screen's {@code children} + {@code narratables} lists (so
      * vanilla's input pipeline dispatches to it) and recorded in MK's
-     * focus-tracking set (so {@code MenuKitFocusJanitorMixin} clears its
+     * focus-tracking set (so {@code MKFocusJanitorMixin} clears its
      * focus on outside-bounds clicks).
      *
      * <p>Returns the widget for fluent-style chaining (matching vanilla's
@@ -172,7 +172,7 @@ public final class MKFocus {
      */
     public static <T extends GuiEventListener & NarratableEntry> T addWidget(
             Screen screen, T widget) {
-        T result = ((ScreenAccessor) screen).menuKit$addWidget(widget);
+        T result = ((ScreenAccessor) screen).mk$addWidget(widget);
         MANAGED.computeIfAbsent(screen, k -> new HashSet<>()).add(result);
         return result;
     }
@@ -183,7 +183,7 @@ public final class MKFocus {
      * set. Safe to call even if the widget was never registered (no-op).
      */
     public static void removeWidget(Screen screen, GuiEventListener widget) {
-        ((ScreenAccessor) screen).menuKit$removeWidget(widget);
+        ((ScreenAccessor) screen).mk$removeWidget(widget);
         Set<GuiEventListener> set = MANAGED.get(screen);
         if (set != null) {
             set.remove(widget);
@@ -250,7 +250,7 @@ public final class MKFocus {
      * mixin which fires inside {@code GuiGraphics.setTooltipForNextFrame}).
      * Reads cursor position from {@code MouseHandler} and converts to
      * GUI-scaled coords using the same formula as
-     * {@code MenuKitModalMouseHandlerMixin}.
+     * {@code MKModalMouseHandlerMixin}.
      */
     public static boolean isCursorCoveredAtCursor() {
         Minecraft mc = Minecraft.getInstance();

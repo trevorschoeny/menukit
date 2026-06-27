@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.input;
 
-import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.MK;
 
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;

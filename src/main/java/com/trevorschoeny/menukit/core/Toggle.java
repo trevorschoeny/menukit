@@ -383,7 +383,7 @@ public class Toggle extends AbstractPanelElement {
     /**
      * Creates a Toggle whose visual is a consumer-supplied sprite. The off
      * state renders the sprite as-is; the on state renders the sprite through
-     * {@link com.trevorschoeny.menukit.core.MenuKitRenderPipelines#GUI_BRIGHTNESS_INVERTED
+     * {@link com.trevorschoeny.menukit.core.MKRenderPipelines#GUI_BRIGHTNESS_INVERTED
      * the HSL-lightness-inversion pipeline} so the same sprite asset
      * communicates both states without the consumer authoring a second
      * "toggled" texture. Hue + saturation are preserved through the
@@ -479,7 +479,7 @@ public class Toggle extends AbstractPanelElement {
                 // Animation, alpha edges, etc. all pass through unchanged;
                 // only the per-pixel lightness flips.
                 ctx.graphics().blitSprite(
-                        MenuKitRenderPipelines.GUI_BRIGHTNESS_INVERTED, id, sx, sy, w, h);
+                        MKRenderPipelines.GUI_BRIGHTNESS_INVERTED, id, sx, sy, w, h);
             } else {
                 // Off — sprite as-is.
                 ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);

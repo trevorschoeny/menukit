@@ -20,7 +20,7 @@ import java.util.function.Supplier;
  *
  * <p>This is a display-only element — no interaction. For interactive
  * slots, use a {@code MKCSlot} inside a {@code Panel} on a
- * {@code MenuKitScreenHandler}.
+ * {@code MKCScreenHandler}.
  *
  * <p>Implements {@link PanelElement}. Phase 8 may subsume this into a
  * hotbar-styled variant of the core {@code ItemDisplay}.

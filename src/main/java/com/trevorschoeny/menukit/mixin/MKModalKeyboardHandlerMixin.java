@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Phase 14d-1 modal input pre-emption — KeyboardHandler half.
  *
- * <p>Same architectural shape as {@link MenuKitModalMouseHandlerMixin}: when
+ * <p>Same architectural shape as {@link MKModalMouseHandlerMixin}: when
  * a modal panel is visible, eat keyboard events at the input dispatch root
  * before they route to screen-specific keyPressed handlers. Modal blocks
  * underlying screen keyboard interaction.
@@ -39,7 +39,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @ApiStatus.Internal
 @Mixin(KeyboardHandler.class)
-public abstract class MenuKitModalKeyboardHandlerMixin {
+public abstract class MKModalKeyboardHandlerMixin {
 
     /** GLFW key code for Escape — allowed to pass through modal eating. */
     private static final int GLFW_KEY_ESCAPE = 256;
@@ -49,7 +49,7 @@ public abstract class MenuKitModalKeyboardHandlerMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void menukit$eatModalKey(long window, int action, KeyEvent event,
+    private void mk$eatModalKey(long window, int action, KeyEvent event,
                                      CallbackInfo ci) {
         if (event.key() == GLFW_KEY_ESCAPE) return; // Always allow Escape.
         // M9: gate on tracksAsModal (window-state suppression scoped to

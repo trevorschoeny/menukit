@@ -295,8 +295,8 @@ public final class RegionRegistry {
      * {@link #registerHud(MKHudPanelDef, HudRegion, int)}.
      *
      * <p>Note: this does NOT unregister the HUD panel def from
-     * {@code MenuKit}'s top-level HUD list (the render-each-frame
-     * collection). Use {@code MenuKit.unregisterHud(def)} for that.
+     * {@code MK}'s top-level HUD list (the render-each-frame
+     * collection). Use {@code MK.unregisterHud(def)} for that.
      */
     public static void unregisterHud(MKHudPanelDef def) {
         for (List<MKHudPanelDef> list : HUD.values()) {
@@ -554,7 +554,7 @@ public final class RegionRegistry {
 
     /**
      * Logs a one-shot warning the first time a HUD panel overflows its region.
-     * Called from {@link com.trevorschoeny.menukit.MenuKit}'s HUD render loop
+     * Called from {@link com.trevorschoeny.menukit.MK}'s HUD render loop
      * when {@link RegionMath#resolveHud} returns empty.
      */
     public static void warnHudOverflowOnce(MKHudPanelDef def, HudRegion region,

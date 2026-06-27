@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.hud;
 
-import com.trevorschoeny.menukit.MenuKit;
+import com.trevorschoeny.menukit.MK;
 import com.trevorschoeny.menukit.core.ItemDisplay;
 import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.PanelStyle;
@@ -316,7 +316,7 @@ public class MKHudPanel {
                     showWhen, hideInScreen, onRender,
                     region  // null unless .region() was called
             );
-            MenuKit.registerHud(def);
+            MK.registerHud(def);
             if (regionSet) {
                 com.trevorschoeny.menukit.inject.RegionRegistry.registerHud(def, region, regionPriority);
             }

@@ -29,7 +29,7 @@ import java.util.function.Supplier;
  * <h3>Context-parity with other rendering contexts</h3>
  *
  * After the Phase 12.5 V4 pass, this adapter renders panels identically to
- * the other two MenuKit rendering contexts (standalone {@code MenuKitScreen},
+ * the other two MenuKit rendering contexts (standalone {@code MKScreen},
  * HUD {@code MKHudPanel}):
  *
  * <ul>
@@ -39,7 +39,7 @@ import java.util.function.Supplier;
  *       render backgrounds themselves; they don't anymore.</li>
  *   <li><b>Content padding.</b> Elements render inside a padded content area.
  *       Padding defaults to {@link #DEFAULT_PADDING} (matches
- *       {@code MenuKitScreen.PANEL_PADDING}) — set explicitly via the
+ *       {@code MKScreen.PANEL_PADDING}) — set explicitly via the
  *       {@code padding} constructor parameter, including {@code 0} for
  *       flush-edge behavior.</li>
  * </ul>
@@ -100,7 +100,7 @@ import java.util.function.Supplier;
 public final class ScreenPanelAdapter {
 
     /**
-     * Default content padding — matches {@code MenuKitScreen.PANEL_PADDING}.
+     * Default content padding — matches {@code MKScreen.PANEL_PADDING}.
      * Consumers wanting flush-edge behavior pass {@code 0} explicitly via
      * the padding-accepting constructor overload.
      */
@@ -603,7 +603,7 @@ public final class ScreenPanelAdapter {
 
         // Content origin is the panel origin shifted inward by padding.
         // Elements' childX / childY are relative to this content origin,
-        // matching MenuKitScreen and MKHudPanel semantics.
+        // matching MKScreen and MKHudPanel semantics.
         RenderContext ctx = new RenderContext(
                 graphics, origin.x() + padding, origin.y() + padding,
                 effectiveMouseX, effectiveMouseY);

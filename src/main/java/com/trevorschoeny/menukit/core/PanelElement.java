@@ -47,8 +47,8 @@ package com.trevorschoeny.menukit.core;
  * trust this and not re-compose with panel-local coords.
  *
  * <p>All three dispatchers conform to this contract: the native inventory-menu
- * dispatcher in {@code MenuKitHandledScreen}, the standalone-screen
- * dispatcher in {@code MenuKitScreen}, and the Phase 10 injection adapter
+ * dispatcher in {@code MKCHandledScreen}, the standalone-screen
+ * dispatcher in {@code MKScreen}, and the Phase 10 injection adapter
  * {@code ScreenPanelAdapter}. Consumer implementations of
  * {@link PanelElement} can rely on screen-space coords in {@link #mouseClicked}
  * regardless of which context their panel ends up in.
@@ -202,7 +202,7 @@ public interface PanelElement {
 
     /**
      * Phase 14d-5 — interaction-bounds hit test. Called by the screen
-     * dispatchers (MenuKitScreen, MenuKitHandledScreen, ScreenPanelAdapter)
+     * dispatchers (MKScreen, MKCHandledScreen, ScreenPanelAdapter)
      * before {@link #mouseClicked} and {@link #mouseScrolled} to decide
      * whether this element should receive the input event.
      *

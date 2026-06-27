@@ -95,7 +95,7 @@ public final class CursorContinuity {
 
     /**
      * Restores the stashed cursor position if one is pending, then clears
-     * the stash. Wired from {@code MenuKitClient.onInitializeClient} via
+     * the stash. Wired from {@code MKClient.onInitializeClient} via
      * {@link #registerRestoreHook} as a universal {@code AFTER_INIT}
      * listener so it fires for ANY screen open (vanilla, MK, MKC, third-
      * party — same behavior). One-shot semantics: cleared after restore
@@ -119,9 +119,9 @@ public final class CursorContinuity {
         // hover detection and any code reading mouseHandler.xpos()/ypos()
         // gets a stale centered position until the next physical mouse move.
         ((MouseHandlerCursorPosAccessor) (Object) mc.mouseHandler)
-                .menuKit$setXpos(stashed[0]);
+                .mk$setXpos(stashed[0]);
         ((MouseHandlerCursorPosAccessor) (Object) mc.mouseHandler)
-                .menuKit$setYpos(stashed[1]);
+                .mk$setYpos(stashed[1]);
         stashed = null;
     }
 

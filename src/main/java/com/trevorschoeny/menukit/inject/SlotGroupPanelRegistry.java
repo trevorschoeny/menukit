@@ -108,7 +108,7 @@ public final class SlotGroupPanelRegistry {
 
     /**
      * Registers the library-owned {@link ScreenEvents#AFTER_INIT} listener.
-     * Called once from {@code MenuKitContainersClient.onInitializeClient}.
+     * Called once from {@code MKCClient.onInitializeClient}.
      * After this, any region-based slot-group adapter that declared
      * targeting will dispatch on matching screens without the consumer
      * writing per-screen boilerplate.
@@ -155,7 +155,7 @@ public final class SlotGroupPanelRegistry {
         // companion block for the rationale. Registered AFTER the MK-side
         // render renderable so slot-group panels paint on top (matching
         // the prior "MenuKit first, slot-group second" stratum order).
-        ((com.trevorschoeny.menukit.mixin.ScreenAccessor) screen).menuKit$addRenderableOnly(
+        ((com.trevorschoeny.menukit.mixin.ScreenAccessor) screen).mk$addRenderableOnly(
                 (graphics, mx, my, partialTick) ->
                         renderMatchingPanels(acs, graphics, mx, my));
     }
@@ -183,7 +183,7 @@ public final class SlotGroupPanelRegistry {
 
     /**
      * Called from {@link com.trevorschoeny.menukit.mixin.SlotGroupPanelRenderMixin}
-     * at the same injection point as MenuKit's {@code MenuKitPanelRenderMixin}.
+     * at the same injection point as MenuKit's {@code MKPanelRenderMixin}.
      * Dispatches all matching SlotGroupContext adapters for the current
      * screen. Both mixins fire per render — MenuKit's first (renders
      * MenuContext panels), this one second (renders slot-group panels on
@@ -233,8 +233,8 @@ public final class SlotGroupPanelRegistry {
             if (sy + 16 > maxY) maxY = sy + 16;
         }
         AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
-        int frameLeft = acc.menuKit$getLeftPos();
-        int frameTop = acc.menuKit$getTopPos();
+        int frameLeft = acc.mk$getLeftPos();
+        int frameTop = acc.mk$getTopPos();
         return new SlotGroupBounds(
                 frameLeft + minX,
                 frameTop + minY,

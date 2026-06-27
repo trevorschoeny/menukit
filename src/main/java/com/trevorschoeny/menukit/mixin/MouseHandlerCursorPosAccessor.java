@@ -37,9 +37,9 @@ public interface MouseHandlerCursorPosAccessor {
 
     @Mutable
     @Accessor("xpos")
-    void menuKit$setXpos(double xpos);
+    void mk$setXpos(double xpos);
 
     @Mutable
     @Accessor("ypos")
-    void menuKit$setYpos(double ypos);
+    void mk$setYpos(double ypos);
 }

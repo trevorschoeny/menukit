@@ -229,7 +229,7 @@ public final class VanillaScreenPanelRegistry {
                 adapter.render(graphics, sw, sh, mouseX, mouseY, screen);
             }
         };
-        ((ScreenAccessor) screen).menuKit$addRenderableOnly(mkRenderable);
+        ((ScreenAccessor) screen).mk$addRenderableOnly(mkRenderable);
 
         // ── Click dispatch ───────────────────────────────────────────
         // Two-pass dispatch inside each adapter (active-overlay then hit-

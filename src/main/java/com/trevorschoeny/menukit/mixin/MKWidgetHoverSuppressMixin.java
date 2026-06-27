@@ -51,7 +51,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *
  * <h3>Sibling to slot hover suppression</h3>
  *
- * {@code MenuKitModalHoverMixin} suppresses SLOT hover via
+ * {@code MKModalHoverMixin} suppresses SLOT hover via
  * {@code AbstractContainerScreen.getHoveredSlot}. This mixin extends
  * the same conceptual rule (suppress visual feedback when cursor over
  * MK opaque content) to non-slot widgets. The hover-suppression query
@@ -61,12 +61,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @ApiStatus.Internal
 @Mixin(AbstractWidget.class)
-public abstract class MenuKitWidgetHoverSuppressMixin {
+public abstract class MKWidgetHoverSuppressMixin {
 
     @Shadow protected boolean isHovered;
 
     @Inject(method = "isHovered()Z", at = @At("HEAD"), cancellable = true)
-    private void menukit$suppressHoverWhenOpaque(CallbackInfoReturnable<Boolean> cir) {
+    private void mk$suppressHoverWhenOpaque(CallbackInfoReturnable<Boolean> cir) {
         // Already not hovered — nothing to suppress.
         if (!this.isHovered) return;
 
@@ -81,7 +81,7 @@ public abstract class MenuKitWidgetHoverSuppressMixin {
         if (MKFocus.isManaged(screen, (GuiEventListener) (Object) this)) return;
 
         // Compute current cursor coords. Matches
-        // MenuKitModalMouseHandlerMixin's formula — uses
+        // MKModalMouseHandlerMixin's formula — uses
         // Window.getScreenWidth/Height (logical pixels) for HiDPI
         // correctness, NOT Window.getWidth/Height (framebuffer pixels).
         var window = mc.getWindow();

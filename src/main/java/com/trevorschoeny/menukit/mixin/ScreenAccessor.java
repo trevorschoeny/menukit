@@ -44,10 +44,10 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 public interface ScreenAccessor {
 
     @Invoker("addWidget")
-    <T extends GuiEventListener & NarratableEntry> T menuKit$addWidget(T widget);
+    <T extends GuiEventListener & NarratableEntry> T mk$addWidget(T widget);
 
     @Invoker("removeWidget")
-    void menuKit$removeWidget(GuiEventListener widget);
+    void mk$removeWidget(GuiEventListener widget);
 
     /**
      * Exposes {@code Screen.addRenderableOnly} so library code outside the
@@ -56,5 +56,5 @@ public interface ScreenAccessor {
      * fires before the end-of-frame tooltip flush.
      */
     @Invoker("addRenderableOnly")
-    <T extends Renderable> T menuKit$addRenderableOnly(T renderable);
+    <T extends Renderable> T mk$addRenderableOnly(T renderable);
 }

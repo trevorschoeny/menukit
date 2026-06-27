@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Library-owned registered-slot input dispatch — the input half of inventory-screen
- * parity, the counterpart to {@link MenuKitSlotRenderMixin}. Targets
+ * parity, the counterpart to {@link MKSlotRenderMixin}. Targets
  * {@code AbstractContainerScreen} so it covers every container screen (creative
  * routes its {@code mouseClicked} and slot-hover through the inherited
  * {@code AbstractContainerScreen} machinery — see the parity build notes).
@@ -42,10 +42,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * MenuKit-Containers (§0042).
  */
 @Mixin(AbstractContainerScreen.class)
-public abstract class MenuKitSlotInputMixin {
+public abstract class MKSlotInputMixin {
 
     @Inject(method = "getHoveredSlot", at = @At("HEAD"), cancellable = true)
-    private void menuKit$slotHover(double mouseX, double mouseY,
+    private void mk$slotHover(double mouseX, double mouseY,
                                     CallbackInfoReturnable<Slot> cir) {
         SlotHoverResult result = SlotScreenDispatcher.fireResolveHover(
                 (AbstractContainerScreen<?>) (Object) this, mouseX, mouseY);
@@ -58,7 +58,7 @@ public abstract class MenuKitSlotInputMixin {
 
     @Inject(method = "mouseClicked(Lnet/minecraft/client/input/MouseButtonEvent;Z)Z",
             at = @At("HEAD"), cancellable = true)
-    private void menuKit$slotClick(MouseButtonEvent event, boolean doubleClick,
+    private void mk$slotClick(MouseButtonEvent event, boolean doubleClick,
                                     CallbackInfoReturnable<Boolean> cir) {
         boolean consumed = SlotScreenDispatcher.fireMouseClicked(
                 (AbstractContainerScreen<?>) (Object) this,
@@ -69,7 +69,7 @@ public abstract class MenuKitSlotInputMixin {
     }
 
     @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true)
-    private void menuKit$slotScroll(double mouseX, double mouseY,
+    private void mk$slotScroll(double mouseX, double mouseY,
                                      double scrollX, double scrollY,
                                      CallbackInfoReturnable<Boolean> cir) {
         boolean consumed = SlotScreenDispatcher.fireMouseScrolled(
@@ -81,7 +81,7 @@ public abstract class MenuKitSlotInputMixin {
 
     @Inject(method = "mouseReleased(Lnet/minecraft/client/input/MouseButtonEvent;)Z",
             at = @At("HEAD"), cancellable = true)
-    private void menuKit$slotRelease(MouseButtonEvent event,
+    private void mk$slotRelease(MouseButtonEvent event,
                                       CallbackInfoReturnable<Boolean> cir) {
         boolean consumed = SlotScreenDispatcher.fireMouseReleased(
                 (AbstractContainerScreen<?>) (Object) this,
