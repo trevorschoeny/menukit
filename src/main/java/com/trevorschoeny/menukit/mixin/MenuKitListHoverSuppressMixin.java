@@ -60,7 +60,9 @@ public abstract class MenuKitListHoverSuppressMixin {
             cancellable = true
     )
     private void menukit$suppressListHoverWhenOpaque(CallbackInfoReturnable<?> cir) {
-        if (MKFocus.isCursorOverOpaqueRegionAtCursor()) {
+        // Unified inertness predicate (modal-global OR covered) — same question
+        // every other suppressor asks.
+        if (MKFocus.isInertUnderPanelAtCursor()) {
             cir.setReturnValue(null);
         }
     }

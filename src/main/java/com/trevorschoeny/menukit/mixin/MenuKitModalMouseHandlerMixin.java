@@ -122,7 +122,7 @@ public abstract class MenuKitModalMouseHandlerMixin {
 
     /**
      * Computes scaled mouse coordinates and dispatches release via
-     * {@link com.trevorschoeny.menukit.inject.ScreenPanelRegistry#dispatchOpaqueRelease}.
+     * {@link com.trevorschoeny.menukit.inject.ScreenPanelRegistry#dispatchCoveredRelease}.
      * Returns whether the release should be eaten at this layer.
      */
     private boolean releaseAtCurrentMouse(int button) {
@@ -134,7 +134,7 @@ public abstract class MenuKitModalMouseHandlerMixin {
         double scaledY = ypos * window.getGuiScaledHeight() / window.getScreenHeight();
         var screen = mc.screen;
         if (screen == null) return false;
-        return ScreenPanelRegistry.dispatchOpaqueRelease(screen, scaledX, scaledY, button);
+        return ScreenPanelRegistry.dispatchCoveredRelease(screen, scaledX, scaledY, button);
     }
 
     @Inject(
@@ -158,7 +158,7 @@ public abstract class MenuKitModalMouseHandlerMixin {
         // /getScreenHeight (logical window pixels) for HiDPI correctness.
         double scaledX = xpos * mcWindow.getGuiScaledWidth() / mcWindow.getScreenWidth();
         double scaledY = ypos * mcWindow.getGuiScaledHeight() / mcWindow.getScreenHeight();
-        if (ScreenPanelRegistry.dispatchOpaqueScroll(mc.screen, scaledX, scaledY, xOffset, yOffset)) {
+        if (ScreenPanelRegistry.dispatchCoveredScroll(mc.screen, scaledX, scaledY, xOffset, yOffset)) {
             ci.cancel();
         }
     }
@@ -184,6 +184,6 @@ public abstract class MenuKitModalMouseHandlerMixin {
         double scaledY = ypos * window.getGuiScaledHeight() / window.getScreenHeight();
         var screen = mc.screen;
         if (screen == null) return false;
-        return ScreenPanelRegistry.dispatchOpaqueClick(screen, scaledX, scaledY, button);
+        return ScreenPanelRegistry.dispatchCoveredClick(screen, scaledX, scaledY, button);
     }
 }

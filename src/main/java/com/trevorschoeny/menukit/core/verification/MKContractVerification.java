@@ -260,15 +260,15 @@ public final class MKContractVerification {
         checkM10(counts, "modal() sugar sets tracksAsModal=true",
                 modalPanel.tracksAsModal());
 
-        // ── ScreenPanelRegistry.shouldEatOpaqueDispatch decision ─────────
+        // ── ScreenPanelRegistry.shouldEatCovered decision ─────────
         // M9's opaque-eat decision: cursor inside an opaque panel → eat;
         // outside → pass through.
         checkM10(counts, "decision: not-opaque → pass through",
                 !com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                        .shouldEatOpaqueDispatch(false));
+                        .shouldEatCovered(false));
         checkM10(counts, "decision: opaque → EAT",
                 com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                        .shouldEatOpaqueDispatch(true));
+                        .shouldEatCovered(true));
 
         // ── MenuRegion.CENTER resolver — sanity check the new region ─────
         // Centered at (50, 60) within a 176×166 frame (vanilla menu sized)
@@ -443,19 +443,19 @@ public final class MKContractVerification {
         LOGGER.info("[Verify.M13] BEGIN — opaque-scroll dispatch helper (M9 generalization of 14d-1 modal-scroll)");
         int[] counts = {0, 0};
 
-        // dispatchOpaqueScroll on a null/non-AbstractContainerScreen returns
+        // dispatchCoveredScroll on a null/non-AbstractContainerScreen returns
         // false (no opaque panel + no modal-tracking; let vanilla dispatch).
-        // findOpaquePanelAt same. We can't easily construct
+        // findCoveringPanelAt same. We can't easily construct
         // AbstractContainerScreen instances in a pure probe, so we test the
         // null-screen / non-AbstractContainerScreen path: returns false /
         // null cleanly without throwing.
         boolean result = com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                .dispatchOpaqueScroll(null, 0, 0, 0, 0);
-        checkM13(counts, "dispatchOpaqueScroll(null screen) returns false", !result);
+                .dispatchCoveredScroll(null, 0, 0, 0, 0);
+        checkM13(counts, "dispatchCoveredScroll(null screen) returns false", !result);
 
         var opaqueAdapter = com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                .findOpaquePanelAt(null, 0, 0);
-        checkM13(counts, "findOpaquePanelAt(null screen) returns null", opaqueAdapter == null);
+                .findCoveringPanelAt(null, 0, 0);
+        checkM13(counts, "findCoveringPanelAt(null screen) returns null", opaqueAdapter == null);
 
         // hasAnyVisibleModalTracking returns false when no client/screen.
         // Verifies the early-return guards rather than throwing NPE.
@@ -490,10 +490,10 @@ public final class MKContractVerification {
     // panel state. Cases covered:
     //
     // Single-panel (pure decision):
-    //   1. shouldEatOpaqueDispatch truth table (4 cases — see M10).
-    //   2. findOpaquePanelAt(null screen) → null guard.
+    //   1. shouldEatCovered truth table (4 cases — see M10).
+    //   2. findCoveringPanelAt(null screen) → null guard.
     //   3. hasAnyVisibleModalTracking() with no client → false guard.
-    //   4. hasAnyVisibleOpaquePanelAt with no client → false guard.
+    //   4. anyPanelCoversPoint with no client → false guard.
     //
     // Multi-panel (architectural correctness under realistic state):
     //   5. Panel.opaque defaults true; can be flipped false then true.
@@ -501,9 +501,9 @@ public final class MKContractVerification {
     //   7. Panel.opaque(false) + tracksAsModal(true): undefined-but-
     //      doesn't-throw at builder time (per §4.3 verdict — documented
     //      undefined; not rejected for v1).
-    //   8. shouldEatOpaqueDispatch(opaque=true): always eats regardless
+    //   8. shouldEatCovered(opaque=true): always eats regardless
     //      of consumed (M9 default-true generalization).
-    //   9. shouldEatOpaqueDispatch(opaque=false): always passes through.
+    //   9. shouldEatCovered(opaque=false): always passes through.
     //
     // True multi-panel coverage (overlapping panels, find-topmost,
     // modal+non-modal interaction) requires real screens and is verified
@@ -555,33 +555,33 @@ public final class MKContractVerification {
         checkM14(counts, "opaque(false)+tracksAsModal(true): undefined but doesn't throw at construction",
                 !threwOnUndefined);
 
-        // ── shouldEatOpaqueDispatch decision (re-verified at V14 layer) ──
+        // ── shouldEatCovered decision (re-verified at V14 layer) ──
         // M9: opaque-at-cursor eats. Outside opaque: passes through.
-        checkM14(counts, "shouldEatOpaqueDispatch(true) → EAT",
+        checkM14(counts, "shouldEatCovered(true) → EAT",
                 com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                        .shouldEatOpaqueDispatch(true));
-        checkM14(counts, "shouldEatOpaqueDispatch(false) → pass through",
+                        .shouldEatCovered(true));
+        checkM14(counts, "shouldEatCovered(false) → pass through",
                 !com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                        .shouldEatOpaqueDispatch(false));
+                        .shouldEatCovered(false));
 
         // ── Null-screen / no-client guards (helpers don't NPE) ───────────
         var nullFind = com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                .findOpaquePanelAt(null, 0, 0);
-        checkM14(counts, "findOpaquePanelAt(null screen) returns null", nullFind == null);
+                .findCoveringPanelAt(null, 0, 0);
+        checkM14(counts, "findCoveringPanelAt(null screen) returns null", nullFind == null);
 
         boolean nullDispatchClick = com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                .dispatchOpaqueClick(null, 0, 0, 0);
-        checkM14(counts, "dispatchOpaqueClick(null screen) returns false", !nullDispatchClick);
+                .dispatchCoveredClick(null, 0, 0, 0);
+        checkM14(counts, "dispatchCoveredClick(null screen) returns false", !nullDispatchClick);
 
         boolean nullDispatchScroll = com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                .dispatchOpaqueScroll(null, 0, 0, 0, 0);
-        checkM14(counts, "dispatchOpaqueScroll(null screen) returns false", !nullDispatchScroll);
+                .dispatchCoveredScroll(null, 0, 0, 0, 0);
+        checkM14(counts, "dispatchCoveredScroll(null screen) returns false", !nullDispatchScroll);
 
-        // ── hasAnyVisibleOpaquePanelAt(coords) doesn't NPE ───────────────
+        // ── anyPanelCoversPoint(coords) doesn't NPE ───────────────
         // (No client/screen on server thread — should return false safely.)
         boolean noClientOpaque = com.trevorschoeny.menukit.inject.ScreenPanelRegistry
-                .hasAnyVisibleOpaquePanelAt(50, 50);
-        checkM14(counts, "hasAnyVisibleOpaquePanelAt with no active screen returns false",
+                .anyPanelCoversPoint(50, 50);
+        checkM14(counts, "anyPanelCoversPoint with no active screen returns false",
                 !noClientOpaque);
 
         int total = counts[0], failed = counts[1];

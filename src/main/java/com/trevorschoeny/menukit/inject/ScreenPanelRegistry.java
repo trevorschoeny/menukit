@@ -114,7 +114,7 @@ public final class ScreenPanelRegistry {
     //
     // Per-screen list of (adapter, boundsSupplier) tuples for lambda-based
     // adapters that have called .activeOn(...). Consulted by the four input-
-    // handler mixins via findOpaquePanelAt / hasAnyVisibleOpaquePanelAt /
+    // handler mixins via findCoveringPanelAt / anyPanelCoversPoint /
     // hasAnyVisibleModalTracking so lambda panels participate in M9's
     // click-through prohibition automatically.
     //
@@ -355,41 +355,20 @@ public final class ScreenPanelRegistry {
         // render path can't use ScreenEvents.afterRender (tooltip layering).
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
             ScreenBounds frame = frameBounds(acs);
-            boolean opaqueAtCursor = false;
+            // Dispatch the click to every adapter's element layer (per-element
+            // handling routes it to the right element if any; we don't need the
+            // consumed bit here — the eat decision is coverage-based).
             for (ScreenPanelAdapter adapter : menuMatches) {
-                // Dispatch the click to this adapter; per-element handling
-                // returns true when an element consumed it but we don't
-                // need that bit downstream — M9 eats based on opaque-
-                // coverage alone.
                 adapter.mouseClicked(frame, event.x(), event.y(), event.button(), acs);
-                // M9 click-through prohibition: when cursor is inside any
-                // visible opaque panel's bounds, the click is eaten from
-                // vanilla regardless of whether an element consumed it.
-                // The previous element-dispatch loop above already routed
-                // the click to the right element if any; vanilla shouldn't
-                // additionally see the click if a panel is sitting opaquely
-                // over the coords. (Pre-M9, this was a modal-only check;
-                // M9 generalizes it to any opaque panel.)
-                Panel panel = adapter.getPanel();
-                if (!panel.isVisible() || !panel.isOpaque()) continue;
-                var origin = adapter.getOrigin(frame, acs);
-                if (origin.isEmpty()) continue;
-                int padding = adapter.getPadding();
-                int pw = panel.getWidth() + 2 * padding;
-                int ph = panel.getHeight() + 2 * padding;
-                int x = origin.get().x();
-                int y = origin.get().y();
-                if (event.x() >= x && event.x() < x + pw
-                        && event.y() >= y && event.y() < y + ph
-                        // M9 per-element opacity: a non-opaque element under
-                        // the cursor punches a click-through hole, so this
-                        // opaque panel does NOT eat — the click reaches the
-                        // slot behind it.
-                        && !panelHoleAt(panel, origin.get(), padding,
-                                event.x(), event.y())) {
-                    opaqueAtCursor = true;
-                }
             }
+            // Click-through prohibition: eat from vanilla when the cursor is
+            // over any panel that CLAIMS the point — an opaque background
+            // (minus per-element holes) OR a solid opaque element. The SAME
+            // claim test the MouseHandler-level eat and every hover/tooltip
+            // suppressor use (findCoveringPanelAt → one predicate, no drift).
+            // In practice the MouseHandler HEAD eat fires first for claimed
+            // points and cancels this hook; this stays as a consistent backstop.
+            boolean covered = findCoveringPanelAt(acs, event.x(), event.y()) != null;
             // Post-§0042 split: SlotGroupContext click dispatch lives on
             // menukit-containers' SlotGroupPanelRegistry, which registers its
             // own ScreenMouseEvents.allowMouseClick listener via its own
@@ -402,7 +381,7 @@ public final class ScreenPanelRegistry {
             // M9 opaque-dispatch decision — extracted to a pure static
             // method so /mkverify probes can exercise the logic without
             // spinning up a real screen.
-            return !shouldEatOpaqueDispatch(opaqueAtCursor);
+            return !shouldEatCovered(covered);
         });
 
         // Keyboard dispatch via Fabric's allowKeyPress hook — the keyboard
@@ -521,7 +500,7 @@ public final class ScreenPanelRegistry {
         // insufficient because creative-mode tab tooltips queue AFTER
         // super.render returns. Suppressing at the queueing site is
         // robust. M9 generalized the gate from
-        // hasAnyVisibleModal → hasAnyVisibleOpaquePanelAtCursor;
+        // hasAnyVisibleModal → anyPanelCoversCursor;
         // pointer-driven bounds-localized suppression.
 
         // Post-§0042 split: SlotGroupContext per-frame render loop moved to
@@ -541,8 +520,8 @@ public final class ScreenPanelRegistry {
      * <p>Extracted from the click-hook closure so {@code /mkverify} probes
      * can test the decision without instantiating a screen.
      */
-    public static boolean shouldEatOpaqueDispatch(boolean opaqueAtCursor) {
-        return opaqueAtCursor;
+    public static boolean shouldEatCovered(boolean covered) {
+        return covered;
     }
 
     /**
@@ -571,10 +550,10 @@ public final class ScreenPanelRegistry {
      * <p>Successor to 14d-1's {@code dispatchModalClick}, generalized for
      * non-modal opaque panels. Same atomic-dispatch-and-eat shape.
      */
-    public static boolean dispatchOpaqueClick(Screen screen,
+    public static boolean dispatchCoveredClick(Screen screen,
                                                double mouseX, double mouseY,
                                                int button) {
-        ScreenPanelAdapter target = findOpaquePanelAt(screen, mouseX, mouseY);
+        ScreenPanelAdapter target = findCoveringPanelAt(screen, mouseX, mouseY);
 
         if (target != null) {
             // Cursor inside an opaque panel — dispatch to its element
@@ -615,7 +594,7 @@ public final class ScreenPanelRegistry {
 
     /**
      * M9 opaque release dispatch — symmetric counterpart to {@link
-     * #dispatchOpaqueClick}. Called from
+     * #dispatchCoveredClick}. Called from
      * {@code MenuKitModalMouseHandlerMixin.onButton} when {@code action == 0}
      * (GLFW_RELEASE).
      *
@@ -651,43 +630,46 @@ public final class ScreenPanelRegistry {
      *       (existing 14d-2 plumbing).</li>
      * </ul>
      */
-    public static boolean dispatchOpaqueRelease(Screen screen,
+    public static boolean dispatchCoveredRelease(Screen screen,
                                                  double mouseX, double mouseY,
                                                  int button) {
         if (screen == null) return false;
 
-        ScreenPanelAdapter opaqueAtCursor = findOpaquePanelAt(screen, mouseX, mouseY);
+        ScreenPanelAdapter covered = findCoveringPanelAt(screen, mouseX, mouseY);
         boolean modalTracking = hasAnyVisibleModalTracking();
 
-        if (opaqueAtCursor == null && !modalTracking) {
+        if (covered == null && !modalTracking) {
             // No opaque + no modal-tracking — vanilla path (Fabric
             // allowMouseRelease) handles non-opaque drag-end normally.
             return false;
         }
 
-        // Eat at mixin level + manually dispatch mouseReleased to all
-        // visible opaque adapters' elements. Fabric's allowMouseRelease
-        // hook won't fire since onButton is canceled, so we dispatch
-        // here directly.
+        // Eat at mixin level + manually dispatch mouseReleased to every
+        // visible adapter's elements. Fabric's allowMouseRelease hook won't
+        // fire since onButton is canceled, so we dispatch here directly —
+        // matching the non-eaten Fabric path (which dispatches to ALL
+        // adapters, not just opaque ones), so a covering element on a
+        // non-opaque panel still gets its drag-end. Release is not hit-tested
+        // (fires for every visible element regardless of cursor position).
         if (screen instanceof AbstractContainerScreen<?> acs) {
             ScreenRenderData data = SCREEN_DATA.get(acs);
             if (data != null) {
                 ScreenBounds frame = frameBounds(acs);
                 for (ScreenPanelAdapter adapter : data.menuMatches) {
                     Panel panel = adapter.getPanel();
-                    if (!panel.isVisible() || !panel.isOpaque()) continue;
+                    if (!panel.isVisible()) continue;
                     adapter.mouseReleased(frame, mouseX, mouseY, button, acs);
                 }
             }
         }
-        // Lambda-active opaque adapters too.
+        // Lambda-active adapters too.
         synchronized (LAMBDA_ACTIVE) {
             List<LambdaActiveEntry> entries = LAMBDA_ACTIVE.get(screen);
             if (entries != null) {
                 for (LambdaActiveEntry entry : entries) {
                     ScreenPanelAdapter adapter = entry.adapter();
                     Panel panel = adapter.getPanel();
-                    if (!panel.isVisible() || !panel.isOpaque()) continue;
+                    if (!panel.isVisible()) continue;
                     ScreenBounds bounds = entry.boundsSupplier().get();
                     if (bounds == null) continue;
                     adapter.mouseReleased(bounds, mouseX, mouseY, button,
@@ -700,7 +682,7 @@ public final class ScreenPanelRegistry {
     }
 
     /**
-     * M9 opaque scroll dispatch — parallels {@link #dispatchOpaqueClick}.
+     * M9 opaque scroll dispatch — parallels {@link #dispatchCoveredClick}.
      * Called from {@code MenuKitModalMouseHandlerMixin.onScroll} at the
      * HEAD of {@code MouseHandler.onScroll}.
      *
@@ -708,10 +690,10 @@ public final class ScreenPanelRegistry {
      * return true. Cursor outside + tracksAsModal visible: eat without
      * dispatch. Cursor outside + no modal-tracking: pass through.
      */
-    public static boolean dispatchOpaqueScroll(Screen screen,
+    public static boolean dispatchCoveredScroll(Screen screen,
                                                 double mouseX, double mouseY,
                                                 double scrollX, double scrollY) {
-        ScreenPanelAdapter target = findOpaquePanelAt(screen, mouseX, mouseY);
+        ScreenPanelAdapter target = findCoveringPanelAt(screen, mouseX, mouseY);
 
         if (target != null) {
             ScreenBounds bounds = boundsForAdapter(screen, target);
@@ -730,20 +712,26 @@ public final class ScreenPanelRegistry {
     }
 
     /**
-     * M9 unified opacity query — finds the topmost (last-registered)
-     * visible opaque panel whose bounds contain the cursor. Iterates BOTH
-     * region-based adapters (via {@code SCREEN_DATA}) AND lambda-active
-     * adapters (via {@code LAMBDA_ACTIVE}) so both paths participate in
-     * the click-through prohibition.
+     * Unified coverage query — finds the topmost (last-registered) visible
+     * panel that <em>claims</em> the cursor point ({@link #panelClaimsPoint}:
+     * an opaque background minus holes, OR a solid opaque element). Iterates
+     * BOTH region-based adapters (via {@code SCREEN_DATA}) AND lambda-active
+     * adapters (via {@code LAMBDA_ACTIVE}) so both paths participate in the
+     * click-through prohibition.
      *
      * <p>Iteration order: region adapters first (in registration order),
      * then lambda adapters (in registration order). Highest-z = last-
      * registered wins; iterate forward and overwrite.
      *
-     * @return the topmost opaque adapter at coords, or {@code null} if
-     *         none visible OR cursor outside all visible opaque panels
+     * <p>This is the dispatch-returning half of the inertness contract (it
+     * returns the panel so the caller can route the input to its elements);
+     * the boolean half consumers/suppressors call is
+     * {@link com.trevorschoeny.menukit.core.MKFocus#isInertUnderPanel}.
+     *
+     * @return the topmost claiming adapter at coords, or {@code null} if none
+     *         visible OR the cursor is over no panel's opaque background/element
      */
-    public static @Nullable ScreenPanelAdapter findOpaquePanelAt(Screen screen,
+    public static @Nullable ScreenPanelAdapter findCoveringPanelAt(Screen screen,
                                                                   double mouseX, double mouseY) {
         if (screen == null) return null;
 
@@ -756,14 +744,11 @@ public final class ScreenPanelRegistry {
                 ScreenBounds frame = frameBounds(acs);
                 for (ScreenPanelAdapter adapter : data.menuMatches) {
                     Panel panel = adapter.getPanel();
-                    if (!panel.isVisible() || !panel.isOpaque()) continue;
+                    if (!panel.isVisible()) continue;
                     var origin = adapter.getOrigin(frame, acs);
                     if (origin.isEmpty()) continue;
-                    if (containsPoint(origin.get(), adapter.getPadding(),
-                            panel.getWidth(), panel.getHeight(),
-                            mouseX, mouseY)
-                            && !panelHoleAt(panel, origin.get(),
-                                    adapter.getPadding(), mouseX, mouseY)) {
+                    if (panelClaimsPoint(panel, origin.get(), adapter.getPadding(),
+                            mouseX, mouseY)) {
                         result = adapter; // overwrite — last-z wins
                     }
                 }
@@ -777,16 +762,13 @@ public final class ScreenPanelRegistry {
                 for (LambdaActiveEntry entry : entries) {
                     ScreenPanelAdapter adapter = entry.adapter();
                     Panel panel = adapter.getPanel();
-                    if (!panel.isVisible() || !panel.isOpaque()) continue;
+                    if (!panel.isVisible()) continue;
                     ScreenBounds bounds = entry.boundsSupplier().get();
                     if (bounds == null) continue;
                     var origin = adapter.getOriginForScreen(bounds, screen);
                     if (origin.isEmpty()) continue;
-                    if (containsPoint(origin.get(), adapter.getPadding(),
-                            panel.getWidth(), panel.getHeight(),
-                            mouseX, mouseY)
-                            && !panelHoleAt(panel, origin.get(),
-                                    adapter.getPadding(), mouseX, mouseY)) {
+                    if (panelClaimsPoint(panel, origin.get(), adapter.getPadding(),
+                            mouseX, mouseY)) {
                         result = adapter;
                     }
                 }
@@ -838,6 +820,107 @@ public final class ScreenPanelRegistry {
     }
 
     /**
+     * The unified "does this panel claim this screen point?" test — the core of
+     * the inertness contract, shared across container, lambda, AND vanilla-screen
+     * adapters so every path agrees on ONE claim definition (no per-screen-type
+     * fork). A panel claims P, in strict priority order:
+     *
+     * <ol>
+     *   <li><b>Active overlay (any visible element):</b> an open transient
+     *       overlay — a Dropdown popover, say — is an <em>exclusive</em> claim:
+     *       top z, honored regardless of panel/element opacity
+     *       ({@link #panelHasActiveOverlayAt}). Checked first so a popover always
+     *       eats input behind it.</li>
+     *   <li><b>Click-through hole:</b> a non-opaque element ({@link #panelHoleAt})
+     *       is an unconditional pass-through — authoritative over BOTH the opaque
+     *       background and any solid element, so an element overlapping a hole
+     *       can't re-claim the point.</li>
+     *   <li><b>(a) opaque background:</b> the panel is opaque and its padded
+     *       bounds contain P (holes already excluded by step 2).</li>
+     *   <li><b>(b) solid element:</b> a visible, opaque, <em>interactive</em>
+     *       element covers P ({@link #panelHasSolidElementAt}) — so a solid
+     *       button blocks the vanilla content behind it even when the panel
+     *       background itself is non-opaque. Gated on interactivity so a
+     *       render-only decoration never eats a click it does nothing with (the
+     *       dead-click guard).</li>
+     * </ol>
+     *
+     * <p>Steps 2 and 4 are duals of the per-element opacity flag: a non-opaque
+     * element punches a hole in the background; a solid element forms a claim on
+     * a transparent panel. Together they make "a solid element is here" ⟺ "the
+     * vanilla behind it is inert" — what every suppression site must agree on.
+     *
+     * <p>Package-private (not {@code private}) so the vanilla-screen path
+     * ({@link VanillaScreenPanelRegistry#hasOpaqueRegionAt},
+     * {@link VanillaScreenPanelAdapter#mouseClicked}) consults the exact same
+     * test — collapsing the per-screen-type claim fork the unification removes.
+     */
+    static boolean panelClaimsPoint(Panel panel, ScreenOrigin origin, int padding,
+                                    double mouseX, double mouseY) {
+        // (1) Active overlay = exclusive claim, top z, opacity-independent.
+        if (panelHasActiveOverlayAt(panel, origin, padding, mouseX, mouseY)) {
+            return true;
+        }
+        // (2) A hole is an unconditional pass-through — authoritative over the
+        //     opaque background AND any solid element below it.
+        if (panelHoleAt(panel, origin, padding, mouseX, mouseY)) {
+            return false;
+        }
+        // (3) (a) opaque background.
+        if (panel.isOpaque()
+                && containsPoint(origin, padding, panel.getWidth(), panel.getHeight(),
+                        mouseX, mouseY)) {
+            return true;
+        }
+        // (4) (b) solid (opaque + interactive) element.
+        return panelHasSolidElementAt(panel, origin, padding, mouseX, mouseY);
+    }
+
+    /**
+     * True if a visible element of the panel has an active overlay region
+     * ({@link PanelElement#getActiveOverlayBounds} — e.g. an open Dropdown
+     * popover) covering (mouseX, mouseY). An active overlay is an exclusive,
+     * transient claim: honored for EVERY visible element regardless of opacity
+     * (matching the dispatchers' overlay pass, which doesn't gate on opacity),
+     * because the overlay region must be inert to anything behind it.
+     */
+    private static boolean panelHasActiveOverlayAt(Panel panel, ScreenOrigin origin, int padding,
+                                                   double mouseX, double mouseY) {
+        for (PanelElement el : panel.getElements()) {
+            if (!el.isVisible()) continue;
+            int[] overlay = el.getActiveOverlayBounds();
+            if (overlay != null
+                    && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
+                    && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True if a visible, SOLID (opaque + interactive) element of the panel covers
+     * (mouseX, mouseY) via its interaction surface ({@link PanelElement#hitTest}).
+     * The exact counterpart to {@link #panelHoleAt}: holes are non-opaque elements
+     * that do NOT claim; this finds the solid elements that DO. Gated on
+     * {@link PanelElement#isInteractive} as well as opacity, so a render-only
+     * decoration (opaque by default but consuming nothing) can't eat a click on a
+     * non-opaque panel — the dead-click guard. This is what lets a solid button
+     * block the vanilla behind it on a non-opaque panel — the gap that let
+     * creative-tab clicks/highlight leak through the pockets controls.
+     */
+    private static boolean panelHasSolidElementAt(Panel panel, ScreenOrigin origin, int padding,
+                                                  double mouseX, double mouseY) {
+        int contentX = origin.x() + padding;
+        int contentY = origin.y() + padding;
+        for (PanelElement el : panel.getElements()) {
+            if (!el.isVisible() || !el.isElementOpaque() || !el.isInteractive()) continue;
+            if (el.hitTest(mouseX, mouseY, contentX, contentY)) return true;
+        }
+        return false;
+    }
+
+    /**
      * Helper: returns the {@link ScreenBounds} appropriate for an
      * adapter on the given screen — frame bounds for region adapters
      * on AbstractContainerScreen; supplier-evaluated bounds for lambda
@@ -872,7 +955,7 @@ public final class ScreenPanelRegistry {
      *
      * <p>Used by {@code MenuKitModalKeyboardHandlerMixin}, the per-tick
      * cursor-lock callback in {@code MenuKitClient}, and {@link
-     * #dispatchOpaqueClick} / {@link #dispatchOpaqueScroll}.
+     * #dispatchCoveredClick} / {@link #dispatchCoveredScroll}.
      */
     public static boolean hasVisibleModalTrackingOnScreen(AbstractContainerScreen<?> screen) {
         ScreenRenderData data = SCREEN_DATA.get(screen);
@@ -943,17 +1026,17 @@ public final class ScreenPanelRegistry {
     /**
      * M9 query: is the cursor currently inside any visible opaque panel
      * on the active screen? Convenience boolean wrapper around {@link
-     * #findOpaquePanelAt} for callers that don't need the adapter and
+     * #findCoveringPanelAt} for callers that don't need the adapter and
      * have the mouse coords already (e.g., the slot-hover mixin which
      * receives mouseX/mouseY as method parameters).
      *
      * <p>Used by slot-hover suppression mixin (pointer-driven suppression
      * per M9 §4.7).
      */
-    public static boolean hasAnyVisibleOpaquePanelAt(double mouseX, double mouseY) {
+    public static boolean anyPanelCoversPoint(double mouseX, double mouseY) {
         var mc = net.minecraft.client.Minecraft.getInstance();
         if (mc == null) return false;
-        return findOpaquePanelAt(mc.screen, mouseX, mouseY) != null;
+        return findCoveringPanelAt(mc.screen, mouseX, mouseY) != null;
     }
 
     /**
@@ -970,7 +1053,7 @@ public final class ScreenPanelRegistry {
      * correctness, NOT {@code getWidth/Height} (framebuffer pixels).
      */
     /**
-     * Post-Phase 18r-5: complement to {@link #hasAnyVisibleOpaquePanelAt}
+     * Post-Phase 18r-5: complement to {@link #anyPanelCoversPoint}
      * for ELEMENT-LEVEL active overlays — Dropdown popovers and any other
      * element whose {@code getActiveOverlayBounds()} extends beyond its
      * owning panel's bounds. The panel-bounds query misses these; this
@@ -1030,7 +1113,7 @@ public final class ScreenPanelRegistry {
         return false;
     }
 
-    public static boolean hasAnyVisibleOpaquePanelAtCursor() {
+    public static boolean anyPanelCoversCursor() {
         var mc = net.minecraft.client.Minecraft.getInstance();
         if (mc == null) return false;
         var window = mc.getWindow();
@@ -1041,7 +1124,7 @@ public final class ScreenPanelRegistry {
         double rawY = mouseHandler.ypos();
         double scaledX = rawX * window.getGuiScaledWidth() / window.getScreenWidth();
         double scaledY = rawY * window.getGuiScaledHeight() / window.getScreenHeight();
-        return findOpaquePanelAt(mc.screen, scaledX, scaledY) != null;
+        return findCoveringPanelAt(mc.screen, scaledX, scaledY) != null;
     }
 
     // Post-§0042 split: computeSlotGroupBounds moved to menukit-containers'

@@ -1,7 +1,6 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.core.MKFocus;
-import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
 
 import net.minecraft.client.gui.GuiGraphics;
 
@@ -42,7 +41,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *
  * Same shape as the click-eat mixin: library-wide HEAD-cancellable
  * inject gated on per-Panel opacity (consulted via
- * {@link ScreenPanelRegistry#hasAnyVisibleOpaquePanelAtCursor()}). Two
+ * {@link ScreenPanelRegistry#anyPanelCoversCursor()}). Two
  * mods both shipping opaque panels coexist independently; the mixin
  * checks "any visible opaque panel covers the cursor" without taking
  * ownership across mods. The mixin is observational/dispatch-policy
@@ -95,12 +94,12 @@ public abstract class MenuKitTooltipSuppressMixin {
         //     outside the popover still tooltip normally).
         //   - else → don't suppress; vanilla tooltip queues normally.
         // See M9 §4.7 for the scope-asymmetry framing.
-        // Post-Phase 18r-5: isCursorOverOpaqueRegionAtCursor includes
-        // ACTIVE ELEMENT OVERLAYS (Dropdown popovers, etc.) in addition
-        // to panel bounds — so vanilla widget tooltips behind a dropdown
-        // popover that extends beyond the panel also get suppressed.
-        if (ScreenPanelRegistry.hasAnyVisibleModalTracking()
-                || MKFocus.isCursorOverOpaqueRegionAtCursor()) {
+        // Post-Phase 18r-5: the predicate includes ACTIVE ELEMENT OVERLAYS
+        // (Dropdown popovers, etc.) in addition to panel bounds. Now routed
+        // through the single inertness predicate (modal-global OR covered by an
+        // opaque panel/element/overlay) — the same question slot hover, tab
+        // hover, widget hover, list hover, and the click-eat all ask.
+        if (MKFocus.isInertUnderPanelAtCursor()) {
             ci.cancel();
         }
     }

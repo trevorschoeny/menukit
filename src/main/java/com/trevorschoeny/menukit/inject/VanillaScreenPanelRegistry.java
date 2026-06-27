@@ -131,11 +131,12 @@ public final class VanillaScreenPanelRegistry {
     // ── Opacity / overlay queries ──────────────────────────────────────
 
     /**
-     * Post-Phase 18r-5: is the cursor inside ANY registered vanilla-screen
-     * adapter's panel bounds OR any of its elements' active overlay bounds
-     * on the given screen? Used by the widget-hover-suppression mixin so
-     * vanilla widgets covered by an MK panel or a dropdown popover stop
-     * highlighting on hover.
+     * Post-Phase 18r-5: does any registered vanilla-screen adapter's panel
+     * <em>claim</em> the cursor point on the given screen — via the unified
+     * {@link ScreenPanelRegistry#panelClaimsPoint} test (opaque background
+     * minus holes, active overlay, or solid interactive element)? Used by the
+     * widget-hover-suppression mixin so vanilla widgets covered by an MK panel
+     * or a dropdown popover stop highlighting on hover.
      *
      * <p>Iterates the REGISTERED set (filtered by class-ancestry match
      * against the given screen) rather than a per-screen cached match list
@@ -155,31 +156,16 @@ public final class VanillaScreenPanelRegistry {
             if (!panel.isVisible()) continue;
             var origin = adapter.getOriginForScreen(sw, sh, screen);
             if (origin.isEmpty()) continue;
-            int padding = adapter.getPadding();
-            int pw = panel.getWidth() + 2 * padding;
-            int ph = panel.getHeight() + 2 * padding;
-            int ox = origin.get().x();
-            int oy = origin.get().y();
-            // Panel bounds
-            if (mouseX >= ox && mouseX < ox + pw
-                    && mouseY >= oy && mouseY < oy + ph
-                    // M9 per-element opacity: a non-opaque element under the
-                    // cursor punches a click-through hole, so this panel does
-                    // not claim the point (hover/tooltip fall through behind it).
-                    && !ScreenPanelRegistry.panelHoleAt(panel, origin.get(),
-                            padding, mouseX, mouseY)) {
+            // Unified claim test — the SAME predicate the container + lambda
+            // paths use ({@code ScreenPanelRegistry.panelClaimsPoint}): an
+            // opaque background minus per-element holes, an active-overlay
+            // claim, or a solid interactive element. Routing the vanilla path
+            // through it too means there's exactly one claim definition across
+            // every screen type — no per-screen-type drift (it also folds in
+            // the solid-element branch the old inline check lacked).
+            if (ScreenPanelRegistry.panelClaimsPoint(panel, origin.get(),
+                    adapter.getPadding(), mouseX, mouseY)) {
                 return true;
-            }
-            // Element overlay bounds (e.g., open Dropdown popovers that
-            // extend beyond the panel's own footprint).
-            for (var element : panel.getElements()) {
-                if (!element.isVisible()) continue;
-                int[] overlay = element.getActiveOverlayBounds();
-                if (overlay != null
-                        && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
-                        && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
-                    return true;
-                }
             }
         }
         return false;

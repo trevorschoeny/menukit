@@ -172,6 +172,9 @@ public class Checkbox extends AbstractPanelElement {
         return BOX_SIZE;
     }
 
+    /** Interactive — handles clicks, so it claims (blocks vanilla behind) on a non-opaque panel. */
+    @Override public boolean isInteractive() { return true; }
+
     // ── State ──────────────────────────────────────────────────────────
 
     /** Returns the current checked state. */

@@ -140,6 +140,9 @@ public class Slider extends AbstractPanelElement {
     @Override public int getWidth()  { return width; }
     @Override public int getHeight() { return height; }
 
+    /** Interactive — handles click/drag, so it claims (blocks vanilla behind) on a non-opaque panel. */
+    @Override public boolean isInteractive() { return true; }
+
     @Override
     public void render(RenderContext ctx) {
         // Per-frame supplier pull — keeps the wrapped slider in sync with

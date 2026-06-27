@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.mixin;
 
-import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
+import com.trevorschoeny.menukit.core.MKFocus;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
@@ -41,8 +41,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class MenuKitCreativeTabHoverMixin {
 
     /**
-     * HEAD of {@code checkTabHovering}. When a modal panel is visible, report the
-     * tab as not-hovered ({@code false}) so vanilla draws no tab highlight.
+     * HEAD of {@code checkTabHovering}. When the tab position is inert under a
+     * MenuKit panel — a modal anywhere, OR an opaque panel/element/overlay
+     * covering this exact point — report the tab as not-hovered ({@code false})
+     * so vanilla draws no tab highlight.
+     *
+     * <p>Previously this only checked for a visible modal, so a non-modal
+     * opaque panel (e.g. the pockets controls) sitting over a tab let the tab
+     * still glow through. Routing through {@link MKFocus#isInertUnderPanel} —
+     * the same predicate slot hover, widget hover, tooltip, and the click-eat
+     * use — closes that highlight-through and keeps tabs from drifting from
+     * every other surface.
      */
     @Inject(
             method = "checkTabHovering",
@@ -52,7 +61,7 @@ public abstract class MenuKitCreativeTabHoverMixin {
     private void menukit$suppressTabHoverWhenModal(GuiGraphics guiGraphics, CreativeModeTab tab,
                                                    int mouseX, int mouseY,
                                                    CallbackInfoReturnable<Boolean> cir) {
-        if (ScreenPanelRegistry.hasAnyVisibleModalTracking()) {
+        if (MKFocus.isInertUnderPanel(mouseX, mouseY)) {
             cir.setReturnValue(false);
         }
     }

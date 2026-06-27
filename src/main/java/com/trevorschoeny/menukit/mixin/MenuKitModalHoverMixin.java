@@ -1,7 +1,6 @@
 package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.core.MKFocus;
-import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
@@ -78,13 +77,12 @@ public abstract class MenuKitModalHoverMixin {
         //     LOCALLY (bounds-local for non-modal opaque panels like
         //     popovers / dropdowns covering slot edges).
         //   - else → don't suppress; vanilla hover proceeds normally.
-        // See M9 §4.7 for the scope-asymmetry framing.
-        // Post-Phase 18r-5: isCursorOverOpaqueRegion includes ACTIVE
-        // ELEMENT OVERLAYS (Dropdown popovers, etc.) in addition to
-        // panel bounds — so a slot under an open dropdown popover that
-        // extends beyond the panel also gets its hover suppressed.
-        if (ScreenPanelRegistry.hasAnyVisibleModalTracking()
-                || MKFocus.isCursorOverOpaqueRegion(mouseX, mouseY)) {
+        // See M9 §4.7 for the scope-asymmetry framing. Now routed through the
+        // single inertness predicate (modal-global OR covered by an opaque
+        // panel/element/overlay) so slot hover can't drift from tab hover,
+        // widget hover, tooltip, or the click-eat — they all ask MKFocus the
+        // same question.
+        if (MKFocus.isInertUnderPanel(mouseX, mouseY)) {
             cir.setReturnValue(null);
         }
     }

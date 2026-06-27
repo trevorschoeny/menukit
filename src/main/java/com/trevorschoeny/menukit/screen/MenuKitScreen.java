@@ -304,7 +304,7 @@ public class MenuKitScreen extends Screen {
         // click landed OUTSIDE its bounds (so dispatchElementClick above
         // didn't route to one of its elements), eat the click so the
         // underlying screen doesn't receive it either. Mirrors
-        // ScreenPanelRegistry.dispatchOpaqueClick's behavior for vanilla
+        // ScreenPanelRegistry.dispatchCoveredClick's behavior for vanilla
         // container screens. Click-eat returns BEFORE super.mouseClicked
         // so the underlying Screen's machinery (e.g., creative-tab
         // selection) doesn't fire.

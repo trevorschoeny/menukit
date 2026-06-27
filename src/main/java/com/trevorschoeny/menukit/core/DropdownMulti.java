@@ -228,6 +228,9 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
     @Override public int getWidth()  { return triggerWidth; }
     @Override public int getHeight() { return triggerHeight; }
 
+    /** Interactive — handles clicks/keyboard nav, so it claims (blocks vanilla behind) on a non-opaque panel. */
+    @Override public boolean isInteractive() { return true; }
+
     /**
      * Same active-overlay claim shape as {@link Dropdown}. While the
      * popover is open, declares its bounds as an exclusive modal-area

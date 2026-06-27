@@ -149,6 +149,9 @@ public class Radio<T> extends AbstractPanelElement {
         return BOX_SIZE;
     }
 
+    /** Interactive — handles clicks, so it claims (blocks vanilla behind) on a non-opaque panel. */
+    @Override public boolean isInteractive() { return true; }
+
     // ── Queries ────────────────────────────────────────────────────────
 
     /** Returns this Radio's value (the identifier passed at construction). */

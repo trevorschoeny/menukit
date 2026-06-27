@@ -154,6 +154,9 @@ public class TextField extends AbstractPanelElement {
     @Override public int getWidth()  { return width; }
     @Override public int getHeight() { return height; }
 
+    /** Interactive — handles click-to-focus/typing, so it claims (blocks vanilla behind) on a non-opaque panel. */
+    @Override public boolean isInteractive() { return true; }
+
     @Override
     public void render(RenderContext ctx) {
         // Null-guard: EditBox is lazily constructed in onAttach(). If

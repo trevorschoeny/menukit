@@ -331,13 +331,22 @@ public final class VanillaScreenPanelAdapter {
             }
         }
 
-        // In-panel but no element claimed → still eat (opacity contract).
-        // Same unified rule — focused MK widget outside the click point
-        // gets blurred. Vanilla's natural focus-transition path is
-        // SUPPRESSED by our eat (vanilla never sees the click), so the
-        // layer that eats owns restoring sensible focus state.
-        MKFocus.blurOnOutsideBounds(screen, mouseX, mouseY);
-        return true;
+        // In-panel, not a hole, no element consumed. Eat iff the unified claim
+        // says this panel covers the point — the SAME predicate the container/
+        // lambda paths and every hover/tooltip suppressor use
+        // ({@code ScreenPanelRegistry.panelClaimsPoint}): opaque background, an
+        // active overlay, or a solid interactive element. For the default
+        // opaque vanilla panel this is always true within bounds (behavior
+        // unchanged); a non-opaque vanilla panel with no solid element here now
+        // correctly passes the click through to vanilla instead of eating it.
+        if (ScreenPanelRegistry.panelClaimsPoint(panel, origin, padding, mouseX, mouseY)) {
+            // Vanilla never sees this click (we eat) — the eating layer owns
+            // restoring sensible focus state: blur a focused MK widget the
+            // click landed outside of.
+            MKFocus.blurOnOutsideBounds(screen, mouseX, mouseY);
+            return true;
+        }
+        return false;
     }
 
     /**

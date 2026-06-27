@@ -146,6 +146,9 @@ public class Toggle extends AbstractPanelElement {
     @Override public int getWidth() { return width; }
     @Override public int getHeight() { return height; }
 
+    /** Interactive — handles clicks, so it claims (blocks vanilla behind) on a non-opaque panel. */
+    @Override public boolean isInteractive() { return true; }
+
     // ── State ──────────────────────────────────────────────────────────
 
     /** Returns the current toggle state. */

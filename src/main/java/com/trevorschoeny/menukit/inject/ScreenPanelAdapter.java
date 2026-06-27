@@ -589,7 +589,7 @@ public final class ScreenPanelAdapter {
         //
         // Non-modal-tracking opaque panels (popovers, dropdowns) get
         // bounds-driven hover suppression via the unified registry's
-        // findOpaquePanelAt query in the slot-hover + tooltip mixins —
+        // findCoveringPanelAt query in the slot-hover + tooltip mixins —
         // not via this -1 sentinel. The -1 sentinel here specifically
         // covers "modal-tracking is up; non-modal-tracking MK panels are
         // behind the dim and should look inert."

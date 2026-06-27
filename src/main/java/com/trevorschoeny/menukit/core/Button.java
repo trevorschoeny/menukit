@@ -140,6 +140,9 @@ public class Button extends AbstractPanelElement {
     @Override public int getWidth() { return width; }
     @Override public int getHeight() { return height; }
 
+    /** Interactive — handles clicks, so it claims (blocks vanilla behind) on a non-opaque panel. */
+    @Override public boolean isInteractive() { return true; }
+
     /** Returns the button's display text. */
     public Component getText() { return text; }
 

@@ -29,9 +29,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * Overrides {@link AbstractWidget#isHovered()} (the getter) to return
  * {@code false} when:
  * <ul>
- *   <li>the cursor is over any MK opaque region (panel bounds OR active
- *       element-overlay bounds — see
- *       {@link MKFocus#isCursorOverOpaqueRegion}), AND</li>
+ *   <li>the cursor is covered by any MK content (opaque panel background,
+ *       active element-overlay bounds, or a solid interactive element — see
+ *       {@link MKFocus#isCursorCovered}), AND</li>
  *   <li>this widget is NOT MK-managed — i.e., NOT registered via
  *       {@link MKFocus#addWidget}. MK-managed widgets (TextField's
  *       wrapped EditBox, Keybindery's SearchBox EditBox, any consumer
@@ -90,7 +90,9 @@ public abstract class MenuKitWidgetHoverSuppressMixin {
         double scaledX = mouseHandler.xpos() * window.getGuiScaledWidth() / (double) window.getScreenWidth();
         double scaledY = mouseHandler.ypos() * window.getGuiScaledHeight() / (double) window.getScreenHeight();
 
-        if (MKFocus.isCursorOverOpaqueRegion(scaledX, scaledY)) {
+        // Unified inertness predicate (modal-global OR covered by an opaque
+        // panel/element/overlay) — same question every other suppressor asks.
+        if (MKFocus.isInertUnderPanel(scaledX, scaledY)) {
             cir.setReturnValue(false);
         }
     }

@@ -361,6 +361,35 @@ public interface PanelElement {
     default boolean isElementOpaque() { return true; }
 
     /**
+     * Returns whether this element actually handles pointer input — i.e.
+     * whether a click landing on it should be treated as a solid claim that
+     * blocks the vanilla content behind it. Interactive elements (Button,
+     * TextField, Slider, Dropdown, Toggle, Checkbox, Radio, ScrollContainer)
+     * return {@code true}; render-only decorations (TextLabel, Icon, Divider,
+     * ItemDisplay, ProgressBar, Tooltip) inherit the {@code false} default.
+     *
+     * <p><b>Why this exists (the dead-click guard).</b> On a NON-opaque panel,
+     * the inertness contract only lets a point be claimed where a <em>solid</em>
+     * element sits ({@code panelClaimsPoint} branch (b)). Without this flag an
+     * opaque-but-render-only decoration would claim — and thus EAT — a click it
+     * does nothing with, contradicting the {@code opaque(false)} "clicks pass
+     * through" promise. Gating branch (b) on {@code isElementOpaque() &&
+     * isInteractive()} means only elements that would actually consume the input
+     * block it; decorations stay transparent to clicks. On an OPAQUE panel the
+     * background already blocks the whole bounds, so this flag is moot there.
+     *
+     * <p>Orthogonal to {@link #isElementOpaque}: opacity is "does my visual
+     * footprint occlude" (a solid Icon is opaque), interactivity is "do I
+     * consume input" (the same Icon is not interactive). Both must hold for an
+     * element to claim a point on a non-opaque panel.
+     *
+     * <p>Default {@code false} — the safe direction. A custom consumer element
+     * that wants to block clicks on a transparent panel declares itself
+     * interactive; the default never produces a dead-click.
+     */
+    default boolean isInteractive() { return false; }
+
+    /**
      * Phase 14d-3 — screen-attach lifecycle hook. Called when the
      * containing screen reaches its {@code init()} boundary (or when a
      * lambda-path adapter registers via {@code .activeOn}). Default

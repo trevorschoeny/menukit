@@ -238,6 +238,9 @@ public class ScrollContainer extends AbstractPanelElement {
     @Override public int getWidth()  { return width; }
     @Override public int getHeight() { return height; }
 
+    /** Interactive — handles scroll/scrollbar-drag, so it claims (blocks vanilla behind) on a non-opaque panel. */
+    @Override public boolean isInteractive() { return true; }
+
     @Override
     public void render(RenderContext ctx) {
         var graphics = ctx.graphics();

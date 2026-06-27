@@ -247,6 +247,9 @@ public final class Dropdown<T> extends AbstractPanelElement {
     @Override public int getWidth()  { return triggerWidth; }
     @Override public int getHeight() { return triggerHeight; }
 
+    /** Interactive — handles clicks/keyboard nav, so it claims (blocks vanilla behind) on a non-opaque panel. */
+    @Override public boolean isInteractive() { return true; }
+
     /**
      * Phase 14d-5 active-overlay claim — when popover is open, declares
      * the popover's screen-space bounds as an exclusive modal-area. The

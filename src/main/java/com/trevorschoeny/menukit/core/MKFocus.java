@@ -140,7 +140,7 @@ public final class MKFocus {
      *   <li>{@code VanillaScreenPanelAdapter.mouseClicked} — after any
      *       in-panel dispatch path (overlay match, element claim, or
      *       opacity-eat fallthrough)</li>
-     *   <li>{@code ScreenPanelRegistry.dispatchOpaqueClick} — after the
+     *   <li>{@code ScreenPanelRegistry.dispatchCoveredClick} — after the
      *       opaque-at-cursor dispatch for container screens</li>
      * </ul>
      * The unified rule means clicking any MK button, dropdown, etc.
@@ -221,22 +221,23 @@ public final class MKFocus {
     }
 
     /**
-     * Post-Phase 18r-5: is the cursor currently inside any visible MK
-     * opaque region on the active screen? "Opaque region" means EITHER a
-     * panel's bounds OR an element's active overlay bounds (e.g., open
-     * Dropdown popover that extends beyond its owning panel). Combines
-     * queries across {@link ScreenPanelRegistry} (container-screen +
-     * lambda-active adapters) AND {@link
+     * Post-Phase 18r-5: is the cursor currently <em>covered</em> by any visible
+     * MK content on the active screen? A point is covered when some panel claims
+     * it via the unified {@link ScreenPanelRegistry#panelClaimsPoint} test — an
+     * opaque background (minus per-element holes), an active overlay (e.g., an
+     * open Dropdown popover extending beyond its owning panel), or a solid
+     * interactive element. Combines queries across {@link ScreenPanelRegistry}
+     * (container-screen + lambda-active adapters) AND {@link
      * com.trevorschoeny.menukit.inject.VanillaScreenPanelRegistry}
-     * (non-container vanilla-screen adapters).
+     * (non-container vanilla-screen adapters) — one claim definition for all.
      *
      * <p>Used by the widget-hover-suppression mixin to stop vanilla
      * buttons / list rows from rendering hover highlights when the cursor
      * is "over" them but visually covered by MK content. The opacity-eat
      * input path routes the click away; this closes the visual loop.
      */
-    public static boolean isCursorOverOpaqueRegion(double mouseX, double mouseY) {
-        if (ScreenPanelRegistry.hasAnyVisibleOpaquePanelAt(mouseX, mouseY)) return true;
+    public static boolean isCursorCovered(double mouseX, double mouseY) {
+        if (ScreenPanelRegistry.anyPanelCoversPoint(mouseX, mouseY)) return true;
         if (ScreenPanelRegistry.hasActiveOverlayAt(mouseX, mouseY)) return true;
         Screen screen = Minecraft.getInstance().screen;
         if (VanillaScreenPanelRegistry.hasOpaqueRegionAt(screen, mouseX, mouseY)) return true;
@@ -244,14 +245,14 @@ public final class MKFocus {
     }
 
     /**
-     * No-arg variant of {@link #isCursorOverOpaqueRegion} for callers
+     * No-arg variant of {@link #isCursorCovered} for callers
      * without mouse coords as parameters (e.g., the tooltip-suppression
      * mixin which fires inside {@code GuiGraphics.setTooltipForNextFrame}).
      * Reads cursor position from {@code MouseHandler} and converts to
      * GUI-scaled coords using the same formula as
      * {@code MenuKitModalMouseHandlerMixin}.
      */
-    public static boolean isCursorOverOpaqueRegionAtCursor() {
+    public static boolean isCursorCoveredAtCursor() {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null) return false;
         var window = mc.getWindow();
@@ -259,6 +260,47 @@ public final class MKFocus {
         if (window == null || mouseHandler == null) return false;
         double scaledX = mouseHandler.xpos() * window.getGuiScaledWidth() / (double) window.getScreenWidth();
         double scaledY = mouseHandler.ypos() * window.getGuiScaledHeight() / (double) window.getScreenHeight();
-        return isCursorOverOpaqueRegion(scaledX, scaledY);
+        return isCursorCovered(scaledX, scaledY);
+    }
+
+    /**
+     * THE unified inertness predicate — the single source of truth every
+     * suppression site consults so they cannot disagree about whether vanilla
+     * content at a screen point is covered by MenuKit content. A point is inert
+     * iff vanilla there should receive <em>nothing</em>: no click / release /
+     * scroll, no hover, no highlight, no tooltip.
+     *
+     * <p>Inert iff EITHER:
+     * <ul>
+     *   <li>a visible modal-tracking panel exists — a modal claims the WHOLE
+     *       screen, so everything behind it is inert; OR</li>
+     *   <li>some panel <em>covers</em> (mouseX, mouseY) — its opaque background
+     *       (minus per-element click-through holes), an active overlay, OR a
+     *       solid interactive element — across container, lambda, AND vanilla-
+     *       screen adapters, all through the one
+     *       {@link com.trevorschoeny.menukit.inject.ScreenPanelRegistry#panelClaimsPoint}
+     *       test (see {@link #isCursorCovered}).</li>
+     * </ul>
+     *
+     * <p>Every hover / highlight / tooltip suppressor and the press/release/
+     * scroll eat all reduce to this one question, so a new vanilla surface (a
+     * creative tab, a new widget kind) can't fall through a per-site predicate
+     * gap. The input path's dispatch-returning twin (it also returns the panel
+     * to route the input to) is
+     * {@link com.trevorschoeny.menukit.inject.ScreenPanelRegistry#findCoveringPanelAt}.
+     */
+    public static boolean isInertUnderPanel(double mouseX, double mouseY) {
+        return ScreenPanelRegistry.hasAnyVisibleModalTracking()
+                || isCursorCovered(mouseX, mouseY);
+    }
+
+    /**
+     * No-coord variant of {@link #isInertUnderPanel} — reads the cursor
+     * position from {@code MouseHandler} (for suppressors that fire without
+     * coords, e.g. the tooltip and list-hover mixins).
+     */
+    public static boolean isInertUnderPanelAtCursor() {
+        return ScreenPanelRegistry.hasAnyVisibleModalTracking()
+                || isCursorCoveredAtCursor();
     }
 }
