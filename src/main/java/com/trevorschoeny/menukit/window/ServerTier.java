@@ -16,6 +16,7 @@ public final class ServerTier {
 
     private static volatile ServerTierBridge bridge = NoServerTier.INSTANCE;
     private static volatile AuthoritativeDeclarations declarations = NoServerTier.INSTANCE;
+    private static volatile VanillaSlotIdentity identity = NoServerTier.INSTANCE;
     private static volatile boolean present = false;
 
     /** MKC installs its server-tier implementation here at init. */
@@ -23,6 +24,15 @@ public final class ServerTier {
         bridge = Objects.requireNonNull(bridgeImpl, "bridgeImpl");
         declarations = Objects.requireNonNull(declarationsImpl, "declarationsImpl");
         present = true;
+    }
+
+    /** MKC installs its §0050-backed vanilla-slot identity here (additive). */
+    public static void installIdentity(VanillaSlotIdentity identityImpl) {
+        identity = Objects.requireNonNull(identityImpl, "identityImpl");
+    }
+
+    static VanillaSlotIdentity identity() {
+        return identity;
     }
 
     /** Whether a real server tier (MKC) is installed. */
