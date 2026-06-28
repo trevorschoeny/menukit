@@ -49,12 +49,14 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <h3>Cross-context applicability</h3>
  *
- * Dialogs target MenuContext (vanilla container screen decoration) and
- * StandaloneContext (decorating vanilla standalone screens via mixin).
- * MenuKit-native screens ({@code MKScreen} subclasses) need a separate
- * dispatch path that's filed as a follow-on architectural decision — see
- * {@code Design Docs/Elements/DIALOGS.md} §4.5. SlotGroupContext and HudContext
- * don't apply (anchor mismatch / no input dispatch).
+ * Dialogs work in MenuContext (vanilla container screen decoration),
+ * StandaloneContext (decorating vanilla standalone screens via mixin), and on
+ * MenuKit-native {@code MKScreen} subclasses: add the {@code modal()} dialog
+ * Panel to the screen's panel list (visibility driven by {@link Panel#showWhen})
+ * and {@code MKScreen}'s modal-aware path handles it — {@code dimsBehind} panels
+ * are auto-centered, the dim layer + click-eat + key dispatch route input to the
+ * dialog's buttons only. SlotGroupContext and HudContext don't apply (anchor
+ * mismatch / no input dispatch).
  *
  * <h3>Multi-line body</h3>
  *

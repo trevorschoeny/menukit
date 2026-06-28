@@ -31,9 +31,12 @@ import java.util.function.Supplier;
  * on state renders the same sprite through MenuKit's HSL-lightness
  * inversion pipeline, so consumers don't author two textures.
  *
- * <p>Toggle ships no built-in label or icon. For a labeled toggle, compose
- * a {@link TextLabel} alongside or use {@code Checkbox} (settings-ready
- * variant with a built-in label and conventional check-mark visual).
+ * <p>Toggle supports an optional {@link #label(Component) label}. A labeled Toggle
+ * renders as a <b>bar that shows its label</b> (raised = off, inset = on), auto-sized
+ * to fit the text — the label sits on the toggle body, so it is unmistakably the
+ * toggle's own, not text beside it. An unlabeled Toggle is the bare switch. For the
+ * conventional settings-checkbox visual (square + check-mark) instead, use
+ * {@code Checkbox}.
  *
  * <h3>Mutable-state exception to the declared-structure discipline</h3>
  *
@@ -59,10 +62,22 @@ import java.util.function.Supplier;
  */
 public class Toggle extends AbstractPanelElement {
 
+    /** Horizontal inset for an on-body label inside the toggle bar. */
+    public static final int LABEL_PAD = 6;
+    /** On-body label color — readable on the RAISED/INSET bar (matches Button text). */
+    public static final int LABEL_COLOR = 0xFFFFFFFF;
+    /** Muted on-body label color when disabled. */
+    public static final int LABEL_DISABLED_COLOR = 0xFF808080;
+
     private final int width;
     private final int height;
     private final Consumer<Boolean> onToggle;
     private final @Nullable BooleanSupplier disabledWhen;
+
+    // Optional label drawn centered on the bar (like a Button's text). Null =
+    // unlabeled (the original switch-only Toggle). Set via the chainable label(...)
+    // — the element auto-widens to fit the label and the whole bounds toggles.
+    private @Nullable Supplier<Component> labelSupplier = null;
 
     // Mutable state — the one narrow exception to the declared-structure
     // discipline, documented in the class javadoc above.
@@ -143,7 +158,15 @@ public class Toggle extends AbstractPanelElement {
 
     // ── PanelElement Implementation ────────────────────────────────────
 
-    @Override public int getWidth() { return width; }
+    @Override
+    public int getWidth() {
+        if (labelSupplier == null) return width;
+        Component label = labelSupplier.get();
+        if (label == null) return width;
+        // Labeled = a bar auto-sized to the text (min the passed switch width).
+        return Math.max(width, Minecraft.getInstance().font.width(label) + 2 * LABEL_PAD);
+    }
+
     @Override public int getHeight() { return height; }
 
     /** Interactive — handles clicks, so it claims (blocks vanilla behind) on a non-opaque panel. */
@@ -249,6 +272,23 @@ public class Toggle extends AbstractPanelElement {
         return this;
     }
 
+    /**
+     * Sets an on-body label: the Toggle becomes a bar that shows this label (raised
+     * = off, inset = on), auto-sized to fit it, the whole bar hovering + toggling as
+     * one — the label is the toggle's own, not text beside it. Pass {@code null} to
+     * clear (reverting to the bare switch).
+     */
+    public Toggle label(@Nullable Component label) {
+        this.labelSupplier = label == null ? null : () -> label;
+        return this;
+    }
+
+    /** Supplier-driven label (re-evaluated each frame for dynamic text). */
+    public Toggle label(@Nullable Supplier<Component> label) {
+        this.labelSupplier = label;
+        return this;
+    }
+
     // ── Rendering ──────────────────────────────────────────────────────
 
     /**
@@ -273,6 +313,21 @@ public class Toggle extends AbstractPanelElement {
         boolean on = currentState();
 
         renderBackground(ctx, sx, sy, on, disabled, hovered);
+
+        // On-body label: a labeled Toggle is a bar showing its label, so the label is
+        // unmistakably the toggle's own (not text beside it). Drawn exactly like
+        // Button.renderContent — centered, shadowed, scroll-on-overflow, same text
+        // colors — so a labeled toggle is visually a button (raised) whose on-state
+        // simply stays depressed (inset). getWidth() already covers it for hover +
+        // hit-testing.
+        if (labelSupplier != null) {
+            Component label = labelSupplier.get();
+            if (label != null) {
+                int textColor = disabled ? LABEL_DISABLED_COLOR : LABEL_COLOR;
+                MKText.renderCentered(ctx.graphics(), label,
+                        sx, sy, getWidth(), height, textColor, true);
+            }
+        }
 
         // Hover-triggered tooltip — deferred to end-of-frame by vanilla.
         Supplier<Component> tooltipSupplier = getTooltipSupplier();
@@ -303,14 +358,15 @@ public class Toggle extends AbstractPanelElement {
      */
     protected void renderBackground(RenderContext ctx, int sx, int sy,
                                      boolean on, boolean disabled, boolean hovered) {
+        int w = getWidth();   // labeled = a bar sized to its label; unlabeled = the switch
         PanelStyle bg = disabled ? PanelStyle.DARK
                       : on       ? PanelStyle.INSET
                                  : PanelStyle.RAISED;
-        PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, bg);
+        PanelRendering.renderPanel(ctx.graphics(), sx, sy, w, height, bg);
 
         // Hover highlight — same pattern as Button
         if (!disabled && hovered) {
-            ctx.graphics().fill(sx + 1, sy + 1, sx + width - 1, sy + height - 1,
+            ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + height - 1,
                     0x30FFFFFF);
         }
     }
