@@ -317,6 +317,13 @@ public final class ScreenPanelAdapter {
      * when the consumer wants a specific set of screens; {@code .onAny()}
      * when they genuinely mean "everywhere."
      *
+     * <p>This is also the <b>implicit default</b>: a region-based adapter that
+     * declares no targeting at all is promoted to {@code onAny()} at the first-
+     * screen checkpoint ({@link ScreenPanelRegistry#applyEverywhereDefault}).
+     * Calling {@code onAny()} only makes that intent explicit; to render on
+     * fewer screens, narrow with {@code .on(...)} / {@code .onPlayerInventory()}
+     * / {@code .onMatching(ScreenMatcher.allExcept(...))} instead.
+     *
      * @return this adapter, for chaining
      * @throws IllegalStateException if the adapter is lambda-based or if
      *         targeting was already declared
@@ -337,6 +344,10 @@ public final class ScreenPanelAdapter {
      * survival-only and silently misses creative (§0051). This is the turnkey
      * both-modes target, so a consumer decorating the player inventory cannot
      * accidentally ship a survival-only panel.
+     *
+     * <p>An opt-out narrowing from the everywhere default (see {@link #onAny()}):
+     * call this when a panel belongs only on the player inventory, not on every
+     * container.
      *
      * <p>Equivalent to
      * {@code .on(InventoryScreen.class, CreativeModeInventoryScreen.class)}.
@@ -507,10 +518,12 @@ public final class ScreenPanelAdapter {
 
     /**
      * Tests whether this adapter's declared targets match the given opened
-     * screen class. Always false for lambda-based adapters and for
-     * region-based adapters that haven't declared targeting yet — step 3's
-     * registry dispatch uses this to filter matching adapters per screen
-     * open.
+     * screen class. Always false for lambda-based adapters. A region-based
+     * adapter that hasn't declared targeting returns false only transiently —
+     * the first-screen checkpoint ({@link ScreenPanelRegistry#applyEverywhereDefault})
+     * promotes it to {@code onAny()} (every container) before dispatch, so by the
+     * time this is consulted an undeclared adapter matches all. Step 3's registry
+     * dispatch uses this to filter matching adapters per screen open.
      */
     public boolean matches(Class<? extends AbstractContainerScreen<?>> screenClass) {
         if (targetedAny) return true;

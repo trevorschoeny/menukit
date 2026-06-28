@@ -47,10 +47,13 @@ import org.jetbrains.annotations.ApiStatus;
  *   <li><b>Targeting declaration.</b> {@code .on(Class...)} or
  *       {@code .onAny()} calls {@link #markTargetingDeclared} — the adapter
  *       moves from {@link #PENDING} to {@link #REGISTERED}.</li>
- *   <li><b>Orphan checkpoint.</b> On the first screen-open event after init,
- *       {@link #validateTargetingDeclared} runs. If {@link #PENDING} is
- *       non-empty, those adapters are orphans — {@link IllegalStateException}
- *       fails the client boot visibly, naming each orphan's panel ID.</li>
+ *   <li><b>Default checkpoint.</b> On the first screen-open event after init,
+ *       {@link #applyEverywhereDefault} runs. Any adapter still in
+ *       {@link #PENDING} declared no targeting, so it defaults to <b>every</b>
+ *       container screen — the uniform "default-on, opt-out" model shared with
+ *       {@code SlotScreenPresence} and {@code MKCContainerPanel}. Narrow it
+ *       deliberately with {@code .on(...)} / {@code .onPlayerInventory()} /
+ *       {@code .onMatching(allExcept(...))}.</li>
  *   <li><b>Dispatch.</b> For each opened {@link AbstractContainerScreen},
  *       walk {@link #REGISTERED} and for adapters whose targeting matches
  *       the screen class, cache the match list in {@link #SCREEN_DATA}
@@ -271,15 +274,17 @@ public final class ScreenPanelRegistry {
      */
     private static void onScreenInit(Minecraft client, Screen screen,
                                       int scaledWidth, int scaledHeight) {
-        // Orphan checkpoint — runs once per client session. All region-based
-        // adapters that were constructed during init have completed their
-        // targeting declaration by now (static initializers + onInitializeClient
-        // ran before the first screen opened). Any still in PENDING are
-        // orphans.
+        // Default checkpoint — runs once per client session. All region-based
+        // adapters constructed during init have completed their fluent targeting
+        // chain by now (static initializers + onInitializeClient ran before the
+        // first screen opened). Any still in PENDING declared nothing → default
+        // them to every container screen (the uniform everywhere-default).
         if (!checkpointRun) {
             checkpointRun = true;
-            validateTargetingDeclared();
-            // Phase 18s — vanilla adapters orphan checkpoint runs alongside.
+            applyEverywhereDefault();
+            // Phase 18s — non-container vanilla adapters keep the explicit-
+            // targeting requirement (an everywhere-default makes no sense on
+            // Options/title/etc.); their orphan checkpoint runs alongside.
             VanillaScreenPanelRegistry.validateTargetingDeclared();
         }
 
@@ -1152,38 +1157,39 @@ public final class ScreenPanelRegistry {
         return (Class<? extends AbstractContainerScreen<?>>) raw;
     }
 
-    // ── Orphan enforcement ──────────────────────────────────────────────
+    // ── Default targeting for undeclared adapters ───────────────────────
 
     /**
-     * Validates that every region-based adapter constructed during init
-     * declared its targeting. Called once, on the first screen-open event.
-     * Per M8 §7.3: throws {@link IllegalStateException} naming the orphan
-     * panel IDs, failing the client boot visibly rather than silently
-     * skipping the broken decoration.
+     * Applies the everywhere-default to region-based adapters that reached the
+     * first screen-open without declaring targeting. An undeclared region-based
+     * {@link ScreenPanelAdapter} defaults to <b>every</b> container screen — the
+     * uniform "default-on, opt-out" model shared with
+     * {@link com.trevorschoeny.menukit.core.SlotScreenPresence} and
+     * {@code MKCContainerPanel}. A consumer narrows it deliberately with
+     * {@code .on(...)} / {@code .onPlayerInventory()} /
+     * {@code .onMatching(ScreenMatcher.allExcept(...))}.
      *
-     * <p>Orphans are a build/wiring defect, not a runtime recoverable
-     * condition — a consumer constructed a region-based adapter and never
-     * called {@code .on()} / {@code .onAny()}. The fix is to add the
-     * missing targeting declaration.
+     * <p>Runs once, on the first screen-open after init — every init-time fluent
+     * chain ({@code new ScreenPanelAdapter(...).on(...)}) has completed by then,
+     * so anything still in {@link #PENDING} genuinely declared nothing. Each is
+     * promoted via {@link ScreenPanelAdapter#onAny()} (sets the every-screen
+     * target and moves it {@code PENDING → REGISTERED} so dispatch picks it up).
+     *
+     * <p>Container screens only — non-container vanilla screens (Options, title,
+     * …) keep the explicit-targeting requirement in
+     * {@link VanillaScreenPanelRegistry#validateTargetingDeclared}; an
+     * everywhere-default makes no sense there.
      */
-    public static void validateTargetingDeclared() {
+    public static void applyEverywhereDefault() {
         Set<ScreenPanelAdapter> pendingMenu = pendingSnapshot();
         if (pendingMenu.isEmpty()) return;
-
-        StringBuilder msg = new StringBuilder("MenuKit: ");
-        msg.append(pendingMenu.size())
-           .append(" region-based ScreenPanelAdapter(s) constructed but never " +
-                   "declared targeting (.on / .onAny). Panel IDs: ");
-        boolean first = true;
         for (ScreenPanelAdapter adapter : pendingMenu) {
-            if (!first) msg.append(", ");
-            msg.append(adapter.getPanel().getId());
-            first = false;
+            // Promote to the every-container default (PENDING → REGISTERED).
+            adapter.onAny();
+            LOGGER.debug("[ScreenPanelRegistry] panel '{}' declared no targeting "
+                    + "— defaulting to every container screen.",
+                    adapter.getPanel().getId());
         }
-        msg.append(". Fix by adding the missing .on(...) call(s).");
-        String message = msg.toString();
-        LOGGER.error("[ScreenPanelRegistry] {}", message);
-        throw new IllegalStateException(message);
     }
 
     // Post-§0042 split: SlotGroupPanelAdapter orphan validation runs
