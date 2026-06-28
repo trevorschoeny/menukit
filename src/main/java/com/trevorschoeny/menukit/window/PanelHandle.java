@@ -14,10 +14,15 @@ public final class PanelHandle extends WindowHandle {
         super(address);
     }
 
-    /** Show/hide the whole panel on the client (CLIENT-tier). */
-    public PanelHandle visibility(TriBool visible) {
-        set(BehaviorKeys.VISIBILITY, visible);
+    /** Drive the whole panel's client visibility by a {@link VisibilityRule} (cascades to children). */
+    public PanelHandle visibility(VisibilityRule rule) {
+        set(BehaviorKeys.VISIBILITY, rule);
         return this;
+    }
+
+    /** Show/hide the whole panel on the client (constant rule). */
+    public PanelHandle visibility(boolean visible) {
+        return visibility(VisibilityRule.of(visible));
     }
 
     /** Whether the panel is interaction-opaque (eats clicks over its bounds). */

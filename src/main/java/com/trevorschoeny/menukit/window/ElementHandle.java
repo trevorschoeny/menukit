@@ -14,9 +14,14 @@ public final class ElementHandle extends WindowHandle {
         super(address);
     }
 
-    /** Show/hide this element on the client (CLIENT-tier). */
-    public ElementHandle visibility(TriBool visible) {
-        set(BehaviorKeys.VISIBILITY, visible);
+    /** Drive this element's client visibility by a {@link VisibilityRule}. */
+    public ElementHandle visibility(VisibilityRule rule) {
+        set(BehaviorKeys.VISIBILITY, rule);
         return this;
+    }
+
+    /** Show/hide this element on the client (constant rule). */
+    public ElementHandle visibility(boolean visible) {
+        return visibility(VisibilityRule.of(visible));
     }
 }
