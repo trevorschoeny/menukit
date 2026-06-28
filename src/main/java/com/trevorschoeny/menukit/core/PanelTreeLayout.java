@@ -88,7 +88,12 @@ public record PanelTreeLayout(
         int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
         boolean anyVisible = false;
         for (Panel panel : panels) {
-            if (!panel.isVisible()) continue;
+            // Window VISIBILITY folds into the extent the same as the panel's own
+            // visibility — a window-hidden panel reserves no centering space, so
+            // hide-via-window matches hide-via-isVisible. Client-only resolution
+            // (this layout primitive has only client-screen callers; FQN matches
+            // PanelDispatch's core-package convention).
+            if (!com.trevorschoeny.menukit.window.ClientWindowVisibility.panelShown(panel)) continue;
             // Phase 17 — skip overlay panels (Panel.dimsBehind()) from the
             // bounds aggregation that drives screen centering. They're
             // positioned independently (screen-centered) by the render

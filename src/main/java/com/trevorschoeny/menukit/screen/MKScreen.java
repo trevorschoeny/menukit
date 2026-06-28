@@ -8,6 +8,7 @@ import com.trevorschoeny.menukit.core.PanelRendering;
 import com.trevorschoeny.menukit.core.PanelStyle;
 import com.trevorschoeny.menukit.core.PanelTreeLayout;
 import com.trevorschoeny.menukit.core.RenderContext;
+import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -124,7 +125,7 @@ public class MKScreen extends Screen {
         boolean anyDimBehind = false;
         boolean anyTracksModal = false;
         for (Panel p : panels) {
-            if (!p.isVisible()) continue;
+            if (!ClientWindowVisibility.panelShown(p)) continue;
             if (p.dimsBehind()) anyDimBehind = true;
             if (p.tracksAsModal()) anyTracksModal = true;
         }
@@ -135,7 +136,7 @@ public class MKScreen extends Screen {
         // no tooltip, no element-level click hit-test). Mirrors how
         // ScreenPanelAdapter handles modal-tracking on vanilla screens.
         for (Panel p : panels) {
-            if (!p.isVisible() || p.dimsBehind()) continue;
+            if (!ClientWindowVisibility.panelShown(p) || p.dimsBehind()) continue;
             boolean suppressMouse = anyTracksModal && !p.tracksAsModal();
             renderSinglePanel(p, graphics,
                     suppressMouse ? -1 : mouseX,
@@ -153,7 +154,7 @@ public class MKScreen extends Screen {
         // ── Pass 3: dim panels on top of dim ──────────────────────────
         // Dim panels keep real mouse coords — they're the active surface.
         for (Panel p : panels) {
-            if (!p.isVisible() || !p.dimsBehind()) continue;
+            if (!ClientWindowVisibility.panelShown(p) || !p.dimsBehind()) continue;
             renderSinglePanel(p, graphics, mouseX, mouseY);
         }
     }
@@ -337,10 +338,10 @@ public class MKScreen extends Screen {
     private boolean dispatchElementKeyPress(int keyCode, int scanCode, int modifiers) {
         boolean modalUp = anyVisibleModalTrackingPanel();
         for (Panel panel : panels.reversed()) {
-            if (!panel.isVisible()) continue;
+            if (!ClientWindowVisibility.panelShown(panel)) continue;
             if (modalUp && !panel.tracksAsModal()) continue; // modal-blocked
             for (PanelElement element : panel.getElements()) {
-                if (!element.isVisible()) continue;
+                if (!ClientWindowVisibility.elementShown(panel, element)) continue;
                 if (element.keyPressed(keyCode, scanCode, modifiers)) {
                     return true;
                 }
@@ -352,7 +353,7 @@ public class MKScreen extends Screen {
     /** Returns true if at least one visible panel has {@code tracksAsModal()} set. */
     private boolean anyVisibleModalTrackingPanel() {
         for (Panel p : panels) {
-            if (p.isVisible() && p.tracksAsModal()) return true;
+            if (ClientWindowVisibility.panelShown(p) && p.tracksAsModal()) return true;
         }
         return false;
     }
@@ -389,10 +390,10 @@ public class MKScreen extends Screen {
 
         // ── Pass 1: active-overlay exclusive claims ───────────────────
         for (Panel panel : reversed) {
-            if (!panel.isVisible()) continue;
+            if (!ClientWindowVisibility.panelShown(panel)) continue;
             if (modalUp && !panel.tracksAsModal()) continue; // modal-blocked
             for (PanelElement element : panel.getElements()) {
-                if (!element.isVisible()) continue;
+                if (!ClientWindowVisibility.elementShown(panel, element)) continue;
                 int[] overlay = element.getActiveOverlayBounds();
                 if (overlay != null
                         && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
@@ -405,7 +406,7 @@ public class MKScreen extends Screen {
 
         // ── Pass 2: normal hit-test dispatch ──────────────────────────
         for (Panel panel : reversed) {
-            if (!panel.isVisible()) continue;
+            if (!ClientWindowVisibility.panelShown(panel)) continue;
             if (modalUp && !panel.tracksAsModal()) continue; // modal-blocked
             int[] rect = effectivePanelScreenBounds(panel);
             if (rect == null) continue;
@@ -415,7 +416,7 @@ public class MKScreen extends Screen {
             int contentY = rect[1] + padding;
 
             for (PanelElement element : panel.getElements()) {
-                if (!element.isVisible()) continue;
+                if (!ClientWindowVisibility.elementShown(panel, element)) continue;
 
                 // hit-test via PanelElement.hitTest (default = layout-bounds)
                 if (element.hitTest(mouseX, mouseY, contentX, contentY)) {
@@ -465,10 +466,10 @@ public class MKScreen extends Screen {
 
         // Pass 1: active-overlay exclusive claims
         for (Panel panel : reversed) {
-            if (!panel.isVisible()) continue;
+            if (!ClientWindowVisibility.panelShown(panel)) continue;
             if (modalUp && !panel.tracksAsModal()) continue;
             for (PanelElement element : panel.getElements()) {
-                if (!element.isVisible()) continue;
+                if (!ClientWindowVisibility.elementShown(panel, element)) continue;
                 int[] overlay = element.getActiveOverlayBounds();
                 if (overlay != null
                         && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
@@ -481,7 +482,7 @@ public class MKScreen extends Screen {
 
         // Pass 2: normal hit-test
         for (Panel panel : reversed) {
-            if (!panel.isVisible()) continue;
+            if (!ClientWindowVisibility.panelShown(panel)) continue;
             if (modalUp && !panel.tracksAsModal()) continue;
             int[] rect = effectivePanelScreenBounds(panel);
             if (rect == null) continue;
@@ -491,7 +492,7 @@ public class MKScreen extends Screen {
             int contentY = rect[1] + padding;
 
             for (PanelElement element : panel.getElements()) {
-                if (!element.isVisible()) continue;
+                if (!ClientWindowVisibility.elementShown(panel, element)) continue;
 
                 if (element.hitTest(mouseX, mouseY, contentX, contentY)) {
                     if (element.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) {
@@ -512,9 +513,9 @@ public class MKScreen extends Screen {
         // can clean up drag state. Mirrors ScreenPanelRegistry's release
         // dispatch which fires for every adapter regardless of modal.
         for (Panel panel : panels) {
-            if (!panel.isVisible()) continue;
+            if (!ClientWindowVisibility.panelShown(panel)) continue;
             for (PanelElement element : panel.getElements()) {
-                if (!element.isVisible()) continue;
+                if (!ClientWindowVisibility.elementShown(panel, element)) continue;
                 element.mouseReleased(event.x(), event.y(), event.button());
             }
         }
