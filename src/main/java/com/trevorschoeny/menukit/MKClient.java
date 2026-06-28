@@ -9,10 +9,15 @@ import com.trevorschoeny.menukit.input.CursorContinuity;
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevorschoeny.menukit.mixin.MKRecipeBookAccessor;
 
+import com.trevorschoeny.menukit.window.WindowSignals;
+
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
 import net.minecraft.client.gui.screens.inventory.CraftingScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
@@ -133,9 +138,28 @@ public class MKClient implements ClientModInitializer {
             }
             // Client-observed reactive verbs (ON_*_OBSERVED) — diff the open
             // container menu's synced contents and fire UI-feedback reactions.
-            com.trevorschoeny.menukit.window.ObservedReactions.tick(
-                    client.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> acs
-                            ? acs.getMenu() : null);
+            AbstractContainerScreen<?> acs =
+                    client.screen instanceof AbstractContainerScreen<?> s ? s : null;
+            com.trevorschoeny.menukit.window.ObservedReactions.tick(acs != null ? acs.getMenu() : null);
+            // Slot interaction signals — which slot the cursor is over (read from the
+            // screen's hoveredSlot via the accessor); the click half is wired below.
+            WindowSignals.tickHover(
+                    acs != null ? acs.getMenu() : null,
+                    acs != null ? ((AbstractContainerScreenAccessor) (Object) acs).mk$getHoveredSlot() : null);
+        });
+
+        // Slot interaction signals — record the last-clicked slot on any container
+        // screen (the slot under the cursor at click time) and clear it on close.
+        // Pure observation; the click still does its normal vanilla thing.
+        ScreenEvents.AFTER_INIT.register((mc, screen, w, h) -> {
+            if (screen instanceof AbstractContainerScreen<?> acs) {
+                ScreenMouseEvents.afterMouseClick(screen).register((scr, event, consumed) -> {
+                    WindowSignals.recordClick(acs.getMenu(),
+                            ((AbstractContainerScreenAccessor) (Object) acs).mk$getHoveredSlot());
+                    return false; // observation only — never consume
+                });
+                ScreenEvents.remove(screen).register(scr -> WindowSignals.clearSelection());
+            }
         });
     }
 
