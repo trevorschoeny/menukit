@@ -867,8 +867,8 @@ public final class ScreenPanelRegistry {
         if (panelHoleAt(panel, origin, padding, mouseX, mouseY)) {
             return false;
         }
-        // (3) (a) opaque background.
-        if (panel.isOpaque()
+        // (3) (a) opaque background — panel.isOpaque() AND the engine OPACITY key.
+        if (ClientWindowVisibility.panelOpaque(panel)
                 && containsPoint(origin, padding, panel.getWidth(), panel.getHeight(),
                         mouseX, mouseY)) {
             return true;

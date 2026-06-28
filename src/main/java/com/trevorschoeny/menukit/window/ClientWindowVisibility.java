@@ -41,4 +41,15 @@ public final class ClientWindowVisibility {
         if (!element.isVisible()) return false;
         return WindowEngine.resolve(PanelAddressing.of(panel, element), BehaviorKeys.VISIBILITY).visible();
     }
+
+    /**
+     * Client-side: is this panel interaction-opaque (eats clicks over its bounds)?
+     * The panel's own {@code isOpaque()} AND the engine {@code OPACITY} key. Additive
+     * (OPACITY defaults TRUE, so this equals {@code isOpaque()} until set through the
+     * window). Resolved by panel address, client-side.
+     */
+    public static boolean panelOpaque(Panel panel) {
+        if (!panel.isOpaque()) return false;
+        return WindowEngine.resolve(PanelAddressing.of(panel), BehaviorKeys.OPACITY).asBoolean();
+    }
 }
