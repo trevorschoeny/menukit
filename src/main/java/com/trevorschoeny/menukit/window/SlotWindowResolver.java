@@ -59,10 +59,7 @@ public final class SlotWindowResolver {
     public static Optional<Slot> resolve(AbstractContainerScreen<?> screen, Address address) {
         AbstractContainerMenu menu = screen.getMenu();
         return switch (address.kind()) {
-            // Vanilla slots are menu-intrinsic: the owner gate (family+scope == the
-            // live menu) IS the held-handle no-op for them.
-            case VANILLA_SLOT -> ownerMatches(menu, address.owner())
-                    ? vanillaSlot(menu, address) : Optional.empty();
+            case VANILLA_SLOT -> resolveVanilla(menu, address);
             // Created slots are menu-INDEPENDENT (identity = panel + decl); the
             // port's scan is itself the presence check, so no family gate applies.
             case CREATED_SLOT -> created(menu, address).map(CreatedSlotResolver.CreatedResolution::slot);
@@ -83,10 +80,8 @@ public final class SlotWindowResolver {
         int left = acc.mk$getLeftPos();
         int top = acc.mk$getTopPos();
         return switch (address.kind()) {
-            // Vanilla: menu-family gate (held-handle no-op). Created: scan is the check.
-            case VANILLA_SLOT -> ownerMatches(menu, address.owner())
-                    ? vanillaSlot(menu, address).map(s -> new SlotScreenRect(left + s.x, top + s.y, 16, 16))
-                    : Optional.empty();
+            case VANILLA_SLOT -> resolveVanilla(menu, address)
+                    .map(s -> new SlotScreenRect(left + s.x, top + s.y, 16, 16));
             case CREATED_SLOT -> created(menu, address)
                     .map(r -> new SlotScreenRect(left + r.frameX(), top + r.frameY(), 16, 16));
             case PANEL, PANEL_ELEMENT -> Optional.empty();
@@ -94,6 +89,24 @@ public final class SlotWindowResolver {
     }
 
     // ── internals ──────────────────────────────────────────────────────
+
+    /**
+     * A container-addressed (menu-independent) vanilla address resolves by an
+     * identity scan — the live slot whose minted address matches — the same
+     * pattern as created slots, and itself the held-handle no-op (not found =
+     * empty). A menu-based fallback address resolves by the family gate +
+     * flat-index lookup.
+     */
+    private static Optional<Slot> resolveVanilla(AbstractContainerMenu menu, Address address) {
+        if (VanillaAddressing.isContainerAddressed(address)) {
+            for (Slot s : menu.slots) {
+                if (VanillaAddressing.addressOf(menu, s).equals(address)) return Optional.of(s);
+            }
+            return Optional.empty();
+        }
+        if (!ownerMatches(menu, address.owner())) return Optional.empty();
+        return vanillaSlot(menu, address);
+    }
 
     private static Optional<Slot> vanillaSlot(AbstractContainerMenu menu, Address address) {
         if (!(address.token() instanceof Token.IndexToken it)) return Optional.empty();
