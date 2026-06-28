@@ -8,11 +8,17 @@ package com.trevorschoeny.menukit.window;
  * This is what makes an MK-alone consumer a full citizen: it can NAME server-tier
  * verbs (the keys live in MK) and calling them is harmless.
  */
-final class NoServerTier implements ServerTierBridge, AuthoritativeDeclarations, VanillaSlotIdentity {
+final class NoServerTier implements ServerTierBridge, AuthoritativeDeclarations, VanillaSlotIdentity, ReactiveDispatch {
 
     static final NoServerTier INSTANCE = new NoServerTier();
 
     private NoServerTier() {}
+
+    @Override
+    public void fire(ReactiveHook hook, ReactEvent event) {
+        // no-op — a SERVER-tier reaction never fires without MKC; the keys still
+        // resolve and the observed (client) reactions fire independently.
+    }
 
     @Override
     public java.util.Optional<Resolved> identify(net.minecraft.world.Container container, int containerSlotIndex) {

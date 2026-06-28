@@ -8,7 +8,8 @@ import java.util.Objects;
  * init). Defaults to the {@link NoServerTier} null-object, so MK alone is fully
  * functional — server-tier reads say "no override" and writes are no-ops.
  *
- * <p>The reactive-dispatch port joins this holder in Phase 4 (reactive verbs).
+ * <p>The reactive-dispatch port (Phase 4) joins this holder: server-authoritative
+ * reactions route through {@link #dispatch()}, a no-op when MK-alone.
  */
 public final class ServerTier {
 
@@ -17,6 +18,7 @@ public final class ServerTier {
     private static volatile ServerTierBridge bridge = NoServerTier.INSTANCE;
     private static volatile AuthoritativeDeclarations declarations = NoServerTier.INSTANCE;
     private static volatile VanillaSlotIdentity identity = NoServerTier.INSTANCE;
+    private static volatile ReactiveDispatch dispatch = NoServerTier.INSTANCE;
     private static volatile boolean present = false;
 
     /** MKC installs its server-tier implementation here at init. */
@@ -29,6 +31,15 @@ public final class ServerTier {
     /** MKC installs its §0050-backed vanilla-slot identity here (additive). */
     public static void installIdentity(VanillaSlotIdentity identityImpl) {
         identity = Objects.requireNonNull(identityImpl, "identityImpl");
+    }
+
+    /** MKC installs its server-thread reactive firing here (additive). */
+    public static void installDispatch(ReactiveDispatch dispatchImpl) {
+        dispatch = Objects.requireNonNull(dispatchImpl, "dispatchImpl");
+    }
+
+    static ReactiveDispatch dispatch() {
+        return dispatch;
     }
 
     static VanillaSlotIdentity identity() {
