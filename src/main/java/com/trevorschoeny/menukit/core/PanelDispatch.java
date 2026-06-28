@@ -43,7 +43,18 @@ public final class PanelDispatch {
      *              origin (panel origin + padding) by the caller
      */
     public static void renderElements(Panel panel, RenderContext ctx) {
-        renderElements(panel.getElements(), ctx);
+        // Panel-aware path: each element's visibility folds in its engine VISIBILITY
+        // (and, via the owner-chain cascade, a hidden parent panel) — resolved
+        // CLIENT-side here. Two passes (base then overlay), like the List overload.
+        java.util.List<PanelElement> elements = panel.getElements();
+        for (PanelElement element : elements) {
+            if (!com.trevorschoeny.menukit.window.ClientWindowVisibility.elementShown(panel, element)) continue;
+            element.render(ctx);
+        }
+        for (PanelElement element : elements) {
+            if (!com.trevorschoeny.menukit.window.ClientWindowVisibility.elementShown(panel, element)) continue;
+            element.renderOverlay(ctx);
+        }
     }
 
     /**

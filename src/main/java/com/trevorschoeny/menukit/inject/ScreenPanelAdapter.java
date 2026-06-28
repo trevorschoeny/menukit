@@ -7,6 +7,7 @@ import com.trevorschoeny.menukit.core.PanelRendering;
 import com.trevorschoeny.menukit.core.PanelStyle;
 import com.trevorschoeny.menukit.core.RegionAnchor;
 import com.trevorschoeny.menukit.core.RenderContext;
+import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -550,7 +551,7 @@ public final class ScreenPanelAdapter {
      */
     public Optional<ScreenOrigin> getOrigin(ScreenBounds screenBounds,
                                             AbstractContainerScreen<?> screen) {
-        if (!panel.isVisible()) return Optional.empty();
+        if (!ClientWindowVisibility.panelShown(panel)) return Optional.empty();
         ScreenOrigin origin = originFn.compute(screenBounds, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return Optional.empty();
         return Optional.of(origin);
@@ -570,7 +571,7 @@ public final class ScreenPanelAdapter {
      */
     public Optional<ScreenOrigin> getOriginForScreen(ScreenBounds screenBounds,
                                                       @Nullable Screen screen) {
-        if (!panel.isVisible()) return Optional.empty();
+        if (!ClientWindowVisibility.panelShown(panel)) return Optional.empty();
         AbstractContainerScreen<?> acs = (screen instanceof AbstractContainerScreen<?> a) ? a : null;
         ScreenOrigin origin = originFn.compute(screenBounds, acs);
         if (origin == ScreenOrigin.OUT_OF_REGION) return Optional.empty();
@@ -594,7 +595,7 @@ public final class ScreenPanelAdapter {
     public void render(GuiGraphics graphics, ScreenBounds screenBounds,
                        int mouseX, int mouseY,
                        AbstractContainerScreen<?> screen) {
-        if (!panel.isVisible()) return;
+        if (!ClientWindowVisibility.panelShown(panel)) return;
 
         ScreenOrigin origin = originFn.compute(screenBounds, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return;
@@ -680,7 +681,7 @@ public final class ScreenPanelAdapter {
     public boolean mouseClicked(ScreenBounds screenBounds,
                                 double mouseX, double mouseY, int button,
                                 AbstractContainerScreen<?> screen) {
-        if (!panel.isVisible()) return false;
+        if (!ClientWindowVisibility.panelShown(panel)) return false;
 
         ScreenOrigin origin = originFn.compute(screenBounds, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return false;
@@ -692,7 +693,7 @@ public final class ScreenPanelAdapter {
         //   Pass 1: active-overlay claims (Dropdown popover when open).
         //   Pass 2: normal hit-test dispatch.
         for (PanelElement element : panel.getElements()) {
-            if (!element.isVisible()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
             int[] overlay = element.getActiveOverlayBounds();
             if (overlay != null
                     && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
@@ -703,7 +704,7 @@ public final class ScreenPanelAdapter {
         }
 
         for (PanelElement element : panel.getElements()) {
-            if (!element.isVisible()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
 
             if (!element.hitTest(mouseX, mouseY, contentX, contentY)) continue;
 
@@ -729,7 +730,7 @@ public final class ScreenPanelAdapter {
                                  double mouseX, double mouseY,
                                  double scrollX, double scrollY,
                                  AbstractContainerScreen<?> screen) {
-        if (!panel.isVisible()) return false;
+        if (!ClientWindowVisibility.panelShown(panel)) return false;
 
         ScreenOrigin origin = originFn.compute(screenBounds, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return false;
@@ -739,7 +740,7 @@ public final class ScreenPanelAdapter {
 
         // Phase 14d-5 — two-pass dispatch matching mouseClicked.
         for (PanelElement element : panel.getElements()) {
-            if (!element.isVisible()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
             int[] overlay = element.getActiveOverlayBounds();
             if (overlay != null
                     && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
@@ -750,7 +751,7 @@ public final class ScreenPanelAdapter {
         }
 
         for (PanelElement element : panel.getElements()) {
-            if (!element.isVisible()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
 
             if (!element.hitTest(mouseX, mouseY, contentX, contentY)) continue;
 
@@ -774,10 +775,10 @@ public final class ScreenPanelAdapter {
     public boolean mouseReleased(ScreenBounds screenBounds,
                                  double mouseX, double mouseY, int button,
                                  AbstractContainerScreen<?> screen) {
-        if (!panel.isVisible()) return false;
+        if (!ClientWindowVisibility.panelShown(panel)) return false;
         boolean consumed = false;
         for (PanelElement element : panel.getElements()) {
-            if (!element.isVisible()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
             if (element.mouseReleased(mouseX, mouseY, button)) {
                 consumed = true;
             }
@@ -794,9 +795,9 @@ public final class ScreenPanelAdapter {
      * Canonical consumer: an open {@link com.trevorschoeny.menukit.core.Dropdown}.
      */
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (!panel.isVisible()) return false;
+        if (!ClientWindowVisibility.panelShown(panel)) return false;
         for (PanelElement element : panel.getElements()) {
-            if (!element.isVisible()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
             if (element.keyPressed(keyCode, scanCode, modifiers)) {
                 return true;
             }

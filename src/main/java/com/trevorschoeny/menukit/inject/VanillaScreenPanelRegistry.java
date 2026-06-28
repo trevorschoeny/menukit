@@ -1,6 +1,7 @@
 package com.trevorschoeny.menukit.inject;
 
 import com.trevorschoeny.menukit.mixin.ScreenAccessor;
+import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
@@ -153,7 +154,7 @@ public final class VanillaScreenPanelRegistry {
         for (VanillaScreenPanelAdapter adapter : REGISTERED) {
             if (!adapter.matches(screen)) continue;
             var panel = adapter.getPanel();
-            if (!panel.isVisible()) continue;
+            if (!ClientWindowVisibility.panelShown(panel)) continue;
             var origin = adapter.getOriginForScreen(sw, sh, screen);
             if (origin.isEmpty()) continue;
             // Unified claim test — the SAME predicate the container + lambda

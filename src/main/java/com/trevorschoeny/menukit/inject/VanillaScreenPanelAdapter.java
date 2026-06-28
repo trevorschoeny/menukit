@@ -9,6 +9,7 @@ import com.trevorschoeny.menukit.core.PanelStyle;
 import com.trevorschoeny.menukit.core.RegionAnchor;
 import com.trevorschoeny.menukit.core.RenderContext;
 import com.trevorschoeny.menukit.core.VanillaScreenRegion;
+import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -220,7 +221,7 @@ public final class VanillaScreenPanelAdapter {
      * Used by {@link VanillaScreenPanelRegistry} for hit-test math.
      */
     public Optional<ScreenOrigin> getOriginForScreen(int sw, int sh, Screen screen) {
-        if (!panel.isVisible()) return Optional.empty();
+        if (!ClientWindowVisibility.panelShown(panel)) return Optional.empty();
         ScreenOrigin origin = originFn.compute(sw, sh, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return Optional.empty();
         return Optional.of(origin);
@@ -233,7 +234,7 @@ public final class VanillaScreenPanelAdapter {
      */
     public void render(GuiGraphics graphics, int sw, int sh,
                        int mouseX, int mouseY, Screen screen) {
-        if (!panel.isVisible()) return;
+        if (!ClientWindowVisibility.panelShown(panel)) return;
 
         ScreenOrigin origin = originFn.compute(sw, sh, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return;
@@ -275,7 +276,7 @@ public final class VanillaScreenPanelAdapter {
      */
     public boolean mouseClicked(int sw, int sh, double mouseX, double mouseY,
                                  int button, Screen screen) {
-        if (!panel.isVisible()) return false;
+        if (!ClientWindowVisibility.panelShown(panel)) return false;
 
         ScreenOrigin origin = originFn.compute(sw, sh, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return false;
@@ -286,7 +287,7 @@ public final class VanillaScreenPanelAdapter {
         // bounds ARE the source of truth for these elements, not layout
         // bounds.
         for (PanelElement element : panel.getElements()) {
-            if (!element.isVisible()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
             int[] overlay = element.getActiveOverlayBounds();
             if (overlay != null
                     && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
@@ -316,7 +317,7 @@ public final class VanillaScreenPanelAdapter {
         int contentY = origin.y() + padding;
 
         for (PanelElement element : panel.getElements()) {
-            if (!element.isVisible()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
             if (!element.hitTest(mouseX, mouseY, contentX, contentY)) continue;
             if (element.mouseClicked(mouseX, mouseY, button)) {
                 // Element claimed. Apply unified focus-janitor rule —
@@ -355,7 +356,7 @@ public final class VanillaScreenPanelAdapter {
      */
     public boolean mouseScrolled(int sw, int sh, double mouseX, double mouseY,
                                   double scrollX, double scrollY, Screen screen) {
-        if (!panel.isVisible()) return false;
+        if (!ClientWindowVisibility.panelShown(panel)) return false;
 
         ScreenOrigin origin = originFn.compute(sw, sh, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return false;
@@ -364,7 +365,7 @@ public final class VanillaScreenPanelAdapter {
         int contentY = origin.y() + padding;
 
         for (PanelElement element : panel.getElements()) {
-            if (!element.isVisible()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
             int[] overlay = element.getActiveOverlayBounds();
             if (overlay != null
                     && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
@@ -375,7 +376,7 @@ public final class VanillaScreenPanelAdapter {
         }
 
         for (PanelElement element : panel.getElements()) {
-            if (!element.isVisible()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
             if (!element.hitTest(mouseX, mouseY, contentX, contentY)) continue;
             if (element.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) {
                 return true;
@@ -390,10 +391,10 @@ public final class VanillaScreenPanelAdapter {
      * detection works when the cursor has moved off during drag).
      */
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (!panel.isVisible()) return false;
+        if (!ClientWindowVisibility.panelShown(panel)) return false;
         boolean consumed = false;
         for (PanelElement element : panel.getElements()) {
-            if (!element.isVisible()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
             if (element.mouseReleased(mouseX, mouseY, button)) {
                 consumed = true;
             }
@@ -409,9 +410,9 @@ public final class VanillaScreenPanelAdapter {
      * consumer: an open {@link com.trevorschoeny.menukit.core.Dropdown}.
      */
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (!panel.isVisible()) return false;
+        if (!ClientWindowVisibility.panelShown(panel)) return false;
         for (PanelElement element : panel.getElements()) {
-            if (!element.isVisible()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
             if (element.keyPressed(keyCode, scanCode, modifiers)) {
                 return true;
             }

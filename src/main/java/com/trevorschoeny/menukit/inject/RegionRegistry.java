@@ -7,6 +7,7 @@ import com.trevorschoeny.menukit.core.RegionAnchor;
 import com.trevorschoeny.menukit.core.RegionMath;
 import com.trevorschoeny.menukit.core.VanillaScreenRegion;
 import com.trevorschoeny.menukit.hud.MKHudPanelDef;
+import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -191,7 +192,7 @@ public final class RegionRegistry {
         boolean horizontal = region.isHorizontalFlow();
         for (Panel p : panels) {
             if (p == self) return prefix;
-            if (!p.isVisible()) continue;
+            if (!ClientWindowVisibility.panelShown(p)) continue;
             int pad = MENU_PADDING.getOrDefault(p, 0);
             int extent = (horizontal ? p.getWidth() : p.getHeight()) + 2 * pad;
             prefix += extent + RegionMath.STACK_GAP;
@@ -395,7 +396,7 @@ public final class RegionRegistry {
         int prefix = 0;
         for (Panel p : panels) {
             if (p == self) return prefix;
-            if (!p.isVisible()) continue;
+            if (!ClientWindowVisibility.panelShown(p)) continue;
             int pad = VANILLA_SCREEN_PADDING.getOrDefault(p, 0);
             int extent = p.getHeight() + 2 * pad;
             prefix += extent + VanillaScreenRegion.STACK_GAP;

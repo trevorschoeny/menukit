@@ -4,6 +4,7 @@ import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.RegionMath;
 import com.trevorschoeny.menukit.core.SlotGroupCategory;
 import com.trevorschoeny.menukit.core.SlotGroupRegion;
+import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,7 +93,7 @@ public final class SlotGroupRegionRegistry {
         boolean horizontal = region.isHorizontalFlow();
         for (Panel p : panels) {
             if (p == self) return prefix;
-            if (!p.isVisible()) continue;
+            if (!ClientWindowVisibility.panelShown(p)) continue;
             int pad = SLOT_GROUP_PADDING.getOrDefault(p, 0);
             int extent = (horizontal ? p.getWidth() : p.getHeight()) + 2 * pad;
             prefix += extent + RegionMath.STACK_GAP;

@@ -3,6 +3,7 @@ package com.trevorschoeny.menukit.inject;
 import com.trevorschoeny.menukit.core.MKFocus;
 import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.PanelElement;
+import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 import com.trevorschoeny.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevorschoeny.menukit.mixin.ScreenAccessor;
 
@@ -657,7 +658,7 @@ public final class ScreenPanelRegistry {
                 ScreenBounds frame = frameBounds(acs);
                 for (ScreenPanelAdapter adapter : data.menuMatches) {
                     Panel panel = adapter.getPanel();
-                    if (!panel.isVisible()) continue;
+                    if (!ClientWindowVisibility.panelShown(panel)) continue;
                     adapter.mouseReleased(frame, mouseX, mouseY, button, acs);
                 }
             }
@@ -669,7 +670,7 @@ public final class ScreenPanelRegistry {
                 for (LambdaActiveEntry entry : entries) {
                     ScreenPanelAdapter adapter = entry.adapter();
                     Panel panel = adapter.getPanel();
-                    if (!panel.isVisible()) continue;
+                    if (!ClientWindowVisibility.panelShown(panel)) continue;
                     ScreenBounds bounds = entry.boundsSupplier().get();
                     if (bounds == null) continue;
                     adapter.mouseReleased(bounds, mouseX, mouseY, button,
@@ -744,7 +745,7 @@ public final class ScreenPanelRegistry {
                 ScreenBounds frame = frameBounds(acs);
                 for (ScreenPanelAdapter adapter : data.menuMatches) {
                     Panel panel = adapter.getPanel();
-                    if (!panel.isVisible()) continue;
+                    if (!ClientWindowVisibility.panelShown(panel)) continue;
                     var origin = adapter.getOrigin(frame, acs);
                     if (origin.isEmpty()) continue;
                     if (panelClaimsPoint(panel, origin.get(), adapter.getPadding(),
@@ -762,7 +763,7 @@ public final class ScreenPanelRegistry {
                 for (LambdaActiveEntry entry : entries) {
                     ScreenPanelAdapter adapter = entry.adapter();
                     Panel panel = adapter.getPanel();
-                    if (!panel.isVisible()) continue;
+                    if (!ClientWindowVisibility.panelShown(panel)) continue;
                     ScreenBounds bounds = entry.boundsSupplier().get();
                     if (bounds == null) continue;
                     var origin = adapter.getOriginForScreen(bounds, screen);
@@ -808,7 +809,7 @@ public final class ScreenPanelRegistry {
         int contentX = origin.x() + padding;
         int contentY = origin.y() + padding;
         for (PanelElement el : panel.getElements()) {
-            if (!el.isVisible() || el.isElementOpaque()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, el) || el.isElementOpaque()) continue;
             int ex = contentX + el.getChildX();
             int ey = contentY + el.getChildY();
             if (mouseX >= ex && mouseX < ex + el.getWidth()
@@ -887,7 +888,7 @@ public final class ScreenPanelRegistry {
     private static boolean panelHasActiveOverlayAt(Panel panel, ScreenOrigin origin, int padding,
                                                    double mouseX, double mouseY) {
         for (PanelElement el : panel.getElements()) {
-            if (!el.isVisible()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, el)) continue;
             int[] overlay = el.getActiveOverlayBounds();
             if (overlay != null
                     && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
@@ -914,7 +915,7 @@ public final class ScreenPanelRegistry {
         int contentX = origin.x() + padding;
         int contentY = origin.y() + padding;
         for (PanelElement el : panel.getElements()) {
-            if (!el.isVisible() || !el.isElementOpaque() || !el.isInteractive()) continue;
+            if (!ClientWindowVisibility.elementShown(panel, el) || !el.isElementOpaque() || !el.isInteractive()) continue;
             if (el.hitTest(mouseX, mouseY, contentX, contentY)) return true;
         }
         return false;
@@ -962,7 +963,7 @@ public final class ScreenPanelRegistry {
         if (data == null) return false;
         for (ScreenPanelAdapter adapter : data.menuMatches) {
             Panel panel = adapter.getPanel();
-            if (panel.isVisible() && panel.tracksAsModal()) return true;
+            if (ClientWindowVisibility.panelShown(panel) && panel.tracksAsModal()) return true;
         }
         // Lambda-active modal-tracking panels too.
         synchronized (LAMBDA_ACTIVE) {
@@ -970,7 +971,7 @@ public final class ScreenPanelRegistry {
             if (entries != null) {
                 for (LambdaActiveEntry entry : entries) {
                     Panel panel = entry.adapter().getPanel();
-                    if (panel.isVisible() && panel.tracksAsModal()) return true;
+                    if (ClientWindowVisibility.panelShown(panel) && panel.tracksAsModal()) return true;
                 }
             }
         }
@@ -1001,7 +1002,7 @@ public final class ScreenPanelRegistry {
             if (entries != null) {
                 for (LambdaActiveEntry entry : entries) {
                     Panel panel = entry.adapter().getPanel();
-                    if (panel.isVisible() && panel.tracksAsModal()) return true;
+                    if (ClientWindowVisibility.panelShown(panel) && panel.tracksAsModal()) return true;
                 }
             }
         }
@@ -1018,7 +1019,7 @@ public final class ScreenPanelRegistry {
         if (data == null) return false;
         for (ScreenPanelAdapter adapter : data.menuMatches) {
             Panel panel = adapter.getPanel();
-            if (panel.isVisible() && panel.dimsBehind()) return true;
+            if (ClientWindowVisibility.panelShown(panel) && panel.dimsBehind()) return true;
         }
         return false;
     }
@@ -1076,9 +1077,9 @@ public final class ScreenPanelRegistry {
             if (data != null) {
                 for (ScreenPanelAdapter adapter : data.menuMatches) {
                     Panel panel = adapter.getPanel();
-                    if (!panel.isVisible()) continue;
+                    if (!ClientWindowVisibility.panelShown(panel)) continue;
                     for (var element : panel.getElements()) {
-                        if (!element.isVisible()) continue;
+                        if (!ClientWindowVisibility.elementShown(panel, element)) continue;
                         int[] overlay = element.getActiveOverlayBounds();
                         if (overlay != null
                                 && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
@@ -1096,9 +1097,9 @@ public final class ScreenPanelRegistry {
             if (entries != null) {
                 for (LambdaActiveEntry entry : entries) {
                     Panel panel = entry.adapter().getPanel();
-                    if (!panel.isVisible()) continue;
+                    if (!ClientWindowVisibility.panelShown(panel)) continue;
                     for (var element : panel.getElements()) {
-                        if (!element.isVisible()) continue;
+                        if (!ClientWindowVisibility.elementShown(panel, element)) continue;
                         int[] overlay = element.getActiveOverlayBounds();
                         if (overlay != null
                                 && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
