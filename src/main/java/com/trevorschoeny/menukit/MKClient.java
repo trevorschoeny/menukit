@@ -131,6 +131,11 @@ public class MKClient implements ClientModInitializer {
                 client.getWindow().setAllowCursorChanges(
                         !com.trevorschoeny.menukit.inject.ScreenPanelRegistry.hasAnyVisibleModalTracking());
             }
+            // Client-observed reactive verbs (ON_*_OBSERVED) — diff the open
+            // container menu's synced contents and fire UI-feedback reactions.
+            com.trevorschoeny.menukit.window.ObservedReactions.tick(
+                    client.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> acs
+                            ? acs.getMenu() : null);
         });
     }
 
