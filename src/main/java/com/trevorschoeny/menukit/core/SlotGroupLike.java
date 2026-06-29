@@ -3,6 +3,8 @@ package com.trevorschoeny.menukit.core;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 
+import org.jetbrains.annotations.ApiStatus;
+
 import java.util.List;
 
 /**
@@ -46,8 +48,14 @@ public interface SlotGroupLike {
      * to return {@code List<MKCSlot>} and {@link VirtualSlotGroup}
      * to return {@code List<Slot>}.
      *
+     * <p><b>Internal plumbing.</b> Hands back raw vanilla {@link Slot}s, used by
+     * the grouping engine (shift-click routing, contract verification) — no
+     * consumer caller. Consumers query a group's identity/storage/priority through
+     * the address world, not its raw slot list.
+     *
      * @param handler the handler whose slot list contains this group's slots
      * @return unmodifiable list of slots in this group
      */
+    @ApiStatus.Internal
     List<? extends Slot> getSlots(AbstractContainerMenu handler);
 }

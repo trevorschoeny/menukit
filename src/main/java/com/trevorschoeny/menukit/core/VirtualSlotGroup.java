@@ -3,6 +3,8 @@ package com.trevorschoeny.menukit.core;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 
+import org.jetbrains.annotations.ApiStatus;
+
 import java.util.List;
 
 /**
@@ -67,7 +69,11 @@ public class VirtualSlotGroup implements SlotGroupLike {
     /**
      * Returns this group's vanilla slots. The handler parameter is
      * ignored — virtual groups already hold their slot references.
+     *
+     * <p><b>Internal plumbing</b> (see {@link SlotGroupLike#getSlots}) — raw
+     * vanilla {@link Slot}s for the grouping engine, no consumer caller.
      */
+    @ApiStatus.Internal
     @Override
     public List<? extends Slot> getSlots(AbstractContainerMenu handler) {
         return slots;
@@ -79,7 +85,11 @@ public class VirtualSlotGroup implements SlotGroupLike {
      * Returns true if the given slot belongs to this group.
      * Checks by reference identity — the same Slot object must be
      * in this group's slot list.
+     *
+     * <p><b>Internal plumbing.</b> Takes a raw vanilla {@link Slot}; its only
+     * caller is {@link HandlerRecognizerRegistry#findGroup}. No consumer caller.
      */
+    @ApiStatus.Internal
     public boolean containsSlot(Slot slot) {
         for (Slot s : slots) {
             if (s == slot) return true;

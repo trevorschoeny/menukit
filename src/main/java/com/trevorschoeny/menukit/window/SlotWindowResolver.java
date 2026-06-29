@@ -7,6 +7,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Optional;
@@ -35,7 +36,13 @@ import java.util.Optional;
  * <p>This class is built but not yet CALLED — the minting/calling sites are the
  * handle (Phase 6) and the engine (Phase 3). Verified here by compile + review;
  * exercised live once the handle wires it.
+ *
+ * <p><b>Internal plumbing.</b> Address→live-{@link Slot} resolution is an engine
+ * concern; consumers address everything by {@link Address} and never receive a
+ * raw vanilla {@code Slot} from this layer. Only MK/MKC's own resolution and
+ * created-slot port wiring call here.
  */
+@ApiStatus.Internal
 public final class SlotWindowResolver {
 
     private SlotWindowResolver() {}

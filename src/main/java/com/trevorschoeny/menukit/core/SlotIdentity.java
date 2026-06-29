@@ -3,10 +3,19 @@ package com.trevorschoeny.menukit.core;
 import net.minecraft.world.Container;
 import net.minecraft.world.inventory.Slot;
 
+import org.jetbrains.annotations.ApiStatus;
+
 /**
  * Stable cross-menu identity for a slot: the pair of its backing
  * {@link Container} reference and its index within that container
  * ({@code Slot.getContainerSlot()}).
+ *
+ * <p><b>Internal plumbing.</b> Derived from a raw vanilla {@link Slot}, this is a
+ * library-internal identity primitive; consumers address slots by
+ * {@link com.trevorschoeny.menukit.window.Address} (minted by identity, never from
+ * a live {@code Slot}). The {@code (container, index)} pair below documents the
+ * stability semantics MK relies on; it is not part of the consumer surface. For
+ * durable cross-session keying, see {@code PersistentContainerKey}.
  *
  * <p><b>Use case.</b> Consumer-mod per-slot state (lock markers,
  * annotations, palette choices — any per-slot metadata) that needs to
@@ -79,6 +88,7 @@ import net.minecraft.world.inventory.Slot;
  * Consumers manage their own state keyed by {@code SlotIdentity};
  * library-not-platform discipline holds.
  */
+@ApiStatus.Internal
 public record SlotIdentity(Container container, int containerSlot) {
 
     /**

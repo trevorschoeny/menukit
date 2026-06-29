@@ -6,8 +6,6 @@ import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-import java.util.Set;
-
 /**
  * Exposes the protected leftPos/topPos fields of AbstractContainerScreen so that
  * other mixins can read the ACTUAL container position rather than re-computing it.
@@ -37,26 +35,4 @@ public interface AbstractContainerScreenAccessor {
 
     @Accessor("hoveredSlot")
     Slot mk$getHoveredSlot();
-
-    // ── Vanilla quick-craft state ────────────────────────────────────────
-    //
-    // These expose the internal drag-distribution state machine that vanilla
-    // uses for LMB (split evenly) and RMB (place one each) hold-and-drag.
-    // Needed by MKVanillaDragSuppress to cancel vanilla's quick-craft when
-    // a custom drag mode takes over.
-
-    @Accessor("isQuickCrafting")
-    boolean mk$isQuickCrafting();
-
-    @Accessor("isQuickCrafting")
-    void mk$setIsQuickCrafting(boolean value);
-
-    @Accessor("quickCraftingButton")
-    int mk$getQuickCraftingButton();
-
-    @Accessor("quickCraftSlots")
-    Set<Slot> mk$getQuickCraftSlots();
-
-    @Accessor("skipNextRelease")
-    void mk$setSkipNextRelease(boolean value);
 }

@@ -7,6 +7,7 @@ import net.minecraft.world.inventory.BrewingStandMenu;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -103,7 +104,14 @@ public class HandlerRecognizerRegistry {
      *
      * @param handler the handler to analyze
      * @return recognized groups (may be empty for empty handlers)
+     *
+     * @implNote <b>Internal plumbing.</b> Walks a live menu's raw {@link Slot}
+     *           list; used by the library's grouping engine + contract
+     *           verification. Consumers register their own grouping via
+     *           {@link #register(Recognizer)}; they don't drive recognition over
+     *           raw slots themselves.
      */
+    @ApiStatus.Internal
     public static List<VirtualSlotGroup> recognize(AbstractContainerMenu handler) {
         if (handler.slots.isEmpty()) return List.of();
 
@@ -133,7 +141,12 @@ public class HandlerRecognizerRegistry {
      * @param handler the handler the slot belongs to
      * @param slot    the slot to look up
      * @return the observed group, or empty if no recognized group contains the slot
+     *
+     * @implNote <b>Internal plumbing.</b> Takes a raw vanilla {@link Slot}; the
+     *           only caller is MKC's {@code MKCScreenHandler.findGroupForSlot}
+     *           facade (itself internal). No consumer caller.
      */
+    @ApiStatus.Internal
     public static Optional<SlotGroupLike> findGroup(AbstractContainerMenu handler,
                                                      Slot slot) {
         List<VirtualSlotGroup> groups = recognize(handler);
@@ -164,7 +177,13 @@ public class HandlerRecognizerRegistry {
      * @param fromIndex start of the range (inclusive)
      * @param toIndex   end of the range (exclusive)
      * @return groups covering the specified range
+     *
+     * @implNote <b>Internal plumbing.</b> Reads a live menu's raw {@link Slot}
+     *           list to build identity groups — used by the built-in recognizers.
+     *           No consumer caller today; consumer recognizers describe their own
+     *           handlers and don't need to drive raw-slot identity grouping.
      */
+    @ApiStatus.Internal
     public static List<VirtualSlotGroup> groupSlotsByContainerIdentity(
             AbstractContainerMenu handler, int fromIndex, int toIndex) {
 
