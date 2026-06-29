@@ -1,6 +1,5 @@
 package com.trevorschoeny.menukit.inject;
 
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -49,19 +48,6 @@ public final class SlotScreenDispatcher {
 
     // ── Fire methods — called by the AbstractContainerScreen mixins ─────────
     // Each is a no-op when no hook is set. Kept tiny so the mixins stay thin.
-
-    /** {@code renderContents} HEAD — update reveal + per-screen layout. */
-    public static void firePrepare(AbstractContainerScreen<?> screen, int mouseX, int mouseY) {
-        SlotScreenHook h = hook;
-        if (h != null) h.prepare(screen, mouseX, mouseY);
-    }
-
-    /** {@code renderContents} TAIL — draw decoration + registered slots. */
-    public static void fireRender(AbstractContainerScreen<?> screen, GuiGraphics graphics,
-                                  int mouseX, int mouseY, float partialTick) {
-        SlotScreenHook h = hook;
-        if (h != null) h.render(screen, graphics, mouseX, mouseY, partialTick);
-    }
 
     /**
      * {@code getHoveredSlot} HEAD — resolve slot hover. Returns {@link SlotHoverResult#PASS}

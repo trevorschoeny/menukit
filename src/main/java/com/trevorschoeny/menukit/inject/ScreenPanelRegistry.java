@@ -51,7 +51,7 @@ import org.jetbrains.annotations.ApiStatus;
  *       {@link #applyEverywhereDefault} runs. Any adapter still in
  *       {@link #PENDING} declared no targeting, so it defaults to <b>every</b>
  *       container screen — the uniform "default-on, opt-out" model shared with
- *       {@code SlotScreenPresence} and {@code MKCContainerPanel}. Narrow it
+ *       {@code MKCContainerPanel}. Narrow it
  *       deliberately with {@code .on(...)} / {@code .onPlayerInventory()} /
  *       {@code .onMatching(allExcept(...))}.</li>
  *   <li><b>Dispatch.</b> For each opened {@link AbstractContainerScreen},
@@ -1164,7 +1164,6 @@ public final class ScreenPanelRegistry {
      * first screen-open without declaring targeting. An undeclared region-based
      * {@link ScreenPanelAdapter} defaults to <b>every</b> container screen — the
      * uniform "default-on, opt-out" model shared with
-     * {@link com.trevorschoeny.menukit.core.SlotScreenPresence} and
      * {@code MKCContainerPanel}. A consumer narrows it deliberately with
      * {@code .on(...)} / {@code .onPlayerInventory()} /
      * {@code .onMatching(ScreenMatcher.allExcept(...))}.

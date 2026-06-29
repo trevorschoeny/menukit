@@ -14,7 +14,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Library-owned registered-slot input dispatch — the input half of inventory-screen
- * parity, the counterpart to {@link MKSlotRenderMixin}. Targets
+ * parity. (Render is no longer a mixin: a registered slot draws inline as a
+ * {@code SlotElement} on the panel pipeline.) Targets
  * {@code AbstractContainerScreen} so it covers every container screen (creative
  * routes its {@code mouseClicked} and slot-hover through the inherited
  * {@code AbstractContainerScreen} machinery — see the parity build notes).
@@ -32,8 +33,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *
  * <h3>Click ({@code mouseClicked})</h3>
  *
- * Lets a slot's interactive decoration (resize buttons, etc.) consume the click,
- * and eats clicks that land in a revealed panel's empty space so a carried item
+ * Eats clicks that land in a revealed panel's empty space so a carried item
  * can't drop through to the covered vanilla slot. A click on a revealed slot
  * <em>slot</em> is not eaten here — {@code getHoveredSlot} above already routes it
  * to the slot.

@@ -12,7 +12,6 @@
     "MKRecipeBookAccessor",
     "MKCreativeTabHoverMixin",
     "MKSlotInputMixin",
-    "MKSlotRenderMixin",
     "MKListHoverSuppressMixin",
     "MKModalHoverMixin",
     "MKModalKeyboardHandlerMixin",

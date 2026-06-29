@@ -1,23 +1,28 @@
 package com.trevorschoeny.menukit.inject;
 
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 /**
- * The neutral plug MenuKit exposes so registered-slot draw / input / reveal can ride
- * a <b>library-owned</b> screen dispatch — the same screen-completeness panels
- * already get — without MenuKit ever referencing a registered-slot type (§0042).
+ * The neutral plug MenuKit exposes so panel-hosted registered slots can resolve
+ * hover/click through a <b>library-owned</b> screen dispatch — without MenuKit ever
+ * referencing a registered-slot type (§0042).
+ *
+ * <p>Draw and reveal are no longer this hook's concern: a registered slot is a
+ * {@code SlotElement} on the panel pipeline, which renders it inline and tracks its
+ * reveal/inertness as panel properties. This hook is the residual <em>input limb</em> —
+ * it answers, for a screen point, which in-menu slot a panel-hosted slot covers, so
+ * vanilla's {@code getHoveredSlot} routes hover/click to the registered slot rather
+ * than the vanilla slot beneath it (and eats clicks that fall in a panel's empty space).
  *
  * <h3>The split</h3>
  *
  * MenuKit owns the <em>dispatch</em>: a set of mixins on {@code AbstractContainerScreen}
- * (render / hover / click / scroll / release) that fire on <b>every</b> container
- * screen — survival inventory, creative (via {@code super.render}), and every
- * chest/furnace/anvil — plus the {@link ScreenMatcher} that expresses the
- * default-on / opt-out-per-screen targeting. MenuKit-Containers owns the
- * registered-slot <em>work</em>: it walks {@code menu.slots} for its
- * {@code MKCSlot}s, draws them, resolves their hover/click, and fires the
- * consumer's per-screen decoration + reveal callbacks. That work plugs in here.
+ * (hover / click / scroll / release) that fire on <b>every</b> container screen —
+ * survival inventory, creative (via {@code super.render}), and every chest/furnace/anvil.
+ * MenuKit-Containers owns the registered-slot <em>input resolution</em>: fed by the live
+ * {@code SlotElementRegistry}, it answers which {@code MKCSlot} (if any) a panel-hosted
+ * slot covers at a screen point. That resolution plugs in here. Drawing the slot is the
+ * panel pipeline's job (a {@code SlotElement} renders inline), not this hook's.
  *
  * <h3>Registration &amp; absence</h3>
  *
@@ -43,43 +48,24 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 public interface SlotScreenHook {
 
     /**
-     * Fired once per screen-frame at {@code renderContents} HEAD — before vanilla
-     * computes the hovered slot or draws the slots. The implementation runs each
-     * matching presence's prepare callback (update hover-reveal state, reposition
-     * registered slots for <em>this</em> screen) so render + hit-test that frame see
-     * the current reveal + layout.
-     */
-    void prepare(AbstractContainerScreen<?> screen, int mouseX, int mouseY);
-
-    /**
-     * Fired once per screen-frame at {@code renderContents} TAIL — after the
-     * vanilla slots draw, before the carried item. Draws, in z-order: each
-     * matching presence's background decoration, then its registered slot frames +
-     * items + hover, then its foreground decoration (icons, buttons).
-     */
-    void render(AbstractContainerScreen<?> screen, GuiGraphics graphics,
-                int mouseX, int mouseY, float partialTick);
-
-    /**
-     * Fired at {@code getHoveredSlot} HEAD. Returns whether a revealed slot
-     * claims the point and which in-menu slot wins it (see {@link SlotHoverResult}).
+     * Fired at {@code getHoveredSlot} HEAD. Returns whether a revealed panel-hosted
+     * slot claims the point and which in-menu slot wins it (see {@link SlotHoverResult}).
      */
     SlotHoverResult resolveHover(AbstractContainerScreen<?> screen,
                                   double mouseX, double mouseY);
 
     /**
-     * Fired at {@code mouseClicked} HEAD. Lets a presence's interactive decoration
-     * (resize buttons, etc.) consume the click, and eats clicks that land in a
-     * revealed panel's empty space (so a carried item can't drop through). Returns
-     * true when the click was consumed (the caller cancels vanilla handling).
+     * Fired at {@code mouseClicked} HEAD. Eats clicks that land in a revealed panel's
+     * empty space (so a carried item can't drop through to the inert vanilla slot
+     * behind it). Returns true when the click was consumed (the caller cancels
+     * vanilla handling).
      */
     boolean mouseClicked(AbstractContainerScreen<?> screen,
                          double mouseX, double mouseY, int button);
 
     /**
-     * Fired at {@code mouseScrolled} HEAD. Lets a presence consume scroll over its
-     * region (e.g. cycle pages). Returns true when consumed. Default no-op — most
-     * slots ignore scroll; a presence opts in by overriding its scroll callback.
+     * Fired at {@code mouseScrolled} HEAD. Default no-op — panel-hosted slots don't
+     * consume scroll; an implementation opts in by overriding this.
      */
     default boolean mouseScrolled(AbstractContainerScreen<?> screen,
                                   double mouseX, double mouseY,
@@ -88,8 +74,7 @@ public interface SlotScreenHook {
     }
 
     /**
-     * Fired at {@code mouseReleased} HEAD. Lets a presence finish a drag started
-     * over its decoration. Returns true when consumed. Default no-op.
+     * Fired at {@code mouseReleased} HEAD. Default no-op.
      */
     default boolean mouseReleased(AbstractContainerScreen<?> screen,
                                   double mouseX, double mouseY, int button) {
