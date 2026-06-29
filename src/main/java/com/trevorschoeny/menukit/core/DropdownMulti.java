@@ -637,6 +637,27 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
     }
 
     /**
+     * Outside-click dismiss — closes the open popover when a click lands outside
+     * BOTH the popover and the trigger. The dispatcher calls this on every
+     * visible element for a click it didn't route into the element (so it fires
+     * even when another element consumed the click). In-trigger clicks (toggle)
+     * and in-popover clicks (item toggle / select-all) are handled by
+     * {@link #mouseClicked}, and are no-ops here. Mirrors {@link Dropdown}.
+     */
+    @Override
+    public void notifyClickOutsideOverlay(double mouseX, double mouseY) {
+        if (!open) return;
+        int[] popover = computePopoverBounds(lastTriggerScreenX, lastTriggerScreenY);
+        boolean inPopover = mouseX >= popover[0] && mouseX < popover[0] + popover[2]
+                && mouseY >= popover[1] && mouseY < popover[1] + popover[3];
+        boolean inTrigger = mouseX >= lastTriggerScreenX
+                && mouseX < lastTriggerScreenX + triggerWidth
+                && mouseY >= lastTriggerScreenY
+                && mouseY < lastTriggerScreenY + triggerHeight;
+        if (!inPopover && !inTrigger) open = false;
+    }
+
+    /**
      * Maps a click inside the popover to either an action row (Select
      * all / Clear all → fires Runnable, stays open), a regular item row
      * (→ fires toggle Consumer, stays open), or the scrollbar / separator

@@ -241,6 +241,13 @@ public final class VanillaScreenPanelRegistry {
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
             int sw = s.width;
             int sh = s.height;
+            // Dismiss-on-outside-click janitor — notify every adapter's elements
+            // first so an open popover (Dropdown/DropdownMulti) closes when the
+            // click falls outside it, even when another adapter then consumes the
+            // click. Each element self-guards, so this is safe to run on all.
+            for (VanillaScreenPanelAdapter adapter : activeMatches) {
+                adapter.notifyOutsideClick(event.x(), event.y());
+            }
             for (VanillaScreenPanelAdapter adapter : activeMatches) {
                 if (adapter.mouseClicked(sw, sh, event.x(), event.y(),
                         event.button(), s)) {

@@ -148,6 +148,11 @@ public class MK implements ModInitializer {
             if (def.region() != null) {
                 int prefix = com.trevorschoeny.menukit.inject.RegionRegistry
                         .axialPrefix(def, def.region());
+                // Stale reference (unregistered def still in the render map this
+                // frame) — skip rather than throw. See RegionRegistry.NOT_REGISTERED.
+                if (prefix == com.trevorschoeny.menukit.inject.RegionRegistry.NOT_REGISTERED) {
+                    continue;
+                }
                 var origin = com.trevorschoeny.menukit.core.RegionMath
                         .resolveHud(def.region(), screenW, screenH,
                                 size[0], size[1], prefix);

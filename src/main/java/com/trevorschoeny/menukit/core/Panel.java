@@ -1022,6 +1022,33 @@ public class Panel {
     }
 
     /**
+     * Whether this panel is positioned as a screen-centered overlay rather than
+     * flowing in the body stack. True when the panel either declares
+     * {@link PanelPosition#center()} <em>or</em> carries an overlay/modal visual
+     * semantic ({@link #dimsBehind()} or {@link #tracksAsModal()}).
+     *
+     * <p>This is the single predicate the standalone-screen
+     * ({@link com.trevorschoeny.menukit.screen.MKScreen}) layer uses to decide
+     * three things together: (1) auto-center the panel on the screen window,
+     * (2) exclude it from the body-stack layout + extent, and (3) draw it in the
+     * on-top overlay pass. Folding {@code dimsBehind}/{@code tracksAsModal} in
+     * (not just {@code center()}) means existing dialogs — which set those via
+     * {@code modal()} but never call {@code center()} — keep auto-centering with
+     * no consumer change, while a non-dim, non-modal overlay can opt in
+     * explicitly with {@code position(PanelPosition.center())}.
+     *
+     * <p>Note this is POSITION, decoupled from the dim VISUAL: the dim fill is
+     * still gated on {@link #dimsBehind()} alone (M9 doctrine — the three flags
+     * stay independent). An overlay panel may center-and-draw-on-top without
+     * dimming.
+     */
+    public boolean isOverlayPositioned() {
+        return getPosition().mode() == PanelPosition.Mode.CENTER
+                || dimsBehind()
+                || tracksAsModal();
+    }
+
+    /**
      * Builder convenience setting all three modal flags to {@code true}.
      * Equivalent to {@code opaque(true).dimsBehind(true).tracksAsModal(true)}.
      *

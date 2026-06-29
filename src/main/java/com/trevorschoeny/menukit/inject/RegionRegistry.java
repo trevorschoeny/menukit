@@ -58,6 +58,21 @@ public final class RegionRegistry {
     private RegionRegistry() {}
 
     /**
+     * Sentinel returned by the {@code axialPrefix} variants when {@code self}
+     * is not found in its region list — i.e. the panel was unregistered (or
+     * never registered) but a stale per-screen dispatch reference still reached
+     * the resolver this frame.
+     *
+     * <p><b>The render/input path MUST treat this as
+     * {@link ScreenOrigin#OUT_OF_REGION}</b> (skip the panel) rather than
+     * crashing. A geometry resolver on the per-frame path may never throw —
+     * an uncaught throw inside a screen's render or click loop wedges that
+     * screen's entire input. The condition is transient (it resolves on the
+     * next frame once the stale reference is dropped), so we degrade silently.
+     */
+    public static final int NOT_REGISTERED = Integer.MIN_VALUE;
+
+    /**
      * GUI-scaled window width — the screen-edge reference the library is
      * otherwise blind to (Pass 3). Falls back to a very large value if the
      * window isn't available (never on the client render path), so the
@@ -220,8 +235,11 @@ public final class RegionRegistry {
             int extent = (horizontal ? p.getWidth() : p.getHeight()) + 2 * pad;
             prefix += extent + RegionConstants.MENU_STACK_GAP;
         }
-        throw new IllegalStateException(
-                "Panel '" + self.getId() + "' is not registered in " + region);
+        // self not registered in this region — a stale per-screen dispatch
+        // reference reached us after unregister(). Degrade to NOT_REGISTERED
+        // (the originFn maps it to OUT_OF_REGION); never throw on the per-frame
+        // path or the host screen's input loop wedges. See NOT_REGISTERED.
+        return NOT_REGISTERED;
     }
 
     /**
@@ -255,6 +273,8 @@ public final class RegionRegistry {
         return (bounds, screen) -> {
             int pad = MENU_PADDING.getOrDefault(panel, 0);
             int prefix = axialPrefix(panel, region);
+            // Stale reference after unregister() — skip this panel this frame.
+            if (prefix == NOT_REGISTERED) return ScreenOrigin.OUT_OF_REGION;
 
             // Extend bounds by the screen's chrome extents on all axes —
             // treats the chrome as part of the menu's visible extent, which
@@ -361,8 +381,9 @@ public final class RegionRegistry {
             int[] size = p.computeSize();
             prefix += size[1] + RegionConstants.MENU_STACK_GAP;
         }
-        throw new IllegalStateException(
-                "HUD panel '" + self.name() + "' is not registered in " + region);
+        // self not registered — stale reference. Degrade to NOT_REGISTERED so
+        // the HUD render loop skips it rather than throwing. See NOT_REGISTERED.
+        return NOT_REGISTERED;
     }
 
     /** Sorts HUD panels by the deterministic key (priority, modId, regSeq). */
@@ -434,8 +455,10 @@ public final class RegionRegistry {
             int extent = p.getHeight() + 2 * pad;
             prefix += extent + RegionConstants.SCREEN_STACK_GAP;
         }
-        throw new IllegalStateException(
-                "Panel '" + self.getId() + "' is not registered in VanillaScreenRegion." + region);
+        // self not registered — stale reference. Degrade to NOT_REGISTERED
+        // (the originFn maps it to OUT_OF_REGION); never throw on the per-frame
+        // path. See NOT_REGISTERED.
+        return NOT_REGISTERED;
     }
 
     /**
@@ -458,6 +481,8 @@ public final class RegionRegistry {
             int pw = panel.getWidth() + 2 * pad;
             int ph = panel.getHeight() + 2 * pad;
             int prefix = axialPrefix(panel, region);
+            // Stale reference after unregister() — skip this panel this frame.
+            if (prefix == NOT_REGISTERED) return ScreenOrigin.OUT_OF_REGION;
 
             var result = RegionMath.resolveVanillaScreen(region, sw, sh, pw, ph, prefix);
             if (result.isEmpty()) {

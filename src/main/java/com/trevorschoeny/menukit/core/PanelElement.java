@@ -274,6 +274,36 @@ public interface PanelElement {
     }
 
     /**
+     * Dismiss-side twin of {@link #getActiveOverlayBounds} — notifies an
+     * element with transient open state (a popover, an inline editor, a
+     * transient action menu) that a click landed somewhere NOT claimed by it,
+     * so it can close that state.
+     *
+     * <p>The screen dispatchers call this on every visible element when a click
+     * was claimed by neither the active-overlay pass nor the hit-test pass —
+     * i.e. an "outside click." It is the element-level parallel to
+     * {@link com.trevorschoeny.menukit.core.MKFocus#blurOnOutsideBounds}, which
+     * already clears a focused {@link TextField}'s focus on an outside click;
+     * this generalizes that "reset transient UI state on outside click" janitor
+     * to any popover-like element via one shared primitive (rather than each
+     * element hooking the dispatcher itself). Wired identically into every
+     * dispatcher (MKScreen, the vanilla-screen adapter, the MKC container
+     * screen) so an element behaves the same in every render context.
+     *
+     * <p>Default is a no-op — elements with no transient open state inherit it
+     * unchanged. {@link com.trevorschoeny.menukit.core.Dropdown} /
+     * {@link com.trevorschoeny.menukit.core.DropdownMulti} override it to close
+     * their open popover.
+     *
+     * <p><b>Coordinate space:</b> screen-space, same as the dispatchers read
+     * mouse positions (the coordinates of the outside click).
+     *
+     * @param mouseX screen-space x of the click that fell outside all claims
+     * @param mouseY screen-space y of the click that fell outside all claims
+     */
+    default void notifyClickOutsideOverlay(double mouseX, double mouseY) {}
+
+    /**
      * Phase 14d-5 — interaction-bounds hit test. Called by the screen
      * dispatchers (MKScreen, MKCHandledScreen, ScreenPanelAdapter)
      * before {@link #mouseClicked} and {@link #mouseScrolled} to decide

@@ -618,11 +618,11 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         //  (b) Pass 2 (hitTest): cursor is inside trigger bounds (default
         //      hitTest = layout bounds) → handle as trigger-toggle.
         //
-        // Click outside both is impossible to reach here in v1 (Dropdown's
-        // hitTest is the default layout-bounds check; no extended claim).
-        // Outside-click-dismiss is deferred to fold-on-evidence — vanilla
-        // SuggestionsList doesn't auto-dismiss either; click-trigger-to-
-        // toggle and Esc-closes-screen are the dismiss paths.
+        // A click outside both the popover and the trigger is never routed
+        // HERE (Dropdown's hitTest is the default layout-bounds check, so the
+        // dispatcher won't call mouseClicked for an outside click). Outside-
+        // click dismiss is handled by notifyClickOutsideOverlay below, which
+        // the dispatcher calls on every element for clicks it didn't claim.
 
         if (open) {
             int[] popover = computePopoverBounds(lastTriggerScreenX, lastTriggerScreenY);
@@ -649,6 +649,28 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
             open = false;
         }
         return true;
+    }
+
+    /**
+     * Outside-click dismiss — closes the open popover when a click lands outside
+     * BOTH the popover and the trigger. The dispatcher calls this on every
+     * visible element for a click it didn't route into the element (so it fires
+     * even when another element consumed the click), making "click away to
+     * close" work the way every native popup does. In-trigger clicks (toggle)
+     * and in-popover clicks (item pick) are handled by {@link #mouseClicked} via
+     * the hit-test / overlay passes, and are no-ops here.
+     */
+    @Override
+    public void notifyClickOutsideOverlay(double mouseX, double mouseY) {
+        if (!open) return;
+        int[] popover = computePopoverBounds(lastTriggerScreenX, lastTriggerScreenY);
+        boolean inPopover = mouseX >= popover[0] && mouseX < popover[0] + popover[2]
+                && mouseY >= popover[1] && mouseY < popover[1] + popover[3];
+        boolean inTrigger = mouseX >= lastTriggerScreenX
+                && mouseX < lastTriggerScreenX + triggerWidth
+                && mouseY >= lastTriggerScreenY
+                && mouseY < lastTriggerScreenY + triggerHeight;
+        if (!inPopover && !inTrigger) open = false;
     }
 
     /**

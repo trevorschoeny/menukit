@@ -110,6 +110,15 @@ public final class ScreenPanelRegistry {
     //
     // WeakHashMap keyed on Screen so entries GC when the screen is
     // unreferenced — no manual cleanup on screen close.
+    // menuMatches is a CopyOnWriteArrayList so that {@link #untrack} (called
+    // from a consumer's element-click callback when it toggles a feature off
+    // mid-dispatch) can remove an adapter WHILE a render/input loop is
+    // iterating this same list. A plain ArrayList would throw
+    // ConcurrentModificationException inside the screen's input loop and wedge
+    // the entire screen's input. COW makes removal iteration-safe: the
+    // in-flight iterator sees the pre-removal snapshot, and the removal takes
+    // effect on the next dispatch. The list is small (a few adapters) and
+    // mutated only on register/unregister, so the copy cost is negligible.
     private record ScreenRenderData(List<ScreenPanelAdapter> menuMatches) {}
 
     private static final Map<AbstractContainerScreen<?>, ScreenRenderData> SCREEN_DATA =
@@ -275,17 +284,21 @@ public final class ScreenPanelRegistry {
      */
     private static void onScreenInit(Minecraft client, Screen screen,
                                       int scaledWidth, int scaledHeight) {
-        // Default checkpoint — runs once per client session. All region-based
-        // adapters constructed during init have completed their fluent targeting
-        // chain by now (static initializers + onInitializeClient ran before the
-        // first screen opened). Any still in PENDING declared nothing → default
-        // them to every container screen (the uniform everywhere-default).
+        // Promote any untargeted region adapters to the everywhere-default.
+        // This runs on EVERY screen-open, not just the first. Init-time adapters
+        // complete their fluent targeting chain before the first screen opens,
+        // but an adapter constructed MID-SESSION (e.g. a consumer toggles a
+        // feature on after the initial screen-open) also joins PENDING and must
+        // be promoted, or it silently never matches any screen. Idempotent and
+        // cheap — applyEverywhereDefault early-returns when PENDING is empty
+        // (the steady state), so the per-open cost is one set snapshot.
+        applyEverywhereDefault();
         if (!checkpointRun) {
             checkpointRun = true;
-            applyEverywhereDefault();
             // Phase 18s — non-container vanilla adapters keep the explicit-
             // targeting requirement (an everywhere-default makes no sense on
-            // Options/title/etc.); their orphan checkpoint runs alongside.
+            // Options/title/etc.); their orphan-validation warn stays one-shot
+            // to avoid per-open log spam.
             VanillaScreenPanelRegistry.validateTargetingDeclared();
         }
 
@@ -303,7 +316,10 @@ public final class ScreenPanelRegistry {
         // ── MenuContext matching ────────────────────────────────────────
         Class<? extends AbstractContainerScreen<?>> screenClass =
                 asConcreteScreenClass(acs.getClass());
-        List<ScreenPanelAdapter> menuMatches = new ArrayList<>();
+        // CopyOnWriteArrayList — see ScreenRenderData: lets untrack() remove an
+        // adapter mid-dispatch (consumer toggles a feature off from a click
+        // callback) without a ConcurrentModificationException wedging input.
+        List<ScreenPanelAdapter> menuMatches = new java.util.concurrent.CopyOnWriteArrayList<>();
         for (ScreenPanelAdapter adapter : registeredSnapshot()) {
             if (adapter.matches(screenClass)) {
                 menuMatches.add(adapter);
@@ -1205,11 +1221,12 @@ public final class ScreenPanelRegistry {
      * {@code .on(...)} / {@code .onPlayerInventory()} /
      * {@code .onMatching(ScreenMatcher.allExcept(...))}.
      *
-     * <p>Runs once, on the first screen-open after init — every init-time fluent
-     * chain ({@code new ScreenPanelAdapter(...).on(...)}) has completed by then,
-     * so anything still in {@link #PENDING} genuinely declared nothing. Each is
-     * promoted via {@link ScreenPanelAdapter#onAny()} (sets the every-screen
-     * target and moves it {@code PENDING → REGISTERED} so dispatch picks it up).
+     * <p>Runs on every screen-open after init (not just the first). Anything
+     * still in {@link #PENDING} declared no targeting — whether it was built at
+     * init or constructed mid-session by a runtime toggle. Each is promoted via
+     * {@link ScreenPanelAdapter#onAny()} (sets the every-screen target and moves
+     * it {@code PENDING → REGISTERED} so dispatch picks it up). Idempotent: the
+     * method early-returns when {@link #PENDING} is empty.
      *
      * <p>Container screens only — non-container vanilla screens (Options, title,
      * …) keep the explicit-targeting requirement in

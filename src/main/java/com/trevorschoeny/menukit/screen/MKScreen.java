@@ -73,9 +73,57 @@ public class MKScreen extends Screen {
     private int leftPos = 0;
     private int topPos = 0;
 
+    /**
+     * Optional "return" action, run on close (Escape) instead of the default
+     * close-to-game. Set when this screen was opened OVER something the consumer
+     * wants to restore on exit — most importantly a live server-synced container
+     * (an {@code MKCHandledScreen}): opening a plain {@link net.minecraft.client.gui.screens.Screen}
+     * over a container makes vanilla close that container server-side, so
+     * returning to it means RE-OPENING it (re-issuing the open request), not a
+     * client-only screen swap. The return action carries that re-open. Null =
+     * default close behavior (back to game / parent). See {@link #setReturnAction}.
+     */
+    private @org.jspecify.annotations.Nullable Runnable returnAction;
+
     protected MKScreen(Component title, List<Panel> panels) {
         super(title);
         this.panels = List.copyOf(panels);
+    }
+
+    /**
+     * Sets the action run when this screen closes via Escape (see
+     * {@link #returnAction}). Subclasses also call {@link #runReturnAction()}
+     * from their own "Back" chrome so Back and Escape agree. A null action (the
+     * default) leaves vanilla close behavior untouched.
+     */
+    protected void setReturnAction(@org.jspecify.annotations.Nullable Runnable returnAction) {
+        this.returnAction = returnAction;
+    }
+
+    /** Whether a return action is set (Back chrome can branch on this). */
+    protected boolean hasReturnAction() {
+        return returnAction != null;
+    }
+
+    /**
+     * Runs the return action if one is set and returns true; otherwise returns
+     * false so the caller can fall back to its default navigation. Idempotent
+     * intent: the action is expected to {@code setScreen(...)} away from here.
+     */
+    protected boolean runReturnAction() {
+        if (returnAction == null) return false;
+        returnAction.run();
+        return true;
+    }
+
+    @Override
+    public void onClose() {
+        // Escape: if a return action is set (e.g. re-open the container this
+        // screen was launched over), run it instead of the default close. The
+        // default closes to the game/parent — wrong when we floated over a live
+        // container that vanilla closed server-side on the way in.
+        if (runReturnAction()) return;
+        super.onClose();
     }
 
     @Override
@@ -149,32 +197,41 @@ public class MKScreen extends Screen {
             if (p.tracksAsModal()) anyTracksModal = true;
         }
 
-        // ── Pass 1: non-dim panels ────────────────────────────────────
-        // Non-modal-tracking panels render with sentinel mouse coords
-        // when a modal is up, so their widgets behave inert (no hover,
-        // no tooltip, no element-level click hit-test). Mirrors how
-        // ScreenPanelAdapter handles modal-tracking on vanilla screens.
+        // ── Pass 1: body panels (NOT overlay-positioned) ──────────────
+        // The base screen content — body-stacked + screen-anchored chrome.
+        // Non-modal-tracking panels render with sentinel mouse coords when a
+        // modal is up, so their widgets behave inert (no hover, no tooltip, no
+        // element-level click hit-test). Mirrors how ScreenPanelAdapter handles
+        // modal-tracking on vanilla screens.
         for (Panel p : panels) {
-            if (!ClientWindowVisibility.panelShown(p) || p.dimsBehind()) continue;
+            if (!ClientWindowVisibility.panelShown(p) || p.isOverlayPositioned()) continue;
             boolean suppressMouse = anyTracksModal && !p.tracksAsModal();
             renderSinglePanel(p, graphics,
                     suppressMouse ? -1 : mouseX,
                     suppressMouse ? -1 : mouseY);
         }
 
-        // ── Pass 2: dim overlay (between non-dim and dim panels) ──────
-        // Covers the full screen (vanilla bg + non-dim panels) so dim
-        // panels read as visually elevated. ~75% black — matches the
-        // ScreenPanelRegistry value (kept consistent across render paths).
+        // ── Pass 2: dim overlay (between body and overlay panels) ─────
+        // Covers the full screen (vanilla bg + body panels) so overlay panels
+        // read as visually elevated. Gated on dimsBehind() ALONE — the dim is a
+        // pure visual, independent of overlay positioning (M9). ~75% black —
+        // matches the ScreenPanelRegistry value (consistent across render paths).
         if (anyDimBehind) {
             graphics.fill(0, 0, this.width, this.height, 0xC0000000);
         }
 
-        // ── Pass 3: dim panels on top of dim ──────────────────────────
-        // Dim panels keep real mouse coords — they're the active surface.
+        // ── Pass 3: overlay-positioned panels, on top ─────────────────
+        // Centered overlays (PanelPosition.center(), dimsBehind, or
+        // tracksAsModal) draw last so they float above the body regardless of
+        // declaration order. They keep real mouse coords UNLESS another modal is
+        // up that they don't themselves track (same suppression as Pass 1) — so
+        // the active modal stays live while any sibling overlay goes inert.
         for (Panel p : panels) {
-            if (!ClientWindowVisibility.panelShown(p) || !p.dimsBehind()) continue;
-            renderSinglePanel(p, graphics, mouseX, mouseY);
+            if (!ClientWindowVisibility.panelShown(p) || !p.isOverlayPositioned()) continue;
+            boolean suppressMouse = anyTracksModal && !p.tracksAsModal();
+            renderSinglePanel(p, graphics,
+                    suppressMouse ? -1 : mouseX,
+                    suppressMouse ? -1 : mouseY);
         }
     }
 
@@ -264,14 +321,17 @@ public class MKScreen extends Screen {
      *
      * <p>Two layout regimes:
      * <ul>
-     *   <li><b>Overlay panels</b> ({@link Panel#dimsBehind} true) — auto-
-     *       centered on the screen. Their declared {@link PanelPosition}
-     *       and the layout-computed bounds in {@link #panelBounds} are
-     *       ignored. An overlay's defining property is "covers the screen
-     *       above the dim layer"; BODY-stacking semantics don't fit.
-     *       This is what makes {@code Panel.modal()} read as "modal
-     *       overlay" on {@link MKScreen} without consumers also
-     *       configuring a position mode.</li>
+     *   <li><b>Overlay panels</b> ({@link Panel#isOverlayPositioned()} true —
+     *       i.e. {@link PanelPosition#center()}, or a {@code dimsBehind} /
+     *       {@code tracksAsModal} panel) — auto-centered on the screen. Their
+     *       BODY-relative layout bounds are ignored. An overlay's defining
+     *       property is "floats over the screen"; body-stacking semantics don't
+     *       fit. This is what makes {@code Panel.modal()} read as "modal overlay"
+     *       without consumers also configuring a position mode — AND lets a
+     *       non-dim, non-modal overlay opt in via {@code position(center())}.
+     *       Note this is decoupled from the dim VISUAL: centering keys off
+     *       {@code isOverlayPositioned()}, while the dim fill keys off
+     *       {@code dimsBehind()} alone (M9 — the flags stay independent).</li>
      *   <li><b>Layout panels</b> (everything else) — use the bounds
      *       computed by {@link PanelTreeLayout}, translated by
      *       {@link #leftPos}/{@link #topPos}.</li>
@@ -281,7 +341,7 @@ public class MKScreen extends Screen {
         int[] size = computePanelSize(panel);
         int outerW = size[0], outerH = size[1];
 
-        if (panel.dimsBehind()) {
+        if (panel.isOverlayPositioned()) {
             int x = (this.width - outerW) / 2;
             int y = (this.height - outerH) / 2;
             return new int[]{x, y, outerW, outerH};
@@ -352,6 +412,15 @@ public class MKScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean flag) {
+        // Dismiss-on-outside-click janitor — notify every visible element whose
+        // transient overlay/trigger the click fell OUTSIDE of, so open popovers
+        // (Dropdown/DropdownMulti) close when you click away, even if another
+        // element consumes the click. Each element self-guards (no-op unless the
+        // click is genuinely outside its own bounds), so it's safe to run on
+        // every click before dispatch. Element-level twin of MKFocus's
+        // outside-click focus janitor; wired the same way in every dispatcher.
+        notifyOutsideClickDismiss(event.x(), event.y());
+
         if (dispatchElementClick(event.x(), event.y(), event.button())) {
             return true;
         }
@@ -398,6 +467,25 @@ public class MKScreen extends Screen {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Notifies every visible element of an outside click so popover-like
+     * elements (Dropdown/DropdownMulti) can dismiss. Each element self-guards
+     * via {@link PanelElement#notifyClickOutsideOverlay} — it closes only if the
+     * click fell outside its own overlay/trigger — so calling it unconditionally
+     * on every element is safe and the dispatcher needs no per-element
+     * knowledge. Runs on every click (before dispatch) so an open popover
+     * dismisses even when the click is consumed by a different element.
+     */
+    private void notifyOutsideClickDismiss(double mouseX, double mouseY) {
+        for (Panel panel : panels) {
+            if (!ClientWindowVisibility.panelShown(panel)) continue;
+            for (PanelElement element : panel.getElements()) {
+                if (!element.isVisible()) continue;
+                element.notifyClickOutsideOverlay(mouseX, mouseY);
+            }
+        }
     }
 
     /**

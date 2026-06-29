@@ -351,6 +351,24 @@ public final class VanillaScreenPanelAdapter {
     }
 
     /**
+     * Notifies this adapter's visible elements of an outside click so popover-
+     * like elements (Dropdown/DropdownMulti) can dismiss. Each element
+     * self-guards via {@link PanelElement#notifyClickOutsideOverlay} (it closes
+     * only if the click fell outside its own overlay/trigger), so the registry
+     * can call this on every adapter for every click regardless of which adapter
+     * consumed it. The vanilla-screen twin of {@code MKScreen}'s dismiss
+     * janitor. Coordinates are screen-space (elements cache their own screen
+     * positions at render, so no origin is needed here).
+     */
+    public void notifyOutsideClick(double mouseX, double mouseY) {
+        if (!ClientWindowVisibility.panelShown(panel)) return;
+        for (PanelElement element : panel.getElements()) {
+            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
+            element.notifyClickOutsideOverlay(mouseX, mouseY);
+        }
+    }
+
+    /**
      * Dispatches a mouse-wheel scroll to any visible element under the cursor.
      * Returns true if any element consumed the scroll.
      */

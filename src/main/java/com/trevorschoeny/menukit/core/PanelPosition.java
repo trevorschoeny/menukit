@@ -36,7 +36,18 @@ public record PanelPosition(Mode mode,
          * centered body stack's layout + extent — chrome like a "Back" button
          * stays put regardless of content size. See {@link #screenAnchor}.
          */
-        SCREEN_ANCHOR
+        SCREEN_ANCHOR,
+        /**
+         * Centered on the screen as an overlay — excluded from the body stack's
+         * layout + extent, auto-centered on the screen window, and drawn on top
+         * of the body in the overlay pass. The placement for dialogs, popovers,
+         * and any panel that floats <em>over</em> the screen rather than flowing
+         * in its column. This is purely a POSITION; it is independent of the
+         * {@code dimsBehind}/{@code opaque}/{@code tracksAsModal} visual+input
+         * flags (M9 doctrine — those compose freely with this). See
+         * {@link #center}.
+         */
+        CENTER
     }
 
     /** Default position: body panel, stacks vertically. */
@@ -76,5 +87,21 @@ public record PanelPosition(Mode mode,
      */
     public static PanelPosition screenAnchor(ScreenCorner corner) {
         return new PanelPosition(Mode.SCREEN_ANCHOR, null, corner);
+    }
+
+    /**
+     * Centers the panel on the screen as an overlay — excluded from the body
+     * stack, auto-centered on the screen window, and drawn on top of the body.
+     * The canonical placement for dialogs, popovers, and any panel that floats
+     * <em>over</em> the screen instead of flowing in its vertical column.
+     *
+     * <p>Position only: it composes freely with the {@code dimsBehind} (visual
+     * dim), {@code opaque} (click-eat), and {@code tracksAsModal} (input-block)
+     * flags per the M9 doctrine — a panel can be a centered overlay with any,
+     * all, or none of them. Honored by
+     * {@link com.trevorschoeny.menukit.screen.MKScreen}.
+     */
+    public static PanelPosition center() {
+        return new PanelPosition(Mode.CENTER, null, null);
     }
 }

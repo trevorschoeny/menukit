@@ -94,12 +94,13 @@ public record PanelTreeLayout(
             // (this layout primitive has only client-screen callers; FQN matches
             // PanelDispatch's core-package convention).
             if (!com.trevorschoeny.menukit.window.ClientWindowVisibility.panelShown(panel)) continue;
-            // Phase 17 — skip overlay panels (Panel.dimsBehind()) from the
-            // bounds aggregation that drives screen centering. They're
-            // positioned independently (screen-centered) by the render
-            // layer; including them in the centering math would shift the
-            // body stack whenever an overlay's visibility toggles.
-            if (panel.dimsBehind()) continue;
+            // Skip overlay-positioned panels (PanelPosition.center(), or any
+            // dimsBehind/tracksAsModal panel) from the bounds aggregation that
+            // drives screen centering. They're positioned independently
+            // (screen-centered) by the render layer; including them in the
+            // centering math would shift the body stack whenever an overlay's
+            // visibility toggles.
+            if (panel.isOverlayPositioned()) continue;
             PanelBounds b = bounds.get(panel.getId());
             if (b == null) continue;
             anyVisible = true;

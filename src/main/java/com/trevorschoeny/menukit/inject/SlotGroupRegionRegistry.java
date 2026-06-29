@@ -137,9 +137,11 @@ public final class SlotGroupRegionRegistry {
             int extent = (horizontal ? p.getWidth() : p.getHeight()) + 2 * pad;
             prefix += extent + RegionConstants.MENU_STACK_GAP;
         }
-        throw new IllegalStateException(
-                "Panel '" + self.getId() + "' is not registered in "
-                        + category + "/" + region);
+        // self not registered under this key — stale per-screen dispatch
+        // reference after unregister(). Degrade to RegionRegistry.NOT_REGISTERED
+        // (getOrigin maps it to Optional.empty); never throw on the per-frame
+        // render/input path. See RegionRegistry.NOT_REGISTERED.
+        return RegionRegistry.NOT_REGISTERED;
     }
 
     /**
