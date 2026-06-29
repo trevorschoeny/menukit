@@ -314,7 +314,46 @@ public class MKScreen extends Screen {
         if (anyVisibleModalTrackingPanel()) {
             return true;
         }
+        // Opaque click-eat: Panel.opaque(true) promises "empty space within the
+        // panel's bounds eats input" — but the modal eat-check above only covers
+        // tracksAsModal panels, so a plain non-modal opaque panel would let clicks
+        // fall through to panels behind it, breaking that promise. Close the gap:
+        // after element dispatch (above) declined the click and no modal ate it,
+        // if the click landed inside ANY visible opaque panel's resolved bounds,
+        // eat it so panels/the screen behind don't receive it.
+        //
+        // Conservative + additive: this ONLY decides whether to EAT — it never
+        // changes which elements receive clicks (element dispatch already ran and
+        // returned false). Mirrors the spirit of
+        // ScreenPanelRegistry.dispatchCoveredClick / findCoveringPanelAt on the
+        // vanilla-container path, scoped here to MKScreen's own per-panel bounds.
+        if (clickInsideAnyOpaquePanel(event.x(), event.y())) {
+            return true;
+        }
         return super.mouseClicked(event, flag);
+    }
+
+    /**
+     * True if (mouseX, mouseY) lands inside the resolved screen bounds of any
+     * visible {@link Panel#isOpaque() opaque} panel. Reuses
+     * {@link #effectivePanelScreenBounds} so the eat-test agrees exactly with
+     * where the panel was drawn (same regime handling for overlay vs layout
+     * panels). Visibility is gated by {@link ClientWindowVisibility#panelShown}
+     * so a hidden opaque panel never eats. This is the click-eat half of
+     * Panel.opaque()'s contract on standalone screens.
+     */
+    private boolean clickInsideAnyOpaquePanel(double mouseX, double mouseY) {
+        for (Panel panel : panels) {
+            if (!ClientWindowVisibility.panelShown(panel)) continue;
+            if (!panel.isOpaque()) continue;
+            int[] rect = effectivePanelScreenBounds(panel);
+            if (rect == null) continue;
+            int x = rect[0], y = rect[1], w = rect[2], h = rect[3];
+            if (mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
