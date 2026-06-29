@@ -392,8 +392,11 @@ public class MKHudPanel {
 
         public ItemBuilder item(Supplier<ItemStack> item) { this.item = item; return this; }
         public ItemBuilder size(int size) { this.size = size; return this; }
-        public ItemBuilder showCount() { this.showCount = true; return this; }
-        public ItemBuilder showDurability() { this.showDurability = true; return this; }
+        // Count + durability overlays show by default; these suppress them (icon-only),
+        // mirroring SlotBuilder. (The old showCount()/showDurability() only re-set the
+        // default — they could never actually hide — so the hide verbs replace them.)
+        public ItemBuilder hideCount() { this.showCount = false; return this; }
+        public ItemBuilder hideDurability() { this.showDurability = false; return this; }
 
         public Builder done() {
             parent.elements.add(new ItemDisplay(x, y, size, item, showCount, showDurability));
