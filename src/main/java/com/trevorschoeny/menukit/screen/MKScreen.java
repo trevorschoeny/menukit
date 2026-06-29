@@ -380,6 +380,19 @@ public class MKScreen extends Screen {
                 return true; // eat — do not let vanilla close the host screen
             }
         }
+        // Panel toggle keys: a Panel built with .toggleKey(GLFW_KEY) flips its own
+        // visibility when that key is pressed. MKCHandledScreen dispatches these for
+        // server-synced MKC menus; MKScreen is the standalone-screen twin, so honor
+        // the same Panel property here — client-side, since an MKScreen panel carries
+        // no server menu to sync. (A panel whose visibility is supplier-driven via
+        // showWhen ignores setVisible by design, so toggleKey + showWhen don't mix —
+        // a toggleKey panel owns its own visibility.)
+        for (Panel p : panels) {
+            if (p.getToggleKey() >= 0 && p.getToggleKey() == event.key()) {
+                p.setVisible(!p.isVisible());
+                return true;
+            }
+        }
         return super.keyPressed(event);
     }
 
