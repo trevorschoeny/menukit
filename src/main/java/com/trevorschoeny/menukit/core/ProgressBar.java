@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
+import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -16,8 +17,12 @@ import java.util.function.Supplier;
  * <ul>
  *   <li><b>Fixed value</b> — pass a {@code float} directly. Unusual; useful
  *   for static-progress decorative bars.</li>
- *   <li><b>Supplier-driven value</b> — pass a {@code Supplier<Float>} for
- *   progress that changes over time (the common case).</li>
+ *   <li><b>Supplier-driven value</b> — pass a {@code DoubleSupplier} returning
+ *   a normalized {@code 0.0–1.0} value for progress that changes over time
+ *   (the common case). This is the same canonical numeric-supplier shape that
+ *   {@link Slider} and {@link ScrollContainer} read their normalized values
+ *   from, so a {@code Slider}'s {@code double} value feeds a {@code ProgressBar}
+ *   with no box-and-cast: {@code ProgressBar.spec(w, h, () -> s.value)}.</li>
  * </ul>
  *
  * <p>Configuration fixed at construction: fill direction ({@link Direction}),
@@ -76,7 +81,11 @@ public class ProgressBar extends AbstractPanelElement<ProgressBar> {
 
     private int width;
     private int height;
-    private final Supplier<Float> valueSupplier;
+    // Normalized 0.0–1.0 value source, read each frame. DoubleSupplier (not a
+    // boxed Supplier<Float>) is the canonical numeric-supplier shape across the
+    // library — Slider and ScrollContainer read their normalized values the same
+    // way — so a double-valued source feeds this bar with no box-and-cast.
+    private final DoubleSupplier valueSupplier;
     private final Direction direction;
     private final int fillColor;
     private final int bgColor;
@@ -121,9 +130,14 @@ public class ProgressBar extends AbstractPanelElement<ProgressBar> {
     /**
      * Creates a ProgressBar with a supplier-driven value, left-to-right
      * direction, default colors, and no label.
+     *
+     * <p>{@code value} is a {@link DoubleSupplier} returning a normalized
+     * {@code 0.0–1.0} progress — the same canonical numeric-supplier shape
+     * {@link Slider} and {@link ScrollContainer} use, so a {@code double}-valued
+     * source feeds this bar with no box-and-cast.
      */
     public ProgressBar(int childX, int childY, int width, int height,
-                       Supplier<Float> value) {
+                       DoubleSupplier value) {
         this(childX, childY, width, height, value,
                 DEFAULT_DIRECTION, DEFAULT_FILL_COLOR, DEFAULT_BG_COLOR, null);
     }
@@ -135,14 +149,15 @@ public class ProgressBar extends AbstractPanelElement<ProgressBar> {
      * @param childY    Y position within panel content area
      * @param width     bar width in pixels
      * @param height    bar height in pixels
-     * @param value     progress supplier; invoked each frame; result clamped to [0, 1]
+     * @param value     normalized progress supplier ({@code DoubleSupplier},
+     *                  value in {@code 0..1}); invoked each frame; result clamped to [0, 1]
      * @param direction fill direction
      * @param fillColor ARGB fill color (must include alpha byte)
      * @param bgColor   ARGB background color (must include alpha byte)
      * @param label     optional label supplier; null for no label
      */
     public ProgressBar(int childX, int childY, int width, int height,
-                       Supplier<Float> value,
+                       DoubleSupplier value,
                        Direction direction, int fillColor, int bgColor,
                        @Nullable Supplier<Component> label) {
         this.childX = childX;
@@ -156,10 +171,10 @@ public class ProgressBar extends AbstractPanelElement<ProgressBar> {
         this.label = label;
     }
 
-    /** Wraps a fixed float into a one-shot supplier, unifying the render path. */
-    private static Supplier<Float> wrap(float value) {
-        Float boxed = value;
-        return () -> boxed;
+    /** Wraps a fixed float into a constant supplier, unifying the render path. */
+    private static DoubleSupplier wrap(float value) {
+        double constant = value;
+        return () -> constant;
     }
 
     // ── M8 Layout Spec ─────────────────────────────────────────────────
@@ -168,16 +183,21 @@ public class ProgressBar extends AbstractPanelElement<ProgressBar> {
      * Returns an {@link com.trevorschoeny.menukit.core.layout.ElementSpec}
      * for a default-styled progress bar (left-to-right, default colors,
      * no label).
+     *
+     * <p>{@code value} is a {@link DoubleSupplier} returning a normalized
+     * {@code 0.0–1.0} progress — the canonical numeric-supplier shape — so a
+     * {@code Slider}'s {@code double} value feeds this with no cast:
+     * {@code ProgressBar.spec(w, h, () -> s.slider)}.
      */
     public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
-            int width, int height, Supplier<Float> value) {
+            int width, int height, DoubleSupplier value) {
         return spec(width, height, value, DEFAULT_DIRECTION,
                 DEFAULT_FILL_COLOR, DEFAULT_BG_COLOR, null);
     }
 
     /** Layout spec with full configuration. */
     public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(
-            int width, int height, Supplier<Float> value,
+            int width, int height, DoubleSupplier value,
             Direction direction, int fillColor, int bgColor,
             @Nullable Supplier<Component> label) {
         return new com.trevorschoeny.menukit.core.layout.ElementSpec() {
@@ -204,8 +224,10 @@ public class ProgressBar extends AbstractPanelElement<ProgressBar> {
         // Background
         graphics.fill(drawX, drawY, drawX + width, drawY + height, bgColor);
 
-        // Value clamped to [0, 1] — silent per the class javadoc
-        float v = Math.max(0f, Math.min(1f, valueSupplier.get()));
+        // Value clamped to [0, 1] — silent per the class javadoc. Read as a
+        // double from the canonical DoubleSupplier shape, then cast to the float
+        // the fill arithmetic needs.
+        float v = (float) Math.max(0.0, Math.min(1.0, valueSupplier.getAsDouble()));
 
         // Fill according to direction
         switch (direction) {
@@ -275,7 +297,7 @@ public class ProgressBar extends AbstractPanelElement<ProgressBar> {
 
     /** Returns the current progress value, clamped to [0, 1]. Resolves the supplier. */
     public float getCurrentValue() {
-        return Math.max(0f, Math.min(1f, valueSupplier.get()));
+        return (float) Math.max(0.0, Math.min(1.0, valueSupplier.getAsDouble()));
     }
 
     /** Returns the fill direction. */

@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -404,7 +405,10 @@ public class MKHudPanel {
     public static class BarBuilder {
         private final Builder parent;
         private final int x, y, barW, barH;
-        private Supplier<Float> value = () -> 0f;
+        // Normalized 0.0–1.0 bar value as a DoubleSupplier — the canonical
+        // numeric-supplier shape ProgressBar (and Slider/ScrollContainer) read,
+        // so a double-valued source needs no box-and-cast here.
+        private DoubleSupplier value = () -> 0.0;
         private int fillColor = ProgressBar.DEFAULT_FILL_COLOR;
         private int bgColor = ProgressBar.DEFAULT_BG_COLOR;
         private ProgressBar.Direction direction = ProgressBar.DEFAULT_DIRECTION;
@@ -418,7 +422,7 @@ public class MKHudPanel {
             this.barH = h;
         }
 
-        public BarBuilder value(Supplier<Float> value) { this.value = value; return this; }
+        public BarBuilder value(DoubleSupplier value) { this.value = value; return this; }
         public BarBuilder color(int color) { this.fillColor = color; return this; }
         public BarBuilder bgColor(int color) { this.bgColor = color; return this; }
         public BarBuilder direction(ProgressBar.Direction dir) { this.direction = dir; return this; }
