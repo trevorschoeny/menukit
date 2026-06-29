@@ -60,7 +60,9 @@ import java.util.function.Supplier;
  * @see PanelElement The interface this implements
  * @see Button       Non-toggling interactive primitive
  */
-public class Toggle extends AbstractPanelElement {
+public class Toggle extends AbstractPanelElement<Toggle> {
+
+    @Override protected Toggle self() { return this; }
 
     /** Horizontal inset for an on-body label inside the toggle bar. */
     public static final int LABEL_PAD = 6;
@@ -69,8 +71,8 @@ public class Toggle extends AbstractPanelElement {
     /** Muted on-body label color when disabled. */
     public static final int LABEL_DISABLED_COLOR = 0xFF808080;
 
-    private final int width;
-    private final int height;
+    private int width;
+    private int height;
     private final Consumer<Boolean> onToggle;
     private final @Nullable BooleanSupplier disabledWhen;
 
@@ -224,10 +226,10 @@ public class Toggle extends AbstractPanelElement {
      *   <li>Base Toggle (element-owned state): writes the new state to
      *       internal storage and fires the {@code onToggle} callback with
      *       the new state.</li>
-     *   <li>{@link #linked(int, int, int, int, java.util.function.BooleanSupplier, Runnable) Toggle.linked}
-     *       (consumer-owned state): fires the consumer's callback; consumer
-     *       is responsible for updating their own state. No internal storage
-     *       commit happens.</li>
+     *   <li>{@link #linked(int, int, int, int, java.util.function.BooleanSupplier, java.util.function.Consumer) Toggle.linked}
+     *       (consumer-owned state): fires the consumer's callback with the new
+     *       state; consumer is responsible for updating their own state. No
+     *       internal storage commit happens.</li>
      * </ul>
      *
      * <p>Called from the {@code toggleTo} orchestration helper after the
@@ -252,23 +254,19 @@ public class Toggle extends AbstractPanelElement {
         applyState(newState);
     }
 
-    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
+    // ── Chainable configuration ────────────────────────────────────────
+    //
+    // showWhen + tooltip + at return Toggle for free via the SELF self-type.
 
-    @Override
-    public Toggle tooltip(Component text) {
-        super.tooltip(text);
-        return this;
-    }
-
-    @Override
-    public Toggle tooltip(@Nullable Supplier<Component> supplier) {
-        super.tooltip(supplier);
-        return this;
-    }
-
-    @Override
-    public Toggle showWhen(@Nullable Supplier<Boolean> supplier) {
-        super.showWhen(supplier);
+    /**
+     * Fluent resize sugar — sets the toggle's base pixel dimensions and
+     * returns this toggle for chaining. For a labeled toggle the effective
+     * width auto-widens to fit the label (see {@link #getWidth()}); this sets
+     * the unlabeled/minimum width. Additive to the positional constructors.
+     */
+    public Toggle size(int width, int height) {
+        this.width = width;
+        this.height = height;
         return this;
     }
 
@@ -388,8 +386,8 @@ public class Toggle extends AbstractPanelElement {
     /**
      * Creates a Toggle whose state lives in consumer code instead of inside
      * the element. The consumer provides a {@link BooleanSupplier} that
-     * drives rendering each frame and a {@link Runnable} that fires when
-     * the user clicks to toggle.
+     * drives rendering each frame and a {@link Consumer Consumer&lt;Boolean&gt;}
+     * that fires with the new state when the user clicks to toggle.
      *
      * <h4>Persistence framing</h4>
      *
@@ -417,7 +415,7 @@ public class Toggle extends AbstractPanelElement {
      * <pre>{@code
      * Toggle.linked(x, y, w, h,
      *     () -> config.autoSort,
-     *     () -> config.autoSort = !config.autoSort);
+     *     newState -> config.autoSort = newState);
      * }</pre>
      *
      * @param childX   X position within panel content area
@@ -425,12 +423,14 @@ public class Toggle extends AbstractPanelElement {
      * @param width    width in pixels
      * @param height   height in pixels
      * @param state    supplier invoked each frame to drive rendering
-     * @param onToggle fired on user-initiated state changes; consumer
-     *                 updates their own state store in response
+     * @param onToggle fired on user-initiated state changes, carrying the
+     *                 new state; consumer updates their own state store in
+     *                 response. Unified with the element-owned Toggle's
+     *                 {@code Consumer<Boolean>} callback shape.
      */
     public static Toggle linked(int childX, int childY, int width, int height,
                                 BooleanSupplier state,
-                                Runnable onToggle) {
+                                Consumer<Boolean> onToggle) {
         return new LinkedToggle(childX, childY, width, height, state, onToggle);
     }
 
@@ -484,12 +484,27 @@ public class Toggle extends AbstractPanelElement {
     /**
      * {@link #linked Linked} + {@link #sprite sprite} combination: consumer-
      * owned state, sprite-backed visual with HSL-inversion on the on state.
+     * The {@code onToggle} callback carries the new state, matching every
+     * other Toggle factory.
      */
     public static Toggle spriteLinked(int childX, int childY, int width, int height,
-                                       BooleanSupplier state, Runnable onToggle,
+                                       BooleanSupplier state, Consumer<Boolean> onToggle,
                                        Identifier sprite) {
         return new SpriteLinkedToggle(childX, childY, width, height,
                 state, onToggle, (Supplier<Identifier>) () -> sprite);
+    }
+
+    /**
+     * Supplier-driven-sprite variant of
+     * {@link #spriteLinked(int, int, int, int, BooleanSupplier, Consumer, Identifier)}.
+     * The sprite is computed per frame from the {@link Supplier}, matching the
+     * {@code sprite(...)} factory's Identifier/Supplier overload pair.
+     */
+    public static Toggle spriteLinked(int childX, int childY, int width, int height,
+                                       BooleanSupplier state, Consumer<Boolean> onToggle,
+                                       Supplier<Identifier> sprite) {
+        return new SpriteLinkedToggle(childX, childY, width, height,
+                state, onToggle, sprite);
     }
 
     /**
@@ -560,16 +575,16 @@ public class Toggle extends AbstractPanelElement {
      */
     static final class SpriteLinkedToggle extends SpriteToggle {
         private final BooleanSupplier stateSupplier;
-        private final Runnable onToggleRunnable;
+        private final Consumer<Boolean> onToggleConsumer;
 
         SpriteLinkedToggle(int childX, int childY, int width, int height,
-                           BooleanSupplier state, Runnable onToggle,
+                           BooleanSupplier state, Consumer<Boolean> onToggle,
                            Supplier<Identifier> sprite) {
             // Super's Consumer<Boolean> is a dummy — applyState override
             // below replaces state-commit behavior, same shape as LinkedToggle.
             super(childX, childY, width, height, state.getAsBoolean(), b -> {}, sprite);
             this.stateSupplier = state;
-            this.onToggleRunnable = onToggle;
+            this.onToggleConsumer = onToggle;
         }
 
         @Override
@@ -579,7 +594,9 @@ public class Toggle extends AbstractPanelElement {
 
         @Override
         protected void applyState(boolean newState) {
-            onToggleRunnable.run();
+            // Consumer-owned state — fire the new-state callback; consumer
+            // mutates their own state; the supplier returns it next frame.
+            onToggleConsumer.accept(newState);
         }
     }
 
@@ -592,10 +609,10 @@ public class Toggle extends AbstractPanelElement {
      */
     static final class LinkedToggle extends Toggle {
         private final BooleanSupplier stateSupplier;
-        private final Runnable onToggleRunnable;
+        private final Consumer<Boolean> onToggleConsumer;
 
         LinkedToggle(int childX, int childY, int width, int height,
-                     BooleanSupplier state, Runnable onToggle) {
+                     BooleanSupplier state, Consumer<Boolean> onToggle) {
             // Super's Consumer<Boolean> is a dummy — the applyState override
             // below fully replaces parent's state-commit behavior, so super's
             // callback is never fired. Super's `state` field is also dead
@@ -603,7 +620,7 @@ public class Toggle extends AbstractPanelElement {
             // supplier instead).
             super(childX, childY, width, height, state.getAsBoolean(), b -> {});
             this.stateSupplier = state;
-            this.onToggleRunnable = onToggle;
+            this.onToggleConsumer = onToggle;
         }
 
         @Override
@@ -614,9 +631,9 @@ public class Toggle extends AbstractPanelElement {
         @Override
         protected void applyState(boolean newState) {
             // Consumer-owned state — no internal commit to do.
-            // Fire the Runnable; consumer mutates their state; the supplier
-            // returns the new value on next frame.
-            onToggleRunnable.run();
+            // Fire the new-state callback; consumer mutates their state; the
+            // supplier returns the new value on next frame.
+            onToggleConsumer.accept(newState);
         }
     }
 }

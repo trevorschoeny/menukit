@@ -58,7 +58,9 @@ import java.util.function.Supplier;
  * @see PanelElement The interface this implements
  * @see Toggle       The general boolean primitive
  */
-public class Checkbox extends AbstractPanelElement {
+public class Checkbox extends AbstractPanelElement<Checkbox> {
+
+    @Override protected Checkbox self() { return this; }
 
     /** Size of the checkbox square, in pixels. */
     public static final int BOX_SIZE = 10;
@@ -198,25 +200,9 @@ public class Checkbox extends AbstractPanelElement {
     /** Returns whether the mouse is currently over this element (updated each frame). */
     public boolean isHovered() { return hovered; }
 
-    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
-
-    @Override
-    public Checkbox tooltip(Component text) {
-        super.tooltip(text);
-        return this;
-    }
-
-    @Override
-    public Checkbox tooltip(@Nullable Supplier<Component> supplier) {
-        super.tooltip(supplier);
-        return this;
-    }
-
-    @Override
-    public Checkbox showWhen(@Nullable Supplier<Boolean> supplier) {
-        super.showWhen(supplier);
-        return this;
-    }
+    // ── Chainable configuration ────────────────────────────────────────
+    //
+    // showWhen + tooltip + at return Checkbox for free via the SELF self-type.
 
     // ── Rendering ──────────────────────────────────────────────────────
 

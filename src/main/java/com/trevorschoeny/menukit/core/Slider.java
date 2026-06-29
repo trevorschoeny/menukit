@@ -102,7 +102,9 @@ import java.util.function.Supplier;
  * trigger as TextField's modal case; defer until concrete consumer
  * surfaces the need.
  */
-public class Slider extends AbstractPanelElement {
+public class Slider extends AbstractPanelElement<Slider> {
+
+    @Override protected Slider self() { return this; }
 
     private final int width;
     private final int height;
@@ -189,25 +191,10 @@ public class Slider extends AbstractPanelElement {
         }
     }
 
-    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
-
-    @Override
-    public Slider tooltip(Component text) {
-        super.tooltip(text);
-        return this;
-    }
-
-    @Override
-    public Slider tooltip(@Nullable Supplier<Component> supplier) {
-        super.tooltip(supplier);
-        return this;
-    }
-
-    @Override
-    public Slider showWhen(@Nullable Supplier<Boolean> supplier) {
-        super.showWhen(supplier);
-        return this;
-    }
+    // ── Chainable configuration ────────────────────────────────────────
+    //
+    // showWhen + tooltip return Slider for free via the SELF self-type.
+    // Position + size are configured on the Builder (.at()/.size()).
 
     // ── Lifecycle ──────────────────────────────────────────────────────
 

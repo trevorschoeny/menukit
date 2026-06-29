@@ -7,6 +7,7 @@ import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -37,13 +38,13 @@ import java.util.function.Supplier;
  *       the boolean; the owner (if any) is notified on changes to trigger a
  *       sync pass over affected slots. Canonical for MenuKit-native inventory
  *       menus where visibility must propagate server→client.</li>
- *   <li><b>Supplier-driven</b> via {@link #showWhen(Supplier)}. Consumer holds
+ *   <li><b>Supplier-driven</b> via {@link #showWhen(java.util.function.BooleanSupplier)}. Consumer holds
  *       the state; Panel reads via the supplier on each {@code isVisible()}
  *       call. Canonical for Phase 10 injected panels, HUDs, and standalone
  *       screens, following the Phase 8/9 state-ownership pattern
  *       ({@code Toggle.linked}).</li>
  * </ul>
- * The two modes are mutually exclusive — see {@link #showWhen(Supplier)} for
+ * The two modes are mutually exclusive — see {@link #showWhen(java.util.function.BooleanSupplier)} for
  * precedence semantics.
  */
 public class Panel {
@@ -129,7 +130,9 @@ public class Panel {
     // setVisible(...) silently no-ops. Clear with showWhen(null) to revert to
     // imperative control. Matches the Phase 8/9 state-ownership pattern
     // (Toggle.linked): consumer holds the state; library reads via supplier.
-    private @Nullable Supplier<Boolean> visibilitySupplier;
+    // Uses BooleanSupplier (no boxing), unified with the element-level
+    // showWhen / disabledWhen / revealWhen predicate type.
+    private @Nullable BooleanSupplier visibilitySupplier;
 
     // Opacity / dim / modal-tracking flags (Phase 14d-2.5 M9 mechanism).
     //
@@ -198,6 +201,108 @@ public class Panel {
     /** Creates a visible panel with default style and position. */
     public Panel(String id, List<PanelElement> elements) {
         this(id, elements, true);
+    }
+
+    // ── Builder ─────────────────────────────────────────────────────────
+
+    /**
+     * Sentinel toggle-key value meaning "no toggle key." Hidden behind the
+     * {@link Builder} so consumers never type a magic {@code -1} — they either
+     * leave {@link Builder#toggleKey(int)} unset (no key) or pass a real GLFW
+     * key code.
+     */
+    static final int NO_TOGGLE_KEY = -1;
+
+    /**
+     * Starts a fluent builder for a Panel with the given id. Additive
+     * alternative to the positional constructors — lets a consumer name only
+     * the fields they care about and skip the magic {@code -1} toggle-key
+     * sentinel entirely.
+     *
+     * <pre>{@code
+     * Panel p = Panel.builder("settings")
+     *     .add(new Button(...))
+     *     .add(new Toggle(...))
+     *     .style(PanelStyle.RAISED)
+     *     .position(PanelPosition.BODY)
+     *     .build();
+     * }</pre>
+     *
+     * @param id unique identifier within the screen
+     * @return a new {@link Builder}
+     */
+    public static Builder builder(String id) {
+        return new Builder(id);
+    }
+
+    /**
+     * Fluent builder for {@link Panel}. Mirrors the full positional
+     * constructor's parameters as named, optional setters with sensible
+     * defaults (visible, {@link PanelStyle#RAISED}, {@link PanelPosition#BODY},
+     * no toggle key). The {@code -1} no-toggle-key sentinel is hidden behind
+     * {@link #toggleKey(int)} — leaving it unset means "no key."
+     */
+    public static final class Builder {
+        private final String id;
+        private final List<PanelElement> elements = new java.util.ArrayList<>();
+        private boolean visible = true;
+        private PanelStyle style = PanelStyle.RAISED;
+        private PanelPosition position = PanelPosition.BODY;
+        private int toggleKey = NO_TOGGLE_KEY;
+
+        private Builder(String id) {
+            this.id = id;
+        }
+
+        /**
+         * Replaces the accumulated element list with the given one. Additive
+         * with {@link #add(PanelElement)} — call order is: this resets the
+         * list, subsequent {@code add(...)} append to it.
+         */
+        public Builder elements(List<PanelElement> elements) {
+            this.elements.clear();
+            this.elements.addAll(elements);
+            return this;
+        }
+
+        /** Appends a single element to the panel's element list. */
+        public Builder add(PanelElement element) {
+            this.elements.add(element);
+            return this;
+        }
+
+        /** Sets the initial visibility state. Default {@code true}. */
+        public Builder visible(boolean visible) {
+            this.visible = visible;
+            return this;
+        }
+
+        /** Sets the panel's visual background style. Default {@link PanelStyle#RAISED}. */
+        public Builder style(PanelStyle style) {
+            this.style = style;
+            return this;
+        }
+
+        /** Sets how the panel is positioned in the layout. Default {@link PanelPosition#BODY}. */
+        public Builder position(PanelPosition position) {
+            this.position = position;
+            return this;
+        }
+
+        /**
+         * Sets the GLFW key code that toggles this panel's visibility. Leave
+         * unset for no toggle key — there is no need to pass the {@code -1}
+         * sentinel by hand.
+         */
+        public Builder toggleKey(int glfwKeyCode) {
+            this.toggleKey = glfwKeyCode;
+            return this;
+        }
+
+        /** Builds the configured Panel. */
+        public Panel build() {
+            return new Panel(id, elements, visible, style, position, toggleKey);
+        }
     }
 
     // ── Identity ────────────────────────────────────────────────────────
@@ -567,13 +672,13 @@ public class Panel {
     /**
      * Returns whether this panel is currently visible.
      *
-     * <p>If a visibility supplier is set (via {@link #showWhen(Supplier)}),
+     * <p>If a visibility supplier is set (via {@link #showWhen(java.util.function.BooleanSupplier)}),
      * returns the supplier's current value. Otherwise returns the imperative
      * {@code visible} field, which is controlled via {@link #setVisible(boolean)}.
      */
     public boolean isVisible() {
         if (visibilitySupplier != null) {
-            return visibilitySupplier.get();
+            return visibilitySupplier.getAsBoolean();
         }
         return visible;
     }
@@ -588,7 +693,7 @@ public class Panel {
      * real stacks to the client.
      *
      * <p><b>No-op when a visibility supplier is active.</b> If
-     * {@link #showWhen(Supplier)} has been called with a non-null supplier,
+     * {@link #showWhen(java.util.function.BooleanSupplier)} has been called with a non-null supplier,
      * calls to {@code setVisible} are silently ignored — the supplier is the
      * single source of truth. Consumers who have committed to supplier-driven
      * visibility should not get spurious partial overrides from unrelated code
@@ -637,7 +742,7 @@ public class Panel {
      *                 imperative control.
      * @return this panel, for method chaining.
      */
-    public Panel showWhen(@Nullable Supplier<Boolean> supplier) {
+    public Panel showWhen(@Nullable BooleanSupplier supplier) {
         this.visibilitySupplier = supplier;
         if (supplier == null) {
             // Reset to default-visible per the design-doc-locked semantics.

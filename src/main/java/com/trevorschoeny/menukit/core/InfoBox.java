@@ -12,7 +12,9 @@ import java.util.function.Supplier;
  * <p>Distinct from the hover-triggered tooltip set via {@code .tooltip(...)}
  * on interactive elements (Button, Toggle, Checkbox, Radio, Icon). That form
  * uses vanilla's tooltip rendering at the mouse position. This form renders
- * at a declared position persistently.
+ * at a declared position persistently. The element was renamed from
+ * {@code Tooltip} to {@code InfoBox} to remove the name collision with the
+ * {@code .tooltip(...)} hover-tooltip chainable that lives on every element.
  *
  * <p>Works in all three rendering contexts. Render-only element.
  *
@@ -27,9 +29,11 @@ import java.util.function.Supplier;
  *
  * @see PanelElement The interface this implements
  */
-public class Tooltip extends AbstractPanelElement {
+public class InfoBox extends AbstractPanelElement<InfoBox> {
 
-    /** Padding on all sides of the tooltip text, in pixels. */
+    @Override protected InfoBox self() { return this; }
+
+    /** Padding on all sides of the info-box text, in pixels. */
     public static final int PADDING = 4;
 
     /** Default text color — vanilla inventory-label dark gray. */
@@ -38,25 +42,25 @@ public class Tooltip extends AbstractPanelElement {
     private final Supplier<Component> textSupplier;
 
     /**
-     * Creates a Tooltip with fixed text.
+     * Creates an InfoBox with fixed text.
      *
      * @param childX X position within panel content area
      * @param childY Y position within panel content area
      * @param text   the text to display
      */
-    public Tooltip(int childX, int childY, Component text) {
+    public InfoBox(int childX, int childY, Component text) {
         this(childX, childY, () -> text);
     }
 
     /**
-     * Creates a Tooltip whose text is driven by a supplier. The supplier is
+     * Creates an InfoBox whose text is driven by a supplier. The supplier is
      * invoked each frame.
      *
      * @param childX X position within panel content area
      * @param childY Y position within panel content area
      * @param text   supplier invoked each frame; must not return null
      */
-    public Tooltip(int childX, int childY, Supplier<Component> text) {
+    public InfoBox(int childX, int childY, Supplier<Component> text) {
         this.childX = childX;
         this.childY = childY;
         this.textSupplier = text;
@@ -66,7 +70,7 @@ public class Tooltip extends AbstractPanelElement {
 
     /**
      * Returns an {@link com.trevorschoeny.menukit.core.layout.ElementSpec}
-     * for a static-text tooltip. Width inferred from font metrics + padding.
+     * for a static-text info box. Width inferred from font metrics + padding.
      */
     public static com.trevorschoeny.menukit.core.layout.ElementSpec spec(Component text) {
         int textW = Minecraft.getInstance().font.width(text);
@@ -76,13 +80,13 @@ public class Tooltip extends AbstractPanelElement {
             @Override public int width()  { return w; }
             @Override public int height() { return h; }
             @Override public PanelElement at(int x, int y) {
-                return new Tooltip(x, y, text);
+                return new InfoBox(x, y, text);
             }
         };
     }
 
     /**
-     * Layout spec for supplier-driven tooltip text with consumer-declared
+     * Layout spec for supplier-driven info-box text with consumer-declared
      * dimensions. Required for dynamic content — consumer locks max-width
      * up front so layout stays stable as supplier values change.
      */
@@ -92,7 +96,7 @@ public class Tooltip extends AbstractPanelElement {
             @Override public int width()  { return width; }
             @Override public int height() { return height; }
             @Override public PanelElement at(int x, int y) {
-                return new Tooltip(x, y, text);
+                return new InfoBox(x, y, text);
             }
         };
     }
@@ -132,6 +136,6 @@ public class Tooltip extends AbstractPanelElement {
                 DEFAULT_TEXT_COLOR, false);
     }
 
-    /** Returns the current tooltip text. Resolves the supplier. */
+    /** Returns the current info-box text. Resolves the supplier. */
     public Component getCurrentText() { return textSupplier.get(); }
 }

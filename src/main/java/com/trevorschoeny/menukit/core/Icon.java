@@ -49,10 +49,12 @@ import java.util.function.Supplier;
  * @see Button        Interactive button element (Phase 9 adds icon-only variant)
  * @see TextLabel     Text rendering primitive
  */
-public class Icon extends AbstractPanelElement {
+public class Icon extends AbstractPanelElement<Icon> {
 
-    private final int width;
-    private final int height;
+    @Override protected Icon self() { return this; }
+
+    private int width;
+    private int height;
     private final Supplier<Identifier> spriteSupplier;
 
     // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
@@ -140,23 +142,17 @@ public class Icon extends AbstractPanelElement {
     // mouseClicked inherits from PanelElement. isVisible + setVisible
     // inherit from AbstractPanelElement (Phase 18r-2).
 
-    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
+    // ── Chainable configuration ────────────────────────────────────────
+    //
+    // showWhen + tooltip + at return Icon for free via the SELF self-type.
 
-    @Override
-    public Icon tooltip(Component text) {
-        super.tooltip(text);
-        return this;
-    }
-
-    @Override
-    public Icon tooltip(@Nullable Supplier<Component> supplier) {
-        super.tooltip(supplier);
-        return this;
-    }
-
-    @Override
-    public Icon showWhen(@Nullable Supplier<Boolean> supplier) {
-        super.showWhen(supplier);
+    /**
+     * Fluent resize sugar — sets the icon's pixel dimensions and returns this
+     * icon for chaining. Additive to the positional constructors.
+     */
+    public Icon size(int width, int height) {
+        this.width = width;
+        this.height = height;
         return this;
     }
 

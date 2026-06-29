@@ -112,7 +112,9 @@ import java.util.function.Supplier;
  *
  * @param <T> selection value type; identity via {@code T.equals()}
  */
-public final class DropdownMulti<T> extends AbstractPanelElement {
+public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T>> {
+
+    @Override protected DropdownMulti<T> self() { return this; }
 
     // ── Layout / render constants ──────────────────────────────────────
     // Mirrors Dropdown's constants. Kept verbatim (rather than imported
@@ -275,25 +277,10 @@ public final class DropdownMulti<T> extends AbstractPanelElement {
         }
     }
 
-    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
-
-    @Override
-    public DropdownMulti<T> tooltip(Component text) {
-        super.tooltip(text);
-        return this;
-    }
-
-    @Override
-    public DropdownMulti<T> tooltip(@Nullable Supplier<Component> supplier) {
-        super.tooltip(supplier);
-        return this;
-    }
-
-    @Override
-    public DropdownMulti<T> showWhen(@Nullable Supplier<Boolean> supplier) {
-        super.showWhen(supplier);
-        return this;
-    }
+    // ── Chainable configuration ────────────────────────────────────────
+    //
+    // showWhen + tooltip return DropdownMulti<T> for free via the SELF self-type.
+    // Position + trigger size are configured on the Builder (.at()/.triggerSize()).
 
     /**
      * Phase 18s follow-up — popover renders on the overlay pass so it

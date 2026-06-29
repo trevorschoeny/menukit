@@ -4,6 +4,7 @@ import net.minecraft.network.chat.Component;
 
 import org.jspecify.annotations.Nullable;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -40,8 +41,33 @@ import java.util.function.Supplier;
  * silently no-ops while a supplier is active (consumer holds the state, library
  * reads via supplier). Clearing with {@code showWhen(null)} reverts to
  * imperative control and resets {@code visible = true}.
+ *
+ * <h2>Self-type parameter ({@code SELF}) — fluent chaining without downcasts</h2>
+ *
+ * The class is parameterized on its own concrete type ({@code SELF extends
+ * AbstractPanelElement<SELF>}). Every cross-cutting chainable setter here
+ * ({@code showWhen}, {@code tooltip}, {@code at}, {@code setElementOpaque},
+ * {@code declId}, …) returns {@code SELF} via the abstract {@link #self()}
+ * hook, which each concrete subclass implements as {@code return this}. This
+ * means a chain that starts with a {@code Button} stays typed as {@code Button}
+ * all the way through — no chain-order downcast trap, and per-widget covariant
+ * re-typing overrides (the old hand-written {@code tooltip}/{@code showWhen}
+ * narrowing overrides) are no longer needed. The curiously-recurring generic
+ * is purely a compile-time convenience: {@code AbstractPanelElement} is never
+ * referenced as a field/param/return type anywhere, only as a supertype, so
+ * the generic is fully contained to the class declarations.
  */
-public abstract class AbstractPanelElement implements PanelElement {
+public abstract class AbstractPanelElement<SELF extends AbstractPanelElement<SELF>>
+        implements PanelElement {
+
+    /**
+     * Returns {@code this} typed as the concrete subclass. Each subclass
+     * implements this as {@code return this;}. The base's chainable setters
+     * route their return through this hook so they hand back the concrete
+     * type instead of {@code AbstractPanelElement}, keeping fluent chains
+     * typed end-to-end.
+     */
+    protected abstract SELF self();
 
     /**
      * Imperative visibility state. Defaults true (matches
@@ -53,21 +79,22 @@ public abstract class AbstractPanelElement implements PanelElement {
     /**
      * Supplier-driven visibility, mirroring {@link Panel#showWhen}. When
      * non-null, takes precedence over {@link #visible}. Cleared by
-     * {@code showWhen(null)}.
+     * {@code showWhen(null)}. Uses {@link BooleanSupplier} (no boxing) to
+     * match {@code disabledWhen}/{@code revealWhen} across the element API.
      */
-    private @Nullable Supplier<Boolean> visibilitySupplier;
+    private @Nullable BooleanSupplier visibilitySupplier;
 
     /**
      * Returns whether this element is currently visible.
      *
-     * <p>If a visibility supplier is set (via {@link #showWhen(Supplier)}),
+     * <p>If a visibility supplier is set (via {@link #showWhen(BooleanSupplier)}),
      * returns the supplier's current value. Otherwise returns the imperative
      * {@code visible} field controlled via {@link #setVisible(boolean)}.
      */
     @Override
     public boolean isVisible() {
         if (visibilitySupplier != null) {
-            return visibilitySupplier.get();
+            return visibilitySupplier.getAsBoolean();
         }
         return visible;
     }
@@ -102,13 +129,13 @@ public abstract class AbstractPanelElement implements PanelElement {
      *
      * @return this element, for method chaining.
      */
-    public AbstractPanelElement showWhen(@Nullable Supplier<Boolean> supplier) {
+    public SELF showWhen(@Nullable BooleanSupplier supplier) {
         this.visibilitySupplier = supplier;
         if (supplier == null) {
             // Reset to default-visible per the Panel.showWhen-locked semantics.
             this.visible = true;
         }
-        return this;
+        return self();
     }
 
     // ── Position (§0047 — mutable presentation; identity stays frozen) ──
@@ -156,6 +183,26 @@ public abstract class AbstractPanelElement implements PanelElement {
         this.childY = y;
     }
 
+    /**
+     * Fluent positioning sugar — sets this element's panel-local position and
+     * returns the concrete element for chaining. Equivalent to
+     * {@link #setChildPosition(int, int)} but chainable, so the simple widgets
+     * (Button, Toggle, Checkbox, Radio, Divider, ProgressBar, TextLabel, Icon,
+     * ItemDisplay) can be authored as {@code new Button(...).at(x, y)} instead
+     * of threading x/y through the constructor. Additive — the positional
+     * constructors still work; {@code .at()} just lets a consumer move the
+     * position out of the constructor argument list when that reads cleaner.
+     *
+     * @param childX panel-local X within the panel content area
+     * @param childY panel-local Y within the panel content area
+     * @return this element, typed as the concrete subclass, for chaining
+     */
+    public SELF at(int childX, int childY) {
+        this.childX = childX;
+        this.childY = childY;
+        return self();
+    }
+
     // ── Tooltip (hover-triggered) ──────────────────────────────────────
     //
     // Hoisted in Phase 18r-2 from per-widget duplication (Button, Toggle,
@@ -185,7 +232,7 @@ public abstract class AbstractPanelElement implements PanelElement {
      * once during the construction chain. See
      * {@code Design Docs/Element Design Docs/TOOLTIP_DESIGN_DOC.md}.
      */
-    public AbstractPanelElement tooltip(Component text) {
+    public SELF tooltip(Component text) {
         return tooltip(() -> text);
     }
 
@@ -194,9 +241,9 @@ public abstract class AbstractPanelElement implements PanelElement {
      * supplier is invoked each frame while hovered. Returns this element
      * for method chaining.
      */
-    public AbstractPanelElement tooltip(@Nullable Supplier<Component> supplier) {
+    public SELF tooltip(@Nullable Supplier<Component> supplier) {
         this.tooltipSupplier = supplier;
-        return this;
+        return self();
     }
 
     /**
@@ -234,9 +281,9 @@ public abstract class AbstractPanelElement implements PanelElement {
      *
      * @return this element, for chaining
      */
-    public AbstractPanelElement setElementOpaque(boolean opaque) {
+    public SELF setElementOpaque(boolean opaque) {
         this.elementOpaque = opaque;
-        return this;
+        return self();
     }
 
     @Override
@@ -271,9 +318,9 @@ public abstract class AbstractPanelElement implements PanelElement {
      *
      * @param id a stable id, unique within the owning panel
      */
-    public AbstractPanelElement declId(String id) {
+    public SELF declId(String id) {
         this.elementDeclId = id;
-        return this;
+        return self();
     }
 
     @Override

@@ -366,7 +366,7 @@ public interface PanelElement {
      * blocks the vanilla content behind it. Interactive elements (Button,
      * TextField, Slider, Dropdown, Toggle, Checkbox, Radio, ScrollContainer)
      * return {@code true}; render-only decorations (TextLabel, Icon, Divider,
-     * ItemDisplay, ProgressBar, Tooltip) inherit the {@code false} default.
+     * ItemDisplay, ProgressBar, InfoBox) inherit the {@code false} default.
      *
      * <p><b>Why this exists (the dead-click guard).</b> On a NON-opaque panel,
      * the inertness contract only lets a point be claimed where a <em>solid</em>

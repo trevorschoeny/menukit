@@ -53,7 +53,9 @@ import java.util.function.Supplier;
  *
  * @see PanelElement The interface this implements
  */
-public class ProgressBar extends AbstractPanelElement {
+public class ProgressBar extends AbstractPanelElement<ProgressBar> {
+
+    @Override protected ProgressBar self() { return this; }
 
     /** Fill direction for the progress bar. */
     public enum Direction {
@@ -72,8 +74,8 @@ public class ProgressBar extends AbstractPanelElement {
     /** Default direction — left-to-right. */
     public static final Direction DEFAULT_DIRECTION = Direction.LEFT_TO_RIGHT;
 
-    private final int width;
-    private final int height;
+    private int width;
+    private int height;
     private final Supplier<Float> valueSupplier;
     private final Direction direction;
     private final int fillColor;
@@ -252,23 +254,17 @@ public class ProgressBar extends AbstractPanelElement {
         }
     }
 
-    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
+    // ── Chainable configuration ────────────────────────────────────────
+    //
+    // showWhen + tooltip + at return ProgressBar for free via the SELF self-type.
 
-    @Override
-    public ProgressBar tooltip(Component text) {
-        super.tooltip(text);
-        return this;
-    }
-
-    @Override
-    public ProgressBar tooltip(@Nullable Supplier<Component> supplier) {
-        super.tooltip(supplier);
-        return this;
-    }
-
-    @Override
-    public ProgressBar showWhen(@Nullable Supplier<Boolean> supplier) {
-        super.showWhen(supplier);
+    /**
+     * Fluent resize sugar — sets the bar's pixel dimensions and returns this
+     * bar for chaining. Additive to the positional constructors.
+     */
+    public ProgressBar size(int width, int height) {
+        this.width = width;
+        this.height = height;
         return this;
     }
 

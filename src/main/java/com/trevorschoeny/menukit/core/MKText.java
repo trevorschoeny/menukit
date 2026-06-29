@@ -37,7 +37,7 @@ import net.minecraft.util.Util;
  * (value text, centered). Excluded: widgets with auto-sized labels
  * ({@code Checkbox}, {@code Radio} — labels grow the widget to fit, no
  * overflow possible), multi-line modes ({@code TextLabel} multi-line,
- * {@code Tooltip} — wrapping is the intent), and HUD widgets (display-
+ * {@code InfoBox} — wrapping is the intent), and HUD widgets (display-
  * style, wrap or stay short).
  *
  * <h3>Phase 18s follow-up</h3>

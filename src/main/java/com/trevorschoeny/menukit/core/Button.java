@@ -50,10 +50,12 @@ import java.util.function.Supplier;
  * @see PanelElement  The interface this implements
  * @see TextLabel     Non-interactive text element
  */
-public class Button extends AbstractPanelElement {
+public class Button extends AbstractPanelElement<Button> {
 
-    private final int width;
-    private final int height;
+    @Override protected Button self() { return this; }
+
+    private int width;
+    private int height;
     private final Component text;
     private final Consumer<Button> onClick;
     private final @Nullable BooleanSupplier disabledWhen;
@@ -159,23 +161,21 @@ public class Button extends AbstractPanelElement {
 
     // ── Tooltip (optional hover-triggered configuration) ───────────────
 
-    // ── Chainable configuration (Phase 18r-2: covariant returns over
-    //    AbstractPanelElement) ───────────────────────────────────────────
+    // ── Chainable configuration ────────────────────────────────────────
     //
-    // showWhen + tooltip live on AbstractPanelElement; these overrides
-    // narrow the return type to Button so consumers can keep chaining
-    // Button-specific helpers (none currently follow tooltip/showWhen in
-    // practice, but covariance future-proofs the chain).
+    // showWhen + tooltip + at live on AbstractPanelElement and return the
+    // concrete Button type for free via the SELF self-type — no hand-written
+    // covariant overrides needed.
 
-    @Override
-    public Button tooltip(Component text) {
-        super.tooltip(text);
-        return this;
-    }
-
-    @Override
-    public Button tooltip(@Nullable Supplier<Component> supplier) {
-        super.tooltip(supplier);
+    /**
+     * Fluent resize sugar — sets the button's pixel dimensions and returns
+     * this button for chaining. Additive to the positional constructors;
+     * lets a consumer write {@code new Button(...).size(w, h)} when that
+     * reads cleaner than threading width/height through the constructor.
+     */
+    public Button size(int width, int height) {
+        this.width = width;
+        this.height = height;
         return this;
     }
 
@@ -193,12 +193,6 @@ public class Button extends AbstractPanelElement {
 
     /** Returns the current visual style. */
     public ControlStyle getStyle() { return controlStyle; }
-
-    @Override
-    public Button showWhen(@Nullable Supplier<Boolean> supplier) {
-        super.showWhen(supplier);
-        return this;
-    }
 
     // ── Rendering ──────────────────────────────────────────────────────
 

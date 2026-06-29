@@ -39,7 +39,9 @@ import java.util.function.Supplier;
  *
  * @see PanelElement  The interface this implements
  */
-public class Divider extends AbstractPanelElement {
+public class Divider extends AbstractPanelElement<Divider> {
+
+    @Override protected Divider self() { return this; }
 
     /** Default separator color — vanilla inventory-label dark gray. */
     public static final int DEFAULT_COLOR = 0xFF404040;
@@ -47,8 +49,8 @@ public class Divider extends AbstractPanelElement {
     /** Default thickness in pixels. */
     public static final int DEFAULT_THICKNESS = 1;
 
-    private final int width;
-    private final int height;
+    private int width;
+    private int height;
     private final int color;
 
     // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
@@ -177,23 +179,22 @@ public class Divider extends AbstractPanelElement {
     // mouseClicked, isHovered inherit defaults from PanelElement. isVisible
     // + setVisible inherit from AbstractPanelElement (Phase 18r-2).
 
-    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
+    // ── Chainable configuration ────────────────────────────────────────
+    //
+    // showWhen + tooltip + at return Divider for free via the SELF self-type.
 
-    @Override
-    public Divider tooltip(Component text) {
-        super.tooltip(text);
-        return this;
-    }
-
-    @Override
-    public Divider tooltip(@Nullable Supplier<Component> supplier) {
-        super.tooltip(supplier);
-        return this;
-    }
-
-    @Override
-    public Divider showWhen(@Nullable Supplier<Boolean> supplier) {
-        super.showWhen(supplier);
+    /**
+     * Fluent resize sugar — sets the divider's raw pixel extent (width ×
+     * height) and returns this divider for chaining. Note the divider's
+     * orientation is fixed by the {@code horizontal(...)} / {@code vertical(...)}
+     * factory it was created from; {@code .size()} overrides the raw bounds
+     * directly, so callers should pass the extent in the same axis convention
+     * (a horizontal divider is {@code (length, thickness)}, a vertical one is
+     * {@code (thickness, length)}).
+     */
+    public Divider size(int width, int height) {
+        this.width = width;
+        this.height = height;
         return this;
     }
 

@@ -43,7 +43,9 @@ import java.util.function.Supplier;
  * @see PanelElement  The interface this implements
  * @see Button        Interactive button element
  */
-public class TextLabel extends AbstractPanelElement {
+public class TextLabel extends AbstractPanelElement<TextLabel> {
+
+    @Override protected TextLabel self() { return this; }
 
     /** Dark gray with shadow off — matches vanilla container labels on light backgrounds. */
     public static final int COLOR_DARK = 0xFF404040;
@@ -268,25 +270,9 @@ public class TextLabel extends AbstractPanelElement {
         }
     }
 
-    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
-
-    @Override
-    public TextLabel tooltip(Component text) {
-        super.tooltip(text);
-        return this;
-    }
-
-    @Override
-    public TextLabel tooltip(@Nullable Supplier<Component> supplier) {
-        super.tooltip(supplier);
-        return this;
-    }
-
-    @Override
-    public TextLabel showWhen(@Nullable Supplier<Boolean> supplier) {
-        super.showWhen(supplier);
-        return this;
-    }
+    // ── Chainable configuration ────────────────────────────────────────
+    //
+    // showWhen + tooltip + at return TextLabel for free via the SELF self-type.
 
     // mouseClicked inherits the default no-op from PanelElement.
     // isVisible + setVisible inherit from AbstractPanelElement (Phase 18r-2).

@@ -67,7 +67,9 @@ import java.util.function.Supplier;
  *   <li><b>HudContext:</b> no — HUDs are render-only.</li>
  * </ul>
  */
-public class TextField extends AbstractPanelElement {
+public class TextField extends AbstractPanelElement<TextField> {
+
+    @Override protected TextField self() { return this; }
 
     private final int width;
     private final int height;
@@ -202,25 +204,10 @@ public class TextField extends AbstractPanelElement {
         }
     }
 
-    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
-
-    @Override
-    public TextField tooltip(Component text) {
-        super.tooltip(text);
-        return this;
-    }
-
-    @Override
-    public TextField tooltip(@Nullable Supplier<Component> supplier) {
-        super.tooltip(supplier);
-        return this;
-    }
-
-    @Override
-    public TextField showWhen(@Nullable Supplier<Boolean> supplier) {
-        super.showWhen(supplier);
-        return this;
-    }
+    // ── Chainable configuration ────────────────────────────────────────
+    //
+    // showWhen + tooltip return TextField for free via the SELF self-type.
+    // Position + size are configured on the Builder (.at()/.size()).
 
     // ── Lifecycle ──────────────────────────────────────────────────────
 

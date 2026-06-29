@@ -41,7 +41,9 @@ import java.util.function.Supplier;
  * @see RadioGroup The coordinator
  * @see Checkbox   Multi-select sibling
  */
-public class Radio<T> extends AbstractPanelElement {
+public class Radio<T> extends AbstractPanelElement<Radio<T>> {
+
+    @Override protected Radio<T> self() { return this; }
 
     /** Size of the radio square, in pixels. */
     public static final int BOX_SIZE = 10;
@@ -170,25 +172,9 @@ public class Radio<T> extends AbstractPanelElement {
     /** Returns whether the mouse is over this Radio (updated each frame). */
     public boolean isHovered() { return hovered; }
 
-    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
-
-    @Override
-    public Radio<T> tooltip(Component text) {
-        super.tooltip(text);
-        return this;
-    }
-
-    @Override
-    public Radio<T> tooltip(@Nullable Supplier<Component> supplier) {
-        super.tooltip(supplier);
-        return this;
-    }
-
-    @Override
-    public Radio<T> showWhen(@Nullable Supplier<Boolean> supplier) {
-        super.showWhen(supplier);
-        return this;
-    }
+    // ── Chainable configuration ────────────────────────────────────────
+    //
+    // showWhen + tooltip + at return Radio<T> for free via the SELF self-type.
 
     // ── Rendering ──────────────────────────────────────────────────────
 

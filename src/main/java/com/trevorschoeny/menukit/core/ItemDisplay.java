@@ -37,12 +37,14 @@ import java.util.function.Supplier;
  * @see PanelElement The interface this implements
  * @see Icon         The sprite-rendering primitive (non-item case)
  */
-public class ItemDisplay extends AbstractPanelElement {
+public class ItemDisplay extends AbstractPanelElement<ItemDisplay> {
+
+    @Override protected ItemDisplay self() { return this; }
 
     /** Native item render size — vanilla renders items at this size. */
     public static final int DEFAULT_SIZE = 16;
 
-    private final int size;
+    private int size;
     private final Supplier<ItemStack> stackSupplier;
     private final boolean showCount;
     private final boolean showDurability;
@@ -203,23 +205,17 @@ public class ItemDisplay extends AbstractPanelElement {
         }
     }
 
-    // ── Chainable configuration (Phase 18r-2: covariant returns) ───────
+    // ── Chainable configuration ────────────────────────────────────────
+    //
+    // showWhen + tooltip + at return ItemDisplay for free via the SELF self-type.
 
-    @Override
-    public ItemDisplay tooltip(Component text) {
-        super.tooltip(text);
-        return this;
-    }
-
-    @Override
-    public ItemDisplay tooltip(@Nullable Supplier<Component> supplier) {
-        super.tooltip(supplier);
-        return this;
-    }
-
-    @Override
-    public ItemDisplay showWhen(@Nullable Supplier<Boolean> supplier) {
-        super.showWhen(supplier);
+    /**
+     * Fluent resize sugar — sets the item render size in pixels (items are
+     * always square, so this is a single dimension) and returns this display
+     * for chaining. Additive to the positional constructors.
+     */
+    public ItemDisplay size(int size) {
+        this.size = size;
         return this;
     }
 
