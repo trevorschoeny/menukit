@@ -30,9 +30,11 @@ public final class RegionMath {
     private RegionMath() {}
 
     // ── Shared constants ────────────────────────────────────────────────
-
-    /** Gap between stacked panels along the flow axis (pixels, GUI-scaled). */
-    public static final int STACK_GAP = 2;
+    //
+    // Phase 3b (Item 4c): the stacking gap was hoisted to the single shared
+    // source {@link RegionConstants}. The menu + slot-group + HUD contexts
+    // all stack at {@link RegionConstants#MENU_STACK_GAP}; this class reads
+    // that constant directly at each use site below.
 
     // ── MenuContext ─────────────────────────────────────────────────────
 
@@ -47,7 +49,7 @@ public final class RegionMath {
      * @param pw      the panel's width (from {@link Panel#getWidth()})
      * @param ph      the panel's height (from {@link Panel#getHeight()})
      * @param prefix  total axial extent of visible preceding panels in the
-     *                same region, plus one {@link #STACK_GAP} per preceding
+     *                same region, plus one {@link RegionConstants#MENU_STACK_GAP} per preceding
      *                panel
      */
     public static Optional<ScreenOrigin> resolveMenu(
@@ -73,29 +75,40 @@ public final class RegionMath {
 
         ScreenOrigin origin = switch (region) {
             case RIGHT_ALIGN_TOP -> new ScreenOrigin(
-                    leftPos + imageWidth + STACK_GAP,
+                    leftPos + imageWidth + RegionConstants.MENU_STACK_GAP,
                     topPos + prefix);
             case RIGHT_ALIGN_BOTTOM -> new ScreenOrigin(
-                    leftPos + imageWidth + STACK_GAP,
+                    leftPos + imageWidth + RegionConstants.MENU_STACK_GAP,
                     topPos + imageHeight - ph - prefix);
             case LEFT_ALIGN_TOP -> new ScreenOrigin(
-                    leftPos - pw - STACK_GAP,
+                    leftPos - pw - RegionConstants.MENU_STACK_GAP,
                     topPos + prefix);
             case LEFT_ALIGN_BOTTOM -> new ScreenOrigin(
-                    leftPos - pw - STACK_GAP,
+                    leftPos - pw - RegionConstants.MENU_STACK_GAP,
                     topPos + imageHeight - ph - prefix);
             case TOP_ALIGN_LEFT -> new ScreenOrigin(
                     leftPos + prefix,
-                    topPos - ph - STACK_GAP);
+                    topPos - ph - RegionConstants.MENU_STACK_GAP);
             case TOP_ALIGN_RIGHT -> new ScreenOrigin(
                     leftPos + imageWidth - pw - prefix,
-                    topPos - ph - STACK_GAP);
+                    topPos - ph - RegionConstants.MENU_STACK_GAP);
             case BOTTOM_ALIGN_LEFT -> new ScreenOrigin(
                     leftPos + prefix,
-                    topPos + imageHeight + STACK_GAP);
+                    topPos + imageHeight + RegionConstants.MENU_STACK_GAP);
             case BOTTOM_ALIGN_RIGHT -> new ScreenOrigin(
                     leftPos + imageWidth - pw - prefix,
-                    topPos + imageHeight + STACK_GAP);
+                    topPos + imageHeight + RegionConstants.MENU_STACK_GAP);
+            // TOP_CENTER / BOTTOM_CENTER (Phase 3b — Item 4a): centered on the
+            // horizontal axis, stacking vertically away from the frame. X is
+            // the same frame-centering math as CENTER; Y mirrors the
+            // TOP_ALIGN / BOTTOM_ALIGN edge math (above/below the frame with
+            // the stack-gap, offset by the vertical prefix).
+            case TOP_CENTER -> new ScreenOrigin(
+                    leftPos + (imageWidth - pw) / 2,
+                    topPos - ph - RegionConstants.MENU_STACK_GAP - prefix);
+            case BOTTOM_CENTER -> new ScreenOrigin(
+                    leftPos + (imageWidth - pw) / 2,
+                    topPos + imageHeight + RegionConstants.MENU_STACK_GAP + prefix);
             // CENTER: centered within the menu's container frame. Single-position
             // anchor — multiple panels in CENTER overlap (consumer is expected
             // to gate visibility so only one is up at a time, e.g., modal dialogs).
@@ -124,7 +137,7 @@ public final class RegionMath {
      * @param pw      the panel's width
      * @param ph      the panel's height
      * @param prefix  total height of visible preceding panels in the same
-     *                region, plus one {@link #STACK_GAP} per preceding panel
+     *                region, plus one {@link RegionConstants#MENU_STACK_GAP} per preceding panel
      */
     public static Optional<ScreenOrigin> resolveHud(
             HudRegion region, int sw, int sh,
@@ -197,7 +210,7 @@ public final class RegionMath {
      * @param pw      the panel's width (padding-inclusive)
      * @param ph      the panel's height (padding-inclusive)
      * @param prefix  total height of visible preceding panels in the same
-     *                region, plus one {@link #STACK_GAP} per preceding panel
+     *                region, plus one {@link RegionConstants#MENU_STACK_GAP} per preceding panel
      */
     public static Optional<ScreenOrigin> resolveVanillaScreen(
             VanillaScreenRegion region, int sw, int sh,

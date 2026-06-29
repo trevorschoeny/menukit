@@ -11,9 +11,14 @@ package com.trevorschoeny.menukit.core;
  * {@code SIDE_ALIGN_END} naming reads as: "on {@code SIDE} of the menu,
  * aligned to {@code END}, stacking away from {@code END}."
  *
- * <p>Plus {@link #CENTER} for centered-in-frame placement (Phase 14d-1
- * addition for modal dialogs). CENTER is a single-position anchor; multiple
- * panels in CENTER overlap rather than stacking.
+ * <p>Plus three centered anchors — {@link #CENTER} for centered-in-frame
+ * placement (Phase 14d-1 addition for modal dialogs), and {@link #TOP_CENTER}
+ * / {@link #BOTTOM_CENTER} for above-/below-the-frame placement centered on
+ * the horizontal axis (Phase 3b — Item 4a; brings MenuRegion to parity with
+ * {@link HudRegion} / {@link VanillaScreenRegion}, which each carry
+ * TOP_CENTER / BOTTOM_CENTER / CENTER). {@code CENTER} is a single-position
+ * anchor; {@code TOP_CENTER} / {@code BOTTOM_CENTER} stack vertically away
+ * from the frame, each panel staying horizontally centered.
  *
  * <p><b>Flow direction</b> — stacking grows away from the anchor end:
  * <ul>
@@ -21,6 +26,8 @@ package com.trevorschoeny.menukit.core;
  *   <li>{@link #LEFT_ALIGN_BOTTOM} / {@link #RIGHT_ALIGN_BOTTOM} — flow up
  *   <li>{@link #TOP_ALIGN_LEFT} / {@link #BOTTOM_ALIGN_LEFT} — flow right
  *   <li>{@link #TOP_ALIGN_RIGHT} / {@link #BOTTOM_ALIGN_RIGHT} — flow left
+ *   <li>{@link #TOP_CENTER} — flow up (above the frame, centered)
+ *   <li>{@link #BOTTOM_CENTER} — flow down (below the frame, centered)
  *   <li>{@link #CENTER} — no stacking (single-position anchor)
  * </ul>
  *
@@ -36,6 +43,31 @@ public enum MenuRegion {
     TOP_ALIGN_RIGHT,
     BOTTOM_ALIGN_LEFT,
     BOTTOM_ALIGN_RIGHT,
+
+    /**
+     * Above the menu's container frame, centered on the horizontal axis
+     * (Phase 3b — Item 4a). The panel renders at
+     * {@code (leftPos + (imageWidth - panelWidth) / 2,
+     *         topPos - panelHeight - STACK_GAP - prefix)}, so stacking grows
+     * UP (away from the menu), each sibling staying horizontally centered.
+     *
+     * <p>Parity counterpart to {@link HudRegion#TOP_CENTER} /
+     * {@link VanillaScreenRegion#TOP_CENTER}, anchored to the menu frame
+     * rather than the screen edge.
+     */
+    TOP_CENTER,
+
+    /**
+     * Below the menu's container frame, centered on the horizontal axis
+     * (Phase 3b — Item 4a). The panel renders at
+     * {@code (leftPos + (imageWidth - panelWidth) / 2,
+     *         topPos + imageHeight + STACK_GAP + prefix)}, so stacking grows
+     * DOWN (away from the menu), each sibling staying horizontally centered.
+     *
+     * <p>Parity counterpart to {@link HudRegion#BOTTOM_CENTER} /
+     * {@link VanillaScreenRegion#BOTTOM_CENTER}.
+     */
+    BOTTOM_CENTER,
 
     /**
      * Centered within the menu's container frame. Canonical anchor for
@@ -58,9 +90,11 @@ public enum MenuRegion {
     /**
      * Returns true if panels in this region stack along the X axis.
      *
-     * <p>TOP / BOTTOM regions flow horizontally (panels arranged left-to-right
-     * or right-to-left above/below the menu frame). LEFT / RIGHT regions flow
-     * vertically. CENTER does not stack — value is conventionally {@code false}.
+     * <p>TOP_ALIGN / BOTTOM_ALIGN regions flow horizontally (panels arranged
+     * left-to-right or right-to-left above/below the menu frame). LEFT / RIGHT
+     * regions flow vertically. {@link #TOP_CENTER} / {@link #BOTTOM_CENTER}
+     * flow vertically (away from the frame, staying horizontally centered).
+     * CENTER does not stack — value is conventionally {@code false}.
      */
     public boolean isHorizontalFlow() {
         return switch (this) {
@@ -68,6 +102,7 @@ public enum MenuRegion {
                  BOTTOM_ALIGN_LEFT, BOTTOM_ALIGN_RIGHT -> true;
             case LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM,
                  RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM -> false;
+            case TOP_CENTER, BOTTOM_CENTER -> false;
             case CENTER -> false;
         };
     }

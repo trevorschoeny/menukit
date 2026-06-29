@@ -4,6 +4,7 @@ import com.trevorschoeny.menukit.core.HudRegion;
 import com.trevorschoeny.menukit.core.MenuRegion;
 import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.RegionAnchor;
+import com.trevorschoeny.menukit.core.RegionConstants;
 import com.trevorschoeny.menukit.core.RegionMath;
 import com.trevorschoeny.menukit.core.VanillaScreenRegion;
 import com.trevorschoeny.menukit.hud.MKHudPanelDef;
@@ -195,7 +196,7 @@ public final class RegionRegistry {
             if (!ClientWindowVisibility.panelShown(p)) continue;
             int pad = MENU_PADDING.getOrDefault(p, 0);
             int extent = (horizontal ? p.getWidth() : p.getHeight()) + 2 * pad;
-            prefix += extent + RegionMath.STACK_GAP;
+            prefix += extent + RegionConstants.MENU_STACK_GAP;
         }
         throw new IllegalStateException(
                 "Panel '" + self.getId() + "' is not registered in " + region);
@@ -326,7 +327,7 @@ public final class RegionRegistry {
             if (p == self) return prefix;
             if (!p.showWhen().get()) continue;
             int[] size = p.computeSize();
-            prefix += size[1] + RegionMath.STACK_GAP;
+            prefix += size[1] + RegionConstants.MENU_STACK_GAP;
         }
         throw new IllegalStateException(
                 "HUD panel '" + self.name() + "' is not registered in " + region);
@@ -399,7 +400,7 @@ public final class RegionRegistry {
             if (!ClientWindowVisibility.panelShown(p)) continue;
             int pad = VANILLA_SCREEN_PADDING.getOrDefault(p, 0);
             int extent = p.getHeight() + 2 * pad;
-            prefix += extent + VanillaScreenRegion.STACK_GAP;
+            prefix += extent + RegionConstants.SCREEN_STACK_GAP;
         }
         throw new IllegalStateException(
                 "Panel '" + self.getId() + "' is not registered in VanillaScreenRegion." + region);

@@ -13,9 +13,12 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import com.trevorschoeny.menukit.core.layout.ElementSpec;
 
 /**
  * Single-selection dropdown control. Phase 14d-5 — bespoke composition (no
@@ -183,6 +186,17 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
      */
     private final ControlStyle controlStyle;
 
+    /**
+     * Optional disabled predicate (Phase 3b — Item 8). When it returns true,
+     * the trigger renders disabled (VANILLA → {@code widget/button_disabled}
+     * sprite via {@code renderVanillaButton(enabled=false)}; MK →
+     * {@link PanelStyle#DARK} panel) and all interaction is ignored
+     * (mouseClicked/mouseScrolled/keyPressed no-op; any open popover is
+     * force-closed). Per-frame predicate shape, matching Button/Toggle's
+     * {@code disabledWhen}. Null = always enabled.
+     */
+    private final @Nullable BooleanSupplier disabledWhen;
+
     // ── Internal mutable state ─────────────────────────────────────────
     //
     // open/scrollOffset are UI-mode state — internal to the dropdown,
@@ -242,12 +256,18 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         this.maxVisibleItems = b.maxVisibleItems;
         this.itemTooltipFn = b.itemTooltipFn;
         this.controlStyle = b.controlStyle;
+        this.disabledWhen = b.disabledWhen;
     }
 
     // ── PanelElement protocol ──────────────────────────────────────────
 
     @Override public int getWidth()  { return triggerWidth; }
     @Override public int getHeight() { return triggerHeight; }
+
+    /** Returns whether the dropdown is currently disabled (Phase 3b — Item 8). */
+    public boolean isDisabled() {
+        return disabledWhen != null && disabledWhen.getAsBoolean();
+    }
 
     /** Interactive — handles clicks/keyboard nav, so it claims (blocks vanilla behind) on a non-opaque panel. */
     @Override public boolean isInteractive() { return true; }
@@ -291,12 +311,21 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         this.lastTriggerScreenX = triggerX;
         this.lastTriggerScreenY = triggerY;
 
+        // Disabled-state gate (Phase 3b — Item 8). Read once per frame.
+        // When disabled, force any open popover closed so a state change to
+        // disabled-while-open doesn't leave a ghost popover, and suppress the
+        // hover affordance + tooltip below.
+        boolean disabled = isDisabled();
+        if (disabled) open = false;
+
         // ── Trigger ────────────────────────────────────────────────────
         // Render a Button-style raised background. Hover state computed
         // against trigger bounds (popover hover is separate). Pressed-
         // look while popover open visually communicates open state.
-        boolean triggerHovered = ctx.isHovered(childX, childY, triggerWidth, triggerHeight);
-        renderTriggerBackground(ctx.graphics(), triggerX, triggerY, triggerHovered);
+        // Hover is suppressed when disabled so the trigger reads inert.
+        boolean triggerHovered = !disabled
+                && ctx.isHovered(childX, childY, triggerWidth, triggerHeight);
+        renderTriggerBackground(ctx.graphics(), triggerX, triggerY, triggerHovered, disabled);
         renderTriggerContent(ctx.graphics(), triggerX, triggerY);
 
         // Popover is now rendered in renderOverlay() — see the override
@@ -310,7 +339,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         // picks it up. Skip when popover is open — popover IS the
         // interactive surface; competing tooltip would clutter.
         Supplier<Component> tooltipSupplier = getTooltipSupplier();
-        if (triggerHovered && !open && tooltipSupplier != null && ctx.hasMouseInput()) {
+        if (triggerHovered && !open && !disabled && tooltipSupplier != null && ctx.hasMouseInput()) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
                 ctx.graphics().setTooltipForNextFrame(
@@ -342,28 +371,35 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         renderPopover(ctx, lastTriggerScreenX, lastTriggerScreenY);
     }
 
-    private void renderTriggerBackground(GuiGraphics graphics, int sx, int sy, boolean hovered) {
+    private void renderTriggerBackground(GuiGraphics graphics, int sx, int sy,
+                                         boolean hovered, boolean disabled) {
         if (controlStyle == ControlStyle.VANILLA) {
-            // Vanilla style — sprite atlas encodes hover state directly.
-            // When popover is open we suppress the highlighted sprite
-            // AND apply the pressed-overlay so the trigger visually
-            // reads "engaged / popover-active." Maps to MK Button's
-            // pressed visual at the dropdown-trigger semantic level.
+            // Vanilla style — sprite atlas encodes hover/disabled state
+            // directly. Disabled wins (Phase 3b — Item 8): pass enabled=false
+            // so renderVanillaButton picks widget/button_disabled, and skip
+            // the pressed overlay (a disabled trigger is never "engaged").
+            // When popover is open we suppress the highlighted sprite AND
+            // apply the pressed-overlay so the trigger visually reads
+            // "engaged / popover-active." Maps to MK Button's pressed visual
+            // at the dropdown-trigger semantic level.
             ControlStyle.renderVanillaButton(graphics,
                     sx, sy, triggerWidth, triggerHeight,
-                    true,
+                    !disabled,
                     hovered && !open);
-            if (open) {
+            if (open && !disabled) {
                 ControlStyle.renderVanillaPressedOverlay(graphics,
                         sx, sy, triggerWidth, triggerHeight);
             }
             return;
         }
         // MK style (default) — RAISED panel + translucent highlight on hover.
-        // When popover is open, render with the open-look (no extra hover
-        // highlight; the popover itself signals interactive state).
-        PanelRendering.renderPanel(graphics, sx, sy, triggerWidth, triggerHeight, PanelStyle.RAISED);
-        if (hovered && !open) {
+        // Disabled renders the DARK panel (matching Button/Toggle's disabled
+        // look) with no hover highlight. When popover is open, render with the
+        // open-look (no extra hover highlight; the popover itself signals
+        // interactive state).
+        PanelStyle bg = disabled ? PanelStyle.DARK : PanelStyle.RAISED;
+        PanelRendering.renderPanel(graphics, sx, sy, triggerWidth, triggerHeight, bg);
+        if (hovered && !open && !disabled) {
             graphics.fill(sx + 1, sy + 1, sx + triggerWidth - 1, sy + triggerHeight - 1,
                     COLOR_HOVER_OVERLAY);
         }
@@ -590,6 +626,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         // Only respond to left-click for v1 (matches Button); right/middle
         // clicks fall through unchanged.
         if (button != 0) return false;
+        if (isDisabled()) return false; // Inert when disabled (Phase 3b — Item 8).
 
         // Two routing cases:
         //  (a) Pass 1 (active-overlay): cursor is inside popover bounds
@@ -668,6 +705,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY,
                                  double scrollX, double scrollY) {
+        if (isDisabled()) return false; // Inert when disabled (Phase 3b — Item 8).
         // Pass 1 dispatcher routes scrolls in the popover bounds here
         // (when popover is open). Outside the popover, dispatch falls
         // through to other elements via Pass 2 — Dropdown doesn't claim
@@ -701,6 +739,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
      */
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (isDisabled()) return false; // Inert when disabled (Phase 3b — Item 8).
         if (!open || items.isEmpty()) return false;
 
         switch (keyCode) {
@@ -803,6 +842,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         private int maxVisibleItems = DEFAULT_MAX_VISIBLE;
         private @Nullable Function<T, Component> itemTooltipFn = null;
         private ControlStyle controlStyle = ControlStyle.MK;
+        private @Nullable BooleanSupplier disabledWhen = null;
 
         private Builder() {}
 
@@ -901,6 +941,19 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
             return this;
         }
 
+        /**
+         * Optional disabled predicate (Phase 3b — Item 8). When it returns
+         * true, the trigger renders disabled (VANILLA → {@code
+         * widget/button_disabled} sprite; MK → {@link PanelStyle#DARK} panel)
+         * and all interaction is ignored — clicks/scroll/keys no-op and any
+         * open popover force-closes. Per-frame predicate shape, matching
+         * Button/Toggle's {@code disabledWhen}. Default: always enabled.
+         */
+        public Builder<T> disabledWhen(BooleanSupplier disabledWhen) {
+            this.disabledWhen = Objects.requireNonNull(disabledWhen, "disabledWhen must not be null");
+            return this;
+        }
+
         public Dropdown<T> build() {
             if (triggerWidth <= 0 || triggerHeight <= 0) {
                 throw new IllegalStateException(
@@ -929,6 +982,68 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
                         "Dropdown.Builder: .selection(supplier, consumer) is required");
             }
             return new Dropdown<>(this);
+        }
+
+        /**
+         * Layout terminal (Phase 3b — Item 6). Returns an {@link ElementSpec}
+         * for use in {@link com.trevorschoeny.menukit.core.layout.Row} /
+         * {@link com.trevorschoeny.menukit.core.layout.Column}.
+         *
+         * <p><b>Reported dimensions are the TRIGGER footprint</b>
+         * ({@code .triggerSize(w, h)}), not the popover. By design the popover
+         * overflows the trigger's layout bounds — it renders via
+         * {@link Dropdown#renderOverlay} on the overlay pass and claims its own
+         * input region via {@link Dropdown#getActiveOverlayBounds}, exactly
+         * like its hit-test/overlay model. So Row/Column reserves only the
+         * trigger footprint; the open popover paints on top of whatever follows
+         * it in the layout, which is the intended behavior (popovers are
+         * transient and z-ordered above siblings).
+         *
+         * <p>The layout helper calls {@link ElementSpec#at(int, int)}, which
+         * re-runs this builder's configuration positioned at the computed
+         * coordinates.
+         */
+        public ElementSpec spec() {
+            if (triggerWidth <= 0 || triggerHeight <= 0) {
+                throw new IllegalStateException(
+                        "Dropdown.Builder.spec(): .triggerSize(w, h) must be called with positive values; "
+                        + "got width=" + triggerWidth + ", height=" + triggerHeight);
+            }
+            if (items == null || items.isEmpty()) {
+                throw new IllegalStateException(
+                        "Dropdown.Builder.spec(): .items(list) is required and must be non-empty");
+            }
+            if (labelFn == null) {
+                throw new IllegalStateException("Dropdown.Builder.spec(): .label(fn) is required");
+            }
+            if (selectionSupplier == null || selectionConsumer == null) {
+                throw new IllegalStateException(
+                        "Dropdown.Builder.spec(): .selection(supplier, consumer) is required");
+            }
+            // Snapshot config; each at(x,y) rebuilds a fresh, correctly-
+            // positioned Dropdown. (childX/childY fixed at construction per
+            // THESIS Principle 4 — ElementSpec is the deferred-position path.)
+            final int w = triggerWidth, h = triggerHeight;
+            final List<T> it = items;
+            final Function<T, Component> lf = labelFn;
+            final Supplier<@Nullable T> ss = selectionSupplier;
+            final Consumer<T> sc = selectionConsumer;
+            final int mvi = maxVisibleItems;
+            final Function<T, Component> ttf = itemTooltipFn;
+            final ControlStyle cs = controlStyle;
+            final BooleanSupplier dw = disabledWhen;
+            return new ElementSpec() {
+                @Override public int width()  { return w; }
+                @Override public int height() { return h; }
+                @Override public PanelElement at(int x, int y) {
+                    Builder<T> b = Dropdown.<T>builder().at(x, y).triggerSize(w, h)
+                            .items(it).label(lf).selection(ss, sc)
+                            .maxVisibleItems(mvi).style(cs);
+                    if (ttf != null) b.itemTooltip(ttf);
+                    if (dw != null) b.disabledWhen(dw);
+                    return b.build();
+                }
+            };
         }
     }
 }

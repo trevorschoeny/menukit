@@ -34,9 +34,11 @@ public enum HudRegion {
 
     /**
      * Screen-edge inset for corner/edge regions. Matches vanilla's F3
-     * debug-overlay convention (4px from each edge).
+     * debug-overlay convention (4px from each edge). Phase 3b (Item 4c):
+     * value hoisted to the shared {@link RegionConstants#EDGE_INSET}; this
+     * public constant is preserved as the documented HUD-context face.
      */
-    public static final int EDGE_INSET = 4;
+    public static final int EDGE_INSET = RegionConstants.EDGE_INSET;
 
     /**
      * Vertical clearance below screen-center for the {@link #CENTER} region,

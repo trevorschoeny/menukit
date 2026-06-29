@@ -32,7 +32,10 @@ package com.trevorschoeny.menukit.core;
  * consumer DOES want explicit ordering; library-not-platform says the
  * consumer asks only when they care.
  *
- * @param <R>      the region enum type ({@link MenuRegion} or {@link HudRegion})
+ * @param <R>      the region enum type — one of {@link MenuRegion},
+ *                 {@link SlotGroupRegion}, {@link HudRegion}, or
+ *                 {@link VanillaScreenRegion} (all four expose
+ *                 {@code priority(int)} returning a {@code RegionAnchor})
  * @param region   the region itself
  * @param priority the stacking priority within that region (lower = first)
  */

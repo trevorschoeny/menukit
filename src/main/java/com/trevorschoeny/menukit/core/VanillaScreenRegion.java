@@ -44,11 +44,15 @@ public enum VanillaScreenRegion {
     /** Centered horizontally and vertically. Flows down. */
     CENTER;
 
-    /** Screen-edge inset for corner/edge regions. */
-    public static final int EDGE_INSET = 4;
+    /** Screen-edge inset for corner/edge regions. Phase 3b (Item 4c): value
+     *  hoisted to the shared {@link RegionConstants#EDGE_INSET}; this public
+     *  constant is preserved as the documented vanilla-screen-context face. */
+    public static final int EDGE_INSET = RegionConstants.EDGE_INSET;
 
-    /** Vertical gap between stacked siblings sharing the same region. */
-    public static final int STACK_GAP = 4;
+    /** Vertical gap between stacked siblings sharing the same region. Phase 3b
+     *  (Item 4c): value hoisted to {@link RegionConstants#SCREEN_STACK_GAP};
+     *  this public constant is preserved as the documented face. */
+    public static final int STACK_GAP = RegionConstants.SCREEN_STACK_GAP;
 
     /**
      * Returns a {@link RegionAnchor} pairing this region with an explicit

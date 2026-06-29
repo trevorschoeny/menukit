@@ -40,10 +40,14 @@ import org.jetbrains.annotations.ApiStatus;
  *
  * <p>This class intentionally stays small. Anything screen-scoped lives on
  * {@code MKCHandledScreen}; anything group-scoped lives on {@code SlotGroup};
- * anything truly process-wide (HUD overlays, notification triggers) is the
- * only thing that lives here.
+ * anything truly process-wide (HUD overlays, notification triggers, the
+ * recipe-book query) is the only thing that lives here.
+ *
+ * <p>This is a PUBLIC consumer-facing facade — its static methods
+ * ({@link #registerHud}, {@link #registerNotification}, {@link #notify},
+ * {@link #isRecipeBookOpen}/{@link #setRecipeBookOpen}, {@link #init}) are the
+ * supported API. Only the Fabric {@link #onInitialize()} entry point is internal.
  */
-@ApiStatus.Internal
 public class MK implements ModInitializer {
 
     /** MenuKit's own logger — independent of any consuming mod's logger. */
@@ -67,6 +71,7 @@ public class MK implements ModInitializer {
     // Mod lifecycle
     // ══════════════════════════════════════════════════════════════════════
 
+    @ApiStatus.Internal
     @Override
     public void onInitialize() {
         init();
@@ -243,5 +248,42 @@ public class MK implements ModInitializer {
         }
 
         expired.forEach(activeNotifications::remove);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Recipe book — public face
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // The recipe-book overlay query/toggle is a client-side utility consumers
+    // genuinely reach for (e.g. "make room for my panel when the recipe book
+    // is open"). The implementation lives on {@link MKClient} (which stays
+    // {@code @ApiStatus.Internal} — it's the Fabric client entry point, not a
+    // consumer surface), so the PUBLIC face belongs here on {@code MK}
+    // alongside registerHud/notify. These two methods are pure delegators —
+    // no behavior of their own — so the impl stays single-sourced in MKClient.
+
+    /**
+     * Returns whether the recipe book is currently visible on the active
+     * screen. Safe to call at any time; returns {@code false} when there is
+     * no active screen or the active screen has no recipe book.
+     *
+     * <p>Delegates to the client-side implementation; this is the public,
+     * consumer-facing entry point.
+     */
+    public static boolean isRecipeBookOpen() {
+        return MKClient.isRecipeBookOpen();
+    }
+
+    /**
+     * Sets the recipe book's visibility on the active screen. No-op when the
+     * active screen has no recipe book or the requested state already matches.
+     *
+     * <p>Delegates to the client-side implementation; this is the public,
+     * consumer-facing entry point.
+     *
+     * @param open {@code true} to show the recipe book, {@code false} to hide it
+     */
+    public static void setRecipeBookOpen(boolean open) {
+        MKClient.setRecipeBookOpen(open);
     }
 }

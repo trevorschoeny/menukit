@@ -17,9 +17,12 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import com.trevorschoeny.menukit.core.layout.ElementSpec;
 
 /**
  * Multi-selection dropdown control. Sibling to {@link Dropdown}, NOT a
@@ -177,6 +180,14 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
      */
     private final ControlStyle controlStyle;
 
+    /**
+     * Optional disabled predicate (Phase 3b — Item 8). Same semantics as
+     * {@link Dropdown}'s: when true, the trigger renders disabled (VANILLA →
+     * {@code widget/button_disabled}; MK → {@link PanelStyle#DARK}) and all
+     * interaction is ignored (any open popover force-closes). Null = enabled.
+     */
+    private final @Nullable BooleanSupplier disabledWhen;
+
     // ── Mutable state ──────────────────────────────────────────────────
     // (Mirrors Dropdown's narrow exception. open + scrollOffset are
     // internal UI state; the selection lives on the consumer's Set, not
@@ -223,12 +234,18 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
         this.clearAllLabel = b.clearAllLabel;
         this.clearAllAction = b.clearAllAction;
         this.controlStyle = b.controlStyle;
+        this.disabledWhen = b.disabledWhen;
     }
 
     // ── PanelElement protocol ──────────────────────────────────────────
 
     @Override public int getWidth()  { return triggerWidth; }
     @Override public int getHeight() { return triggerHeight; }
+
+    /** Returns whether the dropdown is currently disabled (Phase 3b — Item 8). */
+    public boolean isDisabled() {
+        return disabledWhen != null && disabledWhen.getAsBoolean();
+    }
 
     /** Interactive — handles clicks/keyboard nav, so it claims (blocks vanilla behind) on a non-opaque panel. */
     @Override public boolean isInteractive() { return true; }
@@ -255,8 +272,14 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
         this.lastTriggerScreenX = triggerX;
         this.lastTriggerScreenY = triggerY;
 
-        boolean triggerHovered = ctx.isHovered(childX, childY, triggerWidth, triggerHeight);
-        renderTriggerBackground(ctx.graphics(), triggerX, triggerY, triggerHovered);
+        // Disabled-state gate (Phase 3b — Item 8). Mirrors Dropdown: read once
+        // per frame, force any open popover closed, suppress hover + tooltip.
+        boolean disabled = isDisabled();
+        if (disabled) open = false;
+
+        boolean triggerHovered = !disabled
+                && ctx.isHovered(childX, childY, triggerWidth, triggerHeight);
+        renderTriggerBackground(ctx.graphics(), triggerX, triggerY, triggerHovered, disabled);
         renderTriggerContent(ctx.graphics(), triggerX, triggerY);
 
         // Popover moved to renderOverlay() in Phase 18s follow-up — see
@@ -267,7 +290,7 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
         // Trigger-level tooltip — only when popover is closed (popover IS
         // the interactive surface when open; competing tooltip would clutter).
         Supplier<Component> tooltipSupplier = getTooltipSupplier();
-        if (triggerHovered && !open && tooltipSupplier != null && ctx.hasMouseInput()) {
+        if (triggerHovered && !open && !disabled && tooltipSupplier != null && ctx.hasMouseInput()) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
                 ctx.graphics().setTooltipForNextFrame(
@@ -295,26 +318,30 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
 
     // ── Trigger paint ──────────────────────────────────────────────────
 
-    private void renderTriggerBackground(GuiGraphics graphics, int sx, int sy, boolean hovered) {
+    private void renderTriggerBackground(GuiGraphics graphics, int sx, int sy,
+                                         boolean hovered, boolean disabled) {
         if (controlStyle == ControlStyle.VANILLA) {
-            // Vanilla style — sprite atlas encodes hover state directly.
-            // When popover open, overlay the pressed visual. See
+            // Vanilla style — sprite atlas encodes hover/disabled state
+            // directly. Disabled wins (Phase 3b — Item 8): enabled=false picks
+            // widget/button_disabled; skip the pressed overlay. When popover
+            // open, overlay the pressed visual. See
             // Dropdown.renderTriggerBackground for full rationale.
             ControlStyle.renderVanillaButton(graphics,
                     sx, sy, triggerWidth, triggerHeight,
-                    true,
+                    !disabled,
                     hovered && !open);
-            if (open) {
+            if (open && !disabled) {
                 ControlStyle.renderVanillaPressedOverlay(graphics,
                         sx, sy, triggerWidth, triggerHeight);
             }
             return;
         }
         // MK style (default): RAISED panel + translucent hover highlight
-        // (suppressed when popover is open since the popover itself
-        // signals interactive state).
-        PanelRendering.renderPanel(graphics, sx, sy, triggerWidth, triggerHeight, PanelStyle.RAISED);
-        if (hovered && !open) {
+        // (suppressed when popover is open since the popover itself signals
+        // interactive state). Disabled renders the DARK panel with no hover.
+        PanelStyle bg = disabled ? PanelStyle.DARK : PanelStyle.RAISED;
+        PanelRendering.renderPanel(graphics, sx, sy, triggerWidth, triggerHeight, bg);
+        if (hovered && !open && !disabled) {
             graphics.fill(sx + 1, sy + 1, sx + triggerWidth - 1, sy + triggerHeight - 1,
                     COLOR_HOVER_OVERLAY);
         }
@@ -601,6 +628,7 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button != 0) return false;
+        if (isDisabled()) return false; // Inert when disabled (Phase 3b — Item 8).
 
         if (open) {
             int[] popover = computePopoverBounds(lastTriggerScreenX, lastTriggerScreenY);
@@ -709,6 +737,7 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY,
                                  double scrollX, double scrollY) {
+        if (isDisabled()) return false; // Inert when disabled (Phase 3b — Item 8).
         if (!open) return false;
         if (items.size() <= maxVisibleItems) return true;
         int delta = (scrollY > 0) ? -1 : (scrollY < 0 ? 1 : 0);
@@ -733,6 +762,7 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
      */
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (isDisabled()) return false; // Inert when disabled (Phase 3b — Item 8).
         if (!open || items.isEmpty()) return false;
 
         switch (keyCode) {
@@ -804,6 +834,7 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
         private @Nullable Component clearAllLabel = null;
         private @Nullable Runnable  clearAllAction = null;
         private ControlStyle controlStyle = ControlStyle.MK;
+        private @Nullable BooleanSupplier disabledWhen = null;
 
         private Builder() {}
 
@@ -918,6 +949,17 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
             return this;
         }
 
+        /**
+         * Optional disabled predicate (Phase 3b — Item 8). When it returns
+         * true, the trigger renders disabled and all interaction is ignored —
+         * same semantics as {@link Dropdown.Builder#disabledWhen}. Per-frame
+         * predicate shape. Default: always enabled.
+         */
+        public Builder<T> disabledWhen(BooleanSupplier disabledWhen) {
+            this.disabledWhen = Objects.requireNonNull(disabledWhen, "disabledWhen must not be null");
+            return this;
+        }
+
         public DropdownMulti<T> build() {
             if (triggerWidth <= 0 || triggerHeight <= 0) {
                 throw new IllegalStateException(
@@ -947,6 +989,75 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
                         "DropdownMulti.Builder: .selection(supplier, consumer) is required");
             }
             return new DropdownMulti<>(this);
+        }
+
+        /**
+         * Layout terminal (Phase 3b — Item 6). Returns an {@link ElementSpec}
+         * for use in {@link com.trevorschoeny.menukit.core.layout.Row} /
+         * {@link com.trevorschoeny.menukit.core.layout.Column}.
+         *
+         * <p><b>Reported dimensions are the TRIGGER footprint</b>
+         * ({@code .triggerSize(w, h)}), not the popover — same overflow-by-
+         * design model as {@link Dropdown.Builder#spec()} (popover renders on
+         * the overlay pass and claims its own input region), so Row/Column
+         * reserves only the trigger footprint.
+         *
+         * <p>The layout helper calls {@link ElementSpec#at(int, int)}, which
+         * re-runs this builder's configuration positioned at the computed
+         * coordinates.
+         */
+        public ElementSpec spec() {
+            if (triggerWidth <= 0 || triggerHeight <= 0) {
+                throw new IllegalStateException(
+                        "DropdownMulti.Builder.spec(): .triggerSize(w, h) must be called with positive values; "
+                        + "got width=" + triggerWidth + ", height=" + triggerHeight);
+            }
+            if (items == null || items.isEmpty()) {
+                throw new IllegalStateException(
+                        "DropdownMulti.Builder.spec(): .items(list) is required and must be non-empty");
+            }
+            if (labelFn == null) {
+                throw new IllegalStateException("DropdownMulti.Builder.spec(): .label(fn) is required");
+            }
+            if (triggerLabelFn == null) {
+                throw new IllegalStateException(
+                        "DropdownMulti.Builder.spec(): .triggerLabel(fn) is required");
+            }
+            if (selectionSupplier == null || selectionConsumer == null) {
+                throw new IllegalStateException(
+                        "DropdownMulti.Builder.spec(): .selection(supplier, consumer) is required");
+            }
+            // Snapshot config; each at(x,y) rebuilds a fresh, correctly-
+            // positioned DropdownMulti. (childX/childY fixed at construction
+            // per THESIS Principle 4 — ElementSpec supplies them.)
+            final int w = triggerWidth, h = triggerHeight;
+            final List<T> it = items;
+            final Function<T, Component> lf = labelFn;
+            final Function<Set<T>, Component> tlf = triggerLabelFn;
+            final Supplier<Set<T>> ss = selectionSupplier;
+            final Consumer<T> sc = selectionConsumer;
+            final int mvi = maxVisibleItems;
+            final Function<T, Component> ttf = itemTooltipFn;
+            final Component sal = selectAllLabel;
+            final Runnable saa = selectAllAction;
+            final Component cal = clearAllLabel;
+            final Runnable caa = clearAllAction;
+            final ControlStyle cs = controlStyle;
+            final BooleanSupplier dw = disabledWhen;
+            return new ElementSpec() {
+                @Override public int width()  { return w; }
+                @Override public int height() { return h; }
+                @Override public PanelElement at(int x, int y) {
+                    Builder<T> b = DropdownMulti.<T>builder().at(x, y).triggerSize(w, h)
+                            .items(it).label(lf).triggerLabel(tlf).selection(ss, sc)
+                            .maxVisibleItems(mvi).style(cs);
+                    if (ttf != null) b.itemTooltip(ttf);
+                    if (sal != null && saa != null) b.selectAllRow(sal, saa);
+                    if (cal != null && caa != null) b.clearAllRow(cal, caa);
+                    if (dw != null) b.disabledWhen(dw);
+                    return b.build();
+                }
+            };
         }
     }
 }

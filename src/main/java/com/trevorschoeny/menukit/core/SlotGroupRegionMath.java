@@ -30,8 +30,8 @@ public final class SlotGroupRegionMath {
      * Resolves a SlotGroupContext region panel's origin. Anchors to the
      * slot group's bounding rectangle ({@link SlotGroupBounds}) rather
      * than the screen frame, but is otherwise identical to
-     * {@link RegionMath#resolveMenu} — same eight anchor semantics, same
-     * overflow cutoff, same {@link RegionMath#STACK_GAP} spacing.
+     * {@link RegionMath#resolveMenu} — same anchor semantics, same overflow
+     * cutoff, same {@link RegionConstants#MENU_STACK_GAP} spacing.
      *
      * <p>Bounds are computed per frame by
      * {@link com.trevorschoeny.menukit.inject.SlotGroupPanelRegistry} walking
@@ -46,36 +46,57 @@ public final class SlotGroupRegionMath {
         int imageWidth = bounds.imageWidth();
         int imageHeight = bounds.imageHeight();
 
-        // Overflow check along the flow axis.
-        int available = region.isHorizontalFlow() ? imageWidth : imageHeight;
-        int selfExtent = region.isHorizontalFlow() ? pw : ph;
-        if (prefix + selfExtent > available) return Optional.empty();
+        // Overflow check — semantics vary by region (mirrors RegionMath.resolveMenu).
+        // - CENTER doesn't stack and must fit within both axes.
+        // - Edge + centered-edge regions check overflow along their flow axis,
+        //   accounting for prefix from previously-stacked panels.
+        if (region == SlotGroupRegion.CENTER) {
+            if (pw > imageWidth || ph > imageHeight) return Optional.empty();
+        } else {
+            int available = region.isHorizontalFlow() ? imageWidth : imageHeight;
+            int selfExtent = region.isHorizontalFlow() ? pw : ph;
+            if (prefix + selfExtent > available) return Optional.empty();
+        }
 
+        int gap = RegionConstants.MENU_STACK_GAP;
         ScreenOrigin origin = switch (region) {
             case RIGHT_ALIGN_TOP -> new ScreenOrigin(
-                    leftPos + imageWidth + RegionMath.STACK_GAP,
+                    leftPos + imageWidth + gap,
                     topPos + prefix);
             case RIGHT_ALIGN_BOTTOM -> new ScreenOrigin(
-                    leftPos + imageWidth + RegionMath.STACK_GAP,
+                    leftPos + imageWidth + gap,
                     topPos + imageHeight - ph - prefix);
             case LEFT_ALIGN_TOP -> new ScreenOrigin(
-                    leftPos - pw - RegionMath.STACK_GAP,
+                    leftPos - pw - gap,
                     topPos + prefix);
             case LEFT_ALIGN_BOTTOM -> new ScreenOrigin(
-                    leftPos - pw - RegionMath.STACK_GAP,
+                    leftPos - pw - gap,
                     topPos + imageHeight - ph - prefix);
             case TOP_ALIGN_LEFT -> new ScreenOrigin(
                     leftPos + prefix,
-                    topPos - ph - RegionMath.STACK_GAP);
+                    topPos - ph - gap);
             case TOP_ALIGN_RIGHT -> new ScreenOrigin(
                     leftPos + imageWidth - pw - prefix,
-                    topPos - ph - RegionMath.STACK_GAP);
+                    topPos - ph - gap);
             case BOTTOM_ALIGN_LEFT -> new ScreenOrigin(
                     leftPos + prefix,
-                    topPos + imageHeight + RegionMath.STACK_GAP);
+                    topPos + imageHeight + gap);
             case BOTTOM_ALIGN_RIGHT -> new ScreenOrigin(
                     leftPos + imageWidth - pw - prefix,
-                    topPos + imageHeight + RegionMath.STACK_GAP);
+                    topPos + imageHeight + gap);
+            // Centered anchors (Phase 3b — Item 4a). X = group-bounds
+            // horizontal centering; Y mirrors the TOP_ALIGN/BOTTOM_ALIGN
+            // edge math for TOP_CENTER/BOTTOM_CENTER, or bounds-vertical
+            // centering for CENTER.
+            case TOP_CENTER -> new ScreenOrigin(
+                    leftPos + (imageWidth - pw) / 2,
+                    topPos - ph - gap - prefix);
+            case BOTTOM_CENTER -> new ScreenOrigin(
+                    leftPos + (imageWidth - pw) / 2,
+                    topPos + imageHeight + gap + prefix);
+            case CENTER -> new ScreenOrigin(
+                    leftPos + (imageWidth - pw) / 2,
+                    topPos + (imageHeight - ph) / 2);
         };
         return Optional.of(origin);
     }

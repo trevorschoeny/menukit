@@ -8,8 +8,11 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
+
+import com.trevorschoeny.menukit.core.layout.ElementSpec;
 
 /**
  * A clipped viewport hosting pre-positioned {@link PanelElement}s with
@@ -126,6 +129,15 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
     private final DoubleSupplier scrollOffsetSupplier;
     private final @Nullable DoubleConsumer onScrollOffsetChanged;
 
+    /**
+     * Optional disabled predicate (Phase 3b — Item 8). When it returns true,
+     * the scrollbar handle renders with the disabled sprite and ALL input
+     * (wheel scroll, scrollbar drag, child-click dispatch) is ignored — the
+     * viewport becomes a static, inert pane. Per-frame predicate shape,
+     * matching the simple widgets' {@code disabledWhen}. Null = always enabled.
+     */
+    private final @Nullable BooleanSupplier disabledWhen;
+
     /** Drag state — internal, mutable. {@code true} while user is dragging the
      *  scrollbar handle. Polled per-frame in render to detect drag end. */
     private boolean draggingHandle = false;
@@ -163,7 +175,8 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
     private ScrollContainer(int childX, int childY, int width, int height,
                              List<PanelElement> content, int contentHeight,
                              DoubleSupplier scrollOffsetSupplier,
-                             @Nullable DoubleConsumer onScrollOffsetChanged) {
+                             @Nullable DoubleConsumer onScrollOffsetChanged,
+                             @Nullable BooleanSupplier disabledWhen) {
         this.childX = childX;
         this.childY = childY;
         this.width = width;
@@ -172,6 +185,12 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
         this.contentHeight = contentHeight;
         this.scrollOffsetSupplier = scrollOffsetSupplier;
         this.onScrollOffsetChanged = onScrollOffsetChanged;
+        this.disabledWhen = disabledWhen;
+    }
+
+    /** Returns whether the container is currently disabled (Phase 3b — Item 8). */
+    public boolean isDisabled() {
+        return disabledWhen != null && disabledWhen.getAsBoolean();
     }
 
     // ── Geometry helpers ─────────────────────────────────────────────────
@@ -253,6 +272,15 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
         // element-relative coords (mouseClicked doesn't get RenderContext).
         cacheRenderOrigin(sx, sy);
 
+        // Disabled-state gate (Phase 3b — Item 8). When disabled, the
+        // container is inert: cancel any in-progress drag and skip the
+        // drag-offset update. The scrollbar still paints (below) but with
+        // the disabled sprite, and all input methods early-return.
+        boolean disabled = isDisabled();
+        if (disabled) {
+            draggingHandle = false;
+        }
+
         // Per-frame drag offset update. While draggingHandle is true,
         // sample the current mouse Y from the RenderContext and update
         // scroll offset proportional to drag distance. Drag end is
@@ -316,7 +344,10 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
         int handleX = trackX + SCROLLER_TRACK_PADDING;
         int handleY = sy + handleYOffset();
         int hHeight = handleHeight();
-        Identifier sprite = canScroll() ? SCROLLER_SPRITE : SCROLLER_DISABLED_SPRITE;
+        // Disabled forces the disabled sprite regardless of scrollability,
+        // signaling the inert state (Phase 3b — Item 8).
+        Identifier sprite = (!disabled && canScroll())
+                ? SCROLLER_SPRITE : SCROLLER_DISABLED_SPRITE;
         graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
                 sprite, handleX, handleY, SCROLLER_WIDTH, hHeight);
     }
@@ -324,6 +355,7 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button != 0) return false; // Left-click only for v1.
+        if (isDisabled()) return false; // Inert when disabled (Phase 3b — Item 8).
 
         // Compute screen-space bounds of the viewport (no offset translation
         // here — render context isn't available at click time, so we rely
@@ -430,6 +462,7 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY,
                                  double scrollX, double scrollY) {
+        if (isDisabled()) return false; // Inert when disabled (Phase 3b — Item 8).
         if (!canScroll()) return false;
         // Wheel up (scrollY > 0) scrolls content up (offset decreases).
         // Wheel down (scrollY < 0) scrolls content down (offset increases).
@@ -484,6 +517,7 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
         private int contentHeightOverride = -1;
         private @Nullable DoubleSupplier scrollOffsetSupplier = null;
         private @Nullable DoubleConsumer onScrollOffsetChanged = null;
+        private @Nullable BooleanSupplier disabledWhen = null;
 
         Builder() {}
 
@@ -559,6 +593,18 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
             return this;
         }
 
+        /**
+         * Optional disabled predicate (Phase 3b — Item 8). When it returns
+         * true, the scrollbar renders with the disabled sprite and all input
+         * (wheel, drag, child-click dispatch) is ignored — the viewport
+         * becomes a static, inert pane. Per-frame predicate shape, matching
+         * the simple widgets' {@code disabledWhen}. Default: always enabled.
+         */
+        public Builder disabledWhen(BooleanSupplier disabledWhen) {
+            this.disabledWhen = Objects.requireNonNull(disabledWhen, "disabledWhen must not be null");
+            return this;
+        }
+
         /** Builds the configured ScrollContainer. */
         public ScrollContainer build() {
             if (width < 0 || height < 0) {
@@ -578,7 +624,50 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
                     : autoComputeContentHeight(content);
             return new ScrollContainer(childX, childY, width, height,
                     content, finalContentHeight,
-                    scrollOffsetSupplier, onScrollOffsetChanged);
+                    scrollOffsetSupplier, onScrollOffsetChanged, disabledWhen);
+        }
+
+        /**
+         * Layout terminal (Phase 3b — Item 6). Returns an {@link ElementSpec}
+         * for use in {@link com.trevorschoeny.menukit.core.layout.Row} /
+         * {@link com.trevorschoeny.menukit.core.layout.Column}. The spec's
+         * reported dimensions are the configured {@code .size(w, h)}; the
+         * layout helper calls {@link ElementSpec#at(int, int)}, which re-runs
+         * this builder's configuration positioned at the computed coordinates.
+         */
+        public ElementSpec spec() {
+            if (width < 0 || height < 0) {
+                throw new IllegalStateException(
+                        "ScrollContainer.Builder.spec(): size(width, height) must be set before spec()");
+            }
+            if (content == null) {
+                throw new IllegalStateException(
+                        "ScrollContainer.Builder.spec(): content(...) must be set before spec()");
+            }
+            if (scrollOffsetSupplier == null) {
+                throw new IllegalStateException(
+                        "ScrollContainer.Builder.spec(): scrollOffset(supplier, callback) must be set before spec()");
+            }
+            // Snapshot config; each at(x,y) builds a fresh, correctly-positioned
+            // container (childX/childY fixed at construction per THESIS
+            // Principle 4 — ElementSpec is the deferred-construction path).
+            final int w = width, h = height;
+            final List<PanelElement> ct = content;
+            final int cho = contentHeightOverride;
+            final DoubleSupplier so = scrollOffsetSupplier;
+            final DoubleConsumer cb = onScrollOffsetChanged;
+            final BooleanSupplier dw = disabledWhen;
+            return new ElementSpec() {
+                @Override public int width()  { return w; }
+                @Override public int height() { return h; }
+                @Override public PanelElement at(int x, int y) {
+                    Builder b = ScrollContainer.builder().at(x, y).size(w, h)
+                            .content(ct).scrollOffset(so, cb);
+                    if (cho >= 0) b.contentHeight(cho);
+                    if (dw != null) b.disabledWhen(dw);
+                    return b.build();
+                }
+            };
         }
 
         /** Auto-computes content height from max(childY + height) over children. */

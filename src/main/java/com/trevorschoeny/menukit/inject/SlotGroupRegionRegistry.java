@@ -1,7 +1,7 @@
 package com.trevorschoeny.menukit.inject;
 
 import com.trevorschoeny.menukit.core.Panel;
-import com.trevorschoeny.menukit.core.RegionMath;
+import com.trevorschoeny.menukit.core.RegionConstants;
 import com.trevorschoeny.menukit.core.SlotGroupCategory;
 import com.trevorschoeny.menukit.core.SlotGroupRegion;
 import com.trevorschoeny.menukit.window.ClientWindowVisibility;
@@ -79,7 +79,7 @@ public final class SlotGroupRegionRegistry {
     /**
      * Axial prefix for a SlotGroupContext panel anchored in a given
      * (category, region) pair. Walks the per-key panel list, skipping
-     * hidden panels, and sums extent + {@link RegionMath#STACK_GAP} for
+     * hidden panels, and sums extent + {@link RegionConstants#MENU_STACK_GAP} for
      * each visible preceding entry.
      *
      * @throws IllegalStateException if {@code self} is not registered
@@ -96,7 +96,7 @@ public final class SlotGroupRegionRegistry {
             if (!ClientWindowVisibility.panelShown(p)) continue;
             int pad = SLOT_GROUP_PADDING.getOrDefault(p, 0);
             int extent = (horizontal ? p.getWidth() : p.getHeight()) + 2 * pad;
-            prefix += extent + RegionMath.STACK_GAP;
+            prefix += extent + RegionConstants.MENU_STACK_GAP;
         }
         throw new IllegalStateException(
                 "Panel '" + self.getId() + "' is not registered in "

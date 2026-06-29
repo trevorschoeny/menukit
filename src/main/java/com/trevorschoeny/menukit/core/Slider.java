@@ -9,10 +9,13 @@ import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleFunction;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
+
+import com.trevorschoeny.menukit.core.layout.ElementSpec;
 
 /**
  * Continuous-value slider control. Phase 14d-4 — wraps vanilla
@@ -111,6 +114,16 @@ public class Slider extends AbstractPanelElement<Slider> {
     private final DoubleSupplier valueSupplier;
     private final MKSlider slider;
 
+    /**
+     * Optional disabled predicate (Phase 3b — Item 8). When it returns true,
+     * the slider renders greyed (vanilla {@code active = false} → the disabled
+     * sprite + gray text) and ignores all interaction (drag, keyboard, scroll)
+     * because the wrapped widget's {@code active} flag gates vanilla's own
+     * input handling. Per-frame predicate shape, matching Button/Toggle's
+     * {@code disabledWhen}. Null = always enabled.
+     */
+    private final @Nullable BooleanSupplier disabledWhen;
+
     /** Track which screen we're attached to so detach knows what to remove from. */
     private @Nullable Screen attachedScreen;
 
@@ -122,6 +135,7 @@ public class Slider extends AbstractPanelElement<Slider> {
         this.width = b.width;
         this.height = b.height;
         this.valueSupplier = b.valueSupplier;
+        this.disabledWhen = b.disabledWhen;
 
         // Pull initial value from consumer state via supplier; clamp to
         // the [0, 1] contract before passing to vanilla.
@@ -154,6 +168,14 @@ public class Slider extends AbstractPanelElement<Slider> {
         // drifts out of range.
         double supplied = clamp01(valueSupplier.getAsDouble());
         slider.syncFromSupplier(supplied);
+
+        // Disabled-state sync (Phase 3b — Item 8). Drive vanilla's `active`
+        // flag from the predicate each frame: active=false makes vanilla
+        // render the disabled sprite + gray text AND skip its own input
+        // handling (mouseClicked/keyPressed/drag are all gated on active in
+        // AbstractWidget/AbstractSliderButton), so a disabled slider is both
+        // greyed and inert with no extra plumbing on our side.
+        slider.active = !isDisabled();
 
         // Update wrapped slider screen-space coords to match the panel's
         // current content origin + this element's panel-local position.
@@ -230,6 +252,11 @@ public class Slider extends AbstractPanelElement<Slider> {
         return slider.isFocused();
     }
 
+    /** Returns whether the slider is currently disabled (Phase 3b — Item 8). */
+    public boolean isDisabled() {
+        return disabledWhen != null && disabledWhen.getAsBoolean();
+    }
+
     // ── Builder ────────────────────────────────────────────────────────
 
     public static Builder builder() { return new Builder(); }
@@ -242,6 +269,7 @@ public class Slider extends AbstractPanelElement<Slider> {
         private @Nullable DoubleSupplier valueSupplier;
         private @Nullable DoubleConsumer valueConsumer;
         private DoubleFunction<Component> labelFn = v -> Component.empty();
+        private @Nullable BooleanSupplier disabledWhen;
 
         private Builder() {}
 
@@ -288,6 +316,17 @@ public class Slider extends AbstractPanelElement<Slider> {
             return this;
         }
 
+        /**
+         * Optional disabled predicate (Phase 3b — Item 8). When it returns
+         * true, the slider renders greyed and ignores all interaction (drag,
+         * keyboard, scroll). Per-frame predicate shape, matching
+         * Button/Toggle's {@code disabledWhen}. Default: always enabled.
+         */
+        public Builder disabledWhen(BooleanSupplier disabledWhen) {
+            this.disabledWhen = Objects.requireNonNull(disabledWhen, "disabledWhen must not be null");
+            return this;
+        }
+
         public Slider build() {
             if (width <= 0 || height <= 0) {
                 throw new IllegalStateException(
@@ -299,6 +338,50 @@ public class Slider extends AbstractPanelElement<Slider> {
                         "Slider.Builder: .value(supplier, consumer) is required");
             }
             return new Slider(this);
+        }
+
+        /**
+         * Layout terminal (Phase 3b — Item 6). Returns an {@link ElementSpec}
+         * for use in {@link com.trevorschoeny.menukit.core.layout.Row} /
+         * {@link com.trevorschoeny.menukit.core.layout.Column}, instead of
+         * building the Slider at a fixed position. The spec's reported
+         * dimensions are the configured {@code .size(w, h)}; the layout helper
+         * calls {@link ElementSpec#at(int, int)}, which re-runs this builder's
+         * configuration positioned at the computed coordinates.
+         *
+         * <p>Validates the same required fields as {@link #build()} up front,
+         * so a misconfigured builder fails at {@code spec()} call time rather
+         * than later inside the layout helper.
+         */
+        public ElementSpec spec() {
+            if (width <= 0 || height <= 0) {
+                throw new IllegalStateException(
+                        "Slider.Builder.spec(): .size(w, h) must be called with positive values; "
+                        + "got width=" + width + ", height=" + height);
+            }
+            if (valueSupplier == null || valueConsumer == null) {
+                throw new IllegalStateException(
+                        "Slider.Builder.spec(): .value(supplier, consumer) is required");
+            }
+            // Capture config into a final snapshot so each at(x,y) builds a
+            // fresh, correctly-positioned Slider (childX/childY are fixed at
+            // construction per THESIS Principle 4 — ElementSpec is the
+            // deferred-construction path that supplies them).
+            final int w = width, h = height;
+            final DoubleSupplier vs = valueSupplier;
+            final DoubleConsumer vc = valueConsumer;
+            final DoubleFunction<Component> lf = labelFn;
+            final BooleanSupplier dw = disabledWhen;
+            return new ElementSpec() {
+                @Override public int width()  { return w; }
+                @Override public int height() { return h; }
+                @Override public PanelElement at(int x, int y) {
+                    Builder b = Slider.builder().at(x, y).size(w, h)
+                            .value(vs, vc).label(lf);
+                    if (dw != null) b.disabledWhen(dw);
+                    return b.build();
+                }
+            };
         }
     }
 

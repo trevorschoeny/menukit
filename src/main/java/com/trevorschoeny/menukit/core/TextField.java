@@ -13,6 +13,8 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import com.trevorschoeny.menukit.core.layout.ElementSpec;
+
 /**
  * Single-line editable text field. Phase 14d-3 — wraps vanilla
  * {@link EditBox} via composition rather than reimplementing the input
@@ -369,6 +371,24 @@ public class TextField extends AbstractPanelElement<TextField> {
          * Optional read-only mode. Default true (editable). Set false
          * for display-only fields where typing/paste/cut are suppressed
          * but cursor/selection are still movable.
+         *
+         * <p><b>Read-only vs. disabled (Phase 3b — Item 8).</b> TextField
+         * uses {@code editable(false)} as its distinct READ-ONLY spelling —
+         * deliberately NOT unified with the {@code disabledWhen} knob the
+         * other builder widgets carry. They mean different things:
+         * <ul>
+         *   <li><b>read-only</b> ({@code editable(false)}): the field stays
+         *       fully visible and the caret/selection are still movable; only
+         *       <i>modification</i> (typing, paste, cut) is suppressed. Use
+         *       for "you can read and copy this, but not change it."</li>
+         *   <li><b>disabled</b> (the {@code disabledWhen} predicate on
+         *       Slider/Dropdown/etc.): the control is greyed and wholly inert
+         *       — no interaction at all.</li>
+         * </ul>
+         * A consumer who wants the greyed-and-inert look gates the whole
+         * field's visibility (or wraps it) rather than reaching for a
+         * disabled flag; read-only is the semantically-correct primitive
+         * here, so the two are kept separate by design.
          */
         public Builder editable(boolean editable) {
             this.editable = editable;
@@ -420,6 +440,52 @@ public class TextField extends AbstractPanelElement<TextField> {
                         + "got width=" + width + ", height=" + height);
             }
             return new TextField(this);
+        }
+
+        /**
+         * Layout terminal (Phase 3b — Item 6). Returns an {@link ElementSpec}
+         * for use in {@link com.trevorschoeny.menukit.core.layout.Row} /
+         * {@link com.trevorschoeny.menukit.core.layout.Column}. The spec's
+         * reported dimensions are the configured {@code .size(w, h)}; the
+         * layout helper calls {@link ElementSpec#at(int, int)}, which re-runs
+         * this builder's full configuration positioned at the computed
+         * coordinates.
+         */
+        public ElementSpec spec() {
+            if (width <= 0 || height <= 0) {
+                throw new IllegalStateException(
+                        "TextField.Builder.spec(): .size(w, h) must be called with positive values; "
+                        + "got width=" + width + ", height=" + height);
+            }
+            // Snapshot every configured field so each at(x,y) builds a fresh,
+            // correctly-positioned TextField. (childX/childY are fixed at
+            // construction per THESIS Principle 4 — ElementSpec supplies them.)
+            final int w = width, h = height;
+            final Component lbl = label;
+            final String iv = initialValue;
+            final Integer ml = maxLength;
+            final Boolean bd = bordered;
+            final Boolean ed = editable;
+            final Component hn = hint;
+            final Predicate<String> ft = filter;
+            final Consumer<String> oc = onChange;
+            final Consumer<String> os = onSubmit;
+            return new ElementSpec() {
+                @Override public int width()  { return w; }
+                @Override public int height() { return h; }
+                @Override public PanelElement at(int x, int y) {
+                    Builder b = TextField.builder().at(x, y).size(w, h).label(lbl);
+                    if (iv != null) b.initialValue(iv);
+                    if (ml != null) b.maxLength(ml);
+                    if (bd != null) b.bordered(bd);
+                    if (ed != null) b.editable(ed);
+                    if (hn != null) b.hint(hn);
+                    if (ft != null) b.filter(ft);
+                    if (oc != null) b.onChange(oc);
+                    if (os != null) b.onSubmit(os);
+                    return b.build();
+                }
+            };
         }
     }
 
