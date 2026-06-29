@@ -146,6 +146,13 @@ public class Panel {
     // when nothing changed saves a per-frame walk over elements.
     private boolean configurationDirty = true;
 
+    // The elements' AS-DECLARED childY, captured once before any auto-wrap
+    // reflow mutates their positions. Reflow re-stacks childY from these
+    // baselines every configuration pass (so it's reversible: when a wider
+    // frame un-wraps a label, the elements return to exactly their declared
+    // offsets). Null until the first configuration pass captures it.
+    private int @Nullable [] declaredChildY;
+
     // Supplier-driven visibility (Phase 10). When non-null, this takes precedence
     // over the imperative `visible` field — isVisible() reads the supplier, and
     // setVisible(...) silently no-ops. Clear with showWhen(null) to revert to
@@ -573,6 +580,16 @@ public class Panel {
             }
         }
 
+        // ── Step 1b: vertical reflow under wrap ────────────────────────
+        // Auto-wrap grows a TextLabel's height but leaves sibling childY fixed,
+        // so a label that wrapped to two lines would paint over the element
+        // below it. Re-stack every element's childY from its declared baseline,
+        // pushing each one down by the extra height that wrapped elements ABOVE
+        // it gained. Runs after wrap widths are assigned (above) and BEFORE the
+        // auto-scroll measurement (below), so the aggregate height reflects the
+        // reflowed layout. No-op when nothing wrapped.
+        reflowForWrap();
+
         // ── Step 2: auto-scroll wrap ───────────────────────────────────
         cachedScrollContainer = null;
         if (pinnedHeight >= 0) {
@@ -613,6 +630,64 @@ public class Panel {
                             .scrollOffset(() -> scrollOffset, v -> scrollOffset = v)
                             .build();
                 }
+            }
+        }
+    }
+
+    /**
+     * Re-stacks elements' childY from their declared baselines so an auto-
+     * wrapped (taller) element pushes everything below it down by exactly the
+     * extra height — keeping fixed-childY layouts overlap-free under wrap.
+     *
+     * <p>Reversible and idempotent: recomputed from {@link #declaredChildY}
+     * each configuration pass, so a wider frame that un-wraps a label restores
+     * the declared offsets. No-op when nothing wrapped (every extra is 0 →
+     * declared positions unchanged), so it only moves elements in the otherwise-
+     * broken case. Render and input both read position via {@code getChildY()}
+     * each frame (§0047), so the reflow takes effect uniformly with no
+     * dispatcher changes.
+     *
+     * <p>Only library elements ({@link AbstractPanelElement}) can be
+     * repositioned; a custom {@link PanelElement} keeps its declared position
+     * (it doesn't auto-wrap, so it never drives a reflow — only ever receives a
+     * push, which it can't here). Elements sharing a declared childY form one
+     * row: the row's downward push is the tallest wrap within it, so side-by-
+     * side cells (e.g. a slot grid row) don't double-count.
+     */
+    private void reflowForWrap() {
+        if (elements.isEmpty()) return;
+        // Capture declared offsets once, before any reflow mutates positions.
+        if (declaredChildY == null) {
+            int[] captured = new int[elements.size()];
+            for (int i = 0; i < elements.size(); i++) {
+                captured[i] = elements.get(i).getChildY();
+            }
+            declaredChildY = captured;
+        }
+        int[] declared = declaredChildY;
+
+        // Visit in declared-Y (top-to-bottom) order.
+        Integer[] order = new Integer[elements.size()];
+        for (int i = 0; i < order.length; i++) order[i] = i;
+        java.util.Arrays.sort(order,
+                java.util.Comparator.comparingInt(i -> declared[i]));
+
+        int cumulative = 0;            // extra pushed down by wrapped rows above
+        int rowExtra = 0;              // tallest wrap in the current row
+        int rowY = Integer.MIN_VALUE;  // current row's declared Y
+        for (int idx : order) {
+            int dY = declared[idx];
+            if (dY != rowY) {
+                cumulative += rowExtra; // bank the previous row's push
+                rowExtra = 0;
+                rowY = dY;
+            }
+            PanelElement e = elements.get(idx);
+            if (e instanceof AbstractPanelElement<?> ape) {
+                ape.setChildPosition(e.getChildX(), dY + cumulative);
+            }
+            if (e.isVisible() && e instanceof TextLabel label) {
+                rowExtra = Math.max(rowExtra, label.extraWrapHeight());
             }
         }
     }

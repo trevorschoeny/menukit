@@ -243,6 +243,19 @@ public class TextLabel extends AbstractPanelElement<TextLabel> {
         return wrapWidth;
     }
 
+    /**
+     * Extra vertical pixels this label occupies BEYOND a single line because it
+     * wrapped — i.e. {@code (lineCount - 1) × lineHeight}, or {@code 0} when not
+     * wrapped. The owning {@link Panel} uses this to reflow the elements below a
+     * wrapped label downward by exactly this amount, so a label that grows from
+     * one line to two doesn't paint over the next element (fixed-childY layouts
+     * stay overlap-free under auto-wrap).
+     */
+    public int extraWrapHeight() {
+        if (wrapWidth <= 0) return 0;
+        return Math.max(0, getHeight() - Minecraft.getInstance().font.lineHeight);
+    }
+
     // ── Rendering ──────────────────────────────────────────────────────
 
     @Override
