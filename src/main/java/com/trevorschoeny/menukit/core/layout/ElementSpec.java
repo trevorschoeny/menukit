@@ -61,8 +61,18 @@ public interface ElementSpec {
             @Override public int width()  { return element.getWidth(); }
             @Override public int height() { return element.getHeight(); }
             @Override public PanelElement at(int x, int y) {
-                if (element instanceof AbstractPanelElement<?> a) a.setChildPosition(x, y);
-                return element;
+                if (element instanceof AbstractPanelElement<?> a) {
+                    a.setChildPosition(x, y);
+                    return element;
+                }
+                // Fail loud, not silent: a bare PanelElement has no reposition
+                // hook, so a layout helper cannot place it — rendering it at its
+                // built coords would silently overlap siblings.
+                throw new IllegalStateException(
+                        "ElementSpec.of(): " + element.getClass().getName()
+                        + " is a bare PanelElement with no setChildPosition — a Row/"
+                        + "Column cannot position it. Extend AbstractPanelElement, or add "
+                        + "the element to the panel directly instead of via a layout helper.");
             }
         };
     }

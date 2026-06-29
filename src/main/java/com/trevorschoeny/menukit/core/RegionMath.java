@@ -196,16 +196,20 @@ public final class RegionMath {
                     topPos + (imageHeight - ph) / 2);
         };
 
-        // Screen safe-area gate for edge regions (Pass 3). A panel is hidden
-        // only if its resolved rect would actually leave the screen safe area
-        // (SCREEN_EDGE_MARGIN from each edge) — NOT if it merely exceeds the
-        // narrow menu frame, which edge regions are designed to extend past.
+        // Screen safe-area CONFORMANCE for edge regions (Pass 3, primitive (a)):
+        // a panel that would cross the SCREEN_EDGE_MARGIN is slid back into the
+        // safe area (clamped) rather than hidden — "every panel conforms to the
+        // screen edges; no panel renders outside the safe area." This may
+        // overlap the menu frame (correct: a wide/tall edge panel that doesn't
+        // fit beside the narrow frame belongs on-screen, over the frame, not
+        // gone). Hidden ONLY if the panel is larger than the safe area itself —
+        // then there's genuinely nowhere on-screen to put it.
         if (region != MenuRegion.CENTER) {
             int m = RegionConstants.SCREEN_EDGE_MARGIN;
-            if (origin.x() < m || origin.x() + pw > sw - m
-                    || origin.y() < m || origin.y() + ph > sh - m) {
-                return Optional.empty();
-            }
+            if (pw > sw - 2 * m || ph > sh - 2 * m) return Optional.empty();
+            int cx = Math.max(m, Math.min(origin.x(), sw - m - pw));
+            int cy = Math.max(m, Math.min(origin.y(), sh - m - ph));
+            origin = new ScreenOrigin(cx, cy);
         }
         return Optional.of(origin);
     }

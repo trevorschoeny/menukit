@@ -512,6 +512,19 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
                                  double scrollX, double scrollY) {
         if (isDisabled()) return false; // Inert when disabled (Phase 3b — Item 8).
 
+        // Pass 0 (Pass 3) — an OPEN child overlay (Dropdown popover) claims the
+        // wheel anywhere in its bounds, including the part hanging below the
+        // viewport. Symmetric with mouseClicked Pass-0 so a popover's own item
+        // list scrolls even where it overflows the scroll viewport.
+        for (PanelElement element : content) {
+            if (!element.isVisible()) continue;
+            int[] ov = element.getActiveOverlayBounds();
+            if (ov != null && mouseX >= ov[0] && mouseX < ov[0] + ov[2]
+                    && mouseY >= ov[1] && mouseY < ov[1] + ov[3]) {
+                return element.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+            }
+        }
+
         // Nested scroll (Pass 3) — if the cursor is over a child inside the
         // viewport that consumes the wheel (an inner ScrollContainer), let it
         // scroll FIRST. Runs before the canScroll() check so a non-scrolling
