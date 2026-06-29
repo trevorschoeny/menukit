@@ -221,14 +221,12 @@ public class HandlerRecognizerRegistry {
 
         // Detect player inventory by container type
         if (container instanceof Inventory) {
-            return new VirtualSlotGroup("player_inventory", slots,
-                    InteractionPolicy.free(), QuickMoveParticipation.BOTH, 0);
+            return new VirtualSlotGroup("player_inventory", slots, 0);
         }
 
         // Non-player container
         String id = containerIndex == 0 ? "container" : "container_" + containerIndex;
-        return new VirtualSlotGroup(id, slots,
-                InteractionPolicy.free(), QuickMoveParticipation.BOTH, 100);
+        return new VirtualSlotGroup(id, slots, 100);
     }
 
     // ── Built-in Recognizer: Furnace ───────────────────────────────────
@@ -245,21 +243,15 @@ public class HandlerRecognizerRegistry {
 
         // Slot 0: input — accepts items that can be smelted
         groups.add(new VirtualSlotGroup("input",
-                List.of(handler.slots.get(0)),
-                InteractionPolicy.free(),
-                QuickMoveParticipation.IMPORTS, 100));
+                List.of(handler.slots.get(0)), 100));
 
         // Slot 1: fuel — accepts fuel items
         groups.add(new VirtualSlotGroup("fuel",
-                List.of(handler.slots.get(1)),
-                InteractionPolicy.free(),
-                QuickMoveParticipation.IMPORTS, 90));
+                List.of(handler.slots.get(1)), 90));
 
         // Slot 2: output — items can only be taken out
         groups.add(new VirtualSlotGroup("output",
-                List.of(handler.slots.get(2)),
-                InteractionPolicy.output((stack, player) -> {}),
-                QuickMoveParticipation.EXPORTS, 100));
+                List.of(handler.slots.get(2)), 100));
 
         // Remaining slots: player inventory (identity-grouped)
         groups.addAll(groupSlotsByContainerIdentity(handler, 3, handler.slots.size()));
@@ -282,21 +274,15 @@ public class HandlerRecognizerRegistry {
         groups.add(new VirtualSlotGroup("potions",
                 List.of(handler.slots.get(0),
                         handler.slots.get(1),
-                        handler.slots.get(2)),
-                InteractionPolicy.free(),
-                QuickMoveParticipation.BOTH, 100));
+                        handler.slots.get(2)), 100));
 
         // Slot 3: ingredient (e.g., nether wart, glowstone dust)
         groups.add(new VirtualSlotGroup("ingredient",
-                List.of(handler.slots.get(3)),
-                InteractionPolicy.free(),
-                QuickMoveParticipation.IMPORTS, 100));
+                List.of(handler.slots.get(3)), 100));
 
         // Slot 4: fuel (blaze powder)
         groups.add(new VirtualSlotGroup("fuel",
-                List.of(handler.slots.get(4)),
-                InteractionPolicy.free(),
-                QuickMoveParticipation.IMPORTS, 90));
+                List.of(handler.slots.get(4)), 90));
 
         // Remaining slots: player inventory (identity-grouped)
         groups.addAll(groupSlotsByContainerIdentity(handler, 5, handler.slots.size()));
@@ -320,24 +306,17 @@ public class HandlerRecognizerRegistry {
 
         List<VirtualSlotGroup> groups = new ArrayList<>();
         groups.add(new VirtualSlotGroup("crafting_output",
-                List.of(handler.slots.get(InventoryMenu.RESULT_SLOT)),
-                InteractionPolicy.output((stack, player) -> {}),
-                QuickMoveParticipation.EXPORTS, 100));
+                List.of(handler.slots.get(InventoryMenu.RESULT_SLOT)), 100));
         groups.add(new VirtualSlotGroup("crafting_input",
-                slotRange(handler, InventoryMenu.CRAFT_SLOT_START, InventoryMenu.CRAFT_SLOT_END),
-                InteractionPolicy.free(), QuickMoveParticipation.BOTH, 100));
+                slotRange(handler, InventoryMenu.CRAFT_SLOT_START, InventoryMenu.CRAFT_SLOT_END), 100));
         groups.add(new VirtualSlotGroup("armor",
-                slotRange(handler, InventoryMenu.ARMOR_SLOT_START, InventoryMenu.ARMOR_SLOT_END),
-                InteractionPolicy.free(), QuickMoveParticipation.BOTH, 100));
+                slotRange(handler, InventoryMenu.ARMOR_SLOT_START, InventoryMenu.ARMOR_SLOT_END), 100));
         groups.add(new VirtualSlotGroup("main_inventory",
-                slotRange(handler, InventoryMenu.INV_SLOT_START, InventoryMenu.INV_SLOT_END),
-                InteractionPolicy.free(), QuickMoveParticipation.BOTH, 0));
+                slotRange(handler, InventoryMenu.INV_SLOT_START, InventoryMenu.INV_SLOT_END), 0));
         groups.add(new VirtualSlotGroup("hotbar",
-                slotRange(handler, InventoryMenu.USE_ROW_SLOT_START, InventoryMenu.USE_ROW_SLOT_END),
-                InteractionPolicy.free(), QuickMoveParticipation.BOTH, 0));
+                slotRange(handler, InventoryMenu.USE_ROW_SLOT_START, InventoryMenu.USE_ROW_SLOT_END), 0));
         groups.add(new VirtualSlotGroup("offhand",
-                List.of(handler.slots.get(InventoryMenu.SHIELD_SLOT)),
-                InteractionPolicy.free(), QuickMoveParticipation.BOTH, 100));
+                List.of(handler.slots.get(InventoryMenu.SHIELD_SLOT)), 100));
 
         if (handler.slots.size() > InventoryMenu.SHIELD_SLOT + 1) {
             groups.addAll(groupSlotsByContainerIdentity(

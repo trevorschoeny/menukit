@@ -2,7 +2,6 @@ package com.trevorschoeny.menukit.core;
 
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
-import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
 
@@ -39,32 +38,8 @@ public interface SlotGroupLike {
      */
     Storage getStorage();
 
-    /** Returns the behavioral policy for this group's slots. */
-    InteractionPolicy getPolicy();
-
-    /** Returns how this group participates in shift-click routing. */
-    QuickMoveParticipation getQmp();
-
     /** Returns the numeric shift-click priority (higher = tried first). */
     int getShiftClickPriority();
-
-    /**
-     * Can this group accept the given stack? Delegates to the policy's
-     * {@code canAccept} predicate.
-     */
-    boolean canAccept(ItemStack stack);
-
-    /**
-     * Can items be removed from this group? Delegates to the policy's
-     * {@code canRemove} predicate.
-     */
-    boolean canRemove(ItemStack stack);
-
-    /**
-     * Maximum stack size for the given item in this group.
-     * Delegates to the policy's {@code maxStackSize} function.
-     */
-    int maxStackSize(ItemStack stack);
 
     /**
      * Returns this group's slots. The wildcard allows {@link SlotGroup}
