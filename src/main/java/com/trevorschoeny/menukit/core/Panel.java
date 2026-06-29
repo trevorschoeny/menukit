@@ -105,6 +105,26 @@ public class Panel {
     private int pinnedWidth = -1;
     private int pinnedHeight = -1;
 
+    // ── Pass 3 adaptive screen-edge wrap ───────────────────────────────
+    // effectiveContentWidth is the screen-edge-derived content-width ceiling
+    // set per-frame by the placement layer (RegionRegistry.menuOriginFn,
+    // MKScreen/MKCHandledScreen.computePanelSize, the HUD + vanilla-screen +
+    // slot-group origin paths) via setAvailableContentWidth. -1 = unset (no
+    // ceiling; panel grows to content as before). Distinct from pinnedWidth on
+    // purpose: a library-computed fit ceiling must NOT masquerade as a
+    // consumer-declared pin (getPinnedWidth() stays honest, so MKC's
+    // pinned-vs-auto layout logic is untouched).
+    //
+    // The ceiling only bites when the panel is UNPINNED and its natural content
+    // width exceeds the ceiling — then TextLabels wrap to it (the existing 16g
+    // wrap machinery, now screen-driven instead of pin-driven). lastFitAvail
+    // guards the configuration pass: setAvailableContentWidth flips
+    // configurationDirty ONLY when the available width actually changes, so the
+    // per-frame placement calls are free and the auto-scroll ScrollContainer
+    // isn't rebuilt every frame (which would reset its drag state).
+    private int effectiveContentWidth = -1;
+    private int lastFitAvail = Integer.MIN_VALUE;
+
     // ── Phase 16g Auto-Scroll state ────────────────────────────────────
     // Scroll offset (0.0 - 1.0) for the auto-scroll wrap. Panel owns the
     // state directly here rather than delegating to a consumer-side field
@@ -492,17 +512,41 @@ public class Panel {
         configurationDirty = false;
 
         // ── Step 1: wrap-width propagation ─────────────────────────────
+        // The wrap budget is the panel's content-width CEILING. It comes from
+        // one of two sources:
+        //   - pinnedWidth (M5/16g): consumer declared a fixed content width.
+        //   - effectiveContentWidth (Pass 3): the screen-edge-derived ceiling
+        //     set by the placement layer. Only imposes a ceiling when the panel
+        //     is UNPINNED and its natural (unwrapped) content is actually wider
+        //     than the available width — otherwise the panel keeps growing to
+        //     fit its content exactly as before (adaptive-grow stays the
+        //     default; the screen edge is just the wrap point).
+        // widthBudget is shared with Step 2 so the auto-scroll ScrollContainer's
+        // outer width matches the ceiling (else scrolled content could sail
+        // past the screen-edge margin).
+        int widthBudget = -1; // content-width ceiling for this pass, or -1 = none
         if (pinnedWidth >= 0) {
-            // pinnedWidth IS the content extent (per M5 contract). The
-            // wrap budget equals pinnedWidth directly — no padding
-            // subtraction. When pinnedHeight is also set, the scrollbar
-            // reserve (track + gutter) reduces the budget further; we
-            // deduct it unconditionally because post-wrap overflow can't
-            // be known until AFTER wrap is computed (circular dependency).
-            // Always-reserving simplifies the math at the cost of a few
-            // pixels of unused space on pinnedHeight-set panels that
-            // don't actually overflow.
-            int wrapBudget = pinnedWidth;
+            widthBudget = pinnedWidth;
+        } else if (effectiveContentWidth >= 0) {
+            // Measure natural (unwrapped) width first — clear any prior wrap so
+            // TextLabel.getWidth reports intrinsic width — then impose the
+            // ceiling only if natural content genuinely overflows it.
+            for (PanelElement e : elements) {
+                if (e instanceof TextLabel label) label.setWrapWidth(0);
+            }
+            if (aggregateRawContentWidth() > effectiveContentWidth) {
+                widthBudget = effectiveContentWidth;
+            }
+        }
+
+        if (widthBudget >= 0) {
+            // The wrap budget equals the content ceiling directly. When
+            // pinnedHeight is also set, the scrollbar reserve (track + gutter)
+            // reduces it further; deducted unconditionally because post-wrap
+            // overflow can't be known until AFTER wrap is computed (circular
+            // dependency) — a few pixels of unused space on non-overflowing
+            // bounded panels is the accepted cost.
+            int wrapBudget = widthBudget;
             if (pinnedHeight >= 0) {
                 wrapBudget -= (ScrollContainer.TRACK_WIDTH
                         + ScrollContainer.SCROLLER_GUTTER);
@@ -515,7 +559,7 @@ public class Panel {
                 }
             }
         } else {
-            // pinnedWidth cleared — clear any wrap state from a prior pass.
+            // No ceiling — clear any wrap state from a prior pass.
             for (PanelElement e : elements) {
                 if (e instanceof TextLabel label) {
                     label.setWrapWidth(0);
@@ -540,6 +584,11 @@ public class Panel {
                 int outerWidth;
                 if (pinnedWidth >= 0) {
                     outerWidth = pinnedWidth;
+                } else if (widthBudget >= 0) {
+                    // Screen-edge fit imposed a ceiling — the scroll viewport
+                    // must match it so scrolled content can't overflow the
+                    // screen-edge margin.
+                    outerWidth = widthBudget;
                 } else {
                     outerWidth = aggregateRawContentWidth()
                             + ScrollContainer.TRACK_WIDTH
@@ -668,6 +717,44 @@ public class Panel {
         this.cachedScrollContainer = null;
         return this;
     }
+
+    /**
+     * Sets the screen-edge-derived available content width (Pass 3 adaptive
+     * wrap). Called by the placement layer EVERY frame, before reading
+     * {@link #getWidth()}, with the content-width room remaining before the
+     * physical screen-edge margin at this panel's anchor. When the panel is
+     * unpinned and its natural content is wider than {@code avail}, its
+     * TextLabels wrap to {@code avail} (and an auto-scroll viewport is sized to
+     * it) instead of overflowing the screen — making screen-edge-aware
+     * adaptive wrapping the default for every panel, with no consumer opt-in.
+     *
+     * <p><b>Idempotency / staleness guard.</b> Re-flips
+     * {@code configurationDirty} (and drops the cached scroll container) ONLY
+     * when {@code avail} actually changes from the last call. The placement
+     * layer calls this per frame; without the guard, a stable frame would
+     * either keep a stale wrap (if it never re-ran) or rebuild the scroll
+     * container every frame (resetting its drag state). The guard delivers
+     * both: re-fits on a real change (window resize), free otherwise.
+     *
+     * <p>Library-internal — consumers never call this; it carries the screen
+     * geometry the panel itself is deliberately blind to. Negative values are
+     * floored to a small minimum so a degenerate frame can't wrap to zero.
+     *
+     * @param avail content-width room before the screen-edge margin, in pixels
+     */
+    @ApiStatus.Internal
+    public void setAvailableContentWidth(int avail) {
+        int clamped = Math.max(MIN_FIT_WIDTH, avail);
+        if (clamped == lastFitAvail) return; // no change — keep the cached pass
+        lastFitAvail = clamped;
+        this.effectiveContentWidth = clamped;
+        this.configurationDirty = true;
+        this.cachedScrollContainer = null;
+    }
+
+    /** Floor for {@link #setAvailableContentWidth} so a degenerate frame
+     *  (tiny/negative avail) can't wrap content to nothing. */
+    private static final int MIN_FIT_WIDTH = 16;
 
     /**
      * Returns the panel's width for region-stacking math.

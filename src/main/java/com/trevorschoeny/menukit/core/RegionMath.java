@@ -29,6 +29,83 @@ public final class RegionMath {
 
     private RegionMath() {}
 
+    // ── Pass 3: screen-edge available-width arithmetic ──────────────────
+    //
+    // Single home for "how much OUTER width may a panel occupy before it
+    // crosses the screen-edge margin," given how the panel is anchored. The
+    // three primitives below cover every anchor shape; each placement context
+    // (menu / HUD / vanilla-screen / centered-screen / slot-group) calls the
+    // one that matches its growth direction. Pure arithmetic — no pw input, so
+    // there is no measure→place→re-measure circularity (verified: every
+    // directional region pins one edge and grows into the budget).
+
+    /** Room for a panel whose left edge is pinned at {@code originX} and which
+     *  grows rightward, before the right screen-edge margin. */
+    public static int growRightWidth(int originX, int sw, int margin) {
+        return sw - margin - originX;
+    }
+
+    /** Room for a panel whose right edge is pinned at {@code rightEdgeX} and
+     *  which grows leftward, before the left screen-edge margin. */
+    public static int growLeftWidth(int rightEdgeX, int margin) {
+        return rightEdgeX - margin;
+    }
+
+    /** Room for a panel centered on {@code centerX} that must stay clear of
+     *  BOTH screen-edge margins — symmetric about the center, so the binding
+     *  edge is whichever is nearer. */
+    public static int centeredWidth(int centerX, int sw, int margin) {
+        return 2 * Math.min(centerX - margin, sw - margin - centerX);
+    }
+
+    /**
+     * OUTER available width (padding-inclusive) for a MenuContext region panel
+     * before it crosses the screen-edge margin, given the (chrome-extended)
+     * menu frame and the screen width. Mirrors {@link #resolveMenu}'s per-region
+     * anchor geometry so the budget and the origin agree on where the panel
+     * sits. The caller subtracts the panel's 2×padding to get the content
+     * budget for {@link com.trevorschoeny.menukit.core.Panel#setAvailableContentWidth}.
+     *
+     * <p>Horizontal-flow regions (TOP/BOTTOM_ALIGN) ignore the stacking prefix
+     * here — the budget is computed for the region's anchor edge, an
+     * over-estimate for the 2nd+ panel in a horizontally-stacked adaptive set.
+     * That multi-panel-horizontal-adaptive case is rare; single-panel and all
+     * vertical-flow regions are exact.
+     */
+    public static int availableMenuWidth(MenuRegion region, ScreenBounds b,
+                                         int sw, int margin) {
+        int leftPos = b.leftPos();
+        int imageWidth = b.imageWidth();
+        int gap = RegionConstants.MENU_STACK_GAP;
+        int centerX = leftPos + imageWidth / 2;
+        return switch (region) {
+            case RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM ->
+                    growRightWidth(leftPos + imageWidth + gap, sw, margin);
+            case LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM ->
+                    growLeftWidth(leftPos - gap, margin);
+            case TOP_ALIGN_LEFT, BOTTOM_ALIGN_LEFT ->
+                    growRightWidth(leftPos, sw, margin);
+            case TOP_ALIGN_RIGHT, BOTTOM_ALIGN_RIGHT ->
+                    growLeftWidth(leftPos + imageWidth, margin);
+            case TOP_CENTER, BOTTOM_CENTER ->
+                    centeredWidth(centerX, sw, margin);
+            // CENTER stays within the frame (resolveMenu rejects pw > imageWidth);
+            // the frame is itself on-screen, so frame width is the safe ceiling.
+            case CENTER -> Math.min(imageWidth, centeredWidth(centerX, sw, margin));
+        };
+    }
+
+    /**
+     * OUTER available width for a screen-edge-anchored panel (HUD /
+     * VanillaScreen contexts). All such regions are inset {@link
+     * RegionConstants#EDGE_INSET} from one edge and should keep the same inset
+     * from the opposite edge, so the budget is the screen width minus the inset
+     * on both sides.
+     */
+    public static int availableScreenEdgeWidth(int sw, int inset) {
+        return sw - 2 * inset;
+    }
+
     // ── Shared constants ────────────────────────────────────────────────
     //
     // Phase 3b (Item 4c): the stacking gap was hoisted to the single shared

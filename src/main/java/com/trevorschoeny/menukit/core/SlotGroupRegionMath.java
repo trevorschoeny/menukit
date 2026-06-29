@@ -27,6 +27,35 @@ public final class SlotGroupRegionMath {
     private SlotGroupRegionMath() {}
 
     /**
+     * OUTER available width for a slot-group-anchored panel before it crosses
+     * the screen-edge margin (Pass 3). Mirrors
+     * {@link RegionMath#availableMenuWidth} exactly — same per-region anchor
+     * geometry — but anchored to the {@link SlotGroupBounds} rather than the
+     * menu frame, reusing {@link RegionMath}'s shared growth-direction
+     * arithmetic so the budget math lives in one place.
+     */
+    public static int availableSlotGroupWidth(SlotGroupRegion region,
+                                              SlotGroupBounds b, int sw, int margin) {
+        int leftPos = b.leftPos();
+        int imageWidth = b.imageWidth();
+        int gap = RegionConstants.MENU_STACK_GAP;
+        int centerX = leftPos + imageWidth / 2;
+        return switch (region) {
+            case RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM ->
+                    RegionMath.growRightWidth(leftPos + imageWidth + gap, sw, margin);
+            case LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM ->
+                    RegionMath.growLeftWidth(leftPos - gap, margin);
+            case TOP_ALIGN_LEFT, BOTTOM_ALIGN_LEFT ->
+                    RegionMath.growRightWidth(leftPos, sw, margin);
+            case TOP_ALIGN_RIGHT, BOTTOM_ALIGN_RIGHT ->
+                    RegionMath.growLeftWidth(leftPos + imageWidth, margin);
+            case TOP_CENTER, BOTTOM_CENTER ->
+                    RegionMath.centeredWidth(centerX, sw, margin);
+            case CENTER -> Math.min(imageWidth, RegionMath.centeredWidth(centerX, sw, margin));
+        };
+    }
+
+    /**
      * Resolves a SlotGroupContext region panel's origin. Anchors to the
      * slot group's bounding rectangle ({@link SlotGroupBounds}) rather
      * than the screen frame, but is otherwise identical to

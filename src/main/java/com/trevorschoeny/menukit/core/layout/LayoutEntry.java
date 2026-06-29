@@ -30,17 +30,27 @@ final class LayoutEntry {
 
     private final int width;
     private final int height;
+    private final boolean leaf;
     private final BiFunction<Integer, Integer, List<PanelElement>> emitter;
 
-    private LayoutEntry(int width, int height,
+    private LayoutEntry(int width, int height, boolean leaf,
                         BiFunction<Integer, Integer, List<PanelElement>> emitter) {
         this.width = width;
         this.height = height;
+        this.leaf = leaf;
         this.emitter = emitter;
     }
 
     int width() { return width; }
     int height() { return height; }
+
+    /**
+     * True for a single-element {@link #fromSpec} entry; false for a nested
+     * Row/Column. Pass-3 column-fill stretches only leaf entries — blanket-
+     * stretching the leaves of a nested row would override that row's own
+     * internal horizontal layout.
+     */
+    boolean isLeaf() { return leaf; }
 
     List<PanelElement> emitAt(int x, int y) {
         return emitter.apply(x, y);
@@ -48,7 +58,7 @@ final class LayoutEntry {
 
     /** Wraps an {@link ElementSpec} as a single-element entry. */
     static LayoutEntry fromSpec(ElementSpec spec) {
-        return new LayoutEntry(spec.width(), spec.height(),
+        return new LayoutEntry(spec.width(), spec.height(), true,
                 (x, y) -> List.of(spec.at(x, y)));
     }
 
@@ -60,6 +70,6 @@ final class LayoutEntry {
      */
     static LayoutEntry fromNested(int width, int height,
             BiFunction<Integer, Integer, List<PanelElement>> emitter) {
-        return new LayoutEntry(width, height, emitter);
+        return new LayoutEntry(width, height, false, emitter);
     }
 }

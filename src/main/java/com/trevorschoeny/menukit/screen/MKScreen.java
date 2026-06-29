@@ -7,6 +7,7 @@ import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.PanelRendering;
 import com.trevorschoeny.menukit.core.PanelStyle;
 import com.trevorschoeny.menukit.core.PanelTreeLayout;
+import com.trevorschoeny.menukit.core.RegionConstants;
 import com.trevorschoeny.menukit.core.RenderContext;
 import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
@@ -228,6 +229,12 @@ public class MKScreen extends Screen {
      */
     private int[] computePanelSize(Panel panel) {
         int padding = panel.interiorPadding();
+        // Pass 3 — centered standalone panels may grow until SCREEN_EDGE_MARGIN
+        // from both screen edges, then wrap. Feed the content-width budget
+        // BEFORE measuring so getWidth() reflects any adaptive wrap. (Overlay
+        // panels are also screen-centered, so the same symmetric budget holds.)
+        panel.setAvailableContentWidth(
+                this.width - 2 * RegionConstants.SCREEN_EDGE_MARGIN - 2 * padding);
         return new int[]{
                 panel.getWidth() + 2 * padding,
                 panel.getHeight() + 2 * padding

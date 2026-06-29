@@ -154,6 +154,9 @@ public class Button extends AbstractPanelElement<Button> {
     @Override public int getWidth() { return width; }
     @Override public int getHeight() { return height; }
 
+    /** Column-fill (Pass 3): stretch this button to the column's widest extent. */
+    @Override public void fillWidth(int width) { this.width = width; }
+
     /** Interactive — handles clicks, so it claims (blocks vanilla behind) on a non-opaque panel. */
     @Override public boolean isInteractive() { return true; }
 

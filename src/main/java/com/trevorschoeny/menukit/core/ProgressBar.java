@@ -215,6 +215,9 @@ public class ProgressBar extends AbstractPanelElement<ProgressBar> {
     @Override public int getWidth() { return width; }
     @Override public int getHeight() { return height; }
 
+    /** Column-fill (Pass 3): stretch this bar to the column's widest extent. */
+    @Override public void fillWidth(int width) { this.width = width; }
+
     @Override
     public void render(RenderContext ctx) {
         var graphics = ctx.graphics();

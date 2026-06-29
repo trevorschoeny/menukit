@@ -154,6 +154,19 @@ public class Divider extends AbstractPanelElement<Divider> {
     @Override public int getWidth() { return width; }
     @Override public int getHeight() { return height; }
 
+    /**
+     * Column-fill (Pass 3): stretch a HORIZONTAL divider to the column's
+     * widest extent — the canonical "section separator spans the column"
+     * use. A vertical divider (taller than it is wide) is left untouched:
+     * filling its width would thicken the line, not lengthen it.
+     */
+    @Override
+    public void fillWidth(int width) {
+        if (this.width >= this.height) { // horizontal orientation
+            this.width = width;
+        }
+    }
+
     @Override
     public void render(RenderContext ctx) {
         int x = ctx.originX() + childX;

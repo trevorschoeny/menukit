@@ -109,7 +109,10 @@ public class Slider extends AbstractPanelElement<Slider> {
 
     @Override protected Slider self() { return this; }
 
-    private final int width;
+    // Non-final since Pass 3: column-fill (fillWidth) restretches the slider
+    // to the column's widest extent. Mutating it also re-widths the wrapped
+    // vanilla MKSlider so its render + internal hit-test agree with getWidth().
+    private int width;
     private final int height;
     private final DoubleSupplier valueSupplier;
     private final MKSlider slider;
@@ -155,6 +158,18 @@ public class Slider extends AbstractPanelElement<Slider> {
 
     @Override public int getWidth()  { return width; }
     @Override public int getHeight() { return height; }
+
+    /**
+     * Column-fill (Pass 3): stretch this slider to the column's widest extent.
+     * Re-widths BOTH this element's reported width AND the wrapped vanilla
+     * {@link MKSlider} (whose own render + drag hit-test key off its width), so
+     * the full filled track is draggable — no dead strip on the right.
+     */
+    @Override
+    public void fillWidth(int width) {
+        this.width = width;
+        this.slider.setWidth(width);
+    }
 
     /** Interactive — handles click/drag, so it claims (blocks vanilla behind) on a non-opaque panel. */
     @Override public boolean isInteractive() { return true; }

@@ -76,6 +76,29 @@ public interface PanelElement {
     /** Height in pixels. */
     int getHeight();
 
+    /**
+     * Stretches this element to fill the given content width (the
+     * {@code CrossAlign.FILL} / column-fill primitive, Pass 3). After this
+     * call the element's {@link #getWidth()} reports the filled width so
+     * panel auto-size, hit-testing, and rendering all agree — fill is NOT
+     * cosmetic.
+     *
+     * <p>Default: no-op. Fixed-extent widgets (Button, Toggle, Slider,
+     * ProgressBar, horizontal Divider) override this to set their width.
+     * Auto-content-sized widgets (TextLabel, Checkbox, Radio, ItemDisplay,
+     * Icon) keep the default no-op — they remain intrinsic-width under FILL,
+     * by design: a stretched icon would distort, and text reflow is owned by
+     * the panel-level screen-edge wrap, not by column fill.
+     *
+     * <p>This is the deliberate capability-method answer to §0047's declined
+     * {@code .size()} hoist on {@link AbstractPanelElement}: it is not a
+     * hoisted field (per-widget storage differs), it is an optional stretch
+     * capability that each widget honors as fits its own storage.
+     *
+     * @param width the column's widest-child extent to stretch to, in pixels
+     */
+    default void fillWidth(int width) {}
+
     // ── Visibility ─────────────────────────────────────────────────────
     // Elements can be conditionally shown. The screen checks this before
     // rendering or routing clicks — invisible elements are fully inert.

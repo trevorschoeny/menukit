@@ -11,6 +11,7 @@ import com.trevorschoeny.menukit.hud.MKHudPanelDef;
 import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.Minecraft;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,6 +56,19 @@ public final class RegionRegistry {
     private static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
     private RegionRegistry() {}
+
+    /**
+     * GUI-scaled window width — the screen-edge reference the library is
+     * otherwise blind to (Pass 3). Falls back to a very large value if the
+     * window isn't available (never on the client render path), so the
+     * available-width budget is effectively "unbounded" and no spurious wrap
+     * fires.
+     */
+    private static int guiScaledWidth() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null || mc.getWindow() == null) return Integer.MAX_VALUE / 4;
+        return mc.getWindow().getGuiScaledWidth();
+    }
 
     // Per-region panel lists. Registration order is append order; same-region
     // panels stack in declaration order.
@@ -232,8 +246,6 @@ public final class RegionRegistry {
     public static ScreenOriginFn menuOriginFn(Panel panel, MenuRegion region) {
         return (bounds, screen) -> {
             int pad = MENU_PADDING.getOrDefault(panel, 0);
-            int pw = panel.getWidth() + 2 * pad;
-            int ph = panel.getHeight() + 2 * pad;
             int prefix = axialPrefix(panel, region);
 
             // Extend bounds by the screen's chrome extents on all axes —
@@ -247,6 +259,17 @@ public final class RegionRegistry {
                     bounds.topPos() - chrome.top(),
                     bounds.imageWidth() + chrome.left() + chrome.right(),
                     bounds.imageHeight() + chrome.top() + chrome.bottom());
+
+            // Pass 3 — feed the panel its screen-edge content-width budget BEFORE
+            // measuring its width, using the SAME chrome-extended frame the origin
+            // math uses (so budget and origin agree on where the frame is). The
+            // panel wraps its content to this only if it would otherwise overflow.
+            int availOuter = RegionMath.availableMenuWidth(
+                    region, effective, guiScaledWidth(), RegionConstants.SCREEN_EDGE_MARGIN);
+            panel.setAvailableContentWidth(availOuter - 2 * pad);
+
+            int pw = panel.getWidth() + 2 * pad;
+            int ph = panel.getHeight() + 2 * pad;
 
             var result = RegionMath.resolveMenu(region, effective, pw, ph, prefix);
             if (result.isEmpty()) {
@@ -417,6 +440,12 @@ public final class RegionRegistry {
                                                                 VanillaScreenRegion region) {
         return (sw, sh, screen) -> {
             int pad = VANILLA_SCREEN_PADDING.getOrDefault(panel, 0);
+
+            // Pass 3 — screen-edge content-width budget (vanilla-screen regions
+            // are inset EDGE_INSET from an edge; keep the same inset opposite).
+            int availOuter = RegionMath.availableScreenEdgeWidth(sw, RegionConstants.EDGE_INSET);
+            panel.setAvailableContentWidth(availOuter - 2 * pad);
+
             int pw = panel.getWidth() + 2 * pad;
             int ph = panel.getHeight() + 2 * pad;
             int prefix = axialPrefix(panel, region);

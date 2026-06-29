@@ -78,4 +78,20 @@ public final class RegionConstants {
      * contexts. {@code = 4}, matching vanilla's F3 debug-overlay convention.
      */
     public static final int EDGE_INSET = 4;
+
+    /**
+     * Screen-edge safe-area margin (pixels, GUI-scaled) for the adaptive
+     * layout foundation (Pass 3). Every panel keeps at least this margin from
+     * each physical screen edge; when a panel's natural content would cross
+     * it, the panel wraps/reflows instead of overflowing
+     * ({@link com.trevorschoeny.menukit.core.Panel#setAvailableContentWidth}).
+     *
+     * <p>{@code = 6} — a touch more breathing room than {@link #EDGE_INSET}
+     * (which is the HUD/vanilla-screen anchor inset) so an adaptive panel
+     * doesn't sit flush against the window edge. The two are intentionally
+     * distinct: {@code EDGE_INSET} positions edge-anchored panels;
+     * {@code SCREEN_EDGE_MARGIN} is the hard "do not cross" boundary every
+     * panel's width budget is measured against.
+     */
+    public static final int SCREEN_EDGE_MARGIN = 6;
 }

@@ -152,17 +152,41 @@ public final class Column {
         List<PanelElement> buildAt(int baseX, int baseY) {
             int crossExtent = computeCrossAxisExtent();
             List<PanelElement> result = new ArrayList<>();
+            // FILL: collect the emitted LEAF elements for the post-pass stretch.
+            // Nested Row/Column entries are excluded — blanket-stretching their
+            // leaves would override the nested helper's own internal layout.
+            List<PanelElement> fillTargets =
+                    (crossAlign == CrossAlign.FILL) ? new ArrayList<>() : null;
             int y = baseY;
             for (int i = 0; i < entries.size(); i++) {
                 LayoutEntry entry = entries.get(i);
                 int x = switch (crossAlign) {
-                    case START -> baseX;
+                    // FILL left-aligns like START, then stretches in the post-pass.
+                    case START, FILL -> baseX;
                     case CENTER -> baseX + (crossExtent - entry.width()) / 2;
                     case END -> baseX + (crossExtent - entry.width());
                 };
-                result.addAll(entry.emitAt(x, y));
+                List<PanelElement> emitted = entry.emitAt(x, y);
+                result.addAll(emitted);
+                if (fillTargets != null && entry.isLeaf()) {
+                    fillTargets.addAll(emitted);
+                }
                 y += entry.height();
                 if (i < entries.size() - 1) y += spacing;
+            }
+            // FILL post-pass — compute the true fill extent from the POST-EMIT
+            // reported widths (a Toggle's getWidth() floors at its label, so the
+            // spec width can understate it), then stretch every leaf to it.
+            // Fill-capable widgets honor fillWidth and report the new width;
+            // auto-sized widgets no-op and stay intrinsic (left-aligned).
+            if (fillTargets != null && !fillTargets.isEmpty()) {
+                int fillExtent = 0;
+                for (PanelElement e : fillTargets) {
+                    if (e.getWidth() > fillExtent) fillExtent = e.getWidth();
+                }
+                for (PanelElement e : fillTargets) {
+                    e.fillWidth(fillExtent);
+                }
             }
             return result;
         }

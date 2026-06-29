@@ -188,7 +188,11 @@ public final class Row {
             for (int i = 0; i < entries.size(); i++) {
                 LayoutEntry entry = entries.get(i);
                 int y = switch (crossAlign) {
-                    case START -> baseY;
+                    // FILL is a Column-only primitive (cross-axis height-fill
+                    // for a Row is not symmetric-cheap — TextLabel can't honor a
+                    // forced height — and is deferred). On a Row, FILL falls
+                    // back to START on the (vertical) cross axis.
+                    case START, FILL -> baseY;
                     case CENTER -> baseY + (crossExtent - entry.height()) / 2;
                     case END -> baseY + (crossExtent - entry.height());
                 };

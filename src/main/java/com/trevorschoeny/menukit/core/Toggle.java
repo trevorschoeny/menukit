@@ -171,6 +171,15 @@ public class Toggle extends AbstractPanelElement<Toggle> {
 
     @Override public int getHeight() { return height; }
 
+    /**
+     * Column-fill (Pass 3): stretch this toggle to the column's widest extent.
+     * Sets the base width; {@link #getWidth()} still floors at the label's
+     * intrinsic width, but the column computes its fill extent from the
+     * post-emit {@code getWidth()} of every child, so the fill target is
+     * already {@code >=} this toggle's label floor — no shrink-below-label.
+     */
+    @Override public void fillWidth(int width) { this.width = width; }
+
     /** Interactive — handles clicks, so it claims (blocks vanilla behind) on a non-opaque panel. */
     @Override public boolean isInteractive() { return true; }
 
