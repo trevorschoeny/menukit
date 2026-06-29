@@ -143,7 +143,7 @@ public final class RegionMath {
             HudRegion region, int sw, int sh,
             int pw, int ph, int prefix) {
 
-        int inset = HudRegion.EDGE_INSET;
+        int inset = RegionConstants.EDGE_INSET;
         int crosshairClear = HudRegion.CENTER_CROSSHAIR_CLEARANCE;
 
         // Available vertical space along the flow axis — used for overflow.
@@ -192,7 +192,7 @@ public final class RegionMath {
      * non-container screen (Options, Controls, KeyBinds, etc.).
      *
      * <p>Parallel to {@link #resolveHud}: anchored to the screen's
-     * GUI-scaled w × h, with {@link VanillaScreenRegion#EDGE_INSET} from
+     * GUI-scaled w × h, with {@link RegionConstants#EDGE_INSET} from
      * each edge. The only semantic difference vs HUD positioning is that
      * vanilla screens have NO crosshair behind them — the {@link
      * VanillaScreenRegion#CENTER} region anchors to the true screen
@@ -216,7 +216,7 @@ public final class RegionMath {
             VanillaScreenRegion region, int sw, int sh,
             int pw, int ph, int prefix) {
 
-        int inset = VanillaScreenRegion.EDGE_INSET;
+        int inset = RegionConstants.EDGE_INSET;
 
         int available = switch (region) {
             case TOP_LEFT, TOP_CENTER, TOP_RIGHT,

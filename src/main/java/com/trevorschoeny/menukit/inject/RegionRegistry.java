@@ -325,7 +325,7 @@ public final class RegionRegistry {
         int prefix = 0;
         for (MKHudPanelDef p : panels) {
             if (p == self) return prefix;
-            if (!p.showWhen().get()) continue;
+            if (!p.showWhen().getAsBoolean()) continue;
             int[] size = p.computeSize();
             prefix += size[1] + RegionConstants.MENU_STACK_GAP;
         }
@@ -474,8 +474,13 @@ public final class RegionRegistry {
      * <p>Called at registration time only (not per-frame) so the stack
      * walk + path comparison cost lives behind one-shot setup, not the
      * render hot path.
+     *
+     * <p>Package-private so the sibling {@link SlotGroupRegionRegistry} (the
+     * post-§0042 slot-group split) reuses the exact same modId-tiebreaker
+     * capture rather than duplicating the StackWalker + protection-domain
+     * logic — all four region contexts then sort by an identical key.
      */
-    private static String captureCallerModId() {
+    static String captureCallerModId() {
         return StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
                 .walk(frames -> frames
                         .map(StackWalker.StackFrame::getDeclaringClass)

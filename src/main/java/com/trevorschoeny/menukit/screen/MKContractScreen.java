@@ -120,13 +120,12 @@ public class MKContractScreen extends MKScreen {
                     }
                 }));
 
-        Panel panel = new Panel(
-                "mk-contract-results",
-                elements,
-                /*visible=*/ true,
-                PanelStyle.RAISED,
-                PanelPosition.BODY,
-                /*toggleKey=*/ -1);
+        Panel panel = Panel.builder("mk-contract-results")
+                .elements(elements)
+                .visible(true)
+                .style(PanelStyle.RAISED)
+                .position(PanelPosition.BODY)
+                .build();
 
         return List.of(panel);
     }

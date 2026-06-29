@@ -18,6 +18,14 @@ package com.trevorschoeny.menukit.core;
  * stay in lock-step by hand. This class hoists them into one place so a
  * value lives in exactly one spot.
  *
+ * <p><b>This is the single public home (Phase 5 — symmetry pass).</b> The
+ * per-enum constant faces ({@code VanillaScreenRegion.STACK_GAP}/{@code
+ * EDGE_INSET}, {@code HudRegion.EDGE_INSET}) were removed so all four region
+ * enums present an identical surface — consumers read the values here. (The
+ * lone exception is {@link HudRegion#CENTER_CROSSHAIR_CLEARANCE}, a genuinely
+ * HUD-only value with no equivalent in the other three contexts, which stays
+ * on {@code HudRegion}.) Values are unchanged — no visual change.
+ *
  * <h2>Per-context values are PRESERVED, not collapsed</h2>
  *
  * Centralizing must not move a single pixel — the gap values Trev has seen

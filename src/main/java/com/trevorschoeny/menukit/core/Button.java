@@ -25,6 +25,18 @@ import java.util.function.Supplier;
  * to vanilla's slot handling. Custom element implementations can handle
  * any mouse button.
  *
+ * <h3>Construction — prefer {@link #spec} / {@code .at(x,y)}</h3>
+ *
+ * The positional constructors take {@code childX}/{@code childY} as their
+ * leading arguments. The fluent path keeps the position out of the argument
+ * list and reads cleaner: use {@link #spec(int, int, Component, Consumer)} to
+ * drop a button into a {@code Row}/{@code Column} layout (which computes its
+ * position), or construct without a position and call
+ * {@link AbstractPanelElement#at(int, int) .at(x, y)} +
+ * {@link #size(int, int) .size(w, h)}. The positional constructors remain for
+ * the cases where threading {@code (x, y)} through the constructor is the
+ * clearest spelling; they are not deprecated, just no longer the only path.
+ *
  * <p>Rendering styles:
  * <ul>
  *   <li><b>Normal:</b> raised panel background, white text with shadow</li>

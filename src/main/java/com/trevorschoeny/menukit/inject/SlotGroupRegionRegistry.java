@@ -1,6 +1,7 @@
 package com.trevorschoeny.menukit.inject;
 
 import com.trevorschoeny.menukit.core.Panel;
+import com.trevorschoeny.menukit.core.RegionAnchor;
 import com.trevorschoeny.menukit.core.RegionConstants;
 import com.trevorschoeny.menukit.core.SlotGroupCategory;
 import com.trevorschoeny.menukit.core.SlotGroupRegion;
@@ -11,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -45,21 +47,55 @@ public final class SlotGroupRegionRegistry {
     private record SlotGroupKey(SlotGroupCategory category, SlotGroupRegion region) {}
     private static final Map<SlotGroupKey, List<Panel>> SLOT_GROUP = new HashMap<>();
     private static final Map<Panel, Integer> SLOT_GROUP_PADDING = new HashMap<>();
+
+    // Phase 5 (B2) — per-panel deterministic-sort metadata, mirroring the
+    // Menu/HUD/VanillaScreen tables in RegionRegistry. Sort key is
+    // (priority asc, modId asc, registrationSeq asc): lower priority renders
+    // first (closer to the region's anchor edge), modId is the cross-mod
+    // tiebreaker (captured via RegionRegistry.captureCallerModId so all four
+    // region contexts share one capture rule), regSeq stabilizes two panels
+    // from the same mod with the same priority. This is what makes
+    // SlotGroupRegion.priority(int) actually drive ordering — before this it
+    // was a dead method with no registry pathway.
+    private static final Map<Panel, Integer> SLOT_GROUP_PRIORITY = new HashMap<>();
+    private static final Map<Panel, String>  SLOT_GROUP_MODID = new HashMap<>();
+    private static final Map<Panel, Integer> SLOT_GROUP_REG_SEQ = new HashMap<>();
+    private static int registrationCounter = 0;
+
     private static final Map<Panel, Set<SlotGroupKey>> WARNED_SLOT_GROUP =
             Collections.synchronizedMap(new WeakHashMap<>());
 
     /**
      * Registers a SlotGroupContext panel into a (category, region) pair with
-     * a content padding. Called from
+     * a content padding and explicit stacking priority. Called from
      * {@link SlotGroupPanelAdapter#on} for each declared target category.
      * A single adapter targeting N categories produces N registrations —
      * each (category, region) key stacks independently.
+     *
+     * <p>Priority + the captured caller modId drive the deterministic sort
+     * applied at {@link #axialPrefix} time (matching the Menu/HUD/Vanilla
+     * paths in {@link RegionRegistry}).
      */
     public static void registerSlotGroup(Panel panel, SlotGroupCategory category,
-                                          SlotGroupRegion region, int padding) {
+                                          SlotGroupRegion region, int padding,
+                                          int priority) {
         SlotGroupKey key = new SlotGroupKey(category, region);
         SLOT_GROUP.computeIfAbsent(key, k -> new ArrayList<>()).add(panel);
         SLOT_GROUP_PADDING.put(panel, padding);
+        SLOT_GROUP_PRIORITY.put(panel, priority);
+        SLOT_GROUP_MODID.put(panel, RegionRegistry.captureCallerModId());
+        SLOT_GROUP_REG_SEQ.put(panel, registrationCounter++);
+    }
+
+    /**
+     * Back-compat overload — registers with {@link RegionAnchor#DEFAULT_PRIORITY}.
+     * Consumers that don't call {@code SlotGroupRegion.priority(...)} hit this
+     * path and still get a deterministic sort via the modId tiebreaker.
+     */
+    public static void registerSlotGroup(Panel panel, SlotGroupCategory category,
+                                          SlotGroupRegion region, int padding) {
+        registerSlotGroup(panel, category, region, padding,
+                RegionAnchor.DEFAULT_PRIORITY);
     }
 
     /**
@@ -73,6 +109,9 @@ public final class SlotGroupRegionRegistry {
             list.remove(panel);
         }
         SLOT_GROUP_PADDING.remove(panel);
+        SLOT_GROUP_PRIORITY.remove(panel);
+        SLOT_GROUP_MODID.remove(panel);
+        SLOT_GROUP_REG_SEQ.remove(panel);
         WARNED_SLOT_GROUP.remove(panel);
     }
 
@@ -88,7 +127,7 @@ public final class SlotGroupRegionRegistry {
     public static int axialPrefix(Panel self, SlotGroupCategory category,
                                    SlotGroupRegion region) {
         SlotGroupKey key = new SlotGroupKey(category, region);
-        List<Panel> panels = SLOT_GROUP.getOrDefault(key, List.of());
+        List<Panel> panels = sortedSlotGroupPanels(key);
         int prefix = 0;
         boolean horizontal = region.isHorizontalFlow();
         for (Panel p : panels) {
@@ -101,6 +140,25 @@ public final class SlotGroupRegionRegistry {
         throw new IllegalStateException(
                 "Panel '" + self.getId() + "' is not registered in "
                         + category + "/" + region);
+    }
+
+    /**
+     * Returns the panels registered under a (category, region) key, sorted by
+     * the deterministic key {@code (priority asc, modId asc, registrationSeq
+     * asc)} — the same ordering the Menu/HUD/Vanilla contexts apply in
+     * {@link RegionRegistry}. This is what gives
+     * {@link SlotGroupRegion#priority(int)} its effect: lower priority stacks
+     * first (closer to the region's anchor edge).
+     */
+    private static List<Panel> sortedSlotGroupPanels(SlotGroupKey key) {
+        List<Panel> panels = SLOT_GROUP.getOrDefault(key, List.of());
+        if (panels.size() <= 1) return panels;
+        List<Panel> sorted = new ArrayList<>(panels);
+        sorted.sort(Comparator
+                .comparingInt((Panel p) -> SLOT_GROUP_PRIORITY.getOrDefault(p, RegionAnchor.DEFAULT_PRIORITY))
+                .thenComparing(p -> SLOT_GROUP_MODID.getOrDefault(p, ""))
+                .thenComparingInt(p -> SLOT_GROUP_REG_SEQ.getOrDefault(p, Integer.MAX_VALUE)));
+        return sorted;
     }
 
     /**

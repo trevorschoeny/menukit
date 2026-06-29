@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
@@ -168,12 +169,33 @@ public class Panel {
     private boolean dimsBehind = false;
     private boolean tracksAsModal = false;
 
+    // Optional Escape action (B3 modal-Escape fix). When this panel is a
+    // visible tracksAsModal panel and the user presses Escape, the host
+    // (MKScreen / the container-screen ScreenPanelRegistry key path) invokes
+    // this action to dismiss the topmost modal — instead of letting Escape
+    // close the whole host screen out from under an open dialog. The dialog
+    // builders (ConfirmDialog / AlertDialog) register their onCancel /
+    // onAcknowledge here so the consumer's existing self-dismiss callback
+    // fires on Escape. Null = no escape action declared (the host still EATS
+    // Escape while a modal is up so it can't close the host screen).
+    private @Nullable Runnable escapeAction;
+
     // Set during handler construction — typed via PanelOwner interface
     // so Panel doesn't depend on the screen package.
     private @Nullable PanelOwner owner;
 
     /**
      * Full constructor with all metadata.
+     *
+     * <p><b>Internal construction path.</b> Consumers build panels via
+     * {@link #builder(String)} — the fluent builder names only the fields the
+     * consumer cares about and hides the {@code -1} no-toggle-key sentinel
+     * behind {@link Builder#toggleKey(int)}. This positional constructor is the
+     * builder's terminal target and the library's own internal construction
+     * site; it is kept public only so the builder (a nested static class) and
+     * cross-package library code can reach it. Marked {@link ApiStatus.Internal}
+     * to steer fresh consumers to {@code Panel.builder(...)} instead of the
+     * magic-{@code -1} positional form.
      *
      * @param id        unique identifier within the screen
      * @param elements  panel elements — buttons, text labels, etc. (immutable after construction)
@@ -182,6 +204,7 @@ public class Panel {
      * @param position  how this panel is positioned in the layout
      * @param toggleKey GLFW key code that toggles this panel's visibility, or -1 for none
      */
+    @ApiStatus.Internal
     public Panel(String id, List<PanelElement> elements,
                  boolean visible, PanelStyle style, PanelPosition position,
                  int toggleKey) {
@@ -193,12 +216,24 @@ public class Panel {
         this.toggleKey = toggleKey;
     }
 
-    /** Creates a panel with default style (RAISED), position (BODY), no toggle key. */
+    /**
+     * Convenience constructor — default style (RAISED), position (BODY), no
+     * toggle key. Use {@link #builder(String)} in consumer code; this
+     * positional form is {@link ApiStatus.Internal} so fresh consumers are
+     * steered to the builder.
+     */
+    @ApiStatus.Internal
     public Panel(String id, List<PanelElement> elements, boolean visible) {
         this(id, elements, visible, PanelStyle.RAISED, PanelPosition.BODY, -1);
     }
 
-    /** Creates a visible panel with default style and position. */
+    /**
+     * Convenience constructor — a visible panel with default style and
+     * position. Use {@link #builder(String)} in consumer code; this positional
+     * form is {@link ApiStatus.Internal} so fresh consumers are steered to the
+     * builder.
+     */
+    @ApiStatus.Internal
     public Panel(String id, List<PanelElement> elements) {
         this(id, elements, true);
     }
@@ -268,6 +303,33 @@ public class Panel {
         /** Appends a single element to the panel's element list. */
         public Builder add(PanelElement element) {
             this.elements.add(element);
+            return this;
+        }
+
+        /**
+         * Appends an element declared as an
+         * {@link com.trevorschoeny.menukit.core.layout.ElementSpec} — the same
+         * fluent shape the dialog and {@code Row}/{@code Column} builders
+         * consume. The spec is instantiated immediately at its declared origin
+         * ({@code 0, 0}), so a consumer can write
+         * {@code Panel.builder(id).add(Button.spec(...))} without dropping to a
+         * raw constructor.
+         *
+         * <p>The instantiated element keeps its declared {@code (0, 0)} origin
+         * unless the consumer repositions it. To place several specs at fixed
+         * offsets, instantiate them through {@code Button.spec(...).at(x, y)}
+         * (the spec's own {@code at(...)} returns the positioned element) and
+         * feed those to {@link #add(PanelElement)}, or compose them with a
+         * {@code Row}/{@code Column} and pass the resulting list to
+         * {@link #elements(List)} — both layout helpers compute positions for
+         * you. This overload simply completes builder symmetry with the layout
+         * + dialog builders, which already accept {@code ElementSpec}.
+         *
+         * @param spec the element specification (dims + deferred construction)
+         * @return this builder, for chaining
+         */
+        public Builder add(com.trevorschoeny.menukit.core.layout.ElementSpec spec) {
+            this.elements.add(spec.at(0, 0));
             return this;
         }
 
@@ -885,6 +947,46 @@ public class Panel {
      */
     public Panel modal() {
         return opaque(true).dimsBehind(true).tracksAsModal(true);
+    }
+
+    /**
+     * Registers an action invoked when the user presses Escape while this
+     * panel is a visible {@link #tracksAsModal() modal} panel. Chainable.
+     *
+     * <p>Without this, Escape over an open modal flows past the modal to the
+     * host screen's own Escape handler, which closes the entire screen out
+     * from under the dialog. With an escape action set, the host
+     * ({@code MKScreen}, or the container-screen key-dispatch path) invokes
+     * this action FIRST and eats the key — so Escape dismisses the topmost
+     * modal, the universal modal-cancel gesture.
+     *
+     * <p>The dialog builders wire this automatically:
+     * {@link com.trevorschoeny.menukit.core.dialog.ConfirmDialog} registers
+     * its {@code onCancel} and
+     * {@link com.trevorschoeny.menukit.core.dialog.AlertDialog} registers its
+     * {@code onAcknowledge}, so the consumer's existing self-dismiss callback
+     * fires on Escape exactly as it does on the button click. Consumers
+     * composing modal panels by hand set their own dismiss callback here.
+     *
+     * <p>Even when no escape action is set, a visible {@code tracksAsModal}
+     * panel still causes the host to EAT Escape (so it cannot close the host
+     * screen); the action only adds the consumer-driven dismissal on top.
+     *
+     * @param action the dismiss callback, or {@code null} to clear it
+     * @return this panel, for chaining
+     */
+    public Panel onEscape(@Nullable Runnable action) {
+        this.escapeAction = action;
+        return this;
+    }
+
+    /**
+     * Returns the Escape-dismiss action registered via {@link #onEscape(Runnable)},
+     * or {@code null} if none. Invoked by the host's modal-Escape path when this
+     * panel is the topmost visible modal. See {@link #onEscape(Runnable)}.
+     */
+    public @Nullable Runnable getEscapeAction() {
+        return escapeAction;
     }
 
     // ── Tooltip (panel-level hover-triggered configuration) ───────────

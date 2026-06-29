@@ -77,13 +77,22 @@ public enum SlotGroupRegion {
 
     /**
      * Returns a {@link RegionAnchor} pairing this region with an explicit
-     * stacking priority (Phase 3b — Item 4b; brings SlotGroupRegion to
-     * parity with {@link MenuRegion#priority(int)} /
-     * {@link HudRegion#priority(int)} / {@link VanillaScreenRegion#priority(int)}).
-     * Lower priority renders first (closer to the region's anchor edge);
-     * default is {@link RegionAnchor#DEFAULT_PRIORITY}.
+     * stacking priority. Brings SlotGroupRegion to parity with
+     * {@link MenuRegion#priority(int)} / {@link HudRegion#priority(int)} /
+     * {@link VanillaScreenRegion#priority(int)}.
+     *
+     * <p>Pass the result to a
+     * {@link com.trevorschoeny.menukit.inject.SlotGroupPanelAdapter} via its
+     * {@code RegionAnchor} constructor — e.g.
+     * {@code new SlotGroupPanelAdapter(panel,
+     * SlotGroupRegion.RIGHT_ALIGN_TOP.priority(50))}. Lower priority renders
+     * first (closer to the region's anchor edge); default is
+     * {@link RegionAnchor#DEFAULT_PRIORITY}. Sibling panels in the same
+     * (category, region) pair stack in {@code (priority, modId, registration)}
+     * order, identical to the other three region contexts.
      *
      * @see RegionAnchor
+     * @see com.trevorschoeny.menukit.inject.SlotGroupPanelAdapter
      */
     public RegionAnchor<SlotGroupRegion> priority(int priority) {
         return new RegionAnchor<>(this, priority);

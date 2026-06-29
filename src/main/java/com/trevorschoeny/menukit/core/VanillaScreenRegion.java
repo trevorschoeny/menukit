@@ -28,9 +28,16 @@ package com.trevorschoeny.menukit.core;
  * Stacking flows VERTICALLY for every region (down from top edges,
  * up from bottom edges, down from vertical-center for the middle row).
  *
- * <p>Edge insets default to {@link #EDGE_INSET} (4px from each edge,
- * matching vanilla's F3 debug-overlay convention + the HudRegion
- * convention).
+ * <p>Edge insets default to {@link RegionConstants#EDGE_INSET} (4px from each
+ * edge, matching vanilla's F3 debug-overlay convention + the HUD convention);
+ * the vanilla-screen stacking gap is {@link RegionConstants#SCREEN_STACK_GAP}
+ * (4px).
+ *
+ * <p><b>Layout constants live in {@link RegionConstants}.</b> The per-enum
+ * {@code STACK_GAP}/{@code EDGE_INSET} faces were removed in favor of one
+ * public home so the four region enums present an identical surface — read
+ * {@link RegionConstants#SCREEN_STACK_GAP} / {@link RegionConstants#EDGE_INSET}
+ * directly. Values are unchanged (no visual change).
  */
 public enum VanillaScreenRegion {
     TOP_LEFT,
@@ -43,16 +50,6 @@ public enum VanillaScreenRegion {
     BOTTOM_RIGHT,
     /** Centered horizontally and vertically. Flows down. */
     CENTER;
-
-    /** Screen-edge inset for corner/edge regions. Phase 3b (Item 4c): value
-     *  hoisted to the shared {@link RegionConstants#EDGE_INSET}; this public
-     *  constant is preserved as the documented vanilla-screen-context face. */
-    public static final int EDGE_INSET = RegionConstants.EDGE_INSET;
-
-    /** Vertical gap between stacked siblings sharing the same region. Phase 3b
-     *  (Item 4c): value hoisted to {@link RegionConstants#SCREEN_STACK_GAP};
-     *  this public constant is preserved as the documented face. */
-    public static final int STACK_GAP = RegionConstants.SCREEN_STACK_GAP;
 
     /**
      * Returns a {@link RegionAnchor} pairing this region with an explicit

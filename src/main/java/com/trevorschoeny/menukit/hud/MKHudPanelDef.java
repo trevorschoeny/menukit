@@ -7,7 +7,7 @@ import com.trevorschoeny.menukit.core.PanelStyle;
 import net.minecraft.client.gui.GuiGraphics;
 
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -41,7 +41,7 @@ public record MKHudPanelDef(
         int height,
         PanelStyle style,
         List<PanelElement> elements,
-        Supplier<Boolean> showWhen,
+        BooleanSupplier showWhen,
         boolean hideInScreen,
         @Nullable HudRenderCallback onRender,
         @Nullable HudRegion region

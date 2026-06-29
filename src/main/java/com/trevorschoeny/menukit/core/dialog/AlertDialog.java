@@ -159,12 +159,19 @@ public final class AlertDialog {
                     ? id
                     : "alert-dialog-" + AUTO_ID_COUNTER.incrementAndGet();
 
-            return new Panel(panelId, elements,
-                    /*visible=*/ false,
-                    PanelStyle.RAISED,
-                    PanelPosition.BODY,
-                    /*toggleKey=*/ -1)
-                    .modal();
+            // Build via Panel.builder() (B1) — the fluent path that replaces
+            // the magic -1 positional ctor. modal() sets opaque + dimsBehind +
+            // tracksAsModal; onEscape wires the consumer's onAcknowledge so
+            // pressing Escape over the alert dismisses it (B3) exactly as
+            // clicking OK does, instead of closing the host screen.
+            return Panel.builder(panelId)
+                    .elements(elements)
+                    .visible(false)
+                    .style(PanelStyle.RAISED)
+                    .position(PanelPosition.BODY)
+                    .build()
+                    .modal()
+                    .onEscape(ackRun);
         }
 
         private static void requireField(Object value, String name) {

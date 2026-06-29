@@ -2,8 +2,14 @@ package com.trevorschoeny.menukit.hud;
 
 import com.trevorschoeny.menukit.MK;
 
+import com.trevorschoeny.menukit.core.HudRegion;
 import com.trevorschoeny.menukit.core.PanelRendering;
 import com.trevorschoeny.menukit.core.PanelStyle;
+import com.trevorschoeny.menukit.core.RegionAnchor;
+import com.trevorschoeny.menukit.core.RegionMath;
+import com.trevorschoeny.menukit.inject.ScreenOrigin;
+
+import java.util.Optional;
 
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -49,6 +55,12 @@ public class MKHudNotification {
 
     private final String key;
     private final MKHudAnchor anchor;
+    // Region positioning (N7 parity with MKHudPanel). When non-null, position
+    // resolves through RegionMath.resolveHud (the same HudRegion system panels
+    // use) instead of the legacy MKHudAnchor.resolve path; offsetX/offsetY
+    // still nudge the resolved origin. A notification is a singular popup, so
+    // it resolves with a zero stacking prefix (no region registry).
+    private final @Nullable HudRegion region;
     private final int offsetX, offsetY;
     private final int durationMs;
     private final int fadeMs;
@@ -61,12 +73,14 @@ public class MKHudNotification {
     // Slide-in duration in milliseconds
     private static final int SLIDE_IN_MS = 200;
 
-    MKHudNotification(String key, MKHudAnchor anchor, int offsetX, int offsetY,
+    MKHudNotification(String key, MKHudAnchor anchor, @Nullable HudRegion region,
+                      int offsetX, int offsetY,
                       int durationMs, int fadeMs, SlideDirection slideFrom,
                       int slideDistance, PanelStyle style, int padding,
                       int width, int height) {
         this.key = key;
         this.anchor = anchor;
+        this.region = region;
         this.offsetX = offsetX;
         this.offsetY = offsetY;
         this.durationMs = durationMs;
@@ -106,10 +120,31 @@ public class MKHudNotification {
         int panelW = contentW + padding * 2;
         int panelH = contentH;
 
-        // Resolve base position
-        int[] pos = anchor.resolve(screenW, screenH, panelW, panelH, offsetX, offsetY);
-        int baseX = pos[0];
-        int baseY = pos[1];
+        // Resolve base position. Region mode (N7) routes through
+        // RegionMath.resolveHud — the same HudRegion system MKHudPanel uses —
+        // with a zero stacking prefix (a notification is a singular popup, not
+        // a registry-stacked panel); offsetX/offsetY then nudge the resolved
+        // origin. Legacy anchor mode falls back to MKHudAnchor.resolve.
+        int baseX, baseY;
+        if (region != null) {
+            Optional<ScreenOrigin> origin = RegionMath.resolveHud(
+                    region, screenW, screenH, panelW, panelH, /*prefix=*/ 0);
+            if (origin.isPresent()) {
+                baseX = origin.get().x() + offsetX;
+                baseY = origin.get().y() + offsetY;
+            } else {
+                // Overflow (panel taller than the region's axial capacity) —
+                // fall back to a top-center anchor so the notification still
+                // shows rather than silently vanishing.
+                int[] pos = anchor.resolve(screenW, screenH, panelW, panelH, offsetX, offsetY);
+                baseX = pos[0];
+                baseY = pos[1];
+            }
+        } else {
+            int[] pos = anchor.resolve(screenW, screenH, panelW, panelH, offsetX, offsetY);
+            baseX = pos[0];
+            baseY = pos[1];
+        }
 
         // Slide animation
         float slideProgress = Math.min(1f, (float) elapsed / SLIDE_IN_MS);
@@ -184,6 +219,7 @@ public class MKHudNotification {
     public static class Builder {
         private final String key;
         private MKHudAnchor anchor = MKHudAnchor.TOP_CENTER;
+        private @Nullable HudRegion region;  // null unless .region() called
         private int offsetX = 0, offsetY = 10;
         private int durationMs = 3000;
         private int fadeMs = 500;
@@ -195,11 +231,57 @@ public class MKHudNotification {
 
         Builder(String key) { this.key = key; }
 
-        /** Sets the screen-edge anchor and offset (default: TOP_CENTER, 0, 10). */
+        /**
+         * Sets the screen-edge anchor and offset (default: TOP_CENTER, 0, 10).
+         *
+         * <p><b>Legacy positioning path.</b> {@link com.trevorschoeny.menukit.core.HudRegion}
+         * (via {@link #region(HudRegion)}) is the intended primary system,
+         * matching {@link MKHudPanel}; it routes through the same
+         * {@link RegionMath#resolveHud} math panels use. {@code anchor(...)}
+         * remains for back-compat and for the {@link MKHudAnchor#CENTER_LEFT}/
+         * {@link MKHudAnchor#CENTER_RIGHT} vertical-center positions that
+         * HudRegion spells differently. Setting both is allowed; {@code region}
+         * wins when present.
+         */
         public Builder anchor(MKHudAnchor anchor, int offsetX, int offsetY) {
             this.anchor = anchor;
             this.offsetX = offsetX;
             this.offsetY = offsetY;
+            return this;
+        }
+
+        /**
+         * Positions this notification via a named
+         * {@link com.trevorschoeny.menukit.core.HudRegion} — the parity path
+         * with {@link MKHudPanel#builder(String)}'s {@code .region(...)}.
+         * Position resolves through {@link RegionMath#resolveHud} (the same
+         * math HUD panels use) with a zero stacking prefix, since a
+         * notification is a singular popup rather than a registry-stacked
+         * panel. The builder's offset (default {@code 0, 10}) nudges the
+         * resolved origin — call {@link #anchor(MKHudAnchor, int, int)}'s
+         * offset args are reused, or set a custom offset by also calling
+         * {@code anchor(...)} for the offset only (region still wins for
+         * placement).
+         *
+         * @param region the HUD region anchor
+         * @return this builder, for chaining
+         */
+        public Builder region(HudRegion region) {
+            this.region = region;
+            return this;
+        }
+
+        /**
+         * Region overload accepting a
+         * {@link com.trevorschoeny.menukit.core.RegionAnchor} — region paired
+         * with a priority. Notifications don't stack in a region registry, so
+         * the priority is accepted for signature parity with
+         * {@link MKHudPanel} but is not consulted (a notification resolves at
+         * the region's anchor with a zero prefix). Equivalent to
+         * {@code .region(anchor.region())}.
+         */
+        public Builder region(RegionAnchor<HudRegion> anchor) {
+            this.region = anchor.region();
             return this;
         }
 
@@ -227,7 +309,7 @@ public class MKHudNotification {
         /** Builds and registers the notification template with MenuKit. */
         public void build() {
             MKHudNotification notification = new MKHudNotification(
-                    key, anchor, offsetX, offsetY,
+                    key, anchor, region, offsetX, offsetY,
                     durationMs, fadeMs, slideFrom, slideDistance,
                     style, padding, width, height
             );

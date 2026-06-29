@@ -213,6 +213,13 @@ public class ItemDisplay extends AbstractPanelElement<ItemDisplay> {
      * Fluent resize sugar — sets the item render size in pixels (items are
      * always square, so this is a single dimension) and returns this display
      * for chaining. Additive to the positional constructors.
+     *
+     * <p><b>Single-arg by design.</b> The canonical widget resize signature is
+     * {@code .size(int width, int height)} (Button/Toggle/Divider/etc.).
+     * {@code ItemDisplay} is one of the two sanctioned deviations (the other is
+     * Dropdown/DropdownMulti {@code .triggerSize(...)}): items render square, so
+     * a second dimension would be redundant. See the size-shape convention note
+     * on {@link AbstractPanelElement}.
      */
     public ItemDisplay size(int size) {
         this.size = size;

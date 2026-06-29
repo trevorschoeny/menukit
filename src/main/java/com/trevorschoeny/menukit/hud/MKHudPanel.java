@@ -14,6 +14,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -69,7 +70,7 @@ public class MKHudPanel {
         private boolean autoSize = false;
         private int width = 0, height = 0;
         private PanelStyle style = PanelStyle.NONE;
-        private Supplier<Boolean> showWhen = () -> true;
+        private BooleanSupplier showWhen = () -> true;
         private boolean hideInScreen = false; // default: stay visible like vanilla HUD
         private MKHudPanelDef.HudRenderCallback onRender; // nullable
         private final List<PanelElement> elements = new ArrayList<>();
@@ -166,8 +167,15 @@ public class MKHudPanel {
             return this;
         }
 
-        /** Sets a visibility condition — panel only renders when true. */
-        public Builder showWhen(Supplier<Boolean> condition) {
+        /**
+         * Sets a visibility condition — panel only renders when true. Uses
+         * {@link BooleanSupplier} (no boxing), unified with
+         * {@link com.trevorschoeny.menukit.core.Panel#showWhen} and the
+         * element-level {@code showWhen}/{@code disabledWhen}/{@code revealWhen}
+         * predicate type. Method references (e.g. {@code HUD::isOn}) and
+         * {@code () -> ...} lambdas satisfy both, so call sites are unaffected.
+         */
+        public Builder showWhen(BooleanSupplier condition) {
             this.showWhen = condition;
             return this;
         }

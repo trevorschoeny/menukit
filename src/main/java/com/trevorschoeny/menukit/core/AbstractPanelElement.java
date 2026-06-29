@@ -203,6 +203,27 @@ public abstract class AbstractPanelElement<SELF extends AbstractPanelElement<SEL
         return self();
     }
 
+    // ── On the absence of a hoisted .size() (intentional) ──────────────
+    //
+    // .at() is hoisted here because childX/childY live here — one storage
+    // location, one covariant chainable. .size() is deliberately NOT hoisted:
+    // width/height storage differs per widget (Button/Icon hold int width +
+    // int height; ItemDisplay holds a single square `size`; Checkbox / Radio /
+    // TextLabel / InfoBox auto-size from content and have no settable size at
+    // all). A clean base hoist would need a SizedPanelElement<SELF> sub-base
+    // just for the 6 fixed-size widgets — added generic complexity for 6 small
+    // methods, deliberately declined (DISCOVERY N3 + SizedPanelElement-doc).
+    // So each fixed-size widget keeps its own .size(...); the asymmetry with
+    // the hoisted .at() is documented intent, not an oversight.
+    //
+    // Size-shape convention (DISCOVERY B#2). The canonical fixed-size signature
+    // is .size(int width, int height) — Button / Toggle / Divider / ProgressBar
+    // / Icon all use it. Two sanctioned deviations exist and are the ONLY ones:
+    //   - Dropdown / DropdownMulti use .triggerSize(int, int) (the dimension is
+    //     the closed trigger box, not the open popover).
+    //   - ItemDisplay uses .size(int) single-arg (items render square, so
+    //     width == height — a second arg would be redundant).
+
     // ── Tooltip (hover-triggered) ──────────────────────────────────────
     //
     // Hoisted in Phase 18r-2 from per-widget duplication (Button, Toggle,

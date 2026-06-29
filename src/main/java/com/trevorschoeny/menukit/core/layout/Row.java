@@ -33,7 +33,8 @@ import java.util.function.Consumer;
  *     .add(Button.spec(60, 20, Component.literal("Cancel"), this::onCancel))
  *     .build();
  *
- * Panel p = new Panel("confirm", buttonRow, true, PanelStyle.RAISED, ...);
+ * Panel p = Panel.builder("confirm")
+ *     .elements(buttonRow).style(PanelStyle.RAISED).build();
  * }</pre>
  *
  * <h3>Nesting</h3>

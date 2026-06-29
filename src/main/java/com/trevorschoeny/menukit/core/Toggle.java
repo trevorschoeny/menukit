@@ -448,7 +448,7 @@ public class Toggle extends AbstractPanelElement<Toggle> {
      *
      * <p>Pairs with the static-state Toggle constructor — state is owned
      * inside the element. For consumer-owned state, use the
-     * {@link #spriteLinked(int, int, int, int, BooleanSupplier, Runnable, Identifier)
+     * {@link #spriteLinked(int, int, int, int, BooleanSupplier, Consumer, Identifier)
      * spriteLinked} variant.
      *
      * @param childX       X position within panel content area
@@ -569,9 +569,9 @@ public class Toggle extends AbstractPanelElement<Toggle> {
     /**
      * {@link SpriteToggle} + {@link LinkedToggle} composition: sprite visual
      * with HSL-inversion on the on state, plus consumer-owned state via
-     * {@link BooleanSupplier} + {@link Runnable}. Package-private — consumers
-     * reach this via
-     * {@link #spriteLinked(int, int, int, int, BooleanSupplier, Runnable, Identifier)}.
+     * {@link BooleanSupplier} + {@link Consumer Consumer&lt;Boolean&gt;}.
+     * Package-private — consumers reach this via
+     * {@link #spriteLinked(int, int, int, int, BooleanSupplier, Consumer, Identifier)}.
      */
     static final class SpriteLinkedToggle extends SpriteToggle {
         private final BooleanSupplier stateSupplier;
@@ -603,9 +603,10 @@ public class Toggle extends AbstractPanelElement<Toggle> {
     /**
      * State-linked Toggle specialization. Overrides {@link #currentState}
      * to read from a consumer-supplied {@link BooleanSupplier} and
-     * {@link #applyState} to fire a {@link Runnable} signal without any
-     * internal state commit. Package-private — consumers access via
-     * {@link #linked(int, int, int, int, BooleanSupplier, Runnable)}.
+     * {@link #applyState} to fire a {@link Consumer Consumer&lt;Boolean&gt;}
+     * new-state signal without any internal state commit. Package-private —
+     * consumers access via
+     * {@link #linked(int, int, int, int, BooleanSupplier, Consumer)}.
      */
     static final class LinkedToggle extends Toggle {
         private final BooleanSupplier stateSupplier;

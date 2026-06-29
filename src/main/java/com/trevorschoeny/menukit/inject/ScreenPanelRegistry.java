@@ -15,6 +15,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 import org.jspecify.annotations.Nullable;
+import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -403,6 +404,24 @@ public final class ScreenPanelRegistry {
                 if (adapter.keyPressed(keyEvent.key(), keyEvent.scancode(),
                         keyEvent.modifiers())) {
                     return false;  // eat from vanilla
+                }
+            }
+            // B3 modal-Escape fix (container-screen path): when a tracksAsModal
+            // panel is up — the documented dialog-over-container pattern, where
+            // ConfirmDialog/AlertDialog is hosted by a ScreenPanelAdapter at
+            // MenuRegion.CENTER — treat Escape as "dismiss the topmost modal"
+            // rather than letting vanilla close the whole container screen out
+            // from under the dialog. Fire the modal panel's onEscape action
+            // (the dialog builders wire onCancel/onAcknowledge there) and eat
+            // the key. With no escape action set we still eat Escape so it
+            // can't close the host screen while a modal is open. Mirrors
+            // MKScreen.keyPressed.
+            if (keyEvent.key() == GLFW.GLFW_KEY_ESCAPE) {
+                Panel modal = topmostVisibleModalAmong(menuMatches);
+                if (modal != null) {
+                    Runnable escape = modal.getEscapeAction();
+                    if (escape != null) escape.run();
+                    return false;  // eat from vanilla — don't close the screen
                 }
             }
             return true;
@@ -949,6 +968,24 @@ public final class ScreenPanelRegistry {
                 if (entry.adapter() == adapter) {
                     return entry.boundsSupplier().get();
                 }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * B3 modal-Escape helper: returns the topmost (last-registered, highest
+     * z-order) visible {@code tracksAsModal} panel among the given adapters,
+     * or {@code null} if none is up. Iterates in reverse so the most-recently
+     * registered modal (paint-order-last) wins, matching the click-dispatch z
+     * precedence. The container-screen {@code allowKeyPress} hook uses this to
+     * route Escape to the topmost modal's {@code onEscape} action.
+     */
+    private static @Nullable Panel topmostVisibleModalAmong(List<ScreenPanelAdapter> adapters) {
+        for (int i = adapters.size() - 1; i >= 0; i--) {
+            Panel panel = adapters.get(i).getPanel();
+            if (ClientWindowVisibility.panelShown(panel) && panel.tracksAsModal()) {
+                return panel;
             }
         }
         return null;

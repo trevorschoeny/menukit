@@ -40,6 +40,18 @@ import java.util.function.Supplier;
  *
  * <p>Render-only; {@link #mouseClicked} inherits the default no-op behavior.
  *
+ * <h3>Construction — prefer {@link #spec} / {@code .at(x,y)}</h3>
+ *
+ * The positional constructors take {@code childX}/{@code childY} as their
+ * leading arguments. The fluent path keeps the position out of the argument
+ * list: use {@link #spec(Component)} (or {@link #spec(int, int, Supplier)} for
+ * supplier-driven text) to drop a label into a {@code Row}/{@code Column}
+ * layout, or construct without a position and call
+ * {@link AbstractPanelElement#at(int, int) .at(x, y)}. The positional
+ * constructors remain for the cases where threading {@code (x, y)} through the
+ * constructor is the clearest spelling; they are not deprecated, just no
+ * longer the only path.
+ *
  * @see PanelElement  The interface this implements
  * @see Button        Interactive button element
  */

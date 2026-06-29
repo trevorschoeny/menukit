@@ -136,7 +136,7 @@ public class MK implements ModInitializer {
         for (MKHudPanelDef def : hudPanels.values()) {
             // Visibility gates
             if (def.hideInScreen() && hasScreen) continue;
-            if (!def.showWhen().get()) continue;
+            if (!def.showWhen().getAsBoolean()) continue;
 
             // Compute panel size (auto or explicit)
             int[] size = def.computeSize();

@@ -16,6 +16,8 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
+import org.lwjgl.glfw.GLFW;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -324,7 +326,34 @@ public class MKScreen extends Screen {
         if (dispatchElementKeyPress(event.key(), event.scancode(), event.modifiers())) {
             return true;
         }
+        // B3 modal-Escape fix: when a tracksAsModal panel is visible and the
+        // user presses Escape, dismiss the TOPMOST modal instead of letting
+        // super.keyPressed close the whole screen out from under it. Fire the
+        // modal's onEscape action (ConfirmDialog.onCancel / AlertDialog
+        // .onAcknowledge wire this) so the consumer's self-dismiss runs, then
+        // eat the key. Even with no escape action, we eat Escape so it can't
+        // close the host screen while a modal is open. Runs BEFORE super.
+        if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
+            Panel modal = topmostVisibleModalTrackingPanel();
+            if (modal != null) {
+                Runnable escape = modal.getEscapeAction();
+                if (escape != null) escape.run();
+                return true; // eat — do not let vanilla close the host screen
+            }
+        }
         return super.keyPressed(event);
+    }
+
+    /**
+     * Returns the topmost (last-declared, highest z-order) visible panel with
+     * {@code tracksAsModal()} set, or {@code null} if none. Matches the
+     * reverse-panel-order z precedence used by {@link #dispatchElementClick}.
+     */
+    private @org.jspecify.annotations.Nullable Panel topmostVisibleModalTrackingPanel() {
+        for (Panel p : panels.reversed()) {
+            if (ClientWindowVisibility.panelShown(p) && p.tracksAsModal()) return p;
+        }
+        return null;
     }
 
     /**

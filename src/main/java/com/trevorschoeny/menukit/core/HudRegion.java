@@ -17,8 +17,16 @@ package com.trevorschoeny.menukit.core;
  *   <li>{@link #CENTER} — flow down from {@code sh/2 + CENTER_CROSSHAIR_CLEARANCE}
  * </ul>
  *
- * <p>Edge inset constants ({@link #EDGE_INSET}, {@link #CENTER_CROSSHAIR_CLEARANCE})
- * are derived from vanilla UI conventions — see the design doc §3.5.
+ * <p>The screen-edge inset is {@link RegionConstants#EDGE_INSET} and the
+ * HUD-specific crosshair clearance is {@link #CENTER_CROSSHAIR_CLEARANCE} —
+ * both derived from vanilla UI conventions (see the design doc §3.5).
+ *
+ * <p><b>Shared layout constants live in {@link RegionConstants}.</b> The
+ * per-enum {@code EDGE_INSET}/{@code STACK_GAP} faces were removed so the four
+ * region enums present an identical surface — read
+ * {@link RegionConstants#EDGE_INSET} / {@link RegionConstants#MENU_STACK_GAP}
+ * directly. {@link #CENTER_CROSSHAIR_CLEARANCE} stays here as a genuinely
+ * HUD-only value (no equivalent in the other contexts). Values unchanged.
  */
 public enum HudRegion {
     TOP_LEFT,
@@ -31,14 +39,6 @@ public enum HudRegion {
     BOTTOM_RIGHT,
     /** Below the crosshair, horizontally centered, flows down. */
     CENTER;
-
-    /**
-     * Screen-edge inset for corner/edge regions. Matches vanilla's F3
-     * debug-overlay convention (4px from each edge). Phase 3b (Item 4c):
-     * value hoisted to the shared {@link RegionConstants#EDGE_INSET}; this
-     * public constant is preserved as the documented HUD-context face.
-     */
-    public static final int EDGE_INSET = RegionConstants.EDGE_INSET;
 
     /**
      * Vertical clearance below screen-center for the {@link #CENTER} region,
