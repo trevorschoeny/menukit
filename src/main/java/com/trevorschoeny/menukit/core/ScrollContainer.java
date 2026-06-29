@@ -1,6 +1,5 @@
 package com.trevorschoeny.menukit.core;
 
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 

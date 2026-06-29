@@ -3,8 +3,6 @@ package com.trevorschoeny.menukit.core;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
-import org.jspecify.annotations.Nullable;
-
 import java.util.function.Supplier;
 
 /**

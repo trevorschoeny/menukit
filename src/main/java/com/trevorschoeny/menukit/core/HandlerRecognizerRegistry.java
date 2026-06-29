@@ -6,7 +6,6 @@ import net.minecraft.world.inventory.AbstractFurnaceMenu;
 import net.minecraft.world.inventory.BrewingStandMenu;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.Slot;
-import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 

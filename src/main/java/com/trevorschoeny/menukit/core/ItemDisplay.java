@@ -4,8 +4,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
-import org.jspecify.annotations.Nullable;
-
 import java.util.function.Supplier;
 
 /**

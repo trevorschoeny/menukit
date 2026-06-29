@@ -4,8 +4,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
-import org.jspecify.annotations.Nullable;
-
 import java.util.List;
 import java.util.function.Supplier;
 

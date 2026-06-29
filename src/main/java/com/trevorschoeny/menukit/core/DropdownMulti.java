@@ -601,28 +601,6 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
         return Mth.clamp(offset, 0, max);
     }
 
-    private Component truncateToWidth(Font font, Component text, int maxWidth) {
-        // Mirrors Dropdown.truncateToWidth — simple char-by-char trim
-        // with "…" suffix. Component-vs-String preserves formatting
-        // because we strip to plain text first.
-        String s = text.getString();
-        if (font.width(s) <= maxWidth) return text;
-        String ellipsis = "…";
-        int ellipsisW = font.width(ellipsis);
-        int budget = maxWidth - ellipsisW;
-        if (budget <= 0) return Component.literal(ellipsis);
-        StringBuilder sb = new StringBuilder();
-        int w = 0;
-        for (int i = 0; i < s.length(); i++) {
-            String ch = String.valueOf(s.charAt(i));
-            int cw = font.width(ch);
-            if (w + cw > budget) break;
-            sb.append(ch);
-            w += cw;
-        }
-        return Component.literal(sb.toString() + ellipsis);
-    }
-
     // ── Input dispatch ─────────────────────────────────────────────────
 
     @Override

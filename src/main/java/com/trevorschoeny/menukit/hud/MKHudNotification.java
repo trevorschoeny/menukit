@@ -18,9 +18,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * HUD notification element — a timed popup that slides in, displays for
  * a duration, then fades out.

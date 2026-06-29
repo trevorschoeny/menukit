@@ -599,26 +599,6 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         return Mth.clamp(offset, 0, max);
     }
 
-    /**
-     * Returns the largest prefix of {@code text} that fits within
-     * {@code maxWidth} pixels, with a trailing ellipsis. Matches the
-     * common vanilla pattern (StringSplitter / ellipsis suffix).
-     */
-    private Component truncateToWidth(Font font, Component text, int maxWidth) {
-        String s = text.getString();
-        String ellipsis = "...";
-        int ellW = font.width(ellipsis);
-        if (maxWidth <= ellW) return Component.literal(ellipsis);
-        // Greedy reduce
-        for (int len = s.length() - 1; len >= 0; len--) {
-            String prefix = s.substring(0, len) + ellipsis;
-            if (font.width(prefix) <= maxWidth) {
-                return Component.literal(prefix);
-            }
-        }
-        return Component.literal(ellipsis);
-    }
-
     // ── Input ──────────────────────────────────────────────────────────
 
     @Override
