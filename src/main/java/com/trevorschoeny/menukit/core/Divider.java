@@ -180,8 +180,7 @@ public class Divider extends AbstractPanelElement<Divider> {
         if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
-                ctx.graphics().setTooltipForNextFrame(
-                        Minecraft.getInstance().font, ttText,
+                MKTooltip.queue(ctx.graphics(), ttText,
                         ctx.mouseX(), ctx.mouseY());
             }
         }

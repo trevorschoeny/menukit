@@ -255,8 +255,7 @@ public class Checkbox extends AbstractPanelElement<Checkbox> {
         if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
-                graphics.setTooltipForNextFrame(
-                        Minecraft.getInstance().font, ttText,
+                MKTooltip.queue(graphics, ttText,
                         ctx.mouseX(), ctx.mouseY());
             }
         }

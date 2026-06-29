@@ -277,6 +277,19 @@ public abstract class AbstractPanelElement<SELF extends AbstractPanelElement<SEL
         return tooltipSupplier;
     }
 
+    /**
+     * The universal {@link PanelElement} tooltip contract — returns the
+     * {@code .tooltip(...)}-set supplier. Same backing field as the
+     * protected {@link #getTooltipSupplier()} (which per-widget render code
+     * already reads); this public override exposes it through the interface
+     * so the shared {@link PanelElement#queueTooltip(RenderContext)} and any
+     * future uniform tooltip tooling can read it for every element type.
+     */
+    @Override
+    public @Nullable Supplier<Component> tooltipSupplier() {
+        return tooltipSupplier;
+    }
+
     // ── Per-element opacity (M9 completion — input click-through hole) ──
     //
     // M9 panel opacity is an INPUT-layer property: an opaque panel eats clicks

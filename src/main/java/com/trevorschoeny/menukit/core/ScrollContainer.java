@@ -291,6 +291,13 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
             draggingHandle = false;
         }
 
+        // Container-level hover tooltip — inherited from AbstractPanelElement but
+        // historically never fired (a present-but-dead setter). Queued HERE, before
+        // the child-render loop below, so a hovered child's own tooltip is queued
+        // later and wins by vanilla's last-call-wins semantics; the container
+        // tooltip shows when the cursor is over the container's empty area/chrome.
+        queueTooltip(ctx);
+
         // Per-frame drag offset update. While draggingHandle is true,
         // sample the current mouse Y from the RenderContext and update
         // scroll offset proportional to drag distance. Drag end is

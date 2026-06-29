@@ -3,6 +3,10 @@ package com.trevorschoeny.menukit.core.layout;
 import com.trevorschoeny.menukit.core.AbstractPanelElement;
 import com.trevorschoeny.menukit.core.PanelElement;
 
+import net.minecraft.network.chat.Component;
+
+import java.util.function.Supplier;
+
 /**
  * A factory for a {@link PanelElement} whose final position is computed
  * by an M8 layout helper ({@link Row}, {@link Column}).
@@ -73,6 +77,38 @@ public interface ElementSpec {
                         + " is a bare PanelElement with no setChildPosition — a Row/"
                         + "Column cannot position it. Extend AbstractPanelElement, or add "
                         + "the element to the panel directly instead of via a layout helper.");
+            }
+        };
+    }
+
+    /**
+     * Returns an {@link ElementSpec} identical to this one that ALSO attaches a
+     * hover tooltip to the element when the layout helper materializes it. This
+     * closes the gap where the {@code .spec()} factories and the {@link Row}/
+     * {@link Column} layout path could not carry a tooltip — the chainable
+     * {@code .tooltip(...)} setter lives on the concrete element, but on this
+     * path the element doesn't exist until {@link #at(int,int)} runs. An
+     * immutable decorator: it defers to the underlying spec for size + element
+     * construction, then applies the tooltip if the built element supports one
+     * (a library {@link AbstractPanelElement}); a bare custom element that
+     * doesn't extend the base keeps no tooltip.
+     */
+    default ElementSpec tooltip(Component text) {
+        return tooltip(() -> text);
+    }
+
+    /** Supplier-driven variant of {@link #tooltip(Component)}. */
+    default ElementSpec tooltip(Supplier<Component> supplier) {
+        ElementSpec base = this;
+        return new ElementSpec() {
+            @Override public int width()  { return base.width(); }
+            @Override public int height() { return base.height(); }
+            @Override public PanelElement at(int x, int y) {
+                PanelElement el = base.at(x, y);
+                if (el instanceof AbstractPanelElement<?> a) {
+                    a.tooltip(supplier);
+                }
+                return el;
             }
         };
     }

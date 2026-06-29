@@ -348,8 +348,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         if (triggerHovered && !open && !disabled && tooltipSupplier != null && ctx.hasMouseInput()) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
-                ctx.graphics().setTooltipForNextFrame(
-                        Minecraft.getInstance().font, ttText,
+                MKTooltip.queue(ctx.graphics(), ttText,
                         ctx.mouseX(), ctx.mouseY());
             }
         }
@@ -498,8 +497,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
                 if (itemTooltipFn != null) {
                     Component ttText = itemTooltipFn.apply(item);
                     if (ttText != null) {
-                        graphics.setTooltipForNextFrame(
-                                font, ttText, ctx.mouseX(), ctx.mouseY());
+                        MKTooltip.queue(graphics, ttText, ctx.mouseX(), ctx.mouseY());
                     }
                 }
             }

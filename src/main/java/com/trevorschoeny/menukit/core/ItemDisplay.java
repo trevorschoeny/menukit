@@ -197,8 +197,7 @@ public class ItemDisplay extends AbstractPanelElement<ItemDisplay> {
         if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
-                graphics.setTooltipForNextFrame(
-                        mc.font, ttText, ctx.mouseX(), ctx.mouseY());
+                MKTooltip.queue(graphics, ttText, ctx.mouseX(), ctx.mouseY());
             }
         }
     }

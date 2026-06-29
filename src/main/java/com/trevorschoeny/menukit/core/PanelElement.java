@@ -1,5 +1,11 @@
 package com.trevorschoeny.menukit.core;
 
+import net.minecraft.network.chat.Component;
+
+import org.jspecify.annotations.Nullable;
+
+import java.util.function.Supplier;
+
 /**
  * A visual or interactive element within a {@link Panel}. Elements are
  * positioned absolutely within the panel's content area (after padding)
@@ -127,6 +133,49 @@ public interface PanelElement {
      */
     default boolean isHovered(RenderContext ctx) {
         return ctx.isHovered(getChildX(), getChildY(), getWidth(), getHeight());
+    }
+
+    // ── Tooltip (universal hover-float contract) ───────────────────────
+    //
+    // Tooltip support is a contract of EVERY element, declared here on the
+    // interface rather than only on AbstractPanelElement, so a type that
+    // implements PanelElement directly (SlotElement, future custom elements)
+    // is a first-class tooltip citizen instead of silently falling outside
+    // the contract. The chainable {@code .tooltip(...)} SETTER lives on
+    // AbstractPanelElement (an interface can't hold the field); a direct
+    // implementor stores its own supplier and overrides tooltipSupplier().
+
+    /**
+     * The element's hover-tooltip text supplier, or {@code null} if none.
+     * Default {@code null}. {@link AbstractPanelElement} overrides this to
+     * return its {@code .tooltip(...)}-set field; a direct implementor
+     * (e.g. a slot) overrides it to return its own.
+     */
+    default @Nullable Supplier<Component> tooltipSupplier() {
+        return null;
+    }
+
+    /**
+     * Queues this element's hover tooltip for the current frame when the
+     * cursor is over it. The per-element {@link #render(RenderContext)}
+     * decides WHEN to call this (hover/suppression logic varies per widget),
+     * but the width-cap + wrap policy is centralized: it routes through
+     * {@link MKTooltip}, so every element's tooltip inherits the
+     * library-default max width automatically — never patched per call site.
+     * No-op without a tooltip, without mouse input, or when not hovered.
+     *
+     * <p>Direct {@link PanelElement} implementors enable tooltips by
+     * overriding {@link #tooltipSupplier()} (return their field) and calling
+     * this once at the end of {@link #render(RenderContext)}.
+     */
+    default void queueTooltip(RenderContext ctx) {
+        if (!ctx.hasMouseInput()) return;
+        Supplier<Component> supplier = tooltipSupplier();
+        if (supplier == null) return;
+        if (!isHovered(ctx)) return;
+        Component text = supplier.get();
+        if (text == null) return;
+        MKTooltip.queue(ctx.graphics(), text, ctx.mouseX(), ctx.mouseY());
     }
 
     // ── Rendering ──────────────────────────────────────────────────────

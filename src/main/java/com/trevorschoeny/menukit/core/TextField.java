@@ -208,8 +208,7 @@ public class TextField extends AbstractPanelElement<TextField> {
         if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
-                ctx.graphics().setTooltipForNextFrame(
-                        Minecraft.getInstance().font, ttText,
+                MKTooltip.queue(ctx.graphics(), ttText,
                         ctx.mouseX(), ctx.mouseY());
             }
         }

@@ -134,6 +134,11 @@ public class InfoBox extends AbstractPanelElement<InfoBox> {
         ctx.graphics().drawString(font, text,
                 sx + PADDING, sy + PADDING,
                 DEFAULT_TEXT_COLOR, false);
+
+        // Hover tooltip — InfoBox inherits .tooltip(...) from AbstractPanelElement
+        // but historically never fired it (a present-but-dead setter). Wired now
+        // so a tooltip set on an InfoBox actually displays, like every other element.
+        queueTooltip(ctx);
     }
 
     /** Returns the current info-box text. Resolves the supplier. */

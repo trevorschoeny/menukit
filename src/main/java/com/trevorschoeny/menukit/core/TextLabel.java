@@ -274,8 +274,7 @@ public class TextLabel extends AbstractPanelElement<TextLabel> {
         if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
-                ctx.graphics().setTooltipForNextFrame(
-                        font, ttText, ctx.mouseX(), ctx.mouseY());
+                MKTooltip.queue(ctx.graphics(), ttText, ctx.mouseX(), ctx.mouseY());
             }
         }
     }

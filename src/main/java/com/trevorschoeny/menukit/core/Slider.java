@@ -221,8 +221,7 @@ public class Slider extends AbstractPanelElement<Slider> {
         if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
-                ctx.graphics().setTooltipForNextFrame(
-                        net.minecraft.client.Minecraft.getInstance().font,
+                MKTooltip.queue(ctx.graphics(),
                         ttText, ctx.mouseX(), ctx.mouseY());
             }
         }

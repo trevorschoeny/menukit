@@ -272,8 +272,7 @@ public class ProgressBar extends AbstractPanelElement<ProgressBar> {
         if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
             Component ttText = tooltipSupplier.get();
             if (ttText != null) {
-                graphics.setTooltipForNextFrame(
-                        Minecraft.getInstance().font, ttText,
+                MKTooltip.queue(graphics, ttText,
                         ctx.mouseX(), ctx.mouseY());
             }
         }

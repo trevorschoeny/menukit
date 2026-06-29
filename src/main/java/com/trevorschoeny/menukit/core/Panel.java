@@ -1137,8 +1137,7 @@ public class Panel {
         if (mouseY < panelY || mouseY >= panelY + panelHeight) return;
         Component text = tooltipSupplier.get();
         if (text == null) return;
-        graphics.setTooltipForNextFrame(
-                Minecraft.getInstance().font, text, mouseX, mouseY);
+        MKTooltip.queue(graphics, text, mouseX, mouseY);
     }
 
     // ── Owner Reference ─────────────────────────────────────────────────
