@@ -5,10 +5,12 @@ import com.trevorschoeny.menukit.core.PanelBounds;
 import com.trevorschoeny.menukit.core.PanelDispatch;
 import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.PanelRendering;
+import com.trevorschoeny.menukit.core.PanelPosition;
 import com.trevorschoeny.menukit.core.PanelStyle;
 import com.trevorschoeny.menukit.core.PanelTreeLayout;
 import com.trevorschoeny.menukit.core.RegionConstants;
 import com.trevorschoeny.menukit.core.RenderContext;
+import com.trevorschoeny.menukit.core.ScreenCorner;
 import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
 import net.minecraft.client.gui.GuiGraphics;
@@ -268,6 +270,24 @@ public class MKScreen extends Screen {
         if (panel.dimsBehind()) {
             int x = (this.width - outerW) / 2;
             int y = (this.height - outerH) / 2;
+            return new int[]{x, y, outerW, outerH};
+        }
+
+        // Pass 3 — screen-corner-anchored chrome (e.g. the "Back" button):
+        // positioned at a fixed corner inset by SCREEN_EDGE_MARGIN, independent
+        // of the centered body stack (which excludes it from layout + extent).
+        if (panel.getPosition().mode() == PanelPosition.Mode.SCREEN_ANCHOR) {
+            int m = RegionConstants.SCREEN_EDGE_MARGIN;
+            ScreenCorner corner = panel.getPosition().screenCorner();
+            if (corner == null) corner = ScreenCorner.TOP_LEFT;
+            int x = switch (corner) {
+                case TOP_LEFT, BOTTOM_LEFT  -> m;
+                case TOP_RIGHT, BOTTOM_RIGHT -> this.width - outerW - m;
+            };
+            int y = switch (corner) {
+                case TOP_LEFT, TOP_RIGHT     -> m;
+                case BOTTOM_LEFT, BOTTOM_RIGHT -> this.height - outerH - m;
+            };
             return new int[]{x, y, outerW, outerH};
         }
 

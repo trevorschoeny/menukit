@@ -349,12 +349,38 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
                 ? SCROLLER_SPRITE : SCROLLER_DISABLED_SPRITE;
         graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
                 sprite, handleX, handleY, SCROLLER_WIDTH, hHeight);
+
+        // 6. (Pass 3) Second pass — re-render any child with an OPEN active
+        // overlay (a Dropdown popover) UNCLIPPED, so its popover isn't cut by
+        // the viewport scissor (disabled above). The child's in-viewport body
+        // was already drawn in the scissored pass (idempotent); this draws the
+        // full overlay on top. Without it, a dropdown inside a scrolling panel
+        // "opens" but shows no popover.
+        for (PanelElement element : content) {
+            if (!element.isVisible()) continue;
+            if (element.getActiveOverlayBounds() != null) {
+                element.render(childCtx);
+            }
+        }
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button != 0) return false; // Left-click only for v1.
         if (isDisabled()) return false; // Inert when disabled (Phase 3b — Item 8).
+
+        // Pass 0 (Pass 3) — an OPEN child overlay (Dropdown popover) claims the
+        // click anywhere in its bounds, including the part hanging below the
+        // viewport. The child's overlay bounds are screen-space (from its
+        // scroll-translated render), so forward the screen coords directly.
+        for (PanelElement element : content) {
+            if (!element.isVisible()) continue;
+            int[] ov = element.getActiveOverlayBounds();
+            if (ov != null && mouseX >= ov[0] && mouseX < ov[0] + ov[2]
+                    && mouseY >= ov[1] && mouseY < ov[1] + ov[3]) {
+                return element.mouseClicked(mouseX, mouseY, button);
+            }
+        }
 
         // Compute screen-space bounds of the viewport (no offset translation
         // here — render context isn't available at click time, so we rely
@@ -462,6 +488,28 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
     public boolean mouseScrolled(double mouseX, double mouseY,
                                  double scrollX, double scrollY) {
         if (isDisabled()) return false; // Inert when disabled (Phase 3b — Item 8).
+
+        // Nested scroll (Pass 3) — if the cursor is over a child inside the
+        // viewport that consumes the wheel (an inner ScrollContainer), let it
+        // scroll FIRST. Runs before the canScroll() check so a non-scrolling
+        // outer still forwards the wheel to a scrolling child.
+        if (cachedRenderOriginValid) {
+            double localX = mouseX - cachedRenderOriginX;
+            double localY = mouseY - cachedRenderOriginY;
+            if (localX >= 0 && localX < viewportWidth()
+                    && localY >= 0 && localY < viewportHeight()) {
+                double contentMouseY = mouseY + scrollPixels();
+                for (PanelElement el : content) {
+                    if (!el.isVisible()) continue;
+                    int cax = (int) cachedRenderOriginX + el.getChildX();
+                    int cay = (int) cachedRenderOriginY + el.getChildY();
+                    if (mouseX < cax || mouseX >= cax + el.getWidth()) continue;
+                    if (contentMouseY < cay || contentMouseY >= cay + el.getHeight()) continue;
+                    if (el.mouseScrolled(mouseX, contentMouseY, scrollX, scrollY)) return true;
+                }
+            }
+        }
+
         if (!canScroll()) return false;
         // Wheel up (scrollY > 0) scrolls content up (offset decreases).
         // Wheel down (scrollY < 0) scrolls content down (offset increases).
@@ -480,7 +528,59 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
         if (draggingHandle && button == 0) {
             draggingHandle = false;
         }
+        // Forward release to children so a child that began a drag (a slider,
+        // a nested scrollbar) gets its drag-end. Not hit-tested — mirrors the
+        // adapter's un-hit-tested release dispatch.
+        for (PanelElement element : content) {
+            if (element.isVisible()) element.mouseReleased(mouseX, mouseY, button);
+        }
         return false; // Don't claim consumption — release is observational.
+    }
+
+    // ── Interactive-host propagation (Pass 3) ──────────────────────────────
+    //
+    // ScrollContainer hosts arbitrary PanelElements, including interactive ones
+    // (Slider, TextField, Dropdown) that register vanilla widgets in onAttach
+    // and route keyboard in keyPressed. Pre-Pass-3 these hooks stopped at the
+    // ScrollContainer, so a Slider inside a scrolling panel never registered
+    // (drag/keyboard dead) and a Dropdown inside it couldn't take arrow keys.
+    // Forward all three so a scrolling viewport is a first-class host.
+
+    @Override
+    public void onAttach(net.minecraft.client.gui.screens.Screen screen) {
+        for (PanelElement element : content) element.onAttach(screen);
+    }
+
+    @Override
+    public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
+        for (PanelElement element : content) element.onDetach(screen);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        for (PanelElement element : content) {
+            if (!element.isVisible()) continue;
+            if (element.keyPressed(keyCode, scanCode, modifiers)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Surfaces an open child's active overlay (e.g. a Dropdown popover) so the
+     * host adapter routes clicks anywhere in that overlay to this container —
+     * even the part of the popover that hangs below the scroll viewport. The
+     * child computes its overlay bounds in screen space from its
+     * last-rendered (scroll-translated) origin, which the unclipped second
+     * render pass keeps current.
+     */
+    @Override
+    public int @Nullable [] getActiveOverlayBounds() {
+        for (PanelElement element : content) {
+            if (!element.isVisible()) continue;
+            int[] ov = element.getActiveOverlayBounds();
+            if (ov != null) return ov;
+        }
+        return null;
     }
 
     // ── Render-origin cache (used for click hit-testing) ──────────────────
