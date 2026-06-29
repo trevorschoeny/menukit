@@ -121,7 +121,9 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
     /** Pixels scrolled per mouse-wheel tick. Tuned for typical content. */
     public static final int SCROLL_PIXELS_PER_TICK = 10;
 
-    private final int width;
+    // Non-final since Pass 3 column-fill (fillWidth); viewportWidth()/scrollbar
+    // X all derive from this field live each frame.
+    private int width;
     private final int height;
     private final List<PanelElement> content;
     private final int contentHeight;
@@ -258,6 +260,15 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
     @Override public int getWidth()  { return width; }
     @Override public int getHeight() { return height; }
 
+    /** Column-fill (Pass 3): stretch the viewport to the column's widest extent.
+     *  viewportWidth()/scrollbar geometry derive from width live, so this takes
+     *  effect next frame; children keep their own x (left-aligned in the wider
+     *  viewport). Floored so the scrollbar lane always fits. */
+    @Override
+    public void fillWidth(int width) {
+        this.width = Math.max(width, TRACK_WIDTH + SCROLLER_GUTTER + 1);
+    }
+
     /** Interactive — handles scroll/scrollbar-drag, so it claims (blocks vanilla behind) on a non-opaque panel. */
     @Override public boolean isInteractive() { return true; }
 
@@ -350,17 +361,29 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
         graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
                 sprite, handleX, handleY, SCROLLER_WIDTH, hHeight);
 
-        // 6. (Pass 3) Second pass — re-render any child with an OPEN active
-        // overlay (a Dropdown popover) UNCLIPPED, so its popover isn't cut by
-        // the viewport scissor (disabled above). The child's in-viewport body
-        // was already drawn in the scissored pass (idempotent); this draws the
-        // full overlay on top. Without it, a dropdown inside a scrolling panel
-        // "opens" but shows no popover.
+        // Child OVERLAYS (Dropdown popovers) are NOT drawn here — they live in
+        // each child's renderOverlay, which runs in the host's unclipped Pass-2.
+        // ScrollContainer.renderOverlay (below) forwards that pass to children
+        // at scroll-translated coords, so popovers paint unclipped by the
+        // viewport scissor.
+    }
+
+    /**
+     * Forwards the host's unclipped overlay pass to children at scroll-translated
+     * coords (Pass 3). A child Dropdown paints its popover in renderOverlay (not
+     * render), so without this an open dropdown inside the scroll shows its
+     * flipped chevron but no popover. Runs after all scissored content render
+     * (PanelDispatch Pass-2), so the popover is not clipped by the viewport.
+     */
+    @Override
+    public void renderOverlay(RenderContext ctx) {
+        int sx = ctx.originX() + childX;
+        int sy = ctx.originY() + childY;
+        int scrollY = scrollPixels();
+        RenderContext childCtx = new RenderContext(
+                ctx.graphics(), sx, sy - scrollY, ctx.mouseX(), ctx.mouseY());
         for (PanelElement element : content) {
-            if (!element.isVisible()) continue;
-            if (element.getActiveOverlayBounds() != null) {
-                element.render(childCtx);
-            }
+            if (element.isVisible()) element.renderOverlay(childCtx);
         }
     }
 

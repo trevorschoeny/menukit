@@ -73,7 +73,8 @@ public class TextField extends AbstractPanelElement<TextField> {
 
     @Override protected TextField self() { return this; }
 
-    private final int width;
+    // Non-final since Pass 3 column-fill (fillWidth); render() pushes it onto the EditBox.
+    private int width;
     private final int height;
 
     // ── Deferred construction (Phase 18r-5 follow-up) ─────────────────
@@ -158,6 +159,10 @@ public class TextField extends AbstractPanelElement<TextField> {
     @Override public int getWidth()  { return width; }
     @Override public int getHeight() { return height; }
 
+    /** Column-fill (Pass 3): stretch the field to the column's widest extent.
+     *  render() pushes the new width onto the wrapped EditBox each frame. */
+    @Override public void fillWidth(int width) { this.width = width; }
+
     /** Interactive — handles click-to-focus/typing, so it claims (blocks vanilla behind) on a non-opaque panel. */
     @Override public boolean isInteractive() { return true; }
 
@@ -175,6 +180,10 @@ public class TextField extends AbstractPanelElement<TextField> {
         int screenY = ctx.originY() + childY;
         editBox.setX(screenX);
         editBox.setY(screenY);
+        // Sync width per-frame too (mirrors X/Y) so column-fill (fillWidth) takes
+        // effect: the EditBox is sized once at construction, so a post-build
+        // width change must be pushed onto it here.
+        editBox.setWidth(width);
 
         // Render the EditBox manually here so it draws AFTER the panel
         // background (which renders between super.render and this point).

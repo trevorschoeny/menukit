@@ -87,6 +87,13 @@ public class MKScreen extends Screen {
         // register vanilla widgets via addRenderableWidget.
         for (Panel panel : panels) {
             for (PanelElement element : panel.getElements()) {
+                // Detach-then-attach: on a RESIZE, vanilla runs clearWidgets()
+                // + init() WITHOUT firing removed(), so a widget-wrapping element
+                // (Slider/TextField) whose onAttach short-circuits on
+                // attachedScreen==this would never re-register → dead after
+                // resize. The onDetach first resets that latch so onAttach
+                // re-adds the vanilla widget. First init: onDetach is a no-op.
+                element.onDetach(this);
                 element.onAttach(this);
             }
         }

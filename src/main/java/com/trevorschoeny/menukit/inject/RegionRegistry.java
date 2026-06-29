@@ -70,6 +70,14 @@ public final class RegionRegistry {
         return mc.getWindow().getGuiScaledWidth();
     }
 
+    /** GUI-scaled window height — Pass 3 screen safe-area reference. Large
+     *  fallback when the window is unavailable so no spurious hide fires. */
+    private static int guiScaledHeight() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null || mc.getWindow() == null) return Integer.MAX_VALUE / 4;
+        return mc.getWindow().getGuiScaledHeight();
+    }
+
     // Per-region panel lists. Registration order is append order; same-region
     // panels stack in declaration order.
     private static final Map<MenuRegion, List<Panel>> MENU =
@@ -271,7 +279,8 @@ public final class RegionRegistry {
             int pw = panel.getWidth() + 2 * pad;
             int ph = panel.getHeight() + 2 * pad;
 
-            var result = RegionMath.resolveMenu(region, effective, pw, ph, prefix);
+            var result = RegionMath.resolveMenu(region, effective, pw, ph, prefix,
+                    guiScaledWidth(), guiScaledHeight());
             if (result.isEmpty()) {
                 warnMenuOverflowOnce(panel, region, pw, ph, prefix, effective);
                 return ScreenOrigin.OUT_OF_REGION;

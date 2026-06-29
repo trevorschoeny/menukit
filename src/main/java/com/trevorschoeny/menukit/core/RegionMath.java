@@ -128,26 +128,28 @@ public final class RegionMath {
      * @param prefix  total axial extent of visible preceding panels in the
      *                same region, plus one {@link RegionConstants#MENU_STACK_GAP} per preceding
      *                panel
+     * @param sw      GUI-scaled screen width (Pass 3 — for the screen safe-area
+     *                overflow gate; edge regions extend toward the screen edge,
+     *                not the menu edge)
+     * @param sh      GUI-scaled screen height
      */
     public static Optional<ScreenOrigin> resolveMenu(
             MenuRegion region, ScreenBounds bounds,
-            int pw, int ph, int prefix) {
+            int pw, int ph, int prefix, int sw, int sh) {
 
         int leftPos = bounds.leftPos();
         int topPos = bounds.topPos();
         int imageWidth = bounds.imageWidth();
         int imageHeight = bounds.imageHeight();
 
-        // Overflow check — semantics vary by region.
-        // - CENTER doesn't stack and must fit within both axes.
-        // - Edge regions (the other 8) check overflow along their flow axis,
-        //   accounting for prefix from previously-stacked panels.
+        // CENTER is in-frame by design (modal dialogs centered in the menu) — it
+        // must fit the frame, so keep the frame gate. Edge regions are gated
+        // AFTER the origin is computed, against the SCREEN safe area (below) —
+        // their whole point is to extend past the narrow menu frame toward the
+        // screen edge, so the menu width/height is the wrong ceiling (Pass-3 fix:
+        // BOTTOM_ALIGN_RIGHT was silently hiding any panel wider than 176px).
         if (region == MenuRegion.CENTER) {
             if (pw > imageWidth || ph > imageHeight) return Optional.empty();
-        } else {
-            int available = region.isHorizontalFlow() ? imageWidth : imageHeight;
-            int selfExtent = region.isHorizontalFlow() ? pw : ph;
-            if (prefix + selfExtent > available) return Optional.empty();
         }
 
         ScreenOrigin origin = switch (region) {
@@ -193,6 +195,18 @@ public final class RegionMath {
                     leftPos + (imageWidth - pw) / 2,
                     topPos + (imageHeight - ph) / 2);
         };
+
+        // Screen safe-area gate for edge regions (Pass 3). A panel is hidden
+        // only if its resolved rect would actually leave the screen safe area
+        // (SCREEN_EDGE_MARGIN from each edge) — NOT if it merely exceeds the
+        // narrow menu frame, which edge regions are designed to extend past.
+        if (region != MenuRegion.CENTER) {
+            int m = RegionConstants.SCREEN_EDGE_MARGIN;
+            if (origin.x() < m || origin.x() + pw > sw - m
+                    || origin.y() < m || origin.y() + ph > sh - m) {
+                return Optional.empty();
+            }
+        }
         return Optional.of(origin);
     }
 

@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit.core.layout;
 
+import com.trevorschoeny.menukit.core.AbstractPanelElement;
 import com.trevorschoeny.menukit.core.PanelElement;
 
 /**
@@ -43,4 +44,26 @@ public interface ElementSpec {
      * {@code childX}/{@code childY} match the supplied {@code (x, y)}.
      */
     PanelElement at(int childX, int childY);
+
+    /**
+     * Wraps an ALREADY-CONSTRUCTED element as an {@link ElementSpec} so it can
+     * be dropped into a {@link Row}/{@link Column} (Pass 3). Bridges the common
+     * fresh-consumer case — you hold pre-built widgets (constructor-built, or
+     * returned from a factory) and want to lay them out, including with
+     * {@link CrossAlign#FILL}. The wrapper reports the element's live
+     * {@code getWidth()}/{@code getHeight()} and, at layout time, repositions it
+     * via {@code setChildPosition} (for the library's {@link AbstractPanelElement}
+     * widgets); a bare custom {@link PanelElement} that doesn't extend the base
+     * keeps whatever position it was built with.
+     */
+    static ElementSpec of(PanelElement element) {
+        return new ElementSpec() {
+            @Override public int width()  { return element.getWidth(); }
+            @Override public int height() { return element.getHeight(); }
+            @Override public PanelElement at(int x, int y) {
+                if (element instanceof AbstractPanelElement<?> a) a.setChildPosition(x, y);
+                return element;
+            }
+        };
+    }
 }

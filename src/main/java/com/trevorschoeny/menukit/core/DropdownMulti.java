@@ -154,7 +154,8 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
 
     // ── Immutable config ───────────────────────────────────────────────
 
-    private final int triggerWidth;
+    // Non-final since Pass 3 column-fill (fillWidth); the popover follows the trigger.
+    private int triggerWidth;
     private final int triggerHeight;
     private final List<T> items;
     private final Function<T, Component> labelFn;
@@ -241,6 +242,10 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
 
     @Override public int getWidth()  { return triggerWidth; }
     @Override public int getHeight() { return triggerHeight; }
+
+    /** Column-fill (Pass 3): stretch the trigger (and thus the popover) to the
+     *  column's widest extent. */
+    @Override public void fillWidth(int width) { this.triggerWidth = width; }
 
     /** Returns whether the dropdown is currently disabled (Phase 3b — Item 8). */
     public boolean isDisabled() {

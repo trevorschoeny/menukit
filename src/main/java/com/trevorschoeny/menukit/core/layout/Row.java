@@ -113,6 +113,15 @@ public final class Row {
         }
 
         /**
+         * Append an ALREADY-CONSTRUCTED element (Pass 3). See
+         * {@link ElementSpec#of(PanelElement)}.
+         */
+        public Builder add(PanelElement element) {
+            entries.add(LayoutEntry.fromSpec(ElementSpec.of(element)));
+            return this;
+        }
+
+        /**
          * Append a nested row to this row. The nested row's elements are
          * laid out per its own spacing + alignment, then translated into
          * this row's main-axis position. The nested row's bounding

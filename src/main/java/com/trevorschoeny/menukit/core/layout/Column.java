@@ -94,6 +94,16 @@ public final class Column {
             return this;
         }
 
+        /**
+         * Append an ALREADY-CONSTRUCTED element (Pass 3) — bridges the common
+         * case of laying out pre-built widgets, including under
+         * {@link CrossAlign#FILL}. See {@link ElementSpec#of(PanelElement)}.
+         */
+        public Builder add(PanelElement element) {
+            entries.add(LayoutEntry.fromSpec(ElementSpec.of(element)));
+            return this;
+        }
+
         /** Append a nested column to this column. See {@link Row.Builder#addRow(Consumer)}. */
         public Builder addColumn(Consumer<Column.Builder> config) {
             Column.Builder nested = new Column.Builder(0, 0);
