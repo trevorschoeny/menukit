@@ -131,6 +131,13 @@ public class MKScreen extends Screen {
     private void renderPanels(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         computeLayout();
 
+        // Pass 3 — draw the screen title centered at the top edge. MKScreen
+        // reserves TITLE_HEIGHT above the body for it, but never painted it, so
+        // every standalone screen showed a blank title band. The corner Back
+        // panel is top-LEFT, so a top-center title never collides with it.
+        graphics.drawCenteredString(this.font, this.title,
+                this.width / 2, RegionConstants.SCREEN_EDGE_MARGIN, 0xFFFFFFFF);
+
         // ── Modal state survey ────────────────────────────────────────
         // anyDimBehind   → render a dim overlay between non-dim and dim panels
         // anyTracksModal → suppress hover/clicks on non-modal-tracking panels

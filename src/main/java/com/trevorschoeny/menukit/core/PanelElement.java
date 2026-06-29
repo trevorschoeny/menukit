@@ -83,12 +83,13 @@ public interface PanelElement {
      * panel auto-size, hit-testing, and rendering all agree — fill is NOT
      * cosmetic.
      *
-     * <p>Default: no-op. Fixed-extent widgets (Button, Toggle, Slider,
-     * ProgressBar, horizontal Divider) override this to set their width.
-     * Auto-content-sized widgets (TextLabel, Checkbox, Radio, ItemDisplay,
-     * Icon) keep the default no-op — they remain intrinsic-width under FILL,
-     * by design: a stretched icon would distort, and text reflow is owned by
-     * the panel-level screen-edge wrap, not by column fill.
+     * <p>Default: no-op. Fixed-extent widgets (Button, labeled Toggle, Slider,
+     * Dropdown, DropdownMulti, TextField, ProgressBar, ScrollContainer,
+     * horizontal Divider) override this to set their width. Auto-content-sized
+     * widgets (TextLabel, Checkbox, Radio, ItemDisplay, Icon, and a bare/sprite
+     * Toggle switch) keep the default no-op — they remain intrinsic-width under
+     * FILL, by design: a stretched icon/switch would distort, and text reflow is
+     * owned by the panel-level screen-edge wrap, not by column fill.
      *
      * <p>This is the deliberate capability-method answer to §0047's declined
      * {@code .size()} hoist on {@link AbstractPanelElement}: it is not a

@@ -556,6 +556,13 @@ public class Panel {
             for (PanelElement e : elements) {
                 if (e instanceof TextLabel label) {
                     label.setWrapWidth(wrapBudget);
+                } else if (e.getWidth() > wrapBudget) {
+                    // Pass 3 — the screen-edge ceiling reaches WIDGETS, not just
+                    // text: cap any over-budget fill-capable leaf to the budget
+                    // (shrink-only; fillWidth is a no-op on auto-sized widgets).
+                    // Closes the gap where a FILL-stretched widget couldn't be
+                    // brought back under the adaptive ceiling on a narrow screen.
+                    e.fillWidth(wrapBudget);
                 }
             }
         } else {

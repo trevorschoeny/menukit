@@ -32,11 +32,12 @@ public enum CrossAlign {
     /**
      * Stretch every child to the column's cross-axis extent — the width of
      * its single widest child (Pass 3 column-intrinsic-fill). Each fill-capable
-     * child (Button, Toggle, Slider, ProgressBar, horizontal Divider) is grown
-     * to that width via {@link com.trevorschoeny.menukit.core.PanelElement#fillWidth(int)};
+     * child (Button, LABELED Toggle, Slider, Dropdown, DropdownMulti, TextField,
+     * ProgressBar, ScrollContainer, horizontal Divider) is grown to that width
+     * via {@link com.trevorschoeny.menukit.core.PanelElement#fillWidth(int)};
      * auto-content-sized children (TextLabel, Checkbox, Radio, ItemDisplay,
-     * Icon) keep their intrinsic width, left-aligned (their {@code fillWidth}
-     * is a no-op by design).
+     * Icon, and a BARE/sprite Toggle switch) keep their intrinsic width,
+     * left-aligned (their {@code fillWidth} is a no-op by design).
      *
      * <p><b>{@link Column} only.</b> {@code Row} treats FILL as START on its
      * (vertical) cross axis — cross-axis height-fill is not symmetric-cheap
