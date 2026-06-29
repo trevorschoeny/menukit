@@ -334,7 +334,9 @@ public class MKScreen extends Screen {
         // layoutOriginX / topPos + layoutOriginY.)
         int m = RegionConstants.SCREEN_EDGE_MARGIN;
         leftPos = Math.max(leftPos, m - layout.layoutOriginX());
-        topPos  = Math.max(topPos,  m - layout.layoutOriginY());
+        // Reserve the title band on the top clamp so a too-tall body docks BELOW
+        // the centered title (drawn at y=m) instead of overprinting its first row.
+        topPos  = Math.max(topPos,  m + TITLE_HEIGHT - layout.layoutOriginY());
     }
 
     // ── Rendering ───────────────────────────────────────────────────────

@@ -30,9 +30,12 @@ public enum CrossAlign {
     END,
 
     /**
-     * Stretch every child to the column's cross-axis extent — the width of
-     * its single widest child (Pass 3 column-intrinsic-fill). Each fill-capable
-     * child (Button, LABELED Toggle, Slider, Dropdown, DropdownMulti, TextField,
+     * Stretch every FILL-CAPABLE child to the column's cross-axis extent (the
+     * width of its single widest child); intrinsic-width children keep their
+     * width and align to the column's START (left) edge — so a mixed column
+     * reads as full-width controls with left-aligned switches/checkboxes, not
+     * "everything the same width" (Pass 3 column-intrinsic-fill). Each
+     * fill-capable child (Button, LABELED Toggle, Slider, Dropdown, DropdownMulti, TextField,
      * ProgressBar, ScrollContainer, horizontal Divider) is grown to that width
      * via {@link com.trevorschoeny.menukit.core.PanelElement#fillWidth(int)};
      * auto-content-sized children (TextLabel, Checkbox, Radio, ItemDisplay,

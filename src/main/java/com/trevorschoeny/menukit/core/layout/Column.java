@@ -97,7 +97,11 @@ public final class Column {
         /**
          * Append an ALREADY-CONSTRUCTED element (Pass 3) — bridges the common
          * case of laying out pre-built widgets, including under
-         * {@link CrossAlign#FILL}. See {@link ElementSpec#of(PanelElement)}.
+         * {@link CrossAlign#FILL}. The element must extend
+         * {@link com.trevorschoeny.menukit.core.AbstractPanelElement} (every
+         * library widget does) so the layout can reposition it; a bare custom
+         * {@link PanelElement} throws at build time. See
+         * {@link ElementSpec#of(PanelElement)}.
          */
         public Builder add(PanelElement element) {
             entries.add(LayoutEntry.fromSpec(ElementSpec.of(element)));

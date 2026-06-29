@@ -498,7 +498,12 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
                             || contentMouseX >= childAbsX + element.getWidth()) continue;
                     if (contentMouseY < childAbsY
                             || contentMouseY >= childAbsY + element.getHeight()) continue;
-                    if (element.mouseClicked(contentMouseX, contentMouseY, button)) {
+                    // Hit-test in CONTENT space (childAbsY is unscrolled) but DISPATCH
+                    // raw screen coords — a nested child re-derives its own localY from
+                    // a scroll-translated cached origin, so content-space would
+                    // double-count the outer scroll. Leaf widgets ignore the coords
+                    // (they gate on hover set during render), so raw is safe for them.
+                    if (element.mouseClicked(mouseX, mouseY, button)) {
                         return true;
                     }
                 }
@@ -541,7 +546,12 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
                     int cay = (int) cachedRenderOriginY + el.getChildY();
                     if (mouseX < cax || mouseX >= cax + el.getWidth()) continue;
                     if (contentMouseY < cay || contentMouseY >= cay + el.getHeight()) continue;
-                    if (el.mouseScrolled(mouseX, contentMouseY, scrollX, scrollY)) return true;
+                    // Hit-test in CONTENT space (cay is unscrolled) but DISPATCH raw
+                    // screen coords: a nested child (inner ScrollContainer) caches its
+                    // origin in scroll-translated SCREEN space and re-derives localY
+                    // from it, so passing contentMouseY would double-count the outer
+                    // scroll. Raw mouseY is correct for the child's own math.
+                    if (el.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
                 }
             }
         }

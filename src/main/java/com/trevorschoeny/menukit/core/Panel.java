@@ -448,13 +448,11 @@ public class Panel {
      * screen's POV, the swap is transparent: it's "an element," and
      * elements know how to render and route input.
      *
-     * <p><b>Lifecycle note:</b> {@code onAttach} / {@code onDetach}
-     * propagation to children stops at the ScrollContainer in auto-scroll
-     * mode (ScrollContainer doesn't currently propagate those lifecycle
-     * hooks to its children). For wrap-only demos this is fine; for
-     * interactive elements requiring widget registration (TextField etc.)
-     * inside a scrolling panel, the lack of propagation is a known
-     * pre-existing limitation of ScrollContainer, not introduced here.
+     * <p><b>Lifecycle note (Pass 3):</b> {@link ScrollContainer} now propagates
+     * {@code onAttach} / {@code onDetach} / {@code keyPressed} to its children,
+     * so widget-wrapping elements (Slider, TextField) inside an auto-scroll panel
+     * register their vanilla widgets and route keyboard correctly — there is no
+     * longer a propagation gap at the auto-scroll boundary.
      */
     public List<PanelElement> getElements() {
         ensureConfigured();
