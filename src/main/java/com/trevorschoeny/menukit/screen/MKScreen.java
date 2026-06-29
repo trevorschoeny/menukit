@@ -319,6 +319,15 @@ public class MKScreen extends Screen {
         panelBounds = layout.bounds();
         leftPos = (width  - layout.totalWidth())  / 2 - layout.layoutOriginX();
         topPos  = (height - layout.totalHeight()) / 2 - layout.layoutOriginY();
+        // Pass 3 — when the panel tree is wider/taller than the screen (small
+        // window / high GUI scale), centering pushes the left/top edge off-screen
+        // and clips BOTH sides. Clamp so the layout's leftmost/topmost panel edge
+        // stays at SCREEN_EDGE_MARGIN — the left/top content stays reachable and
+        // only the far side clips. (The min panel edge sits at leftPos +
+        // layoutOriginX / topPos + layoutOriginY.)
+        int m = RegionConstants.SCREEN_EDGE_MARGIN;
+        leftPos = Math.max(leftPos, m - layout.layoutOriginX());
+        topPos  = Math.max(topPos,  m - layout.layoutOriginY());
     }
 
     // ── Rendering ───────────────────────────────────────────────────────

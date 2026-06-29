@@ -151,8 +151,22 @@ public class Button extends AbstractPanelElement<Button> {
 
     // ── PanelElement Implementation ────────────────────────────────────
 
-    @Override public int getWidth() { return width; }
+    @Override
+    public int getWidth() {
+        // Floor at the label's intrinsic width when no explicit width was given
+        // (width <= 0). Makes a width-0 button (the "let the column FILL size me"
+        // seed the gallery models) report a real natural extent instead of 0 —
+        // so a column of only width-0 buttons can't silently collapse to nothing,
+        // and a width-0 button is visible outside FILL too. Icon/Sprite buttons
+        // always carry an explicit size, so this never narrows them.
+        if (width > 0) return width;
+        return Minecraft.getInstance().font.width(text) + LABEL_PAD * 2;
+    }
+
     @Override public int getHeight() { return height; }
+
+    /** Horizontal padding around a width-0 button's auto-sized label. */
+    private static final int LABEL_PAD = 6;
 
     /** Column-fill (Pass 3): stretch this button to the column's widest extent. */
     @Override public void fillWidth(int width) { this.width = width; }
