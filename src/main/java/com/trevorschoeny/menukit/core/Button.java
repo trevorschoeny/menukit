@@ -473,6 +473,10 @@ public class Button extends AbstractPanelElement<Button> {
             this.spriteSupplier = sprite;
         }
 
+        /** Square graphic — opt OUT of column-fill (stretching smears the
+         *  sprite), mirroring the bare/sprite Toggle carve-out. */
+        @Override public void fillWidth(int width) { /* intrinsic square */ }
+
         @Override
         protected void renderContent(RenderContext ctx, int sx, int sy) {
             Identifier id = spriteSupplier.get();
@@ -582,6 +586,11 @@ public class Button extends AbstractPanelElement<Button> {
             super(childX, childY, width, height, text, onClick);
             this.spriteSupplier = sprite;
         }
+
+        /** A sprite background is authored at a specific size — opt OUT of
+         *  column-fill so it isn't smeared, mirroring Toggle.sprite. A consumer
+         *  wanting a wide sprite button authors it at that width. */
+        @Override public void fillWidth(int width) { /* intrinsic sprite size */ }
 
         @Override
         protected void renderBackground(RenderContext ctx, int sx, int sy) {
