@@ -379,10 +379,25 @@ public class MKScreen extends Screen {
         // returned false). Mirrors the spirit of
         // ScreenPanelRegistry.dispatchCoveredClick / findCoveringPanelAt on the
         // vanilla-container path, scoped here to MKScreen's own per-panel bounds.
+        // Vanilla-widget routing (registered Slider/TextField via addWidget) MUST
+        // run BEFORE the opaque click-eat. Those widgets are the panel's OWN
+        // interactive content, living inside its opaque bounds — they need the
+        // initiating click to start a drag / take focus. They have no
+        // PanelElement.mouseClicked (so dispatchElementClick above returned
+        // false for them); they rely on this super call. Pre-Pass-3 the
+        // opaque-eat returned true first and ate the click → sliders/text fields
+        // were dead inside every opaque MKScreen panel. The eat now runs AFTER
+        // super, suppressing only true fall-through (empty opaque space).
+        if (super.mouseClicked(event, flag)) {
+            return true;
+        }
+        // Opaque click-eat: nothing (MK element OR vanilla widget) consumed the
+        // click, so if it landed in empty space inside a visible opaque panel,
+        // eat it so panels/the screen behind don't receive it.
         if (clickInsideAnyOpaquePanel(event.x(), event.y())) {
             return true;
         }
-        return super.mouseClicked(event, flag);
+        return false;
     }
 
     /**

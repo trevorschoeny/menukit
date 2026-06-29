@@ -68,23 +68,21 @@ public final class SlotGroupRegionMath {
      */
     public static Optional<ScreenOrigin> resolveSlotGroup(
             SlotGroupRegion region, SlotGroupBounds bounds,
-            int pw, int ph, int prefix) {
+            int pw, int ph, int prefix, int sw, int sh) {
 
         int leftPos = bounds.leftPos();
         int topPos = bounds.topPos();
         int imageWidth = bounds.imageWidth();
         int imageHeight = bounds.imageHeight();
 
-        // Overflow check — semantics vary by region (mirrors RegionMath.resolveMenu).
-        // - CENTER doesn't stack and must fit within both axes.
-        // - Edge + centered-edge regions check overflow along their flow axis,
-        //   accounting for prefix from previously-stacked panels.
+        // CENTER is in-bounds by design; edge regions are gated AFTER the origin
+        // is computed, against the SCREEN safe area (below) — mirrors
+        // RegionMath.resolveMenu's Pass-3 fix. A slot-group bbox is often ONE
+        // ROW (e.g. the 16px hotbar), so gating an edge panel against the bbox
+        // height/width hid any normally-sized panel — the panel is meant to
+        // extend past the small group toward the screen edge.
         if (region == SlotGroupRegion.CENTER) {
             if (pw > imageWidth || ph > imageHeight) return Optional.empty();
-        } else {
-            int available = region.isHorizontalFlow() ? imageWidth : imageHeight;
-            int selfExtent = region.isHorizontalFlow() ? pw : ph;
-            if (prefix + selfExtent > available) return Optional.empty();
         }
 
         int gap = RegionConstants.MENU_STACK_GAP;
@@ -127,6 +125,17 @@ public final class SlotGroupRegionMath {
                     leftPos + (imageWidth - pw) / 2,
                     topPos + (imageHeight - ph) / 2);
         };
+
+        // Screen safe-area conformance for edge regions (mirrors
+        // RegionMath.resolveMenu): clamp the resolved origin into the safe area
+        // rather than hiding the panel against the (often one-row) group bbox.
+        if (region != SlotGroupRegion.CENTER) {
+            int m = RegionConstants.SCREEN_EDGE_MARGIN;
+            if (pw > sw - 2 * m || ph > sh - 2 * m) return Optional.empty();
+            int cx = Math.max(m, Math.min(origin.x(), sw - m - pw));
+            int cy = Math.max(m, Math.min(origin.y(), sh - m - ph));
+            origin = new ScreenOrigin(cx, cy);
+        }
         return Optional.of(origin);
     }
 }

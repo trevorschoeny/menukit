@@ -329,10 +329,17 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
             // Skip elements entirely outside the visible scroll window for
             // a small render-cost saving on large content lists. Element
             // is visible if its Y range intersects [scrollY, scrollY+viewportHeight].
+            // Don't cull a child with an OPEN overlay (Dropdown popover): its
+            // renderOverlay/getActiveOverlayBounds read a trigger-position cache
+            // refreshed only here, so culling it while open would freeze the
+            // popover at a stale screen position. Keep rendering it.
+            boolean hasOpenOverlay = element.getActiveOverlayBounds() != null;
             int top = element.getChildY();
             int bottom = top + element.getHeight();
-            if (bottom < scrollY) continue;
-            if (top >= scrollY + viewportHeight()) continue;
+            if (!hasOpenOverlay) {
+                if (bottom < scrollY) continue;
+                if (top >= scrollY + viewportHeight()) continue;
+            }
             element.render(childCtx);
         }
 

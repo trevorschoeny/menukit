@@ -554,15 +554,16 @@ public class Panel {
             for (PanelElement e : elements) {
                 if (e instanceof TextLabel label) {
                     label.setWrapWidth(wrapBudget);
-                } else if (e.getWidth() > wrapBudget) {
-                    // Pass 3 — the screen-edge ceiling reaches WIDGETS, not just
-                    // text: cap any over-budget fill-capable leaf to the budget
-                    // (shrink-only; fillWidth is a no-op on auto-sized widgets).
-                    // Closes the gap where a FILL-stretched widget couldn't be
-                    // brought back under the adaptive ceiling on a narrow screen.
-                    e.fillWidth(wrapBudget);
                 }
             }
+            // NOTE (Pass 3): the screen-edge ceiling reflows TEXT (above), not
+            // fixed-extent WIDGETS. A per-frame widget shrink was tried and
+            // reverted — fillWidth is an absolute setter with no record of a
+            // widget's intended (column-fill) width, so shrinking on a narrow
+            // frame couldn't be undone when the frame widened (a resize ratchet).
+            // At realistic GUI scales validator widgets (≤~180px) sit well under
+            // the budget, so they don't bleed; truly adaptive widget widths
+            // would need FILL re-applied at the panel layer (a deferred item).
         } else {
             // No ceiling — clear any wrap state from a prior pass.
             for (PanelElement e : elements) {
