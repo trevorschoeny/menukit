@@ -10,7 +10,6 @@ import com.trevorschoeny.menukit.core.RenderContext;
 import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
@@ -19,7 +18,6 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Supplier;
 
 /**
  * Bundles the mechanical parts of rendering a {@link Panel} inside a vanilla
@@ -56,10 +54,10 @@ import java.util.function.Supplier;
  *
  * The adapter bundles the mechanical parts of injection:
  * <ul>
- *   <li><b>Coordinate translation.</b> The consumer supplies a
- *       {@link ScreenOriginFn} that computes the panel's screen-space origin
- *       from the vanilla screen's bounds. The adapter calls it per frame so
- *       resizes are handled automatically.</li>
+ *   <li><b>Coordinate translation.</b> The panel's screen-space origin is
+ *       resolved from its declared {@link MenuRegion} and the vanilla screen's
+ *       bounds via {@link RegionRegistry#resolveMenuOrigin}. The adapter
+ *       resolves it per frame so resizes are handled automatically.</li>
  *   <li><b>Panel-background rendering.</b> When {@code panel.getStyle() != NONE},
  *       paints the styled background at the panel's origin with padding-inclusive
  *       dimensions.</li>
@@ -95,8 +93,6 @@ import java.util.function.Supplier;
  *
  * @see Panel                   The visual unit being injected
  * @see ScreenBounds            Vanilla-screen layout snapshot passed per call
- * @see ScreenOriginFn          Pure function from bounds to panel origin
- * @see ScreenOriginFns         Common origin-function constructors
  */
 public final class ScreenPanelAdapter {
 
@@ -108,20 +104,14 @@ public final class ScreenPanelAdapter {
     public static final int DEFAULT_PADDING = 7;
 
     private final Panel panel;
-    private final ScreenOriginFn originFn;
+    private final MenuRegion region;
     private final int padding;
 
-    // ── Targeting state (region-based adapters only) ────────────────────
+    // ── Targeting state ─────────────────────────────────────────────────
     //
-    // Region-based adapters must declare targeting via .on(Class...) or
-    // .onAny() before first screen open. Construction registers with
-    // ScreenPanelRegistry's pending set; .on/.onAny() removes.
-    //
-    // Lambda-based adapters (constructed with ScreenOriginFn) don't
-    // participate — they're scoped by the consumer's own mixin. The
-    // targeting methods throw if called on them.
-
-    private final boolean regionBased;
+    // Adapters must declare targeting via .on(Class...) or .onAny() before
+    // first screen open. Construction registers with ScreenPanelRegistry's
+    // pending set; .on/.onAny() removes.
 
     /** Declared targets when {@link #targetedAny} is false. Null until .on() is called. */
     private @Nullable List<Class<? extends AbstractContainerScreen<?>>> targets = null;
@@ -146,37 +136,21 @@ public final class ScreenPanelAdapter {
 
     // ── Constructors ────────────────────────────────────────────────────
     //
-    // Phase 16j H3 — constructor sprawl consolidated. Four public surfaces
+    // Phase 16j H3 — constructor sprawl consolidated. Three public surfaces
     // remain, organized by orthogonal axes:
     //
     //   Placement     | Padding
     //   ──────────────┼──────────
-    //   ScreenOriginFn| explicit
     //   MenuRegion    | explicit
     //   RegionAnchor  | default (DEFAULT_PADDING)
     //   RegionAnchor  | explicit
     //
-    // The "MenuRegion + default padding" + "ScreenOriginFn + default
-    // padding" convenience overloads were dropped — consumers pass
-    // padding explicitly (typically DEFAULT_PADDING or 0).
+    // The "MenuRegion + default padding" convenience overload was dropped —
+    // consumers pass padding explicitly (typically DEFAULT_PADDING or 0).
     //
     // The "anchor + default padding" overload stays because it's the
     // 16i ergonomic happy path (priority specified inline via
     // MenuRegion.X.priority(N)).
-
-    /**
-     * Constructs a lambda-based adapter with a consumer-supplied origin
-     * function and explicit content padding. Lambda-based adapters
-     * compose placement entirely from the {@code originFn}; they don't
-     * register with {@link RegionRegistry} and don't participate in
-     * stacking. See the {@code .activeOn} / {@code .deactivate} API.
-     */
-    public ScreenPanelAdapter(Panel panel, ScreenOriginFn originFn, int padding) {
-        this.panel = panel;
-        this.originFn = originFn;
-        this.padding = padding;
-        this.regionBased = false;
-    }
 
     /**
      * Region-aware constructor with explicit padding. Registers the panel
@@ -221,9 +195,8 @@ public final class ScreenPanelAdapter {
     private ScreenPanelAdapter(Panel panel, MenuRegion region, int padding, int priority) {
         this.panel = panel;
         this.padding = padding;
-        this.regionBased = true;
+        this.region = region;
         RegionRegistry.registerMenu(panel, region, padding, priority);
-        this.originFn = RegionRegistry.menuOriginFn(panel, region);
         ScreenPanelRegistry.trackPending(this);
     }
 
@@ -231,10 +204,9 @@ public final class ScreenPanelAdapter {
 
     /**
      * Phase 16j R5 — removes this adapter from every internal registry
-     * collection: the per-region MENU list (if region-based), the
-     * per-screen match cache, the PENDING/REGISTERED tracking sets,
-     * and any lambda-active entry. After {@code unregister()} the
-     * adapter contributes nothing to layout, dispatch, or rendering.
+     * collection: the per-region MENU list, the per-screen match cache,
+     * and the PENDING/REGISTERED tracking sets. After {@code unregister()}
+     * the adapter contributes nothing to layout, dispatch, or rendering.
      *
      * <p>Intended for code paths that construct adapters outside mod-init
      * (test/verification, runtime UI swaps, hot-reload-style workflows).
@@ -252,13 +224,11 @@ public final class ScreenPanelAdapter {
      * fresh values from the new constructor call.
      */
     public void unregister() {
-        if (regionBased) {
-            RegionRegistry.unregisterMenu(panel);
-        }
+        RegionRegistry.unregisterMenu(panel);
         ScreenPanelRegistry.untrack(this);
     }
 
-    // ── Targeting API (region-based adapters) ───────────────────────────
+    // ── Targeting API ───────────────────────────────────────────────────
 
     /**
      * Declares the screen classes this adapter applies to. Resolution is
@@ -279,22 +249,18 @@ public final class ScreenPanelAdapter {
      * <b>survival-only</b> and silently misses creative. Use
      * {@link #onPlayerInventory()} to target the player inventory in both modes.
      *
-     * <p>Call exactly once per region-based adapter. Duplicate declarations
-     * throw {@link IllegalStateException}. Calling on a lambda-based adapter
-     * throws — lambda adapters are scoped by the consumer's own mixin, not
-     * by the library's registry. Use {@link #onAny()} for the "every
+     * <p>Call exactly once per adapter. Duplicate declarations throw
+     * {@link IllegalStateException}. Use {@link #onAny()} for the "every
      * screen" shape; don't pass {@code AbstractContainerScreen.class} here.
      *
      * @param screenClasses one or more screen classes; must not be empty
      * @return this adapter, for chaining
-     * @throws IllegalStateException if the adapter is lambda-based or if
-     *         targeting was already declared
+     * @throws IllegalStateException if targeting was already declared
      * @throws IllegalArgumentException if {@code screenClasses} is empty
      */
     @SafeVarargs
     public final ScreenPanelAdapter on(
             Class<? extends AbstractContainerScreen<?>>... screenClasses) {
-        requireRegionBased();
         requireUndeclared();
         if (screenClasses.length == 0) {
             throw new IllegalArgumentException(
@@ -325,11 +291,9 @@ public final class ScreenPanelAdapter {
      * / {@code .onMatching(ScreenMatcher.allExcept(...))} instead.
      *
      * @return this adapter, for chaining
-     * @throws IllegalStateException if the adapter is lambda-based or if
-     *         targeting was already declared
+     * @throws IllegalStateException if targeting was already declared
      */
     public ScreenPanelAdapter onAny() {
-        requireRegionBased();
         requireUndeclared();
         this.targetedAny = true;
         ScreenPanelRegistry.markTargetingDeclared(this);
@@ -353,8 +317,7 @@ public final class ScreenPanelAdapter {
      * {@code .on(InventoryScreen.class, CreativeModeInventoryScreen.class)}.
      *
      * @return this adapter, for chaining
-     * @throws IllegalStateException if the adapter is lambda-based or if
-     *         targeting was already declared
+     * @throws IllegalStateException if targeting was already declared
      */
     public ScreenPanelAdapter onPlayerInventory() {
         return on(InventoryScreen.class, CreativeModeInventoryScreen.class);
@@ -375,11 +338,9 @@ public final class ScreenPanelAdapter {
      *
      * @param matcher the screen scope; must be non-null
      * @return this adapter, for chaining
-     * @throws IllegalStateException if the adapter is lambda-based or if
-     *         targeting was already declared
+     * @throws IllegalStateException if targeting was already declared
      */
     public ScreenPanelAdapter onMatching(ScreenMatcher matcher) {
-        requireRegionBased();
         requireUndeclared();
         if (matcher == null) {
             throw new IllegalArgumentException(
@@ -392,17 +353,6 @@ public final class ScreenPanelAdapter {
         return this;
     }
 
-    private void requireRegionBased() {
-        if (!regionBased) {
-            throw new IllegalStateException(
-                    "Adapter for panel '" + panel.getId() + "' is lambda-based; " +
-                    ".on() / .onAny() apply to region-based adapters only. Lambda " +
-                    "adapters (constructed with a ScreenOriginFn) are scoped by " +
-                    "the consumer's own mixin — the library's ScreenPanelRegistry " +
-                    "doesn't dispatch them.");
-        }
-    }
-
     private void requireUndeclared() {
         if (targets != null || targetedAny || matcher != null) {
             throw new IllegalStateException(
@@ -411,105 +361,7 @@ public final class ScreenPanelAdapter {
         }
     }
 
-    // ── Lambda-path opacity registration (M9) ──────────────────────────
-    //
-    // Lambda-based adapters render through their consumer's own mixin and
-    // are exempt from the region-based ScreenPanelRegistry dispatch path.
-    // Pre-M9, this meant lambda panels were also exempt from the modal
-    // mechanism (click-eat, hover suppression, tooltip suppression).
-    //
-    // M9's click-through prohibition is a library-wide invariant, so
-    // lambda panels participate via these two methods: consumer's mixin
-    // calls .activeOn(this, () -> ScreenBounds(...)) in init() (TAIL),
-    // and .deactivate(this) in removed() (TAIL). The library tracks the
-    // (Screen, adapter, boundsSupplier) triple in its unified opacity
-    // registry; the four input-handler mixins consult the registry for
-    // opacity dispatch decisions. The escape-hatch property — consumer
-    // owns rendering and dispatch in their own mixin — is preserved;
-    // the library only learns about bounds for opacity purposes.
-    //
-    // See M9 §4.4 for the full design including failure-mode analysis.
-
-    /**
-     * Registers this lambda-based adapter as active on the given screen
-     * with the supplied bounds-supplier for opacity dispatch (M9). Called
-     * from the consumer's mixin during {@code init()} ({@code @At("TAIL")}).
-     *
-     * <p>The {@code boundsSupplier} returns the current
-     * {@link ScreenBounds} for the screen — typically
-     * {@code () -> new ScreenBounds(0, 0, this.width, this.height)} for
-     * a vanilla standalone screen, or per-frame computed bounds for an
-     * inventory-style screen. The supplier is evaluated each time the
-     * library queries this adapter's opacity bounds (per click, per
-     * hover, per tooltip). Cheap-supplier discipline applies — keep the
-     * supplier free of allocations or expensive lookups.
-     *
-     * <p>Region-based adapters do NOT call this method — they participate
-     * in opacity dispatch automatically via {@link ScreenPanelRegistry}'s
-     * targeting + region resolution. Calling on a region-based adapter
-     * throws.
-     *
-     * <p><b>Failure mode — consumer forgets {@code activeOn}.</b> The
-     * panel renders correctly via the consumer's mixin (since rendering
-     * is consumer-owned for lambda adapters) but the M9 opacity
-     * invariant doesn't apply — clicks pass through to vanilla widgets
-     * underneath, hover/tooltip leak from below. The library does NOT
-     * enforce registration; lambda is the escape hatch and consumers
-     * accept the explicit responsibility. See M9 §4.4 failure-mode
-     * analysis.
-     *
-     * @param screen          the screen this adapter is active on
-     * @param boundsSupplier  per-call screen-bounds computation
-     * @return this adapter, for chaining
-     * @throws IllegalStateException if the adapter is region-based
-     */
-    public ScreenPanelAdapter activeOn(Screen screen,
-                                        Supplier<ScreenBounds> boundsSupplier) {
-        if (regionBased) {
-            throw new IllegalStateException(
-                    "Adapter for panel '" + panel.getId() + "' is region-based; " +
-                    ".activeOn() applies to lambda-based adapters only. " +
-                    "Region-based adapters participate in opacity dispatch " +
-                    "automatically via ScreenPanelRegistry's targeting (.on/.onAny).");
-        }
-        if (screen == null || boundsSupplier == null) {
-            throw new IllegalArgumentException(
-                    "Adapter for panel '" + panel.getId() + "': activeOn(...) " +
-                    "requires non-null screen + boundsSupplier.");
-        }
-        ScreenPanelRegistry.registerLambdaActive(screen, this, boundsSupplier);
-        return this;
-    }
-
-    /**
-     * Unregisters this lambda-based adapter from the given screen for
-     * opacity dispatch (M9). Called from the consumer's mixin during
-     * {@code removed()} ({@code @At("TAIL")}).
-     *
-     * <p>Idempotent — calling on an unregistered (screen, adapter) pair
-     * is a no-op. Calling on a region-based adapter throws.
-     *
-     * @param screen the screen to deactivate from
-     * @return this adapter, for chaining
-     * @throws IllegalStateException if the adapter is region-based
-     */
-    public ScreenPanelAdapter deactivate(Screen screen) {
-        if (regionBased) {
-            throw new IllegalStateException(
-                    "Adapter for panel '" + panel.getId() + "' is region-based; " +
-                    ".deactivate() applies to lambda-based adapters only.");
-        }
-        if (screen == null) return this;
-        ScreenPanelRegistry.unregisterLambdaActive(screen, this);
-        return this;
-    }
-
     // ── Targeting queries (for ScreenPanelRegistry dispatch, step 3) ────
-
-    /** True if the adapter was constructed with a region rather than a lambda. */
-    public boolean isRegionBased() {
-        return regionBased;
-    }
 
     /** True if {@code .on(...)}, {@code .onAny()}, or {@code .onMatching(...)} has been called. */
     public boolean isTargetingDeclared() {
@@ -518,8 +370,8 @@ public final class ScreenPanelAdapter {
 
     /**
      * Tests whether this adapter's declared targets match the given opened
-     * screen class. Always false for lambda-based adapters. A region-based
-     * adapter that hasn't declared targeting returns false only transiently —
+     * screen class. An adapter that hasn't declared targeting returns false
+     * only transiently —
      * the first-screen checkpoint ({@link ScreenPanelRegistry#applyEverywhereDefault})
      * promotes it to {@code onAny()} (every container) before dispatch, so by the
      * time this is consulted an undeclared adapter matches all. Step 3's registry
@@ -557,36 +409,13 @@ public final class ScreenPanelAdapter {
      * related info panels) don't re-derive origin math from {@code RegionMath}.
      * The content area begins at {@code origin + getPadding()}.
      *
-     * <p>Takes the live screen instance so chrome-aware origin functions
-     * (from region-aware constructors) can consult
-     * {@link MenuChrome}. Non-region origin functions ignore the
-     * screen parameter; pass {@code null} if the caller doesn't have one.
+     * <p>Takes the live screen instance so chrome-aware region resolution
+     * can consult {@link MenuChrome}.
      */
     public Optional<ScreenOrigin> getOrigin(ScreenBounds screenBounds,
                                             AbstractContainerScreen<?> screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return Optional.empty();
-        ScreenOrigin origin = originFn.compute(screenBounds, screen);
-        if (origin == ScreenOrigin.OUT_OF_REGION) return Optional.empty();
-        return Optional.of(origin);
-    }
-
-    /**
-     * M9 lambda-path origin query — accepts any {@link Screen} subclass.
-     * For lambda-based adapters active on standalone vanilla screens
-     * (PauseScreen, OptionsScreen, etc.) where the consumer's mixin
-     * registers via {@link #activeOn} but the screen isn't an
-     * {@link AbstractContainerScreen}.
-     *
-     * <p>Casts {@code screen} to {@code AbstractContainerScreen} when
-     * possible (so chrome-aware region functions still work); passes
-     * {@code null} otherwise (lambda origin functions ignore the
-     * parameter per {@link ScreenOriginFn#compute} javadoc).
-     */
-    public Optional<ScreenOrigin> getOriginForScreen(ScreenBounds screenBounds,
-                                                      @Nullable Screen screen) {
-        if (!ClientWindowVisibility.panelShown(panel)) return Optional.empty();
-        AbstractContainerScreen<?> acs = (screen instanceof AbstractContainerScreen<?> a) ? a : null;
-        ScreenOrigin origin = originFn.compute(screenBounds, acs);
+        ScreenOrigin origin = RegionRegistry.resolveMenuOrigin(panel, region, screenBounds, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return Optional.empty();
         return Optional.of(origin);
     }
@@ -599,18 +428,15 @@ public final class ScreenPanelAdapter {
      * screen bounds. No-op when {@code !panel.isVisible()} or when the
      * region-aware origin resolver returns out-of-region.
      *
-     * <p>{@code screen} is passed through to the origin function so
+     * <p>{@code screen} is passed through to the region resolver so
      * chrome-aware region resolution can consult {@link MenuChrome}.
-     * Non-region origin functions ignore it; callers that genuinely lack a
-     * screen reference pass {@code null} and accept that chrome-aware
-     * regions will resolve without chrome adjustment.
      */
     public void render(GuiGraphics graphics, ScreenBounds screenBounds,
                        int mouseX, int mouseY,
                        AbstractContainerScreen<?> screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return;
 
-        ScreenOrigin origin = originFn.compute(screenBounds, screen);
+        ScreenOrigin origin = RegionRegistry.resolveMenuOrigin(panel, region, screenBounds, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return;
 
         // Padding-inclusive dimensions for the background rectangle.
@@ -686,7 +512,7 @@ public final class ScreenPanelAdapter {
      *
      * <p>Hit-testing uses padded content origin so element bounds line up with
      * where the elements actually rendered. {@code screen} is threaded to the
-     * origin function for chrome-aware region resolution parity with
+     * region resolver for chrome-aware region resolution parity with
      * {@link #render}.
      *
      * @return {@code true} if an element consumed the click.
@@ -696,7 +522,7 @@ public final class ScreenPanelAdapter {
                                 AbstractContainerScreen<?> screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return false;
 
-        ScreenOrigin origin = originFn.compute(screenBounds, screen);
+        ScreenOrigin origin = RegionRegistry.resolveMenuOrigin(panel, region, screenBounds, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return false;
 
         int contentX = origin.x() + padding;
@@ -745,7 +571,7 @@ public final class ScreenPanelAdapter {
                                  AbstractContainerScreen<?> screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return false;
 
-        ScreenOrigin origin = originFn.compute(screenBounds, screen);
+        ScreenOrigin origin = RegionRegistry.resolveMenuOrigin(panel, region, screenBounds, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return false;
 
         int contentX = origin.x() + padding;

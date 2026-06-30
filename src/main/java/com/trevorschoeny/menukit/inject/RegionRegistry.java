@@ -237,8 +237,8 @@ public final class RegionRegistry {
         }
         // self not registered in this region — a stale per-screen dispatch
         // reference reached us after unregister(). Degrade to NOT_REGISTERED
-        // (the originFn maps it to OUT_OF_REGION); never throw on the per-frame
-        // path or the host screen's input loop wedges. See NOT_REGISTERED.
+        // (resolveMenuOrigin maps it to OUT_OF_REGION); never throw on the
+        // per-frame path or the host screen's input loop wedges. See NOT_REGISTERED.
         return NOT_REGISTERED;
     }
 
@@ -258,9 +258,9 @@ public final class RegionRegistry {
     }
 
     /**
-     * Builds a region-aware {@link ScreenOriginFn} for a MenuContext panel. The returned lambda consults the registry per-frame (for the
-     * stacking prefix and the panel's registered padding), the current
-     * {@link ScreenBounds} (for the menu frame), and
+     * Resolves the screen-space origin for a MenuContext panel. Consults the
+     * registry (for the stacking prefix and the panel's registered padding),
+     * the current {@link ScreenBounds} (for the menu frame), and
      * {@link MenuChrome#of(net.minecraft.client.gui.screens.inventory.AbstractContainerScreen)}
      * (for chrome extents outside the declared frame), producing a screen-space
      * origin — or {@link ScreenOrigin#OUT_OF_REGION} when the panel overflows
@@ -269,44 +269,44 @@ public final class RegionRegistry {
      * <p>Chrome-extended bounds are computed once per frame and passed to
      * {@link RegionMath}. Math stays pure; chrome logic lives here.
      */
-    public static ScreenOriginFn menuOriginFn(Panel panel, MenuRegion region) {
-        return (bounds, screen) -> {
-            int pad = MENU_PADDING.getOrDefault(panel, 0);
-            int prefix = axialPrefix(panel, region);
-            // Stale reference after unregister() — skip this panel this frame.
-            if (prefix == NOT_REGISTERED) return ScreenOrigin.OUT_OF_REGION;
+    public static ScreenOrigin resolveMenuOrigin(Panel panel, MenuRegion region,
+            ScreenBounds bounds,
+            net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> screen) {
+        int pad = MENU_PADDING.getOrDefault(panel, 0);
+        int prefix = axialPrefix(panel, region);
+        // Stale reference after unregister() — skip this panel this frame.
+        if (prefix == NOT_REGISTERED) return ScreenOrigin.OUT_OF_REGION;
 
-            // Extend bounds by the screen's chrome extents on all axes —
-            // treats the chrome as part of the menu's visible extent, which
-            // is what consumers mean when they say "the TOP of the menu" in
-            // a screen with a top tab row. Each region then anchors within
-            // those chrome-extended bounds per RegionMath's usual logic.
-            MenuChrome.ChromeExtents chrome = MenuChrome.of(screen);
-            ScreenBounds effective = new ScreenBounds(
-                    bounds.leftPos() - chrome.left(),
-                    bounds.topPos() - chrome.top(),
-                    bounds.imageWidth() + chrome.left() + chrome.right(),
-                    bounds.imageHeight() + chrome.top() + chrome.bottom());
+        // Extend bounds by the screen's chrome extents on all axes —
+        // treats the chrome as part of the menu's visible extent, which
+        // is what consumers mean when they say "the TOP of the menu" in
+        // a screen with a top tab row. Each region then anchors within
+        // those chrome-extended bounds per RegionMath's usual logic.
+        MenuChrome.ChromeExtents chrome = MenuChrome.of(screen);
+        ScreenBounds effective = new ScreenBounds(
+                bounds.leftPos() - chrome.left(),
+                bounds.topPos() - chrome.top(),
+                bounds.imageWidth() + chrome.left() + chrome.right(),
+                bounds.imageHeight() + chrome.top() + chrome.bottom());
 
-            // Pass 3 — feed the panel its screen-edge content-width budget BEFORE
-            // measuring its width, using the SAME chrome-extended frame the origin
-            // math uses (so budget and origin agree on where the frame is). The
-            // panel wraps its content to this only if it would otherwise overflow.
-            int availOuter = RegionMath.availableMenuWidth(
-                    region, effective, guiScaledWidth(), RegionConstants.SCREEN_EDGE_MARGIN);
-            panel.setAvailableContentWidth(availOuter - 2 * pad);
+        // Pass 3 — feed the panel its screen-edge content-width budget BEFORE
+        // measuring its width, using the SAME chrome-extended frame the origin
+        // math uses (so budget and origin agree on where the frame is). The
+        // panel wraps its content to this only if it would otherwise overflow.
+        int availOuter = RegionMath.availableMenuWidth(
+                region, effective, guiScaledWidth(), RegionConstants.SCREEN_EDGE_MARGIN);
+        panel.setAvailableContentWidth(availOuter - 2 * pad);
 
-            int pw = panel.getWidth() + 2 * pad;
-            int ph = panel.getHeight() + 2 * pad;
+        int pw = panel.getWidth() + 2 * pad;
+        int ph = panel.getHeight() + 2 * pad;
 
-            var result = RegionMath.resolveMenu(region, effective, pw, ph, prefix,
-                    guiScaledWidth(), guiScaledHeight());
-            if (result.isEmpty()) {
-                warnMenuOverflowOnce(panel, region, pw, ph, prefix, effective);
-                return ScreenOrigin.OUT_OF_REGION;
-            }
-            return result.get();
-        };
+        var result = RegionMath.resolveMenu(region, effective, pw, ph, prefix,
+                guiScaledWidth(), guiScaledHeight());
+        if (result.isEmpty()) {
+            warnMenuOverflowOnce(panel, region, pw, ph, prefix, effective);
+            return ScreenOrigin.OUT_OF_REGION;
+        }
+        return result.get();
     }
 
     private static void warnMenuOverflowOnce(Panel panel, MenuRegion region,
@@ -456,41 +456,38 @@ public final class RegionRegistry {
             prefix += extent + RegionConstants.SCREEN_STACK_GAP;
         }
         // self not registered — stale reference. Degrade to NOT_REGISTERED
-        // (the originFn maps it to OUT_OF_REGION); never throw on the per-frame
-        // path. See NOT_REGISTERED.
+        // (resolveVanillaScreenOrigin maps it to OUT_OF_REGION); never throw
+        // on the per-frame path. See NOT_REGISTERED.
         return NOT_REGISTERED;
     }
 
     /**
-     * Builds a region-aware {@link VanillaScreenOriginFn} for a panel. The
-     * returned lambda consults the registry per-frame (for stacking prefix
-     * + registered padding) and the screen's GUI-scaled dimensions to
-     * produce a screen-space origin — or {@link ScreenOrigin#OUT_OF_REGION}
-     * when the panel overflows its region.
+     * Resolves the screen-space origin for a VanillaScreenContext panel.
+     * Consults the registry (for stacking prefix + registered padding) and
+     * the screen's GUI-scaled dimensions to produce a screen-space origin —
+     * or {@link ScreenOrigin#OUT_OF_REGION} when the panel overflows its region.
      */
-    public static VanillaScreenOriginFn vanillaScreenOriginFn(Panel panel,
-                                                                VanillaScreenRegion region) {
-        return (sw, sh, screen) -> {
-            int pad = VANILLA_SCREEN_PADDING.getOrDefault(panel, 0);
+    public static ScreenOrigin resolveVanillaScreenOrigin(Panel panel, VanillaScreenRegion region,
+            int sw, int sh, net.minecraft.client.gui.screens.Screen screen) {
+        int pad = VANILLA_SCREEN_PADDING.getOrDefault(panel, 0);
 
-            // Pass 3 — screen-edge content-width budget (vanilla-screen regions
-            // are inset EDGE_INSET from an edge; keep the same inset opposite).
-            int availOuter = RegionMath.availableScreenEdgeWidth(sw, RegionConstants.EDGE_INSET);
-            panel.setAvailableContentWidth(availOuter - 2 * pad);
+        // Pass 3 — screen-edge content-width budget (vanilla-screen regions
+        // are inset EDGE_INSET from an edge; keep the same inset opposite).
+        int availOuter = RegionMath.availableScreenEdgeWidth(sw, RegionConstants.EDGE_INSET);
+        panel.setAvailableContentWidth(availOuter - 2 * pad);
 
-            int pw = panel.getWidth() + 2 * pad;
-            int ph = panel.getHeight() + 2 * pad;
-            int prefix = axialPrefix(panel, region);
-            // Stale reference after unregister() — skip this panel this frame.
-            if (prefix == NOT_REGISTERED) return ScreenOrigin.OUT_OF_REGION;
+        int pw = panel.getWidth() + 2 * pad;
+        int ph = panel.getHeight() + 2 * pad;
+        int prefix = axialPrefix(panel, region);
+        // Stale reference after unregister() — skip this panel this frame.
+        if (prefix == NOT_REGISTERED) return ScreenOrigin.OUT_OF_REGION;
 
-            var result = RegionMath.resolveVanillaScreen(region, sw, sh, pw, ph, prefix);
-            if (result.isEmpty()) {
-                warnVanillaScreenOverflowOnce(panel, region, pw, ph, prefix, sw, sh);
-                return ScreenOrigin.OUT_OF_REGION;
-            }
-            return result.get();
-        };
+        var result = RegionMath.resolveVanillaScreen(region, sw, sh, pw, ph, prefix);
+        if (result.isEmpty()) {
+            warnVanillaScreenOverflowOnce(panel, region, pw, ph, prefix, sw, sh);
+            return ScreenOrigin.OUT_OF_REGION;
+        }
+        return result.get();
     }
 
     /** Sorts vanilla-screen panels by the deterministic key. */

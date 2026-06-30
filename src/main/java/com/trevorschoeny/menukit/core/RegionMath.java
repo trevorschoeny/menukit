@@ -21,8 +21,8 @@ import org.jetbrains.annotations.ApiStatus;
  * <p><b>Public entry points map to a sentinel at the boundary.</b> This class
  * returns {@code Optional<ScreenOrigin>} for compositional clarity. The
  * adapter pipeline ({@link com.trevorschoeny.menukit.inject.RegionRegistry})
- * maps {@code Optional.empty()} to {@link ScreenOrigin#OUT_OF_REGION} so
- * existing {@code ScreenOriginFn} signatures stay stable. See §6.5.
+ * maps {@code Optional.empty()} to {@link ScreenOrigin#OUT_OF_REGION} so the
+ * region origin resolvers return a stable sentinel. See §6.5.
  */
 @ApiStatus.Internal
 public final class RegionMath {

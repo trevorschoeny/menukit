@@ -107,7 +107,7 @@ public class Panel {
 
     // ── Pass 3 adaptive screen-edge wrap ───────────────────────────────
     // effectiveContentWidth is the screen-edge-derived content-width ceiling
-    // set per-frame by the placement layer (RegionRegistry.menuOriginFn,
+    // set per-frame by the placement layer (RegionRegistry.resolveMenuOrigin,
     // MKScreen/MKCHandledScreen.computePanelSize, the HUD + vanilla-screen +
     // slot-group origin paths) via setAvailableContentWidth. -1 = unset (no
     // ceiling; panel grows to content as before). Distinct from pinnedWidth on
@@ -1005,11 +1005,8 @@ public class Panel {
      * PanelStyle.NONE + opaque(false)} is the rare transparent-overlay
      * escape hatch.
      *
-     * <p><b>Dispatcher coverage:</b> region-based {@code ScreenPanelAdapter}
-     * panels participate automatically via the unified registry. Lambda-path
-     * adapters must call {@code .activeOn(Screen, boundsSupplier)} from
-     * their consumer mixin's {@code init()} to register their bounds for
-     * opacity dispatch. See M9 §4.4 + {@code ScreenPanelAdapter.activeOn}.
+     * <p><b>Dispatcher coverage:</b> {@code ScreenPanelAdapter} panels
+     * participate automatically via the unified registry. See M9 §4.4.
      *
      * <p>Default: {@code true} (M9 default-flip from the 14d-1
      * {@code cancelsUnhandledClicks} default of {@code false}).

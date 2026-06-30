@@ -523,8 +523,7 @@ public interface PanelElement {
 
     /**
      * Phase 14d-3 — screen-attach lifecycle hook. Called when the
-     * containing screen reaches its {@code init()} boundary (or when a
-     * lambda-path adapter registers via {@code .activeOn}). Default
+     * containing screen reaches its {@code init()} boundary. Default
      * no-op for elements that don't need lifecycle hooks.
      *
      * <p>Use case: elements that wrap vanilla widgets (e.g., {@code TextField}
@@ -550,8 +549,7 @@ public interface PanelElement {
 
     /**
      * Phase 14d-3 — screen-detach lifecycle hook. Called when the
-     * containing screen reaches its {@code removed()} boundary (or when
-     * a lambda-path adapter calls {@code .deactivate}). Default no-op.
+     * containing screen reaches its {@code removed()} boundary. Default no-op.
      *
      * <p>Mirrors {@link #onAttach}: elements that registered vanilla
      * widgets via {@code screen.addRenderableWidget} should remove them

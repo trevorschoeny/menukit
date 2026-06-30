@@ -66,14 +66,6 @@ import org.jetbrains.annotations.ApiStatus;
  *       {@code afterRender} is the wrong hook for render). Fabric handles
  *       per-screen click-hook lifetime cleanup when the screen closes.</li>
  * </ol>
- *
- * <h3>Lambda-based adapters are exempt</h3>
- *
- * Adapters constructed with a {@link ScreenOriginFn} (rather than a
- * {@link com.trevorschoeny.menukit.core.MenuRegion}) don't participate in
- * this registry — they're the escape hatch scoped by the consumer's own
- * mixin. {@link ScreenPanelAdapter#on} / {@link ScreenPanelAdapter#onAny}
- * throw if called on them.
  */
 @ApiStatus.Internal
 public final class ScreenPanelRegistry {
@@ -97,7 +89,7 @@ public final class ScreenPanelRegistry {
 
     // Post-§0042 split: SlotGroupContext adapter tracking + dispatch lives in
     // menukit-containers' SlotGroupPanelRegistry. This registry handles only
-    // MenuContext + lambda-active opacity dispatch on Screen subclasses.
+    // MenuContext opacity dispatch on container screens.
 
     private static volatile boolean checkpointRun = false;
 
@@ -122,25 +114,6 @@ public final class ScreenPanelRegistry {
     private record ScreenRenderData(List<ScreenPanelAdapter> menuMatches) {}
 
     private static final Map<AbstractContainerScreen<?>, ScreenRenderData> SCREEN_DATA =
-            Collections.synchronizedMap(new WeakHashMap<>());
-
-    // ── Lambda-path opacity registry (M9 §4.4) ───────────────────────────
-    //
-    // Per-screen list of (adapter, boundsSupplier) tuples for lambda-based
-    // adapters that have called .activeOn(...). Consulted by the four input-
-    // handler mixins via findCoveringPanelAt / anyPanelCoversPoint /
-    // hasAnyVisibleModalTracking so lambda panels participate in M9's
-    // click-through prohibition automatically.
-    //
-    // WeakHashMap keyed on Screen so entries GC when the screen is
-    // unreferenced — no manual cleanup if a consumer forgets to call
-    // .deactivate(). Per-screen list rather than global so lookups by
-    // active screen are O(L) where L is per-screen lambda count.
-    private record LambdaActiveEntry(
-            ScreenPanelAdapter adapter,
-            java.util.function.Supplier<ScreenBounds> boundsSupplier) {}
-
-    private static final Map<net.minecraft.client.gui.screens.Screen, List<LambdaActiveEntry>> LAMBDA_ACTIVE =
             Collections.synchronizedMap(new WeakHashMap<>());
 
     // ── API called by ScreenPanelAdapter ────────────────────────────────
@@ -168,10 +141,10 @@ public final class ScreenPanelRegistry {
      * pairs the constructor-time {@link #trackPending}/
      * {@link #markTargetingDeclared} flow with a symmetric teardown.
      *
-     * <p>Removes from: PENDING set, REGISTERED list, every cached
-     * per-screen match list in {@code SCREEN_DATA}, and any lambda-active
-     * entry in {@code LAMBDA_ACTIVE}. Idempotent. After untrack the
-     * adapter cannot be re-registered without constructing a new one.
+     * <p>Removes from: PENDING set, REGISTERED list, and every cached
+     * per-screen match list in {@code SCREEN_DATA}. Idempotent. After
+     * untrack the adapter cannot be re-registered without constructing a
+     * new one.
      */
     static void untrack(ScreenPanelAdapter adapter) {
         PENDING.remove(adapter);
@@ -179,70 +152,11 @@ public final class ScreenPanelRegistry {
         for (ScreenRenderData data : SCREEN_DATA.values()) {
             data.menuMatches().remove(adapter);
         }
-        for (List<LambdaActiveEntry> entries : LAMBDA_ACTIVE.values()) {
-            entries.removeIf(e -> e.adapter() == adapter);
-        }
     }
 
     // Post-§0042 split: SlotGroupPanelAdapter pending/registered tracking +
     // its corresponding API surface lives in menukit-containers' parallel
     // SlotGroupPanelRegistry.
-
-    // ── Lambda-path opacity registration (M9) ───────────────────────────
-
-    /**
-     * Registers a lambda-based adapter as active on the given screen for
-     * opacity dispatch. Called from {@link ScreenPanelAdapter#activeOn}.
-     *
-     * <p>Idempotent over (screen, adapter) — a duplicate call replaces the
-     * previous bounds-supplier rather than appending a second entry.
-     */
-    static void registerLambdaActive(net.minecraft.client.gui.screens.Screen screen,
-                                      ScreenPanelAdapter adapter,
-                                      java.util.function.Supplier<ScreenBounds> boundsSupplier) {
-        boolean newRegistration;
-        synchronized (LAMBDA_ACTIVE) {
-            List<LambdaActiveEntry> entries = LAMBDA_ACTIVE.computeIfAbsent(
-                    screen, k -> new ArrayList<>());
-            // Replace existing entry for this adapter if present (idempotent).
-            newRegistration = entries.stream().noneMatch(e -> e.adapter() == adapter);
-            entries.removeIf(e -> e.adapter() == adapter);
-            entries.add(new LambdaActiveEntry(adapter, boundsSupplier));
-        }
-        // Phase 14d-3 — fire onAttach on first registration only
-        // (idempotent re-registrations skip; matches addRenderableWidget
-        // semantics where adding the same widget twice is a vanilla error).
-        if (newRegistration) {
-            for (var element : adapter.getPanel().getElements()) {
-                element.onAttach(screen);
-            }
-        }
-    }
-
-    /**
-     * Unregisters a lambda-based adapter from the given screen for opacity
-     * dispatch. Called from {@link ScreenPanelAdapter#deactivate}. No-op if
-     * the (screen, adapter) pair was never registered.
-     */
-    static void unregisterLambdaActive(net.minecraft.client.gui.screens.Screen screen,
-                                        ScreenPanelAdapter adapter) {
-        boolean wasRegistered;
-        synchronized (LAMBDA_ACTIVE) {
-            List<LambdaActiveEntry> entries = LAMBDA_ACTIVE.get(screen);
-            if (entries == null) return;
-            wasRegistered = entries.stream().anyMatch(e -> e.adapter() == adapter);
-            entries.removeIf(e -> e.adapter() == adapter);
-            if (entries.isEmpty()) {
-                LAMBDA_ACTIVE.remove(screen);
-            }
-        }
-        // Phase 14d-3 — fire onDetach on actual unregistration only.
-        if (wasRegistered) {
-            for (var element : adapter.getPanel().getElements()) {
-                element.onDetach(screen);
-            }
-        }
-    }
 
     // ── Observable state ────────────────────────────────────────────────
 
@@ -358,8 +272,6 @@ public final class ScreenPanelRegistry {
                 element.onAttach(screen);
             }
         }
-        // Lambda-active adapters fire onAttach when .activeOn is called
-        // (registerLambdaActive); onDetach when .deactivate runs.
 
         // ScreenEvents.remove fires when the screen is being removed.
         // Fire onDetach so widget-wrapping elements can unregister via
@@ -703,21 +615,6 @@ public final class ScreenPanelRegistry {
                 }
             }
         }
-        // Lambda-active adapters too.
-        synchronized (LAMBDA_ACTIVE) {
-            List<LambdaActiveEntry> entries = LAMBDA_ACTIVE.get(screen);
-            if (entries != null) {
-                for (LambdaActiveEntry entry : entries) {
-                    ScreenPanelAdapter adapter = entry.adapter();
-                    Panel panel = adapter.getPanel();
-                    if (!ClientWindowVisibility.panelShown(panel)) continue;
-                    ScreenBounds bounds = entry.boundsSupplier().get();
-                    if (bounds == null) continue;
-                    adapter.mouseReleased(bounds, mouseX, mouseY, button,
-                            screen instanceof AbstractContainerScreen<?> a ? a : null);
-                }
-            }
-        }
 
         return true;
     }
@@ -756,13 +653,11 @@ public final class ScreenPanelRegistry {
      * Unified coverage query — finds the topmost (last-registered) visible
      * panel that <em>claims</em> the cursor point ({@link #panelClaimsPoint}:
      * an opaque background minus holes, OR a solid opaque element). Iterates
-     * BOTH region-based adapters (via {@code SCREEN_DATA}) AND lambda-active
-     * adapters (via {@code LAMBDA_ACTIVE}) so both paths participate in the
+     * region adapters (via {@code SCREEN_DATA}) so they participate in the
      * click-through prohibition.
      *
-     * <p>Iteration order: region adapters first (in registration order),
-     * then lambda adapters (in registration order). Highest-z = last-
-     * registered wins; iterate forward and overwrite.
+     * <p>Iteration order: registration order. Highest-z = last-registered
+     * wins; iterate forward and overwrite.
      *
      * <p>This is the dispatch-returning half of the inertness contract (it
      * returns the panel so the caller can route the input to its elements);
@@ -791,26 +686,6 @@ public final class ScreenPanelRegistry {
                     if (panelClaimsPoint(panel, origin.get(), adapter.getPadding(),
                             mouseX, mouseY)) {
                         result = adapter; // overwrite — last-z wins
-                    }
-                }
-            }
-        }
-
-        // Lambda-active adapters (any Screen subclass).
-        synchronized (LAMBDA_ACTIVE) {
-            List<LambdaActiveEntry> entries = LAMBDA_ACTIVE.get(screen);
-            if (entries != null) {
-                for (LambdaActiveEntry entry : entries) {
-                    ScreenPanelAdapter adapter = entry.adapter();
-                    Panel panel = adapter.getPanel();
-                    if (!ClientWindowVisibility.panelShown(panel)) continue;
-                    ScreenBounds bounds = entry.boundsSupplier().get();
-                    if (bounds == null) continue;
-                    var origin = adapter.getOriginForScreen(bounds, screen);
-                    if (origin.isEmpty()) continue;
-                    if (panelClaimsPoint(panel, origin.get(), adapter.getPadding(),
-                            mouseX, mouseY)) {
-                        result = adapter;
                     }
                 }
             }
@@ -862,7 +737,7 @@ public final class ScreenPanelRegistry {
 
     /**
      * The unified "does this panel claim this screen point?" test — the core of
-     * the inertness contract, shared across container, lambda, AND vanilla-screen
+     * the inertness contract, shared across container AND vanilla-screen
      * adapters so every path agrees on ONE claim definition (no per-screen-type
      * fork). A panel claims P, in strict priority order:
      *
@@ -962,29 +837,16 @@ public final class ScreenPanelRegistry {
     }
 
     /**
-     * Helper: returns the {@link ScreenBounds} appropriate for an
-     * adapter on the given screen — frame bounds for region adapters
-     * on AbstractContainerScreen; supplier-evaluated bounds for lambda
-     * adapters. Returns null if no bounds available (adapter not
-     * registered for this screen).
+     * Helper: returns the {@link ScreenBounds} for an adapter on the given
+     * screen — frame bounds for the adapter's container screen. Returns null
+     * if no bounds available (the screen isn't an
+     * {@link AbstractContainerScreen} — shouldn't happen for a covering
+     * region adapter).
      */
     private static @Nullable ScreenBounds boundsForAdapter(Screen screen,
                                                             ScreenPanelAdapter adapter) {
-        if (adapter.isRegionBased()) {
-            if (screen instanceof AbstractContainerScreen<?> acs) {
-                return frameBounds(acs);
-            }
-            return null; // region adapter on non-AbstractContainerScreen — shouldn't happen
-        }
-        // Lambda — find supplier in LAMBDA_ACTIVE.
-        synchronized (LAMBDA_ACTIVE) {
-            List<LambdaActiveEntry> entries = LAMBDA_ACTIVE.get(screen);
-            if (entries == null) return null;
-            for (LambdaActiveEntry entry : entries) {
-                if (entry.adapter() == adapter) {
-                    return entry.boundsSupplier().get();
-                }
-            }
+        if (screen instanceof AbstractContainerScreen<?> acs) {
+            return frameBounds(acs);
         }
         return null;
     }
@@ -1023,16 +885,6 @@ public final class ScreenPanelRegistry {
             Panel panel = adapter.getPanel();
             if (ClientWindowVisibility.panelShown(panel) && panel.tracksAsModal()) return true;
         }
-        // Lambda-active modal-tracking panels too.
-        synchronized (LAMBDA_ACTIVE) {
-            List<LambdaActiveEntry> entries = LAMBDA_ACTIVE.get(screen);
-            if (entries != null) {
-                for (LambdaActiveEntry entry : entries) {
-                    Panel panel = entry.adapter().getPanel();
-                    if (ClientWindowVisibility.panelShown(panel) && panel.tracksAsModal()) return true;
-                }
-            }
-        }
         return false;
     }
 
@@ -1042,9 +894,6 @@ public final class ScreenPanelRegistry {
      * #hasVisibleModalTrackingOnScreen} but reads
      * {@code Minecraft.getInstance().screen} for callers without a
      * screen reference (tooltip suppression mixin, cursor-lock callback).
-     *
-     * <p>Generalized to any {@link Screen} subclass — lambda adapters on
-     * standalone vanilla screens (PauseScreen, etc.) participate too.
      */
     public static boolean hasAnyVisibleModalTracking() {
         var mc = net.minecraft.client.Minecraft.getInstance();
@@ -1053,16 +902,6 @@ public final class ScreenPanelRegistry {
         if (screen == null) return false;
         if (screen instanceof AbstractContainerScreen<?> acs) {
             if (hasVisibleModalTrackingOnScreen(acs)) return true;
-        }
-        // Lambda-active on any screen subclass.
-        synchronized (LAMBDA_ACTIVE) {
-            List<LambdaActiveEntry> entries = LAMBDA_ACTIVE.get(screen);
-            if (entries != null) {
-                for (LambdaActiveEntry entry : entries) {
-                    Panel panel = entry.adapter().getPanel();
-                    if (ClientWindowVisibility.panelShown(panel) && panel.tracksAsModal()) return true;
-                }
-            }
         }
         return false;
     }
@@ -1135,26 +974,6 @@ public final class ScreenPanelRegistry {
             if (data != null) {
                 for (ScreenPanelAdapter adapter : data.menuMatches) {
                     Panel panel = adapter.getPanel();
-                    if (!ClientWindowVisibility.panelShown(panel)) continue;
-                    for (var element : panel.getElements()) {
-                        if (!ClientWindowVisibility.elementShown(panel, element)) continue;
-                        int[] overlay = element.getActiveOverlayBounds();
-                        if (overlay != null
-                                && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
-                                && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Lambda-active adapters (any Screen subclass).
-        synchronized (LAMBDA_ACTIVE) {
-            List<LambdaActiveEntry> entries = LAMBDA_ACTIVE.get(screen);
-            if (entries != null) {
-                for (LambdaActiveEntry entry : entries) {
-                    Panel panel = entry.adapter().getPanel();
                     if (!ClientWindowVisibility.panelShown(panel)) continue;
                     for (var element : panel.getElements()) {
                         if (!ClientWindowVisibility.elementShown(panel, element)) continue;

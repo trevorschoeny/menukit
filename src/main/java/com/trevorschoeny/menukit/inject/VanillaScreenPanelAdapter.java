@@ -31,7 +31,7 @@ import java.util.Optional;
  * {@link ScreenPanelAdapter} is built around the inventory-chrome model —
  * {@link MenuRegion} anchors against {@code leftPos}/{@code topPos}/
  * {@code imageWidth}/{@code imageHeight}; {@link MenuChrome} extends
- * those bounds by the screen's chrome extents; {@link ScreenOriginFn}
+ * those bounds by the screen's chrome extents; its origin resolution
  * takes an {@code AbstractContainerScreen<?>}. None of that applies to
  * non-container screens (which have no inventory chrome — they fill the
  * whole screen). Trying to unify the two would bifurcate the API per
@@ -88,7 +88,7 @@ public final class VanillaScreenPanelAdapter {
 
     private final Panel panel;
     private final int padding;
-    private final VanillaScreenOriginFn originFn;
+    private final VanillaScreenRegion region;
 
     /** Declared targets when {@link #targetedAny} is false. Null until {@code .on()}. */
     private @Nullable List<Class<? extends Screen>> targets = null;
@@ -130,8 +130,8 @@ public final class VanillaScreenPanelAdapter {
                                        int padding, int priority) {
         this.panel = Objects.requireNonNull(panel, "panel must not be null");
         this.padding = padding;
+        this.region = region;
         RegionRegistry.registerVanillaScreen(panel, region, padding, priority);
-        this.originFn = RegionRegistry.vanillaScreenOriginFn(panel, region);
         VanillaScreenPanelRegistry.trackPending(this);
     }
 
@@ -222,7 +222,7 @@ public final class VanillaScreenPanelAdapter {
      */
     public Optional<ScreenOrigin> getOriginForScreen(int sw, int sh, Screen screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return Optional.empty();
-        ScreenOrigin origin = originFn.compute(sw, sh, screen);
+        ScreenOrigin origin = RegionRegistry.resolveVanillaScreenOrigin(panel, region, sw, sh, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return Optional.empty();
         return Optional.of(origin);
     }
@@ -236,7 +236,7 @@ public final class VanillaScreenPanelAdapter {
                        int mouseX, int mouseY, Screen screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return;
 
-        ScreenOrigin origin = originFn.compute(sw, sh, screen);
+        ScreenOrigin origin = RegionRegistry.resolveVanillaScreenOrigin(panel, region, sw, sh, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return;
 
         int panelWidth = panel.getWidth() + 2 * padding;
@@ -278,7 +278,7 @@ public final class VanillaScreenPanelAdapter {
                                  int button, Screen screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return false;
 
-        ScreenOrigin origin = originFn.compute(sw, sh, screen);
+        ScreenOrigin origin = RegionRegistry.resolveVanillaScreenOrigin(panel, region, sw, sh, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return false;
 
         // ── Pass 1: active-overlay exclusive claims ────────────────────
@@ -376,7 +376,7 @@ public final class VanillaScreenPanelAdapter {
                                   double scrollX, double scrollY, Screen screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return false;
 
-        ScreenOrigin origin = originFn.compute(sw, sh, screen);
+        ScreenOrigin origin = RegionRegistry.resolveVanillaScreenOrigin(panel, region, sw, sh, screen);
         if (origin == ScreenOrigin.OUT_OF_REGION) return false;
 
         int contentX = origin.x() + padding;

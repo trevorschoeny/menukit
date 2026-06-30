@@ -101,7 +101,7 @@ public final class MenuChrome {
      * match on {@code screen.getClass()}; returns {@link ChromeExtents#NONE}
      * for screens without a registered provider.
      *
-     * <p>Called per-frame from {@code RegionRegistry.menuOriginFn} as
+     * <p>Called per-frame from {@code RegionRegistry.resolveMenuOrigin} as
      * part of origin computation. Must be cheap.
      */
     public static ChromeExtents of(AbstractContainerScreen<?> screen) {
