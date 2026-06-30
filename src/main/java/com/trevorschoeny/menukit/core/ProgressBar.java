@@ -300,6 +300,7 @@ public class ProgressBar extends AbstractPanelElement<ProgressBar> {
      * bar for chaining. Additive to the positional constructors.
      */
     public ProgressBar size(int width, int height) {
+        this.authoredWidth = width;   // re-author the cap intent (matches Button.size)
         this.width = width;
         this.height = height;
         return this;

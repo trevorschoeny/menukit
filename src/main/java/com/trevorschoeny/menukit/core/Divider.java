@@ -169,7 +169,8 @@ public class Divider extends AbstractPanelElement<Divider> {
      */
     @Override
     public void fillWidth(int width) {
-        if (this.width >= this.height) { // horizontal orientation
+        if (authoredW() >= height) { // horizontal orientation (by authored dims —
+                                     // same test layoutWithin uses, so fill + cap agree)
             this.authoredWidth = width;
             this.width = width;
         }
@@ -226,6 +227,7 @@ public class Divider extends AbstractPanelElement<Divider> {
      * {@code (thickness, length)}).
      */
     public Divider size(int width, int height) {
+        this.authoredWidth = width;   // re-author the cap intent (matches Button.size)
         this.width = width;
         this.height = height;
         return this;

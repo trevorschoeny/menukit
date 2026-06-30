@@ -66,19 +66,19 @@ public class Button extends AbstractPanelElement<Button> {
 
     @Override protected Button self() { return this; }
 
-    // width/height are the RESOLVED (post-constraint) dimensions — what
-    // getWidth/getHeight report and what render paints. Under a panel's
-    // layoutWithin pass they shrink/grow from the authored intent below.
+    // width is the RESOLVED (post-constraint) width — what getWidth reports and
+    // what render paints. Under a panel's layoutWithin pass it shrinks from the
+    // authored intent below. Height is fixed: an element LABEL scrolls within
+    // the (possibly narrowed) box, it does not wrap, so the box never grows.
     private int width;
     private int height;
 
-    // Authored (intent) dimensions, captured lazily the first time the panel
-    // queries naturalWidth/layoutWithin (sentinel = not yet captured). Keeping
-    // the intent separate is what makes the shrink reversible — a later wider
-    // budget restores width to the authored value (the fix for the historical
-    // fillWidth "ratchet"). .size()/fillWidth re-author them explicitly.
+    // Authored (intent) width, captured lazily the first time the panel queries
+    // naturalWidth/layoutWithin (sentinel = not yet captured). Keeping the intent
+    // separate is what makes the shrink reversible — a later wider budget
+    // restores width to the authored value (the fix for the historical fillWidth
+    // "ratchet"). .size()/fillWidth re-author it explicitly.
     private int authoredWidth = Integer.MIN_VALUE;
-    private int authoredHeight = Integer.MIN_VALUE;
 
     private final Component text;
     private final Consumer<Button> onClick;
@@ -180,11 +180,6 @@ public class Button extends AbstractPanelElement<Button> {
     /** Horizontal padding around a width-0 button's auto-sized label. */
     private static final int LABEL_PAD = 6;
 
-    /** Inner horizontal inset for the wrapped label so glyphs don't touch the frame. */
-    private static final int TEXT_INSET = 4;
-    /** Inner vertical padding above/below a multi-line label block. */
-    private static final int TEXT_VPAD = 3;
-
     /** Column-fill (Pass 3): stretch this button to the column's widest extent.
      *  Re-authors the intent so the panel's reactive pass treats this as the
      *  natural width to clamp against. */
@@ -193,18 +188,12 @@ public class Button extends AbstractPanelElement<Button> {
         this.width = width;
     }
 
-    // ── Reactive sizing (Verification-4): the label-wrap primitive ─────
+    // ── Reactive sizing (Verification-4): cap, label scrolls ───────────
 
     /** Lazily capture the authored width the first time it's queried. */
     private int authoredW() {
         if (authoredWidth == Integer.MIN_VALUE) authoredWidth = width;
         return authoredWidth;
-    }
-
-    /** Lazily capture the authored height the first time it's queried. */
-    private int authoredH() {
-        if (authoredHeight == Integer.MIN_VALUE) authoredHeight = height;
-        return authoredHeight;
     }
 
     /** Natural label width when this button auto-sizes (authored width <= 0). */
@@ -225,30 +214,14 @@ public class Button extends AbstractPanelElement<Button> {
 
     /**
      * Resolve to the panel-assigned budget: shrink the box to {@code min(natural,
-     * budget)} and, when the label no longer fits on one line at that width,
-     * grow the box taller so the label wraps across multiple centered lines
-     * (rendered by {@link #renderContent}). Reversible — a wider budget restores
-     * the authored box.
+     * budget)} so the button never bleeds past the panel. The LABEL does not
+     * wrap — element labels scroll horizontally within the (possibly narrowed)
+     * box ({@link #renderContent} via MKText), so the box keeps its authored
+     * height. Reversible — a wider budget restores the authored width.
      */
     @Override
     public void layoutWithin(int budget) {
-        int natural = naturalWidth();
-        this.width = Math.min(natural, budget);
-
-        // Grow height to fit however many lines the label wraps to at the
-        // resolved width — but never below the authored height (a single-line
-        // label leaves the button its declared size).
-        int wrapBudget = Math.max(1, this.width - TEXT_INSET * 2);
-        int lines = Math.max(1,
-                Minecraft.getInstance().font.split(text, wrapBudget).size());
-        int needed = lines * Minecraft.getInstance().font.lineHeight + TEXT_VPAD * 2;
-        this.height = Math.max(authoredH(), needed);
-    }
-
-    /** Extra height grown beyond the authored box because the label wrapped. */
-    @Override
-    public int extraLayoutHeight() {
-        return Math.max(0, height - authoredH());
+        this.width = Math.min(naturalWidth(), budget);
     }
 
     /** Interactive — handles clicks, so it claims (blocks vanilla behind) on a non-opaque panel. */
@@ -284,7 +257,6 @@ public class Button extends AbstractPanelElement<Button> {
      */
     public Button size(int width, int height) {
         this.authoredWidth = width;
-        this.authoredHeight = height;
         this.width = width;
         this.height = height;
         return this;
@@ -430,23 +402,17 @@ public class Button extends AbstractPanelElement<Button> {
      * composite visuals) while keeping the default panel-style background.
      */
     protected void renderContent(RenderContext ctx, int sx, int sy) {
+        // Text — centered within button bounds, scroll-on-overflow. Element
+        // labels SCROLL, they don't wrap (Verification-4): MKText.renderCentered
+        // draws centered when the label fits and scrolls it back-and-forth
+        // (vanilla's button-label primitive) when the panel narrowed the button
+        // below the label width.
+        //
         // 1.21.11 ARGB requirement: colors must have a non-zero alpha byte or
         // the underlying draw silently discards the text (ARGB.alpha != 0).
         int textColor = isDisabled() ? 0xFF808080 : 0xFFFFFFFF;
-
-        // Reactive label (Verification-4): when the panel constrained this
-        // button narrow enough that the label needs more than one line, paint
-        // it WRAPPED + centered (the box grew taller in layoutWithin to fit).
-        // Otherwise keep the single-line path — centered static draw when it
-        // fits, vanilla scroll-back-and-forth when it marginally overflows.
-        int wrapBudget = Math.max(1, width - TEXT_INSET * 2);
-        if (Minecraft.getInstance().font.split(text, wrapBudget).size() > 1) {
-            MKText.renderWrappedCentered(ctx.graphics(), text, sx, sy,
-                    width, height, wrapBudget, textColor, true);
-        } else {
-            MKText.renderCentered(ctx.graphics(), text, sx, sy, width, height,
-                    textColor, true);
-        }
+        MKText.renderCentered(ctx.graphics(), text, sx, sy, width, height,
+                textColor, true);
     }
 
     // ── Click Handling ─────────────────────────────────────────────────

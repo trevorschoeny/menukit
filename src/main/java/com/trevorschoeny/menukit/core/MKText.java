@@ -141,37 +141,6 @@ public final class MKText {
     }
 
     /**
-     * Renders {@code text} wrapped across multiple lines, each line centered
-     * horizontally, and the whole block centered vertically within the
-     * {@code width × height} box at {@code (x, y)}. The Verification-4
-     * "label wraps within the button" primitive: a Button whose label is too
-     * long for its (panel-constrained) width splits the label to {@code
-     * wrapWidth} and paints the lines stacked, instead of clipping/scrolling.
-     *
-     * <p>{@code wrapWidth} is the horizontal pixel budget for each line —
-     * typically the box width minus a small inner padding so glyphs don't
-     * touch the frame. Uses {@code font.split}, the same wrap vanilla uses for
-     * tooltips / book pages, so wrap points match player expectations.
-     *
-     * @param wrapWidth per-line wrap budget in pixels (the caller pre-insets)
-     */
-    public static void renderWrappedCentered(GuiGraphics graphics, Component text,
-                                              int x, int y, int width, int height,
-                                              int wrapWidth, int color, boolean shadow) {
-        Font font = Minecraft.getInstance().font;
-        java.util.List<net.minecraft.util.FormattedCharSequence> lines =
-                font.split(text, Math.max(1, wrapWidth));
-        int blockH = lines.size() * font.lineHeight;
-        int lineY = y + (height - blockH) / 2;
-        for (net.minecraft.util.FormattedCharSequence line : lines) {
-            int lineW = font.width(line);
-            int lineX = x + (width - lineW) / 2;
-            graphics.drawString(font, line, lineX, lineY, color, shadow);
-            lineY += font.lineHeight;
-        }
-    }
-
-    /**
      * Convenience: left-aligned single-line scroll on a single text
      * baseline. Vertical bounds are derived from font line height
      * — text draws at {@code y} with scroll-on-overflow inside
