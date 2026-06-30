@@ -91,9 +91,16 @@ public final class MainRegionLayout {
      * @param reserveTitle reserve a title strip at the top of the frame (true for
      *                     container screens that draw the title at the frame top;
      *                     false for standalone screens that draw it at the screen top)
+     * @param autoFitMain  feed the MAIN frame a vertical budget so it auto-scrolls
+     *                     when taller than the screen ("shrink-to-fit is the default",
+     *                     applied to the frame itself). Pass false for a slot-bearing
+     *                     container main — its vanilla slots are pinned in absolute
+     *                     coords and have no scroll hook, so it must keep its natural
+     *                     height. Standalone (element-only) mains always pass true.
      */
     public static Result resolve(List<Panel> panels, Function<Panel, int[]> sizeFn,
-                                 int screenW, int screenH, boolean reserveTitle) {
+                                 int screenW, int screenH, boolean reserveTitle,
+                                 boolean autoFitMain) {
         Panel main = null;
         for (Panel p : panels) {
             if (p.getPosition().mode() == PanelPosition.Mode.MAIN) { main = p; break; }
@@ -108,6 +115,15 @@ public final class MainRegionLayout {
         // from both edges, then wrap) — fed BEFORE measuring, the SAME reactive-
         // sizing engine its region siblings use, just with the centred budget.
         feedCentered(main, screenW);
+        // "Shrink-to-fit is the default" applied to the frame itself: feed the MAIN
+        // its vertical budget too, so a main taller than the screen auto-scrolls (the
+        // SAME effectiveContentHeight → ScrollContainer path region siblings already
+        // take) instead of growing off-screen and forcing the consumer to pin a
+        // height by hand. Gated by autoFitMain because a slot-bearing container main
+        // must NOT scroll — its vanilla slots are pinned in absolute coords with no
+        // scroll hook (the host passes false there). Fed BEFORE the measure, exactly
+        // like the width budget, so the measure reflects any wrap/scroll.
+        if (autoFitMain) feedMainHeight(main, screenH);
         int[] ms = sizeFn.apply(main);
         int mainW = ms[0], mainContentH = ms[1];
         // Reserve the title strip at the top of the frame (the vanilla-container
@@ -118,6 +134,17 @@ public final class MainRegionLayout {
         int frameH = mainContentH + titleStrip;
         int leftPos = (screenW - mainW) / 2;
         int topPos = (screenH - frameH) / 2;
+        // Standalone title-dock clamp — restores the legacy BODY-stack guard the
+        // MAIN-path migration dropped. A standalone screen draws its title at the
+        // SCREEN top (y = SCREEN_EDGE_MARGIN), OUTSIDE the frame (titleStrip = 0 when
+        // !reserveTitle); centring a tall frame on the full screen height would creep
+        // its top edge up into that title band, so clamp the frame top to sit just
+        // below it. Container screens (reserveTitle) draw the title INSIDE the frame
+        // and need no screen-top clamp. Inert for a short frame whose centred top
+        // already sits well below the band.
+        if (!reserveTitle) {
+            topPos = Math.max(topPos, RegionConstants.SCREEN_EDGE_MARGIN + TITLE_STRIP);
+        }
         // MAIN content below the title strip; bounds are leftPos/topPos-relative.
         bounds.put(main.getId(), new PanelBounds(0, titleStrip, mainW, mainContentH));
 
@@ -209,5 +236,25 @@ public final class MainRegionLayout {
     private static void feedCentered(Panel p, int screenW) {
         p.setAvailableContentWidth(
                 screenW - 2 * RegionConstants.SCREEN_EDGE_MARGIN - 2 * p.interiorPadding());
+    }
+
+    /**
+     * Centred-frame HEIGHT budget — the vertical twin of {@link #feedCentered},
+     * fed to the MAIN frame so it auto-scrolls when its content is taller than the
+     * screen (the "shrink-to-fit is the default" principle applied to the frame, not
+     * just to region siblings). The budget is the content-height between the top
+     * chrome and the bottom screen-edge margin: the full screen height, minus a
+     * margin at each edge, minus one {@link #TITLE_STRIP} for the title band (drawn
+     * at the screen top for a standalone screen, or inside the frame for a
+     * container), minus the panel's own interior padding. When the content fits under
+     * this ceiling the feed is inert (no scroll, no scrollbar reserve); only a
+     * genuine overflow builds the ScrollContainer (Panel.ensureConfigured, gated by
+     * MIN_SCROLL_VIEWPORT). Only the MAIN frame auto-fits height this way — an
+     * overlay / dialog grows naturally (a too-tall overlay is a consumer bug, not
+     * something to silently scroll) and screen-anchored chrome is small by design.
+     */
+    private static void feedMainHeight(Panel p, int screenH) {
+        p.setAvailableContentHeight(
+                screenH - 2 * RegionConstants.SCREEN_EDGE_MARGIN - TITLE_STRIP - 2 * p.interiorPadding());
     }
 }

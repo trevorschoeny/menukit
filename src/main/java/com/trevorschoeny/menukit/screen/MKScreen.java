@@ -416,9 +416,13 @@ public class MKScreen extends Screen {
             // MainRegionLayout returns leftPos/topPos-relative bounds + the
             // centred frame's leftPos/topPos; mainLayout makes
             // effectivePanelScreenBounds read those bounds directly.
+            // A standalone screen is element-only (no slot groups), so its MAIN
+            // frame is always safe to auto-fit: feed it a vertical budget so a body
+            // taller than the screen auto-scrolls instead of overflowing — the
+            // consumer no longer pins a height by hand.
             var layout = MainRegionLayout.resolve(
                     panels, this::computePanelSize, this.width, this.height,
-                    /*reserveTitle=*/ false);
+                    /*reserveTitle=*/ false, /*autoFitMain=*/ true);
             panelBounds = layout.bounds();
             leftPos = layout.leftPos();
             topPos  = layout.topPos();
