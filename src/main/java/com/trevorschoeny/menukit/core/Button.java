@@ -434,6 +434,13 @@ public class Button extends AbstractPanelElement<Button> {
      */
     protected void renderBackground(RenderContext ctx, int sx, int sy) {
         boolean disabled = isDisabled();
+        // The background box covers the GROWN button height (getHeight()), not the
+        // authored `height` — so a wrapped multi-line label gets its frame/edges
+        // around EVERY line, not just line 1 (otherwise the box stays single-line
+        // tall and the wrapped lines spill outside it). Mirrors the same getHeight()
+        // fix on Dropdown's trigger background. Inert when not wrapped (getHeight()
+        // == height for a single-line / pinned-height button).
+        int h = getHeight();
         if (controlStyle == ControlStyle.VANILLA) {
             // Vanilla style — sprite atlas + optional pressed overlay.
             // Base sprite picks per state (default / highlighted /
@@ -443,28 +450,28 @@ public class Button extends AbstractPanelElement<Button> {
             // distinct pressed visual, so MK synthesizes one for
             // consumer-feedback parity with the MK INSET pressed state.
             ControlStyle.renderVanillaButton(ctx.graphics(),
-                    sx, sy, width, height,
+                    sx, sy, width, h,
                     !disabled,
                     hovered || pressed);
             if (pressed && !disabled) {
                 ControlStyle.renderVanillaPressedOverlay(ctx.graphics(),
-                        sx, sy, width, height);
+                        sx, sy, width, h);
             }
             return;
         }
         // MK style (default) — RAISED panel with state overlays.
         if (disabled) {
-            PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, PanelStyle.DARK);
+            PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, h, PanelStyle.DARK);
         } else if (pressed) {
             // Press affordance — INSET sprite (sunken bevel) signals "the
             // button is currently being pushed down." Skips the hover overlay
             // since the depressed look is itself the feedback.
-            PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, PanelStyle.INSET);
+            PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, h, PanelStyle.INSET);
         } else {
-            PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, PanelStyle.RAISED);
+            PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, h, PanelStyle.RAISED);
             if (hovered) {
                 // Translucent highlight overlay (inside the border)
-                ctx.graphics().fill(sx + 1, sy + 1, sx + width - 1, sy + height - 1,
+                ctx.graphics().fill(sx + 1, sy + 1, sx + width - 1, sy + h - 1,
                         0x30FFFFFF);
             }
         }
