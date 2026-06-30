@@ -283,26 +283,6 @@ public final class RegionRegistry {
         // Stale reference after unregister() — skip this panel this frame.
         if (prefix == NOT_REGISTERED) return ScreenOrigin.OUT_OF_REGION;
 
-        // Movement ① — overlay override. An overlay panel (PanelPosition.center(),
-        // or a dimsBehind / tracksAsModal panel) ignores the region it was
-        // registered with and floats CENTERED ON THE SCREEN WINDOW, drawn on top
-        // (the on-top pass split lives in ScreenPanelRegistry.renderMatchingPanels).
-        // This is the single overlay rule — identical to MKScreen, which centers
-        // isOverlayPositioned() panels on (this.width/this.height). Collapsing the
-        // region path onto the same rule is what stops a modal registered at, say,
-        // RIGHT_ALIGN_TOP from drawing at the top-right edge instead of centered.
-        // Budget is the symmetric screen content width (matching MKScreen's
-        // computePanelSize) so a wide overlay wraps to the screen, not a region —
-        // fed BEFORE getWidth() so the measured width reflects any wrap.
-        if (panel.isOverlayPositioned()) {
-            int sw = guiScaledWidth(), sh = guiScaledHeight();
-            int m = RegionConstants.SCREEN_EDGE_MARGIN;
-            panel.setAvailableContentWidth(sw - 2 * m - 2 * pad);
-            int opw = panel.getWidth() + 2 * pad;
-            int oph = panel.getHeight() + 2 * pad;
-            return new ScreenOrigin((sw - opw) / 2, (sh - oph) / 2);
-        }
-
         // Extend bounds by the screen's chrome extents on all axes —
         // treats the chrome as part of the menu's visible extent, which
         // is what consumers mean when they say "the TOP of the menu" in
@@ -315,30 +295,60 @@ public final class RegionRegistry {
                 bounds.imageWidth() + chrome.left() + chrome.right(),
                 bounds.imageHeight() + chrome.top() + chrome.bottom());
 
-        // Pass 3 — feed the panel its screen-edge content-width budget BEFORE
-        // measuring its width, using the SAME chrome-extended frame the origin
-        // math uses (so budget and origin agree on where the frame is). The
-        // panel wraps its content to this only if it would otherwise overflow.
-        int availOuter = RegionMath.availableMenuWidth(
-                region, effective, guiScaledWidth(), RegionConstants.SCREEN_EDGE_MARGIN);
-        panel.setAvailableContentWidth(availOuter - 2 * pad);
+        return resolveAround(panel, region, effective, pad, prefix,
+                guiScaledWidth(), guiScaledHeight());
+    }
 
-        // Movement ② — feed the vertical screen-edge budget too, the height twin
-        // of the width budget above (same chrome-extended frame). A panel anchored
-        // above/below the frame auto-scrolls into the room its anchor leaves toward
-        // the screen edge instead of running off-screen (then clamping over the
-        // frame). Inert when the panel's natural height fits the ceiling.
-        int availOuterH = RegionMath.availableMenuHeight(
-                region, effective, guiScaledHeight(), RegionConstants.SCREEN_EDGE_MARGIN);
-        panel.setAvailableContentHeight(availOuterH - 2 * pad);
+    /**
+     * The frame-relative region resolution CORE, shared by the vanilla-injection
+     * path ({@link #resolveMenuOrigin}, frame = the menu frame) and the custom-
+     * screen path (Movement ③ — frame = the screen's MAIN panel bounds, fed by
+     * {@link com.trevorschoeny.menukit.core.MainRegionLayout}). Given a frame in
+     * screen coordinates it applies, identically in both contexts:
+     * <ul>
+     *   <li>the single overlay rule (①) — an overlay panel ignores its region and
+     *       floats centred on the SCREEN WINDOW (drawn on top via the pass split
+     *       in {@link ScreenPanelRegistry#renderMatchingPanels});</li>
+     *   <li>the both-axis screen-edge budgets — ① width + ② height — fed BEFORE
+     *       measuring so the panel wraps/auto-scrolls to fit the room its anchor
+     *       leaves toward the screen edge;</li>
+     *   <li>{@link RegionMath#resolveMenu} for the final anchored origin.</li>
+     * </ul>
+     * Returns {@link ScreenOrigin#OUT_OF_REGION} when the panel can't be placed.
+     *
+     * @param frame  the anchor frame in screen coords (the menu frame, or the
+     *               custom screen's main-panel bounds)
+     * @param pad    the panel's content padding (added around getWidth/getHeight)
+     * @param prefix axial stacking offset of preceding visible same-region siblings
+     */
+    public static ScreenOrigin resolveAround(Panel panel, MenuRegion region,
+            ScreenBounds frame, int pad, int prefix, int sw, int sh) {
+        // Movement ① — overlay override: ignore the region, float centred on the
+        // screen window. Symmetric screen content-width budget (matching MKScreen)
+        // so a wide overlay wraps to the screen, fed BEFORE getWidth().
+        if (panel.isOverlayPositioned()) {
+            int m = RegionConstants.SCREEN_EDGE_MARGIN;
+            panel.setAvailableContentWidth(sw - 2 * m - 2 * pad);
+            int opw = panel.getWidth() + 2 * pad;
+            int oph = panel.getHeight() + 2 * pad;
+            return new ScreenOrigin((sw - opw) / 2, (sh - oph) / 2);
+        }
+
+        // ① width budget — fed BEFORE measuring so getWidth() reflects any wrap.
+        int availW = RegionMath.availableMenuWidth(region, frame, sw,
+                RegionConstants.SCREEN_EDGE_MARGIN);
+        panel.setAvailableContentWidth(availW - 2 * pad);
+        // ② height budget — the vertical twin: auto-scroll into the room the
+        // anchor leaves toward the screen edge instead of running off-screen.
+        int availH = RegionMath.availableMenuHeight(region, frame, sh,
+                RegionConstants.SCREEN_EDGE_MARGIN);
+        panel.setAvailableContentHeight(availH - 2 * pad);
 
         int pw = panel.getWidth() + 2 * pad;
         int ph = panel.getHeight() + 2 * pad;
-
-        var result = RegionMath.resolveMenu(region, effective, pw, ph, prefix,
-                guiScaledWidth(), guiScaledHeight());
+        var result = RegionMath.resolveMenu(region, frame, pw, ph, prefix, sw, sh);
         if (result.isEmpty()) {
-            warnMenuOverflowOnce(panel, region, pw, ph, prefix, effective);
+            warnMenuOverflowOnce(panel, region, pw, ph, prefix, frame);
             return ScreenOrigin.OUT_OF_REGION;
         }
         return result.get();
