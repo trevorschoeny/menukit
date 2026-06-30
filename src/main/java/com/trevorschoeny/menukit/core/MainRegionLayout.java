@@ -31,7 +31,12 @@ import java.util.function.Function;
  * <h3>What each non-main panel becomes</h3>
  * <ul>
  *   <li><b>Overlay</b> ({@link Panel#isOverlayPositioned()} — {@code center()}, or
- *       a dim/modal panel): floats centred on the screen window, drawn on top.</li>
+ *       a dim/modal panel): floats centred on the screen window (the single overlay
+ *       rule ①). NOTE: {@code MKCHandledScreen} renders its panels in declaration
+ *       order — there is no separate on-top/dim pass for an overlay added directly to
+ *       a custom screen's panel list (none exist today; injected modals use the
+ *       vanilla region path, which DOES have the 3-pass). Wiring an on-top pass here
+ *       is a follow-up if an in-panel custom-screen overlay is ever needed.</li>
  *   <li><b>{@link PanelPosition.Mode#REGION}</b>: anchored to the main frame via
  *       its {@link MenuRegion}, clamped into the screen safe area. Siblings sharing
  *       a region stack with {@link RegionConstants#MENU_STACK_GAP}.</li>
@@ -49,6 +54,11 @@ import java.util.function.Function;
 public final class MainRegionLayout {
 
     private MainRegionLayout() {}
+
+    /** Title strip reserved at the top of the main frame — the screen title draws
+     *  here and the MAIN panel's content sits below it. Matches the legacy BODY-
+     *  stack's titleHeight reservation so the title never overprints the first row. */
+    private static final int TITLE_STRIP = 14;
 
     /**
      * @param leftPos main frame screen-X (and the origin for leftPos-relative bounds)
@@ -90,13 +100,20 @@ public final class MainRegionLayout {
         }
 
         int[] ms = sizeFn.apply(main);
-        int mainW = ms[0], mainH = ms[1];
+        int mainW = ms[0], mainContentH = ms[1];
+        // Reserve the title strip at the top of the frame (the vanilla-container
+        // convention the legacy BODY-stack reserved via titleHeight): the screen
+        // title draws in the strip, the MAIN panel's content sits BELOW it. Without
+        // this the title overprinted the main panel's first row (③ blocker).
+        int frameH = mainContentH + TITLE_STRIP;
         int leftPos = (screenW - mainW) / 2;
-        int topPos = (screenH - mainH) / 2;
-        bounds.put(main.getId(), new PanelBounds(0, 0, mainW, mainH));
+        int topPos = (screenH - frameH) / 2;
+        // MAIN content below the title strip; bounds are leftPos/topPos-relative.
+        bounds.put(main.getId(), new PanelBounds(0, TITLE_STRIP, mainW, mainContentH));
 
-        // The frame every sibling resolves against — the main panel in screen coords.
-        ScreenBounds frame = new ScreenBounds(leftPos, topPos, mainW, mainH);
+        // The frame every sibling resolves against — the FULL main frame (title
+        // strip + content) in screen coords, so siblings anchor OUTSIDE the title.
+        ScreenBounds frame = new ScreenBounds(leftPos, topPos, mainW, frameH);
         int margin = RegionConstants.SCREEN_EDGE_MARGIN;
 
         // Running axial stacking prefix per region (declaration order), mirroring
@@ -151,6 +168,6 @@ public final class MainRegionLayout {
                 }
             }
         }
-        return new Result(leftPos, topPos, mainW, mainH, bounds);
+        return new Result(leftPos, topPos, mainW, frameH, bounds);
     }
 }
