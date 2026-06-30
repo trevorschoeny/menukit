@@ -58,6 +58,74 @@ public final class RegionMath {
         return 2 * Math.min(centerX - margin, sw - margin - centerX);
     }
 
+    // ── Movement ②: vertical twins of the width primitives ──────────────
+    //
+    // Same shape as growRight/growLeft/centeredWidth, rotated 90°. A panel
+    // anchored above/below the frame computes how much OUTER HEIGHT it may
+    // occupy before crossing the top/bottom screen-edge margin; the panel
+    // then auto-scrolls into that budget instead of running off-screen. Pure
+    // arithmetic — each region pins one edge and grows into the budget.
+
+    /** Room for a panel whose top edge is pinned at {@code originY} and which
+     *  grows downward, before the bottom screen-edge margin. */
+    public static int growDownHeight(int originY, int sh, int margin) {
+        return sh - margin - originY;
+    }
+
+    /** Room for a panel whose bottom edge is pinned at {@code bottomEdgeY} and
+     *  which grows upward, before the top screen-edge margin. */
+    public static int growUpHeight(int bottomEdgeY, int margin) {
+        return bottomEdgeY - margin;
+    }
+
+    /** Room for a panel centered on {@code centerY} that must stay clear of
+     *  BOTH screen-edge margins — symmetric about the center, binding edge is
+     *  whichever is nearer. */
+    public static int centeredHeight(int centerY, int sh, int margin) {
+        return 2 * Math.min(centerY - margin, sh - margin - centerY);
+    }
+
+    /**
+     * OUTER available height (padding-inclusive) for a MenuContext region panel
+     * before it crosses the screen-edge margin, given the (chrome-extended) menu
+     * frame and the screen height. The height twin of {@link #availableMenuWidth}
+     * — mirrors {@link #resolveMenu}'s per-region Y geometry so a too-tall panel
+     * auto-scrolls into exactly the room its anchor leaves toward the screen edge,
+     * rather than rendering off-screen (then getting clamped over the frame). The
+     * caller subtracts the panel's 2×padding to get the content-height ceiling for
+     * {@link com.trevorschoeny.menukit.core.Panel#setAvailableContentHeight}.
+     *
+     * <p>Like {@link #availableMenuWidth}, the stacking prefix is ignored here —
+     * the budget is computed for the region's anchor edge (an over-estimate for
+     * the 2nd+ panel in a vertically-stacked adaptive set; single-panel and
+     * horizontal-flow regions are exact).
+     */
+    public static int availableMenuHeight(MenuRegion region, ScreenBounds b,
+                                          int sh, int margin) {
+        int topPos = b.topPos();
+        int imageHeight = b.imageHeight();
+        int gap = RegionConstants.MENU_STACK_GAP;
+        int frameTop = topPos;
+        int frameBottom = topPos + imageHeight;
+        int centerY = topPos + imageHeight / 2;
+        return switch (region) {
+            // Above the frame → grows UP toward the top margin.
+            case TOP_CENTER, TOP_ALIGN_LEFT, TOP_ALIGN_RIGHT ->
+                    growUpHeight(frameTop - gap, margin);
+            // Below the frame → grows DOWN toward the bottom margin.
+            case BOTTOM_CENTER, BOTTOM_ALIGN_LEFT, BOTTOM_ALIGN_RIGHT ->
+                    growDownHeight(frameBottom + gap, sh, margin);
+            // Pinned at the frame top → grows DOWN toward the bottom margin.
+            case RIGHT_ALIGN_TOP, LEFT_ALIGN_TOP ->
+                    growDownHeight(frameTop, sh, margin);
+            // Pinned at the frame bottom → grows UP toward the top margin.
+            case RIGHT_ALIGN_BOTTOM, LEFT_ALIGN_BOTTOM ->
+                    growUpHeight(frameBottom, margin);
+            // CENTER stays within the frame; frame height is the safe ceiling.
+            case CENTER -> Math.min(imageHeight, centeredHeight(centerY, sh, margin));
+        };
+    }
+
     /**
      * OUTER available width (padding-inclusive) for a MenuContext region panel
      * before it crosses the screen-edge margin, given the (chrome-extended)

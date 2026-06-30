@@ -411,38 +411,44 @@ public final class ScreenPanelRegistry {
         ScreenRenderData data = SCREEN_DATA.get(screen);
         if (data == null) return;
 
-        // Phase 14d-1 / M9 two-pass dim render order:
-        //   (1) panels without dimsBehind render first
+        // Movement ① — overlay render order, unified with MKScreen's 3-pass:
+        //   (1) NON-overlay panels render first (flow in their region)
         //   (2) if any panel with dimsBehind(true) visible: render dim
         //       overlay covering full screen window — covers vanilla +
         //       step-(1) panels
-        //   (3) dim panels render last on top of dim layer
+        //   (3) OVERLAY-positioned panels render last, on top of the dim layer
         //
-        // Single-pass per-adapter dim (14d-1 round-3 v1) was order-
-        // fragile — only worked when dim panel iterated last. Two-pass
-        // enforces visual order architecturally regardless of
-        // registration order. M9 gates on panel.dimsBehind() instead of
-        // panel.cancelsUnhandledClicks() — modal panels still trigger
-        // dim (modal() sugar sets dimsBehind=true), but non-modal opaque
-        // panels (popovers, dropdowns) don't.
+        // The "render on top" pass gates on isOverlayPositioned() — the single
+        // overlay authority — so EVERY overlay (PanelPosition.center(), a
+        // dimsBehind panel, OR a tracksAsModal panel) draws on top, exactly as
+        // MKScreen's overlay pass does. The dim FILL (Pass 2) stays gated on
+        // dimsBehind() alone (M9 — the dim visual is independent of the on-top
+        // ordering: an overlay can float on top without dimming). resolveMenuOrigin
+        // independently re-centers these panels on the screen window, so an
+        // overlay registered at ANY region floats centered + on top identically.
+        //
+        // Single-pass per-adapter dim (14d-1 round-3 v1) was order-fragile —
+        // only worked when the dim panel iterated last. The pass split enforces
+        // visual order architecturally regardless of registration order.
         ScreenBounds frame = frameBounds(screen);
 
-        // Pass 1 — non-dim adapters.
+        // Pass 1 — non-overlay adapters (flow-positioned).
         for (ScreenPanelAdapter adapter : data.menuMatches) {
-            if (adapter.getPanel().dimsBehind()) continue;
+            if (adapter.getPanel().isOverlayPositioned()) continue;
             adapter.render(graphics, frame, mouseX, mouseY, screen);
         }
 
         // Pass 2 — dim overlay if any dimsBehind panel visible. ~75% black,
         // covers full screen window. Tuned to match vanilla's confirm-
-        // screen darkening (§4.10 smoke verdict).
+        // screen darkening (§4.10 smoke verdict). Gated on dimsBehind() alone
+        // (M9) — independent of the on-top ordering below.
         if (hasVisibleDimsBehindOnScreen(screen)) {
             graphics.fill(0, 0, screen.width, screen.height, 0xC0000000);
         }
 
-        // Pass 3 — dim adapters render on top of dim layer.
+        // Pass 3 — overlay-positioned adapters render on top of the dim layer.
         for (ScreenPanelAdapter adapter : data.menuMatches) {
-            if (!adapter.getPanel().dimsBehind()) continue;
+            if (!adapter.getPanel().isOverlayPositioned()) continue;
             adapter.render(graphics, frame, mouseX, mouseY, screen);
         }
 

@@ -231,6 +231,12 @@ public final class RegionRegistry {
         for (Panel p : panels) {
             if (p == self) return prefix;
             if (!ClientWindowVisibility.panelShown(p)) continue;
+            // Movement ① — overlays float centered (resolveMenuOrigin overrides
+            // their origin), so they don't participate in region stacking. Skip
+            // them from the prefix sum, mirroring the overlay exclusion in
+            // PanelLayout / PanelTreeLayout (the Tree world). Otherwise a visible
+            // overlay would push its region siblings down by its own height.
+            if (p.isOverlayPositioned()) continue;
             int pad = MENU_PADDING.getOrDefault(p, 0);
             int extent = (horizontal ? p.getWidth() : p.getHeight()) + 2 * pad;
             prefix += extent + RegionConstants.MENU_STACK_GAP;
@@ -277,6 +283,26 @@ public final class RegionRegistry {
         // Stale reference after unregister() — skip this panel this frame.
         if (prefix == NOT_REGISTERED) return ScreenOrigin.OUT_OF_REGION;
 
+        // Movement ① — overlay override. An overlay panel (PanelPosition.center(),
+        // or a dimsBehind / tracksAsModal panel) ignores the region it was
+        // registered with and floats CENTERED ON THE SCREEN WINDOW, drawn on top
+        // (the on-top pass split lives in ScreenPanelRegistry.renderMatchingPanels).
+        // This is the single overlay rule — identical to MKScreen, which centers
+        // isOverlayPositioned() panels on (this.width/this.height). Collapsing the
+        // region path onto the same rule is what stops a modal registered at, say,
+        // RIGHT_ALIGN_TOP from drawing at the top-right edge instead of centered.
+        // Budget is the symmetric screen content width (matching MKScreen's
+        // computePanelSize) so a wide overlay wraps to the screen, not a region —
+        // fed BEFORE getWidth() so the measured width reflects any wrap.
+        if (panel.isOverlayPositioned()) {
+            int sw = guiScaledWidth(), sh = guiScaledHeight();
+            int m = RegionConstants.SCREEN_EDGE_MARGIN;
+            panel.setAvailableContentWidth(sw - 2 * m - 2 * pad);
+            int opw = panel.getWidth() + 2 * pad;
+            int oph = panel.getHeight() + 2 * pad;
+            return new ScreenOrigin((sw - opw) / 2, (sh - oph) / 2);
+        }
+
         // Extend bounds by the screen's chrome extents on all axes —
         // treats the chrome as part of the menu's visible extent, which
         // is what consumers mean when they say "the TOP of the menu" in
@@ -296,6 +322,15 @@ public final class RegionRegistry {
         int availOuter = RegionMath.availableMenuWidth(
                 region, effective, guiScaledWidth(), RegionConstants.SCREEN_EDGE_MARGIN);
         panel.setAvailableContentWidth(availOuter - 2 * pad);
+
+        // Movement ② — feed the vertical screen-edge budget too, the height twin
+        // of the width budget above (same chrome-extended frame). A panel anchored
+        // above/below the frame auto-scrolls into the room its anchor leaves toward
+        // the screen edge instead of running off-screen (then clamping over the
+        // frame). Inert when the panel's natural height fits the ceiling.
+        int availOuterH = RegionMath.availableMenuHeight(
+                region, effective, guiScaledHeight(), RegionConstants.SCREEN_EDGE_MARGIN);
+        panel.setAvailableContentHeight(availOuterH - 2 * pad);
 
         int pw = panel.getWidth() + 2 * pad;
         int ph = panel.getHeight() + 2 * pad;
@@ -451,6 +486,9 @@ public final class RegionRegistry {
         for (Panel p : panels) {
             if (p == self) return prefix;
             if (!ClientWindowVisibility.panelShown(p)) continue;
+            // Movement ① — overlays float centered, not in the stack. Skip them
+            // (parity with the MenuRegion axialPrefix above).
+            if (p.isOverlayPositioned()) continue;
             int pad = VANILLA_SCREEN_PADDING.getOrDefault(p, 0);
             int extent = p.getHeight() + 2 * pad;
             prefix += extent + RegionConstants.SCREEN_STACK_GAP;
@@ -470,6 +508,17 @@ public final class RegionRegistry {
     public static ScreenOrigin resolveVanillaScreenOrigin(Panel panel, VanillaScreenRegion region,
             int sw, int sh, net.minecraft.client.gui.screens.Screen screen) {
         int pad = VANILLA_SCREEN_PADDING.getOrDefault(panel, 0);
+
+        // Movement ① — overlay override (parity with resolveMenuOrigin): an
+        // overlay panel floats centered on the screen window, ignoring its
+        // region. Same single rule in every Panel-based context.
+        if (panel.isOverlayPositioned()) {
+            int m = RegionConstants.SCREEN_EDGE_MARGIN;
+            panel.setAvailableContentWidth(sw - 2 * m - 2 * pad);
+            int opw = panel.getWidth() + 2 * pad;
+            int oph = panel.getHeight() + 2 * pad;
+            return new ScreenOrigin((sw - opw) / 2, (sh - oph) / 2);
+        }
 
         // Pass 3 — screen-edge content-width budget (vanilla-screen regions
         // are inset EDGE_INSET from an edge; keep the same inset opposite).

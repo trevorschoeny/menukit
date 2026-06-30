@@ -125,6 +125,19 @@ public class Panel {
     private int effectiveContentWidth = -1;
     private int lastFitAvail = Integer.MIN_VALUE;
 
+    // ── Movement ②: adaptive screen-edge auto-scroll (vertical twin) ────
+    // effectiveContentHeight is the screen-edge-derived content-HEIGHT ceiling
+    // set per-frame by the placement layer (RegionRegistry.resolveMenuOrigin)
+    // via setAvailableContentHeight. -1 = unset. The height analog of
+    // effectiveContentWidth: when the panel is UNPINNED (no pinnedHeight) and its
+    // natural content height exceeds this ceiling, the panel auto-scrolls into the
+    // ceiling (viewport = ceiling) instead of running off the top/bottom screen
+    // edge — reusing the same ScrollContainer machinery pinnedHeight drives. When
+    // content fits under the ceiling, nothing changes (no scroll, no reserve).
+    // lastFitAvailHeight guards the configuration pass exactly like lastFitAvail.
+    private int effectiveContentHeight = -1;
+    private int lastFitAvailHeight = Integer.MIN_VALUE;
+
     // ── Phase 16g Auto-Scroll state ────────────────────────────────────
     // Scroll offset (0.0 - 1.0) for the auto-scroll wrap. Panel owns the
     // state directly here rather than delegating to a consumer-side field
@@ -546,73 +559,76 @@ public class Panel {
             contentWidth = Math.min(naturalW, ceiling);
         }
 
-        // ── Step 2: hand each element its horizontal budget ────────────
-        // Budget = contentWidth minus the element's own left offset (the room
-        // from the element's left edge to the panel's content right edge),
-        // minus the scrollbar reserve on a bounded (pinnedHeight) panel. The
-        // reserve is deducted unconditionally because post-wrap overflow can't
-        // be known until AFTER wrap is computed (the circular dependency the
-        // 16g pass already accepted). Every element resolves its width — and,
-        // if it wraps a label, its height — REVERSIBLY from this budget, so a
-        // later wider budget restores natural size.
-        int contentBudget = contentWidth;
-        if (pinnedHeight >= 0) {
-            contentBudget -= (ScrollContainer.TRACK_WIDTH
-                    + ScrollContainer.SCROLLER_GUTTER);
+        // ── Step 2+3+4: budget → measure → (only-on-overflow) reserve + scroll
+        //
+        // The viewport that bounds the panel vertically is the explicit
+        // pinnedHeight if declared, else the screen-edge height ceiling
+        // (Movement ② — effectiveContentHeight). Either way the panel scrolls
+        // ONLY when its natural content overflows that viewport.
+        int viewportHeight = (pinnedHeight >= 0) ? pinnedHeight
+                : (effectiveContentHeight >= 0) ? effectiveContentHeight : -1;
+
+        // First lay out every element against the FULL content width (no
+        // scrollbar reserve) and reflow, then measure the natural content
+        // height. The reserve is deducted ONLY if the panel actually overflows
+        // its viewport — otherwise a fitting panel would needlessly narrow its
+        // content (wrapping text early) to clear a scrollbar that never appears.
+        // (Pre-Movement-② the reserve was deducted unconditionally on any
+        // pinnedHeight panel; gating it on real overflow is strictly tighter and
+        // is what lets the placement layer impose a height ceiling on EVERY
+        // region panel without shrinking the ones that fit.)
+        layoutElementsWithin(contentWidth);
+        reflowForWrap();
+        int naturalContentHeight = aggregateRawContentHeight();
+
+        cachedScrollContainer = null;
+        boolean overflow = viewportHeight > 0 && naturalContentHeight > viewportHeight;
+        if (overflow) {
+            // Re-lay out with the scrollbar reserve so wrapped content clears the
+            // track, reflow again, then wrap everything in a ScrollContainer sized
+            // to the viewport. Outer width = the panel's content area: pinnedWidth
+            // when declared; the ceiling-clamped contentWidth when a screen-edge
+            // width ceiling bit; otherwise the natural child extent plus reserve.
+            int reserve = ScrollContainer.TRACK_WIDTH + ScrollContainer.SCROLLER_GUTTER;
+            layoutElementsWithin(contentWidth - reserve);
+            reflowForWrap();
+            int outerWidth;
+            if (pinnedWidth >= 0) {
+                outerWidth = pinnedWidth;
+            } else if (effectiveContentWidth >= 0) {
+                outerWidth = contentWidth;
+            } else {
+                outerWidth = aggregateRawContentWidth() + reserve;
+            }
+            // ScrollContainer.Builder.size() rejects widths <= track + gutter + 1
+            // (= 17). Skip scroll silently if the budget is too tight — content
+            // overflows but no crash.
+            int minScrollWidth = reserve + 1;
+            if (outerWidth > minScrollWidth) {
+                cachedScrollContainer = ScrollContainer.builder()
+                        .at(0, 0)
+                        .size(outerWidth, viewportHeight)
+                        .content(elements)
+                        .scrollOffset(() -> scrollOffset, v -> scrollOffset = v)
+                        .build();
+            }
         }
+    }
+
+    /**
+     * Step 2 of {@link #ensureConfigured}: hands each element its horizontal
+     * budget = {@code contentWidth} minus the element's own left offset (room
+     * from the element's left edge to the panel's content right edge). Every
+     * element resolves its width — and, if it wraps a label, its height —
+     * REVERSIBLY from this budget, so a later wider budget restores natural size.
+     * Extracted so the configuration pass can lay out twice when overflow forces
+     * a scrollbar reserve (first at full width to detect overflow, then narrower).
+     */
+    private void layoutElementsWithin(int contentWidth) {
         for (PanelElement e : elements) {
-            int budget = contentBudget - e.getChildX();
+            int budget = contentWidth - e.getChildX();
             if (budget < MIN_ELEMENT_WIDTH) budget = MIN_ELEMENT_WIDTH;
             e.layoutWithin(budget);
-        }
-
-        // ── Step 3: vertical reflow under growth ───────────────────────
-        // An element that wrapped grew below its declared baseline (a TextLabel
-        // gained lines, a Button's box got taller). Re-stack every element's
-        // childY from its declared baseline, pushing each down by the extra
-        // height grown by elements ABOVE it — so growth pushes, never paints
-        // over, what's beneath (item 4). Runs after widths/labels resolve and
-        // BEFORE the auto-scroll measurement, so the aggregate height reflects
-        // the reflowed layout. No-op when nothing grew.
-        reflowForWrap();
-
-        // ── Step 4: auto-scroll wrap (pinnedHeight overflow) ───────────
-        cachedScrollContainer = null;
-        if (pinnedHeight >= 0) {
-            // Aggregate content height AFTER reflow, so wrapped/grown elements
-            // report their real visual extent.
-            int contentHeight = aggregateRawContentHeight();
-            int viewportHeight = pinnedHeight;
-            if (viewportHeight > 0 && contentHeight > viewportHeight) {
-                // Overflow → build a ScrollContainer over the original
-                // elements. Outer width = the panel's content area: pinnedWidth
-                // when declared; the ceiling-clamped contentWidth when a
-                // screen-edge ceiling bit; otherwise the natural child extent
-                // plus scrollbar reserve.
-                int outerWidth;
-                if (pinnedWidth >= 0) {
-                    outerWidth = pinnedWidth;
-                } else if (effectiveContentWidth >= 0) {
-                    outerWidth = contentWidth;
-                } else {
-                    outerWidth = aggregateRawContentWidth()
-                            + ScrollContainer.TRACK_WIDTH
-                            + ScrollContainer.SCROLLER_GUTTER;
-                }
-                // ScrollContainer.Builder.size() rejects widths <= track +
-                // gutter + 1 (= 17). Skip scroll silently if budget too
-                // tight — content overflows but no crash.
-                int minScrollWidth = ScrollContainer.TRACK_WIDTH
-                        + ScrollContainer.SCROLLER_GUTTER + 1;
-                if (outerWidth > minScrollWidth) {
-                    cachedScrollContainer = ScrollContainer.builder()
-                            .at(0, 0)
-                            .size(outerWidth, viewportHeight)
-                            .content(elements)
-                            .scrollOffset(() -> scrollOffset, v -> scrollOffset = v)
-                            .build();
-                }
-            }
         }
     }
 
@@ -825,6 +841,40 @@ public class Panel {
     /** Floor for {@link #setAvailableContentWidth} so a degenerate frame
      *  (tiny/negative avail) can't wrap content to nothing. */
     private static final int MIN_FIT_WIDTH = 16;
+
+    /**
+     * Imposes the per-frame screen-edge content-HEIGHT ceiling (Movement ②) —
+     * the vertical twin of {@link #setAvailableContentWidth}. The placement layer
+     * computes how much room the panel's anchor leaves toward the screen edge
+     * ({@link RegionMath#availableMenuHeight}) and passes it here; when the panel's
+     * natural content height exceeds the ceiling, the panel auto-scrolls into it
+     * (reusing the {@code pinnedHeight} ScrollContainer path) instead of running
+     * off-screen. When content fits under the ceiling, this is inert — no scroll,
+     * no scrollbar reserve.
+     *
+     * <p>Idempotency guard identical to {@link #setAvailableContentWidth}: re-flips
+     * {@code configurationDirty} (and drops the cached scroll container) ONLY when
+     * {@code avail} changes, so the per-frame placement calls are free and the
+     * scroll container isn't rebuilt every frame (which would reset its drag state).
+     *
+     * <p>Library-internal — consumers never call this; it carries the screen
+     * geometry the panel is deliberately blind to.
+     *
+     * @param avail content-height room before the screen-edge margin, in pixels
+     */
+    @ApiStatus.Internal
+    public void setAvailableContentHeight(int avail) {
+        int clamped = Math.max(MIN_FIT_HEIGHT, avail);
+        if (clamped == lastFitAvailHeight) return; // no change — keep cached pass
+        lastFitAvailHeight = clamped;
+        this.effectiveContentHeight = clamped;
+        this.configurationDirty = true;
+        this.cachedScrollContainer = null;
+    }
+
+    /** Floor for {@link #setAvailableContentHeight} so a degenerate frame
+     *  can't collapse the scroll viewport to nothing. */
+    private static final int MIN_FIT_HEIGHT = 16;
 
     /**
      * Returns the panel's width for region-stacking math.
