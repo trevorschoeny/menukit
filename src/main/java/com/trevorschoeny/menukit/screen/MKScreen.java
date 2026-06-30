@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit.screen;
 
+import com.trevorschoeny.menukit.core.MainRegionLayout;
 import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.PanelBounds;
 import com.trevorschoeny.menukit.core.PanelDispatch;
@@ -72,6 +73,11 @@ public class MKScreen extends Screen {
     /** Screen-space offset applied to layout-local coordinates; computed per init. */
     private int leftPos = 0;
     private int topPos = 0;
+
+    /** Movement ③ — true when the screen declared a MAIN panel and computeLayout
+     *  used MainRegionLayout (panelBounds already hold every panel's resolved
+     *  position); false for the legacy BODY-stack path. */
+    private boolean mainLayout = false;
 
     /**
      * Optional "return" action, run on close (Escape) instead of the default
@@ -338,6 +344,16 @@ public class MKScreen extends Screen {
      * </ul>
      */
     private int[] effectivePanelScreenBounds(Panel panel) {
+        // Movement ③ main-path — MainRegionLayout already positioned EVERY panel
+        // (main frame, region siblings, overlay-centred, screen-anchored chrome)
+        // into leftPos/topPos-relative bounds, so just translate. The 3-pass in
+        // renderPanels still orders overlays on top via isOverlayPositioned().
+        if (mainLayout) {
+            PanelBounds b = panelBounds.get(panel.getId());
+            if (b == null) return null;
+            return new int[]{leftPos + b.x(), topPos + b.y(), b.width(), b.height()};
+        }
+
         int[] size = computePanelSize(panel);
         int outerW = size[0], outerH = size[1];
 
@@ -376,9 +392,27 @@ public class MKScreen extends Screen {
     }
 
     private void computeLayout() {
-        // Phase 16j R1 — delegate to shared PanelTreeLayout primitive.
-        // MK has no minimum image size (standalone screens are sized by
-        // their content); pass 0 for both min dims.
+        if (MainRegionLayout.hasMain(panels)) {
+            // Movement ③ — a standalone screen can also name a MAIN panel and
+            // anchor siblings to it via MenuRegion (the unified placement model).
+            // reserveTitle=false: MKScreen draws its title at the SCREEN top
+            // (renderPanels), not at the frame top, so the frame needs no strip.
+            // MainRegionLayout returns leftPos/topPos-relative bounds + the
+            // centred frame's leftPos/topPos; mainLayout makes
+            // effectivePanelScreenBounds read those bounds directly.
+            var layout = MainRegionLayout.resolve(
+                    panels, this::computePanelSize, this.width, this.height,
+                    /*reserveTitle=*/ false);
+            panelBounds = layout.bounds();
+            leftPos = layout.leftPos();
+            topPos  = layout.topPos();
+            mainLayout = true;
+            return;
+        }
+        mainLayout = false;
+        // Legacy BODY-stack — delegate to the shared PanelTreeLayout primitive.
+        // MK has no minimum image size (standalone screens are sized by their
+        // content); pass 0 for both min dims.
         var layout = PanelTreeLayout.resolve(
                 panels, this::computePanelSize,
                 BODY_GAP, RELATIVE_GAP, TITLE_HEIGHT,

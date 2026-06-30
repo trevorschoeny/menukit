@@ -82,14 +82,17 @@ public final class MainRegionLayout {
     /**
      * Resolves the main-panel frame + region-anchored siblings.
      *
-     * @param panels  the screen's panels (declaration order — siblings sharing a
-     *                region stack in this order)
-     * @param sizeFn  per-context Panel → {outerWidth, outerHeight} (padding-inclusive)
-     * @param screenW GUI-scaled screen width
-     * @param screenH GUI-scaled screen height
+     * @param panels       the screen's panels (declaration order — siblings sharing a
+     *                     region stack in this order)
+     * @param sizeFn       per-context Panel → {outerWidth, outerHeight} (padding-inclusive)
+     * @param screenW      GUI-scaled screen width
+     * @param screenH      GUI-scaled screen height
+     * @param reserveTitle reserve a title strip at the top of the frame (true for
+     *                     container screens that draw the title at the frame top;
+     *                     false for standalone screens that draw it at the screen top)
      */
     public static Result resolve(List<Panel> panels, Function<Panel, int[]> sizeFn,
-                                 int screenW, int screenH) {
+                                 int screenW, int screenH, boolean reserveTitle) {
         Panel main = null;
         for (Panel p : panels) {
             if (p.getPosition().mode() == PanelPosition.Mode.MAIN) { main = p; break; }
@@ -105,11 +108,12 @@ public final class MainRegionLayout {
         // convention the legacy BODY-stack reserved via titleHeight): the screen
         // title draws in the strip, the MAIN panel's content sits BELOW it. Without
         // this the title overprinted the main panel's first row (③ blocker).
-        int frameH = mainContentH + TITLE_STRIP;
+        int titleStrip = reserveTitle ? TITLE_STRIP : 0;
+        int frameH = mainContentH + titleStrip;
         int leftPos = (screenW - mainW) / 2;
         int topPos = (screenH - frameH) / 2;
         // MAIN content below the title strip; bounds are leftPos/topPos-relative.
-        bounds.put(main.getId(), new PanelBounds(0, TITLE_STRIP, mainW, mainContentH));
+        bounds.put(main.getId(), new PanelBounds(0, titleStrip, mainW, mainContentH));
 
         // The frame every sibling resolves against — the FULL main frame (title
         // strip + content) in screen coords, so siblings anchor OUTSIDE the title.

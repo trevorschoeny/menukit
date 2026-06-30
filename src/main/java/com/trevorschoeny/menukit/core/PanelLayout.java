@@ -87,42 +87,11 @@ public final class PanelLayout {
             bodyY += size[1] + bodyGap;
         }
 
-        // Phase 2: Position relative panels — offset from their anchor
-        for (Panel panel : panels) {
-            if (!panel.isVisible()) continue;
-            // Same overlay exception — relative chains anchored to an
-            // overlay would have no meaningful position.
-            if (panel.isOverlayPositioned()) continue;
-            if (panel.getPosition().mode() == PanelPosition.Mode.BODY) continue;
-
-            String anchorId = panel.getPosition().anchorPanelId();
-            PanelBounds anchor = bounds.get(anchorId);
-            if (anchor == null) continue; // anchor not visible — skip
-
-            int[] size = sizes.get(panel.getId());
-            if (size == null) continue;
-
-            PanelBounds b = switch (panel.getPosition().mode()) {
-                case RIGHT_OF -> new PanelBounds(
-                        anchor.x() + anchor.width() + relativeGap,
-                        anchor.y(), size[0], size[1]);
-                case LEFT_OF -> new PanelBounds(
-                        anchor.x() - size[0] - relativeGap,
-                        anchor.y(), size[0], size[1]);
-                case ABOVE -> new PanelBounds(
-                        anchor.x(),
-                        anchor.y() - size[1] - relativeGap,
-                        size[0], size[1]);
-                case BELOW -> new PanelBounds(
-                        anchor.x(),
-                        anchor.y() + anchor.height() + relativeGap,
-                        size[0], size[1]);
-                default -> null; // BODY handled above
-            };
-            if (b != null) {
-                bounds.put(panel.getId(), b);
-            }
-        }
+        // Movement ③ — relative panels (rightOf/leftOf/above/below) are retired.
+        // The BODY vertical stack above is the only role this layout-local resolver
+        // fills now; MAIN + REGION screens use the screen-aware MainRegionLayout
+        // instead. ({@code relativeGap} is retained in the signature for callers
+        // but no longer used.)
 
         return bounds;
     }

@@ -55,16 +55,6 @@ public record PanelPosition(Mode mode,
          * the panel is edge-aware on both axes and auto-scrolls on overflow.
          */
         REGION,
-        /** Offset to the right of the anchor panel. <b>Standalone-screen
-         *  ({@link com.trevorschoeny.menukit.screen.MKScreen}) only</b> — custom
-         *  container screens use {@link #MAIN} + {@link #REGION} (Movement ③). */
-        RIGHT_OF,
-        /** Offset to the left of the anchor panel. Standalone-screen only — see {@link #RIGHT_OF}. */
-        LEFT_OF,
-        /** Offset above the anchor panel. Standalone-screen only — see {@link #RIGHT_OF}. */
-        ABOVE,
-        /** Offset below the anchor panel. Standalone-screen only — see {@link #RIGHT_OF}. */
-        BELOW,
         /**
          * Pinned to a fixed screen corner (Pass 3), inset by
          * {@link RegionConstants#SCREEN_EDGE_MARGIN}. Excluded from the layout's
@@ -108,31 +98,6 @@ public record PanelPosition(Mode mode,
      */
     public static PanelPosition region(MenuRegion region) {
         return new PanelPosition(Mode.REGION, null, null, region);
-    }
-
-    // ── Standalone-screen relative offsets (MKScreen only) ──────────────────
-    // Custom container screens unified onto MAIN + REGION in Movement ③; these
-    // remain for pure-UI standalone screens (no menu frame), which place demo
-    // panels relative to a named anchor.
-
-    /** Position to the right of the named panel. Standalone-screen only. */
-    public static PanelPosition rightOf(String panelId) {
-        return new PanelPosition(Mode.RIGHT_OF, panelId, null, null);
-    }
-
-    /** Position to the left of the named panel. Standalone-screen only. */
-    public static PanelPosition leftOf(String panelId) {
-        return new PanelPosition(Mode.LEFT_OF, panelId, null, null);
-    }
-
-    /** Position above the named panel. Standalone-screen only. */
-    public static PanelPosition above(String panelId) {
-        return new PanelPosition(Mode.ABOVE, panelId, null, null);
-    }
-
-    /** Position below the named panel. Standalone-screen only. */
-    public static PanelPosition below(String panelId) {
-        return new PanelPosition(Mode.BELOW, panelId, null, null);
     }
 
     /**
