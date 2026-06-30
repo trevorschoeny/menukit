@@ -4,6 +4,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -80,6 +82,27 @@ public class TextLabel extends AbstractPanelElement<TextLabel> {
     // semantics baked in would invert that dependency. See Panel.java's
     // propagateConfiguration() for the propagation entry point.
     private int wrapWidth = 0;
+
+    // ── Render scale + backdrop + onRender (folded from MKHudText) ──────
+    // These three were the only things the former HUD-only MKHudText class had
+    // that plain TextLabel lacked. Folding them in makes HUD text a TextLabel
+    // VARIANT (configured by the HUD builder) instead of a parallel class that
+    // duplicated the render path and could never wrap. All three default to the
+    // no-op value, so every existing TextLabel is byte-identical to pre-fold.
+    //
+    // renderScale: a uniform glyph scale applied via the GUI pose matrix at
+    // render. getWidth/getHeight/naturalWidth report the SCALED extent so panel
+    // layout reserves the right space. 1.0 = no scale (the matrix push is skipped
+    // entirely — the default path is unchanged). Composes with wrap: wrapWidth
+    // stays a FONT-space number (font.split works on the native grid); the scale
+    // is applied only at the screen-pixel boundary and inside the render matrix.
+    private float renderScale = 1.0f;
+    // backdrop: a translucent dark plate behind the text (HUD readability over
+    // the world), sized to the text bounds — multi-line when wrapped. Default off.
+    private boolean backdrop = false;
+    // onRender: optional per-frame side-effect fired at the top of render()
+    // (HUD render-tick counters / animation drivers). Null = none.
+    private @Nullable Runnable onRender = null;
 
     // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
 
@@ -177,15 +200,19 @@ public class TextLabel extends AbstractPanelElement<TextLabel> {
     public int getWidth() {
         Component text = textSupplier.get();
         if (text == null) return 0;
-        // In wrap mode the label takes the full wrapWidth as its declared
-        // extent (so panel layout reserves the right amount of horizontal
-        // space). In non-wrap mode the width is the natural rendered width.
-        if (wrapWidth > 0) return wrapWidth;
-        return Minecraft.getInstance().font.width(text);
+        // In wrap mode the label takes the full wrapWidth (font space) as its
+        // declared extent (so panel layout reserves the right horizontal space);
+        // in non-wrap mode the width is the natural rendered width. Either way the
+        // renderScale is applied at this screen-pixel boundary (1.0 = identity, so
+        // the unscaled path is unchanged).
+        int fontWidth = (wrapWidth > 0) ? wrapWidth : Minecraft.getInstance().font.width(text);
+        return (int) (fontWidth * renderScale);
     }
 
     @Override
     public int getHeight() {
+        var font = Minecraft.getInstance().font;
+        int fontHeight;
         if (wrapWidth > 0) {
             // Multi-line: ask the vanilla font splitter how many wrapped
             // lines this text produces at the current wrapWidth, then
@@ -194,12 +221,14 @@ public class TextLabel extends AbstractPanelElement<TextLabel> {
             // match player expectations.
             Component text = textSupplier.get();
             if (text == null) return 0;
-            var font = Minecraft.getInstance().font;
             List<FormattedCharSequence> lines = font.split(text, wrapWidth);
             int lineCount = Math.max(1, lines.size());
-            return lineCount * font.lineHeight;
+            fontHeight = lineCount * font.lineHeight;
+        } else {
+            fontHeight = font.lineHeight;
         }
-        return Minecraft.getInstance().font.lineHeight;
+        // Scale applied at the screen-pixel boundary (1.0 = identity).
+        return (int) (fontHeight * renderScale);
     }
 
     /** Returns the text content the TextLabel would render right now. Resolves the supplier. */
@@ -243,6 +272,57 @@ public class TextLabel extends AbstractPanelElement<TextLabel> {
         return wrapWidth;
     }
 
+    // ── Scale / backdrop / onRender (folded from MKHudText) ─────────────
+
+    /**
+     * Sets a uniform render scale (folded from the former MKHudText). The text is
+     * drawn through a GUI pose-matrix scale, and {@link #getWidth()}/
+     * {@link #getHeight()}/{@link #naturalWidth()} report the SCALED extent so the
+     * owning Panel reserves the right space. {@code 1.0f} (the default) skips the
+     * matrix entirely — the unscaled path is unchanged. Composes with wrap:
+     * {@code wrapWidth} stays a font-space number, the scale is applied only at the
+     * screen-pixel boundary.
+     *
+     * <p>Must be {@code > 0}. A non-positive value is floored to a tiny positive
+     * minimum rather than allowed to produce a degenerate (zero / mirrored) render
+     * matrix — hardening the gap the former MKHudText left open.
+     *
+     * @return this label, for chaining
+     */
+    public TextLabel scale(float scale) {
+        this.renderScale = Math.max(0.01f, scale);
+        return this;
+    }
+
+    /**
+     * Toggles a translucent dark backdrop plate behind the text (folded from
+     * MKHudText — HUD readability over the world). Sized to the text bounds,
+     * multi-line when wrapped. Default off.
+     *
+     * @return this label, for chaining
+     */
+    public TextLabel backdrop(boolean backdrop) {
+        this.backdrop = backdrop;
+        return this;
+    }
+
+    /** Enables the backdrop plate. See {@link #backdrop(boolean)}. */
+    public TextLabel backdrop() {
+        return backdrop(true);
+    }
+
+    /**
+     * Sets an optional side-effect fired at the top of each {@link #render}
+     * (folded from MKHudText — HUD render-tick counters / animation hooks). Pass
+     * {@code null} to clear it.
+     *
+     * @return this label, for chaining
+     */
+    public TextLabel onRender(@Nullable Runnable onRender) {
+        this.onRender = onRender;
+        return this;
+    }
+
     /**
      * Extra vertical pixels this label occupies BEYOND a single line because it
      * wrapped — i.e. {@code (lineCount - 1) × lineHeight}, or {@code 0} when not
@@ -253,7 +333,10 @@ public class TextLabel extends AbstractPanelElement<TextLabel> {
      */
     public int extraWrapHeight() {
         if (wrapWidth <= 0) return 0;
-        return Math.max(0, getHeight() - Minecraft.getInstance().font.lineHeight);
+        // Single-line height in the SAME scaled screen-pixel space as getHeight(),
+        // so the reflow delta is correct under a render scale.
+        int singleLine = (int) (Minecraft.getInstance().font.lineHeight * renderScale);
+        return Math.max(0, getHeight() - singleLine);
     }
 
     // ── Reactive sizing (Verification-4) ───────────────────────────────
@@ -266,7 +349,9 @@ public class TextLabel extends AbstractPanelElement<TextLabel> {
     @Override
     public int naturalWidth() {
         Component text = textSupplier.get();
-        return text == null ? 0 : Minecraft.getInstance().font.width(text);
+        // Scaled, so the Panel's hug-width (which maxes naturalWidth across
+        // elements) is in the same screen-pixel space as getWidth().
+        return text == null ? 0 : (int) (Minecraft.getInstance().font.width(text) * renderScale);
     }
 
     /**
@@ -274,11 +359,22 @@ public class TextLabel extends AbstractPanelElement<TextLabel> {
      * budget is narrower than the text's natural single-line width — at a
      * roomy budget the wrap is cleared so the label reports its intrinsic
      * width (and a later wider pass un-wraps it, reversibly).
+     *
+     * <p>The incoming {@code budget} is scaled screen-pixel space (it is compared
+     * against the scaled {@link #naturalWidth()}), but {@code wrapWidth} must be a
+     * FONT-space number ({@code font.split} works on the font's native grid), so
+     * the scale is divided back out before storing. The scale is then re-applied
+     * at {@link #getWidth()}/{@link #getHeight()}/{@link #render}.
      */
     @Override
     public void layoutWithin(int budget) {
         int natural = naturalWidth();
-        setWrapWidth(budget < natural ? budget : 0);
+        if (budget < natural) {
+            int fontBudget = (renderScale > 0f) ? (int) (budget / renderScale) : budget;
+            setWrapWidth(fontBudget);
+        } else {
+            setWrapWidth(0);
+        }
     }
 
     /** Extra height beyond a single line once wrapped — drives panel reflow. */
@@ -291,11 +387,37 @@ public class TextLabel extends AbstractPanelElement<TextLabel> {
 
     @Override
     public void render(RenderContext ctx) {
+        // onRender side-effect fires first (folded from MKHudText) — even if the
+        // text resolves null this frame, the hook still ran.
+        if (onRender != null) onRender.run();
         Component text = textSupplier.get();
         if (text == null) return;
         var font = Minecraft.getInstance().font;
+        var graphics = ctx.graphics();
         int x = ctx.originX() + childX;
         int y = ctx.originY() + childY;
+
+        // Render scale via the GUI pose matrix (folded from MKHudText). Only push
+        // when actually scaling, so the default 1.0 path is identical to pre-fold:
+        // translate to the draw origin, scale, then draw at (0,0) in font space.
+        boolean scaled = renderScale != 1.0f;
+        if (scaled) {
+            graphics.pose().pushMatrix();
+            graphics.pose().translate((float) x, (float) y);
+            graphics.pose().scale(renderScale, renderScale);
+            x = 0;
+            y = 0;
+        }
+
+        // Backdrop plate behind the (possibly wrapped) text — drawn in font space
+        // inside the scaled matrix so it scales with the glyphs.
+        if (backdrop) {
+            int tw = (wrapWidth > 0) ? wrapWidth : font.width(text);
+            int th = (wrapWidth > 0)
+                    ? Math.max(1, font.split(text, wrapWidth).size()) * font.lineHeight
+                    : font.lineHeight;
+            graphics.fill(x - 1, y - 1, x + tw + 1, y + th + 1, 0xBB000000);
+        }
 
         if (wrapWidth > 0) {
             // Multi-line render: split into FormattedCharSequence lines and
@@ -305,15 +427,21 @@ public class TextLabel extends AbstractPanelElement<TextLabel> {
             List<FormattedCharSequence> lines = font.split(text, wrapWidth);
             int lineY = y;
             for (FormattedCharSequence line : lines) {
-                ctx.graphics().drawString(font, line, x, lineY, color, shadow);
+                graphics.drawString(font, line, x, lineY, color, shadow);
                 lineY += font.lineHeight;
             }
         } else {
             // Legacy single-line path.
-            ctx.graphics().drawString(font, text, x, y, color, shadow);
+            graphics.drawString(font, text, x, y, color, shadow);
         }
 
-        // Tooltip — queues if cursor is over the label bounds.
+        if (scaled) {
+            graphics.pose().popMatrix();
+        }
+
+        // Tooltip — queues if cursor is over the label bounds. The hit-test reads
+        // the unscaled screen position (getChildX/Y + getWidth/Height), so it's
+        // evaluated after the matrix is popped.
         Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
             Component ttText = tooltipSupplier.get();

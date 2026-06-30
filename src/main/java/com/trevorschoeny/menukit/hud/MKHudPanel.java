@@ -6,6 +6,7 @@ import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.PanelStyle;
 import com.trevorschoeny.menukit.core.ProgressBar;
 import com.trevorschoeny.menukit.core.RenderContext;
+import com.trevorschoeny.menukit.core.TextLabel;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -209,9 +210,12 @@ public class MKHudPanel {
          * @param text supplier that returns the text to display each frame
          */
         public Builder text(int x, int y, Supplier<String> text) {
-            elements.add(new MKHudText(x, y,
+            // HUD default styling: white, shadow on (1× scale, no backdrop, no
+            // wrap are the TextLabel defaults). Folded onto TextLabel — the former
+            // HUD-only MKHudText is gone; HUD text is now a TextLabel variant.
+            elements.add(new TextLabel(x, y,
                     () -> Component.literal(text.get()),
-                    0xFFFFFFFF, true, 1.0f, false, null));
+                    0xFFFFFFFF, true));
             return this;
         }
 
@@ -345,6 +349,7 @@ public class MKHudPanel {
         private boolean shadow = true;
         private float scale = 1.0f;
         private boolean backdrop = false;
+        private int wrapWidth = 0;
         private @Nullable Runnable onRender;
 
         TextBuilder(Builder parent, int x, int y) {
@@ -367,10 +372,35 @@ public class MKHudPanel {
         public TextBuilder noShadow() { this.shadow = false; return this; }
         public TextBuilder scale(float scale) { this.scale = scale; return this; }
         public TextBuilder backdrop() { this.backdrop = true; return this; }
+
+        /**
+         * Wraps this HUD text to {@code maxWidth} pixels: it renders multi-line and
+         * the auto-sized HUD panel grows to fit the wrapped height. Zero (default) =
+         * single line. A HUD panel is consumer-anchored and consumer-sized, so the
+         * wrap width is declared here directly rather than computed from a
+         * screen-edge budget — the adaptive auto-wrap (which reacts to the room a
+         * panel's anchor leaves) is a Panel-context feature; a HUD author specifies
+         * the width. Folded-in TextLabel wrapping is what makes this possible (the
+         * former MKHudText could not wrap).
+         *
+         * @param maxWidth wrap width in pixels (font space), or 0 to disable
+         * @return this text builder, for chaining
+         */
+        public TextBuilder wrapWidth(int maxWidth) { this.wrapWidth = maxWidth; return this; }
+
         public TextBuilder onRender(Runnable callback) { this.onRender = callback; return this; }
 
         public Builder done() {
-            parent.elements.add(new MKHudText(x, y, text, color, shadow, scale, backdrop, onRender));
+            // HUD text is a TextLabel variant now (the former MKHudText is folded
+            // away). Configure scale/backdrop/onRender via the fluent chain; wrap
+            // width is set directly (it's consumer-declared for the HUD, not
+            // Panel-budget-driven).
+            TextLabel label = new TextLabel(x, y, text, color, shadow)
+                    .scale(scale)
+                    .backdrop(backdrop)
+                    .onRender(onRender);
+            if (wrapWidth > 0) label.setWrapWidth(wrapWidth);
+            parent.elements.add(label);
             return parent;
         }
     }
