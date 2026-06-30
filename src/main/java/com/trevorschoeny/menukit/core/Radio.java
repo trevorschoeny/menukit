@@ -2,8 +2,10 @@ package com.trevorschoeny.menukit.core;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 import org.jspecify.annotations.Nullable;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
@@ -69,6 +71,22 @@ public class Radio<T> extends AbstractPanelElement<Radio<T>> {
     private final @Nullable BooleanSupplier disabledWhen;
 
     // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
+
+    // ── Reactive label wrap ────────────────────────────────────────────
+    // When labelWrapWidth > 0, the label renders multi-line — the text is
+    // split via font.split(label, labelWrapWidth) and each
+    // FormattedCharSequence is drawn at successive lineHeight offsets, with
+    // the radio box top-aligned to the first line. getHeight() then grows to
+    // lineCount × lineHeight (clamped to never shrink below BOX_SIZE). Set
+    // reactively by the owning Panel via layoutWithin() during layout: it
+    // engages ONLY when the label's natural single-line width exceeds the
+    // label area the panel budgeted, and clears back to 0 (single-line) when
+    // a later, roomier budget arrives — so wrapping is fully reversible.
+    //
+    // Mutable rather than final because the wrap budget is a panel-layout
+    // decision the element can't know at construction; baking it into the
+    // constructor would invert that dependency. Mirrors TextLabel.wrapWidth.
+    private int labelWrapWidth = 0;
 
     // Render-frame state.
     private boolean hovered = false;
@@ -148,6 +166,22 @@ public class Radio<T> extends AbstractPanelElement<Radio<T>> {
 
     @Override
     public int getHeight() {
+        if (labelWrapWidth > 0) {
+            // Multi-line label: ask the vanilla font splitter how many wrapped
+            // lines this label produces at the current budget, then multiply by
+            // lineHeight. font.split() is the same call vanilla uses for chat /
+            // tooltips / book pages, so wrap semantics match player expectations.
+            // Math.max with BOX_SIZE guarantees we only ever GROW past the
+            // authored box height, never shrink below it (a one-line wrap that
+            // produces a sub-box height must still reserve the full box).
+            Component label = labelSupplier.get();
+            if (label != null) {
+                var font = Minecraft.getInstance().font;
+                List<FormattedCharSequence> lines = font.split(label, labelWrapWidth);
+                int lineCount = Math.max(1, lines.size());
+                return Math.max(BOX_SIZE, lineCount * font.lineHeight);
+            }
+        }
         return BOX_SIZE;
     }
 
@@ -175,6 +209,46 @@ public class Radio<T> extends AbstractPanelElement<Radio<T>> {
     // ── Chainable configuration ────────────────────────────────────────
     //
     // showWhen + tooltip + at return Radio<T> for free via the SELF self-type.
+
+    // ── Reactive label wrap ────────────────────────────────────────────
+    //
+    // naturalWidth() is left at the PanelElement default (full single-line
+    // getWidth()): the un-wrapped intent the panel maxes across siblings to
+    // pick its content width. Wrapping then flows DOWN from that decision via
+    // layoutWithin(), mirroring TextLabel.
+
+    /**
+     * Wrap the label to the panel-assigned budget. The box + gap are fixed
+     * furniture, so only the label area can flex: we subtract them off the
+     * budget and engage wrapping ONLY when that remaining label area is
+     * narrower than the label's natural single-line width. At a roomy budget
+     * the wrap is cleared (set to 0) so the Radio reports its intrinsic
+     * single-line size again — a later wider pass un-wraps it, reversibly
+     * (this is the same reversible engage/clear TextLabel uses).
+     */
+    @Override
+    public void layoutWithin(int budget) {
+        // Pixels left for the label once the box and gap are accounted for.
+        int labelBudget = budget - BOX_SIZE - LABEL_GAP;
+        Component label = labelSupplier.get();
+        int natural = label != null ? Minecraft.getInstance().font.width(label) : 0;
+        // Engage only when the label genuinely overflows its area; otherwise
+        // clear to single-line. Guard labelBudget >= 1 so a degenerate (≤0)
+        // budget never feeds font.split a non-positive width.
+        labelWrapWidth = (labelBudget >= 1 && labelBudget < natural) ? labelBudget : 0;
+    }
+
+    /**
+     * Extra vertical pixels this Radio occupies BEYOND its authored box height
+     * because the label wrapped — i.e. {@code wrappedHeight - BOX_SIZE}, or
+     * {@code 0} when not wrapped. The owning {@link Panel} reflows the elements
+     * below this one downward by exactly this amount, so a label that grows to
+     * multiple lines pushes — never paints over — what sits beneath it.
+     */
+    @Override
+    public int extraLayoutHeight() {
+        return Math.max(0, getHeight() - BOX_SIZE);
+    }
 
     // ── Rendering ──────────────────────────────────────────────────────
 
@@ -206,14 +280,32 @@ public class Radio<T> extends AbstractPanelElement<Radio<T>> {
                     INDICATOR_COLOR);
         }
 
-        // Label text, vertically centered with the box
+        // Label text
         Component label = labelSupplier.get();
         if (label != null) {
             var font = Minecraft.getInstance().font;
             int textX = sx + BOX_SIZE + LABEL_GAP;
-            int textY = sy + (BOX_SIZE - font.lineHeight) / 2 + 1;
             int color = disabled ? DISABLED_LABEL_COLOR : DEFAULT_LABEL_COLOR;
-            graphics.drawString(font, label, textX, textY, color, false);
+            if (labelWrapWidth > 0) {
+                // Wrapped: split into FormattedCharSequence lines and draw each
+                // at successive lineHeight offsets. The box (drawn above at sy)
+                // is already top-aligned, so line 1 starts at sy too — no
+                // vertical-centering offset here, because a centered single
+                // line would put the multi-line block's TOP above the box.
+                // drawString accepts FormattedCharSequence directly (same path
+                // tooltips + book pages use), so wrap rendering rides the
+                // existing vanilla pipeline.
+                List<FormattedCharSequence> lines = font.split(label, labelWrapWidth);
+                int lineY = sy;
+                for (FormattedCharSequence line : lines) {
+                    graphics.drawString(font, line, textX, lineY, color, false);
+                    lineY += font.lineHeight;
+                }
+            } else {
+                // Single-line: vertically centered with the box (legacy path).
+                int textY = sy + (BOX_SIZE - font.lineHeight) / 2 + 1;
+                graphics.drawString(font, label, textX, textY, color, false);
+            }
         }
 
         // Hover-triggered tooltip — deferred to end-of-frame.

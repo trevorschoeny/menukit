@@ -323,26 +323,17 @@ public final class RegionRegistry {
      */
     public static ScreenOrigin resolveAround(Panel panel, MenuRegion region,
             ScreenBounds frame, int pad, int prefix, int sw, int sh) {
+        // Reactive-sizing step of the ONE engine — feed the anchor-aware budget
+        // BEFORE measuring so getWidth()/getHeight() reflect any wrap/scroll.
+        feedRegionBudget(panel, region, frame, pad, sw, sh);
+
         // Movement ① — overlay override: ignore the region, float centred on the
-        // screen window. Symmetric screen content-width budget (matching MKScreen)
-        // so a wide overlay wraps to the screen, fed BEFORE getWidth().
+        // screen window (its width budget was the centred one, fed above).
         if (panel.isOverlayPositioned()) {
-            int m = RegionConstants.SCREEN_EDGE_MARGIN;
-            panel.setAvailableContentWidth(sw - 2 * m - 2 * pad);
             int opw = panel.getWidth() + 2 * pad;
             int oph = panel.getHeight() + 2 * pad;
             return new ScreenOrigin((sw - opw) / 2, (sh - oph) / 2);
         }
-
-        // ① width budget — fed BEFORE measuring so getWidth() reflects any wrap.
-        int availW = RegionMath.availableMenuWidth(region, frame, sw,
-                RegionConstants.SCREEN_EDGE_MARGIN);
-        panel.setAvailableContentWidth(availW - 2 * pad);
-        // ② height budget — the vertical twin: auto-scroll into the room the
-        // anchor leaves toward the screen edge instead of running off-screen.
-        int availH = RegionMath.availableMenuHeight(region, frame, sh,
-                RegionConstants.SCREEN_EDGE_MARGIN);
-        panel.setAvailableContentHeight(availH - 2 * pad);
 
         int pw = panel.getWidth() + 2 * pad;
         int ph = panel.getHeight() + 2 * pad;
@@ -352,6 +343,42 @@ public final class RegionRegistry {
             return ScreenOrigin.OUT_OF_REGION;
         }
         return result.get();
+    }
+
+    /**
+     * The reactive-sizing step of the ONE region engine — shared verbatim by the
+     * vanilla-injection path ({@link #resolveAround}, {@code frame} = the menu
+     * frame) and the custom-screen path
+     * ({@link com.trevorschoeny.menukit.core.MainRegionLayout}, {@code frame} =
+     * the MAIN panel's bounds). Feeds {@code panel} its anchor-aware width (①) +
+     * height (②) budget — the room its region's anchor edge leaves toward the
+     * screen edge, against {@code frame} — BEFORE the caller measures it, so the
+     * panel wraps/auto-scrolls to fit instead of overflowing. An overlay panel
+     * ignores its region and gets the symmetric centred-screen width budget
+     * (it floats centred on the screen window).
+     *
+     * <p>This is the single place a region panel learns how much room it has;
+     * both the vanilla menu and a custom screen feed it identically. There is
+     * no vanilla-vs-custom split in the resize engine — only the {@code frame}
+     * (menu frame vs main-panel bounds) differs, which is the whole point of
+     * Movement ③.
+     */
+    public static void feedRegionBudget(Panel panel, MenuRegion region,
+            ScreenBounds frame, int pad, int sw, int sh) {
+        int m = RegionConstants.SCREEN_EDGE_MARGIN;
+        if (panel.isOverlayPositioned()) {
+            // Overlay floats centred → symmetric screen-width budget (matching
+            // MKScreen). Height grows naturally; an overlay isn't anchor-clamped.
+            panel.setAvailableContentWidth(sw - 2 * m - 2 * pad);
+            return;
+        }
+        // ① width budget — room from the anchor edge to the screen edge.
+        int availW = RegionMath.availableMenuWidth(region, frame, sw, m);
+        panel.setAvailableContentWidth(availW - 2 * pad);
+        // ② height budget — the vertical twin: auto-scroll into the anchor's room
+        // instead of running off the top/bottom screen edge.
+        int availH = RegionMath.availableMenuHeight(region, frame, sh, m);
+        panel.setAvailableContentHeight(availH - 2 * pad);
     }
 
     private static void warnMenuOverflowOnce(Panel panel, MenuRegion region,

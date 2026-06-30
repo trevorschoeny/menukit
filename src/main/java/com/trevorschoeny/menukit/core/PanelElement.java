@@ -146,14 +146,19 @@ public interface PanelElement {
      *
      * <p>Behavioral contract by element kind:
      * <ul>
-     *   <li>{@code TextLabel} — wraps its text to the budget (multi-line).</li>
-     *   <li>{@code Button} — shrinks its box to the budget and wraps its label
-     *       across multiple lines, growing taller to fit.</li>
-     *   <li>Fill widgets (Slider, TextField, Dropdown, ProgressBar, Divider,
-     *       labeled Toggle) — cap their width to the budget so they never
-     *       bleed past the panel; an over-long label scrolls within bounds.</li>
-     *   <li>Intrinsic widgets (Icon, ItemDisplay, Checkbox, Radio, square/
-     *       sprite controls) — ignore the budget (default no-op); they keep
+     *   <li>Text-bearing — {@code TextLabel}, {@code InfoBox}, {@code Button},
+     *       {@code Checkbox}, {@code Radio}, a labeled {@code Toggle}, and a
+     *       {@code Dropdown}'s trigger label — wrap their text/label to the budget
+     *       across multiple lines, growing taller to fit (and reporting the extra
+     *       via {@link #extraLayoutHeight} so the panel reflows siblings below).</li>
+     *   <li>Fill widgets (Slider, TextField, ProgressBar, Divider,
+     *       {@code DropdownMulti}, a {@code Dropdown}'s popover rows) — cap their
+     *       width to the budget so they never bleed past the panel; an over-long
+     *       label scrolls/clips within bounds. These are fixed-geometry controls
+     *       or live editable inputs where growing taller would distort the
+     *       mechanism, so they cap rather than wrap (by design, not a gap).</li>
+     *   <li>Intrinsic widgets (Icon, ItemDisplay, a bare/sprite Toggle switch,
+     *       square/sprite controls) — ignore the budget (default no-op); they keep
      *       their authored size.</li>
      * </ul>
      *

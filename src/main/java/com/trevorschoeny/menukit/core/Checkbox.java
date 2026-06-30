@@ -4,8 +4,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.FormattedCharSequence;
 import org.jspecify.annotations.Nullable;
 
+import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -96,6 +98,21 @@ public class Checkbox extends AbstractPanelElement<Checkbox> {
     // Render-frame state.
     private boolean hovered = false;
 
+    // ── Reactive label wrap ────────────────────────────────────────────
+    // When wrapWidth > 0, the LABEL renders multi-line — the label text is
+    // split via font.split(label, wrapWidth) and each FormattedCharSequence
+    // is drawn beside the box at successive lineHeight offsets. getHeight()
+    // then grows to lineCount × lineHeight (floored at BOX_SIZE so a wrapped
+    // checkbox never shrinks below its authored square). Mirrors TextLabel's
+    // auto-wrap mechanism; the value is the horizontal pixel budget for the
+    // LABEL AREA (already net of the box + gap), not the whole element.
+    //
+    // Mutable, set by the owning Panel via layoutWithin() once it knows its
+    // resolved content width. Zero (default) = single-line legacy behavior,
+    // and the wrap is REVERSIBLE — a later wider budget clears it back to 0
+    // and restores the single-line, box-centered label.
+    private int wrapWidth = 0;
+
     // ── Constructors: fixed label ─────────────────────────────────────
 
     public Checkbox(int childX, int childY, boolean initialState,
@@ -171,11 +188,84 @@ public class Checkbox extends AbstractPanelElement<Checkbox> {
 
     @Override
     public int getHeight() {
+        if (wrapWidth > 0) {
+            // Multi-line label: ask the vanilla font splitter how many wrapped
+            // lines the label produces at the current wrapWidth, then multiply
+            // by lineHeight. font.split() is the same call vanilla uses for
+            // chat / tooltips / book pages, so wrap semantics match player
+            // expectations. Floor at BOX_SIZE (Math.max) so the element NEVER
+            // shrinks below its authored square — wrapping only ever grows it.
+            Component label = labelSupplier.get();
+            if (label != null) {
+                var font = Minecraft.getInstance().font;
+                List<FormattedCharSequence> lines = font.split(label, wrapWidth);
+                int lineCount = Math.max(1, lines.size());
+                return Math.max(BOX_SIZE, lineCount * font.lineHeight);
+            }
+        }
+        // Single-line (or no label): the authored square height.
         return BOX_SIZE;
     }
 
     /** Interactive — handles clicks, so it claims (blocks vanilla behind) on a non-opaque panel. */
     @Override public boolean isInteractive() { return true; }
+
+    // ── Reactive label wrap (mirrors TextLabel) ─────────────────────────
+    //
+    // Width flows DOWN from the panel: the panel resolves one content width
+    // and hands each element a horizontal budget via layoutWithin(). The
+    // checkbox wraps its LABEL into the remaining space beside the box,
+    // reversibly — a later wider budget un-wraps it. getWidth()/getHeight()
+    // are the hit-test + hover bounds basis (see PanelElement#isHovered /
+    // #hitTest), so the enlarged multi-line hit-rect comes for free.
+
+    /**
+     * Natural width = box + gap + the label's single-line rendered width —
+     * what the checkbox wants when the panel has room. The owning Panel maxes
+     * this across elements to find its hug-width; a wider element (or the
+     * screen-edge ceiling) then drives whether this label actually wraps.
+     * Identical to {@link #getWidth()} in non-wrap mode, but kept distinct so
+     * a narrow pass can shrink presentation while natural intent stays put.
+     */
+    @Override
+    public int naturalWidth() {
+        Component label = labelSupplier.get();
+        int labelWidth = label != null ? Minecraft.getInstance().font.width(label) : 0;
+        return BOX_SIZE + LABEL_GAP + labelWidth;
+    }
+
+    /**
+     * Wrap the LABEL to the panel-assigned budget. The budget covers the whole
+     * element, so the label's own area is {@code budget - BOX_SIZE - LABEL_GAP};
+     * we engage wrap ONLY when the label's natural single-line width exceeds
+     * that area, else clear it back to 0. Reversible: a later wider budget
+     * restores the single-line, box-centered label (same engage-only-when-
+     * natural-exceeds-available rule TextLabel uses).
+     */
+    @Override
+    public void layoutWithin(int budget) {
+        Component label = labelSupplier.get();
+        if (label == null) { wrapWidth = 0; return; }
+        var font = Minecraft.getInstance().font;
+        // The horizontal pixels the label itself may occupy, net of the box
+        // and the box→label gap. Floor at 1 so font.split never gets a
+        // non-positive width even at an absurdly tight budget.
+        int labelArea = Math.max(1, budget - BOX_SIZE - LABEL_GAP);
+        // Engage wrap only when the label can't fit on one line in that area.
+        wrapWidth = font.width(label) > labelArea ? labelArea : 0;
+    }
+
+    /**
+     * Extra vertical pixels this checkbox occupies BEYOND its authored square
+     * because the label wrapped — i.e. {@code getHeight() - BOX_SIZE}, or 0
+     * when not wrapped. The owning {@link Panel} reflows the elements below a
+     * wrapped checkbox downward by exactly this amount, so a label that grows
+     * from one line to two pushes — never paints over — what's beneath it.
+     */
+    @Override
+    public int extraLayoutHeight() {
+        return Math.max(0, getHeight() - BOX_SIZE);
+    }
 
     // ── State ──────────────────────────────────────────────────────────
 
@@ -240,14 +330,33 @@ public class Checkbox extends AbstractPanelElement<Checkbox> {
                     markX, markY, CHECKMARK_WIDTH, CHECKMARK_HEIGHT);
         }
 
-        // Label text, vertically centered with the box
+        // Label text, drawn beside the box.
         Component label = labelSupplier.get();
         if (label != null) {
             var font = Minecraft.getInstance().font;
             int textX = sx + BOX_SIZE + LABEL_GAP;
-            int textY = sy + (BOX_SIZE - font.lineHeight) / 2 + 1;
             int color = disabled ? DISABLED_LABEL_COLOR : DEFAULT_LABEL_COLOR;
-            graphics.drawString(font, label, textX, textY, color, false);
+
+            if (wrapWidth > 0) {
+                // Multi-line: split the label into FormattedCharSequence lines
+                // and draw each at successive lineHeight offsets, starting at
+                // the box TOP. Once multi-line we TOP-align (box beside line 1)
+                // rather than vertically center against the square — centering a
+                // tall block against a 10px box would float the text off the box.
+                // drawString accepts FormattedCharSequence directly (the same
+                // path tooltips + book pages use), so wrap rendering rides on the
+                // existing vanilla pipeline.
+                List<FormattedCharSequence> lines = font.split(label, wrapWidth);
+                int lineY = sy;
+                for (FormattedCharSequence line : lines) {
+                    graphics.drawString(font, line, textX, lineY, color, false);
+                    lineY += font.lineHeight;
+                }
+            } else {
+                // Single-line legacy path: vertically center the label with the box.
+                int textY = sy + (BOX_SIZE - font.lineHeight) / 2 + 1;
+                graphics.drawString(font, label, textX, textY, color, false);
+            }
         }
 
         // Hover-triggered tooltip — deferred to end-of-frame.

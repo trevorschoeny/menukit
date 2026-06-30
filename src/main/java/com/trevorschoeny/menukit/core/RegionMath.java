@@ -174,6 +174,38 @@ public final class RegionMath {
         return sw - 2 * inset;
     }
 
+    // ── Screen-edge chrome anchoring (ScreenRegion) ─────────────────────
+
+    /**
+     * Places a {@code pw × ph} chrome panel at one of the nine
+     * {@link ScreenRegion} screen-edge spots, inset by {@code margin} from the
+     * edges it touches. Pure: the panel anchors to the SCREEN (not the content
+     * frame), so unlike {@link #resolveMenu} it always resolves — a screen-edge
+     * spot is on-screen by construction (a panel wider/taller than the screen
+     * minus margins simply overhangs the far edge, the degenerate case).
+     *
+     * <p>The X axis: LEFT spots pin to {@code margin}; CENTER spots centre on the
+     * screen width; RIGHT spots pin to the right margin. The Y axis mirrors it
+     * (TOP / middle / BOTTOM). Used by both the standalone-screen
+     * ({@link com.trevorschoeny.menukit.screen.MKScreen}) and custom-container
+     * ({@link MainRegionLayout}) chrome paths, so a Back button / title anchors to
+     * the screen identically in both.
+     */
+    public static ScreenOrigin resolveScreenRegion(ScreenRegion region,
+            int sw, int sh, int pw, int ph, int margin) {
+        int x = switch (region) {
+            case TOP_LEFT, LEFT_CENTER, BOTTOM_LEFT -> margin;
+            case TOP_CENTER, CENTER, BOTTOM_CENTER -> (sw - pw) / 2;
+            case TOP_RIGHT, RIGHT_CENTER, BOTTOM_RIGHT -> sw - pw - margin;
+        };
+        int y = switch (region) {
+            case TOP_LEFT, TOP_CENTER, TOP_RIGHT -> margin;
+            case LEFT_CENTER, CENTER, RIGHT_CENTER -> (sh - ph) / 2;
+            case BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT -> sh - ph - margin;
+        };
+        return new ScreenOrigin(x, y);
+    }
+
     // ── Shared constants ────────────────────────────────────────────────
     //
     // Phase 3b (Item 4c): the stacking gap was hoisted to the single shared

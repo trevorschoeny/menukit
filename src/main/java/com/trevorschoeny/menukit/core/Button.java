@@ -1,12 +1,15 @@
 package com.trevorschoeny.menukit.core;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.FormattedCharSequence;
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -68,10 +71,33 @@ public class Button extends AbstractPanelElement<Button> {
 
     // width is the RESOLVED (post-constraint) width — what getWidth reports and
     // what render paints. Under a panel's layoutWithin pass it shrinks from the
-    // authored intent below. Height is fixed: an element LABEL scrolls within
-    // the (possibly narrowed) box, it does not wrap, so the box never grows.
+    // authored intent below. height is the AUTHORED (intent) box height — what
+    // getHeight reports when the label fits on one line. When the panel narrows
+    // the box below the label's natural width the label WRAPS (wrapWidth below),
+    // and getHeight GROWS past this authored value to fit the wrapped lines (it
+    // only ever grows, never shrinks below the authored height).
     private int width;
     private int height;
+
+    // ── Reactive label wrap (mirrors TextLabel's Phase 16g auto-wrap) ──
+    // When wrapWidth > 0 the label renders multi-line — the label text is split
+    // via font.split(text, innerWrapWidth) and each FormattedCharSequence is
+    // drawn centered at successive lineHeight offsets, and getHeight() grows to
+    // lineCount × lineHeight (+ vertical padding) instead of the authored box
+    // height. Set by layoutWithin during the panel's reactive pass ONLY when the
+    // panel narrowed the button below its natural single-line label width; a
+    // later wider budget clears it back to 0 (single-line), so the wrap is fully
+    // REVERSIBLE. Zero (default) = single-line legacy behavior (centered/scroll).
+    //
+    // This is the documented Button contract (PanelElement#layoutWithin): a
+    // Button "shrinks its box to the budget and wraps its label across multiple
+    // lines, growing taller to fit." The historical behavior capped the box and
+    // horizontal-scrolled the label — a contract violation this field fixes.
+    //
+    // NOTE: wrapWidth holds the INNER text budget (box width minus horizontal
+    // label padding), so it is what we pass straight to font.split — the same
+    // value getHeight/render need. layoutWithin derives it from the resolved box.
+    private int wrapWidth = 0;
 
     // Authored (intent) width, captured lazily the first time the panel queries
     // naturalWidth/layoutWithin (sentinel = not yet captured). Keeping the intent
@@ -175,10 +201,30 @@ public class Button extends AbstractPanelElement<Button> {
         return Minecraft.getInstance().font.width(text) + LABEL_PAD * 2;
     }
 
-    @Override public int getHeight() { return height; }
+    @Override
+    public int getHeight() {
+        // Single-line (wrap disabled): the authored box height, unchanged.
+        if (wrapWidth <= 0) return height;
+        // Wrapped: ask the vanilla font splitter how many lines the label
+        // produces at the resolved inner budget (the same font.split call
+        // vanilla uses for chat / tooltips / book pages, so wrap semantics
+        // match player expectations), then size the box to hold them all plus
+        // the vertical frame padding. Math.max floors at the authored height —
+        // getHeight ONLY ever grows when wrapped, never shrinks the box below
+        // its intrinsic height (a one-line label in a tall authored button
+        // keeps that authored height).
+        Font font = Minecraft.getInstance().font;
+        int lineCount = Math.max(1, font.split(text, wrapWidth).size());
+        int wrappedHeight = lineCount * font.lineHeight + VERTICAL_PAD * 2;
+        return Math.max(height, wrappedHeight);
+    }
 
     /** Horizontal padding around a width-0 button's auto-sized label. */
     private static final int LABEL_PAD = 6;
+
+    /** Vertical padding above + below the wrapped label block, so multi-line
+     *  text doesn't butt against the button's top/bottom bevel. */
+    private static final int VERTICAL_PAD = 4;
 
     /** Column-fill (Pass 3): stretch this button to the column's widest extent.
      *  Re-authors the intent so the panel's reactive pass treats this as the
@@ -214,14 +260,51 @@ public class Button extends AbstractPanelElement<Button> {
 
     /**
      * Resolve to the panel-assigned budget: shrink the box to {@code min(natural,
-     * budget)} so the button never bleeds past the panel. The LABEL does not
-     * wrap — element labels scroll horizontally within the (possibly narrowed)
-     * box ({@link #renderContent} via MKText), so the box keeps its authored
-     * height. Reversible — a wider budget restores the authored width.
+     * budget)} so the button never bleeds past the panel, THEN wrap the label
+     * across multiple lines when the narrowed box is too small for the label on
+     * one line. This is the documented contract (PanelElement#layoutWithin): a
+     * Button "shrinks its box to the budget and wraps its label across multiple
+     * lines, growing taller to fit."
+     *
+     * <p>Wrap is engaged ONLY when the box's inner text area is narrower than the
+     * label's natural single-line width — at a roomy budget the wrap clears
+     * ({@code wrapWidth = 0}) so the button reports its authored single-line
+     * height again. A later wider pass therefore un-wraps it, fully REVERSIBLY
+     * (mirrors {@link TextLabel#layoutWithin}).
      */
     @Override
     public void layoutWithin(int budget) {
+        // Box cap — unchanged: never bleed past the panel.
         this.width = Math.min(naturalWidth(), budget);
+        // Inner text area = the resolved box minus the horizontal label frame.
+        // (Floor at 1 so font.split never gets a non-positive budget on an
+        // extremely narrow box.)
+        int innerBudget = Math.max(1, this.width - LABEL_PAD * 2);
+        // The label's natural width WITHOUT the frame pad — the single-line text
+        // extent we compare the inner budget against.
+        int labelNaturalWidthInner = Minecraft.getInstance().font.width(text);
+        // Engage wrap only when the label can't fit on one line in the inner
+        // area; otherwise clear it (reversible — a wider budget restores
+        // single-line). wrapWidth stores the INNER budget directly so getHeight
+        // and renderContent can pass it straight to font.split.
+        this.wrapWidth = (innerBudget < labelNaturalWidthInner) ? innerBudget : 0;
+    }
+
+    /**
+     * Extra vertical pixels this button occupies BEYOND its authored box height
+     * because its label wrapped under {@link #layoutWithin} — i.e.
+     * {@code getHeight() - authoredHeight} when wrapped, else {@code 0}. The
+     * owning {@link Panel} reflows the elements below this button downward by
+     * exactly this amount, so a button that grows from one line to two pushes —
+     * never paints over — what's beneath it (mirrors
+     * {@link TextLabel#extraLayoutHeight}).
+     */
+    @Override
+    public int extraLayoutHeight() {
+        // height is the authored box height (getHeight grows past it when
+        // wrapped); the delta is the reflow push. Zero when not wrapped, since
+        // getHeight() == height there.
+        return wrapWidth > 0 ? getHeight() - height : 0;
     }
 
     /** Interactive — handles clicks, so it claims (blocks vanilla behind) on a non-opaque panel. */
@@ -402,15 +485,38 @@ public class Button extends AbstractPanelElement<Button> {
      * composite visuals) while keeping the default panel-style background.
      */
     protected void renderContent(RenderContext ctx, int sx, int sy) {
-        // Text — centered within button bounds, scroll-on-overflow. Element
-        // labels SCROLL, they don't wrap (Verification-4): MKText.renderCentered
-        // draws centered when the label fits and scrolls it back-and-forth
-        // (vanilla's button-label primitive) when the panel narrowed the button
-        // below the label width.
-        //
         // 1.21.11 ARGB requirement: colors must have a non-zero alpha byte or
         // the underlying draw silently discards the text (ARGB.alpha != 0).
         int textColor = isDisabled() ? 0xFF808080 : 0xFFFFFFFF;
+
+        if (wrapWidth > 0) {
+            // Wrapped (reactive): the panel narrowed this button below its
+            // label's single-line width, so the label spans multiple lines.
+            // Split via the same vanilla font.split tooltips / book pages use,
+            // then draw each line CENTERED horizontally, with the whole block
+            // centered vertically in the box.
+            Font font = Minecraft.getInstance().font;
+            List<FormattedCharSequence> lines = font.split(text, wrapWidth);
+            // getHeight() already grew the box to hold these lines; vertically
+            // center the wrapped block within the (grown) box height.
+            int blockHeight = lines.size() * font.lineHeight;
+            int lineY = sy + (getHeight() - blockHeight) / 2;
+            for (FormattedCharSequence line : lines) {
+                // Center each line horizontally: indent by half the leftover
+                // width inside the box (box width minus this line's pixel width).
+                int lineWidth = font.width(line);
+                int lineX = sx + (width - lineWidth) / 2;
+                ctx.graphics().drawString(font, line, lineX, lineY, textColor, true);
+                lineY += font.lineHeight;
+            }
+            return;
+        }
+
+        // Single-line (wrap disabled) — UNCHANGED legacy path. Text centered
+        // within button bounds, scroll-on-overflow: MKText.renderCentered draws
+        // centered when the label fits and scrolls it back-and-forth (vanilla's
+        // button-label primitive) on the rare too-narrow box where wrap didn't
+        // engage (e.g. a single unbreakable token wider than the inner budget).
         MKText.renderCentered(ctx.graphics(), text, sx, sy, width, height,
                 textColor, true);
     }

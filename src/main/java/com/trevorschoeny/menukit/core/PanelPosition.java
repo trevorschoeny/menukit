@@ -34,7 +34,7 @@ import org.jspecify.annotations.Nullable;
  */
 public record PanelPosition(Mode mode,
                             @Nullable String anchorPanelId,
-                            @Nullable ScreenCorner screenCorner,
+                            @Nullable ScreenRegion screenAnchor,
                             @Nullable MenuRegion menuRegion) {
 
     /** How a panel is positioned. */
@@ -56,10 +56,10 @@ public record PanelPosition(Mode mode,
          */
         REGION,
         /**
-         * Pinned to a fixed screen corner (Pass 3), inset by
-         * {@link RegionConstants#SCREEN_EDGE_MARGIN}. Excluded from the layout's
-         * extent — chrome like a "Back" button stays put regardless of content
-         * size. See {@link #screenAnchor}.
+         * Pinned to a fixed {@link ScreenRegion screen-edge spot} (Pass 3), inset
+         * by {@link RegionConstants#SCREEN_EDGE_MARGIN}. Excluded from the layout's
+         * extent — chrome like a "Back" button (TOP_LEFT) or a title (TOP_CENTER)
+         * stays put regardless of content size. See {@link #screenAnchor}.
          */
         SCREEN_ANCHOR,
         /**
@@ -101,18 +101,21 @@ public record PanelPosition(Mode mode,
     }
 
     /**
-     * Pins the panel to a fixed screen corner (Pass 3) — inset by
-     * {@link RegionConstants#SCREEN_EDGE_MARGIN} from both edges of that corner.
-     * The canonical "Back button" / screen-chrome placement: positioned
-     * independently of the layout (contributes nothing to its extent), so it
-     * stays put in the same screen corner no matter how content sizes or scrolls.
+     * Pins the panel to a fixed {@link ScreenRegion screen-edge spot} (Pass 3) —
+     * inset by {@link RegionConstants#SCREEN_EDGE_MARGIN} from the edges that spot
+     * touches. The canonical screen-chrome placement: a "&lt; Back" button at
+     * {@code TOP_LEFT}, a title at {@code TOP_CENTER}, a status line at
+     * {@code BOTTOM_CENTER}. Positioned independently of the layout (contributes
+     * nothing to its extent), so it stays put no matter how content sizes,
+     * wraps, or scrolls.
      *
-     * <p>Honored by {@link com.trevorschoeny.menukit.screen.MKScreen}. (A
-     * container screen's chrome anchors to its menu frame via the region system
-     * instead.)
+     * <p>Honored by both {@link com.trevorschoeny.menukit.screen.MKScreen} (the
+     * standalone screen) and {@link MainRegionLayout} (a custom container screen),
+     * via {@link RegionMath#resolveScreenRegion} — the SAME screen-edge placement
+     * in either context.
      */
-    public static PanelPosition screenAnchor(ScreenCorner corner) {
-        return new PanelPosition(Mode.SCREEN_ANCHOR, null, corner, null);
+    public static PanelPosition screenAnchor(ScreenRegion region) {
+        return new PanelPosition(Mode.SCREEN_ANCHOR, null, region, null);
     }
 
     /**

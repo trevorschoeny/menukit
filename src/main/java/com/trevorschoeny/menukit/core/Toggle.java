@@ -4,9 +4,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.FormattedCharSequence;
 
 import org.jspecify.annotations.Nullable;
 
+import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -66,6 +68,10 @@ public class Toggle extends AbstractPanelElement<Toggle> {
 
     /** Horizontal inset for an on-body label inside the toggle bar. */
     public static final int LABEL_PAD = 6;
+    /** Vertical inset (top == bottom) for a WRAPPED multi-line on-body label —
+     *  the breathing room above the first line and below the last so the
+     *  wrapped text doesn't kiss the bar's RAISED/INSET border. */
+    public static final int LABEL_VPAD = 4;
     /** On-body label color — readable on the RAISED/INSET bar (matches Button text). */
     public static final int LABEL_COLOR = 0xFFFFFFFF;
     /** Muted on-body label color when disabled. */
@@ -165,6 +171,21 @@ public class Toggle extends AbstractPanelElement<Toggle> {
     // ignores it (intrinsic). Reversible — re-set each layout pass.
     private int widthCap = Integer.MAX_VALUE;
 
+    // ── Reactive label wrap ────────────────────────────────────────────
+    // Wrapped line count for the LABELED bar's on-body label at the capped
+    // inner width. 0/1 = the label fits on a single line → legacy intrinsic
+    // height + the existing centered-scroll render path. >1 = the label
+    // wrapped: getHeight() grows the bar to fit the lines and render() draws
+    // the FormattedCharSequence lines centered at successive lineHeight
+    // offsets, exactly mirroring TextLabel's font.split(...) wrap mechanism.
+    //
+    // Mutable + recomputed every layoutWithin pass (like widthCap), so wrap
+    // is fully REVERSIBLE: a later wider budget that fits the label on one
+    // line resets this back to single-line and the bar shrinks to its
+    // authored height. A bare/sprite switch never touches this (its
+    // layoutWithin is a no-op), so it stays intrinsic.
+    private int wrappedLineCount = 1;
+
     @Override
     public int getWidth() {
         if (labelSupplier == null) return width; // bare switch — intrinsic
@@ -177,7 +198,19 @@ public class Toggle extends AbstractPanelElement<Toggle> {
         return Math.min(natural, widthCap);
     }
 
-    @Override public int getHeight() { return height; }
+    @Override
+    public int getHeight() {
+        // Single-line (the common case + every bare/sprite switch): the
+        // authored height, untouched.
+        if (wrappedLineCount <= 1) return height;
+        // Wrapped: grow the bar to fit the stacked lines plus top/bottom
+        // breathing room. Math.max guards the floor — a wrapped label NEVER
+        // shrinks the bar below its authored height, it only grows it (mirrors
+        // TextLabel's grow-only contract).
+        var font = Minecraft.getInstance().font;
+        int wrapped = LABEL_VPAD + wrappedLineCount * font.lineHeight + LABEL_VPAD;
+        return Math.max(height, wrapped);
+    }
 
     /** Natural (uncapped) bar width — the auto-widen-to-label extent, or the
      *  switch width when unlabeled. Drives the panel hug-width. */
@@ -190,10 +223,51 @@ public class Toggle extends AbstractPanelElement<Toggle> {
     }
 
     /** Cap the labeled BAR to the panel's budget (reversible); a bare/sprite
-     *  switch is intrinsic and ignores it, mirroring its fillWidth no-op. */
+     *  switch is intrinsic and ignores it, mirroring its fillWidth no-op.
+     *
+     *  <p>Beyond the width cap, this also resolves the label's WRAP: at the
+     *  capped inner width (the bar's budget minus the L+R label inset) it asks
+     *  the vanilla font splitter how many lines the label takes. If the label's
+     *  natural single-line width exceeds that inner area it wraps (line count
+     *  &gt; 1) and {@link #getHeight()} grows the bar to fit; if it fits, the
+     *  count resets to 1 and the bar stays single-line. Recomputed every pass,
+     *  so a later wider budget un-wraps it — fully reversible (mirrors
+     *  TextLabel.layoutWithin). */
     @Override
     public void layoutWithin(int budget) {
-        if (labelSupplier != null) this.widthCap = budget;
+        // Bare/sprite switch — intrinsic, no cap and no wrap. Reset wrap state
+        // so a label that was later cleared can't leave a stale grown height.
+        if (labelSupplier == null) { this.wrappedLineCount = 1; return; }
+
+        this.widthCap = budget;
+
+        Component label = labelSupplier.get();
+        if (label == null) { this.wrappedLineCount = 1; return; }
+
+        var font = Minecraft.getInstance().font;
+        // The bar's resolved width is its natural extent clamped to the budget
+        // (same min() getWidth() applies); the label lives inside that minus
+        // the L+R inset. Wrapping engages only when the label's natural
+        // single-line width exceeds this inner area.
+        int barWidth = Math.min(naturalWidth(), budget);
+        int innerWrapWidth = Math.max(1, barWidth - 2 * LABEL_PAD);
+        // font.split is the same vanilla wrapper chat / tooltips / book pages
+        // use, so the wrapped break points match player expectations.
+        int lines = font.split(label, innerWrapWidth).size();
+        this.wrappedLineCount = Math.max(1, lines);
+    }
+
+    /**
+     * Extra vertical pixels the WRAPPED bar occupies beyond its authored
+     * height — {@code getHeight() - height} when wrapped, else {@code 0}. The
+     * owning {@link Panel} reflows the elements below this toggle downward by
+     * exactly this amount, so a label that grows from one line to two pushes
+     * (never paints over) what's beneath it. Mirrors TextLabel.extraLayoutHeight.
+     */
+    @Override
+    public int extraLayoutHeight() {
+        if (wrappedLineCount <= 1) return 0;
+        return Math.max(0, getHeight() - height);
     }
 
     /**
@@ -358,8 +432,35 @@ public class Toggle extends AbstractPanelElement<Toggle> {
             Component label = labelSupplier.get();
             if (label != null) {
                 int textColor = disabled ? LABEL_DISABLED_COLOR : LABEL_COLOR;
-                MKText.renderCentered(ctx.graphics(), label,
-                        sx, sy, getWidth(), height, textColor, true);
+                if (wrappedLineCount > 1) {
+                    // Wrapped: the single-line centered-scroll path can't show a
+                    // label too long for the bar, so split it into the SAME
+                    // FormattedCharSequence lines vanilla uses (font.split at the
+                    // capped inner width) and draw each centered, stacked at
+                    // successive lineHeight offsets. The block is vertically
+                    // centered in the (grown) bar so it sits evenly between the
+                    // top/bottom borders; each line is horizontally centered like
+                    // the single-line path. The on-state "depressed" INSET body
+                    // is painted by renderBackground (which reads getHeight()),
+                    // so it grows with the bar automatically — unchanged here.
+                    var font = Minecraft.getInstance().font;
+                    int barW = getWidth();
+                    int innerWrapWidth = Math.max(1, barW - 2 * LABEL_PAD);
+                    List<FormattedCharSequence> lines = font.split(label, innerWrapWidth);
+                    int blockH = lines.size() * font.lineHeight;
+                    int lineY = sy + (getHeight() - blockH) / 2; // vertical center
+                    for (FormattedCharSequence line : lines) {
+                        int lineW = font.width(line);
+                        int lineX = sx + (barW - lineW) / 2; // horizontal center
+                        ctx.graphics().drawString(font, line, lineX, lineY, textColor, true);
+                        lineY += font.lineHeight;
+                    }
+                } else {
+                    // Single-line: unchanged centered-scroll path (drawn exactly
+                    // like Button.renderContent).
+                    MKText.renderCentered(ctx.graphics(), label,
+                            sx, sy, getWidth(), height, textColor, true);
+                }
             }
         }
 
@@ -392,14 +493,20 @@ public class Toggle extends AbstractPanelElement<Toggle> {
     protected void renderBackground(RenderContext ctx, int sx, int sy,
                                      boolean on, boolean disabled, boolean hovered) {
         int w = getWidth();   // labeled = a bar sized to its label; unlabeled = the switch
+        // getHeight() (not the authored `height`) so a WRAPPED labeled bar's
+        // RAISED/INSET body grows to contain its stacked lines — the on-state
+        // "depressed" styling stays, it just gets taller. For every single-line
+        // / bare / sprite variant getHeight() == height, so this is a no-op
+        // there and the non-wrapped visual is byte-for-byte unchanged.
+        int h = getHeight();
         PanelStyle bg = disabled ? PanelStyle.DARK
                       : on       ? PanelStyle.INSET
                                  : PanelStyle.RAISED;
-        PanelRendering.renderPanel(ctx.graphics(), sx, sy, w, height, bg);
+        PanelRendering.renderPanel(ctx.graphics(), sx, sy, w, h, bg);
 
         // Hover highlight — same pattern as Button
         if (!disabled && hovered) {
-            ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + height - 1,
+            ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1,
                     0x30FFFFFF);
         }
     }

@@ -166,13 +166,6 @@ public class Panel {
     // (MIN_VALUE) until the first pass so the first ensureConfigured always runs.
     private int lastLayoutSig = Integer.MIN_VALUE;
 
-    // The elements' AS-DECLARED childY, captured once before any auto-wrap
-    // reflow mutates their positions. Reflow re-stacks childY from these
-    // baselines every configuration pass (so it's reversible: when a wider
-    // frame un-wraps a label, the elements return to exactly their declared
-    // offsets). Null until the first configuration pass captures it.
-    private int @Nullable [] declaredChildY;
-
     // Supplier-driven visibility (Phase 10). When non-null, this takes precedence
     // over the imperative `visible` field — isVisible() reads the supplier, and
     // setVisible(...) silently no-ops. Clear with showWhen(null) to revert to
@@ -547,7 +540,6 @@ public class Panel {
         if (sig != lastLayoutSig) configurationDirty = true;
         if (!configurationDirty) return;
         configurationDirty = false;
-        lastLayoutSig = sig;
 
         // ── Step 1: resolve ONE content width, top-down ────────────────
         // The panel's content width is the single number every element reacts
@@ -585,8 +577,20 @@ public class Panel {
         // pinnedHeight if declared, else the screen-edge height ceiling
         // (Movement ② — effectiveContentHeight). Either way the panel scrolls
         // ONLY when its natural content overflows that viewport.
-        int viewportHeight = (pinnedHeight >= 0) ? pinnedHeight
-                : (effectiveContentHeight >= 0) ? effectiveContentHeight : -1;
+        // pinnedHeight (consumer-declared) always drives a scroll viewport. The
+        // screen-edge height ceiling (②) only does so when it leaves a USEFUL
+        // viewport: a region sibling squeezed to a sliver against a tall frame would
+        // otherwise build a uselessly-tiny scrollbar — below the threshold we let it
+        // render at natural height and rely on resolveMenu's on-screen clamp (the
+        // honest height fallback, mirroring how an over-wide panel clamps).
+        int viewportHeight;
+        if (pinnedHeight >= 0) {
+            viewportHeight = pinnedHeight;
+        } else if (effectiveContentHeight >= MIN_SCROLL_VIEWPORT) {
+            viewportHeight = effectiveContentHeight;
+        } else {
+            viewportHeight = -1;
+        }
 
         // First lay out every element against the FULL content width (no
         // scrollbar reserve) and reflow, then measure the natural content
@@ -633,6 +637,14 @@ public class Panel {
                         .build();
             }
         }
+
+        // Store the POST-reflow signature so a SETTLED layout doesn't re-trigger an
+        // extra reconfigure next frame: reflow just mutated each element's live
+        // childY, and layoutSignature() reads childY — computing it HERE (after
+        // reflow) means the signature the next frame derives from the settled
+        // positions matches, so the gate skips. A real change (visibility / size / a
+        // runtime move) still shifts the signature and re-triggers correctly.
+        lastLayoutSig = layoutSignature();
     }
 
     /**
@@ -677,49 +689,66 @@ public class Panel {
      *  squeeze content to nothing). See {@link #ensureConfigured}. */
     private static final int MIN_ELEMENT_WIDTH = 8;
 
+    /** Smallest screen-edge height ceiling (②) worth auto-scrolling INTO. When a
+     *  region sibling is squeezed against a tall main frame its available height can
+     *  floor to a sliver; building a scrollbar into fewer than this many pixels is
+     *  worse than rendering at natural height and relying on the on-screen clamp.
+     *  Gates ONLY the library-imposed screen-edge ceiling — a consumer's explicit
+     *  {@code pinnedHeight} is always honored. See {@link #ensureConfigured}. */
+    private static final int MIN_SCROLL_VIEWPORT = 24;
+
     /**
-     * Re-stacks elements' childY from their declared baselines so an auto-
-     * wrapped (taller) element pushes everything below it down by exactly the
-     * extra height — keeping fixed-childY layouts overlap-free under wrap.
+     * Re-stacks elements' live childY from their BASELINES so an auto-wrapped
+     * (taller) element pushes everything below it down by exactly the extra
+     * height — keeping fixed-childY layouts overlap-free under wrap.
      *
-     * <p>Reversible and idempotent: recomputed from {@link #declaredChildY}
-     * each configuration pass, so a wider frame that un-wraps a label restores
-     * the declared offsets. No-op when nothing wrapped (every extra is 0 →
-     * declared positions unchanged), so it only moves elements in the otherwise-
-     * broken case. Render and input both read position via {@code getChildY()}
-     * each frame (§0047), so the reflow takes effect uniformly with no
-     * dispatcher changes.
+     * <p>The baseline is each element's authored / explicitly-moved Y, held on
+     * the element itself ({@link AbstractPanelElement#reflowBaselineY()}, captured
+     * lazily and updated by {@code at}/{@code setChildPosition}). Reflow sets the
+     * live childY to {@code baseline + cumulativePush} via
+     * {@link AbstractPanelElement#applyReflowedY} — which leaves the baseline
+     * intact, so the push is reversible (a wider frame that un-wraps restores
+     * {@code baseline + 0}) AND a runtime move re-bases the stack instead of being
+     * clobbered. (Earlier this read a Panel-level snapshot captured once on the
+     * first pass; that snapshot never saw a runtime move, so reflow re-asserted
+     * the stale Y and explicit moves silently no-op'd.)
      *
-     * <p>Only library elements ({@link AbstractPanelElement}) can be
-     * repositioned; a custom {@link PanelElement} keeps its declared position
-     * (it doesn't auto-wrap, so it never drives a reflow — only ever receives a
-     * push, which it can't here). Elements sharing a declared childY form one
-     * row: the row's downward push is the tallest wrap within it, so side-by-
-     * side cells (e.g. a slot grid row) don't double-count.
+     * <p>No-op when nothing wrapped (every extra is 0 → live = baseline). Render
+     * and input read position via {@code getChildY()} each frame (§0047), so the
+     * reflow takes effect uniformly with no dispatcher changes.
+     *
+     * <p>Only library elements ({@link AbstractPanelElement}) can be repositioned;
+     * a bare custom {@link PanelElement} keeps its position (it doesn't auto-wrap,
+     * so it never drives a reflow — only ever receives a push, which it can't take
+     * here). Elements sharing a baseline childY form one row: the row's downward
+     * push is the tallest wrap within it, so side-by-side cells (e.g. a slot grid
+     * row) don't double-count.
      */
     private void reflowForWrap() {
         if (elements.isEmpty()) return;
-        // Capture declared offsets once, before any reflow mutates positions.
-        if (declaredChildY == null) {
-            int[] captured = new int[elements.size()];
-            for (int i = 0; i < elements.size(); i++) {
-                captured[i] = elements.get(i).getChildY();
-            }
-            declaredChildY = captured;
-        }
-        int[] declared = declaredChildY;
+        int n = elements.size();
 
-        // Visit in declared-Y (top-to-bottom) order.
-        Integer[] order = new Integer[elements.size()];
-        for (int i = 0; i < order.length; i++) order[i] = i;
+        // Each element's BASELINE Y (authored / explicitly-moved). A bare custom
+        // element can't be repositioned, so its baseline = its current childY.
+        int[] baseline = new int[n];
+        for (int i = 0; i < n; i++) {
+            PanelElement e = elements.get(i);
+            baseline[i] = (e instanceof AbstractPanelElement<?> ape)
+                    ? ape.reflowBaselineY() : e.getChildY();
+        }
+
+        // Visit in baseline-Y (top-to-bottom) order so a wrapped row pushes only
+        // the rows below it.
+        Integer[] order = new Integer[n];
+        for (int i = 0; i < n; i++) order[i] = i;
         java.util.Arrays.sort(order,
-                java.util.Comparator.comparingInt(i -> declared[i]));
+                java.util.Comparator.comparingInt(i -> baseline[i]));
 
         int cumulative = 0;            // extra pushed down by wrapped rows above
         int rowExtra = 0;              // tallest wrap in the current row
-        int rowY = Integer.MIN_VALUE;  // current row's declared Y
+        int rowY = Integer.MIN_VALUE;  // current row's baseline Y
         for (int idx : order) {
-            int dY = declared[idx];
+            int dY = baseline[idx];
             if (dY != rowY) {
                 cumulative += rowExtra; // bank the previous row's push
                 rowExtra = 0;
@@ -727,12 +756,13 @@ public class Panel {
             }
             PanelElement e = elements.get(idx);
             if (e instanceof AbstractPanelElement<?> ape) {
-                ape.setChildPosition(e.getChildX(), dY + cumulative);
+                // Live Y = baseline + push; baseline untouched (reversible).
+                ape.applyReflowedY(dY + cumulative);
             }
             if (e.isVisible()) {
-                // Generic growth (item 4): any element that grew under
-                // layoutWithin — a wrapped TextLabel OR a multi-line Button —
-                // pushes its row's siblings down by its extra height.
+                // Generic growth: any element that grew under layoutWithin — a
+                // wrapped TextLabel OR a multi-line Button — pushes its row's
+                // siblings down by its extra height.
                 rowExtra = Math.max(rowExtra, e.extraLayoutHeight());
             }
         }

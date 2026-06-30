@@ -157,11 +157,58 @@ public abstract class AbstractPanelElement<SELF extends AbstractPanelElement<SEL
     /** Element X within the panel content area. Mutable since §0047. */
     protected int childX;
 
-    /** Element Y within the panel content area. Mutable since §0047. */
+    /** Element Y within the panel content area. Mutable since §0047. This is the
+     *  LIVE render Y — equal to the {@link #reflowBaselineY() baseline} plus any
+     *  wrap-push the panel's reflow applied (see {@link #applyReflowedY}). Render,
+     *  hit-test, and auto-size all read it (via the getter or, for consumer
+     *  elements, the field directly), so it must always hold the live position. */
     protected int childY;
+
+    // ── Wrap-reflow baseline (the dead-move-button fix) ────────────────
+    // The panel's reflowForWrap pushes elements down when an element above wraps
+    // (grows taller). To stay reversible it needs each element's BASELINE Y — the
+    // authored / explicitly-moved position, distinct from the live childY (which
+    // = baseline + push). The baseline used to live in a Panel-level int[] snapshot
+    // captured ONCE on the first config pass; that snapshot never saw a runtime
+    // setChildPosition, so reflow re-asserted the stale first-pass Y every pass and
+    // clobbered explicit moves (Trev's "setChildPosition (move) does nothing").
+    // Hoisting the baseline onto the element — where at()/setChildPosition() update
+    // it — fixes that: a move re-bases the stack instead of being overwritten.
+    //
+    // Lazy capture: subclasses assign childY directly in their constructors (the
+    // base can't intercept that), so the baseline is captured from childY on the
+    // first reflow read, BEFORE any push is applied. at()/setChildPosition() then
+    // keep it current on every explicit move.
+    private int baselineY;
+    private boolean baselineCaptured = false;
 
     @Override public int getChildX() { return childX; }
     @Override public int getChildY() { return childY; }
+
+    /**
+     * The authored/explicitly-set baseline Y the panel's {@code reflowForWrap}
+     * stacks from. Captured lazily from {@link #childY} on first read (so a
+     * constructor-assigned position is honored) and updated by {@link #at} /
+     * {@link #setChildPosition}. Package-private — only {@code Panel}'s reflow
+     * reads it. NOT the live position (that's {@link #getChildY()}).
+     */
+    int reflowBaselineY() {
+        if (!baselineCaptured) {
+            baselineY = childY;
+            baselineCaptured = true;
+        }
+        return baselineY;
+    }
+
+    /**
+     * Sets the LIVE render Y to {@code y} = baseline + wrap-push. Called only by
+     * {@code Panel.reflowForWrap}; leaves the baseline untouched so the push is
+     * reversible (a wider frame that un-wraps restores {@code baseline + 0}).
+     * Package-private.
+     */
+    void applyReflowedY(int y) {
+        this.childY = y;
+    }
 
     /**
      * Moves this element's presentation position at runtime (§0047). Position
@@ -181,6 +228,11 @@ public abstract class AbstractPanelElement<SELF extends AbstractPanelElement<SEL
     public void setChildPosition(int x, int y) {
         this.childX = x;
         this.childY = y;
+        // Re-base the wrap-reflow stack on an explicit move: y becomes the new
+        // baseline, so the panel's reflow stacks from here instead of re-asserting
+        // the old captured baseline (which is what made runtime moves no-op).
+        this.baselineY = y;
+        this.baselineCaptured = true;
     }
 
     /**
@@ -200,6 +252,9 @@ public abstract class AbstractPanelElement<SELF extends AbstractPanelElement<SEL
     public SELF at(int childX, int childY) {
         this.childX = childX;
         this.childY = childY;
+        // Authored position is the wrap-reflow baseline (same as setChildPosition).
+        this.baselineY = childY;
+        this.baselineCaptured = true;
         return self();
     }
 

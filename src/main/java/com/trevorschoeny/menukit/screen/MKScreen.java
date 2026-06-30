@@ -10,8 +10,9 @@ import com.trevorschoeny.menukit.core.PanelPosition;
 import com.trevorschoeny.menukit.core.PanelStyle;
 import com.trevorschoeny.menukit.core.PanelTreeLayout;
 import com.trevorschoeny.menukit.core.RegionConstants;
+import com.trevorschoeny.menukit.core.RegionMath;
 import com.trevorschoeny.menukit.core.RenderContext;
-import com.trevorschoeny.menukit.core.ScreenCorner;
+import com.trevorschoeny.menukit.core.ScreenRegion;
 import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
 import net.minecraft.client.gui.GuiGraphics;
@@ -307,17 +308,33 @@ public class MKScreen extends Screen {
      * agreeing on size in all configurations.
      */
     private int[] computePanelSize(Panel panel) {
+        // PURE MEASURE — the reactive-sizing budget is the layout DRIVER's job,
+        // not this size function's, because the right budget depends on the
+        // panel's ROLE (a centred BODY/MAIN panel wraps to the whole screen; a
+        // region sibling wraps to the room its anchor leaves toward the screen
+        // edge). The driver feeds setAvailableContentWidth/Height per role BEFORE
+        // calling this — MainRegionLayout via the shared engine for the main path,
+        // computePanelSizeCentered for the legacy BODY stack. Feeding a flat
+        // budget here would clobber the driver's anchor-aware feed (last write
+        // wins), which is exactly what made region siblings overlap.
         int padding = panel.interiorPadding();
-        // Pass 3 — centered standalone panels may grow until SCREEN_EDGE_MARGIN
-        // from both screen edges, then wrap. Feed the content-width budget
-        // BEFORE measuring so getWidth() reflects any adaptive wrap. (Overlay
-        // panels are also screen-centered, so the same symmetric budget holds.)
-        panel.setAvailableContentWidth(
-                this.width - 2 * RegionConstants.SCREEN_EDGE_MARGIN - 2 * padding);
         return new int[]{
                 panel.getWidth() + 2 * padding,
                 panel.getHeight() + 2 * padding
         };
+    }
+
+    /**
+     * The legacy BODY-stack size function: feed the centred-screen width budget
+     * (a body-stacked panel is centred, so it may grow until SCREEN_EDGE_MARGIN
+     * from both edges, then wrap) BEFORE the pure {@link #computePanelSize}
+     * measure. The main path ({@link MainRegionLayout}) feeds per role itself, so
+     * it uses the pure measure directly; only the legacy path needs this wrapper.
+     */
+    private int[] computePanelSizeCentered(Panel panel) {
+        panel.setAvailableContentWidth(
+                this.width - 2 * RegionConstants.SCREEN_EDGE_MARGIN - 2 * panel.interiorPadding());
+        return computePanelSize(panel);
     }
 
     /**
@@ -354,7 +371,10 @@ public class MKScreen extends Screen {
             return new int[]{leftPos + b.x(), topPos + b.y(), b.width(), b.height()};
         }
 
-        int[] size = computePanelSize(panel);
+        // Legacy regime (no MAIN panel): overlay + screen-anchor panels are
+        // excluded from the BODY stack, so feed their centred-screen budget here
+        // (the driver-feeds-per-role rule — computePanelSize is now pure measure).
+        int[] size = computePanelSizeCentered(panel);
         int outerW = size[0], outerH = size[1];
 
         if (panel.isOverlayPositioned()) {
@@ -363,22 +383,18 @@ public class MKScreen extends Screen {
             return new int[]{x, y, outerW, outerH};
         }
 
-        // Pass 3 — screen-corner-anchored chrome (e.g. the "Back" button):
-        // positioned at a fixed corner inset by SCREEN_EDGE_MARGIN, independent
-        // of the centered body stack (which excludes it from layout + extent).
+        // Pass 3 — screen-edge-anchored chrome (e.g. the "Back" button or a
+        // title): positioned at a fixed ScreenRegion spot inset by
+        // SCREEN_EDGE_MARGIN, independent of the centered body stack (which
+        // excludes it from layout + extent). Same screen-edge geometry the
+        // custom-container path (MainRegionLayout) uses — one rule both contexts.
         if (panel.getPosition().mode() == PanelPosition.Mode.SCREEN_ANCHOR) {
             int m = RegionConstants.SCREEN_EDGE_MARGIN;
-            ScreenCorner corner = panel.getPosition().screenCorner();
-            if (corner == null) corner = ScreenCorner.TOP_LEFT;
-            int x = switch (corner) {
-                case TOP_LEFT, BOTTOM_LEFT  -> m;
-                case TOP_RIGHT, BOTTOM_RIGHT -> this.width - outerW - m;
-            };
-            int y = switch (corner) {
-                case TOP_LEFT, TOP_RIGHT     -> m;
-                case BOTTOM_LEFT, BOTTOM_RIGHT -> this.height - outerH - m;
-            };
-            return new int[]{x, y, outerW, outerH};
+            ScreenRegion anchor = panel.getPosition().screenAnchor();
+            if (anchor == null) anchor = ScreenRegion.TOP_LEFT;
+            var so = RegionMath.resolveScreenRegion(
+                    anchor, this.width, this.height, outerW, outerH, m);
+            return new int[]{so.x(), so.y(), outerW, outerH};
         }
 
         PanelBounds bounds = panelBounds.get(panel.getId());
@@ -414,7 +430,7 @@ public class MKScreen extends Screen {
         // MK has no minimum image size (standalone screens are sized by their
         // content); pass 0 for both min dims.
         var layout = PanelTreeLayout.resolve(
-                panels, this::computePanelSize,
+                panels, this::computePanelSizeCentered,
                 BODY_GAP, RELATIVE_GAP, TITLE_HEIGHT,
                 /*minImageWidth=*/ 0, /*minImageHeight=*/ 0);
         panelBounds = layout.bounds();

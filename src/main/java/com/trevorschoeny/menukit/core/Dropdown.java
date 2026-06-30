@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.util.Util;
 
@@ -264,7 +265,32 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
     // ── PanelElement protocol ──────────────────────────────────────────
 
     @Override public int getWidth()  { return triggerWidth; }
-    @Override public int getHeight() { return triggerHeight; }
+
+    /**
+     * Trigger height — grows when the selection label wraps to more than one
+     * line (Verification-4 reactive wrap, mirroring TextLabel). Authored
+     * {@link #triggerHeight} is the floor: a wrapped trigger is at least its
+     * authored box, and grows to {@code topPad + lineCount*lineHeight + botPad}
+     * when the label spans multiple lines. Single-line (the common case) returns
+     * the authored height unchanged.
+     *
+     * <p>Reversible: the wrapped line count is recomputed from
+     * {@code font.split(label, textAreaW)} every frame against the LIVE
+     * trigger width, so a later wider {@link #layoutWithin} budget collapses
+     * the label back to one line and this returns to {@code triggerHeight}.
+     */
+    @Override public int getHeight() {
+        int lines = triggerLineCount();
+        if (lines <= 1) return triggerHeight;                   // single-line → authored box
+        Font font = Minecraft.getInstance().font;
+        // Grown box = symmetric vertical padding around the wrapped block. The
+        // pad equals the single-line slack (authored box minus one lineHeight),
+        // split top/bottom, so line 1 of a wrapped trigger sits exactly where
+        // the centered single-line label used to sit.
+        int wrapped = triggerVPad() * 2 + lines * font.lineHeight;
+        // NEVER shrink below the authored box — only grow.
+        return Math.max(triggerHeight, wrapped);
+    }
 
     // Authored trigger width for the reactive cap (Verification-4) — see Button.
     private int authoredTriggerWidth = Integer.MIN_VALUE;
@@ -281,8 +307,71 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
     @Override public int naturalWidth() { return authoredTW(); }
 
     /** Cap the trigger to the panel's budget so it never bleeds; reversible.
-     *  An over-long selected value scrolls within the trigger (MKText). */
+     *  An over-long selected value WRAPS within the trigger (see
+     *  {@link #renderTriggerContent} + {@link #getHeight}), not scroll. */
     @Override public void layoutWithin(int budget) { this.triggerWidth = Math.min(authoredTW(), budget); }
+
+    // ── Trigger label wrap (mirrors TextLabel's auto-wrap) ─────────────
+    //
+    // Trev flagged trigger labels that horizontal-scrolled and wants them to
+    // WRAP instead. We mirror TextLabel exactly: the wrap engages reactively
+    // from the LIVE trigger width — when the selection label is wider than the
+    // available text area it splits across lines via font.split() (the same
+    // vanilla wrap chat/tooltips use), and getHeight() grows to fit. Nothing
+    // is stored: every helper recomputes from the live triggerWidth each frame,
+    // so a later wider budget collapses the label back to a single line
+    // (reversible, no ratchet). SCOPE: trigger label ONLY — popover rows keep
+    // their fixed ROW_HEIGHT + scrollbar geometry untouched.
+
+    /**
+     * The horizontal pixel budget the wrapped trigger label may occupy — the
+     * trigger width minus the chevron reservation minus both text pads.
+     * CHEVRON_RESERVED_W is kept OUT of the wrap width so wrapped lines never
+     * run under the chevron. Floored at 1 so font.split never sees a
+     * non-positive width.
+     */
+    private int triggerTextAreaW() {
+        return Math.max(1, triggerWidth - CHEVRON_RESERVED_W - 2 * TRIGGER_TEXT_PAD_X);
+    }
+
+    /** Vertical padding above (and below) the wrapped text block inside the
+     *  trigger. Equals the single-line slack — the authored box height minus
+     *  one line — split symmetrically. Floored at 0 for a box authored shorter
+     *  than a line of text. */
+    private int triggerVPad() {
+        Font font = Minecraft.getInstance().font;
+        return Math.max(0, (triggerHeight - font.lineHeight) / 2);
+    }
+
+    /** The current selection's label Component (lens-read), or empty when the
+     *  selection supplier returns null — same source the trigger renders. */
+    private Component triggerLabel() {
+        T sel = selectionSupplier.get();
+        return (sel != null) ? labelFn.apply(sel) : Component.empty();
+    }
+
+    /** How many lines the selection label wraps to at the live trigger width.
+     *  1 = fits on a single line (no wrap). Drives both getHeight() growth and
+     *  the multi-line render branch. */
+    private int triggerLineCount() {
+        Font font = Minecraft.getInstance().font;
+        return Math.max(1, font.split(triggerLabel(), triggerTextAreaW()).size());
+    }
+
+    /**
+     * Extra vertical pixels the trigger occupies BEYOND its authored box
+     * because the selection label wrapped — {@code getHeight() - triggerHeight}
+     * when wrapped, else 0. The owning {@link Panel} reflows the elements below
+     * this Dropdown downward by exactly this amount, so a label that grows from
+     * one line to two pushes — never paints over — what's beneath it (mirrors
+     * TextLabel.extraLayoutHeight). The popover already anchors off the LIVE
+     * trigger height via {@link #computePopoverBounds}, so it follows the
+     * growth automatically with no extra wiring.
+     */
+    @Override
+    public int extraLayoutHeight() {
+        return (triggerLineCount() > 1) ? getHeight() - triggerHeight : 0;
+    }
 
     /** Returns whether the dropdown is currently disabled (Phase 3b — Item 8). */
     public boolean isDisabled() {
@@ -344,7 +433,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         // look while popover open visually communicates open state.
         // Hover is suppressed when disabled so the trigger reads inert.
         boolean triggerHovered = !disabled
-                && ctx.isHovered(childX, childY, triggerWidth, triggerHeight);
+                && ctx.isHovered(childX, childY, triggerWidth, getHeight());
         renderTriggerBackground(ctx.graphics(), triggerX, triggerY, triggerHovered, disabled);
         renderTriggerContent(ctx.graphics(), triggerX, triggerY);
 
@@ -392,6 +481,11 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
 
     private void renderTriggerBackground(GuiGraphics graphics, int sx, int sy,
                                          boolean hovered, boolean disabled) {
+        // The background box covers the GROWN trigger height (getHeight()), not the
+        // authored triggerHeight — so a wrapped multi-line trigger has its background
+        // behind EVERY line, not just line 1 (which would leave lines 2..N floating
+        // on no background).
+        int h = getHeight();
         if (controlStyle == ControlStyle.VANILLA) {
             // Vanilla style — sprite atlas encodes hover/disabled state
             // directly. Disabled wins (Phase 3b — Item 8): pass enabled=false
@@ -402,12 +496,12 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
             // "engaged / popover-active." Maps to MK Button's pressed visual
             // at the dropdown-trigger semantic level.
             ControlStyle.renderVanillaButton(graphics,
-                    sx, sy, triggerWidth, triggerHeight,
+                    sx, sy, triggerWidth, h,
                     !disabled,
                     hovered && !open);
             if (open && !disabled) {
                 ControlStyle.renderVanillaPressedOverlay(graphics,
-                        sx, sy, triggerWidth, triggerHeight);
+                        sx, sy, triggerWidth, h);
             }
             return;
         }
@@ -417,9 +511,9 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         // open-look (no extra hover highlight; the popover itself signals
         // interactive state).
         PanelStyle bg = disabled ? PanelStyle.DARK : PanelStyle.RAISED;
-        PanelRendering.renderPanel(graphics, sx, sy, triggerWidth, triggerHeight, bg);
+        PanelRendering.renderPanel(graphics, sx, sy, triggerWidth, h, bg);
         if (hovered && !open && !disabled) {
-            graphics.fill(sx + 1, sy + 1, sx + triggerWidth - 1, sy + triggerHeight - 1,
+            graphics.fill(sx + 1, sy + 1, sx + triggerWidth - 1, sy + h - 1,
                     COLOR_HOVER_OVERLAY);
         }
     }
@@ -429,28 +523,53 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
 
         // Selection text — pulled per frame from supplier (lens-read).
         // null → empty (matches Q6 design — no "—" placeholder in v1).
-        T sel = selectionSupplier.get();
-        Component text = (sel != null) ? labelFn.apply(sel) : Component.empty();
+        Component text = triggerLabel();
 
-        // Trigger text — left-aligned with text padding, vertically
-        // centered. Scroll-on-overflow via MKText: when the selection
-        // text is wider than the available trigger space (trigger
-        // width minus chevron reservation minus padding), vanilla's
-        // back-and-forth scroll animation kicks in. Replaces the
-        // pre-18s-follow-up truncate-with-ellipsis behavior.
-        int textAreaW = triggerWidth - CHEVRON_RESERVED_W - 2 * TRIGGER_TEXT_PAD_X;
+        // Trigger text — left-aligned with text padding. WRAP-on-overflow
+        // (Trev's request): when the selection label is wider than the
+        // available trigger text area (trigger width minus chevron
+        // reservation minus padding) it splits across lines via font.split()
+        // — the same vanilla wrap chat/tooltips use — and the trigger grows
+        // taller (getHeight()). Replaces the prior MKText horizontal-scroll
+        // behavior. CHEVRON_RESERVED_W stays excluded from textAreaW so
+        // wrapped lines never run under the chevron.
+        int textAreaW = triggerTextAreaW();
         int textAreaX = sx + TRIGGER_TEXT_PAD_X;
-        MKText.render(graphics, text, net.minecraft.client.gui.TextAlignment.LEFT,
-                textAreaX, textAreaX + textAreaW,
-                sy, sy + triggerHeight,
-                COLOR_TEXT, true);
+        List<FormattedCharSequence> lines = font.split(text, textAreaW);
+
+        if (lines.size() > 1) {
+            // Multi-line: TOP-aligned (not vertically centered once it wraps —
+            // a centered multi-line block would push line 1 off the trigger's
+            // top). Line 1 sits at the symmetric vertical pad, matching where
+            // the centered single-line label used to sit; subsequent lines
+            // step down by lineHeight. drawString takes FormattedCharSequence
+            // directly (same path TextLabel's wrap rides).
+            int lineY = sy + triggerVPad();
+            for (FormattedCharSequence line : lines) {
+                graphics.drawString(font, line, textAreaX, lineY, COLOR_TEXT, true);
+                lineY += font.lineHeight;
+            }
+        } else {
+            // Single-line path — unchanged: left-aligned, vertically centered
+            // within the authored trigger box via MKText (kept so an exactly-
+            // fitting single line renders identically to before).
+            MKText.render(graphics, text, net.minecraft.client.gui.TextAlignment.LEFT,
+                    textAreaX, textAreaX + textAreaW,
+                    sy, sy + triggerHeight,
+                    COLOR_TEXT, true);
+        }
 
         // Chevron on the right edge — ▼ when closed, ▲ when open.
-        // Centered vertically; reserved space already excluded from text area.
+        // Reserved space already excluded from text area. PINNED to the TOP
+        // line (sy + triggerVPad()) rather than vertically centered against the
+        // now-possibly-taller trigger, so it stays beside line 1 of a wrapped
+        // label (a centered chevron would drift to the vertical middle of a
+        // two-line trigger, away from the text it annotates). For a single-line
+        // trigger triggerVPad() IS the centered offset, so this is unchanged.
         Component chevron = Component.literal(open ? "▲" : "▼");
         int chevW = font.width(chevron);
         int chevX = sx + triggerWidth - CHEVRON_RESERVED_W + (CHEVRON_RESERVED_W - chevW) / 2 - 1;
-        int chevY = sy + (triggerHeight - font.lineHeight) / 2;
+        int chevY = sy + triggerVPad();
         graphics.drawString(font, chevron, chevX, chevY, COLOR_TEXT, true);
     }
 
@@ -582,7 +701,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         int popoverX = Mth.clamp(triggerX, 0, Math.max(0, screenW - popoverW));
 
         // Y — below by default; flip above if no room.
-        int below = triggerY + triggerHeight;
+        int below = triggerY + getHeight();
         int popoverY;
         if (below + popoverH <= screenH) {
             popoverY = below;
@@ -683,7 +802,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         boolean inTrigger = mouseX >= lastTriggerScreenX
                 && mouseX < lastTriggerScreenX + triggerWidth
                 && mouseY >= lastTriggerScreenY
-                && mouseY < lastTriggerScreenY + triggerHeight;
+                && mouseY < lastTriggerScreenY + getHeight();
         if (!inPopover && !inTrigger) open = false;
     }
 

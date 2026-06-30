@@ -1,5 +1,6 @@
 package com.trevorschoeny.menukit.core;
 
+import com.trevorschoeny.menukit.inject.RegionRegistry;
 import com.trevorschoeny.menukit.inject.ScreenBounds;
 import com.trevorschoeny.menukit.inject.ScreenOrigin;
 
@@ -102,6 +103,11 @@ public final class MainRegionLayout {
             return new Result(screenW / 2, screenH / 2, 0, 0, bounds);
         }
 
+        // The MAIN frame is centred on the screen window, so it gets the
+        // symmetric centred-screen width budget (grow until SCREEN_EDGE_MARGIN
+        // from both edges, then wrap) — fed BEFORE measuring, the SAME reactive-
+        // sizing engine its region siblings use, just with the centred budget.
+        feedCentered(main, screenW);
         int[] ms = sizeFn.apply(main);
         int mainW = ms[0], mainContentH = ms[1];
         // Reserve the title strip at the top of the frame (the vanilla-container
@@ -128,12 +134,16 @@ public final class MainRegionLayout {
             if (p == main) continue;
             if (!com.trevorschoeny.menukit.window.ClientWindowVisibility.panelShown(p)) continue;
 
-            int[] s = sizeFn.apply(p);
-            int pw = s[0], ph = s[1];
+            int pad = p.interiorPadding();
 
             // Overlays float centred on the screen window, on top (the single
             // overlay rule ① — identical to MKScreen and the vanilla region path).
+            // Centred budget fed BEFORE measuring (the SAME engine), so a wide
+            // overlay wraps to the screen rather than overflowing.
             if (p.isOverlayPositioned()) {
+                feedCentered(p, screenW);
+                int[] s = sizeFn.apply(p);
+                int pw = s[0], ph = s[1];
                 int ox = (screenW - pw) / 2, oy = (screenH - ph) / 2;
                 bounds.put(p.getId(), new PanelBounds(ox - leftPos, oy - topPos, pw, ph));
                 continue;
@@ -144,6 +154,16 @@ public final class MainRegionLayout {
                 case REGION -> {
                     MenuRegion region = pos.menuRegion();
                     if (region == null) continue; // malformed — skip defensively
+                    // SHARED ENGINE — feed the anchor-aware width+height budget
+                    // against the MAIN frame, EXACTLY as the vanilla path feeds it
+                    // against the menu frame (RegionRegistry.resolveAround). This is
+                    // the fix for the resize-engine split: a sibling now shrinks /
+                    // wraps / auto-scrolls into the room its anchor leaves toward the
+                    // screen edge, instead of measuring at full natural width and
+                    // overlapping the main frame.
+                    RegionRegistry.feedRegionBudget(p, region, frame, pad, screenW, screenH);
+                    int[] s = sizeFn.apply(p);
+                    int pw = s[0], ph = s[1];
                     int prefix = prefixByRegion.getOrDefault(region, 0);
                     Optional<ScreenOrigin> o = RegionMath.resolveMenu(
                             region, frame, pw, ph, prefix, screenW, screenH);
@@ -154,17 +174,19 @@ public final class MainRegionLayout {
                     prefixByRegion.put(region, prefix + axial + RegionConstants.MENU_STACK_GAP);
                 }
                 case SCREEN_ANCHOR -> {
-                    ScreenCorner corner = pos.screenCorner();
-                    if (corner == null) corner = ScreenCorner.TOP_LEFT;
-                    int sx = switch (corner) {
-                        case TOP_LEFT, BOTTOM_LEFT -> margin;
-                        case TOP_RIGHT, BOTTOM_RIGHT -> screenW - pw - margin;
-                    };
-                    int sy = switch (corner) {
-                        case TOP_LEFT, TOP_RIGHT -> margin;
-                        case BOTTOM_LEFT, BOTTOM_RIGHT -> screenH - ph - margin;
-                    };
-                    bounds.put(p.getId(), new PanelBounds(sx - leftPos, sy - topPos, pw, ph));
+                    // Chrome anchored to a fixed SCREEN-edge spot (Back button,
+                    // title). It floats free of the frame, so it gets the centred-
+                    // screen width budget (wrap to the screen, not to an anchor's
+                    // room) and resolves via the SAME screen-edge geometry MKScreen
+                    // uses — one screen-anchor placement in either context.
+                    feedCentered(p, screenW);
+                    int[] s = sizeFn.apply(p);
+                    int pw = s[0], ph = s[1];
+                    ScreenRegion anchor = pos.screenAnchor();
+                    if (anchor == null) anchor = ScreenRegion.TOP_LEFT;
+                    ScreenOrigin so = RegionMath.resolveScreenRegion(
+                            anchor, screenW, screenH, pw, ph, margin);
+                    bounds.put(p.getId(), new PanelBounds(so.x() - leftPos, so.y() - topPos, pw, ph));
                 }
                 default -> {
                     // BODY (or any non-region) panel on a main screen has no anchor
@@ -173,5 +195,19 @@ public final class MainRegionLayout {
             }
         }
         return new Result(leftPos, topPos, mainW, frameH, bounds);
+    }
+
+    /**
+     * Centred-panel width budget — fed BEFORE measuring a panel that floats or
+     * centres on the screen window (the MAIN frame, an overlay, or screen-
+     * anchored chrome): it may grow until {@link RegionConstants#SCREEN_EDGE_MARGIN}
+     * from BOTH screen edges, then wrap. Height grows naturally; only region
+     * siblings auto-scroll into an anchor's room (②). Mirrors the centred budget
+     * {@code MKScreen}/{@code MKCHandledScreen} feed a BODY-stack panel, so the
+     * main-path and legacy-path resize engines agree.
+     */
+    private static void feedCentered(Panel p, int screenW) {
+        p.setAvailableContentWidth(
+                screenW - 2 * RegionConstants.SCREEN_EDGE_MARGIN - 2 * p.interiorPadding());
     }
 }
