@@ -4,14 +4,14 @@ package com.trevorschoeny.menukit.core;
  * Single source of truth for the region-positioning layout constants —
  * stacking gaps and edge insets — shared across all four region contexts
  * ({@link MenuRegion}, {@link SlotGroupRegion}, {@link HudRegion},
- * {@link VanillaScreenRegion}) and both pure math helpers
+ * {@link ScreenRegion}) and both pure math helpers
  * ({@link RegionMath}, {@link SlotGroupRegionMath}).
  *
  * <h2>Why a shared home (Phase 3b — Item 4c centralize)</h2>
  *
  * These constants previously lived inconsistently: {@link RegionMath} held
  * {@code STACK_GAP = 2} (consumed by the menu, slot-group, AND HUD prefix
- * paths), {@link VanillaScreenRegion} held its own {@code STACK_GAP = 4} +
+ * paths), {@link ScreenRegion} held its own {@code STACK_GAP = 4} +
  * {@code EDGE_INSET = 4}, and {@link HudRegion} held {@code EDGE_INSET = 4}
  * but no stack gap of its own (the HUD prefix path borrowed
  * {@code RegionMath.STACK_GAP}). Four declarations, three of which had to
@@ -19,7 +19,7 @@ package com.trevorschoeny.menukit.core;
  * value lives in exactly one spot.
  *
  * <p><b>This is the single public home (Phase 5 — symmetry pass).</b> The
- * per-enum constant faces ({@code VanillaScreenRegion.STACK_GAP}/{@code
+ * per-enum constant faces ({@code ScreenRegion.STACK_GAP}/{@code
  * EDGE_INSET}, {@code HudRegion.EDGE_INSET}) were removed so all four region
  * enums present an identical surface — consumers read the values here. (The
  * lone exception is {@link HudRegion#CENTER_CROSSHAIR_CLEARANCE}, a genuinely
@@ -69,7 +69,7 @@ public final class RegionConstants {
     /**
      * Stacking gap (pixels, GUI-scaled) for the vanilla non-container screen
      * context. {@code = 4}. Preserves the pre-hoist
-     * {@code VanillaScreenRegion.STACK_GAP} value.
+     * {@code ScreenRegion.STACK_GAP} value.
      */
     public static final int SCREEN_STACK_GAP = 4;
 

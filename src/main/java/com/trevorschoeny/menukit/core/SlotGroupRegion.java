@@ -79,7 +79,7 @@ public enum SlotGroupRegion {
      * Returns a {@link RegionAnchor} pairing this region with an explicit
      * stacking priority. Brings SlotGroupRegion to parity with
      * {@link MenuRegion#priority(int)} / {@link HudRegion#priority(int)} /
-     * {@link VanillaScreenRegion#priority(int)}.
+     * {@link ScreenRegion#priority(int)}.
      *
      * <p>Pass the result to a
      * {@link com.trevorschoeny.menukit.inject.SlotGroupPanelAdapter} via its

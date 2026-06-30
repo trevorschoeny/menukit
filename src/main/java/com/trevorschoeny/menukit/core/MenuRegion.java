@@ -15,7 +15,7 @@ package com.trevorschoeny.menukit.core;
  * placement (Phase 14d-1 addition for modal dialogs), and {@link #TOP_CENTER}
  * / {@link #BOTTOM_CENTER} for above-/below-the-frame placement centered on
  * the horizontal axis (Phase 3b — Item 4a; brings MenuRegion to parity with
- * {@link HudRegion} / {@link VanillaScreenRegion}, which each carry
+ * {@link HudRegion} / {@link ScreenRegion}, which each carry
  * TOP_CENTER / BOTTOM_CENTER / CENTER). {@code CENTER} is a single-position
  * anchor; {@code TOP_CENTER} / {@code BOTTOM_CENTER} stack vertically away
  * from the frame, each panel staying horizontally centered.
@@ -52,7 +52,7 @@ public enum MenuRegion {
      * UP (away from the menu), each sibling staying horizontally centered.
      *
      * <p>Parity counterpart to {@link HudRegion#TOP_CENTER} /
-     * {@link VanillaScreenRegion#TOP_CENTER}, anchored to the menu frame
+     * {@link ScreenRegion#TOP_CENTER}, anchored to the menu frame
      * rather than the screen edge.
      */
     TOP_CENTER,
@@ -65,7 +65,7 @@ public enum MenuRegion {
      * DOWN (away from the menu), each sibling staying horizontally centered.
      *
      * <p>Parity counterpart to {@link HudRegion#BOTTOM_CENTER} /
-     * {@link VanillaScreenRegion#BOTTOM_CENTER}.
+     * {@link ScreenRegion#BOTTOM_CENTER}.
      */
     BOTTOM_CENTER,
 

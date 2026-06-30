@@ -34,7 +34,7 @@ package com.trevorschoeny.menukit.core;
  *
  * @param <R>      the region enum type — one of {@link MenuRegion},
  *                 {@link SlotGroupRegion}, {@link HudRegion}, or
- *                 {@link VanillaScreenRegion} (all four expose
+ *                 {@link ScreenRegion} (all four expose
  *                 {@code priority(int)} returning a {@code RegionAnchor})
  * @param region   the region itself
  * @param priority the stacking priority within that region (lower = first)

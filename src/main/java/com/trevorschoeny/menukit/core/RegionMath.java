@@ -383,14 +383,14 @@ public final class RegionMath {
     }
 
     /**
-     * Region-relative placement for {@link VanillaScreenRegion}s on a vanilla
+     * Region-relative placement for {@link ScreenRegion}s on a vanilla
      * non-container screen (Options, Controls, KeyBinds, etc.).
      *
      * <p>Parallel to {@link #resolveHud}: anchored to the screen's
      * GUI-scaled w × h, with {@link RegionConstants#EDGE_INSET} from
      * each edge. The only semantic difference vs HUD positioning is that
      * vanilla screens have NO crosshair behind them — the {@link
-     * VanillaScreenRegion#CENTER} region anchors to the true screen
+     * ScreenRegion#CENTER} region anchors to the true screen
      * center, no crosshair clearance offset.
      *
      * <p>Returns {@link Optional#empty()} when {@code prefix + ph} exceeds
@@ -408,7 +408,7 @@ public final class RegionMath {
      *                region, plus one {@link RegionConstants#MENU_STACK_GAP} per preceding panel
      */
     public static Optional<ScreenOrigin> resolveVanillaScreen(
-            VanillaScreenRegion region, int sw, int sh,
+            ScreenRegion region, int sw, int sh,
             int pw, int ph, int prefix) {
 
         int inset = RegionConstants.EDGE_INSET;

@@ -6,7 +6,7 @@ import com.trevorschoeny.menukit.core.Panel;
 import com.trevorschoeny.menukit.core.RegionAnchor;
 import com.trevorschoeny.menukit.core.RegionConstants;
 import com.trevorschoeny.menukit.core.RegionMath;
-import com.trevorschoeny.menukit.core.VanillaScreenRegion;
+import com.trevorschoeny.menukit.core.ScreenRegion;
 import com.trevorschoeny.menukit.hud.MKHudPanelDef;
 import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
@@ -99,8 +99,14 @@ public final class RegionRegistry {
             new EnumMap<>(MenuRegion.class);
     private static final Map<HudRegion, List<MKHudPanelDef>> HUD =
             new EnumMap<>(HudRegion.class);
-    private static final Map<VanillaScreenRegion, List<Panel>> VANILLA_SCREEN =
-            new EnumMap<>(VanillaScreenRegion.class);
+    // NOTE: ScreenRegion's constant order is NOT load-bearing here. This EnumMap is
+    // only keyed-accessed (computeIfAbsent / getOrDefault) and its sole .values()
+    // walk (unregisterVanillaScreen) is order-irrelevant; sibling stacking sorts by
+    // an explicit (priority, modId, regSeq) Comparator, never by ordinal. So the
+    // ScreenRegion↔VanillaScreenRegion merge moving CENTER's position is safe — do
+    // not add an ordinal/iteration-order assumption over ScreenRegion.
+    private static final Map<ScreenRegion, List<Panel>> VANILLA_SCREEN =
+            new EnumMap<>(ScreenRegion.class);
 
     // Per-panel content padding — set at registration time so axial-prefix
     // stacking and overflow math can include padding when deriving axial extent.
@@ -487,7 +493,7 @@ public final class RegionRegistry {
      * 2× padding contributes to subsequent siblings' offset); priority +
      * captured modId drive deterministic sort.
      */
-    public static void registerVanillaScreen(Panel panel, VanillaScreenRegion region,
+    public static void registerVanillaScreen(Panel panel, ScreenRegion region,
                                               int padding, int priority) {
         VANILLA_SCREEN.computeIfAbsent(region, r -> new ArrayList<>()).add(panel);
         VANILLA_SCREEN_PADDING.put(panel, padding);
@@ -517,7 +523,7 @@ public final class RegionRegistry {
      *
      * @throws IllegalStateException if {@code self} is not registered in {@code region}
      */
-    public static int axialPrefix(Panel self, VanillaScreenRegion region) {
+    public static int axialPrefix(Panel self, ScreenRegion region) {
         List<Panel> panels = sortedVanillaScreenPanels(region);
         int prefix = 0;
         for (Panel p : panels) {
@@ -542,7 +548,7 @@ public final class RegionRegistry {
      * the screen's GUI-scaled dimensions to produce a screen-space origin —
      * or {@link ScreenOrigin#OUT_OF_REGION} when the panel overflows its region.
      */
-    public static ScreenOrigin resolveVanillaScreenOrigin(Panel panel, VanillaScreenRegion region,
+    public static ScreenOrigin resolveVanillaScreenOrigin(Panel panel, ScreenRegion region,
             int sw, int sh, net.minecraft.client.gui.screens.Screen screen) {
         int pad = VANILLA_SCREEN_PADDING.getOrDefault(panel, 0);
 
@@ -577,7 +583,7 @@ public final class RegionRegistry {
     }
 
     /** Sorts vanilla-screen panels by the deterministic key. */
-    private static List<Panel> sortedVanillaScreenPanels(VanillaScreenRegion region) {
+    private static List<Panel> sortedVanillaScreenPanels(ScreenRegion region) {
         List<Panel> panels = VANILLA_SCREEN.getOrDefault(region, List.of());
         if (panels.size() <= 1) return panels;
         List<Panel> sorted = new ArrayList<>(panels);
@@ -590,18 +596,18 @@ public final class RegionRegistry {
 
     // Deduplication state for one-shot OUT_OF_REGION warn on vanilla-screen
     // overflow. Parallel to WARNED_MENU / WARNED_HUD.
-    private static final Map<Panel, Set<VanillaScreenRegion>> WARNED_VANILLA_SCREEN =
+    private static final Map<Panel, Set<ScreenRegion>> WARNED_VANILLA_SCREEN =
             Collections.synchronizedMap(new WeakHashMap<>());
 
-    private static void warnVanillaScreenOverflowOnce(Panel panel, VanillaScreenRegion region,
+    private static void warnVanillaScreenOverflowOnce(Panel panel, ScreenRegion region,
                                                        int pw, int ph, int prefix,
                                                        int sw, int sh) {
-        Set<VanillaScreenRegion> warned = WARNED_VANILLA_SCREEN
+        Set<ScreenRegion> warned = WARNED_VANILLA_SCREEN
                 .computeIfAbsent(panel, p -> Collections.synchronizedSet(
-                        EnumSet.noneOf(VanillaScreenRegion.class)));
+                        EnumSet.noneOf(ScreenRegion.class)));
         if (!warned.add(region)) return;
         LOGGER.warn(
-                "[RegionRegistry] Panel '{}' overflows VanillaScreenRegion.{} — extent " +
+                "[RegionRegistry] Panel '{}' overflows ScreenRegion.{} — extent " +
                 "{}×{}px (including padding) + prefix {}px exceeds screen {}×{}. " +
                 "Silent OUT_OF_REGION until this panel + region pair is resized.",
                 panel.getId(), region, pw, ph, prefix, sw, sh);
