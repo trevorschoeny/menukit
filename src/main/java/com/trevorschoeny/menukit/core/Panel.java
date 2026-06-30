@@ -159,6 +159,13 @@ public class Panel {
     // when nothing changed saves a per-frame walk over elements.
     private boolean configurationDirty = true;
 
+    // Movement ④ — signature of the raw elements' live dimensions at the last
+    // configuration pass. When an element changes its own size without a ceiling
+    // change (e.g. a SlotFlowElement growing rows on a slot reveal), this differs
+    // from the freshly-computed signature and forces a reconfigure. Sentinel
+    // (MIN_VALUE) until the first pass so the first ensureConfigured always runs.
+    private int lastLayoutSig = Integer.MIN_VALUE;
+
     // The elements' AS-DECLARED childY, captured once before any auto-wrap
     // reflow mutates their positions. Reflow re-stacks childY from these
     // baselines every configuration pass (so it's reversible: when a wider
@@ -526,8 +533,21 @@ public class Panel {
      * </ol>
      */
     private void ensureConfigured() {
+        // Movement ④ — element-DRIVEN layout changes re-trigger the gated pass.
+        // The pinned/available ceilings flip configurationDirty, but an element
+        // that changes its OWN live size without a ceiling change would not —
+        // e.g. a SlotFlowElement whose slot visibility toggled, growing its row
+        // count. That left the auto-scroll overflow check (Step 4, gated here)
+        // stale, so a reveal that overflows the height ceiling wouldn't build the
+        // ScrollContainer. Detect a change in the raw elements' live dimensions
+        // and force a reconfigure so wrap + scroll stay correct on reveal. Cheap
+        // (no allocation), stable between reveals (same dims → same signature →
+        // early-return), inert for panels whose elements don't self-resize.
+        int sig = layoutSignature();
+        if (sig != lastLayoutSig) configurationDirty = true;
         if (!configurationDirty) return;
         configurationDirty = false;
+        lastLayoutSig = sig;
 
         // ── Step 1: resolve ONE content width, top-down ────────────────
         // The panel's content width is the single number every element reacts
@@ -630,6 +650,27 @@ public class Panel {
             if (budget < MIN_ELEMENT_WIDTH) budget = MIN_ELEMENT_WIDTH;
             e.layoutWithin(budget);
         }
+    }
+
+    /**
+     * A cheap, allocation-free hash of the raw elements' current visibility +
+     * live position/size — the gate for the element-driven reconfigure
+     * (Movement ④, see {@link #ensureConfigured}). Reads each element's
+     * getChildX/Y/Width/Height (the flow's are live; a fixed element's are
+     * constant), so the value is stable frame-to-frame unless an element actually
+     * resizes/moves, at which point it changes and re-triggers configuration.
+     */
+    private int layoutSignature() {
+        int sig = 1;
+        for (PanelElement e : elements) {
+            boolean vis = e.isVisible();
+            sig = sig * 31 + (vis ? 1 : 0);
+            if (vis) {
+                sig = sig * 31 + e.getChildX() + e.getWidth();
+                sig = sig * 31 + e.getChildY() + e.getHeight();
+            }
+        }
+        return sig;
     }
 
     /** Minimum horizontal budget handed to any element (a tight gutter can't
