@@ -256,6 +256,37 @@ public class TextLabel extends AbstractPanelElement<TextLabel> {
         return Math.max(0, getHeight() - Minecraft.getInstance().font.lineHeight);
     }
 
+    // ── Reactive sizing (Verification-4) ───────────────────────────────
+
+    /**
+     * Natural width = the text's single-line rendered width. The owning Panel
+     * maxes this across elements to find its hug-width; a wider element (or the
+     * screen-edge ceiling) then drives whether this label actually wraps.
+     */
+    @Override
+    public int naturalWidth() {
+        Component text = textSupplier.get();
+        return text == null ? 0 : Minecraft.getInstance().font.width(text);
+    }
+
+    /**
+     * Wrap to the panel-assigned budget. Wrapping is engaged ONLY when the
+     * budget is narrower than the text's natural single-line width — at a
+     * roomy budget the wrap is cleared so the label reports its intrinsic
+     * width (and a later wider pass un-wraps it, reversibly).
+     */
+    @Override
+    public void layoutWithin(int budget) {
+        int natural = naturalWidth();
+        setWrapWidth(budget < natural ? budget : 0);
+    }
+
+    /** Extra height beyond a single line once wrapped — drives panel reflow. */
+    @Override
+    public int extraLayoutHeight() {
+        return extraWrapHeight();
+    }
+
     // ── Rendering ──────────────────────────────────────────────────────
 
     @Override

@@ -154,6 +154,13 @@ public class Divider extends AbstractPanelElement<Divider> {
     @Override public int getWidth() { return width; }
     @Override public int getHeight() { return height; }
 
+    // Authored width for the reactive cap (Verification-4) — see Button.
+    private int authoredWidth = Integer.MIN_VALUE;
+    private int authoredW() {
+        if (authoredWidth == Integer.MIN_VALUE) authoredWidth = width;
+        return authoredWidth;
+    }
+
     /**
      * Column-fill (Pass 3): stretch a HORIZONTAL divider to the column's
      * widest extent — the canonical "section separator spans the column"
@@ -163,7 +170,23 @@ public class Divider extends AbstractPanelElement<Divider> {
     @Override
     public void fillWidth(int width) {
         if (this.width >= this.height) { // horizontal orientation
+            this.authoredWidth = width;
             this.width = width;
+        }
+    }
+
+    /** Natural (authored) length before any panel constraint. */
+    @Override public int naturalWidth() { return authoredW(); }
+
+    /**
+     * Cap a HORIZONTAL divider to the panel's budget so it never bleeds past
+     * the edge; reversible. A vertical divider (taller than wide) is left
+     * alone — capping its width would thin the line, not shorten it.
+     */
+    @Override
+    public void layoutWithin(int budget) {
+        if (authoredW() >= height) {
+            this.width = Math.min(authoredW(), budget);
         }
     }
 

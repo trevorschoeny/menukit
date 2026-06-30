@@ -215,8 +215,21 @@ public class ProgressBar extends AbstractPanelElement<ProgressBar> {
     @Override public int getWidth() { return width; }
     @Override public int getHeight() { return height; }
 
+    // Authored width for the reactive cap (Verification-4) — see Button.
+    private int authoredWidth = Integer.MIN_VALUE;
+    private int authoredW() {
+        if (authoredWidth == Integer.MIN_VALUE) authoredWidth = width;
+        return authoredWidth;
+    }
+
     /** Column-fill (Pass 3): stretch this bar to the column's widest extent. */
-    @Override public void fillWidth(int width) { this.width = width; }
+    @Override public void fillWidth(int width) { this.authoredWidth = width; this.width = width; }
+
+    /** Natural (authored) width before any panel constraint. */
+    @Override public int naturalWidth() { return authoredW(); }
+
+    /** Cap the bar to the panel's budget so it never bleeds; reversible. */
+    @Override public void layoutWithin(int budget) { this.width = Math.min(authoredW(), budget); }
 
     @Override
     public void render(RenderContext ctx) {

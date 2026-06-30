@@ -243,9 +243,23 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
     @Override public int getWidth()  { return triggerWidth; }
     @Override public int getHeight() { return triggerHeight; }
 
+    // Authored trigger width for the reactive cap (Verification-4) — see Button.
+    private int authoredTriggerWidth = Integer.MIN_VALUE;
+    private int authoredTW() {
+        if (authoredTriggerWidth == Integer.MIN_VALUE) authoredTriggerWidth = triggerWidth;
+        return authoredTriggerWidth;
+    }
+
     /** Column-fill (Pass 3): stretch the trigger (and thus the popover) to the
      *  column's widest extent. */
-    @Override public void fillWidth(int width) { this.triggerWidth = width; }
+    @Override public void fillWidth(int width) { this.authoredTriggerWidth = width; this.triggerWidth = width; }
+
+    /** Natural (authored) trigger width before any panel constraint. */
+    @Override public int naturalWidth() { return authoredTW(); }
+
+    /** Cap the trigger to the panel's budget so it never bleeds; reversible.
+     *  An over-long summary scrolls within the trigger (MKText). */
+    @Override public void layoutWithin(int budget) { this.triggerWidth = Math.min(authoredTW(), budget); }
 
     /** Returns whether the dropdown is currently disabled (Phase 3b — Item 8). */
     public boolean isDisabled() {

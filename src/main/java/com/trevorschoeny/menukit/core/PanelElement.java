@@ -106,6 +106,74 @@ public interface PanelElement {
      */
     default void fillWidth(int width) {}
 
+    // ── Reactive sizing — width flows DOWN from the panel ──────────────
+    //
+    // The Verification-4 sizing hierarchy: an element LIVES IN a panel and is
+    // reactive to that panel's width. The panel resolves ONE content width
+    // (its widest element's natural extent, clamped to the available screen-
+    // edge room) and hands each element its horizontal budget via
+    // {@link #layoutWithin}. This is the single, unified reactive-width
+    // contract — it supersedes the partial split between {@link #fillWidth}
+    // (column-stretch only) and TextLabel's text-only wrap. Every element that
+    // can shrink/wrap now reacts the same way: text wraps, a Button shrinks
+    // and wraps its label, fill widgets cap — all to the SAME width.
+
+    /**
+     * The element's NATURAL (authored / intrinsic) width before any panel
+     * width-constraint — what it wants when the panel has room. The owning
+     * {@link Panel} maxes this across its elements to compute its hug-width
+     * ({@code contentWidth = min(maxNaturalWidth, screenEdgeCeiling)}), then
+     * feeds each element a budget derived from it via {@link #layoutWithin}.
+     *
+     * <p>Distinct from {@link #getWidth()}, which reports the <em>resolved</em>
+     * (post-constraint) width: after a narrow {@code layoutWithin} a Button's
+     * {@code getWidth()} shrinks while its {@code naturalWidth()} stays the
+     * authored value, so a later wider pass can restore it. Default returns
+     * {@link #getWidth()} — correct for intrinsic-extent elements whose width
+     * never changes under constraint.
+     */
+    default int naturalWidth() { return getWidth(); }
+
+    /**
+     * Width flows DOWN: the owning {@link Panel} calls this every layout pass
+     * with the horizontal pixel budget available to this element (the panel's
+     * resolved content width minus this element's {@code childX}). The element
+     * resolves its presentation width — and, when it wraps a label, its height
+     * — REVERSIBLY from its immutable authored intent: a later call with a
+     * larger budget restores the natural extent (this is what fixes the
+     * historical {@code fillWidth} "ratchet", where an absolute shrink could
+     * never be undone).
+     *
+     * <p>Behavioral contract by element kind:
+     * <ul>
+     *   <li>{@code TextLabel} — wraps its text to the budget (multi-line).</li>
+     *   <li>{@code Button} — shrinks its box to the budget and wraps its label
+     *       across multiple lines, growing taller to fit.</li>
+     *   <li>Fill widgets (Slider, TextField, Dropdown, ProgressBar, Divider,
+     *       labeled Toggle) — cap their width to the budget so they never
+     *       bleed past the panel; an over-long label scrolls within bounds.</li>
+     *   <li>Intrinsic widgets (Icon, ItemDisplay, Checkbox, Radio, square/
+     *       sprite controls) — ignore the budget (default no-op); they keep
+     *       their authored size.</li>
+     * </ul>
+     *
+     * <p>Default: no-op.
+     *
+     * @param budget horizontal pixels available to this element, in panel
+     *               content space. Always {@code >= 1}.
+     */
+    default void layoutWithin(int budget) {}
+
+    /**
+     * Extra vertical pixels this element occupies BEYOND its single-line /
+     * authored baseline because a label wrapped under {@link #layoutWithin}.
+     * The owning {@link Panel} reflows the elements below a grown element
+     * downward by exactly this amount, so growth pushes — never paints over —
+     * what's beneath it (Verification-4 item 4: a panel re-stacks all its
+     * elements when one changes height). Default {@code 0} (no growth).
+     */
+    default int extraLayoutHeight() { return 0; }
+
     // ── Visibility ─────────────────────────────────────────────────────
     // Elements can be conditionally shown. The screen checks this before
     // rendering or routing clicks — invisible elements are fully inert.

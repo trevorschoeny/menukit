@@ -2,7 +2,9 @@ package com.trevorschoeny.menukit.core;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -103,9 +105,16 @@ public class InfoBox extends AbstractPanelElement<InfoBox> {
 
     // ── PanelElement Implementation ────────────────────────────────────
 
+    // Panel-assigned wrap width for the box's TEXT AREA (Verification-4).
+    // 0 = single-line (natural). When the panel budget is narrower than the
+    // natural one-line box, the text wraps to this width and the box grows
+    // taller — so an InfoBox reacts to its panel like every other element
+    // instead of bleeding past the edge. Reversible: a wider pass clears it.
+    private int wrapWidth = 0;
 
     @Override
     public int getWidth() {
+        if (wrapWidth > 0) return wrapWidth + 2 * PADDING;
         Component text = textSupplier.get();
         int textWidth = text != null ? Minecraft.getInstance().font.width(text) : 0;
         return textWidth + 2 * PADDING;
@@ -113,7 +122,38 @@ public class InfoBox extends AbstractPanelElement<InfoBox> {
 
     @Override
     public int getHeight() {
-        return Minecraft.getInstance().font.lineHeight + 2 * PADDING;
+        var font = Minecraft.getInstance().font;
+        if (wrapWidth > 0) {
+            Component text = textSupplier.get();
+            int lines = text == null ? 1 : Math.max(1, font.split(text, wrapWidth).size());
+            return lines * font.lineHeight + 2 * PADDING;
+        }
+        return font.lineHeight + 2 * PADDING;
+    }
+
+    /** Natural one-line box width (text + padding) — drives the panel hug-width. */
+    @Override
+    public int naturalWidth() {
+        Component text = textSupplier.get();
+        int textWidth = text != null ? Minecraft.getInstance().font.width(text) : 0;
+        return textWidth + 2 * PADDING;
+    }
+
+    /**
+     * Wrap the box's text to the panel budget, growing the box taller, when the
+     * natural one-line box wouldn't fit; otherwise stay single-line. Reversible.
+     */
+    @Override
+    public void layoutWithin(int budget) {
+        int natural = naturalWidth();
+        this.wrapWidth = (budget < natural) ? Math.max(1, budget - 2 * PADDING) : 0;
+    }
+
+    /** Extra box height beyond a single line once wrapped — drives panel reflow. */
+    @Override
+    public int extraLayoutHeight() {
+        if (wrapWidth <= 0) return 0;
+        return Math.max(0, getHeight() - (Minecraft.getInstance().font.lineHeight + 2 * PADDING));
     }
 
     @Override
@@ -124,16 +164,26 @@ public class InfoBox extends AbstractPanelElement<InfoBox> {
         var font = Minecraft.getInstance().font;
         int sx = ctx.originX() + childX;
         int sy = ctx.originY() + childY;
-        int width = font.width(text) + 2 * PADDING;
-        int height = font.lineHeight + 2 * PADDING;
+        int width = getWidth();
+        int height = getHeight();
 
         // Raised panel background
         PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, PanelStyle.RAISED);
 
-        // Text left-aligned inside the padded content area
-        ctx.graphics().drawString(font, text,
-                sx + PADDING, sy + PADDING,
-                DEFAULT_TEXT_COLOR, false);
+        // Text inside the padded content area — multi-line when the panel
+        // wrapped it, single-line otherwise.
+        if (wrapWidth > 0) {
+            List<FormattedCharSequence> lines = font.split(text, wrapWidth);
+            int ly = sy + PADDING;
+            for (FormattedCharSequence line : lines) {
+                ctx.graphics().drawString(font, line, sx + PADDING, ly, DEFAULT_TEXT_COLOR, false);
+                ly += font.lineHeight;
+            }
+        } else {
+            ctx.graphics().drawString(font, text,
+                    sx + PADDING, sy + PADDING,
+                    DEFAULT_TEXT_COLOR, false);
+        }
 
         // Hover tooltip — InfoBox inherits .tooltip(...) from AbstractPanelElement
         // but historically never fired it (a present-but-dead setter). Wired now

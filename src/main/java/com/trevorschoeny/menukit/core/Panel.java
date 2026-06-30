@@ -516,102 +516,84 @@ public class Panel {
         if (!configurationDirty) return;
         configurationDirty = false;
 
-        // ── Step 1: wrap-width propagation ─────────────────────────────
-        // The wrap budget is the panel's content-width CEILING. It comes from
-        // one of two sources:
-        //   - pinnedWidth (M5/16g): consumer declared a fixed content width.
-        //   - effectiveContentWidth (Pass 3): the screen-edge-derived ceiling
-        //     set by the placement layer. Only imposes a ceiling when the panel
-        //     is UNPINNED and its natural (unwrapped) content is actually wider
-        //     than the available width — otherwise the panel keeps growing to
-        //     fit its content exactly as before (adaptive-grow stays the
-        //     default; the screen edge is just the wrap point).
-        // widthBudget is shared with Step 2 so the auto-scroll ScrollContainer's
-        // outer width matches the ceiling (else scrolled content could sail
-        // past the screen-edge margin).
-        int widthBudget = -1; // content-width ceiling for this pass, or -1 = none
+        // ── Step 1: resolve ONE content width, top-down ────────────────
+        // The panel's content width is the single number every element reacts
+        // to (Verification-4: element lives in panel; width flows DOWN). It is
+        // the panel's natural hug-width — the widest element's UNCONSTRAINED
+        // extent — clamped to the available ceiling so the panel never bleeds
+        // past the screen-edge margin.
+        //
+        //   pinnedWidth set → contentWidth = pinnedWidth (consumer declared it).
+        //   else            → contentWidth = min(naturalWidth, ceiling), where
+        //                     ceiling = effectiveContentWidth (screen-edge room
+        //                     set per-frame by the placement layer) or unbounded
+        //                     when no placement ceiling applies. When the natural
+        //                     width already fits under the ceiling, the panel
+        //                     keeps hugging its content exactly as before — the
+        //                     ceiling only bites a genuine overflow.
+        int naturalW = 0;
+        for (PanelElement e : elements) {
+            if (!e.isVisible()) continue;
+            int right = e.getChildX() + e.naturalWidth();
+            if (right > naturalW) naturalW = right;
+        }
+        int contentWidth;
         if (pinnedWidth >= 0) {
-            widthBudget = pinnedWidth;
-        } else if (effectiveContentWidth >= 0) {
-            // Measure natural (unwrapped) width first — clear any prior wrap so
-            // TextLabel.getWidth reports intrinsic width — then impose the
-            // ceiling only if natural content genuinely overflows it.
-            for (PanelElement e : elements) {
-                if (e instanceof TextLabel label) label.setWrapWidth(0);
-            }
-            if (aggregateRawContentWidth() > effectiveContentWidth) {
-                widthBudget = effectiveContentWidth;
-            }
-        }
-
-        if (widthBudget >= 0) {
-            // The wrap budget equals the content ceiling directly. When
-            // pinnedHeight is also set, the scrollbar reserve (track + gutter)
-            // reduces it further; deducted unconditionally because post-wrap
-            // overflow can't be known until AFTER wrap is computed (circular
-            // dependency) — a few pixels of unused space on non-overflowing
-            // bounded panels is the accepted cost.
-            int wrapBudget = widthBudget;
-            if (pinnedHeight >= 0) {
-                wrapBudget -= (ScrollContainer.TRACK_WIDTH
-                        + ScrollContainer.SCROLLER_GUTTER);
-            }
-            if (wrapBudget < 1) wrapBudget = 1; // never zero/negative
-
-            for (PanelElement e : elements) {
-                if (e instanceof TextLabel label) {
-                    label.setWrapWidth(wrapBudget);
-                }
-            }
-            // NOTE (Pass 3): the screen-edge ceiling reflows TEXT (above), not
-            // fixed-extent WIDGETS. A per-frame widget shrink was tried and
-            // reverted — fillWidth is an absolute setter with no record of a
-            // widget's intended (column-fill) width, so shrinking on a narrow
-            // frame couldn't be undone when the frame widened (a resize ratchet).
-            // At realistic GUI scales validator widgets (≤~180px) sit well under
-            // the budget, so they don't bleed; truly adaptive widget widths
-            // would need FILL re-applied at the panel layer (a deferred item).
+            contentWidth = pinnedWidth;
         } else {
-            // No ceiling — clear any wrap state from a prior pass.
-            for (PanelElement e : elements) {
-                if (e instanceof TextLabel label) {
-                    label.setWrapWidth(0);
-                }
-            }
+            int ceiling = (effectiveContentWidth >= 0)
+                    ? effectiveContentWidth : Integer.MAX_VALUE;
+            contentWidth = Math.min(naturalW, ceiling);
         }
 
-        // ── Step 1b: vertical reflow under wrap ────────────────────────
-        // Auto-wrap grows a TextLabel's height but leaves sibling childY fixed,
-        // so a label that wrapped to two lines would paint over the element
-        // below it. Re-stack every element's childY from its declared baseline,
-        // pushing each one down by the extra height that wrapped elements ABOVE
-        // it gained. Runs after wrap widths are assigned (above) and BEFORE the
-        // auto-scroll measurement (below), so the aggregate height reflects the
-        // reflowed layout. No-op when nothing wrapped.
+        // ── Step 2: hand each element its horizontal budget ────────────
+        // Budget = contentWidth minus the element's own left offset (the room
+        // from the element's left edge to the panel's content right edge),
+        // minus the scrollbar reserve on a bounded (pinnedHeight) panel. The
+        // reserve is deducted unconditionally because post-wrap overflow can't
+        // be known until AFTER wrap is computed (the circular dependency the
+        // 16g pass already accepted). Every element resolves its width — and,
+        // if it wraps a label, its height — REVERSIBLY from this budget, so a
+        // later wider budget restores natural size.
+        int contentBudget = contentWidth;
+        if (pinnedHeight >= 0) {
+            contentBudget -= (ScrollContainer.TRACK_WIDTH
+                    + ScrollContainer.SCROLLER_GUTTER);
+        }
+        for (PanelElement e : elements) {
+            int budget = contentBudget - e.getChildX();
+            if (budget < MIN_ELEMENT_WIDTH) budget = MIN_ELEMENT_WIDTH;
+            e.layoutWithin(budget);
+        }
+
+        // ── Step 3: vertical reflow under growth ───────────────────────
+        // An element that wrapped grew below its declared baseline (a TextLabel
+        // gained lines, a Button's box got taller). Re-stack every element's
+        // childY from its declared baseline, pushing each down by the extra
+        // height grown by elements ABOVE it — so growth pushes, never paints
+        // over, what's beneath (item 4). Runs after widths/labels resolve and
+        // BEFORE the auto-scroll measurement, so the aggregate height reflects
+        // the reflowed layout. No-op when nothing grew.
         reflowForWrap();
 
-        // ── Step 2: auto-scroll wrap ───────────────────────────────────
+        // ── Step 4: auto-scroll wrap (pinnedHeight overflow) ───────────
         cachedScrollContainer = null;
         if (pinnedHeight >= 0) {
-            // Aggregate content height after wrap propagation. Now
-            // TextLabels report their wrapped (multi-line) heights, so
-            // this measurement reflects the real visual extent.
+            // Aggregate content height AFTER reflow, so wrapped/grown elements
+            // report their real visual extent.
             int contentHeight = aggregateRawContentHeight();
             int viewportHeight = pinnedHeight;
             if (viewportHeight > 0 && contentHeight > viewportHeight) {
                 // Overflow → build a ScrollContainer over the original
-                // elements. Outer width comes from pinnedWidth if set
-                // (Panel's content area), otherwise the aggregate child
-                // width plus scrollbar reserve so children get their
-                // natural width and the scrollbar has room.
+                // elements. Outer width = the panel's content area: pinnedWidth
+                // when declared; the ceiling-clamped contentWidth when a
+                // screen-edge ceiling bit; otherwise the natural child extent
+                // plus scrollbar reserve.
                 int outerWidth;
                 if (pinnedWidth >= 0) {
                     outerWidth = pinnedWidth;
-                } else if (widthBudget >= 0) {
-                    // Screen-edge fit imposed a ceiling — the scroll viewport
-                    // must match it so scrolled content can't overflow the
-                    // screen-edge margin.
-                    outerWidth = widthBudget;
+                } else if (effectiveContentWidth >= 0) {
+                    outerWidth = contentWidth;
                 } else {
                     outerWidth = aggregateRawContentWidth()
                             + ScrollContainer.TRACK_WIDTH
@@ -633,6 +615,10 @@ public class Panel {
             }
         }
     }
+
+    /** Minimum horizontal budget handed to any element (a tight gutter can't
+     *  squeeze content to nothing). See {@link #ensureConfigured}. */
+    private static final int MIN_ELEMENT_WIDTH = 8;
 
     /**
      * Re-stacks elements' childY from their declared baselines so an auto-
@@ -686,8 +672,11 @@ public class Panel {
             if (e instanceof AbstractPanelElement<?> ape) {
                 ape.setChildPosition(e.getChildX(), dY + cumulative);
             }
-            if (e.isVisible() && e instanceof TextLabel label) {
-                rowExtra = Math.max(rowExtra, label.extraWrapHeight());
+            if (e.isVisible()) {
+                // Generic growth (item 4): any element that grew under
+                // layoutWithin — a wrapped TextLabel OR a multi-line Button —
+                // pushes its row's siblings down by its extra height.
+                rowExtra = Math.max(rowExtra, e.extraLayoutHeight());
             }
         }
     }

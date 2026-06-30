@@ -66,8 +66,20 @@ public class Button extends AbstractPanelElement<Button> {
 
     @Override protected Button self() { return this; }
 
+    // width/height are the RESOLVED (post-constraint) dimensions — what
+    // getWidth/getHeight report and what render paints. Under a panel's
+    // layoutWithin pass they shrink/grow from the authored intent below.
     private int width;
     private int height;
+
+    // Authored (intent) dimensions, captured lazily the first time the panel
+    // queries naturalWidth/layoutWithin (sentinel = not yet captured). Keeping
+    // the intent separate is what makes the shrink reversible — a later wider
+    // budget restores width to the authored value (the fix for the historical
+    // fillWidth "ratchet"). .size()/fillWidth re-author them explicitly.
+    private int authoredWidth = Integer.MIN_VALUE;
+    private int authoredHeight = Integer.MIN_VALUE;
+
     private final Component text;
     private final Consumer<Button> onClick;
     private final @Nullable BooleanSupplier disabledWhen;
@@ -168,8 +180,76 @@ public class Button extends AbstractPanelElement<Button> {
     /** Horizontal padding around a width-0 button's auto-sized label. */
     private static final int LABEL_PAD = 6;
 
-    /** Column-fill (Pass 3): stretch this button to the column's widest extent. */
-    @Override public void fillWidth(int width) { this.width = width; }
+    /** Inner horizontal inset for the wrapped label so glyphs don't touch the frame. */
+    private static final int TEXT_INSET = 4;
+    /** Inner vertical padding above/below a multi-line label block. */
+    private static final int TEXT_VPAD = 3;
+
+    /** Column-fill (Pass 3): stretch this button to the column's widest extent.
+     *  Re-authors the intent so the panel's reactive pass treats this as the
+     *  natural width to clamp against. */
+    @Override public void fillWidth(int width) {
+        this.authoredWidth = width;
+        this.width = width;
+    }
+
+    // ── Reactive sizing (Verification-4): the label-wrap primitive ─────
+
+    /** Lazily capture the authored width the first time it's queried. */
+    private int authoredW() {
+        if (authoredWidth == Integer.MIN_VALUE) authoredWidth = width;
+        return authoredWidth;
+    }
+
+    /** Lazily capture the authored height the first time it's queried. */
+    private int authoredH() {
+        if (authoredHeight == Integer.MIN_VALUE) authoredHeight = height;
+        return authoredHeight;
+    }
+
+    /** Natural label width when this button auto-sizes (authored width <= 0). */
+    private int labelNaturalWidth() {
+        return Minecraft.getInstance().font.width(text) + LABEL_PAD * 2;
+    }
+
+    /**
+     * Natural (unconstrained) width: the authored width when one was given,
+     * else the intrinsic label width. Drives the panel's hug-width; stays
+     * constant under constraint so a narrow pass is reversible.
+     */
+    @Override
+    public int naturalWidth() {
+        int aw = authoredW();
+        return aw > 0 ? aw : labelNaturalWidth();
+    }
+
+    /**
+     * Resolve to the panel-assigned budget: shrink the box to {@code min(natural,
+     * budget)} and, when the label no longer fits on one line at that width,
+     * grow the box taller so the label wraps across multiple centered lines
+     * (rendered by {@link #renderContent}). Reversible — a wider budget restores
+     * the authored box.
+     */
+    @Override
+    public void layoutWithin(int budget) {
+        int natural = naturalWidth();
+        this.width = Math.min(natural, budget);
+
+        // Grow height to fit however many lines the label wraps to at the
+        // resolved width — but never below the authored height (a single-line
+        // label leaves the button its declared size).
+        int wrapBudget = Math.max(1, this.width - TEXT_INSET * 2);
+        int lines = Math.max(1,
+                Minecraft.getInstance().font.split(text, wrapBudget).size());
+        int needed = lines * Minecraft.getInstance().font.lineHeight + TEXT_VPAD * 2;
+        this.height = Math.max(authoredH(), needed);
+    }
+
+    /** Extra height grown beyond the authored box because the label wrapped. */
+    @Override
+    public int extraLayoutHeight() {
+        return Math.max(0, height - authoredH());
+    }
 
     /** Interactive — handles clicks, so it claims (blocks vanilla behind) on a non-opaque panel. */
     @Override public boolean isInteractive() { return true; }
@@ -203,6 +283,8 @@ public class Button extends AbstractPanelElement<Button> {
      * reads cleaner than threading width/height through the constructor.
      */
     public Button size(int width, int height) {
+        this.authoredWidth = width;
+        this.authoredHeight = height;
         this.width = width;
         this.height = height;
         return this;
@@ -348,17 +430,23 @@ public class Button extends AbstractPanelElement<Button> {
      * composite visuals) while keeping the default panel-style background.
      */
     protected void renderContent(RenderContext ctx, int sx, int sy) {
-        // Text — centered within button bounds, scroll-on-overflow.
-        // MKText.renderCentered handles both the fits case (centered
-        // static draw) AND the overflow case (vanilla's scroll-back-
-        // and-forth animation, same as vanilla Button's label).
-        //
-        // 1.21.11 ARGB requirement: colors must have a non-zero alpha
-        // byte or the underlying draw silently discards the text
-        // (ARGB.alpha(color) != 0 guard).
+        // 1.21.11 ARGB requirement: colors must have a non-zero alpha byte or
+        // the underlying draw silently discards the text (ARGB.alpha != 0).
         int textColor = isDisabled() ? 0xFF808080 : 0xFFFFFFFF;
-        MKText.renderCentered(ctx.graphics(), text, sx, sy, width, height,
-                textColor, true);
+
+        // Reactive label (Verification-4): when the panel constrained this
+        // button narrow enough that the label needs more than one line, paint
+        // it WRAPPED + centered (the box grew taller in layoutWithin to fit).
+        // Otherwise keep the single-line path — centered static draw when it
+        // fits, vanilla scroll-back-and-forth when it marginally overflows.
+        int wrapBudget = Math.max(1, width - TEXT_INSET * 2);
+        if (Minecraft.getInstance().font.split(text, wrapBudget).size() > 1) {
+            MKText.renderWrappedCentered(ctx.graphics(), text, sx, sy,
+                    width, height, wrapBudget, textColor, true);
+        } else {
+            MKText.renderCentered(ctx.graphics(), text, sx, sy, width, height,
+                    textColor, true);
+        }
     }
 
     // ── Click Handling ─────────────────────────────────────────────────
@@ -476,6 +564,10 @@ public class Button extends AbstractPanelElement<Button> {
          *  sprite), mirroring the bare/sprite Toggle carve-out. */
         @Override public void fillWidth(int width) { /* intrinsic square */ }
 
+        /** Intrinsic square — ignore the panel's width budget (no shrink, no
+         *  label-wrap growth); the icon keeps its authored size. */
+        @Override public void layoutWithin(int budget) { /* intrinsic square */ }
+
         @Override
         protected void renderContent(RenderContext ctx, int sx, int sy) {
             Identifier id = spriteSupplier.get();
@@ -590,6 +682,10 @@ public class Button extends AbstractPanelElement<Button> {
          *  column-fill so it isn't smeared, mirroring Toggle.sprite. A consumer
          *  wanting a wide sprite button authors it at that width. */
         @Override public void fillWidth(int width) { /* intrinsic sprite size */ }
+
+        /** Authored-size sprite — ignore the panel's width budget (shrinking
+         *  would smear the art); the consumer sizes it deliberately. */
+        @Override public void layoutWithin(int budget) { /* intrinsic sprite size */ }
 
         @Override
         protected void renderBackground(RenderContext ctx, int sx, int sy) {

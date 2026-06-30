@@ -160,16 +160,41 @@ public class Toggle extends AbstractPanelElement<Toggle> {
 
     // ── PanelElement Implementation ────────────────────────────────────
 
+    // Panel-assigned width cap (Verification-4). A labeled bar caps to this so
+    // it never bleeds past the panel edge; MAX_VALUE = uncapped. A bare switch
+    // ignores it (intrinsic). Reversible — re-set each layout pass.
+    private int widthCap = Integer.MAX_VALUE;
+
     @Override
     public int getWidth() {
-        if (labelSupplier == null) return width;
+        if (labelSupplier == null) return width; // bare switch — intrinsic
         Component label = labelSupplier.get();
         if (label == null) return width;
-        // Labeled = a bar auto-sized to the text (min the passed switch width).
-        return Math.max(width, Minecraft.getInstance().font.width(label) + 2 * LABEL_PAD);
+        // Labeled = a bar auto-sized to the text (min the passed switch width),
+        // then capped to the panel's budget (the label scrolls inside if it
+        // can't fit the capped bar).
+        int natural = Math.max(width, Minecraft.getInstance().font.width(label) + 2 * LABEL_PAD);
+        return Math.min(natural, widthCap);
     }
 
     @Override public int getHeight() { return height; }
+
+    /** Natural (uncapped) bar width — the auto-widen-to-label extent, or the
+     *  switch width when unlabeled. Drives the panel hug-width. */
+    @Override
+    public int naturalWidth() {
+        if (labelSupplier == null) return width;
+        Component label = labelSupplier.get();
+        if (label == null) return width;
+        return Math.max(width, Minecraft.getInstance().font.width(label) + 2 * LABEL_PAD);
+    }
+
+    /** Cap the labeled BAR to the panel's budget (reversible); a bare/sprite
+     *  switch is intrinsic and ignores it, mirroring its fillWidth no-op. */
+    @Override
+    public void layoutWithin(int budget) {
+        if (labelSupplier != null) this.widthCap = budget;
+    }
 
     /**
      * Column-fill (Pass 3): stretch the LABELED bar form to the column's widest

@@ -159,6 +159,13 @@ public class Slider extends AbstractPanelElement<Slider> {
     @Override public int getWidth()  { return width; }
     @Override public int getHeight() { return height; }
 
+    // Authored width for the reactive cap (Verification-4) — see Button.
+    private int authoredWidth = Integer.MIN_VALUE;
+    private int authoredW() {
+        if (authoredWidth == Integer.MIN_VALUE) authoredWidth = width;
+        return authoredWidth;
+    }
+
     /**
      * Column-fill (Pass 3): stretch this slider to the column's widest extent.
      * Re-widths BOTH this element's reported width AND the wrapped vanilla
@@ -167,8 +174,20 @@ public class Slider extends AbstractPanelElement<Slider> {
      */
     @Override
     public void fillWidth(int width) {
+        this.authoredWidth = width;
         this.width = width;
         this.slider.setWidth(width);
+    }
+
+    /** Natural (authored) track width before any panel constraint. */
+    @Override public int naturalWidth() { return authoredW(); }
+
+    /** Cap the track to the panel's budget so it never bleeds; reversible. */
+    @Override
+    public void layoutWithin(int budget) {
+        int w = Math.min(authoredW(), budget);
+        this.width = w;
+        this.slider.setWidth(w);
     }
 
     /** Interactive — handles click/drag, so it claims (blocks vanilla behind) on a non-opaque panel. */
