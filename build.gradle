@@ -70,16 +70,18 @@ modrinth {
     versionNumber = property('menukit_version')
     versionName = "MenuKit ${property('menukit_version')}"
     versionType = "release"
-    changelog = '''MenuKit 1.1.0
+    changelog = '''MenuKit 2.0.0
 
-UI polish and new widgets:
-- New control styling system with vanilla-matched pressed visuals.
-- New multi-select dropdown widget; dropdowns reset scroll when opened.
-- Text scrolls on overflow across widgets; smarter focus and overlay-aware hover/tooltip handling.
-- New panel-element base with chainable visibility and tooltip suppliers; per-style panel padding.
-- Fixes: text-field font-cache crash; overlay and lifecycle fixes for panels on vanilla screens.
+A re-architecture - simpler and more unified, not bigger.
 
-Additive update - no breaking changes; existing APIs and slot-state channels work unchanged.'''
+Three unifications:
+- ONE WINDOW. Creating a slot and interacting with it are now separate. One window interacts with anything addressable - a vanilla slot, a created slot, an element, a panel - the same way.
+- One region placement + reactive sizing. Three placement systems collapsed into one; every panel now auto-fits the screen (wraps its width, scrolls its height) at any GUI scale. The old relative-verb placement and lambda anchors are gone.
+- Inertness and opacity, system-complete: hidden is inert, a visible opaque panel blocks click-through, whatever it covers is inert - one law.
+
+Plus an adaptive-layout foundation, widget-gallery fixes, HUD text folded into the core (wrapping) label, and an everywhere-default for injected panels.
+
+Breaking: this is a clean API break - the old slot/placement API does not compile against 2.0.'''
     uploadFile = remapJar
     gameVersions = [property('minecraft_version')]
     loaders = ["fabric"]
