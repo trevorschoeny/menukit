@@ -280,10 +280,26 @@ public final class RegionRegistry {
      *
      * <p>Chrome-extended bounds are computed once per frame and passed to
      * {@link RegionMath}. Math stays pure; chrome logic lives here.
+     *
+     * @param region the declared region anchor — {@code null} for a
+     *               pixel-positioned panel (the PIXEL branch below returns
+     *               before any region use)
      */
-    public static ScreenOrigin resolveMenuOrigin(Panel panel, MenuRegion region,
+    public static ScreenOrigin resolveMenuOrigin(Panel panel,
+            @org.jspecify.annotations.Nullable MenuRegion region,
             ScreenBounds bounds,
             net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> screen) {
+        // Pixel-precision override (§0057 Revision) — the panel's outer origin
+        // comes from its per-frame supplier, verbatim; region math (and the
+        // reactive budgets) never runs. A null supplier value = "no anchor this
+        // frame" → skip, exactly like OUT_OF_REGION. Checked FIRST so a pixel
+        // adapter's null region is never touched.
+        var pos = panel.getPosition();
+        if (pos.mode() == com.trevorschoeny.menukit.core.PanelPosition.Mode.PIXEL) {
+            var supplier = pos.pixelOrigin();
+            ScreenOrigin origin = (supplier != null) ? supplier.get() : null;
+            return (origin != null) ? origin : ScreenOrigin.OUT_OF_REGION;
+        }
         int pad = MENU_PADDING.getOrDefault(panel, 0);
         int prefix = axialPrefix(panel, region);
         // Stale reference after unregister() — skip this panel this frame.

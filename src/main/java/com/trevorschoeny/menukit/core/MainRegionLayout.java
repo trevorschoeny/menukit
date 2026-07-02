@@ -215,6 +215,21 @@ public final class MainRegionLayout {
                             anchor, screenW, screenH, pw, ph, margin);
                     bounds.put(p.getId(), new PanelBounds(so.x() - leftPos, so.y() - topPos, pw, ph));
                 }
+                case PIXEL -> {
+                    // Pixel-precision override (§0057 Revision) — the outer origin
+                    // comes from the panel's per-frame supplier, in absolute screen
+                    // pixels, verbatim. NO budget is fed (pure natural-size measure):
+                    // pixel placement means the consumer owns the exact geometry, so
+                    // the reactive wrap/scroll ceilings would fight the precision.
+                    // A null supplier value = "no anchor this frame" → no bounds
+                    // entry → the panel is skipped (not rendered, not hit-testable).
+                    var supplier = pos.pixelOrigin();
+                    ScreenOrigin so = (supplier != null) ? supplier.get() : null;
+                    if (so == null) continue;
+                    int[] s = sizeFn.apply(p);
+                    bounds.put(p.getId(), new PanelBounds(
+                            so.x() - leftPos, so.y() - topPos, s[0], s[1]));
+                }
                 default -> {
                     // BODY (or any non-region) panel on a main screen has no anchor
                     // in this model — skip rather than guess a position.

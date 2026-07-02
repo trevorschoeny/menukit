@@ -371,9 +371,23 @@ public class MKScreen extends Screen {
             return new int[]{leftPos + b.x(), topPos + b.y(), b.width(), b.height()};
         }
 
-        // Legacy regime (no MAIN panel): overlay + screen-anchor panels are
-        // excluded from the BODY stack, so feed their centred-screen budget here
-        // (the driver-feeds-per-role rule — computePanelSize is now pure measure).
+        // Legacy regime (no MAIN panel): pixel-positioned panels resolve at their
+        // per-frame supplier value (§0057 Revision) — pure natural-size measure,
+        // no budget feed (the consumer owns the exact geometry), null = skip this
+        // frame. Checked before the centred budget so precision panels never get
+        // a wrap ceiling. (PanelLayout emits no BODY-stack bounds for PIXEL, so
+        // they contribute nothing to the centring extent — same as SCREEN_ANCHOR.)
+        if (panel.getPosition().mode() == PanelPosition.Mode.PIXEL) {
+            var supplier = panel.getPosition().pixelOrigin();
+            var origin = (supplier != null) ? supplier.get() : null;
+            if (origin == null) return null;
+            int[] px = computePanelSize(panel);
+            return new int[]{origin.x(), origin.y(), px[0], px[1]};
+        }
+
+        // Overlay + screen-anchor panels are excluded from the BODY stack, so
+        // feed their centred-screen budget here (the driver-feeds-per-role rule —
+        // computePanelSize is now pure measure).
         int[] size = computePanelSizeCentered(panel);
         int outerW = size[0], outerH = size[1];
 

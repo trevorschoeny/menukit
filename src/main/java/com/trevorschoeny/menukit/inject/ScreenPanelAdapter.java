@@ -104,7 +104,12 @@ public final class ScreenPanelAdapter {
     public static final int DEFAULT_PADDING = 7;
 
     private final Panel panel;
-    private final MenuRegion region;
+    /** The declared region anchor — {@code null} for a pixel-positioned panel
+     *  (the panel's {@link com.trevorschoeny.menukit.core.PanelPosition.Mode#PIXEL}
+     *  supplier is the origin authority; {@code resolveMenuOrigin} branches on the
+     *  position mode BEFORE touching the region, so the null never flows into
+     *  region math). */
+    private final @Nullable MenuRegion region;
     private final int padding;
 
     // ── Targeting state ─────────────────────────────────────────────────
@@ -197,6 +202,35 @@ public final class ScreenPanelAdapter {
         this.padding = padding;
         this.region = region;
         RegionRegistry.registerMenu(panel, region, padding, priority);
+        ScreenPanelRegistry.trackPending(this);
+    }
+
+    /**
+     * Pixel-positioned constructor (§0057 Revision — the precision escape). The
+     * panel must declare {@link com.trevorschoeny.menukit.core.PanelPosition#pixel}:
+     * its per-frame supplier is the origin authority, so there is no region — the
+     * panel never registers into region stacking (it doesn't stack; it sits at
+     * exactly the supplied coordinates) and the reactive wrap/scroll budgets are
+     * never fed (pixel placement = the consumer owns the exact geometry). Render,
+     * input, hover-suppression, and opacity all ride the same machinery as a
+     * region panel — only the origin source differs.
+     *
+     * @throws IllegalArgumentException if the panel's position is not
+     *         {@code PanelPosition.pixel(...)} — a loud fail beats a silently
+     *         unresolvable placement (the A4 rule)
+     */
+    public ScreenPanelAdapter(Panel panel, int padding) {
+        if (panel.getPosition().mode()
+                != com.trevorschoeny.menukit.core.PanelPosition.Mode.PIXEL) {
+            throw new IllegalArgumentException(
+                    "ScreenPanelAdapter(panel, padding) is the PIXEL-position "
+                    + "constructor — panel '" + panel.getId() + "' must declare "
+                    + ".position(PanelPosition.pixel(originSupplier)). For region "
+                    + "placement use ScreenPanelAdapter(panel, region, padding).");
+        }
+        this.panel = panel;
+        this.padding = padding;
+        this.region = null;
         ScreenPanelRegistry.trackPending(this);
     }
 

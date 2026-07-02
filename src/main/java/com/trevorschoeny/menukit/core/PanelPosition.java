@@ -1,6 +1,10 @@
 package com.trevorschoeny.menukit.core;
 
+import com.trevorschoeny.menukit.inject.ScreenOrigin;
+
 import org.jspecify.annotations.Nullable;
+
+import java.util.function.Supplier;
 
 /**
  * Describes how a panel is positioned within a screen's layout.
@@ -27,6 +31,10 @@ import org.jspecify.annotations.Nullable;
  *       against the main panel's bounds.</li>
  *   <li>{@link Mode#SCREEN_ANCHOR} — pinned to a fixed screen corner (chrome).</li>
  *   <li>{@link Mode#CENTER} — a screen-centred overlay, drawn on top.</li>
+ *   <li>{@link Mode#PIXEL} — pixel-precision override: the outer origin comes
+ *       from a per-frame consumer supplier, in absolute screen pixels. The
+ *       precision escape for positions regions can't express (§0057 Revision);
+ *       see {@link #pixel}.</li>
  * </ul>
  *
  * <p>This is declarative metadata. The screen reads it during layout
@@ -35,7 +43,8 @@ import org.jspecify.annotations.Nullable;
 public record PanelPosition(Mode mode,
                             @Nullable String anchorPanelId,
                             @Nullable ScreenRegion screenAnchor,
-                            @Nullable MenuRegion menuRegion) {
+                            @Nullable MenuRegion menuRegion,
+                            @Nullable Supplier<ScreenOrigin> pixelOrigin) {
 
     /** How a panel is positioned. */
     public enum Mode {
@@ -72,12 +81,23 @@ public record PanelPosition(Mode mode,
          * flags (M9 doctrine — those compose freely with this). See
          * {@link #center}.
          */
-        CENTER
+        CENTER,
+        /**
+         * Pixel-precision override (§0057 Revision, Trev's call) — the panel's
+         * outer origin comes from a consumer supplier, re-evaluated <b>every
+         * frame</b>, in absolute screen pixels. The precision escape for the
+         * positions regions cannot express: a point <em>inside</em> the frame
+         * (e.g. directly above the offhand slot) or an origin that moves per
+         * frame (e.g. a row centred over the hovered hotbar column). Declarative
+         * regions remain the default; reach for this only when a region can't
+         * say it. See {@link #pixel}.
+         */
+        PIXEL
     }
 
     /** Default position: body panel, stacks vertically. */
     public static final PanelPosition BODY =
-            new PanelPosition(Mode.BODY, null, null, null);
+            new PanelPosition(Mode.BODY, null, null, null, null);
 
     /**
      * The screen's main panel = its frame (Movement ③). Centred on the screen
@@ -85,7 +105,7 @@ public record PanelPosition(Mode mode,
      * panel per screen should be {@code main()}.
      */
     public static PanelPosition main() {
-        return new PanelPosition(Mode.MAIN, null, null, null);
+        return new PanelPosition(Mode.MAIN, null, null, null, null);
     }
 
     /**
@@ -97,7 +117,7 @@ public record PanelPosition(Mode mode,
      * both axes and auto-scrolls when it would overflow the screen.
      */
     public static PanelPosition region(MenuRegion region) {
-        return new PanelPosition(Mode.REGION, null, null, region);
+        return new PanelPosition(Mode.REGION, null, null, region, null);
     }
 
     /**
@@ -115,7 +135,7 @@ public record PanelPosition(Mode mode,
      * in either context.
      */
     public static PanelPosition screenAnchor(ScreenRegion region) {
-        return new PanelPosition(Mode.SCREEN_ANCHOR, null, region, null);
+        return new PanelPosition(Mode.SCREEN_ANCHOR, null, region, null, null);
     }
 
     /**
@@ -131,6 +151,49 @@ public record PanelPosition(Mode mode,
      * {@link com.trevorschoeny.menukit.screen.MKScreen}.
      */
     public static PanelPosition center() {
-        return new PanelPosition(Mode.CENTER, null, null, null);
+        return new PanelPosition(Mode.CENTER, null, null, null, null);
+    }
+
+    /**
+     * Pixel-precision position override (§0057 Revision — Trev's call,
+     * 2026-07-01): places the panel's <b>outer</b> top-left (the background
+     * origin; elements render inside at origin + padding) at exactly the
+     * coordinates {@code origin} supplies, in <b>absolute screen pixels</b>.
+     *
+     * <p><b>Re-evaluated every frame.</b> The supplier runs on each layout/render
+     * pass, so an origin computed from live state — a resolved vanilla slot rect
+     * ({@link com.trevorschoeny.menukit.inject.VanillaSlotResolver#resolve}), a
+     * hovered hotbar column, a user-mutable count — tracks that state with no
+     * consumer re-registration. Returning {@code null} skips the panel this frame
+     * (not rendered, not hit-testable) — the natural "this screen doesn't surface
+     * my anchor" escape, e.g. when a slot resolver comes back empty.
+     *
+     * <p><b>The precision escape, not the default.</b> Declarative regions remain
+     * the placement model (§0057); {@code pixel(...)} exists for the positions
+     * regions cannot express — a point <em>inside</em> the content frame, or an
+     * origin that is genuinely dynamic per frame. Unlike the deleted lambda-anchor
+     * escape hatch (a parallel placement system at the adapter layer), this is a
+     * position KIND inside the one model: resolved by the same drivers, riding the
+     * same render/input/opacity machinery as every other panel.
+     *
+     * <p><b>No reactive budgets.</b> A pixel panel measures at its natural size —
+     * the engine feeds it no screen-edge wrap/scroll ceiling, because pixel
+     * placement means the consumer owns the exact geometry (§0057's reactive
+     * default would fight the precision). Keeping it on-screen is the supplier's
+     * contract.
+     *
+     * <p>Honored by the vanilla-screen injection path
+     * ({@link com.trevorschoeny.menukit.inject.ScreenPanelAdapter} — including
+     * {@code MKCContainerPanel} parity panels), {@link MainRegionLayout} (custom
+     * screens with a {@code main()} frame), and
+     * {@link com.trevorschoeny.menukit.screen.MKScreen}'s legacy path. (The legacy
+     * BODY-stack path on a custom <em>container</em> screen predates every
+     * non-BODY mode and does not resolve them — use {@code main()} there.)
+     *
+     * @param origin per-frame supplier of the panel's outer top-left in absolute
+     *               screen pixels; {@code null} return = skip this frame
+     */
+    public static PanelPosition pixel(Supplier<ScreenOrigin> origin) {
+        return new PanelPosition(Mode.PIXEL, null, null, null, origin);
     }
 }
