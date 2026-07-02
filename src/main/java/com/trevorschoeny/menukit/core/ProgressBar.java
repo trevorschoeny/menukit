@@ -44,7 +44,7 @@ import java.util.function.Supplier;
  * {@link TextLabel} alongside the bar.
  *
  * <h3>Rendering</h3>
- * Solid-color fills via {@code GuiGraphics.fill()}. No textures; no sprite.
+ * Solid-color fills via {@code GuiGraphicsExtractor.fill()}. No textures; no sprite.
  * Consumers wanting themed sprite-backed bars implement {@link PanelElement}
  * directly.
  *

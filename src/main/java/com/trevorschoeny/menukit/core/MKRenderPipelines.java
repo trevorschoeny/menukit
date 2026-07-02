@@ -1,12 +1,12 @@
 package com.trevorschoeny.menukit.core;
 
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.ColorTargetState;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
-import com.mojang.blaze3d.platform.DepthTestFunction;
-import com.mojang.blaze3d.shaders.UniformType;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.VertexFormat;
 
+import net.minecraft.client.renderer.BindGroupLayouts;
 import net.minecraft.resources.Identifier;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -16,11 +16,12 @@ import org.jetbrains.annotations.ApiStatus;
  * one pipeline: {@link #GUI_BRIGHTNESS_INVERTED}, used by
  * {@code Button.sprite(...)}'s pressed-state visual.
  *
- * <p>Config mirrors vanilla's {@code RenderPipelines.GUI_TEXTURED}
- * (POSITION_TEX_COLOR vertex format, TRANSLUCENT blend, NO_DEPTH_TEST,
- * DynamicTransforms + Projection UBOs, Sampler0) with the fragment-shader
- * stage swapped to a custom shader that inverts each pixel's HSL lightness
- * channel while preserving hue and saturation.
+ * <p>Config mirrors vanilla's 26.2 {@code RenderPipelines.GUI_TEXTURED}
+ * (MATRICES_PROJECTION + SAMPLER0 bind groups, TRANSLUCENT color target,
+ * POSITION_TEX_COLOR vertex binding, QUADS topology, no depth state — GUI
+ * ordering is handled by strata now) with the fragment-shader stage swapped
+ * to a custom shader that inverts each pixel's HSL lightness channel while
+ * preserving hue and saturation.
  *
  * <p>The location identifier ({@code menukit:pipeline/gui_brightness_inverted})
  * is namespace-scoped to avoid colliding with vanilla or other-mod pipelines.
@@ -42,15 +43,21 @@ public final class MKRenderPipelines {
      * affordance for custom-sprite buttons — see
      * {@code Button.SpriteButton.renderBackground}.
      */
+    // 26.2 builder shape (Vulkan-era): UBO/sampler declarations became bind-group
+    // layouts; blend became a color-target state; vertex format+mode split into
+    // vertex binding + primitive topology; the depth-test line is dropped
+    // entirely — vanilla's GUI pipelines declare no depth state (GUI ordering
+    // moved to render strata). Bind groups mirror vanilla's GUI_TEXTURED:
+    // MATRICES_PROJECTION carries the DynamicTransforms + Projection UBOs the
+    // shader consumes; SAMPLER0 carries the texture sampler.
     public static final RenderPipeline GUI_BRIGHTNESS_INVERTED = RenderPipeline.builder()
             .withLocation(Identifier.fromNamespaceAndPath("menukit", "pipeline/gui_brightness_inverted"))
-            .withUniform("DynamicTransforms", UniformType.UNIFORM_BUFFER)
-            .withUniform("Projection", UniformType.UNIFORM_BUFFER)
+            .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
             .withVertexShader(Identifier.fromNamespaceAndPath("menukit", "core/button_brightness_invert"))
             .withFragmentShader(Identifier.fromNamespaceAndPath("menukit", "core/button_brightness_invert"))
-            .withSampler("Sampler0")
-            .withBlend(BlendFunction.TRANSLUCENT)
-            .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS)
-            .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
+            .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS)
             .build();
 }

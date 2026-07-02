@@ -6,7 +6,7 @@ import com.trevorschoeny.menukit.core.MKPressedTracker;
 import dev.isxander.yacl3.api.utils.Dimension;
 import dev.isxander.yacl3.gui.controllers.ControllerWidget;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
@@ -38,11 +38,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ControllerWidget.class)
 public abstract class MKYaclControllerOverlayMixin {
 
-    // Mojang-mapped: method_25394 → render. See sibling mixin's
-    // comment about MK using officialMojangMappings.
-    @Inject(method = "render(Lnet/minecraft/client/gui/GuiGraphics;IIF)V",
+    // 26.2 / YACL 3.9.5: the render entry point followed vanilla's
+    // extract/draw split — Renderable.render → extractRenderState
+    // (verified against the 3.9.5+26.2 jar, 2026-07-02).
+    @Inject(method = "extractRenderState(Lnet/minecraft/client/gui/GuiGraphicsExtractor;IIF)V",
             at = @At("TAIL"))
-    private void mk$drawPressedOverlay(GuiGraphics graphics, int mouseX,
+    private void mk$drawPressedOverlay(GuiGraphicsExtractor graphics, int mouseX,
                                              int mouseY, float partialTick,
                                              CallbackInfo ci) {
         if (!MKPressedTracker.isPressedAndCheckRelease(this)) return;

@@ -3,7 +3,7 @@ package com.trevorschoeny.menukit.core;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -336,7 +336,7 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
 
     // ── Trigger paint ──────────────────────────────────────────────────
 
-    private void renderTriggerBackground(GuiGraphics graphics, int sx, int sy,
+    private void renderTriggerBackground(GuiGraphicsExtractor graphics, int sx, int sy,
                                          boolean hovered, boolean disabled) {
         if (controlStyle == ControlStyle.VANILLA) {
             // Vanilla style — sprite atlas encodes hover/disabled state
@@ -365,7 +365,7 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
         }
     }
 
-    private void renderTriggerContent(GuiGraphics graphics, int sx, int sy) {
+    private void renderTriggerContent(GuiGraphicsExtractor graphics, int sx, int sy) {
         Font font = Minecraft.getInstance().font;
 
         // Trigger label — supplier delivers the current Set<T>, the
@@ -389,7 +389,7 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
         int chevW = font.width(chevron);
         int chevX = sx + triggerWidth - CHEVRON_RESERVED_W + (CHEVRON_RESERVED_W - chevW) / 2 - 1;
         int chevY = sy + (triggerHeight - font.lineHeight) / 2;
-        graphics.drawString(font, chevron, chevX, chevY, COLOR_TEXT, true);
+        graphics.text(font, chevron, chevX, chevY, COLOR_TEXT, true);
     }
 
     // ── Popover paint ──────────────────────────────────────────────────
@@ -412,7 +412,7 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
      * </pre>
      */
     private void renderPopover(RenderContext ctx, int triggerX, int triggerY) {
-        GuiGraphics graphics = ctx.graphics();
+        GuiGraphicsExtractor graphics = ctx.graphics();
         int[] popover = computePopoverBounds(triggerX, triggerY);
         int px = popover[0], py = popover[1], pw = popover[2], ph = popover[3];
 
@@ -543,7 +543,7 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
      * label, no checkmark column, full-width hover highlight, no
      * selection highlight (actions are stateless).
      */
-    private void renderActionRow(GuiGraphics graphics, Font font, RenderContext ctx,
+    private void renderActionRow(GuiGraphicsExtractor graphics, Font font, RenderContext ctx,
                                   int px, int rowY, int pw,
                                   Component label, int contentW) {
         boolean rowHovered = ctx.hasMouseInput()

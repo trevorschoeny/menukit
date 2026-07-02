@@ -2,7 +2,7 @@ package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.inject.ScreenPanelRegistry;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
 
@@ -44,7 +44,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <h3>Injection point rationale</h3>
  *
  * {@code @At INVOKE renderContents shift AFTER} — fires immediately after
- * slots + labels render, before the first {@code GuiGraphics.nextStratum()}
+ * slots + labels render, before the first {@code GuiGraphicsExtractor.nextStratum()}
  * call. Panels render on the base stratum alongside slots — above them,
  * below the recipe-book overlay if visible, below cursor and tooltips.
  * Matches {@link MKPanelRenderMixin}'s layering contract (panels-above-
@@ -75,15 +75,15 @@ public abstract class MKRecipeBookPanelRenderMixin {
      * target method.
      */
     @Inject(
-            method = "render",
+            method = "extractRenderState",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/screens/inventory/AbstractContainerScreen;renderContents(Lnet/minecraft/client/gui/GuiGraphics;IIF)V",
+                    target = "Lnet/minecraft/client/gui/screens/inventory/AbstractContainerScreen;extractContents(Lnet/minecraft/client/gui/GuiGraphicsExtractor;IIF)V",
                     shift = At.Shift.AFTER
             ),
             require = 1
     )
-    private void mk$renderPanels(GuiGraphics graphics, int mouseX, int mouseY,
+    private void mk$renderPanels(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
                                         float partialTick, CallbackInfo ci) {
         AbstractContainerScreen<?> self = (AbstractContainerScreen<?>) (Object) this;
         ScreenPanelRegistry.renderMatchingPanels(self, graphics, mouseX, mouseY);

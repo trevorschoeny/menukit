@@ -2,7 +2,7 @@ package com.trevorschoeny.menukit.core;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
@@ -58,12 +58,12 @@ public final class MKTooltip {
      * wrapping at the library-default max width ({@link #DEFAULT_MAX_WIDTH}).
      * This is the form every element/panel tooltip site calls.
      *
-     * @param graphics the active GuiGraphics
+     * @param graphics the active GuiGraphicsExtractor
      * @param text     the tooltip text (may span multiple wrapped lines)
      * @param mouseX   screen-space mouse X
      * @param mouseY   screen-space mouse Y
      */
-    public static void queue(GuiGraphics graphics, Component text, int mouseX, int mouseY) {
+    public static void queue(GuiGraphicsExtractor graphics, Component text, int mouseX, int mouseY) {
         queue(graphics, text, mouseX, mouseY, DEFAULT_MAX_WIDTH);
     }
 
@@ -77,13 +77,13 @@ public final class MKTooltip {
      * unbreakable word as a last resort — so a single ~40-char word can still
      * exceed the budget on one line, exactly as vanilla behaves.
      *
-     * @param graphics   the active GuiGraphics
+     * @param graphics   the active GuiGraphicsExtractor
      * @param text       the tooltip text
      * @param mouseX     screen-space mouse X
      * @param mouseY     screen-space mouse Y
      * @param maxWidthPx the wrap budget in pixels, or {@code <= 0} to not wrap
      */
-    public static void queue(GuiGraphics graphics, Component text,
+    public static void queue(GuiGraphicsExtractor graphics, Component text,
                              int mouseX, int mouseY, int maxWidthPx) {
         if (text == null) return;
         Font font = Minecraft.getInstance().font;

@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.core;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
  * Render-time context passed to every {@link PanelElement#render}. Bundles the
@@ -35,7 +35,7 @@ import net.minecraft.client.gui.GuiGraphics;
  * @param mouseY    screen-space mouse Y, or {@code -1} if no input dispatch
  */
 public record RenderContext(
-        GuiGraphics graphics,
+        GuiGraphicsExtractor graphics,
         int originX,
         int originY,
         int mouseX,

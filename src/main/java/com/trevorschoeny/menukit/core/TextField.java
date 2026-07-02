@@ -208,11 +208,11 @@ public class TextField extends AbstractPanelElement<TextField> {
         // "EditBox covered by panel background" bug that would happen if
         // it were registered as a renderable.
         if (ctx.hasMouseInput()) {
-            editBox.render(ctx.graphics(), ctx.mouseX(), ctx.mouseY(), 0f);
+            editBox.extractRenderState(ctx.graphics(), ctx.mouseX(), ctx.mouseY(), 0f);
         } else {
             // HudContext or other input-less render path — render with
             // sentinel mouse coords so EditBox.isHovered returns false.
-            editBox.render(ctx.graphics(), -1, -1, 0f);
+            editBox.extractRenderState(ctx.graphics(), -1, -1, 0f);
         }
 
         // Tooltip — fires over the text-field bounds. Useful for "what
@@ -528,12 +528,66 @@ public class TextField extends AbstractPanelElement<TextField> {
 
         private final @Nullable Consumer<String> onSubmit;
 
+        // ── Filter ownership (26.2 migration) ──────────────────────────
+        // Vanilla removed EditBox.setFilter at 26.x, so MKEditBox owns the
+        // input filter now. Two gates reproduce the old semantics:
+        //   1. setValue(v) — programmatic path: silently no-op when the
+        //      filter rejects, exactly like the old vanilla gate.
+        //   2. interactive mutations (typing / paste / delete) — vanilla
+        //      applies them internally, so we validate in the value-change
+        //      callback and revert to the last accepted value on reject.
+        //      The user-facing responder only ever sees accepted values.
+        // Known corner-case divergence vs the old gate: a rejected
+        // mid-field insert leaves the cursor at end-of-text (revert path)
+        // instead of unmoved. Rejection itself is identical.
+        private @Nullable Predicate<String> filter;
+        private @Nullable Consumer<String> userResponder;
+        private String lastGoodValue = "";
+        private boolean reverting = false;
+
         MKEditBox(net.minecraft.client.gui.Font font,
                        int x, int y, int width, int height,
                        Component label,
                        @Nullable Consumer<String> onSubmit) {
             super(font, x, y, width, height, label);
             this.onSubmit = onSubmit;
+            // Install the internal validator once; the user's responder is
+            // composed behind it (see setResponder override below).
+            super.setResponder(this::mk$onValueChanged);
+        }
+
+        /** Replaces the removed vanilla {@code EditBox.setFilter}. */
+        void setFilter(Predicate<String> filter) {
+            this.filter = filter;
+        }
+
+        /** User responders compose behind the filter gate — they only see
+         *  values the filter accepted. */
+        @Override
+        public void setResponder(Consumer<String> responder) {
+            this.userResponder = responder;
+        }
+
+        /** Programmatic gate: old vanilla setValue silently dropped
+         *  filter-rejected values; reproduce that exactly. */
+        @Override
+        public void setValue(String value) {
+            if (!reverting && filter != null && !filter.test(value)) return;
+            super.setValue(value);
+        }
+
+        private void mk$onValueChanged(String value) {
+            if (reverting) return;   // our own revert echo — swallow
+            if (filter != null && !filter.test(value)) {
+                // Interactive mutation slipped past (typing/paste/delete):
+                // roll back to the last accepted value.
+                reverting = true;
+                super.setValue(lastGoodValue);
+                reverting = false;
+                return;
+            }
+            lastGoodValue = value;
+            if (userResponder != null) userResponder.accept(value);
         }
 
         @Override

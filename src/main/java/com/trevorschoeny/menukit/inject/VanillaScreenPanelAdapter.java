@@ -11,7 +11,7 @@ import com.trevorschoeny.menukit.core.RenderContext;
 import com.trevorschoeny.menukit.core.ScreenRegion;
 import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 
 import org.jspecify.annotations.Nullable;
@@ -232,7 +232,7 @@ public final class VanillaScreenPanelAdapter {
      * and the panel's visible elements at the origin computed from the screen
      * dimensions.
      */
-    public void render(GuiGraphics graphics, int sw, int sh,
+    public void render(GuiGraphicsExtractor graphics, int sw, int sh,
                        int mouseX, int mouseY, Screen screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return;
 

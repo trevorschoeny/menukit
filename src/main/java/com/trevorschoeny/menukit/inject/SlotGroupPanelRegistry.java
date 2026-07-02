@@ -198,7 +198,7 @@ public final class SlotGroupPanelRegistry {
      * package ({@code mixin}) from this class ({@code inject}).
      */
     public static void renderMatchingPanels(AbstractContainerScreen<?> screen,
-                                             net.minecraft.client.gui.GuiGraphics graphics,
+                                             net.minecraft.client.gui.GuiGraphicsExtractor graphics,
                                              int mouseX, int mouseY) {
         Map<SlotGroupCategory, List<Slot>> resolved = SlotGroupCategories.of(screen.getMenu());
         if (resolved.isEmpty()) return;

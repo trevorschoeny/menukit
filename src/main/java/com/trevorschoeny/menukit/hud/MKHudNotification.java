@@ -13,7 +13,7 @@ import java.util.Optional;
 
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
@@ -107,7 +107,7 @@ public class MKHudNotification {
      * @param text     the text data passed to notify()
      * @param item     the item data passed to notify() (may be null)
      */
-    public void render(GuiGraphics graphics, DeltaTracker dt,
+    public void render(GuiGraphicsExtractor graphics, DeltaTracker dt,
                        int screenW, int screenH, long elapsed,
                        @Nullable String text, @Nullable ItemStack item) {
         // Compute content size
@@ -181,13 +181,13 @@ public class MKHudNotification {
         int contentY = drawY + padding;
 
         if (item != null && !item.isEmpty()) {
-            graphics.renderItem(item, contentX, contentY);
+            graphics.item(item, contentX, contentY);
             contentX += 20; // 16px icon + 4px gap
         }
 
         if (text != null && !text.isEmpty()) {
             int textColor = (alphaInt & 0xFF000000) | 0xFFFFFF;
-            graphics.drawString(mc.font, Component.literal(text),
+            graphics.text(mc.font, Component.literal(text),
                     contentX, contentY, textColor, true);
         }
     }

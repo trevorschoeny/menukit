@@ -49,7 +49,7 @@ import org.jetbrains.annotations.ApiStatus;
  *       state; the mixin sync covers that gap. One-shot, cleared after
  *       restore so subsequent unrelated opens don't get a stale pose.</li>
  *   <li><b>HUD invalidation (Phase 17 follow-up):</b> a per-tick listener
- *       clears the stash whenever {@code Minecraft.screen == null}.
+ *       clears the stash whenever {@code Gui.screen() == null}.
  *       Reason: HUD → first-screen-open should center the cursor
  *       (vanilla default), not restore from a long-stale stash left over
  *       from the last screen the user closed. Chained
@@ -136,7 +136,7 @@ public final class CursorContinuity {
      * </ol>
      *
      * <p>Also wires a per-tick HUD-invalidation listener (see class javadoc
-     * "HUD invalidation"): whenever {@code Minecraft.screen == null}, clear
+     * "HUD invalidation"): whenever {@code Gui.screen() == null}, clear
      * any pending stash so the next HUD → screen-open lands with vanilla's
      * centering behavior. Chained screen → screen transitions don't tick
      * through HUD and therefore preserve the stash for restore.
@@ -156,7 +156,7 @@ public final class CursorContinuity {
             // synchronous within setScreen() and never tick through here
             // with screen == null, so this only triggers on real
             // close-to-HUD events.
-            if (client.screen == null && stashed != null) {
+            if (client.gui.screen() == null && stashed != null) {
                 stashed = null;
             }
         });

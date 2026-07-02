@@ -349,13 +349,13 @@ public class Checkbox extends AbstractPanelElement<Checkbox> {
                 List<FormattedCharSequence> lines = font.split(label, wrapWidth);
                 int lineY = sy;
                 for (FormattedCharSequence line : lines) {
-                    graphics.drawString(font, line, textX, lineY, color, false);
+                    graphics.text(font, line, textX, lineY, color, false);
                     lineY += font.lineHeight;
                 }
             } else {
                 // Single-line legacy path: vertically center the label with the box.
                 int textY = sy + (BOX_SIZE - font.lineHeight) / 2 + 1;
-                graphics.drawString(font, label, textX, textY, color, false);
+                graphics.text(font, label, textX, textY, color, false);
             }
         }
 

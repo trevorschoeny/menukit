@@ -1,7 +1,7 @@
 package com.trevorschoeny.menukit.core;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -1336,7 +1336,7 @@ public class Panel {
      * the hit test would happen to miss, but the explicit gate makes the
      * intent clear and saves the supplier call.
      */
-    public void maybeQueueTooltip(GuiGraphics graphics,
+    public void maybeQueueTooltip(GuiGraphicsExtractor graphics,
                                   int panelX, int panelY,
                                   int panelWidth, int panelHeight,
                                   int mouseX, int mouseY,

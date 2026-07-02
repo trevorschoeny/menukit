@@ -139,7 +139,7 @@ public class MKClient implements ClientModInitializer {
             // Client-observed reactive verbs (ON_*_OBSERVED) — diff the open
             // container menu's synced contents and fire UI-feedback reactions.
             AbstractContainerScreen<?> acs =
-                    client.screen instanceof AbstractContainerScreen<?> s ? s : null;
+                    client.gui.screen() instanceof AbstractContainerScreen<?> s ? s : null;
             com.trevorschoeny.menukit.window.ObservedReactions.tick(acs != null ? acs.getMenu() : null);
             // Slot interaction signals — which slot the cursor is over (read from the
             // screen's hoveredSlot via the accessor); the click half is wired below.
@@ -361,11 +361,11 @@ public class MKClient implements ClientModInitializer {
     public static boolean isRecipeBookOpen() {
         var mc = Minecraft.getInstance();
 
-        if (!(mc.screen instanceof AbstractRecipeBookScreen<?>)) {
+        if (!(mc.gui.screen() instanceof AbstractRecipeBookScreen<?>)) {
             return false;
         }
 
-        var accessor = (MKRecipeBookAccessor) mc.screen;
+        var accessor = (MKRecipeBookAccessor) mc.gui.screen();
         return accessor.mk$getRecipeBookComponent().isVisible();
     }
 
@@ -380,11 +380,11 @@ public class MKClient implements ClientModInitializer {
     public static void setRecipeBookOpen(boolean open) {
         var mc = Minecraft.getInstance();
 
-        if (!(mc.screen instanceof AbstractRecipeBookScreen<?>)) {
+        if (!(mc.gui.screen() instanceof AbstractRecipeBookScreen<?>)) {
             return;
         }
 
-        var accessor = (MKRecipeBookAccessor) mc.screen;
+        var accessor = (MKRecipeBookAccessor) mc.gui.screen();
         var recipeBook = accessor.mk$getRecipeBookComponent();
 
         // Only toggle if the current state differs from the requested state.

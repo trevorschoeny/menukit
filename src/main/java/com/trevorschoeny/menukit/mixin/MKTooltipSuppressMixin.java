@@ -2,7 +2,7 @@ package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.core.MKFocus;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * Phase 14d-1 modal tooltip suppression — HEAD-cancellable mixin into
- * {@code GuiGraphics.setTooltipForNextFrameInternal}.
+ * {@code GuiGraphicsExtractor.setTooltipForNextFrameInternal}.
  *
  * <h3>Why this mixin (not the originally-planned queue-clear)</h3>
  *
@@ -22,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * the queue-clear approach didn't cover the full flow:
  *
  * <ul>
- *   <li>{@code GuiGraphics.deferredTooltip} is a single
+ *   <li>{@code GuiGraphicsExtractor.deferredTooltip} is a single
  *       last-write-wins {@link Runnable} field, not a queue.</li>
  *   <li>{@code CreativeModeInventoryScreen.render} queues tab-hover
  *       tooltips AFTER {@code super.render()} returns — and thus AFTER
@@ -63,7 +63,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * mechanism makes it work) while delivering on the modal contract.
  */
 @ApiStatus.Internal
-@Mixin(GuiGraphics.class)
+@Mixin(GuiGraphicsExtractor.class)
 public abstract class MKTooltipSuppressMixin {
 
     /**

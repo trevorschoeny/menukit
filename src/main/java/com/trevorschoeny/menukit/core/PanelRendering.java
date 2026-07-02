@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.core;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 
@@ -45,7 +45,7 @@ public final class PanelRendering {
      * RAISED and DARK use 9-slice sprites; INSET renders programmatically
      * with default panel colors; NONE renders nothing.
      */
-    public static void renderPanel(GuiGraphics graphics, int x, int y,
+    public static void renderPanel(GuiGraphicsExtractor graphics, int x, int y,
                                    int w, int h, PanelStyle style) {
         if (w <= 0 || h <= 0) return;
         if (style == PanelStyle.NONE) return;
@@ -72,7 +72,7 @@ public final class PanelRendering {
      * border. Programmatic styles (INSET, RAISED fallback) use these colors;
      * sprite-based styles ignore them.
      */
-    public static void renderPanel(GuiGraphics graphics, int x, int y,
+    public static void renderPanel(GuiGraphicsExtractor graphics, int x, int y,
                                    int w, int h, PanelStyle style,
                                    int baseColor, int highlightColor,
                                    int shadowColor) {
@@ -85,7 +85,7 @@ public final class PanelRendering {
      * The entry point for callers that want programmatic rendering with
      * state-dependent colors (e.g., hover/press states on buttons).
      */
-    public static void renderPanel(GuiGraphics graphics, int x, int y,
+    public static void renderPanel(GuiGraphicsExtractor graphics, int x, int y,
                                    int w, int h, PanelStyle style,
                                    int baseColor, int highlightColor,
                                    int shadowColor, int borderColor) {
@@ -143,7 +143,7 @@ public final class PanelRendering {
      * Matches vanilla exactly — no outer black border, just inner
      * highlight/shadow edges with a medium gray fill.
      */
-    public static void renderSlotBackground(GuiGraphics graphics, int x, int y) {
+    public static void renderSlotBackground(GuiGraphicsExtractor graphics, int x, int y) {
         renderInsetRect(graphics, x, y, 18, 18);
     }
 
@@ -155,7 +155,7 @@ public final class PanelRendering {
      * border + heavy bevel) — matches vanilla's subtle recess for tracks
      * and similar narrow inset chrome.
      */
-    public static void renderInsetRect(GuiGraphics graphics,
+    public static void renderInsetRect(GuiGraphicsExtractor graphics,
                                        int x, int y, int w, int h) {
         if (w <= 0 || h <= 0) return;
         // Top and left edge (dark — inset look)

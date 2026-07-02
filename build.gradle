@@ -12,7 +12,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 plugins {
-    id 'fabric-loom' version '1.14-SNAPSHOT'
+    // 26.x migration (2026-07-02): Loom plugin id is namespaced at 1.15+;
+    // 1.17 is the 26.2-era line. Version pinned at the workspace root.
+    id 'net.fabricmc.fabric-loom' version '1.17-SNAPSHOT'
     id 'java'
     id 'com.modrinth.minotaur' version '2.+'
 }
@@ -37,20 +39,25 @@ processResources {
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    // Minecraft 26.x runs on Java 25.
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
 repositories {
     maven { url 'https://maven.fabricmc.net/' }
-    maven { url 'https://maven.isxander.dev/releases/' }  // YACL — for the YACL-controller pressed-overlay mixin (modCompileOnly)
+    // YACL — for the YACL-controller pressed-overlay mixin (compileOnly).
+    // 26.x: isxander's own maven stops at the 3.8.x line; the 26.2 builds
+    // (3.9.x) ship via the Modrinth maven only (verified 2026-07-02).
+    maven { url 'https://api.modrinth.com/maven' }
 }
 
 dependencies {
+    // 26.x: the game is unobfuscated — no mappings line, and mod deps use the
+    // standard java configurations (modImplementation → implementation etc.).
     minecraft "com.mojang:minecraft:${property('minecraft_version')}"
-    mappings loom.officialMojangMappings()
-    modImplementation "net.fabricmc:fabric-loader:${property('loader_version')}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${property('fabric_version')}"
+    implementation "net.fabricmc:fabric-loader:${property('loader_version')}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${property('fabric_version')}"
 
     // @ApiStatus.Internal markers. Compile-only so consumers don't transitively
     // depend on jetbrains-annotations at runtime; the annotation is a doc/IDE
@@ -62,7 +69,7 @@ dependencies {
     // depend on YACL at runtime — the mixin uses @Pseudo to be
     // tolerant of YACL absence (silently skips). YACL only enters the
     // runtime environment via consumer mods that bundle it per §0031.
-    modCompileOnly "dev.isxander:yet-another-config-lib:3.8.1+1.21.11-fabric"
+    compileOnly "maven.modrinth:yacl:3.9.5+26.2-fabric"
 }
 
 loom {
@@ -96,7 +103,8 @@ Three unifications:
 Plus an adaptive-layout foundation, widget-gallery fixes, HUD text folded into the core (wrapping) label, and an everywhere-default for injected panels.
 
 Breaking: this is a clean API break - the old slot/placement API does not compile against 2.0.'''
-    uploadFile = remapJar
+    // 26.x: no remap step — `jar` IS the shippable artifact (remapJar is gone).
+    uploadFile = jar
     gameVersions = [property('minecraft_version')]
     loaders = ["fabric"]
     dependencies {

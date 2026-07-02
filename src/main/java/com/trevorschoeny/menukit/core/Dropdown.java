@@ -2,7 +2,7 @@ package com.trevorschoeny.menukit.core;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
@@ -175,7 +175,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
     /**
      * Optional per-item tooltip function. When non-null and the user hovers
      * a popover row, the tooltip is queued via
-     * {@link net.minecraft.client.gui.GuiGraphics#setTooltipForNextFrame}.
+     * {@link net.minecraft.client.gui.GuiGraphicsExtractor#setTooltipForNextFrame}.
      * Set via {@link Builder#itemTooltip(Function)}.
      */
     private final @Nullable Function<T, Component> itemTooltipFn;
@@ -479,7 +479,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         renderPopover(ctx, lastTriggerScreenX, lastTriggerScreenY);
     }
 
-    private void renderTriggerBackground(GuiGraphics graphics, int sx, int sy,
+    private void renderTriggerBackground(GuiGraphicsExtractor graphics, int sx, int sy,
                                          boolean hovered, boolean disabled) {
         // The background box covers the GROWN trigger height (getHeight()), not the
         // authored triggerHeight — so a wrapped multi-line trigger has its background
@@ -518,7 +518,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         }
     }
 
-    private void renderTriggerContent(GuiGraphics graphics, int sx, int sy) {
+    private void renderTriggerContent(GuiGraphicsExtractor graphics, int sx, int sy) {
         Font font = Minecraft.getInstance().font;
 
         // Selection text — pulled per frame from supplier (lens-read).
@@ -546,7 +546,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
             // directly (same path TextLabel's wrap rides).
             int lineY = sy + triggerVPad();
             for (FormattedCharSequence line : lines) {
-                graphics.drawString(font, line, textAreaX, lineY, COLOR_TEXT, true);
+                graphics.text(font, line, textAreaX, lineY, COLOR_TEXT, true);
                 lineY += font.lineHeight;
             }
         } else {
@@ -570,7 +570,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
         int chevW = font.width(chevron);
         int chevX = sx + triggerWidth - CHEVRON_RESERVED_W + (CHEVRON_RESERVED_W - chevW) / 2 - 1;
         int chevY = sy + triggerVPad();
-        graphics.drawString(font, chevron, chevX, chevY, COLOR_TEXT, true);
+        graphics.text(font, chevron, chevX, chevY, COLOR_TEXT, true);
     }
 
     /**
@@ -579,7 +579,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
      * scrollable), and per-row text labels.
      */
     private void renderPopover(RenderContext ctx, int triggerX, int triggerY) {
-        GuiGraphics graphics = ctx.graphics();
+        GuiGraphicsExtractor graphics = ctx.graphics();
         int[] popover = computePopoverBounds(triggerX, triggerY);
         int px = popover[0], py = popover[1], pw = popover[2], ph = popover[3];
 

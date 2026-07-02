@@ -4,7 +4,7 @@ import com.trevorschoeny.menukit.core.HudRegion;
 import com.trevorschoeny.menukit.core.PanelElement;
 import com.trevorschoeny.menukit.core.PanelStyle;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 import java.util.List;
 import java.util.function.BooleanSupplier;
@@ -51,7 +51,7 @@ public record MKHudPanelDef(
      */
     @FunctionalInterface
     public interface HudRenderCallback {
-        void render(GuiGraphics graphics, int x, int y, int width, int height,
+        void render(GuiGraphicsExtractor graphics, int x, int y, int width, int height,
                     net.minecraft.client.DeltaTracker deltaTracker);
     }
 

@@ -28,7 +28,7 @@ import java.util.function.Supplier;
  * item rendering. Consumers wanting an icon-only display (no overlays)
  * pass {@code showCount=false, showDurability=false} explicitly.
  *
- * <p>Rendering delegates to vanilla's {@code GuiGraphics.renderItem} and
+ * <p>Rendering delegates to vanilla's {@code GuiGraphicsExtractor.renderItem} and
  * {@code renderItemDecorations} — MenuKit ships no custom visual of its
  * own for this element.
  *
@@ -179,15 +179,15 @@ public class ItemDisplay extends AbstractPanelElement<ItemDisplay> {
             graphics.pose().pushMatrix();
             graphics.pose().translate((float) drawX, (float) drawY);
             graphics.pose().scale(scale, scale);
-            graphics.renderItem(stack, 0, 0);
+            graphics.item(stack, 0, 0);
             if (showCount || showDurability) {
-                graphics.renderItemDecorations(mc.font, stack, 0, 0);
+                graphics.itemDecorations(mc.font, stack, 0, 0);
             }
             graphics.pose().popMatrix();
         } else {
-            graphics.renderItem(stack, drawX, drawY);
+            graphics.item(stack, drawX, drawY);
             if (showCount || showDurability) {
-                graphics.renderItemDecorations(mc.font, stack, drawX, drawY);
+                graphics.itemDecorations(mc.font, stack, drawX, drawY);
             }
         }
 

@@ -225,11 +225,11 @@ public class Slider extends AbstractPanelElement<Slider> {
         // / focus / keyboard / narration still reach it. Same pattern as
         // TextField — see ScreenAccessor mixin.
         if (ctx.hasMouseInput()) {
-            slider.render(ctx.graphics(), ctx.mouseX(), ctx.mouseY(), 0f);
+            slider.extractRenderState(ctx.graphics(), ctx.mouseX(), ctx.mouseY(), 0f);
         } else {
             // HudContext or other input-less render path — render with
             // sentinel mouse coords so the slider's hover state stays false.
-            slider.render(ctx.graphics(), -1, -1, 0f);
+            slider.extractRenderState(ctx.graphics(), -1, -1, 0f);
         }
 
         // Tooltip — fires over the slider track bounds. Skipped if the user

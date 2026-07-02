@@ -132,7 +132,7 @@ public abstract class MKModalMouseHandlerMixin {
         if (window == null) return false;
         double scaledX = xpos * window.getGuiScaledWidth() / window.getScreenWidth();
         double scaledY = ypos * window.getGuiScaledHeight() / window.getScreenHeight();
-        var screen = mc.screen;
+        var screen = mc.gui.screen();
         if (screen == null) return false;
         return ScreenPanelRegistry.dispatchCoveredRelease(screen, scaledX, scaledY, button);
     }
@@ -151,14 +151,14 @@ public abstract class MKModalMouseHandlerMixin {
         // → pass through (Fabric allowMouseScroll handles non-opaque
         // dispatch via ScreenPanelRegistry.onScreenInit).
         var mc = Minecraft.getInstance();
-        if (mc == null || mc.screen == null) return;
+        if (mc == null || mc.gui.screen() == null) return;
         var mcWindow = mc.getWindow();
         if (mcWindow == null) return;
         // Compute scaled coords from current mouse position — getScreenWidth
         // /getScreenHeight (logical window pixels) for HiDPI correctness.
         double scaledX = xpos * mcWindow.getGuiScaledWidth() / mcWindow.getScreenWidth();
         double scaledY = ypos * mcWindow.getGuiScaledHeight() / mcWindow.getScreenHeight();
-        if (ScreenPanelRegistry.dispatchCoveredScroll(mc.screen, scaledX, scaledY, xOffset, yOffset)) {
+        if (ScreenPanelRegistry.dispatchCoveredScroll(mc.gui.screen(), scaledX, scaledY, xOffset, yOffset)) {
             ci.cancel();
         }
     }
@@ -182,7 +182,7 @@ public abstract class MKModalMouseHandlerMixin {
         // screen-width formula too.
         double scaledX = xpos * window.getGuiScaledWidth() / window.getScreenWidth();
         double scaledY = ypos * window.getGuiScaledHeight() / window.getScreenHeight();
-        var screen = mc.screen;
+        var screen = mc.gui.screen();
         if (screen == null) return false;
         return ScreenPanelRegistry.dispatchCoveredClick(screen, scaledX, scaledY, button);
     }

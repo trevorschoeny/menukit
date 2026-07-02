@@ -452,7 +452,7 @@ public class Toggle extends AbstractPanelElement<Toggle> {
                     for (FormattedCharSequence line : lines) {
                         int lineW = font.width(line);
                         int lineX = sx + (barW - lineW) / 2; // horizontal center
-                        ctx.graphics().drawString(font, line, lineX, lineY, textColor, true);
+                        ctx.graphics().text(font, line, lineX, lineY, textColor, true);
                         lineY += font.lineHeight;
                     }
                 } else {

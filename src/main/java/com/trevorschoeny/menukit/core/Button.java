@@ -513,7 +513,7 @@ public class Button extends AbstractPanelElement<Button> {
                 // width inside the box (box width minus this line's pixel width).
                 int lineWidth = font.width(line);
                 int lineX = sx + (width - lineWidth) / 2;
-                ctx.graphics().drawString(font, line, lineX, lineY, textColor, true);
+                ctx.graphics().text(font, line, lineX, lineY, textColor, true);
                 lineY += font.lineHeight;
             }
             return;

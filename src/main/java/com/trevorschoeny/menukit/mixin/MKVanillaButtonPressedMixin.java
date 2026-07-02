@@ -3,7 +3,7 @@ package com.trevorschoeny.menukit.mixin;
 import com.trevorschoeny.menukit.core.ControlStyle;
 import com.trevorschoeny.menukit.core.MKPressedTracker;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.input.MouseButtonEvent;
 
@@ -82,8 +82,8 @@ public abstract class MKVanillaButtonPressedMixin {
         MKPressedTracker.markPressed(this);
     }
 
-    @Inject(method = "renderWidget", at = @At("TAIL"))
-    private void mk$drawVanillaPressedOverlay(GuiGraphics graphics, int mouseX,
+    @Inject(method = "extractWidgetRenderState", at = @At("TAIL"))
+    private void mk$drawVanillaPressedOverlay(GuiGraphicsExtractor graphics, int mouseX,
                                                     int mouseY, float partialTick,
                                                     CallbackInfo ci) {
         // Press tracking via shared MKPressedTracker — the same

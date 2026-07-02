@@ -2,7 +2,7 @@ package com.trevorschoeny.menukit.core;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.TextAlignment;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -20,7 +20,7 @@ import net.minecraft.util.Util;
  *
  * <h3>Why a helper</h3>
  *
- * The underlying primitive is {@code GuiGraphics.textRenderer()
+ * The underlying primitive is {@code GuiGraphicsExtractor.textRenderer()
  * .acceptScrolling(...)}, which always uses vanilla's centered scroll
  * model when the text overflows. Many MK widgets need LEFT-aligned
  * text when it fits, then graceful overflow scrolling — a combination
@@ -71,7 +71,7 @@ public final class MKText {
      *               always renders with vanilla's default shadow
      *               behavior)
      */
-    public static void render(GuiGraphics graphics, Component text,
+    public static void render(GuiGraphicsExtractor graphics, Component text,
                               TextAlignment align,
                               int x1, int x2, int y1, int y2,
                               int color, boolean shadow) {
@@ -95,7 +95,7 @@ public final class MKText {
             // Vertical centering inside y1..y2.
             int boundsH = y2 - y1;
             int textY = y1 + (boundsH - font.lineHeight) / 2;
-            graphics.drawString(font, text, textX, textY, color, shadow);
+            graphics.text(font, text, textX, textY, color, shadow);
         } else {
             // Overflows — defer to vanilla's scroll primitive. The
             // signature is (text, centerX, x1, x2, y1, y2) — there is
@@ -133,7 +133,7 @@ public final class MKText {
      * across {@code height} starting at {@code y}. Matches the
      * vanilla button-label call shape.
      */
-    public static void renderCentered(GuiGraphics graphics, Component text,
+    public static void renderCentered(GuiGraphicsExtractor graphics, Component text,
                                        int x, int y, int width, int height,
                                        int color, boolean shadow) {
         render(graphics, text, TextAlignment.CENTER, x, x + width, y, y + height,
@@ -146,7 +146,7 @@ public final class MKText {
      * — text draws at {@code y} with scroll-on-overflow inside
      * {@code [x, x + width)}.
      */
-    public static void renderLeft(GuiGraphics graphics, Component text,
+    public static void renderLeft(GuiGraphicsExtractor graphics, Component text,
                                    int x, int y, int width,
                                    int color, boolean shadow) {
         Font font = Minecraft.getInstance().font;
@@ -195,7 +195,7 @@ public final class MKText {
      *                       "open" instant. The scroll cycle's phase=0
      *                       (text at beginning) lands at this time.
      */
-    public static void renderFromOpenTime(GuiGraphics graphics, Component text,
+    public static void renderFromOpenTime(GuiGraphicsExtractor graphics, Component text,
                                            TextAlignment align,
                                            int x1, int x2, int y1, int y2,
                                            int color, boolean shadow,
@@ -213,7 +213,7 @@ public final class MKText {
             };
             int boundsH = y2 - y1;
             int textY = y1 + (boundsH - font.lineHeight) / 2;
-            graphics.drawString(font, text, textX, textY, color, shadow);
+            graphics.text(font, text, textX, textY, color, shadow);
             return;
         }
 
@@ -235,7 +235,7 @@ public final class MKText {
         int boundsH = y2 - y1;
         int textY = y1 + (boundsH - font.lineHeight) / 2;
         graphics.enableScissor(x1, y1, x2, y2);
-        graphics.drawString(font, text, textX, textY, color, shadow);
+        graphics.text(font, text, textX, textY, color, shadow);
         graphics.disableScissor();
     }
 }

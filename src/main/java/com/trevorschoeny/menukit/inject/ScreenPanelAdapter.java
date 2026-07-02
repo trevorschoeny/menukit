@@ -9,7 +9,7 @@ import com.trevorschoeny.menukit.core.RegionAnchor;
 import com.trevorschoeny.menukit.core.RenderContext;
 import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
@@ -465,7 +465,7 @@ public final class ScreenPanelAdapter {
      * <p>{@code screen} is passed through to the region resolver so
      * chrome-aware region resolution can consult {@link MenuChrome}.
      */
-    public void render(GuiGraphics graphics, ScreenBounds screenBounds,
+    public void render(GuiGraphicsExtractor graphics, ScreenBounds screenBounds,
                        int mouseX, int mouseY,
                        AbstractContainerScreen<?> screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return;

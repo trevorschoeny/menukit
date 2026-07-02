@@ -176,11 +176,11 @@ public class InfoBox extends AbstractPanelElement<InfoBox> {
             List<FormattedCharSequence> lines = font.split(text, wrapWidth);
             int ly = sy + PADDING;
             for (FormattedCharSequence line : lines) {
-                ctx.graphics().drawString(font, line, sx + PADDING, ly, DEFAULT_TEXT_COLOR, false);
+                ctx.graphics().text(font, line, sx + PADDING, ly, DEFAULT_TEXT_COLOR, false);
                 ly += font.lineHeight;
             }
         } else {
-            ctx.graphics().drawString(font, text,
+            ctx.graphics().text(font, text,
                     sx + PADDING, sy + PADDING,
                     DEFAULT_TEXT_COLOR, false);
         }

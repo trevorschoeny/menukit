@@ -459,7 +459,7 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
         // region of our element?" via the cursor position relative to our
         // screen-space top-left. We don't know our screen-space top-left
         // at click time; we compute it from the parent screen via
-        // Minecraft.getInstance().screen. Hmm, that's also complex.
+        // Minecraft.getInstance().gui.screen(). Hmm, that's also complex.
         //
         // PRAGMATIC v1 ANSWER: store the most-recent screen-space top-left
         // computed in render(). render runs every frame; click happens

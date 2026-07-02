@@ -2,7 +2,7 @@ package com.trevorschoeny.menukit.mixin;
 
 import com.trevorschoeny.menukit.core.MKFocus;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.world.item.CreativeModeTab;
 
@@ -58,7 +58,7 @@ public abstract class MKCreativeTabHoverMixin {
             at = @At("HEAD"),
             cancellable = true
     )
-    private void mk$suppressTabHoverWhenModal(GuiGraphics guiGraphics, CreativeModeTab tab,
+    private void mk$suppressTabHoverWhenModal(GuiGraphicsExtractor guiGraphics, CreativeModeTab tab,
                                                    int mouseX, int mouseY,
                                                    CallbackInfoReturnable<Boolean> cir) {
         if (MKFocus.isInertUnderPanel(mouseX, mouseY)) {

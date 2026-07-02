@@ -22,7 +22,7 @@ import java.util.function.Supplier;
  *
  * <p><b>ARGB color requirement (1.21.11):</b> Colors must include an
  * explicit alpha byte (e.g., {@code 0xFF404040}, not {@code 0x404040}).
- * {@code GuiGraphics.drawString()} silently discards text when
+ * {@code GuiGraphicsExtractor.text()} silently discards text when
  * {@code ARGB.alpha(color) == 0}. All color constants in this class
  * use the {@code 0xFF} prefix. Consumer code passing custom colors must
  * do the same.
@@ -427,12 +427,12 @@ public class TextLabel extends AbstractPanelElement<TextLabel> {
             List<FormattedCharSequence> lines = font.split(text, wrapWidth);
             int lineY = y;
             for (FormattedCharSequence line : lines) {
-                graphics.drawString(font, line, x, lineY, color, shadow);
+                graphics.text(font, line, x, lineY, color, shadow);
                 lineY += font.lineHeight;
             }
         } else {
             // Legacy single-line path.
-            graphics.drawString(font, text, x, y, color, shadow);
+            graphics.text(font, text, x, y, color, shadow);
         }
 
         if (scaled) {

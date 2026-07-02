@@ -71,7 +71,7 @@ public abstract class MKWidgetHoverSuppressMixin {
         if (!this.isHovered) return;
 
         Minecraft mc = Minecraft.getInstance();
-        Screen screen = mc.screen;
+        Screen screen = mc.gui.screen();
         if (screen == null) return;
 
         // MK-managed widgets (TextField's wrapped EditBox, Keybindery's

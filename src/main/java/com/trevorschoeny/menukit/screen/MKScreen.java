@@ -15,7 +15,7 @@ import com.trevorschoeny.menukit.core.RenderContext;
 import com.trevorschoeny.menukit.core.ScreenRegion;
 import com.trevorschoeny.menukit.window.ClientWindowVisibility;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -155,7 +155,7 @@ public class MKScreen extends Screen {
         // Phase 17 — register panel rendering as a vanilla Renderable so it
         // participates in Screen.render's renderables iteration. The
         // iteration fires BEFORE the end-of-frame tooltip flush, so widgets
-        // calling GuiGraphics.setTooltipForNextFrame during render get their
+        // calling GuiGraphicsExtractor.setTooltipForNextFrame during render get their
         // tooltip drawn in the same frame. Pre-Phase-17 we rendered panels
         // AFTER super.render in this class's own render() override — that
         // still beat the tooltip flush in theory, but routing through the
@@ -183,14 +183,14 @@ public class MKScreen extends Screen {
      * {@code computeLayout()} for the same reason. Cheap — a few additions
      * per panel.
      */
-    private void renderPanels(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    private void renderPanels(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         computeLayout();
 
         // Pass 3 — draw the screen title centered at the top edge. MKScreen
         // reserves TITLE_HEIGHT above the body for it, but never painted it, so
         // every standalone screen showed a blank title band. The corner Back
         // panel is top-LEFT, so a top-center title never collides with it.
-        graphics.drawCenteredString(this.font, this.title,
+        graphics.centeredText(this.font, this.title,
                 this.width / 2, RegionConstants.SCREEN_EDGE_MARGIN, 0xFFFFFFFF);
 
         // ── Modal state survey ────────────────────────────────────────
@@ -250,7 +250,7 @@ public class MKScreen extends Screen {
      * state — in that case the panel's elements receive the sentinel via
      * {@link RenderContext} and behave inert.
      */
-    private void renderSinglePanel(Panel panel, GuiGraphics graphics, int mouseX, int mouseY) {
+    private void renderSinglePanel(Panel panel, GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         int[] rect = effectivePanelScreenBounds(panel);
         if (rect == null) return;
         int x = rect[0], y = rect[1], w = rect[2], h = rect[3];
@@ -473,7 +473,7 @@ public class MKScreen extends Screen {
     // renderPanels above). No explicit render() override needed — vanilla's
     // Screen.render iterates renderables, calls our renderPanels callback,
     // and the end-of-frame tooltip flush happens AFTER that. Widgets
-    // calling GuiGraphics.setTooltipForNextFrame during render get their
+    // calling GuiGraphicsExtractor.setTooltipForNextFrame during render get their
     // tooltip drawn in the same frame.
 
     // ── Input ───────────────────────────────────────────────────────────

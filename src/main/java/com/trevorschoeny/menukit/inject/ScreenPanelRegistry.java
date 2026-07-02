@@ -248,7 +248,7 @@ public final class ScreenPanelRegistry {
         // Phase 17 — render dispatch via Screen.addRenderableOnly instead
         // of a mixin INVOKE injection. Renderables iterate during
         // Screen.render BEFORE the end-of-frame tooltip flush, so widgets
-        // calling GuiGraphics.setTooltipForNextFrame during render get
+        // calling GuiGraphicsExtractor.setTooltipForNextFrame during render get
         // their tooltip drawn in the same frame. The mixin path
         // (MKPanelRenderMixin, removed in Phase 17) injected at
         // INVOKE renderCarriedItem — correct stratum for visual ordering
@@ -406,7 +406,7 @@ public final class ScreenPanelRegistry {
      * package ({@code mixin}) from this class ({@code inject}).
      */
     public static void renderMatchingPanels(AbstractContainerScreen<?> screen,
-                                             net.minecraft.client.gui.GuiGraphics graphics,
+                                             net.minecraft.client.gui.GuiGraphicsExtractor graphics,
                                              int mouseX, int mouseY) {
         ScreenRenderData data = SCREEN_DATA.get(screen);
         if (data == null) return;
@@ -454,7 +454,7 @@ public final class ScreenPanelRegistry {
 
         // Phase 14d-1 / M9 tooltip suppression — handled by
         // MKTooltipSuppressMixin (HEAD-cancellable on
-        // GuiGraphics.setTooltipForNextFrameInternal). Round-2
+        // GuiGraphicsExtractor.setTooltipForNextFrameInternal). Round-2
         // implementation finding: the render-path clear approach was
         // insufficient because creative-mode tab tooltips queue AFTER
         // super.render returns. Suppressing at the queueing site is
@@ -898,13 +898,13 @@ public final class ScreenPanelRegistry {
      * M9 query: is any visible panel with {@code tracksAsModal(true)} on
      * the currently-active screen? Same as {@link
      * #hasVisibleModalTrackingOnScreen} but reads
-     * {@code Minecraft.getInstance().screen} for callers without a
+     * {@code Minecraft.getInstance().gui.screen()} for callers without a
      * screen reference (tooltip suppression mixin, cursor-lock callback).
      */
     public static boolean hasAnyVisibleModalTracking() {
         var mc = net.minecraft.client.Minecraft.getInstance();
         if (mc == null) return false;
-        var screen = mc.screen;
+        var screen = mc.gui.screen();
         if (screen == null) return false;
         if (screen instanceof AbstractContainerScreen<?> acs) {
             if (hasVisibleModalTrackingOnScreen(acs)) return true;
@@ -940,7 +940,7 @@ public final class ScreenPanelRegistry {
     public static boolean anyPanelCoversPoint(double mouseX, double mouseY) {
         var mc = net.minecraft.client.Minecraft.getInstance();
         if (mc == null) return false;
-        return findCoveringPanelAt(mc.screen, mouseX, mouseY) != null;
+        return findCoveringPanelAt(mc.gui.screen(), mouseX, mouseY) != null;
     }
 
     /**
@@ -948,7 +948,7 @@ public final class ScreenPanelRegistry {
      * on the active screen? Reads cursor position from {@code MouseHandler}
      * directly — for callers without mouse coords as parameters (e.g.,
      * the tooltip-suppression mixin which fires from inside
-     * {@code GuiGraphics.setTooltipForNextFrameInternal} without mouse
+     * {@code GuiGraphicsExtractor.setTooltipForNextFrameInternal} without mouse
      * coords passed in).
      *
      * <p>Same coordinate-conversion formula as
@@ -971,7 +971,7 @@ public final class ScreenPanelRegistry {
     public static boolean hasActiveOverlayAt(double mouseX, double mouseY) {
         var mc = net.minecraft.client.Minecraft.getInstance();
         if (mc == null) return false;
-        Screen screen = mc.screen;
+        Screen screen = mc.gui.screen();
         if (screen == null) return false;
 
         // Container-screen region adapters.
@@ -1008,7 +1008,7 @@ public final class ScreenPanelRegistry {
         double rawY = mouseHandler.ypos();
         double scaledX = rawX * window.getGuiScaledWidth() / window.getScreenWidth();
         double scaledY = rawY * window.getGuiScaledHeight() / window.getScreenHeight();
-        return findCoveringPanelAt(mc.screen, scaledX, scaledY) != null;
+        return findCoveringPanelAt(mc.gui.screen(), scaledX, scaledY) != null;
     }
 
     // Post-§0042 split: computeSlotGroupBounds moved to menukit-containers'

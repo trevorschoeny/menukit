@@ -22,7 +22,7 @@ import org.spongepowered.asm.mixin.gen.Invoker;
  * MK panel rendering as a vanilla {@code Renderable}. Renderables participate
  * in {@code Screen.render}'s renderables iteration, which fires BEFORE the
  * end-of-frame tooltip flush — so widgets calling
- * {@code GuiGraphics.setTooltipForNextFrame} during render get their tooltip
+ * {@code GuiGraphicsExtractor.setTooltipForNextFrame} during render get their tooltip
  * picked up in the same frame's flush.
  *
  * <p>Why not {@code addRenderableWidget} (or Fabric's {@code Screens.getButtons}

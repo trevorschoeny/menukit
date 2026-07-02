@@ -87,9 +87,9 @@ public class MKHudSlot implements PanelElement {
         if (!stack.isEmpty()) {
             int itemX = slotX + ITEM_OFFSET_X;
             int itemY = slotY + ITEM_OFFSET_Y;
-            graphics.renderItem(stack, itemX, itemY);
+            graphics.item(stack, itemX, itemY);
             if (showCount || showDurability) {
-                graphics.renderItemDecorations(
+                graphics.itemDecorations(
                         Minecraft.getInstance().font, stack, itemX, itemY);
             }
         }

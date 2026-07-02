@@ -10,7 +10,7 @@ import com.trevorschoeny.menukit.hud.MKHudPanelDef;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -121,16 +121,16 @@ public class MK implements ModInitializer {
      * conditions, resolves anchor positions, and delegates to each panel's
      * element tree.
      *
-     * <p>Uses vanilla's {@link GuiGraphics} and coordinate system directly —
+     * <p>Uses vanilla's {@link GuiGraphicsExtractor} and coordinate system directly —
      * working WITH vanilla, not against it.
      */
-    public static void renderHud(GuiGraphics graphics, DeltaTracker deltaTracker) {
+    public static void renderHud(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
         var mc = Minecraft.getInstance();
         if (mc.player == null) return;
 
         int screenW = mc.getWindow().getGuiScaledWidth();
         int screenH = mc.getWindow().getGuiScaledHeight();
-        boolean hasScreen = mc.screen != null;
+        boolean hasScreen = mc.gui.screen() != null;
 
         // ── HUD panels ─────────────────────────────────────────────────────
         for (MKHudPanelDef def : hudPanels.values()) {
@@ -228,7 +228,7 @@ public class MK implements ModInitializer {
      * handles its slide-in / display / fade-out animation based on elapsed
      * time since trigger.
      */
-    private static void renderActiveNotifications(GuiGraphics graphics,
+    private static void renderActiveNotifications(GuiGraphicsExtractor graphics,
                                                    DeltaTracker deltaTracker,
                                                    int screenW, int screenH) {
         if (activeNotifications.isEmpty()) return;

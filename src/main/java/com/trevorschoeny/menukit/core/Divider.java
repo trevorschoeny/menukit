@@ -12,7 +12,7 @@ import java.util.function.Supplier;
  * <p>Works in all three rendering contexts. Render-only element — no input
  * consequence, no variable content.
  *
- * <p>Rendered as a solid-color fill via {@code GuiGraphics.fill()}, not as
+ * <p>Rendered as a solid-color fill via {@code GuiGraphicsExtractor.fill()}, not as
  * a sprite. A divider doesn't need a texture: a colored rectangle is both
  * simpler and correct. Consumers who want textured separators implement
  * {@link PanelElement} directly.

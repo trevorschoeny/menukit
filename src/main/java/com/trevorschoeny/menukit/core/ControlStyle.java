@@ -1,6 +1,6 @@
 package com.trevorschoeny.menukit.core;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 
@@ -78,13 +78,13 @@ public enum ControlStyle {
      * Convenience used by {@link Button} and {@link Dropdown} when
      * {@link #VANILLA} is selected.
      *
-     * <p>Wraps {@code GuiGraphics.blitSprite} with the same
+     * <p>Wraps {@code GuiGraphicsExtractor.blitSprite} with the same
      * {@code RenderPipelines.GUI_TEXTURED} pipeline + white tint vanilla
      * uses. Caller is responsible for any state overlays (the vanilla
      * highlighted sprite IS the hover affordance — no additional overlay
      * needed, unlike the MK path).
      */
-    public static void renderVanillaButton(GuiGraphics graphics,
+    public static void renderVanillaButton(GuiGraphicsExtractor graphics,
                                             int x, int y, int width, int height,
                                             boolean enabled,
                                             boolean hoveredOrPressed) {
@@ -115,7 +115,7 @@ public enum ControlStyle {
      * lines). The interior dark overlay covers the gradient region
      * inside the bevel.
      */
-    public static void renderVanillaPressedOverlay(GuiGraphics graphics,
+    public static void renderVanillaPressedOverlay(GuiGraphicsExtractor graphics,
                                                     int x, int y,
                                                     int width, int height) {
         // Inverted bevel: 1px inside the outer frame.
@@ -149,7 +149,7 @@ public enum ControlStyle {
      * popover-sized region; corners stay crisp, middle stretches
      * uniformly.
      */
-    public static void renderVanillaPopoverBackground(GuiGraphics graphics,
+    public static void renderVanillaPopoverBackground(GuiGraphicsExtractor graphics,
                                                        int x, int y,
                                                        int width, int height) {
         graphics.blitSprite(RenderPipelines.GUI_TEXTURED, VANILLA_DISABLED,

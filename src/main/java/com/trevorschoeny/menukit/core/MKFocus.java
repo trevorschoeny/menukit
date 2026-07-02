@@ -239,7 +239,7 @@ public final class MKFocus {
     public static boolean isCursorCovered(double mouseX, double mouseY) {
         if (ScreenPanelRegistry.anyPanelCoversPoint(mouseX, mouseY)) return true;
         if (ScreenPanelRegistry.hasActiveOverlayAt(mouseX, mouseY)) return true;
-        Screen screen = Minecraft.getInstance().screen;
+        Screen screen = Minecraft.getInstance().gui.screen();
         if (VanillaScreenPanelRegistry.hasOpaqueRegionAt(screen, mouseX, mouseY)) return true;
         return false;
     }
@@ -247,7 +247,7 @@ public final class MKFocus {
     /**
      * No-arg variant of {@link #isCursorCovered} for callers
      * without mouse coords as parameters (e.g., the tooltip-suppression
-     * mixin which fires inside {@code GuiGraphics.setTooltipForNextFrame}).
+     * mixin which fires inside {@code GuiGraphicsExtractor.setTooltipForNextFrame}).
      * Reads cursor position from {@code MouseHandler} and converts to
      * GUI-scaled coords using the same formula as
      * {@code MKModalMouseHandlerMixin}.
