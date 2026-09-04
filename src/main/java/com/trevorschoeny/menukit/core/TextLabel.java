@@ -20,7 +20,7 @@ import java.util.function.Supplier;
  *   text that changes over time (dynamic values, state reflections, etc.).</li>
  * </ul>
  *
- * <p><b>ARGB color requirement (1.21.11):</b> Colors must include an
+ * <p><b>ARGB color requirement (26.2):</b> Colors must include an
  * explicit alpha byte (e.g., {@code 0xFF404040}, not {@code 0x404040}).
  * {@code GuiGraphicsExtractor.text()} silently discards text when
  * {@code ARGB.alpha(color) == 0}. All color constants in this class

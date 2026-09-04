@@ -46,7 +46,7 @@ import java.util.WeakHashMap;
  * </ol>
  *
  * <p>The outside-panel path uses a Fabric API event rather than a mixin
- * because {@code Screen} doesn't override {@code mouseClicked} in 1.21.11
+ * because {@code Screen} doesn't override {@code mouseClicked} in 26.2
  * — it inherits the default method from {@code ContainerEventHandler}, so
  * there's no bytecode in {@code Screen.class} for a mixin to inject into.
  * The Fabric event is the upstream-approved injection point.

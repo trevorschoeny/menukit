@@ -48,7 +48,7 @@ public enum ControlStyle {
     // ── Vanilla button sprite atlas ────────────────────────────────────
     //
     // Identifiers match vanilla AbstractButton.SPRITES exactly — verified
-    // from 1.21.11 bytecode (net.minecraft.client.gui.components
+    // against 26.2 bytecode (net.minecraft.client.gui.components
     // .AbstractButton's static initializer). The 3-sprite set is
     // (enabled, disabled, enabledFocused) per WidgetSprites' 3-arg
     // constructor.

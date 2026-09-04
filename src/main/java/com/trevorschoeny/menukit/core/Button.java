@@ -404,7 +404,7 @@ public class Button extends AbstractPanelElement<Button> {
 
         // Hover-triggered tooltip — setTooltipForNextFrame defers the tooltip
         // draw to end-of-frame (correct z-ordering above items and other
-        // elements). The 1.21.11 method name is setTooltipForNextFrame;
+        // elements). The 26.2 method name is setTooltipForNextFrame;
         // earlier versions called this renderTooltip.
         Supplier<Component> tooltipSupplier = getTooltipSupplier();
         if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
@@ -492,7 +492,7 @@ public class Button extends AbstractPanelElement<Button> {
      * composite visuals) while keeping the default panel-style background.
      */
     protected void renderContent(RenderContext ctx, int sx, int sy) {
-        // 1.21.11 ARGB requirement: colors must have a non-zero alpha byte or
+        // 26.2 ARGB requirement: colors must have a non-zero alpha byte or
         // the underlying draw silently discards the text (ARGB.alpha != 0).
         int textColor = isDisabled() ? 0xFF808080 : 0xFFFFFFFF;
 

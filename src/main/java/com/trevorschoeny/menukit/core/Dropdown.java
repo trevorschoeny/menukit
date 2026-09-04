@@ -23,7 +23,7 @@ import com.trevorschoeny.menukit.core.layout.ElementSpec;
 
 /**
  * Single-selection dropdown control. Phase 14d-5 — bespoke composition (no
- * vanilla wrap; vanilla 1.21.11 ships {@code CycleButton} which cycles in
+ * vanilla wrap; vanilla 26.2 ships {@code CycleButton} which cycles in
  * place, but no popover-list dropdown widget). Owns trigger render +
  * popover render + click routing internally; new
  * {@link PanelElement#hitTest} primitive lets the popover area receive
