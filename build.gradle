@@ -69,7 +69,7 @@ dependencies {
     // depend on YACL at runtime — the mixin uses @Pseudo to be
     // tolerant of YACL absence (silently skips). YACL only enters the
     // runtime environment via consumer mods that bundle it per §0031.
-    compileOnly "maven.modrinth:yacl:3.9.5+26.2-fabric"
+    compileOnly "maven.modrinth:yacl:3.9.6+26.2-fabric"
 }
 
 loom {
