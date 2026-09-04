@@ -75,6 +75,14 @@ dependencies {
 loom {
     runs {
         client { ideConfigGenerated = false }
+        // Test Gallery: boots straight into the generated test world in run/saves/TestGallery.
+        // Generate it with `test-gallery/run-scene.sh <mod> <scene>` (which also runs this).
+        testGallery {
+            inherit client
+            name 'Test Gallery'
+            programArgs '--quickPlaySingleplayer', 'TestGallery'
+            ideConfigGenerated = false
+        }
         server { ideConfigGenerated = false }
     }
 }
