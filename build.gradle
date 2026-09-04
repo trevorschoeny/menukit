@@ -134,3 +134,20 @@ Requires MenuKit 2.0.0. Breaking: the old graft/slot API does not compile agains
         required.project "menukit"
     }
 }
+
+// ci-cd.md stage 2: the shipped jar must self-report the bumped version. A jar that
+// says the wrong version silently breaks every dependency gate against it, so this
+// fails the build instead of relying on someone remembering to unzip and look.
+tasks.register('verifyJarVersion') {
+    dependsOn 'jar'
+    doLast {
+        def jar = tasks.named('jar').get().archiveFile.get().asFile
+        def modJson = zipTree(jar).matching { include 'fabric.mod.json' }.singleFile
+        def stamped = new groovy.json.JsonSlurper().parse(modJson).version
+        if (stamped != project.version.toString()) {
+            throw new GradleException("${jar.name}: fabric.mod.json says ${stamped}, expected ${project.version}")
+        }
+        println "verifyJarVersion: ${jar.name} reports ${stamped}"
+    }
+}
+build.dependsOn verifyJarVersion
