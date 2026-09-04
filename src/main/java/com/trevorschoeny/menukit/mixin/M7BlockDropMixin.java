@@ -23,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * vanilla container block semantics including drop-on-break.
  *
  * <p>Targets {@link BlockEntity#preRemoveSideEffects(BlockPos, BlockState)}
- * at HEAD. This is 1.21.11's canonical pre-removal side-effects hook —
+ * at HEAD. This is 26.2's canonical pre-removal side-effects hook —
  * vanilla's own container-content drop logic runs here (via
  * {@code BaseContainerBlockEntity.preRemoveSideEffects} which calls
  * {@code Containers.dropContents}). Running our drop at HEAD means M7

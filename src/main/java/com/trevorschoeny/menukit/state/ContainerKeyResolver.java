@@ -94,7 +94,7 @@ final class ContainerKeyResolver {
         // Player's ender chest.
         if (container instanceof PlayerEnderChestContainer enderChest) {
             // Ender chest owner is exposed via the player it was opened by.
-            // In vanilla 1.21.11 the owner field isn't directly public; the
+            // In vanilla 26.2 the owner field isn't directly public; the
             // container is fetched via Player.getEnderChestInventory(). The
             // EnderChest attachment is on the Player, so we need the player
             // reference. v1 resolution requires the player owner — which we

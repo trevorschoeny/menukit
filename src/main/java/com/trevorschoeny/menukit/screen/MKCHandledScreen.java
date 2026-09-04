@@ -596,7 +596,7 @@ public class MKCHandledScreen extends AbstractContainerScreen<MKCScreenHandler> 
 
     @Override
     protected void extractLabels(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
-        // 1.21.11 requires explicit ARGB colors — drawString silently
+        // 26.2 requires explicit ARGB colors — drawString silently
         // discards text when alpha is 0 (ARGB.alpha(color) != 0 guard).
         // White text with shadow for readability on the dark overlay.
         // When labels move into panel backgrounds (panel elements), switch
