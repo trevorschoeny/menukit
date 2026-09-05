@@ -182,7 +182,7 @@ public final class SlotGroupPanelRegistry {
     }
 
     /**
-     * Called from {@link com.trevorschoeny.menukit.mixin.SlotGroupPanelRenderMixin}
+     * Called from {@code SlotGroupPanelRenderMixin}
      * at the same injection point as MenuKit's {@code MKPanelRenderMixin}.
      * Dispatches all matching SlotGroupContext adapters for the current
      * screen. Both mixins fire per render — MenuKit's first (renders

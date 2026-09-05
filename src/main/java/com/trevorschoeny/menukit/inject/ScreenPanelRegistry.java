@@ -60,7 +60,7 @@ import org.jetbrains.annotations.ApiStatus;
  *       the screen class, cache the match list in {@link #SCREEN_DATA}
  *       and register a {@code ScreenMouseEvents.allowMouseClick} hook.
  *       Render dispatch runs via
- *       {@link com.trevorschoeny.menukit.mixin.MKPanelRenderMixin}
+ *       {@code MKPanelRenderMixin}
  *       (injects at {@code INVOKE renderCarriedItem} so panels land in
  *       the right render stratum — see M8 §8.2 for why Fabric's
  *       {@code afterRender} is the wrong hook for render). Fabric handles
@@ -394,7 +394,7 @@ public final class ScreenPanelRegistry {
     // adapter tracking and the AFTER_INIT listener that registers it.
 
     /**
-     * Called from {@link com.trevorschoeny.menukit.mixin.MKPanelRenderMixin}
+     * Called from {@code MKPanelRenderMixin}
      * at the injection point in {@code AbstractContainerScreen.render}
      * (before {@code renderCarriedItem}). Dispatches all matching MenuContext
      * and SlotGroupContext adapters for the current screen. No-op for

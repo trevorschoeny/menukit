@@ -1,7 +1,7 @@
 package com.trevorschoeny.menukit.core;
 
 /**
- * Declares how a {@link SlotGroup} participates in shift-click routing.
+ * Declares how a {@code SlotGroup} participates in shift-click routing.
  *
  * <p>On MenuKit-native screens, this is authoritative — the handler's
  * {@code quickMoveStack} uses it to determine routing. On observed

@@ -37,7 +37,7 @@ import java.util.Map;
  *
  * <p>Holds a list of {@link Panel}s (element-only; no slot groups — those
  * are inventory-menu machinery). Layout is resolved via
- * {@link PanelLayout} using the same {@link com.trevorschoeny.menukit.core.PanelPosition}
+ * {@link com.trevorschoeny.menukit.core.PanelLayout} using the same {@link com.trevorschoeny.menukit.core.PanelPosition}
  * constraint system inventory-menu screens use. Panels are centered on the
  * screen; elements render on top of their panels; input is dispatched to
  * elements in reverse panel order (top-most first) with the first consumer
@@ -47,7 +47,7 @@ import java.util.Map;
  * drag modes are not implemented — they'll land in later phases as the
  * element palette surfaces need for them.
  *
- * @see MKCHandledScreen inventory-menu analogue (holds slots + sync)
+ * See {@code MKCHandledScreen} inventory-menu analogue (holds slots + sync)
  */
 public class MKScreen extends Screen {
 

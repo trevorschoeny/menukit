@@ -8,14 +8,14 @@ import org.jetbrains.annotations.ApiStatus;
 import java.util.List;
 
 /**
- * The observed-screen equivalent of {@link SlotGroup}. Wraps vanilla
+ * The observed-screen equivalent of {@code SlotGroup}. Wraps vanilla
  * {@link Slot}s that MenuKit doesn't own, providing the same query
  * surface via {@link SlotGroupLike}.
  *
  * <p>Created by {@link HandlerRecognizerRegistry} when analyzing
  * non-MenuKit handlers (chests, furnaces, brewing stands, etc.).
  *
- * <p>Key differences from {@link SlotGroup}:
+ * <p>Key differences from {@code SlotGroup}:
  * <ul>
  *   <li><b>Storage is read-only.</b> {@link ReadOnlyStorage} reads live
  *       from the wrapped slots but ignores writes. MenuKit doesn't mutate
@@ -25,7 +25,7 @@ import java.util.List;
  * </ul>
  *
  * @see SlotGroupLike      The uniform abstraction consumers program against
- * @see SlotGroup           MenuKit-native implementation
+ * See {@code SlotGroup}           MenuKit-native implementation
  * @see HandlerRecognizerRegistry  Where these are created
  */
 public class VirtualSlotGroup implements SlotGroupLike {

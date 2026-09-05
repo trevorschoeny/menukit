@@ -2,7 +2,7 @@ package com.trevorschoeny.menukit.core;
 
 /**
  * Minimal interface for the owner of a {@link Panel} tree. Implemented by
- * {@link com.trevorschoeny.menukit.screen.MKCScreenHandler}.
+ * {@code MKCScreenHandler}.
  *
  * <p>Lives in {@code core} so that Panel can hold a typed reference without
  * depending on the {@code screen} package (which pulls in vanilla's

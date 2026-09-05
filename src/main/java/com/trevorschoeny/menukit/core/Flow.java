@@ -8,14 +8,14 @@ import java.util.List;
  * The general reactive flow-wrap primitive — a {@link PanelElement} that holds a
  * run of child elements and FLOWS the visible ones left-to-right into the panel's
  * available content width, WRAPPING to new rows that grow downward when the run
- * exceeds that width. The element analogue of {@link SlotFlowElement} (which does
+ * exceeds that width. The element analogue of {@code SlotFlowElement} (which does
  * the same for slots, on a uniform 18px pitch); {@code Flow} handles
  * heterogeneous, variable-width children — buttons, badges, icons, labels.
  *
  * <h3>Why this exists — comprehensive wrapping</h3>
  *
  * Reactive wrapping already covers text ({@link TextLabel} wraps to its budget),
- * a button's label, and slots ({@link SlotFlowElement}). The one shape it did NOT
+ * a button's label, and slots ({@code SlotFlowElement}). The one shape it did NOT
  * cover was a horizontal RUN of elements wrapping to multiple rows: {@link
  * com.trevorschoeny.menukit.core.layout.Row} is a BUILD-TIME helper (it bakes
  * positions once at {@code build()} and does not exist at runtime, so it can't

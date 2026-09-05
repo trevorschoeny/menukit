@@ -172,7 +172,7 @@ public final class ConfirmDialog {
          *   <li>has {@link Panel#modal()} pre-set (opaque + dimsBehind +
          *       tracksAsModal)</li>
          *   <li>starts hidden (initial visibility {@code false}) — consumer
-         *       sets {@link Panel#showWhen(java.util.function.Supplier)} to
+         *       sets {@link Panel#showWhen(java.util.function.BooleanSupplier)} to
          *       drive visibility from their state</li>
          * </ul>
          *

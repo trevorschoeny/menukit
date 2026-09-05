@@ -10,7 +10,7 @@ import net.minecraft.world.item.ItemStack;
  * Shared slot-rendering utility for registered slots that live outside a
  * vanilla container texture. Used by M4 consumer code to render slot
  * backgrounds, hover highlights, ghost icons, and items for registered
- * {@link MKCSlot} instances.
+ * {@code MKCSlot} instances.
  *
  * <p>Parallel to {@link PanelRendering}, which handles panel-level backgrounds.
  *

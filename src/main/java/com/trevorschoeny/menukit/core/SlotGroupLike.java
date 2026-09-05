@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * The uniform abstraction for slot groups. Consumer code programs against
  * this interface and never needs to know whether the underlying screen is
- * MenuKit-native ({@link SlotGroup}) or a vanilla/observed screen
+ * MenuKit-native ({@code SlotGroup}) or a vanilla/observed screen
  * ({@link VirtualSlotGroup}).
  *
  * <p>Exposes the consumer query surface only — no layout metadata, no
@@ -18,13 +18,13 @@ import java.util.List;
  * concepts that don't translate to observed screens.
  *
  * <p>The wildcard return type on {@link #getSlots} is deliberate:
- * {@link SlotGroup} returns {@code List<MKCSlot>} (a valid covariant
+ * {@code SlotGroup} returns {@code List<MKCSlot>} (a valid covariant
  * override), while {@link VirtualSlotGroup} returns {@code List<Slot>}.
  * Consumers writing group-level behavior work with {@code Slot} directly;
  * consumers needing {@code MKCSlot}-specific behavior do an
  * {@code instanceof} check after the call.
  *
- * @see SlotGroup          MenuKit-native implementation
+ * See {@code SlotGroup}          MenuKit-native implementation
  * @see VirtualSlotGroup   Observed-screen implementation
  * @see HandlerRecognizerRegistry#findGroup  Entry point for consumers
  */
@@ -44,7 +44,7 @@ public interface SlotGroupLike {
     int getShiftClickPriority();
 
     /**
-     * Returns this group's slots. The wildcard allows {@link SlotGroup}
+     * Returns this group's slots. The wildcard allows {@code SlotGroup}
      * to return {@code List<MKCSlot>} and {@link VirtualSlotGroup}
      * to return {@code List<Slot>}.
      *

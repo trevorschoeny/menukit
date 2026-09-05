@@ -29,7 +29,7 @@ import java.util.Optional;
  * <h2>Why a sibling, not an extension</h2>
  *
  * {@link ScreenPanelAdapter} is built around the inventory-chrome model —
- * {@link MenuRegion} anchors against {@code leftPos}/{@code topPos}/
+ * {@link com.trevorschoeny.menukit.core.MenuRegion} anchors against {@code leftPos}/{@code topPos}/
  * {@code imageWidth}/{@code imageHeight}; {@link MenuChrome} extends
  * those bounds by the screen's chrome extents; its origin resolution
  * takes an {@code AbstractContainerScreen<?>}. None of that applies to
