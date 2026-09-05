@@ -31,7 +31,7 @@ import java.util.WeakHashMap;
  * menu, or projected onto a foreign container. So its address must NOT depend on
  * the rendering menu's family, or the same pocket would get different addresses
  * across survival↔creative. Its address roots at a CONSTANT family
- * ({@link #CREATED_FAMILY}) and is identified purely by its panel + declaration
+ * ({@code CREATED_FAMILY}) and is identified purely by its panel + declaration
  * id ({@code panelId} / {@code groupId} / {@code localIndex}). Consequently
  * resolution does not apply a menu-family gate (that gate is for vanilla slots,
  * which ARE menu-intrinsic); the identity scan below IS the presence check.

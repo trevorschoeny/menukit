@@ -58,14 +58,14 @@ import java.util.function.Supplier;
  * client exists</em>, so the slot <b>data</b> is declared side-neutrally (the
  * {@link SlotSpec} recipes) and travels onto every container menu
  * unconditionally — that is the only sync-correct default. The per-screen
- * {@link #parity} scope therefore gates the client <b>presentation</b> (whether
+ * {@link Builder#parity} scope therefore gates the client <b>presentation</b> (whether
  * the panel + its slots are drawn and interactive on a given screen), not
  * whether the slot data exists. A slot you opt a screen out of is still present
- * on that menu; it simply isn't shown there. The chrome ({@link #chrome}) is a
+ * on that menu; it simply isn't shown there. The chrome ({@link Builder#chrome}) is a
  * client-only {@link Supplier} so no GUI objects are constructed on a dedicated
  * server.
  *
- * <p>{@link #register} is safe to call from the consumer's common initializer:
+ * <p>{@link Builder#register} is safe to call from the consumer's common initializer:
  * it touches only side-neutral data (recipes, the projection source, the stored
  * definition). The client chrome is materialised later, on the client only, from
  * {@link #wireRegisteredChrome} (invoked by {@code MKCClient}).
@@ -103,7 +103,7 @@ public final class MKCContainerPanel {
         return new Builder(panelId);
     }
 
-    /** Fluent configuration; terminates in {@link #register()}. */
+    /** Fluent configuration; terminates in {@code register()}. */
     public static final class Builder {
         private final String panelId;
         private @Nullable RegionAnchor<MenuRegion> placement = null;   // one of placement/pixelOrigin required
@@ -150,7 +150,7 @@ public final class MKCContainerPanel {
          * <p>Everything else about the parity panel is unchanged: the slots are
          * real synced {@link MKCSlot}s on every container menu, the chrome +
          * {@link SlotElement}s ride the panel (their intra-panel offsets are fixed;
-         * only the panel origin moves), and {@link #parity}/{@link #showWhen}
+         * only the panel origin moves), and {@link Builder#parity}/{@link #showWhen}
          * compose as usual. No reactive wrap/scroll budgets are fed — pixel
          * placement means the consumer owns the exact geometry, on-screen included.
          *

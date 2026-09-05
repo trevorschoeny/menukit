@@ -38,7 +38,7 @@ import java.util.Map;
  * foreign menu's {@code quickMoveStack} and delegates here (MK/MKC never install
  * the interception). Whether a slot <em>vacuums</em> shift-clicks on a foreign
  * screen is opt-in per slot via {@link QuickMoveParticipation#imports()} +
- * {@link SlotGroup#canAccept} — a slot created with {@code imports() == false}
+ * {@code SlotGroup#canAccept} — a slot created with {@code imports() == false}
  * for its projected copy stays passive on chests. {@link #route} returns
  * {@link ItemStack#EMPTY} when no slot claims the move, which the consumer's HEAD
  * inject treats as "not handled — let vanilla run."

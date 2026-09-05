@@ -7,7 +7,7 @@ import net.minecraft.world.item.ItemStack;
  * In-memory storage that is not persisted. Contents are dropped via
  * the standard {@code dropInventory} pattern when the screen closes.
  *
- * <p>Implements plain {@link Storage}, not {@link PersistentStorage},
+ * <p>Implements plain {@link Storage}, not {@code PersistentStorage},
  * because there's nothing to save.
  *
  * <p>Replaces the old {@code MKContainerDef.BindingType.EPHEMERAL} +

@@ -57,7 +57,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * <h3>Why the factory takes the MenuType</h3>
  *
  * A handler must call {@link MKCScreenHandler#builder(MenuType)} with this menu's
- * {@code MenuType}, but that type is built <em>inside</em> {@link #register()}. If
+ * {@code MenuType}, but that type is built <em>inside</em> {@code register()}. If
  * the factory had to reach back to the static handle the {@code define(...).register()}
  * chain is still mid-assigning (e.g. {@code CUSTOM.getType()}), it would work only
  * because the factory runs lazily — a consumer who evaluates the type eagerly or
@@ -69,7 +69,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *
  * <h3>The client/server split</h3>
  *
- * {@link #register} is side-neutral (common init): it builds + registers the
+ * {@code register()} is side-neutral (common init): it builds + registers the
  * {@link MenuType}, stores the title + screen factory + id on the returned handle,
  * and adds the handle to {@link #DEFINITIONS} (so the client can drain it) + the
  * id-keyed {@link #BY_ID} map (so the generic server receiver can resolve it). The
@@ -157,7 +157,7 @@ public final class MKCMenu {
         return new Builder(id, handlerFactory);
     }
 
-    /** Fluent configuration; terminates in {@link #register()}. */
+    /** Fluent configuration; terminates in {@code register()}. */
     public static final class Builder {
         private final Identifier id;
         private final HandlerFactory handlerFactory;
@@ -188,7 +188,7 @@ public final class MKCMenu {
         }
 
         /**
-         * A behavior-arming hook, invoked by {@link #register()} <b>after</b> the
+         * A behavior-arming hook, invoked by {@code register()} <b>after</b> the
          * {@link MenuType} + id are live, so a custom menu's slot behavior is armed in
          * the same define chain as the menu it belongs to and cannot be forgotten in a
          * separate pass.

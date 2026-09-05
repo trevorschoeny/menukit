@@ -48,7 +48,7 @@ import java.util.Set;
  * <h3>How it is wired (library-owned)</h3>
  *
  * MenuKit's {@code AbstractContainerScreen} mixins ({@code getHoveredSlot} /
- * {@code mouseClicked}) fire the neutral {@link SlotScreenHook} dispatch, which
+ * {@code mouseClicked}) fire the neutral {@link com.trevorschoeny.menukit.inject.SlotScreenHook} dispatch, which
  * MKC fulfils with {@link MKCSlotScreenHook}. That hook calls
  * {@link #resolveHoveredSlot} with the panel ids that currently host a
  * {@code SlotElement}: the {@code getHoveredSlot} hook makes the registered slot win
@@ -103,7 +103,7 @@ public final class MKCSlotInput {
      * blocks the slot behind it.
      *
      * <p>Recognises slots directly and through the creative {@code SlotWrapper}
-     * ({@link Slots#asMKCSlot}). On a hit it returns the slot that is actually
+     * ({@code MKCSlotAccess.asMKCSlot}). On a hit it returns the slot that is actually
      * in {@code menu.slots} — the raw {@code MKCSlot} on the survival
      * inventory, the {@code SlotWrapper} on the creative screen — because the
      * caller (vanilla {@code getHoveredSlot}) routes the click to whatever this

@@ -152,3 +152,19 @@ tasks.register('verifyJarVersion') {
     }
 }
 build.dependsOn verifyJarVersion
+
+// ── Javadoc: the published API reference ────────────────────────────────
+// Consumer-facing reference only. Mixins, network payloads, and state
+// plumbing are implementation and stay out of the generated site.
+// doclint keeps broken {@link}s as errors (a stale link is a doc bug);
+// `missing` and `html` are off because getter @return tags and heading
+// levels are noise, not defects.
+javadoc {
+    exclude 'com/trevorschoeny/menukit/mixin/**'
+    exclude 'com/trevorschoeny/menukit/network/**'
+    exclude 'com/trevorschoeny/menukit/state/**'
+    options.addBooleanOption('Xdoclint:all,-missing,-html,-accessibility', true)
+    options.tags = ['implNote:a:Implementation note:', 'implSpec:a:Implementation requirements:', 'apiNote:a:API note:']
+    options.encoding = 'UTF-8'
+    options.windowTitle = "${base.archivesName.get()} ${project.version}"
+}

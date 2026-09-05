@@ -179,7 +179,7 @@ public final class SlotElement implements PanelElement {
     /**
      * Resolves the live {@link MKCSlot} for this element's identity from the
      * current screen's menu (unwrapping a creative {@code SlotWrapper} via
-     * {@link Slots#asMKCSlot}). Returns {@code null} when the screen isn't a
+     * {@code MKCSlotAccess.asMKCSlot}). Returns {@code null} when the screen isn't a
      * container screen or the slot isn't present (e.g. a screen the slot doesn't
      * apply to).
      */

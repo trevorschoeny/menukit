@@ -8,7 +8,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import java.util.Set;
 
 /**
- * MenuKit-Containers' implementation of MenuKit's neutral {@link SlotScreenHook} —
+ * MenuKit-Containers' implementation of MenuKit's neutral {@link com.trevorschoeny.menukit.inject.SlotScreenHook} —
  * the one place panel-hosted registered-slot <em>input resolution</em> plugs into
  * MenuKit's library-owned screen dispatch (§0042). Registered with
  * {@code SlotScreenDispatcher.setHook} at MKC client init.

@@ -45,7 +45,7 @@ import java.util.function.BooleanSupplier;
  *
  * <h3>Hover-reveal &amp; the sided-visibility subtlety</h3>
  *
- * {@link #revealWhen(BooleanSupplier)} drives the panel's visibility from a
+ * {@code revealWhen(BooleanSupplier)} drives the panel's visibility from a
  * <b>client-side</b> predicate (e.g. "is the associated hotbar slot hovered").
  * The helper wraps it side-aware: <b>on the server the panel is always
  * visible</b> so {@code getItem} returns real content and vanilla's
@@ -251,7 +251,7 @@ public final class MKCSlots {
                 new RegionAnchor<>(region, RegionAnchor.DEFAULT_PRIORITY), padding, screens, tooltip);
     }
 
-    /** Fluent configuration for a single slot. Terminates in {@link #register()}. */
+    /** Fluent configuration for a single slot. Terminates in {@code register()}. */
     public static final class Builder {
         private final AbstractContainerMenu menu;
         private final Player player;

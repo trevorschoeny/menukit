@@ -99,7 +99,7 @@ public abstract class StorageAttachment<O, C> {
      * only by player-anchored factories ({@link #playerAttached} and
      * {@link #customPlayerAttached}). Death handling is only meaningful on player
      * content — content attached to a block / item / entity / ephemeral storage has no
-     * player-death lifecycle — so {@link #dropsOnDeath(DropRule)} lives here, not on the
+     * player-death lifecycle — so {@code dropsOnDeath(DropRule)} lives here, not on the
      * base type. A non-player attachment therefore CANNOT call {@code dropsOnDeath} at
      * all: it is a compile error, not the old runtime
      * {@link UnsupportedOperationException}.
@@ -147,7 +147,7 @@ public abstract class StorageAttachment<O, C> {
      * <b>drops</b> at the death spot when {@code keepInventory} is off (Curse of
      * Vanishing destroys instead) and is <b>kept</b> across respawn when
      * {@code keepInventory} is on. Override per attachment with
-     * {@link #dropsOnDeath(DropRule)} — e.g. {@code KEEP} for a soulbound slot.
+     * {@code dropsOnDeath(DropRule)} — e.g. {@code KEEP} for a soulbound slot.
      * (The attachment registers {@code copyOnDeath} so the kept path carries
      * across respawn; the library owns the gamerule-gated drop.)
      *
