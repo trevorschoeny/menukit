@@ -26,3 +26,8 @@ run/
 
 # Claude Code local session files
 .claude/
+
+# Vale downloads its packages here; only the MenuKit style is source.
+.vale/styles/*
+!.vale/styles/MenuKit/
+!.vale/styles/config/

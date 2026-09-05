@@ -1,0 +1,12 @@
+extends: existence
+message: "No hedges ('%s'). State the behavior or omit the sentence."
+level: error
+ignorecase: true
+tokens:
+  - would
+  - should
+  - might
+  - maybe
+  - probably
+  - generally
+  - typically

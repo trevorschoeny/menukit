@@ -1,0 +1,13 @@
+extends: existence
+message: "No metaphors or analogies ('%s'). State the behavior."
+level: error
+ignorecase: true
+tokens:
+  - 'like a'
+  - 'as if'
+  - 'think of it as'
+  - 'under the hood'
+  - 'is the \w+ of'
+  - 'the beauty of'
+  - 'falls out for free'
+  - 'for free'

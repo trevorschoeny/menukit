@@ -1,0 +1,27 @@
+Minecraft
+Modrinth
+Fabric
+MenuKit
+Config
+YACL
+keybind
+mixin
+shulker
+Scrollbar
+scrollbar
+storages
+dev
+boolean
+tooltips?
+enums?
+Enum
+unregister
+javadoc
+Javadoc
+hotbar
+Curse of Vanishing
+Curse of Binding
+keepInventory
+Mending
+NBT
+UUID

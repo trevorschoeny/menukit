@@ -1,0 +1,12 @@
+extends: existence
+message: "Placeholder phrase ('%s'). Delete it."
+level: error
+ignorecase: true
+tokens:
+  - please note
+  - it is worth noting
+  - note that
+  - at this time
+  - in order to
+  - "let's"
+  - "let us"

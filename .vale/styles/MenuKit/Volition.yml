@@ -1,0 +1,6 @@
+extends: existence
+message: "Volition verb on a component ('%s'). Use a mechanical verb."
+level: error
+ignorecase: true
+tokens:
+  - '\b(panel|element|slot|adapter|library|mixin|builder|window|engine) (wants|tries|refuses|knows|thinks|cares|expects)\b'

@@ -1,0 +1,19 @@
+extends: existence
+message: "No evaluators or difficulty minimizers ('%s'). State what happens."
+level: error
+ignorecase: true
+tokens:
+  - simply
+  - easy
+  - easily
+  - just
+  - powerful
+  - seamless
+  - seamlessly
+  - elegant
+  - elegantly
+  - clean
+  - cleanly
+  - robust
+  - straightforward
+  - quickly
