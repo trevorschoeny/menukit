@@ -22,31 +22,30 @@ import java.util.Map;
 import org.jetbrains.annotations.ApiStatus;
 
 /**
- * Mod entry point for MenuKit, plus thin facades for the orthogonal
- * subsystems that want a process-wide home: HUD panels, notifications.
+ * Mod entry point for MenuKit and the process-wide facade for HUD panels,
+ * notifications, and the recipe-book query.
  *
- * <p>MenuKit's canonical surface lives elsewhere:
+ * <p>The consumer surface by task:
  * <ul>
- *   <li><b>Screens:</b> {@code com.trevorschoeny.menukit.screen.MKCScreenHandler}
- *       + {@code MKCHandledScreen}</li>
- *   <li><b>Composition:</b> {@code com.trevorschoeny.menukit.core.Panel},
- *       {@code SlotGroup}, {@code SlotGroupLike}</li>
- *   <li><b>Elements:</b> {@code PanelElement}, {@code Button}, {@code TextLabel}</li>
- *   <li><b>Observed screens:</b> {@code HandlerRecognizerRegistry},
- *       {@code VirtualSlotGroup}</li>
- *   <li><b>Per-screen events:</b>
- *       {@code MKCHandledScreen.ScreenEventListener}</li>
+ *   <li><b>Panels and elements:</b> {@link com.trevorschoeny.menukit.core.Panel},
+ *       {@link com.trevorschoeny.menukit.core.PanelElement},
+ *       {@link com.trevorschoeny.menukit.core.Button},
+ *       {@link com.trevorschoeny.menukit.core.TextLabel}</li>
+ *   <li><b>Panels on vanilla container screens:</b>
+ *       {@link com.trevorschoeny.menukit.inject.ScreenPanelAdapter},
+ *       {@link com.trevorschoeny.menukit.inject.SlotGroupPanelAdapter}</li>
+ *   <li><b>HUD panels:</b> {@link com.trevorschoeny.menukit.hud.MKHudPanel}</li>
+ *   <li><b>Standalone screens:</b> {@link com.trevorschoeny.menukit.screen.MKScreen}</li>
+ *   <li><b>Layout:</b> {@link com.trevorschoeny.menukit.core.layout.Row},
+ *       {@link com.trevorschoeny.menukit.core.layout.Column}</li>
  * </ul>
+ * Created slots, custom menus, and per-slot state are in MenuKit: Containers
+ * ({@code MKCContainerPanel}, {@code MKCMenu}, {@code MKSlotState}).
  *
- * <p>This class intentionally stays small. Anything screen-scoped lives on
- * {@code MKCHandledScreen}; anything group-scoped lives on {@code SlotGroup};
- * anything truly process-wide (HUD overlays, notification triggers, the
- * recipe-book query) is the only thing that lives here.
- *
- * <p>This is a PUBLIC consumer-facing facade — its static methods
- * ({@link #registerHud}, {@link #registerNotification}, {@link #notify},
- * {@link #isRecipeBookOpen}/{@link #setRecipeBookOpen}, {@link #init}) are the
- * supported API. Only the Fabric {@link #onInitialize()} entry point is internal.
+ * <p>Supported static methods on this class: {@link #registerHud},
+ * {@link #registerNotification}, {@link #notify}, {@link #isRecipeBookOpen},
+ * {@link #setRecipeBookOpen}, {@link #init}. {@link #onInitialize()} is the
+ * Fabric entry point and is internal.
  */
 public class MK implements ModInitializer {
 

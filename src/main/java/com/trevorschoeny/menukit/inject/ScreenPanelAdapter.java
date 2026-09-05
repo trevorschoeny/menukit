@@ -20,14 +20,27 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Bundles the mechanical parts of rendering a {@link Panel} inside a vanilla
- * screen and dispatching input to it. Consumers hold this as a {@code @Unique}
- * field on their mixin and call its methods from inside the mixin's own render
- * and {@code mouseClicked} methods.
+ * Renders a {@link Panel} inside a vanilla container screen and dispatches
+ * input to it. Constructing an adapter registers it; the library renders the
+ * panel and routes clicks on every targeted screen with no consumer mixin.
+ *
+ * <pre>{@code
+ * Panel panel = Panel.builder("mymod:controls")
+ *         .add(new Button(0, 0, 90, 16, Component.literal("Press"), b -> {}))
+ *         .build();
+ * new ScreenPanelAdapter(panel, MenuRegion.RIGHT_ALIGN_TOP.priority(10))
+ *         .on(InventoryScreen.class);
+ * }</pre>
+ *
+ * <p>Targeting: with no {@link #on(Class...)} or {@link #onAny()} call the
+ * panel renders on every container screen. {@link #unregister()} removes it.
+ * A consumer-owned mixin may instead call {@link #render} and
+ * {@link #mouseClicked} directly for a pixel-positioned panel; that path does
+ * not require targeting.
  *
  * <h3>Context-parity with other rendering contexts</h3>
  *
- * After the Phase 12.5 V4 pass, this adapter renders panels identically to
+ * This adapter renders panels identically to
  * the other two MenuKit rendering contexts (standalone {@code MKScreen},
  * HUD {@code MKHudPanel}):
  *
