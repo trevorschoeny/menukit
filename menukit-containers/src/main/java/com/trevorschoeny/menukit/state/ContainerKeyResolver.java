@@ -1,0 +1,146 @@
+package com.trevorschoeny.menukit.state;
+
+import com.trevorschoeny.menukit.core.KeyedStorage;
+import com.trevorschoeny.menukit.core.PersistentContainerKey;
+import com.trevorschoeny.menukit.core.StorageContainerAdapter;
+import com.trevorschoeny.menukit.mixin.CompoundContainerAccessor;
+
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.CompoundContainer;
+import net.minecraft.world.Container;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.PlayerEnderChestContainer;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+
+import java.util.Optional;
+import org.jetbrains.annotations.ApiStatus;
+
+/**
+ * Resolves a {@link Container} to a {@link PersistentContainerKey}. Used by
+ * M1's sync + storage paths to identify where a slot's state lives.
+ *
+ * <p>v1 coverage: player inventory, player ender chest, vanilla block-entity
+ * containers. Entity-backed containers (donkey / minecart) and modded
+ * resolvers are stubs in v1 — the resolver returns {@link Optional#empty}
+ * and the library falls back to session-scoped state only (matches pre-M1
+ * behavior for those containers).
+ */
+@ApiStatus.Internal
+final class ContainerKeyResolver {
+
+    private ContainerKeyResolver() {}
+
+    /**
+     * Slot-aware resolution (§0050): resolves a single slot of a container to
+     * its persistent owner plus the index <em>local to that owner</em>.
+     *
+     * <p>Single-owner containers are the identity case (local index == global
+     * index). A <em>composite</em> container — vanilla's double chest, where one
+     * {@link CompoundContainer} is backed by two block-entity halves — splits the
+     * global index to the owning half by range (the first half's size is the
+     * split point) and translates to that half's local index, then resolves the
+     * half exactly as any single container. Each half stays a plain
+     * {@link PersistentContainerKey.BlockEntityKey} (it is a real placed chest
+     * with its own position) — no new key variant, and the existing single-owner
+     * resolution below is reused unchanged for each half.
+     *
+     * <p>In practice this only meets a {@code CompoundContainer} on the server:
+     * the client backs the same double-chest menu with a flat
+     * {@code SimpleContainer}, so the composite branch never runs client-side
+     * (client reads flow through the slot-state cache, not resolution).
+     */
+    static Optional<ResolvedSlot> resolve(Container container, int containerSlotIndex) {
+        if (container == null) return Optional.empty();
+
+        if (container instanceof CompoundContainer compound) {
+            CompoundContainerAccessor halves = (CompoundContainerAccessor) (Object) compound;
+            Container first = halves.mk$getContainer1();
+            Container second = halves.mk$getContainer2();
+            int firstSize = first.getContainerSize();
+            // Below the split → first half at the same local index; at or above
+            // → second half, local index rebased past the first half's slots.
+            if (containerSlotIndex < firstSize) {
+                return resolve(first).map(key -> new ResolvedSlot(key, containerSlotIndex));
+            }
+            return resolve(second).map(key -> new ResolvedSlot(key, containerSlotIndex - firstSize));
+        }
+
+        return resolve(container).map(key -> new ResolvedSlot(key, containerSlotIndex));
+    }
+
+    static Optional<PersistentContainerKey> resolve(Container container) {
+        if (container == null) return Optional.empty();
+
+        // Phase 16h — MKC custom-panel storage that knows its own key.
+        // Checked before the vanilla cases so consumers using a
+        // KeyedStorage-backed StorageContainerAdapter get their declared
+        // key honored even when the storage is sitting in a slot the
+        // resolver would otherwise route to a vanilla case (this case is
+        // narrow today but keeps the contract explicit: KeyedStorage wins
+        // if present).
+        if (container instanceof StorageContainerAdapter adapter
+                && adapter.getStorage() instanceof KeyedStorage keyed) {
+            return Optional.of(keyed.storageKey());
+        }
+
+        // Player's main inventory (survival inventory, hotbar, armor, offhand).
+        if (container instanceof Inventory inv) {
+            return Optional.of(new PersistentContainerKey.PlayerInventory(inv.player.getUUID()));
+        }
+
+        // Player's ender chest.
+        if (container instanceof PlayerEnderChestContainer enderChest) {
+            // Ender chest owner is exposed via the player it was opened by.
+            // In vanilla 26.2 the owner field isn't directly public; the
+            // container is fetched via Player.getEnderChestInventory(). The
+            // EnderChest attachment is on the Player, so we need the player
+            // reference. v1 resolution requires the player owner — which we
+            // don't have at the Container level. Server-side consumers use
+            // the Player-explicit overload instead.
+            //
+            // For the /mkverify pass and F1, player inventory is the
+            // primary path. Ender chest support is wired but depends on the
+            // player-explicit API for lookup.
+            return Optional.empty();
+        }
+
+        // Block-entity-backed containers (chest, shulker, barrel, hopper,
+        // dispenser, dropper, furnace family, brewing stand).
+        if (container instanceof BlockEntity be) {
+            if (be.getLevel() == null) return Optional.empty();
+            BlockPos pos = be.getBlockPos();
+            ResourceKey<Level> dim = be.getLevel().dimension();
+            return Optional.of(new PersistentContainerKey.BlockEntityKey(pos, dim));
+        }
+
+        // Registered modded BE resolvers.
+        if (container instanceof BlockEntity be) {
+            Optional<PersistentContainerKey> modded = SlotStateRegistry.resolveBlockEntity(be);
+            if (modded.isPresent()) return modded;
+        }
+
+        // Entity-backed containers. The minecart family (chest/hopper minecart)
+        // IS the entity — AbstractMinecartContainer extends Entity — so the
+        // container resolves directly to its own UUID, no reverse lookup
+        // needed. A registered entity resolver (consumer-supplied) wins first,
+        // so consumers can override the default mapping.
+        if (container instanceof Entity entity) {
+            Optional<PersistentContainerKey> registered =
+                    SlotStateRegistry.resolveEntity(entity);
+            if (registered.isPresent()) return registered;
+            return Optional.of(new PersistentContainerKey.EntityKey(entity.getUUID()));
+        }
+
+        // Horse family (donkey/llama/mule): storage is a separate
+        // SimpleContainer owned by the entity, with NO back-link to it —
+        // vanilla exposes no uniform Container→Entity lookup. These resolve
+        // only when resolution is driven from the entity side (a consumer
+        // calling SlotStateRegistry.resolveEntity at open time, where the
+        // entity reference IS in hand); from the Container alone they fall
+        // through to session-scoped state. (M1 design §4.2 reverse-lookup.)
+        return Optional.empty();
+    }
+}
