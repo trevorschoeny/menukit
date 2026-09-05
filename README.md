@@ -56,7 +56,7 @@ The docs live in the MenuKit repository:
 - [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md): created slots, addresses, slot state channels, storage.
 - [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md): synced player slots, slot flags, custom menus, behavior by address.
 - [Limits](https://github.com/trevorschoeny/menukit/blob/main/docs/limits.md)
-- Reference: run `./gradlew javadoc` and open `build/docs/javadoc/index.html`.
+- [Reference](https://trevorschoeny.github.io/menukit/menukit-containers/): the generated javadoc.
 
 The `validator-mkc` mod in the same workspace is the reference consumer, with compiling usage of created slots, per-slot state, death, binding, and mending.
 
