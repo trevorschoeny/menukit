@@ -1,0 +1,11 @@
+com.trevlar.menukit
+com.trevlar.menukit.compat
+com.trevlar.menukit.core
+com.trevlar.menukit.core.attachment
+com.trevlar.menukit.core.dialog
+com.trevlar.menukit.core.layout
+com.trevlar.menukit.hud
+com.trevlar.menukit.inject
+com.trevlar.menukit.input
+com.trevlar.menukit.screen
+com.trevlar.menukit.window
