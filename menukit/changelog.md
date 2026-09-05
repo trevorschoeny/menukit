@@ -1,1 +1,1 @@
-Now runs on Minecraft 26.2. Same library and same API as 2.0.0. Built for Fabric Loader 0.19.5 and Fabric API 0.159.0. Mods built against MenuKit 2.0.0 keep working.
+3.0.0: the Java package is now com.trevlar.menukit (was com.trevorschoeny.menukit); update imports. MenuKit and MenuKit: Containers now share one repository and one set of docs at github.com/trevorschoeny/menukit. No class or method names changed.

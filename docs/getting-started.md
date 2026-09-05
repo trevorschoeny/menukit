@@ -13,14 +13,14 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    modImplementation 'maven.modrinth:menukit:2.0.0+26.2'
+    modImplementation 'maven.modrinth:menukit:3.0.0+26.2'
 }
 ```
 
 Declare the dependency in `fabric.mod.json`:
 
 ```json
-"depends": { "menukit": ">=2.0.0" }
+"depends": { "menukit": ">=3.0.0" }
 ```
 
 ## 2. Register a HUD panel
@@ -29,9 +29,9 @@ Call this once from the client entry point. The panel renders every frame while 
 
 ```java
 // Source: hive-sight, hud/HiveLook.java (trimmed to the panel call)
-import com.trevorschoeny.menukit.core.PanelStyle;
-import com.trevorschoeny.menukit.hud.MKHudAnchor;
-import com.trevorschoeny.menukit.hud.MKHudPanel;
+import com.trevlar.menukit.core.PanelStyle;
+import com.trevlar.menukit.hud.MKHudAnchor;
+import com.trevlar.menukit.hud.MKHudPanel;
 
 MKHudPanel.builder("mymod:readout")
         .anchor(MKHudAnchor.CENTER, 0, 20)
@@ -53,10 +53,10 @@ Call this once from the client entry point. The adapter registers itself in its 
 
 ```java
 // Source: validator-mk, MkValidatorMkClient.java (trimmed)
-import com.trevorschoeny.menukit.core.Button;
-import com.trevorschoeny.menukit.core.MenuRegion;
-import com.trevorschoeny.menukit.core.Panel;
-import com.trevorschoeny.menukit.inject.ScreenPanelAdapter;
+import com.trevlar.menukit.core.Button;
+import com.trevlar.menukit.core.MenuRegion;
+import com.trevlar.menukit.core.Panel;
+import com.trevlar.menukit.inject.ScreenPanelAdapter;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
 
@@ -81,4 +81,4 @@ Start the client with the mod's `runClient` task. Open the inventory to see the 
 - [concepts.md](concepts.md) defines Panel, element, region, and the four contexts.
 - [recipes.md](recipes.md) covers the five common tasks, including slots.
 - [limits.md](limits.md) lists what MenuKit does not do.
-- [Reference](https://trevorschoeny.github.io/menukit/) is the generated javadoc for every public type.
+- [Reference](https://trevorschoeny.github.io/menukit/) is the generated javadoc for every public type in both artifacts.

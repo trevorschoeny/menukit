@@ -1,0 +1,66 @@
+package com.trevlar.menukit.core;
+
+/**
+ * Named regions for positioning HUD panels against the game window.
+ * Anchors to the GUI-scaled screen dimensions; stacking flows vertically
+ * for every region (up or down depending on which edge the region anchors to).
+ *
+ * <p><b>Coverage.</b> Nine regions — three each along the top and bottom
+ * edges (left/center/right), two on the left and right edges (center-aligned),
+ * and one {@link #CENTER} below the crosshair.
+ *
+ * <p><b>Flow direction</b> — all HUD regions stack vertically:
+ * <ul>
+ *   <li>{@link #TOP_LEFT} / {@link #TOP_CENTER} / {@link #TOP_RIGHT} — flow down from top inset
+ *   <li>{@link #LEFT_CENTER} / {@link #RIGHT_CENTER} — flow down from vertical center
+ *   <li>{@link #BOTTOM_LEFT} / {@link #BOTTOM_CENTER} / {@link #BOTTOM_RIGHT} — flow up from bottom inset
+ *   <li>{@link #CENTER} — flow down from {@code sh/2 + CENTER_CROSSHAIR_CLEARANCE}
+ * </ul>
+ *
+ * <p>The screen-edge inset is {@link RegionConstants#EDGE_INSET} and the
+ * HUD-specific crosshair clearance is {@link #CENTER_CROSSHAIR_CLEARANCE} —
+ * both derived from vanilla UI conventions (see the design doc §3.5).
+ *
+ * <p><b>Shared layout constants live in {@link RegionConstants}.</b> The
+ * per-enum {@code EDGE_INSET}/{@code STACK_GAP} faces were removed so the four
+ * region enums present an identical surface — read
+ * {@link RegionConstants#EDGE_INSET} / {@link RegionConstants#MENU_STACK_GAP}
+ * directly. {@link #CENTER_CROSSHAIR_CLEARANCE} stays here as a genuinely
+ * HUD-only value (no equivalent in the other contexts). Values unchanged.
+ */
+public enum HudRegion {
+    TOP_LEFT,
+    TOP_CENTER,
+    TOP_RIGHT,
+    LEFT_CENTER,
+    RIGHT_CENTER,
+    BOTTOM_LEFT,
+    BOTTOM_CENTER,
+    BOTTOM_RIGHT,
+    /** Below the crosshair, horizontally centered, flows down. */
+    CENTER;
+
+    /**
+     * Vertical clearance below screen-center for the {@link #CENTER} region,
+     * derived as {@code half-crosshair (8) + breathing gap (8) = 16px} in
+     * GUI-scaled pixel units. Keeps CENTER-region panels clear of vanilla's
+     * 15px crosshair sprite at any GUI scale.
+     */
+    public static final int CENTER_CROSSHAIR_CLEARANCE = 16;
+
+    /**
+     * Returns a {@link RegionAnchor} pairing this region with an explicit
+     * stacking priority. Use when sibling HUD panels in the same region
+     * need deterministic ordering — pass the result anywhere a
+     * {@link HudRegion} is accepted.
+     *
+     * <p>Lower priority renders first (closer to the region's anchor edge).
+     * Default priority is {@link RegionAnchor#DEFAULT_PRIORITY} (100); the
+     * registering mod's modId is the tiebreaker.
+     *
+     * @see RegionAnchor
+     */
+    public RegionAnchor<HudRegion> priority(int priority) {
+        return new RegionAnchor<>(this, priority);
+    }
+}

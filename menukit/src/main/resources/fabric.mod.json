@@ -9,8 +9,8 @@
   "license": "MIT",
   "environment": "client",
   "entrypoints": {
-    "main": ["com.trevorschoeny.menukit.MK"],
-    "client": ["com.trevorschoeny.menukit.MKClient"]
+    "main": ["com.trevlar.menukit.MK"],
+    "client": ["com.trevlar.menukit.MKClient"]
   },
   "mixins": ["menukit.mixins.json"],
   "depends": {
