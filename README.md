@@ -50,7 +50,7 @@ MKHudPanel.builder("mymod:readout")
 - [Concepts](docs/concepts.md): panels, elements, regions, the four contexts, slots, addresses.
 - [Recipes](docs/recipes.md): the common tasks, with samples from shipping mods.
 - [Limits](docs/limits.md): what MenuKit does not do and the open gaps.
-- Reference: run `./gradlew javadoc` and open `build/docs/javadoc/index.html`.
+- [Reference](https://trevorschoeny.github.io/menukit/menukit/): the generated javadoc.
 
 The `validator-mk` mod in the same workspace is the reference consumer, with compiling usage of every primitive.
 

@@ -81,4 +81,4 @@ Start the client with the mod's `runClient` task. Open the inventory to see the 
 - [concepts.md](concepts.md) defines Panel, element, region, and the four contexts.
 - [recipes.md](recipes.md) covers the five common tasks, including slots.
 - [limits.md](limits.md) lists what MenuKit does not do.
-- The generated javadoc is the reference for every public type.
+- [Reference](https://trevorschoeny.github.io/menukit/) is the generated javadoc for every public type.
