@@ -11,6 +11,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -95,6 +96,26 @@ public class Toggle extends AbstractPanelElement<Toggle> {
 
     // Render-frame state — hover updated each render, read by mouseClicked.
     private boolean hovered = false;
+
+    // 3.1.0 — same contract as Button: non-left buttons reach this handler
+    // when set, else fall through to vanilla. A secondary click never flips
+    // the toggle's state; that stays a left-click action.
+    private @Nullable Consumer<Click> onSecondaryClick = null;
+
+    // 3.1.0 — per-frame ARGB tint over the background, under the label. 0 = none.
+    private @Nullable IntSupplier tint = null;
+
+    /** See {@link Button#onSecondaryClick(Consumer)}; identical contract. */
+    public Toggle onSecondaryClick(@Nullable Consumer<Click> handler) {
+        this.onSecondaryClick = handler;
+        return this;
+    }
+
+    /** See {@link Button#tint(IntSupplier)}; identical contract. */
+    public Toggle tint(@Nullable IntSupplier tint) {
+        this.tint = tint;
+        return this;
+    }
 
     /**
      * Creates an always-enabled Toggle.
@@ -421,6 +442,14 @@ public class Toggle extends AbstractPanelElement<Toggle> {
         boolean on = currentState();
 
         renderBackground(ctx, sx, sy, on, disabled, hovered);
+        // Consumer tint (3.1.0) — over the background, under the label, inside
+        // the border. Here rather than in the hook so subclass overrides keep it.
+        if (tint != null) {
+            int argb = tint.getAsInt();
+            if (argb != 0) {
+                ctx.graphics().fill(sx + 1, sy + 1, sx + getWidth() - 1, sy + getHeight() - 1, argb);
+            }
+        }
 
         // On-body label: a labeled Toggle is a bar showing its label, so the label is
         // unmistakably the toggle's own (not text beside it). Drawn exactly like
@@ -515,9 +544,14 @@ public class Toggle extends AbstractPanelElement<Toggle> {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button != 0) return false;
         if (isDisabled()) return false;
         if (!hovered) return false;
+        if (button != Click.LEFT) {
+            // Secondary click: handler or fall-through; never toggles.
+            if (onSecondaryClick == null) return false;
+            onSecondaryClick.accept(Click.of(button));
+            return true;
+        }
 
         toggleTo(!currentState());
         return true;

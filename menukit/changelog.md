@@ -1,1 +1,2 @@
+3.1.0: Button and Toggle accept a secondary-click handler (onSecondaryClick) that receives a Click with the button and modifier state (right, middle, shift+right); clicks with no handler still fall through to vanilla. Both also take a per-frame tint supplier (tint) for consumer-driven state such as a pinned mode. No breaks.
 3.0.0: the Java package is now com.trevlar.menukit (was com.trevorschoeny.menukit); update imports. MenuKit and MenuKit: Containers now share one repository and one set of docs at github.com/trevorschoeny/menukit. No class or method names changed.

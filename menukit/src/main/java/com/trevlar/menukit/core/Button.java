@@ -12,6 +12,7 @@ import org.lwjgl.glfw.GLFW;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -25,8 +26,10 @@ import java.util.function.Supplier;
  * supplier overload.
  *
  * <p>Left-click only by default. Right-clicks and middle-clicks fall through
- * to vanilla's slot handling. Custom element implementations can handle
- * any mouse button.
+ * to vanilla's slot handling unless a secondary-click handler is attached via
+ * {@link #onSecondaryClick(Consumer)}; that handler receives a {@link Click}
+ * carrying the button and modifier state (shift+right etc). Custom element
+ * implementations can handle any mouse button.
  *
  * <h3>Construction — prefer {@link #spec} / {@code .at(x,y)}</h3>
  *
@@ -129,6 +132,17 @@ public class Button extends AbstractPanelElement<Button> {
     // widget/button sprite atlas. Set via .style(ControlStyle); see
     // {@link ControlStyle} for the design rationale.
     private ControlStyle controlStyle = ControlStyle.MK;
+
+    // 3.1.0 — optional handler for any non-left button (right, middle,
+    // shift+right ...). Null (default) = those clicks fall through to vanilla,
+    // exactly as before. Set via .onSecondaryClick(...).
+    private @Nullable Consumer<Click> onSecondaryClick = null;
+
+    // 3.1.0 — optional composable tint. Read each frame; the ARGB it returns is
+    // filled over the background (under the label) so a consumer can show a
+    // state the button itself doesn't own (a pinned mode, a warning). 0 = no
+    // tint. Set via .tint(...).
+    private @Nullable IntSupplier tint = null;
 
     /**
      * @param childX       X position within panel content area
@@ -360,6 +374,30 @@ public class Button extends AbstractPanelElement<Button> {
     /** Returns the current visual style. */
     public ControlStyle getStyle() { return controlStyle; }
 
+    /**
+     * Attaches a handler for every non-left mouse button. The handler gets a
+     * {@link Click} and can branch on {@link Click#isRight()},
+     * {@link Click#isMiddle()}, {@link Click#isShiftRight()}. When set, the
+     * button consumes those clicks (they no longer reach vanilla); when null
+     * (the default) they fall through as before. Disabled buttons ignore
+     * secondary clicks just like primary ones.
+     */
+    public Button onSecondaryClick(@Nullable Consumer<Click> handler) {
+        this.onSecondaryClick = handler;
+        return this;
+    }
+
+    /**
+     * Attaches a per-frame tint supplier. The returned ARGB is filled inside the
+     * button's border, over the background and under the label; return 0 for
+     * no tint. Composable with any style/state: e.g.
+     * {@code .tint(() -> pinned ? 0x50FFC000 : 0)} to show a pinned mode.
+     */
+    public Button tint(@Nullable IntSupplier tint) {
+        this.tint = tint;
+        return this;
+    }
+
     // ── Rendering ──────────────────────────────────────────────────────
 
     /**
@@ -400,6 +438,15 @@ public class Button extends AbstractPanelElement<Button> {
         }
 
         renderBackground(ctx, sx, sy);
+        // Consumer tint (3.1.0) — over the background, under the label, inside
+        // the 1px border. Lives here (not in renderBackground) so a subclass
+        // that overrides the background hook still gets it for free.
+        if (tint != null) {
+            int argb = tint.getAsInt();
+            if (argb != 0) {
+                ctx.graphics().fill(sx + 1, sy + 1, sx + width - 1, sy + getHeight() - 1, argb);
+            }
+        }
         renderContent(ctx, sx, sy);
 
         // Hover-triggered tooltip — setTooltipForNextFrame defers the tooltip
@@ -531,18 +578,23 @@ public class Button extends AbstractPanelElement<Button> {
     // ── Click Handling ─────────────────────────────────────────────────
 
     /**
-     * Handles mouse clicks. Only left-click (button 0) is consumed.
-     * Right-clicks and middle-clicks fall through to vanilla handling.
-     * Disabled buttons don't consume clicks either.
+     * Handles mouse clicks. Left-click (button 0) fires {@code onClick}. Any
+     * other button fires the {@link #onSecondaryClick} handler when one is
+     * attached, else falls through to vanilla handling. Disabled buttons
+     * don't consume clicks either way.
      */
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        // Left-click only
-        if (button != 0) return false;
         if (isDisabled()) return false;
         // The screen hit-tests before dispatching, so `hovered` should always
         // be true here. Keep the check as defensive symmetry.
         if (!hovered) return false;
+        if (button != Click.LEFT) {
+            // Secondary click: consumed only when a handler asked for it.
+            if (onSecondaryClick == null) return false;
+            onSecondaryClick.accept(Click.of(button));
+            return true;
+        }
 
         // Set press-affordance state BEFORE invoking onClick. Order matters
         // for click handlers that immediately query button visual state.
