@@ -31,20 +31,20 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    modImplementation 'maven.modrinth:menukit:3.0.0+26.2'
+    modImplementation 'maven.modrinth:menukit:3.1.0+26.2'
     // Only if the mod creates slots or custom menus. Pulls in menukit transitively.
-    modImplementation 'maven.modrinth:menukit-containers:3.0.0+26.2'
+    modImplementation 'maven.modrinth:menukit-containers:3.1.0+26.2'
 }
 ```
 
 Declare what you use in `fabric.mod.json`:
 
 ```json
-"depends": { "menukit": ">=3.0.0" }
+"depends": { "menukit": ">=3.1.0" }
 ```
 
 ```json
-"depends": { "menukit": ">=3.0.0", "menukit-containers": ">=3.0.0" }
+"depends": { "menukit": ">=3.1.0", "menukit-containers": ">=3.1.0" }
 ```
 
 ## Example

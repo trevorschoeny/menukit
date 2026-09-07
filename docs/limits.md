@@ -41,6 +41,7 @@ Behavior that is incomplete in the current release.
 | `TextLabel`, dialog bodies | Single line. Multi-line text is a `Column` of labels. |
 | `Row`, `Column` | No `FILL` cross-alignment. No grid helper. |
 | `Dropdown` | Fixed item list. No type-to-filter. |
+| Secondary click and tint | `Button` and `Toggle` only. Other shipped elements take left clicks alone. A custom `PanelElement` handles any button in its own `mouseClicked`. |
 | `ScrollContainer` | Vertical only. No keyboard scrolling. The scrollbar stays visible. |
 | `Slider` | Normalized 0 to 1 value. No steps, no range handle, no vertical orientation. |
 | Auto-sizing elements with supplier content | The build measures width once. Reserve width for the longest expected content. |

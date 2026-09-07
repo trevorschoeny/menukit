@@ -34,6 +34,18 @@ A consumer implements `PanelElement` for a custom element.
 
 Constructor argument order is `(childX, childY, [width, height,] content, [callback])`. Elements that size from their content omit width and height.
 
+## Mouse buttons
+
+An element receives left clicks through its primary callback. `Button` and `Toggle` also accept `onSecondaryClick(Consumer<Click>)`, which receives every non-left button.
+
+A `Click` record carries the button index and the shift, control, and alt state sampled when the click reaches the element. It answers `isRight()`, `isMiddle()`, `isShiftRight()`, and `isSecondary()`. On macOS the command key counts as control.
+
+With no secondary handler attached, non-left clicks pass through to vanilla. A disabled control consumes neither kind.
+
+## Tint
+
+`Button` and `Toggle` accept `tint(IntSupplier)`. The supplier runs each frame and returns an ARGB value that fills the control inside its border, over the background, and under the label. Returning 0 draws no tint. The tint shows consumer-owned state, such as a pinned mode, that the control itself does not store.
+
 ## State
 
 A stateful element does not own its state. It reads the value from a `Supplier` each frame and writes through a callback on interaction. Persistence is the consumer's. The exceptions are `Toggle`, `Checkbox`, and `Radio`, which hold a boolean value unless the `linked` factory constructs them.

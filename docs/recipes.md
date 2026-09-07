@@ -85,6 +85,24 @@ Panel p = Panel.builder("mymod:confirm").elements(buttonRow).build();
 
 Result: two 60 by 20 buttons at y 30, starting at x 20, with a 4 pixel gap. `Column` has the same shape on the vertical axis. `.crossAlign(CrossAlign.CENTER)` centers children on the cross axis. A hidden element keeps its space.
 
+## Handle a right click and tint a button
+
+Needs: MenuKit 3.1.0.
+
+```java
+// Source: menukit, core/Button.java and core/Click.java
+Button pin = new Button(0, 0, 60, 16, Component.literal("Mode"), b -> cycleMode());
+pin.onSecondaryClick(click -> {
+    if (click.isShiftRight()) clearMode();
+    else if (click.isRight()) cycleModeBackward();
+});
+pin.tint(() -> pinned ? 0x50FFC000 : 0);
+```
+
+Result: left click runs `cycleMode`. Right click runs `cycleModeBackward`, and shift with right click runs `clearMode`. While `pinned` is true an amber wash fills the button under its label. `Toggle` takes the same two methods with the same contract.
+
+A control with no `onSecondaryClick` handler passes non-left clicks to vanilla. A disabled control consumes neither kind.
+
 ## Add synced slots to the player, shown on every container screen
 
 Needs: MenuKit: Containers. Declare the storage at common init. Call `register()` from the common entry point.
