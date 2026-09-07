@@ -13,14 +13,14 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    modImplementation 'maven.modrinth:menukit:3.2.0+26.2'
+    modImplementation 'maven.modrinth:menukit:4.0.0+26.2'
 }
 ```
 
 Declare the dependency in `fabric.mod.json`:
 
 ```json
-"depends": { "menukit": ">=3.2.0" }
+"depends": { "menukit": ">=4.0.0" }
 ```
 
 ## 2. Register a HUD panel
