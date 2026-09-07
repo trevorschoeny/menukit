@@ -380,11 +380,11 @@ public final class ScreenPanelRegistry {
     // adapter tracking and the AFTER_INIT listener that registers it.
 
     /**
-     * Layer 1 of {@link ContainerScreenLayers}: every flow-positioned
+     * Layer 2 of {@link ContainerScreenLayers}: every flow-positioned
      * (non-overlay) menu-context adapter for {@code screen}, in registration
-     * order. Fired BEFORE vanilla's slot pass, so a created slot presented by one
-     * of these panels writes its {@code Slot.x/y} in time for vanilla to draw and
-     * hit-test it this frame. No-op for screens with no matches, or for screens
+     * order. Fired after vanilla has drawn the vanilla slots and before it draws
+     * the created ones, so a created slot presented by one of these panels
+     * writes its {@code Slot.x/y} in time for vanilla to draw it this frame. No-op for screens with no matches, or for screens
      * opened before {@link #onScreenInit} populated the cache (shouldn't happen —
      * AFTER_INIT fires before the first render).
      */
@@ -401,9 +401,9 @@ public final class ScreenPanelRegistry {
     }
 
     /**
-     * Layer 3 of {@link ContainerScreenLayers}: the modal dim, then every
+     * Layer 4 of {@link ContainerScreenLayers}: the modal dim, then every
      * overlay-positioned adapter on top of it. Fired AFTER vanilla's slot pass,
-     * so an overlay covers vanilla content, every slot, and every layer-1 panel.
+     * so an overlay covers vanilla content, every slot, and every flow panel.
      *
      * <p>The "render on top" gate is {@code isOverlayPositioned()} — the single
      * overlay authority (§0057) — so EVERY overlay (PanelPosition.center(), a
@@ -671,44 +671,6 @@ public final class ScreenPanelRegistry {
         }
 
         return result;
-    }
-
-    /**
-     * Whether any visible, opaque menu-context panel on {@code screen} has padded
-     * bounds intersecting the box {@code (x, y, w, h)} in absolute screen pixels.
-     * §0058's bounding-box rule for RENDER coverage ({@link CoveredSlots}): a
-     * panel hides the vanilla slots behind its box, holes or not — a hole is
-     * where a panel routes INPUT through to its own element (a created slot),
-     * not a window onto the vanilla content beneath. Flow and overlay panels
-     * both count; origin resolution already re-centers overlays.
-     */
-    static boolean anyOpaquePanelCoversBox(AbstractContainerScreen<?> screen,
-                                           int x, int y, int w, int h) {
-        ScreenRenderData data = SCREEN_DATA.get(screen);
-        if (data == null) return false;
-        ScreenBounds frame = frameBounds(screen);
-        for (ScreenPanelAdapter adapter : data.menuMatches) {
-            Panel panel = adapter.getPanel();
-            if (!ClientWindowVisibility.panelShown(panel) || !ClientWindowVisibility.panelOpaque(panel)) continue;
-            var origin = adapter.getOrigin(frame, screen);
-            if (origin.isEmpty()) continue;
-            int pad = adapter.getPadding();
-            int px = origin.get().x(), py = origin.get().y();
-            int pw = panel.getWidth() + 2 * pad, ph = panel.getHeight() + 2 * pad;
-            if (x < px + pw && x + w > px && y < py + ph && y + h > py) return true;
-        }
-        return false;
-    }
-
-    /** Cheap pre-check for {@link CoveredSlots}: any visible opaque panel on {@code screen} at all. */
-    static boolean hasVisibleOpaquePanel(AbstractContainerScreen<?> screen) {
-        ScreenRenderData data = SCREEN_DATA.get(screen);
-        if (data == null) return false;
-        for (ScreenPanelAdapter adapter : data.menuMatches) {
-            Panel panel = adapter.getPanel();
-            if (ClientWindowVisibility.panelShown(panel) && ClientWindowVisibility.panelOpaque(panel)) return true;
-        }
-        return false;
     }
 
     /** Helper: tests whether (mouseX, mouseY) is within the panel's bounding box. */

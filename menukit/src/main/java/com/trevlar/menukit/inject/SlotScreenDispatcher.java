@@ -49,10 +49,16 @@ public final class SlotScreenDispatcher {
     // ── Fire methods — called by the AbstractContainerScreen mixins ─────────
     // Each is a no-op when no hook is set. Kept tiny so the mixins stay thin.
 
-    /** Layer-1 start ({@code ContainerScreenLayers.belowSlots}) — park unpresented created slots. */
-    public static void fireBeginFrame(AbstractContainerScreen<?> screen) {
+    /** {@code extractSlot} HEAD — is this a created slot (the layer boundary)? False without MKC. */
+    public static boolean fireIsCreated(net.minecraft.world.inventory.Slot slot) {
         SlotScreenHook h = hook;
-        if (h != null) h.beginFrame(screen);
+        return h != null && h.isCreated(slot);
+    }
+
+    /** End of {@code ContainerScreenLayers} — park created slots no panel presented this frame. */
+    public static void fireEndFrame(AbstractContainerScreen<?> screen) {
+        SlotScreenHook h = hook;
+        if (h != null) h.endFrame(screen);
     }
 
     /**

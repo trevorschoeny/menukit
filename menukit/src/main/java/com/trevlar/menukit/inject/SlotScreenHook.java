@@ -1,6 +1,7 @@
 package com.trevlar.menukit.inject;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.world.inventory.Slot;
 
 /**
  * The neutral plug MenuKit exposes so panel-hosted registered slots can resolve
@@ -9,9 +10,9 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
  *
  * <p>Drawing is not this hook's concern: a registered slot is a real {@code Slot}
  * that VANILLA draws in its own slot pass, once its presenting {@code SlotElement}
- * has written the panel-resolved position into {@code Slot.x/y} (layer 1 of
- * {@code ContainerScreenLayers}). This hook is the <em>input limb</em> plus the
- * per-frame park ({@link #beginFrame}): it answers, for a screen point, which
+ * has written the panel-resolved position into {@code Slot.x/y} (layer 2 of
+ * {@code ContainerScreenLayers}). This hook is the <em>input limb</em> plus two
+ * frame helpers ({@link #isCreated}, {@link #endFrame}): it answers, for a screen point, which
  * in-menu slot a panel-hosted slot covers, so vanilla's {@code getHoveredSlot}
  * routes hover/click to the registered slot rather than a vanilla slot beneath it
  * (and eats clicks that fall in a panel's empty space).
@@ -50,15 +51,20 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 public interface SlotScreenHook {
 
     /**
-     * Fired once per frame at the top of layer 1 ({@code ContainerScreenLayers}),
-     * before any panel renders. The implementation parks every created slot it
-     * presents (writes an off-screen {@code Slot.x/y}), so a slot whose panel does
-     * not present it this frame is not drawn or hit-tested by vanilla at last
-     * frame's position. The panels that do present a slot re-place it during
-     * their render, which follows this call and precedes vanilla's slot pass.
-     * Default no-op.
+     * Whether {@code slot} is a created (registered) slot. Lets MenuKit find the
+     * layer boundary in vanilla's slot pass — the first created slot — without
+     * naming an MKC type (§0042). Default false: MK-alone there are none.
      */
-    default void beginFrame(AbstractContainerScreen<?> screen) {}
+    default boolean isCreated(Slot slot) { return false; }
+
+    /**
+     * Fired once per frame at the end of {@code ContainerScreenLayers}, after every
+     * panel has rendered. The implementation parks every created slot no panel
+     * presented this frame (writes an off-screen {@code Slot.x/y}), so a slot whose
+     * panel is hidden, out of region, or hidden by the window is not drawn or
+     * hit-tested by vanilla at a stale position next frame. Default no-op.
+     */
+    default void endFrame(AbstractContainerScreen<?> screen) {}
 
     /**
      * Fired at {@code getHoveredSlot} HEAD. Returns whether a revealed panel-hosted
