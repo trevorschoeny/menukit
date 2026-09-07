@@ -25,6 +25,7 @@ Behavior that is incomplete in the current release.
 | Area | Current behavior |
 |---|---|
 | Shift-click into a created slot | Not routed. Direct click works. The consumer overrides `quickMoveStack` in its own mixin, or accepts the gap. |
+| Created slot in an overlay panel | Not supported. Overlay panels draw after vanilla's slot pass, so a slot they host is placed one frame late and drawn under the panel. Put created slots in flow panels. |
 | Server-fired reactions | Client-observed reactions fire. Server-authoritative firing resolves to a no-op. |
 | Window scope | Every address resolves in the primary scope. Per-tab and per-sub-window scopes are not active. |
 | Panel and element addressing | The window addresses slots. It does not yet address panels or elements. |
