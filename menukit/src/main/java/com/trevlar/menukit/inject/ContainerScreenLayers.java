@@ -16,8 +16,8 @@ import org.jetbrains.annotations.ApiStatus;
  * <table>
  *   <tr><th>#</th><th>Layer</th><th>Drawn by</th></tr>
  *   <tr><td>0</td><td>screen background, container texture</td><td>vanilla ({@code extractBackground}, an earlier stratum)</td></tr>
- *   <tr><td>1</td><td><b>flow panels</b>: chrome + non-slot elements + created-slot frames</td><td>MenuKit — {@link #belowSlots}</td></tr>
- *   <tr><td>2</td><td><b>every slot, vanilla and created alike</b>: highlight, item, count, durability</td><td>vanilla ({@code extractSlots})</td></tr>
+ *   <tr><td>1</td><td><b>flow panels</b>: chrome + non-slot elements + created-slot frames; then vanilla slots behind an opaque panel go inactive ({@link CoveredSlots})</td><td>MenuKit — {@link #belowSlots}</td></tr>
+ *   <tr><td>2</td><td><b>every active slot, vanilla and created alike</b>: highlight, item, count, durability</td><td>vanilla ({@code extractSlots})</td></tr>
  *   <tr><td>3</td><td>modal dim, <b>overlay panels</b></td><td>MenuKit — {@link #aboveSlots}</td></tr>
  *   <tr><td>4</td><td>carried item, cursor</td><td>vanilla ({@code extractCarriedItem}, next stratum)</td></tr>
  *   <tr><td>5</td><td>tooltips</td><td>vanilla ({@code extractTooltip})</td></tr>
@@ -84,6 +84,12 @@ public final class ContainerScreenLayers {
         SlotScreenDispatcher.fireBeginFrame(screen);
         ScreenPanelRegistry.renderFlowPanels(screen, graphics, mouseX, mouseY);
         SlotGroupPanelRegistry.renderMatchingPanels(screen, graphics, mouseX, mouseY);
+        // Vanilla slots behind a visible opaque panel are inactive for the
+        // frame (CoveredSlots): layer 1 sits below the slot pass, so a panel
+        // can't hide what's behind it by painting; it hides it by vanilla's
+        // own isActive switch. Computed here, after panel origins resolved,
+        // before vanilla's hover resolution and slot pass.
+        CoveredSlots.recompute(screen);
     }
 
     /**

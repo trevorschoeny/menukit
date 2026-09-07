@@ -673,6 +673,44 @@ public final class ScreenPanelRegistry {
         return result;
     }
 
+    /**
+     * Whether any visible, opaque menu-context panel on {@code screen} has padded
+     * bounds intersecting the box {@code (x, y, w, h)} in absolute screen pixels.
+     * §0058's bounding-box rule for RENDER coverage ({@link CoveredSlots}): a
+     * panel hides the vanilla slots behind its box, holes or not — a hole is
+     * where a panel routes INPUT through to its own element (a created slot),
+     * not a window onto the vanilla content beneath. Flow and overlay panels
+     * both count; origin resolution already re-centers overlays.
+     */
+    static boolean anyOpaquePanelCoversBox(AbstractContainerScreen<?> screen,
+                                           int x, int y, int w, int h) {
+        ScreenRenderData data = SCREEN_DATA.get(screen);
+        if (data == null) return false;
+        ScreenBounds frame = frameBounds(screen);
+        for (ScreenPanelAdapter adapter : data.menuMatches) {
+            Panel panel = adapter.getPanel();
+            if (!ClientWindowVisibility.panelShown(panel) || !ClientWindowVisibility.panelOpaque(panel)) continue;
+            var origin = adapter.getOrigin(frame, screen);
+            if (origin.isEmpty()) continue;
+            int pad = adapter.getPadding();
+            int px = origin.get().x(), py = origin.get().y();
+            int pw = panel.getWidth() + 2 * pad, ph = panel.getHeight() + 2 * pad;
+            if (x < px + pw && x + w > px && y < py + ph && y + h > py) return true;
+        }
+        return false;
+    }
+
+    /** Cheap pre-check for {@link CoveredSlots}: any visible opaque panel on {@code screen} at all. */
+    static boolean hasVisibleOpaquePanel(AbstractContainerScreen<?> screen) {
+        ScreenRenderData data = SCREEN_DATA.get(screen);
+        if (data == null) return false;
+        for (ScreenPanelAdapter adapter : data.menuMatches) {
+            Panel panel = adapter.getPanel();
+            if (ClientWindowVisibility.panelShown(panel) && ClientWindowVisibility.panelOpaque(panel)) return true;
+        }
+        return false;
+    }
+
     /** Helper: tests whether (mouseX, mouseY) is within the panel's bounding box. */
     private static boolean containsPoint(ScreenOrigin origin, int padding,
                                           int panelWidth, int panelHeight,
