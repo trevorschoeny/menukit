@@ -330,7 +330,7 @@ public final class RegionRegistry {
      * <ul>
      *   <li>the single overlay rule (①) — an overlay panel ignores its region and
      *       floats centred on the SCREEN WINDOW (drawn on top via the pass split
-     *       in {@link ScreenPanelRegistry#renderMatchingPanels});</li>
+     *       in {@link ScreenPanelRegistry#renderOverlayPanels});</li>
      *   <li>the both-axis screen-edge budgets — ① width + ② height — fed BEFORE
      *       measuring so the panel wraps/auto-scrolls to fit the room its anchor
      *       leaves toward the screen edge;</li>
