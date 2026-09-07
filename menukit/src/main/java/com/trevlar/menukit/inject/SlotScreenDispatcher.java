@@ -9,7 +9,7 @@ import org.jspecify.annotations.Nullable;
  * The §0042 firewall between MenuKit's registered-slot screen <em>dispatch</em> and
  * MenuKit-Containers' registered-slot <em>work</em>.
  *
- * <p>MenuKit's mixins on {@code AbstractContainerScreen} (render / hover / click /
+ * <p>MenuKit's hooks on {@code AbstractContainerScreen} (frame start / hover / click /
  * scroll / release) call the static {@code fire*} methods here. This class holds
  * the one {@link SlotScreenHook} MenuKit-Containers registers at client init and
  * forwards to it — or no-ops when no hook is set (MK-only consumer: no slots
@@ -48,6 +48,12 @@ public final class SlotScreenDispatcher {
 
     // ── Fire methods — called by the AbstractContainerScreen mixins ─────────
     // Each is a no-op when no hook is set. Kept tiny so the mixins stay thin.
+
+    /** Layer-1 start ({@code ContainerScreenLayers.belowSlots}) — park unpresented created slots. */
+    public static void fireBeginFrame(AbstractContainerScreen<?> screen) {
+        SlotScreenHook h = hook;
+        if (h != null) h.beginFrame(screen);
+    }
 
     /**
      * {@code getHoveredSlot} HEAD — resolve slot hover. Returns {@link SlotHoverResult#PASS}

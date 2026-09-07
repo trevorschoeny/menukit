@@ -7,12 +7,14 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
  * hover/click through a <b>library-owned</b> screen dispatch — without MenuKit ever
  * referencing a registered-slot type (§0042).
  *
- * <p>Draw and reveal are no longer this hook's concern: a registered slot is a
- * {@code SlotElement} on the panel pipeline, which renders it inline and tracks its
- * reveal/inertness as panel properties. This hook is the residual <em>input limb</em> —
- * it answers, for a screen point, which in-menu slot a panel-hosted slot covers, so
- * vanilla's {@code getHoveredSlot} routes hover/click to the registered slot rather
- * than the vanilla slot beneath it (and eats clicks that fall in a panel's empty space).
+ * <p>Drawing is not this hook's concern: a registered slot is a real {@code Slot}
+ * that VANILLA draws in its own slot pass, once its presenting {@code SlotElement}
+ * has written the panel-resolved position into {@code Slot.x/y} (layer 1 of
+ * {@code ContainerScreenLayers}). This hook is the <em>input limb</em> plus the
+ * per-frame park ({@link #beginFrame}): it answers, for a screen point, which
+ * in-menu slot a panel-hosted slot covers, so vanilla's {@code getHoveredSlot}
+ * routes hover/click to the registered slot rather than a vanilla slot beneath it
+ * (and eats clicks that fall in a panel's empty space).
  *
  * <h3>The split</h3>
  *
@@ -21,8 +23,8 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
  * survival inventory, creative (via {@code super.render}), and every chest/furnace/anvil.
  * MenuKit-Containers owns the registered-slot <em>input resolution</em>: fed by the live
  * {@code SlotElementRegistry}, it answers which {@code MKCSlot} (if any) a panel-hosted
- * slot covers at a screen point. That resolution plugs in here. Drawing the slot is the
- * panel pipeline's job (a {@code SlotElement} renders inline), not this hook's.
+ * slot covers at a screen point. That resolution plugs in here. Drawing the slot is
+ * vanilla's job, not this hook's.
  *
  * <h3>Registration &amp; absence</h3>
  *
@@ -46,6 +48,17 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
  * this gives slots the same.
  */
 public interface SlotScreenHook {
+
+    /**
+     * Fired once per frame at the top of layer 1 ({@code ContainerScreenLayers}),
+     * before any panel renders. The implementation parks every created slot it
+     * presents (writes an off-screen {@code Slot.x/y}), so a slot whose panel does
+     * not present it this frame is not drawn or hit-tested by vanilla at last
+     * frame's position. The panels that do present a slot re-place it during
+     * their render, which follows this call and precedes vanilla's slot pass.
+     * Default no-op.
+     */
+    default void beginFrame(AbstractContainerScreen<?> screen) {}
 
     /**
      * Fired at {@code getHoveredSlot} HEAD. Returns whether a revealed panel-hosted

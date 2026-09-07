@@ -69,7 +69,7 @@ public final class SlotWindowResolver {
             case VANILLA_SLOT -> resolveVanilla(menu, address);
             // Created slots are menu-INDEPENDENT (identity = panel + decl); the
             // port's scan is itself the presence check, so no family gate applies.
-            case CREATED_SLOT -> created(menu, address).map(CreatedSlotResolver.CreatedResolution::slot);
+            case CREATED_SLOT -> created(menu, address);
             // Panel + element resolution lands with the handle (Phase 6, panel registry).
             case PANEL, PANEL_ELEMENT -> Optional.empty();
         };
@@ -77,22 +77,16 @@ public final class SlotWindowResolver {
 
     /**
      * The absolute on-screen item box for an address, or empty (same no-op rules).
-     * Vanilla slots report their in-menu {@code x/y} (the creative wrapper carries
-     * creative coords); created slots report their {@code renderX/renderY} via the
-     * port; both are offset by the live screen frame.
+     * Both slot kinds report the in-menu slot's own {@code x/y} (the creative
+     * wrapper carries creative coords; a created slot's panel wrote its position
+     * there this frame), offset by the live screen frame. One rule, no kind branch
+     * on position.
      */
     public static Optional<SlotScreenRect> resolvePosition(AbstractContainerScreen<?> screen, Address address) {
-        AbstractContainerMenu menu = screen.getMenu();
         AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
         int left = acc.mk$getLeftPos();
         int top = acc.mk$getTopPos();
-        return switch (address.kind()) {
-            case VANILLA_SLOT -> resolveVanilla(menu, address)
-                    .map(s -> new SlotScreenRect(left + s.x, top + s.y, 16, 16));
-            case CREATED_SLOT -> created(menu, address)
-                    .map(r -> new SlotScreenRect(left + r.frameX(), top + r.frameY(), 16, 16));
-            case PANEL, PANEL_ELEMENT -> Optional.empty();
-        };
+        return resolve(screen, address).map(s -> new SlotScreenRect(left + s.x, top + s.y, 16, 16));
     }
 
     // ── internals ──────────────────────────────────────────────────────
@@ -122,7 +116,7 @@ public final class SlotWindowResolver {
         return Optional.of(menu.slots.get(i));
     }
 
-    private static Optional<CreatedSlotResolver.CreatedResolution> created(AbstractContainerMenu menu, Address address) {
+    private static Optional<Slot> created(AbstractContainerMenu menu, Address address) {
         CreatedSlotResolver r = createdResolver;
         if (r == null) return Optional.empty();
         return Optional.ofNullable(r.resolve(menu, address));

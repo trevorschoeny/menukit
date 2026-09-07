@@ -5,7 +5,6 @@ import com.trevlar.menukit.core.Panel;
 import com.trevlar.menukit.core.PanelElement;
 import com.trevlar.menukit.window.ClientWindowVisibility;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
-import com.trevlar.menukit.mixin.ScreenAccessor;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
@@ -59,12 +58,12 @@ import org.jetbrains.annotations.ApiStatus;
  *       walk {@link #REGISTERED} and for adapters whose targeting matches
  *       the screen class, cache the match list in {@link #SCREEN_DATA}
  *       and register a {@code ScreenMouseEvents.allowMouseClick} hook.
- *       Render dispatch runs via
- *       {@code MKPanelRenderMixin}
- *       (injects at {@code INVOKE renderCarriedItem} so panels land in
- *       the right render stratum — see M8 §8.2 for why Fabric's
- *       {@code afterRender} is the wrong hook for render). Fabric handles
- *       per-screen click-hook lifetime cleanup when the screen closes.</li>
+ *       Render dispatch is {@link ContainerScreenLayers}' — one mixin on
+ *       {@code AbstractContainerScreen.extractContents} calls
+ *       {@link #renderFlowPanels} below the slot pass and
+ *       {@link #renderOverlayPanels} above it, reading the cached match
+ *       list. Fabric handles per-screen click-hook lifetime cleanup when
+ *       the screen closes.</li>
  * </ol>
  */
 @ApiStatus.Internal
@@ -241,27 +240,15 @@ public final class ScreenPanelRegistry {
         }
 
         // Cache the menu-context match list. SlotGroupContext matches
-        // resolve per-frame inside renderMatchingPanels / the click hook
-        // below because menu.slots can mutate mid-session.
+        // resolve per-frame inside SlotGroupPanelRegistry / its click hook
+        // because menu.slots can mutate mid-session.
         SCREEN_DATA.put(acs, new ScreenRenderData(menuMatches));
 
-        // Phase 17 — render dispatch via Screen.addRenderableOnly instead
-        // of a mixin INVOKE injection. Renderables iterate during
-        // Screen.render BEFORE the end-of-frame tooltip flush, so widgets
-        // calling GuiGraphicsExtractor.setTooltipForNextFrame during render get
-        // their tooltip drawn in the same frame. The mixin path
-        // (MKPanelRenderMixin, removed in Phase 17) injected at
-        // INVOKE renderCarriedItem — correct stratum for visual ordering
-        // but the renderables-iteration path is the standard MC integration
-        // point and matches how vanilla widgets render.
-        //
-        // The Renderable is auto-cleared by Screen.clearWidgets() on next
-        // init() — no manual removal needed.
-        if (!menuMatches.isEmpty()) {
-            ((ScreenAccessor) screen).mk$addRenderableOnly(
-                    (graphics, mx, my, partialTick) ->
-                            renderMatchingPanels(acs, graphics, mx, my));
-        }
+        // Render dispatch is NOT registered per screen. ContainerScreenLayers
+        // (one mixin on AbstractContainerScreen.extractContents) calls
+        // renderFlowPanels / renderOverlayPanels every frame and reads the
+        // match list cached in SCREEN_DATA above. See that class for the layer
+        // order and why the per-screen renderable was retired.
 
         // Phase 14d-3 — fire onAttach lifecycle hook on each matched
         // adapter's panel elements so widget-wrapping elements (TextField
@@ -285,9 +272,8 @@ public final class ScreenPanelRegistry {
         });
 
         // Click dispatch via Fabric's hook — input doesn't have a render-
-        // ordering constraint so no mixin is needed here. Render dispatch
-        // happens via MKPanelRenderMixin; see §8.2 of M8 for why the
-        // render path can't use ScreenEvents.afterRender (tooltip layering).
+        // ordering constraint so no mixin is needed here. Render dispatch is
+        // ContainerScreenLayers' (see above).
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
             ScreenBounds frame = frameBounds(acs);
             // Dispatch the click to every adapter's element layer (per-element
@@ -394,78 +380,65 @@ public final class ScreenPanelRegistry {
     // adapter tracking and the AFTER_INIT listener that registers it.
 
     /**
-     * Called from {@code MKPanelRenderMixin}
-     * at the injection point in {@code AbstractContainerScreen.render}
-     * (before {@code renderCarriedItem}). Dispatches all matching MenuContext
-     * and SlotGroupContext adapters for the current screen. No-op for
-     * screens with no matches, or for screens opened before
-     * {@link #onScreenInit} populated the cache (shouldn't happen in
-     * practice — AFTER_INIT fires before the first render).
-     *
-     * <p>Public visibility required because the mixin is in a different
-     * package ({@code mixin}) from this class ({@code inject}).
+     * Layer 1 of {@link ContainerScreenLayers}: every flow-positioned
+     * (non-overlay) menu-context adapter for {@code screen}, in registration
+     * order. Fired BEFORE vanilla's slot pass, so a created slot presented by one
+     * of these panels writes its {@code Slot.x/y} in time for vanilla to draw and
+     * hit-test it this frame. No-op for screens with no matches, or for screens
+     * opened before {@link #onScreenInit} populated the cache (shouldn't happen —
+     * AFTER_INIT fires before the first render).
      */
-    public static void renderMatchingPanels(AbstractContainerScreen<?> screen,
-                                             net.minecraft.client.gui.GuiGraphicsExtractor graphics,
-                                             int mouseX, int mouseY) {
+    public static void renderFlowPanels(AbstractContainerScreen<?> screen,
+                                        net.minecraft.client.gui.GuiGraphicsExtractor graphics,
+                                        int mouseX, int mouseY) {
         ScreenRenderData data = SCREEN_DATA.get(screen);
         if (data == null) return;
-
-        // Movement ① — overlay render order, unified with MKScreen's 3-pass:
-        //   (1) NON-overlay panels render first (flow in their region)
-        //   (2) if any panel with dimsBehind(true) visible: render dim
-        //       overlay covering full screen window — covers vanilla +
-        //       step-(1) panels
-        //   (3) OVERLAY-positioned panels render last, on top of the dim layer
-        //
-        // The "render on top" pass gates on isOverlayPositioned() — the single
-        // overlay authority — so EVERY overlay (PanelPosition.center(), a
-        // dimsBehind panel, OR a tracksAsModal panel) draws on top, exactly as
-        // MKScreen's overlay pass does. The dim FILL (Pass 2) stays gated on
-        // dimsBehind() alone (M9 — the dim visual is independent of the on-top
-        // ordering: an overlay can float on top without dimming). resolveMenuOrigin
-        // independently re-centers these panels on the screen window, so an
-        // overlay registered at ANY region floats centered + on top identically.
-        //
-        // Single-pass per-adapter dim (14d-1 round-3 v1) was order-fragile —
-        // only worked when the dim panel iterated last. The pass split enforces
-        // visual order architecturally regardless of registration order.
         ScreenBounds frame = frameBounds(screen);
-
-        // Pass 1 — non-overlay adapters (flow-positioned).
         for (ScreenPanelAdapter adapter : data.menuMatches) {
             if (adapter.getPanel().isOverlayPositioned()) continue;
             adapter.render(graphics, frame, mouseX, mouseY, screen);
         }
+    }
 
-        // Pass 2 — dim overlay if any dimsBehind panel visible. ~75% black,
-        // covers full screen window. Tuned to match vanilla's confirm-
-        // screen darkening (§4.10 smoke verdict). Gated on dimsBehind() alone
-        // (M9) — independent of the on-top ordering below.
+    /**
+     * Layer 3 of {@link ContainerScreenLayers}: the modal dim, then every
+     * overlay-positioned adapter on top of it. Fired AFTER vanilla's slot pass,
+     * so an overlay covers vanilla content, every slot, and every layer-1 panel.
+     *
+     * <p>The "render on top" gate is {@code isOverlayPositioned()} — the single
+     * overlay authority (§0057) — so EVERY overlay (PanelPosition.center(), a
+     * dimsBehind panel, OR a tracksAsModal panel) draws on top, exactly as
+     * MKScreen's overlay pass does. The dim FILL stays gated on dimsBehind()
+     * alone (M9 — an overlay can float on top without dimming).
+     * resolveMenuOrigin independently re-centers these panels on the screen
+     * window, so an overlay registered at ANY region floats centered + on top
+     * identically. Single-pass per-adapter dim (14d-1 round-3 v1) was
+     * order-fragile — only worked when the dim panel iterated last; the pass
+     * split enforces visual order architecturally regardless of registration
+     * order.
+     */
+    public static void renderOverlayPanels(AbstractContainerScreen<?> screen,
+                                           net.minecraft.client.gui.GuiGraphicsExtractor graphics,
+                                           int mouseX, int mouseY) {
+        ScreenRenderData data = SCREEN_DATA.get(screen);
+        if (data == null) return;
+        ScreenBounds frame = frameBounds(screen);
+
+        // Dim overlay if any dimsBehind panel visible. ~75% black, covers full
+        // screen window. Tuned to match vanilla's confirm-screen darkening
+        // (§4.10 smoke verdict).
         if (hasVisibleDimsBehindOnScreen(screen)) {
             graphics.fill(0, 0, screen.width, screen.height, 0xC0000000);
         }
 
-        // Pass 3 — overlay-positioned adapters render on top of the dim layer.
         for (ScreenPanelAdapter adapter : data.menuMatches) {
             if (!adapter.getPanel().isOverlayPositioned()) continue;
             adapter.render(graphics, frame, mouseX, mouseY, screen);
         }
 
-        // Phase 14d-1 / M9 tooltip suppression — handled by
-        // MKTooltipSuppressMixin (HEAD-cancellable on
-        // GuiGraphicsExtractor.setTooltipForNextFrameInternal). Round-2
-        // implementation finding: the render-path clear approach was
-        // insufficient because creative-mode tab tooltips queue AFTER
-        // super.render returns. Suppressing at the queueing site is
-        // robust. M9 generalized the gate from
-        // hasAnyVisibleModal → anyPanelCoversCursor;
-        // pointer-driven bounds-localized suppression.
-
-        // Post-§0042 split: SlotGroupContext per-frame render loop moved to
-        // menukit-containers' SlotGroupPanelRegistry.renderMatchingPanels,
-        // which is invoked by a separate mixin (SlotGroupPanelRenderMixin)
-        // injecting at the same point on AbstractContainerScreen.render.
+        // Tooltip suppression is handled by MKTooltipSuppressMixin
+        // (HEAD-cancellable on GuiGraphicsExtractor.setTooltipForNextFrameInternal),
+        // gated on anyPanelCoversCursor — pointer-driven, bounds-localized.
     }
 
     /**
@@ -915,7 +888,7 @@ public final class ScreenPanelRegistry {
     /**
      * M9 query: is any visible panel with {@code dimsBehind(true)} on
      * the given screen? Gates the dim-overlay render pass in {@link
-     * #renderMatchingPanels}.
+     * #renderOverlayPanels}.
      */
     public static boolean hasVisibleDimsBehindOnScreen(AbstractContainerScreen<?> screen) {
         ScreenRenderData data = SCREEN_DATA.get(screen);

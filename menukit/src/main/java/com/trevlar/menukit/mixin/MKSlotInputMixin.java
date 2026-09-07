@@ -14,18 +14,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * Library-owned registered-slot input dispatch — the input half of inventory-screen
- * parity. (Render is no longer a mixin: a registered slot draws inline as a
- * {@code SlotElement} on the panel pipeline.) Targets
+ * parity. (Render needs no slot mixin: a registered slot is drawn by vanilla's own
+ * slot pass once its panel has written its {@code Slot.x/y} — see
+ * {@code ContainerScreenLayers}.) Targets
  * {@code AbstractContainerScreen} so it covers every container screen (creative
  * routes its {@code mouseClicked} and slot-hover through the inherited
  * {@code AbstractContainerScreen} machinery — see the parity build notes).
  *
  * <h3>Hover ({@code getHoveredSlot})</h3>
  *
- * Vanilla appends registered slots <em>last</em> and (in survival) parks their
- * {@code Slot.x/y} off-screen, so its first-hit {@code getHoveredSlot} never
- * returns a slot. The hook resolves the point against the revealed slots and,
- * when one wins, returns <b>the slot that is in {@code menu.slots}</b> — the raw
+ * Registered slots are appended <em>last</em> to {@code menu.slots}, so where a
+ * registered slot sits over a vanilla slot, vanilla's first-hit
+ * {@code getHoveredSlot} would return the covered vanilla slot. The hook resolves
+ * the point against the revealed registered slots first and, when one wins, returns <b>the slot that is in {@code menu.slots}</b> — the raw
  * {@code MKCSlot} on a survival inventory, the creative {@code SlotWrapper}
  * that wraps it on the creative screen. Returning the in-menu slot is load-bearing
  * in creative: its click path hard-casts the hovered slot to {@code SlotWrapper}.

@@ -1,20 +1,19 @@
 package com.trevlar.menukit.core;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.resources.Identifier;
-import net.minecraft.world.item.ItemStack;
 
 /**
- * Shared slot-rendering utility for registered slots that live outside a
- * vanilla container texture. Used by M4 consumer code to render slot
- * backgrounds, hover highlights, ghost icons, and items for registered
- * {@code MKCSlot} instances.
+ * The recessed 18×18 slot frame for registered slots that live outside a
+ * vanilla container texture — the one piece of a created slot's presentation
+ * that is <em>panel chrome</em> rather than the slot itself.
+ *
+ * <p>Everything else a slot shows — item, count, durability, hover highlight,
+ * ghost icon, quick-craft preview — is vanilla's slot pass, which draws a created
+ * slot exactly as it draws a vanilla slot once the presenting panel has written
+ * the slot's {@code Slot.x/y} (see {@code ContainerScreenLayers}, layer 1 vs 2).
+ * This class deliberately reimplements none of it.
  *
  * <p>Parallel to {@link PanelRendering}, which handles panel-level backgrounds.
- *
- * <p>Design: {@code menukit/Design Docs/Phase 12/M4_VANILLA_SLOT_INJECTION.md}.
  */
 public final class SlotRendering {
 
@@ -23,14 +22,8 @@ public final class SlotRendering {
     /** Default slot size (18×18) — 16px item area + 1px padding each side. */
     public static final int DEFAULT_SIZE = 18;
 
-    /** Inset between slot edge and item area. */
+    /** Inset between slot edge and item area — where vanilla's {@code Slot.x/y} sits. */
     public static final int ITEM_INSET = 1;
-
-    /** Hover highlight color — ~50% white overlay. */
-    public static final int HOVER_COLOR = 0x80FFFFFF;
-
-    /** Alpha multiplier for ghost-icon rendering (~40%). */
-    public static final float DISABLED_ALPHA = 0.4f;
 
     /**
      * Slot background. For enabled 18×18 slots, delegates to
@@ -49,42 +42,5 @@ public final class SlotRendering {
             return;
         }
         PanelRendering.renderPanel(g, sx, sy, size, size, PanelStyle.INSET);
-    }
-
-    /** Translucent hover-highlight overlay inside the slot's item area. */
-    public static void drawHoverHighlight(GuiGraphicsExtractor g, int sx, int sy, int size) {
-        g.fill(sx + ITEM_INSET, sy + ITEM_INSET,
-                sx + size - ITEM_INSET, sy + size - ITEM_INSET,
-                HOVER_COLOR);
-    }
-
-    /**
-     * Renders the item centered in the slot's item area, with count and
-     * durability decorations. When {@code dimmed=true}, overlays a translucent
-     * fill to signal disabled state.
-     */
-    public static void drawItem(GuiGraphicsExtractor g, ItemStack stack, int sx, int sy,
-                                int size, boolean dimmed) {
-        if (stack == null || stack.isEmpty()) return;
-        int itemX = sx + ITEM_INSET;
-        int itemY = sy + ITEM_INSET;
-        var mc = Minecraft.getInstance();
-        g.item(stack, itemX, itemY);
-        g.itemDecorations(mc.font, stack, itemX, itemY);
-        if (dimmed) {
-            g.fill(itemX, itemY, itemX + 16, itemY + 16, 0x80000000);
-        }
-    }
-
-    /**
-     * Ghost-icon overlay — dimmed sprite for empty filtered slots.
-     */
-    public static void drawGhostIcon(GuiGraphicsExtractor g, Identifier sprite,
-                                     int sx, int sy, int size) {
-        if (sprite == null) return;
-        int iconX = sx + ITEM_INSET;
-        int iconY = sy + ITEM_INSET;
-        g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite,
-                iconX, iconY, 16, 16, DISABLED_ALPHA);
     }
 }

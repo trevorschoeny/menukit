@@ -3,6 +3,9 @@
   "minVersion": "0.8",
   "package": "com.trevlar.menukit.mixin",
   "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "SlotPositionAccessor"
+  ],
   "client": [
     "AbstractContainerScreenAccessor",
     "MKGuiMixin",
@@ -16,7 +19,7 @@
     "MKModalHoverMixin",
     "MKModalKeyboardHandlerMixin",
     "MKModalMouseHandlerMixin",
-    "MKRecipeBookPanelRenderMixin",
+    "MKContainerLayersMixin",
     "MKTooltipSuppressMixin",
     "MKVanillaButtonPressedMixin",
     "MKWidgetHoverSuppressMixin",
@@ -24,7 +27,6 @@
     "MKYaclWidgetPressedMixin",
     "MouseHandlerCursorPosAccessor",
     "ScreenAccessor",
-    "SlotPositionAccessor",
     "SlotWrapperAccessor"
   ],
   "injectors": {
