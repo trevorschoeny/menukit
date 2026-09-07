@@ -29,6 +29,7 @@ Behavior that is incomplete in the current release.
 | Server-fired reactions | Client-observed reactions fire. Server-authoritative firing resolves to a no-op. |
 | Window scope | Every address resolves in the primary scope. Per-tab and per-sub-window scopes are not active. |
 | Panel and element addressing | The window addresses slots. It does not yet address panels or elements. |
+| Persisting a created slot identity | An `Address` has no codec, and the client-side addressing helper is internal. A consumer that must remember one created slot across sessions encodes the identity itself. Vanilla slot indices are unaffected. |
 | Drop rule key | `dropsOnDeath(DropRule)` on a player storage attachment covers death. No window key covers drop rules. |
 | Block-entity container resolver | Registering a custom resolver for a block entity is a no-op. |
 | Advancements | Created slots use a separate container and do not fire vanilla's inventory-change trigger. The consumer fires it. |

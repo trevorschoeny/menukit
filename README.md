@@ -92,9 +92,16 @@ The `validator-mk` and `validator-mkc` mods in the same workspace are the refere
 
 Both artifacts build from the workspace root: `./gradlew :menukit:build :menukit-containers:build`.
 
-## Upgrading from 2.x
+## Upgrading
 
-3.0.0 renames the Java package from `com.trevorschoeny.menukit` to `com.trevlar.menukit`. Replace the prefix in every import. No class or method names changed.
+**To 4.0.0.** Vanilla draws every slot; MenuKit runs no slot pass of its own. Two public shapes changed:
+
+- `CreatedSlotResolver.resolve` returns the live in-menu `Slot` instead of a position. Read `x` and `y` off the returned slot.
+- `SlotRendering` keeps the frame helper and its constants. The item-drawing helpers are gone, because vanilla draws the item.
+
+A mod that only builds panels, elements, or slots through the documented builders needs no change. [concepts.md](docs/concepts.md) describes the rendering model.
+
+**To 3.0.0.** The Java package moved from `com.trevorschoeny.menukit` to `com.trevlar.menukit`. Replace the prefix in every import. No class or method names changed.
 
 ## License
 

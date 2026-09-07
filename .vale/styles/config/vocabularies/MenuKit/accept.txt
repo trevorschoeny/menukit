@@ -25,3 +25,5 @@ keepInventory
 Mending
 NBT
 UUID
+codecs?
+Codec
