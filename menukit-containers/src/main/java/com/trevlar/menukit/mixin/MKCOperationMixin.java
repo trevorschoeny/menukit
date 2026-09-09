@@ -14,8 +14,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Enforces the window's two bulk-gesture keys at vanilla's own seams for them,
- * for every slot kind:
+ * Enforces the two {@linkplain com.trevlar.menukit.window.SlotOperations operations}
+ * MenuKit declares, at vanilla's own seams for them, for every slot kind:
  * <ul>
  *   <li>{@link BehaviorKeys#COLLECT} at {@code canTakeItemForPickAll} — the
  *       per-slot test inside {@code PICKUP_ALL} (double-click collect), which
@@ -31,17 +31,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * ({@code TRUE}, vanilla) unless a consumer set the key by address, so untouched
  * menus are exactly vanilla. Kind-blind: a created pocket declared
  * {@code collect(false)} and a vanilla slot a locking mod set {@code COLLECT=FALSE}
- * on are refused by the same line.
+ * on are refused by the same line. A third-party operation is enforced by the mod
+ * that declared it, in its own code, the same way.
  *
  * <p>Known limit: a menu subclass that overrides one of these methods without
  * calling {@code super} (creative's item picker overrides
  * {@code canTakeItemForPickAll}) bypasses the injection on that menu.
  */
 @Mixin(AbstractContainerMenu.class)
-public abstract class MKCBulkGestureMixin {
+public abstract class MKCOperationMixin {
 
     @Inject(method = "canTakeItemForPickAll", at = @At("HEAD"), cancellable = true)
-    private void mkc$collectGate(ItemStack carried, Slot slot, CallbackInfoReturnable<Boolean> cir) {
+    private void mkc$collectOperation(ItemStack carried, Slot slot, CallbackInfoReturnable<Boolean> cir) {
         AbstractContainerMenu self = (AbstractContainerMenu) (Object) this;
         if (!WindowEngine.resolve(SlotAddresses.of(self, slot), BehaviorKeys.COLLECT).asBoolean()) {
             cir.setReturnValue(false);
@@ -49,7 +50,7 @@ public abstract class MKCBulkGestureMixin {
     }
 
     @Inject(method = "canDragTo", at = @At("HEAD"), cancellable = true)
-    private void mkc$dragFillGate(Slot slot, CallbackInfoReturnable<Boolean> cir) {
+    private void mkc$dragFillOperation(Slot slot, CallbackInfoReturnable<Boolean> cir) {
         AbstractContainerMenu self = (AbstractContainerMenu) (Object) this;
         if (!WindowEngine.resolve(SlotAddresses.of(self, slot), BehaviorKeys.DRAG_FILL).asBoolean()) {
             cir.setReturnValue(false);

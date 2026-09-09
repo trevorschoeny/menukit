@@ -19,6 +19,11 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import com.trevlar.menukit.core.SlotGroupCategory;
+import com.trevlar.menukit.inject.SlotGroupCategories;
+import com.trevlar.menukit.window.BehaviorKeys;
+import com.trevlar.menukit.window.SlotOperations;
+
 import org.jetbrains.annotations.ApiStatus;
 
 /**
@@ -84,6 +89,13 @@ public class MK implements ModInitializer {
      *  consumer mods that explicitly call {@code MK.init()} for ordering
      *  continue to compile and produce a visible init trace. */
     public static void init() {
+        // The shared vocabularies, on both sides: every vanilla slot category, and
+        // the operations vanilla itself ships. A consumer reads these through
+        // SlotGroupCategories.all() / SlotOperations.all() and adds its own with
+        // SlotGroupCategories.declare(...) / SlotOperations.define(...).
+        SlotGroupCategory.vanilla().forEach(SlotGroupCategories::declare);
+        SlotOperations.define(BehaviorKeys.COLLECT);
+        SlotOperations.define(BehaviorKeys.DRAG_FILL);
         LOGGER.info("[MenuKit] Initialized");
     }
 

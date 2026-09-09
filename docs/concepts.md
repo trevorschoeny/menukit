@@ -103,7 +103,35 @@ Both adapters register in their constructor. `unregister()` removes them.
 
 A `SlotGroupCategory` is a name for a group of slots, such as `PLAYER_INVENTORY`, `HOTBAR`, `CHEST_STORAGE`, or `FURNACE_INPUT`. It carries no rendering rule. MenuKit maps categories to slot indices per menu each frame.
 
-Every created slot group (Containers) declares a category and is listed under it. `SlotGroupCategories.of(menu)` returns every category on the open menu with its slots, vanilla and created alike; `SlotGroupCategories.categoriesBySlot(menu)` answers the same per slot. A mod finds another mod's slots this way, with MenuKit types only. A category names what a slot is, not what a gesture may do to it; that is a window key.
+Every created slot group (Containers) declares a category and is listed under it. Read the registry three ways:
+
+| Call | Answers |
+|---|---|
+| `SlotGroupCategories.all()` | every category that exists, with no menu open |
+| `SlotGroupCategories.of(menu)` | every category on this menu, with its slots |
+| `SlotGroupCategories.categoriesBySlot(menu)` | the category of each slot on this menu |
+
+A mod finds another mod's slots this way, with MenuKit types only.
+
+Mint your own category whenever no vanilla one would give another mod the right answer: `new SlotGroupCategory("mymod", "pouch")`. Pick a vanilla category instead when you want to inherit its meaning. A pocket that should turn up in every inventory search declares `PLAYER_INVENTORY` and is found by mods that have never heard of pockets. That choice is the interoperability decision, and it is yours. A category name becomes a public contract once another mod depends on it, so renaming one is a breaking change.
+
+A category says what a slot is, never what may be done to it. That is an operation.
+
+## Operation
+
+An operation is a bulk or shortcut action performed on a slot. Vanilla ships three: shift-click (`QUICK_MOVE`), double-click collect (`COLLECT`), and drag-fill (`DRAG_FILL`).
+
+The vocabulary is open. An operation is named by a `BehaviorKey`, so any mod adds one: declare the key, publish it with `SlotOperations.define` so others can discover it through `SlotOperations.all()`, and consult it in your own code. MenuKit needs no change for a new operation to exist, and a slot opts out of it through the same call it uses for the built-in ones.
+
+A slot resolves an operation in this order:
+
+```
+per-slot declaration  >  the category's inherent operations  >  the key's default
+```
+
+`SlotOperations.inherent(category, operation, value)` sets what an operation does for every group in a category, so a mod that mints a category says once that nothing in it may be collected. Registration order does not matter. Reading an operation during your own init does: every operation is a server-tier key, so it answers the key default until Containers installs its tier, and mod init order is not fixed. Declare at init, read during play. A per-slot declaration still wins, which is what lets a slot be inventory storage for search purposes and still sit out the bulk shortcuts. On a `SlotSpec` the per-group form is `collect(false)`, `dragFill(false)`, and `quickMove(NONE)`.
+
+Inherent operations reach created slots, whose category travels with the group. A vanilla slot's category depends on the menu it is in, which the window cannot ask about, so a vanilla slot resolves from its own declaration or the key's default. That is the same answer in practice: every built-in operation defaults to vanilla's behavior.
 
 ## Created slot
 
