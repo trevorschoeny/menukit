@@ -103,6 +103,8 @@ Both adapters register in their constructor. `unregister()` removes them.
 
 A `SlotGroupCategory` is a name for a group of slots, such as `PLAYER_INVENTORY`, `HOTBAR`, `CHEST_STORAGE`, or `FURNACE_INPUT`. It carries no rendering rule. MenuKit maps categories to slot indices per menu each frame.
 
+Every created slot group (Containers) declares a category and is listed under it. `SlotGroupCategories.of(menu)` returns every category on the open menu with its slots, vanilla and created alike; `SlotGroupCategories.categoriesBySlot(menu)` answers the same per slot. A mod finds another mod's slots this way, with MenuKit types only. A category names what a slot is, not what a gesture may do to it; that is a window key.
+
 ## Created slot
 
 A created slot is a real `Slot` that a mod adds to a menu through Containers. It syncs through vanilla's slot protocol. Its contents persist through a `StorageAttachment` on the slot's owner: a player, block entity, entity, or item stack.

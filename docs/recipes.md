@@ -117,12 +117,16 @@ MKCContainerPanel.define("mymod:pockets")
         .style(PanelStyle.RAISED)
         .parity(ScreenMatcher.all())
         .chrome(() -> List.of(new Button(0, 0, 60, 14, Component.literal("Sort"), b -> {})))
-        .addSlot(SlotSpec.at("pockets").count(9)
+        .addSlot(SlotSpec.at("pockets", SlotGroupCategory.PLAYER_INVENTORY).count(9)
                 .storage(player -> POCKETS.bind(player)))
         .register();
 ```
 
 Result: nine real slots render in the top left gutter of the survival inventory, the creative inventory, and every container screen. Their contents persist on the player and sync through vanilla's slot protocol. `ScreenMatcher.allExcept(Class...)` removes the panel from named screens. The slots still exist on those menus; they are not drawn there.
+
+The category is required. It says what the group is to other mods: `SlotGroupCategories.of(menu)` lists the group under it next to the vanilla categories, on every menu it sits on, so a search that walks the player's inventory menu can treat pockets as inventory and leave an elytra slot alone. Use a vanilla category when the group is one of those things; declare your own (`new SlotGroupCategory("mymod", "equipment")`) when it is not. The name is a contract once another mod depends on it.
+
+`SlotSpec.quickMove(NONE)`, `collect(false)`, and `dragFill(false)` keep a group out of the bulk shortcuts: shift-click, double-click collect, and drag-fill. The slot stays storage; the shortcuts skip it.
 
 `SlotSpec.accepts(Predicate<ItemStack>)` limits what a slot takes. `SlotSpec.revealWhen(BooleanSupplier)` hides the slots until the supplier returns true. Death, keepInventory, Curse of Vanishing, and Curse of Binding behave as they do for vanilla slots. `POCKETS.dropsOnDeath(DropRule.KEEP)` overrides the death rule.
 

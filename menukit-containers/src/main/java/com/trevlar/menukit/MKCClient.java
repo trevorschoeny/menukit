@@ -60,6 +60,11 @@ public class MKCClient implements ClientModInitializer {
         com.trevlar.menukit.window.ClientSlotAddressing.install(
                 com.trevlar.menukit.core.SlotAddresses::of);
 
+        // Created slot groups publish into MK core's slot-group registry, so
+        // SlotGroupCategories.of(menu) / categoriesBySlot(menu) name created and
+        // vanilla slots alike — the kind-blind way one mod finds another's slots.
+        com.trevlar.menukit.core.CreatedSlotCategories.install();
+
         // Container-parity chrome. Build each MKCContainerPanel's display panel
         // (chrome + slot presentation) and wire its ScreenPanelAdapter, scoped by
         // the registered parity matcher. Runs now (in the library's client init,

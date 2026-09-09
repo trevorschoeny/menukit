@@ -31,20 +31,20 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    modImplementation 'maven.modrinth:menukit:4.0.0+26.2'
+    modImplementation 'maven.modrinth:menukit:5.0.0+26.2'
     // Only if the mod creates slots or custom menus. Pulls in menukit transitively.
-    modImplementation 'maven.modrinth:menukit-containers:4.0.0+26.2'
+    modImplementation 'maven.modrinth:menukit-containers:5.0.0+26.2'
 }
 ```
 
 Declare what you use in `fabric.mod.json`:
 
 ```json
-"depends": { "menukit": ">=4.0.0" }
+"depends": { "menukit": ">=5.0.0" }
 ```
 
 ```json
-"depends": { "menukit": ">=4.0.0", "menukit-containers": ">=4.0.0" }
+"depends": { "menukit": ">=5.0.0", "menukit-containers": ">=5.0.0" }
 ```
 
 ## Example
@@ -69,7 +69,7 @@ public static final PlayerStorageAttachment<NonNullList<ItemStack>> POCKETS =
 MKCContainerPanel.define("mymod:pockets")
         .at(MenuRegion.LEFT_ALIGN_TOP, 7)
         .style(PanelStyle.RAISED)
-        .addSlot(SlotSpec.at("pockets").count(9)
+        .addSlot(SlotSpec.at("pockets", SlotGroupCategory.PLAYER_INVENTORY).count(9)
                 .storage(player -> POCKETS.bind(player)))
         .register();
 ```
