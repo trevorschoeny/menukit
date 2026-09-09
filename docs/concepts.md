@@ -126,8 +126,10 @@ The vocabulary is open. An operation is named by a `BehaviorKey`, so any mod add
 A slot resolves an operation in this order:
 
 ```
-per-slot declaration  >  the category's inherent operations  >  the key's default
+per-slot declaration  >  the slot's group  >  the group's category  >  the key's default
 ```
+
+Each level is more specific than the one after it, so the winner never depends on which mod declared last. A group is one `SlotSpec`, and its `collect(false)` outranks its category's inherent value; a consumer overriding one slot outranks the group.
 
 `SlotOperations.inherent(category, operation, value)` sets what an operation does for every group in a category, so a mod that mints a category says once that nothing in it may be collected. Registration order does not matter. Reading an operation during your own init does: every operation is a server-tier key, so it answers the key default until Containers installs its tier, and mod init order is not fixed. Declare at init, read during play. A per-slot declaration still wins, which is what lets a slot be inventory storage for search purposes and still sit out the bulk shortcuts. On a `SlotSpec` the per-group form is `collect(false)`, `dragFill(false)`, and `quickMove(NONE)`.
 

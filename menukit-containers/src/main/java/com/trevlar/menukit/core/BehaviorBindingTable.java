@@ -95,10 +95,17 @@ public final class BehaviorBindingTable implements ServerTierBridge, Authoritati
     @SuppressWarnings("unchecked")
     private <V> Decl<V> declForGroups(Address address, BehaviorKey<V> key) {
         Decl<V> result = null;
+        int best = Integer.MIN_VALUE;
         for (GroupBinding b : groups) {                 // registration order
             if (!b.group().contains(address)) continue;
             Decl<?> d = b.decls().get(key);
-            if (d != null) result = (Decl<V>) d;        // last matching group wins
+            if (d == null) continue;
+            // Same rule as the client engine: higher precedence wins, last-declared
+            // breaks a tie within one precedence.
+            if (b.group().precedence() >= best) {
+                best = b.group().precedence();
+                result = (Decl<V>) d;
+            }
         }
         return result;
     }
