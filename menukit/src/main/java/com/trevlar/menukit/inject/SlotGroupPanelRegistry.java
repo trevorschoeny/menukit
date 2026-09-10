@@ -161,16 +161,14 @@ public final class SlotGroupPanelRegistry {
      */
     private static void dispatchSlotGroupClicks(AbstractContainerScreen<?> screen,
                                                   double mouseX, double mouseY, int button) {
-        Map<SlotGroupCategory, List<Slot>> resolved = SlotGroupCategories.of(screen.getMenu());
+        List<ResolvedSlotGroup> resolved = SlotGroupCategories.groups(screen.getMenu());
         if (resolved.isEmpty()) return;
         for (SlotGroupPanelAdapter adapter : registeredSnapshot()) {
-            List<SlotGroupCategory> targets = adapter.getTargets();
-            if (targets == null) continue;
-            for (SlotGroupCategory category : targets) {
-                List<Slot> slots = resolved.get(category);
-                if (slots == null || slots.isEmpty()) continue;
-                SlotGroupBounds bounds = computeSlotGroupBounds(slots, screen);
-                adapter.mouseClicked(bounds, category, mouseX, mouseY, button, screen);
+            if (adapter.getTargets() == null) continue;
+            for (ResolvedSlotGroup group : resolved) {
+                if (!adapter.matches(group.id())) continue;
+                SlotGroupBounds bounds = computeSlotGroupBounds(group.slots(), screen);
+                adapter.mouseClicked(bounds, group.id(), mouseX, mouseY, button, screen);
             }
         }
     }
@@ -190,16 +188,17 @@ public final class SlotGroupPanelRegistry {
     public static void renderMatchingPanels(AbstractContainerScreen<?> screen,
                                              net.minecraft.client.gui.GuiGraphicsExtractor graphics,
                                              int mouseX, int mouseY) {
-        Map<SlotGroupCategory, List<Slot>> resolved = SlotGroupCategories.of(screen.getMenu());
+        List<ResolvedSlotGroup> resolved = SlotGroupCategories.groups(screen.getMenu());
         if (resolved.isEmpty()) return;
         for (SlotGroupPanelAdapter adapter : registeredSnapshot()) {
-            List<SlotGroupCategory> targets = adapter.getTargets();
-            if (targets == null) continue;
-            for (SlotGroupCategory category : targets) {
-                List<Slot> slots = resolved.get(category);
-                if (slots == null || slots.isEmpty()) continue;
-                SlotGroupBounds bounds = computeSlotGroupBounds(slots, screen);
-                adapter.render(graphics, bounds, category, mouseX, mouseY, screen);
+            if (adapter.getTargets() == null) continue;
+            for (ResolvedSlotGroup group : resolved) {
+                if (!adapter.matches(group.id())) continue;
+                // Each GROUP gets its own box. Anchoring to a category's union was
+                // the 2026-09-09 regression: a created group declaring a vanilla
+                // category stretched that category's box and moved anchored panels.
+                SlotGroupBounds bounds = computeSlotGroupBounds(group.slots(), screen);
+                adapter.render(graphics, bounds, group.id(), mouseX, mouseY, screen);
             }
         }
     }

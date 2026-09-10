@@ -26,7 +26,7 @@ import org.jetbrains.annotations.ApiStatus;
  * Post-§0042 split companion to MenuKit's {@link RegionRegistry} (which
  * holds MenuContext + HudContext registrations).
  *
- * <p>Holds process-lifetime per-(category, region) panel lists. Panels
+ * <p>Holds process-lifetime per-(group, region) panel lists. Panels
  * register once at mod init (during {@link SlotGroupPanelAdapter#on})
  * and remain registered until process exit.
  *
@@ -40,11 +40,11 @@ public final class SlotGroupRegionRegistry {
 
     private SlotGroupRegionRegistry() {}
 
-    // Per-(category, region) panel lists for SlotGroupContext. Composite key
+    // Per-(group, region) panel lists for SlotGroupContext. Composite key
     // because two adapters targeting (PLAYER_INVENTORY, TOP_ALIGN_RIGHT) and
     // (FURNACE_INPUT, TOP_ALIGN_RIGHT) stack independently — they share a
     // region name but anchor to different slot groups.
-    private record SlotGroupKey(SlotGroupCategory category, SlotGroupRegion region) {}
+    private record SlotGroupKey(SlotGroupId group, SlotGroupRegion region) {}
     private static final Map<SlotGroupKey, List<Panel>> SLOT_GROUP = new HashMap<>();
     private static final Map<Panel, Integer> SLOT_GROUP_PADDING = new HashMap<>();
 
@@ -66,20 +66,20 @@ public final class SlotGroupRegionRegistry {
             Collections.synchronizedMap(new WeakHashMap<>());
 
     /**
-     * Registers a SlotGroupContext panel into a (category, region) pair with
+     * Registers a SlotGroupContext panel into a (group, region) pair with
      * a content padding and explicit stacking priority. Called from
      * {@link SlotGroupPanelAdapter#on} for each declared target category.
      * A single adapter targeting N categories produces N registrations —
-     * each (category, region) key stacks independently.
+     * each (group, region) key stacks independently.
      *
      * <p>Priority + the captured caller modId drive the deterministic sort
      * applied at {@link #axialPrefix} time (matching the Menu/HUD/Vanilla
      * paths in {@link RegionRegistry}).
      */
-    public static void registerSlotGroup(Panel panel, SlotGroupCategory category,
+    public static void registerSlotGroup(Panel panel, SlotGroupId group,
                                           SlotGroupRegion region, int padding,
                                           int priority) {
-        SlotGroupKey key = new SlotGroupKey(category, region);
+        SlotGroupKey key = new SlotGroupKey(group, region);
         SLOT_GROUP.computeIfAbsent(key, k -> new ArrayList<>()).add(panel);
         SLOT_GROUP_PADDING.put(panel, padding);
         SLOT_GROUP_PRIORITY.put(panel, priority);
@@ -92,15 +92,15 @@ public final class SlotGroupRegionRegistry {
      * Consumers that don't call {@code SlotGroupRegion.priority(...)} hit this
      * path and still get a deterministic sort via the modId tiebreaker.
      */
-    public static void registerSlotGroup(Panel panel, SlotGroupCategory category,
+    public static void registerSlotGroup(Panel panel, SlotGroupId group,
                                           SlotGroupRegion region, int padding) {
-        registerSlotGroup(panel, category, region, padding,
+        registerSlotGroup(panel, group, region, padding,
                 RegionAnchor.DEFAULT_PRIORITY);
     }
 
     /**
      * Phase 16j R5 — removes a previously-registered SlotGroupContext
-     * panel from every (category, region) bucket it appears in and clears
+     * panel from every (group, region) bucket it appears in and clears
      * its per-panel metadata. Idempotent. Symmetric counterpart to
      * {@link #registerSlotGroup}.
      */
@@ -117,16 +117,16 @@ public final class SlotGroupRegionRegistry {
 
     /**
      * Axial prefix for a SlotGroupContext panel anchored in a given
-     * (category, region) pair. Walks the per-key panel list, skipping
+     * (group, region) pair. Walks the per-key panel list, skipping
      * hidden panels, and sums extent + {@link RegionConstants#MENU_STACK_GAP} for
      * each visible preceding entry.
      *
      * @throws IllegalStateException if {@code self} is not registered
-     *         under {@code (category, region)}
+     *         under {@code (group, region)}
      */
-    public static int axialPrefix(Panel self, SlotGroupCategory category,
+    public static int axialPrefix(Panel self, SlotGroupId group,
                                    SlotGroupRegion region) {
-        SlotGroupKey key = new SlotGroupKey(category, region);
+        SlotGroupKey key = new SlotGroupKey(group, region);
         List<Panel> panels = sortedSlotGroupPanels(key);
         int prefix = 0;
         boolean horizontal = region.isHorizontalFlow();
@@ -145,7 +145,7 @@ public final class SlotGroupRegionRegistry {
     }
 
     /**
-     * Returns the panels registered under a (category, region) key, sorted by
+     * Returns the panels registered under a (group, region) key, sorted by
      * the deterministic key {@code (priority asc, modId asc, registrationSeq
      * asc)} — the same ordering the Menu/HUD/Vanilla contexts apply in
      * {@link RegionRegistry}. This is what gives
@@ -165,17 +165,17 @@ public final class SlotGroupRegionRegistry {
 
     /**
      * Logs a one-shot warning the first time a SlotGroupContext panel
-     * overflows a given (category, region) pair. Called from
+     * overflows a given (group, region) pair. Called from
      * {@link SlotGroupPanelAdapter} when
      * {@link com.trevlar.menukit.core.SlotGroupRegionMath#resolveSlotGroup}
      * returns empty.
      */
     public static void warnSlotGroupOverflowOnce(Panel panel,
-                                                  SlotGroupCategory category,
+                                                  SlotGroupId group,
                                                   SlotGroupRegion region,
                                                   int pw, int ph, int prefix,
                                                   SlotGroupBounds bounds) {
-        SlotGroupKey key = new SlotGroupKey(category, region);
+        SlotGroupKey key = new SlotGroupKey(group, region);
         Set<SlotGroupKey> warned = WARNED_SLOT_GROUP
                 .computeIfAbsent(panel, p -> Collections.synchronizedSet(new HashSet<>()));
         if (!warned.add(key)) return;
@@ -184,7 +184,7 @@ public final class SlotGroupRegionRegistry {
         LOGGER.warn(
                 "[SlotGroupRegionRegistry] Panel '{}' overflows {}/{} — axial extent " +
                 "{}px (including padding) + prefix {}px exceeds slot-group capacity {}px. " +
-                "Silent OUT_OF_REGION until this panel + (category, region) pair is resized.",
-                panel.getId(), category, region, axisExtent, prefix, axisCapacity);
+                "Silent OUT_OF_REGION until this panel + (group, region) pair is resized.",
+                panel.getId(), group, region, axisExtent, prefix, axisCapacity);
     }
 }
