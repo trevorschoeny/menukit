@@ -81,7 +81,7 @@ public class MKHudPanel {
         // Track explicit calls separately so we can distinguish
         // "consumer called .anchor()" from "anchor left at its TOP_LEFT default"
         // (the field can't tell us which — it's never null).
-        private com.trevlar.menukit.core.HudRegion region;  // null unless .region() called
+        private com.trevlar.menukit.core.InsideRegion region;  // null unless .region() called
         private int regionPriority = com.trevlar.menukit.core.RegionAnchor.DEFAULT_PRIORITY;
         private boolean anchorSet = false;
         private boolean regionSet = false;
@@ -95,7 +95,7 @@ public class MKHudPanel {
         /**
          * Sets the screen-edge anchor and offset.
          *
-         * <p>Mutually exclusive with {@link #region(com.trevlar.menukit.core.HudRegion)} —
+         * <p>Mutually exclusive with {@link #region(com.trevlar.menukit.core.InsideRegion)} —
          * calling both throws {@link IllegalStateException}. Migration is a
          * single commit per consumer (delete {@code .anchor()}, add
          * {@code .region()}); there is no intentional transitional state.
@@ -113,7 +113,7 @@ public class MKHudPanel {
         }
 
         /**
-         * Positions this HUD panel via a named {@link com.trevlar.menukit.core.HudRegion}.
+         * Positions this HUD panel via a named {@link com.trevlar.menukit.core.InsideRegion}.
          * The dispatch computes per-frame coordinates from the region's anchor
          * and the panel's stacking position relative to other panels in the
          * same region. See M5 design doc §3.5 for the region catalog.
@@ -121,7 +121,7 @@ public class MKHudPanel {
          * <p>Mutually exclusive with {@link #anchor(MKHudAnchor, int, int)} —
          * calling both throws {@link IllegalStateException}.
          */
-        public Builder region(com.trevlar.menukit.core.HudRegion region) {
+        public Builder region(com.trevlar.menukit.core.InsideRegion region) {
             if (anchorSet) {
                 throw new IllegalStateException(
                         "Cannot combine .region() with .anchor(). Pick one.");
@@ -138,7 +138,7 @@ public class MKHudPanel {
          * priority through to the registry so this panel sorts deterministically
          * relative to other panels in the same region.
          */
-        public Builder region(com.trevlar.menukit.core.RegionAnchor<com.trevlar.menukit.core.HudRegion> anchor) {
+        public Builder region(com.trevlar.menukit.core.RegionAnchor<com.trevlar.menukit.core.InsideRegion> anchor) {
             region(anchor.region());
             this.regionPriority = anchor.priority();
             return this;
@@ -315,7 +315,7 @@ public class MKHudPanel {
          * Builds the HUD panel definition and registers it with MenuKit.
          * After this call, the panel renders automatically each frame.
          *
-         * <p>If {@link #region(com.trevlar.menukit.core.HudRegion)} was
+         * <p>If {@link #region(com.trevlar.menukit.core.InsideRegion)} was
          * called, the def is also registered with
          * {@link com.trevlar.menukit.inject.RegionRegistry} so its
          * stacked position resolves against other panels in the same region.

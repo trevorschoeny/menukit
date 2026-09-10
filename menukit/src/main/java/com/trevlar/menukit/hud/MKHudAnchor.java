@@ -4,12 +4,12 @@ package com.trevlar.menukit.hud;
  * Screen-edge anchor positions for HUD panels.
  *
  * <p><b>Legacy positioning enum.</b>
- * {@link com.trevlar.menukit.core.HudRegion} is the intended primary HUD
+ * {@link com.trevlar.menukit.core.InsideRegion} is the intended primary HUD
  * positioning system — it carries auto-stacking, {@code priority(...)},
  * fail-loud overflow, and is shared by HUD panels + notifications +
  * vanilla-screen panels through {@code RegionMath.resolveHud}. {@code MKHudAnchor}
- * predates HudRegion and is retained as the raw-anchor fallback for
- * {@code MKHudPanel}/{@code MKHudNotification}. Prefer {@code HudRegion} for new
+ * predates InsideRegion and is retained as the raw-anchor fallback for
+ * {@code MKHudPanel}/{@code MKHudNotification}. Prefer {@code InsideRegion} for new
  * code; reach for {@code MKHudAnchor} only for the vertical-center positions
  * ({@link #CENTER_LEFT}/{@link #CENTER_RIGHT}) or a one-off raw offset.
  *

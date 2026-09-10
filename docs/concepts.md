@@ -60,15 +60,20 @@ A hidden element or panel is inert on every surface. It does not render, receive
 
 `Row` and `Column` compute positions at build time and return a `List<PanelElement>`. They do not exist at runtime. An element enters a layout as an `ElementSpec`, produced by the element's static `spec(...)` factory. `.build()` returns positioned elements that go into a panel with `.add(...)`.
 
+## Reference
+
+A reference is the rectangle a panel is placed against. It is not the panel, and it has nothing to do with the panel's own size. Three kinds exist: a container screen's frame, one slot group's bounding box, and the game window.
+
+Which one a placement uses is decided by the call site. `ScreenPanelAdapter` measures from the menu frame, `SlotGroupPanelAdapter` from the slot group it targets, `MK.registerHud` from the window. So a region never names its reference.
+
 ## Region
 
-A region names where a panel sits relative to a frame. Three enum types exist, one per frame type:
+A region names where a panel sits relative to its reference. Two vocabularies exist, shaped differently:
 
-| Type | Frame | Values |
+| Type | Placement | Values |
 |---|---|---|
-| `MenuRegion` | A container screen's frame | `LEFT_ALIGN_TOP`, `LEFT_ALIGN_BOTTOM`, `RIGHT_ALIGN_TOP`, `RIGHT_ALIGN_BOTTOM`, `TOP_ALIGN_LEFT`, `TOP_ALIGN_RIGHT`, `BOTTOM_ALIGN_LEFT`, `BOTTOM_ALIGN_RIGHT`, `TOP_CENTER`, `BOTTOM_CENTER`, `CENTER` |
-| `SlotGroupRegion` | A slot group's bounding box | Same shape as `MenuRegion` |
-| `HudRegion` | The game window | `TOP_LEFT`, `TOP_CENTER`, `TOP_RIGHT`, `LEFT_CENTER`, `RIGHT_CENTER`, `BOTTOM_LEFT`, `BOTTOM_CENTER`, `BOTTOM_RIGHT`, `CENTER` |
+| `OutsideRegion` | Outside the reference, along one of its edges | `LEFT_ALIGN_TOP`, `LEFT_ALIGN_BOTTOM`, `RIGHT_ALIGN_TOP`, `RIGHT_ALIGN_BOTTOM`, `TOP_ALIGN_LEFT`, `TOP_ALIGN_RIGHT`, `BOTTOM_ALIGN_LEFT`, `BOTTOM_ALIGN_RIGHT`, `TOP_CENTER`, `BOTTOM_CENTER`, `CENTER` |
+| `InsideRegion` | On the reference, at one of nine spots | `TOP_LEFT`, `TOP_CENTER`, `TOP_RIGHT`, `LEFT_CENTER`, `RIGHT_CENTER`, `BOTTOM_LEFT`, `BOTTOM_CENTER`, `BOTTOM_RIGHT`, `CENTER` |
 
 Panels in the same region stack in priority order. `region.priority(int)` returns a `RegionAnchor` with an explicit priority. Lower values stack first.
 

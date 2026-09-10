@@ -1,6 +1,6 @@
 package com.trevlar.menukit.inject;
 
-import com.trevlar.menukit.core.MenuRegion;
+import com.trevlar.menukit.core.OutsideRegion;
 import com.trevlar.menukit.core.Panel;
 import com.trevlar.menukit.core.PanelElement;
 import com.trevlar.menukit.core.PanelRendering;
@@ -28,7 +28,7 @@ import java.util.Optional;
  * Panel panel = Panel.builder("mymod:controls")
  *         .add(new Button(0, 0, 90, 16, Component.literal("Press"), b -> {}))
  *         .build();
- * new ScreenPanelAdapter(panel, MenuRegion.RIGHT_ALIGN_TOP.priority(10))
+ * new ScreenPanelAdapter(panel, OutsideRegion.RIGHT_ALIGN_TOP.priority(10))
  *         .on(InventoryScreen.class);
  * }</pre>
  *
@@ -68,7 +68,7 @@ import java.util.Optional;
  * The adapter bundles the mechanical parts of injection:
  * <ul>
  *   <li><b>Coordinate translation.</b> The panel's screen-space origin is
- *       resolved from its declared {@link MenuRegion} and the vanilla screen's
+ *       resolved from its declared {@link OutsideRegion} and the vanilla screen's
  *       bounds via {@link RegionRegistry#resolveMenuOrigin}. The adapter
  *       resolves it per frame so resizes are handled automatically.</li>
  *   <li><b>Panel-background rendering.</b> When {@code panel.getStyle() != NONE},
@@ -105,7 +105,7 @@ import java.util.Optional;
  * mod init.
  *
  * @see Panel                   The visual unit being injected
- * @see ScreenBounds            Vanilla-screen layout snapshot passed per call
+ * @see Reference            Vanilla-screen layout snapshot passed per call
  */
 public final class ScreenPanelAdapter {
 
@@ -122,7 +122,7 @@ public final class ScreenPanelAdapter {
      *  supplier is the origin authority; {@code resolveMenuOrigin} branches on the
      *  position mode BEFORE touching the region, so the null never flows into
      *  region math). */
-    private final @Nullable MenuRegion region;
+    private final @Nullable OutsideRegion region;
     private final int padding;
 
     // ── Targeting state ─────────────────────────────────────────────────
@@ -159,20 +159,20 @@ public final class ScreenPanelAdapter {
     //
     //   Placement     | Padding
     //   ──────────────┼──────────
-    //   MenuRegion    | explicit
+    //   OutsideRegion    | explicit
     //   RegionAnchor  | default (DEFAULT_PADDING)
     //   RegionAnchor  | explicit
     //
-    // The "MenuRegion + default padding" convenience overload was dropped —
+    // The "OutsideRegion + default padding" convenience overload was dropped —
     // consumers pass padding explicitly (typically DEFAULT_PADDING or 0).
     //
     // The "anchor + default padding" overload stays because it's the
     // 16i ergonomic happy path (priority specified inline via
-    // MenuRegion.X.priority(N)).
+    // OutsideRegion.X.priority(N)).
 
     /**
      * Region-aware constructor with explicit padding. Registers the panel
-     * into the given {@link MenuRegion} via {@link RegionRegistry} with
+     * into the given {@link OutsideRegion} via {@link RegionRegistry} with
      * the declared padding so stacking math and overflow checks both
      * account for it. Uses {@link RegionAnchor#DEFAULT_PRIORITY} for
      * sibling ordering; pair with the {@link RegionAnchor} constructor
@@ -183,7 +183,7 @@ public final class ScreenPanelAdapter {
      * runtime UI swaps, call {@link #unregister()} when done. See M5
      * design doc §6.1.
      */
-    public ScreenPanelAdapter(Panel panel, MenuRegion region, int padding) {
+    public ScreenPanelAdapter(Panel panel, OutsideRegion region, int padding) {
         this(panel, region, padding, RegionAnchor.DEFAULT_PRIORITY);
     }
 
@@ -191,7 +191,7 @@ public final class ScreenPanelAdapter {
      * Region-aware constructor accepting a {@link RegionAnchor} — region
      * paired with an explicit stacking priority. Use when sibling panels
      * in the same region need deterministic ordering relative to each
-     * other (e.g., {@code MenuRegion.RIGHT_ALIGN_TOP.priority(50)}).
+     * other (e.g., {@code OutsideRegion.RIGHT_ALIGN_TOP.priority(50)}).
      *
      * <p>Padding defers to {@link Panel#interiorPadding()} — {@code 0} for
      * {@link com.trevlar.menukit.core.PanelStyle#NONE} (element edge
@@ -199,18 +199,18 @@ public final class ScreenPanelAdapter {
      * who want a different value pass it via the explicit-padding
      * constructor overload.
      */
-    public ScreenPanelAdapter(Panel panel, RegionAnchor<MenuRegion> anchor) {
+    public ScreenPanelAdapter(Panel panel, RegionAnchor<OutsideRegion> anchor) {
         this(panel, anchor.region(), panel.interiorPadding(), anchor.priority());
     }
 
     /** Region-aware constructor with both explicit padding and priority. */
-    public ScreenPanelAdapter(Panel panel, RegionAnchor<MenuRegion> anchor, int padding) {
+    public ScreenPanelAdapter(Panel panel, RegionAnchor<OutsideRegion> anchor, int padding) {
         this(panel, anchor.region(), padding, anchor.priority());
     }
 
     /** Internal canonical constructor — public region-based overloads
      *  delegate here. */
-    private ScreenPanelAdapter(Panel panel, MenuRegion region, int padding, int priority) {
+    private ScreenPanelAdapter(Panel panel, OutsideRegion region, int padding, int priority) {
         this.panel = panel;
         this.padding = padding;
         this.region = region;
@@ -459,7 +459,7 @@ public final class ScreenPanelAdapter {
      * <p>Takes the live screen instance so chrome-aware region resolution
      * can consult {@link MenuChrome}.
      */
-    public Optional<ScreenOrigin> getOrigin(ScreenBounds screenBounds,
+    public Optional<ScreenOrigin> getOrigin(Reference screenBounds,
                                             AbstractContainerScreen<?> screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return Optional.empty();
         ScreenOrigin origin = RegionRegistry.resolveMenuOrigin(panel, region, screenBounds, screen);
@@ -478,7 +478,7 @@ public final class ScreenPanelAdapter {
      * <p>{@code screen} is passed through to the region resolver so
      * chrome-aware region resolution can consult {@link MenuChrome}.
      */
-    public void render(GuiGraphicsExtractor graphics, ScreenBounds screenBounds,
+    public void render(GuiGraphicsExtractor graphics, Reference screenBounds,
                        int mouseX, int mouseY,
                        AbstractContainerScreen<?> screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return;
@@ -564,7 +564,7 @@ public final class ScreenPanelAdapter {
      *
      * @return {@code true} if an element consumed the click.
      */
-    public boolean mouseClicked(ScreenBounds screenBounds,
+    public boolean mouseClicked(Reference screenBounds,
                                 double mouseX, double mouseY, int button,
                                 AbstractContainerScreen<?> screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return false;
@@ -612,7 +612,7 @@ public final class ScreenPanelAdapter {
      *
      * @return {@code true} if an element consumed the scroll.
      */
-    public boolean mouseScrolled(ScreenBounds screenBounds,
+    public boolean mouseScrolled(Reference screenBounds,
                                  double mouseX, double mouseY,
                                  double scrollX, double scrollY,
                                  AbstractContainerScreen<?> screen) {
@@ -658,7 +658,7 @@ public final class ScreenPanelAdapter {
      * scrollbar-drag end detection. Existing elements default
      * {@link PanelElement#mouseReleased false}.
      */
-    public boolean mouseReleased(ScreenBounds screenBounds,
+    public boolean mouseReleased(Reference screenBounds,
                                  double mouseX, double mouseY, int button,
                                  AbstractContainerScreen<?> screen) {
         if (!ClientWindowVisibility.panelShown(panel)) return false;

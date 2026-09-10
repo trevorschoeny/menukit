@@ -40,7 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *     .showWhen(() -> confirmDeleteOpen);
  *
  * // Register the dialog with the host screen via ScreenPanelAdapter.
- * new ScreenPanelAdapter(deleteDialog, MenuRegion.CENTER)
+ * new ScreenPanelAdapter(deleteDialog, OutsideRegion.CENTER)
  *     .on(MyMenuScreen.class);
  *
  * // Trigger from another button:

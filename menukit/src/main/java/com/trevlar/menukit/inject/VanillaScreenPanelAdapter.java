@@ -8,7 +8,7 @@ import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.core.PanelStyle;
 import com.trevlar.menukit.core.RegionAnchor;
 import com.trevlar.menukit.core.RenderContext;
-import com.trevlar.menukit.core.ScreenRegion;
+import com.trevlar.menukit.core.InsideRegion;
 import com.trevlar.menukit.window.ClientWindowVisibility;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -29,7 +29,7 @@ import java.util.Optional;
  * <h2>Why a sibling, not an extension</h2>
  *
  * {@link ScreenPanelAdapter} is built around the inventory-chrome model —
- * {@link com.trevlar.menukit.core.MenuRegion} anchors against {@code leftPos}/{@code topPos}/
+ * {@link com.trevlar.menukit.core.OutsideRegion} anchors against {@code leftPos}/{@code topPos}/
  * {@code imageWidth}/{@code imageHeight}; {@link MenuChrome} extends
  * those bounds by the screen's chrome extents; its origin resolution
  * takes an {@code AbstractContainerScreen<?>}. None of that applies to
@@ -52,7 +52,7 @@ import java.util.Optional;
  * <h2>Lifecycle parallels {@link ScreenPanelAdapter}</h2>
  *
  * <ol>
- *   <li>Construct with a {@link Panel}, a {@link ScreenRegion}, and
+ *   <li>Construct with a {@link Panel}, a {@link InsideRegion}, and
  *       a padding (and optionally a {@link RegionAnchor} for explicit
  *       priority). Constructor registers the panel with the
  *       {@link RegionRegistry} and tracks the adapter in
@@ -76,7 +76,7 @@ import java.util.Optional;
  *
  * Region-based only (no lambda-origin escape hatch — consumers who need
  * bespoke positioning on a vanilla screen can either write their own
- * Screen mixin or use the {@link ScreenRegion} anchors).
+ * Screen mixin or use the {@link InsideRegion} anchors).
  * No modal / dim-behind / hover-suppression machinery (no consumer has
  * surfaced the need for modals on vanilla screens yet). Fold-on-evidence
  * for both.
@@ -88,7 +88,7 @@ public final class VanillaScreenPanelAdapter {
 
     private final Panel panel;
     private final int padding;
-    private final ScreenRegion region;
+    private final InsideRegion region;
 
     /** Declared targets when {@link #targetedAny} is false. Null until {@code .on()}. */
     private @Nullable List<Class<? extends Screen>> targets = null;
@@ -100,12 +100,12 @@ public final class VanillaScreenPanelAdapter {
 
     /**
      * Region-aware constructor with explicit padding. Registers the panel
-     * into the given {@link ScreenRegion} via {@link RegionRegistry}
+     * into the given {@link InsideRegion} via {@link RegionRegistry}
      * with the declared padding so stacking math and overflow checks both
      * account for it. Uses {@link RegionAnchor#DEFAULT_PRIORITY} for
      * sibling ordering.
      */
-    public VanillaScreenPanelAdapter(Panel panel, ScreenRegion region, int padding) {
+    public VanillaScreenPanelAdapter(Panel panel, InsideRegion region, int padding) {
         this(panel, region, padding, RegionAnchor.DEFAULT_PRIORITY);
     }
 
@@ -115,18 +115,18 @@ public final class VanillaScreenPanelAdapter {
      * {@link Panel#interiorPadding()} (0 for NONE, 7 otherwise — same
      * style-conditional default as {@link ScreenPanelAdapter}).
      */
-    public VanillaScreenPanelAdapter(Panel panel, RegionAnchor<ScreenRegion> anchor) {
+    public VanillaScreenPanelAdapter(Panel panel, RegionAnchor<InsideRegion> anchor) {
         this(panel, anchor.region(), panel.interiorPadding(), anchor.priority());
     }
 
     /** Region-aware constructor with both explicit padding and priority. */
-    public VanillaScreenPanelAdapter(Panel panel, RegionAnchor<ScreenRegion> anchor,
+    public VanillaScreenPanelAdapter(Panel panel, RegionAnchor<InsideRegion> anchor,
                                       int padding) {
         this(panel, anchor.region(), padding, anchor.priority());
     }
 
     /** Internal canonical constructor. */
-    private VanillaScreenPanelAdapter(Panel panel, ScreenRegion region,
+    private VanillaScreenPanelAdapter(Panel panel, InsideRegion region,
                                        int padding, int priority) {
         this.panel = Objects.requireNonNull(panel, "panel must not be null");
         this.padding = padding;

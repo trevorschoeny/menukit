@@ -2,7 +2,7 @@ package com.trevlar.menukit.inject;
 
 /**
  * Screen-space top-left coordinates of an injected panel. Resolved from a
- * panel's region and a {@link ScreenBounds} by
+ * panel's region and a {@link Reference} by
  * {@link RegionRegistry#resolveMenuOrigin} /
  * {@link RegionRegistry#resolveVanillaScreenOrigin}. The adapter uses this
  * as the origin for its {@link com.trevlar.menukit.core.RenderContext}

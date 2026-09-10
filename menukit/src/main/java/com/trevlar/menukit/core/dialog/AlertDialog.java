@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *     .build()
  *     .showWhen(() -> noAllaysAlertOpen);
  *
- * new ScreenPanelAdapter(alert, MenuRegion.CENTER).on(MyMenuScreen.class);
+ * new ScreenPanelAdapter(alert, OutsideRegion.CENTER).on(MyMenuScreen.class);
  * }</pre>
  *
  * <p>See {@link ConfirmDialog} for cross-context applicability and the

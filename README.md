@@ -67,7 +67,7 @@ public static final PlayerStorageAttachment<NonNullList<ItemStack>> POCKETS =
         StorageAttachment.playerAttached("mymod", "pockets", 9);
 
 MKCContainerPanel.define("mymod:pockets")
-        .at(MenuRegion.LEFT_ALIGN_TOP, 7)
+        .at(OutsideRegion.LEFT_ALIGN_TOP, 7)
         .style(PanelStyle.RAISED)
         .addSlot(SlotSpec.at("pockets", SlotGroupCategory.PLAYER_INVENTORY).count(9)
                 .storage(player -> POCKETS.bind(player)))

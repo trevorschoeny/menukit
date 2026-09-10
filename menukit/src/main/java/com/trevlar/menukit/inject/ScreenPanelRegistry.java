@@ -275,7 +275,7 @@ public final class ScreenPanelRegistry {
         // ordering constraint so no mixin is needed here. Render dispatch is
         // ContainerScreenLayers' (see above).
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
-            ScreenBounds frame = frameBounds(acs);
+            Reference frame = frameBounds(acs);
             // Dispatch the click to every adapter's element layer (per-element
             // handling routes it to the right element if any; we don't need the
             // consumed bit here — the eat decision is coverage-based).
@@ -323,7 +323,7 @@ public final class ScreenPanelRegistry {
             // B3 modal-Escape fix (container-screen path): when a tracksAsModal
             // panel is up — the documented dialog-over-container pattern, where
             // ConfirmDialog/AlertDialog is hosted by a ScreenPanelAdapter at
-            // MenuRegion.CENTER — treat Escape as "dismiss the topmost modal"
+            // OutsideRegion.CENTER — treat Escape as "dismiss the topmost modal"
             // rather than letting vanilla close the whole container screen out
             // from under the dialog. Fire the modal panel's onEscape action
             // (the dialog builders wire onCancel/onAcknowledge there) and eat
@@ -350,7 +350,7 @@ public final class ScreenPanelRegistry {
         // This hook serves the non-modal case: regular scroll dispatch to
         // any adapter whose elements include a ScrollContainer.
         ScreenMouseEvents.allowMouseScroll(screen).register((s, mouseX, mouseY, hAmount, vAmount) -> {
-            ScreenBounds frame = frameBounds(acs);
+            Reference frame = frameBounds(acs);
             for (ScreenPanelAdapter adapter : menuMatches) {
                 if (adapter.mouseScrolled(frame, mouseX, mouseY, hAmount, vAmount, acs)) {
                     // Element consumed — eat from vanilla so screen.mouseScrolled
@@ -367,7 +367,7 @@ public final class ScreenPanelRegistry {
         // element regardless of cursor position — drag-end is detected
         // even when the user has dragged the cursor off the element.
         ScreenMouseEvents.allowMouseRelease(screen).register((s, event) -> {
-            ScreenBounds frame = frameBounds(acs);
+            Reference frame = frameBounds(acs);
             for (ScreenPanelAdapter adapter : menuMatches) {
                 adapter.mouseReleased(frame, event.x(), event.y(), event.button(), acs);
             }
@@ -393,7 +393,7 @@ public final class ScreenPanelRegistry {
                                         int mouseX, int mouseY) {
         ScreenRenderData data = SCREEN_DATA.get(screen);
         if (data == null) return;
-        ScreenBounds frame = frameBounds(screen);
+        Reference frame = frameBounds(screen);
         for (ScreenPanelAdapter adapter : data.menuMatches) {
             if (adapter.getPanel().isOverlayPositioned()) continue;
             adapter.render(graphics, frame, mouseX, mouseY, screen);
@@ -422,7 +422,7 @@ public final class ScreenPanelRegistry {
                                            int mouseX, int mouseY) {
         ScreenRenderData data = SCREEN_DATA.get(screen);
         if (data == null) return;
-        ScreenBounds frame = frameBounds(screen);
+        Reference frame = frameBounds(screen);
 
         // Dim overlay if any dimsBehind panel visible. ~75% black, covers full
         // screen window. Tuned to match vanilla's confirm-screen darkening
@@ -491,7 +491,7 @@ public final class ScreenPanelRegistry {
             // Cursor inside an opaque panel — dispatch to its element
             // layer so buttons/elements get the click. Then eat;
             // vanilla chain doesn't see this click.
-            ScreenBounds bounds = boundsForAdapter(screen, target);
+            Reference bounds = boundsForAdapter(screen, target);
             if (bounds != null) {
                 target.mouseClicked(bounds, mouseX, mouseY, button,
                         screen instanceof AbstractContainerScreen<?> acs ? acs : null);
@@ -586,7 +586,7 @@ public final class ScreenPanelRegistry {
         if (screen instanceof AbstractContainerScreen<?> acs) {
             ScreenRenderData data = SCREEN_DATA.get(acs);
             if (data != null) {
-                ScreenBounds frame = frameBounds(acs);
+                Reference frame = frameBounds(acs);
                 for (ScreenPanelAdapter adapter : data.menuMatches) {
                     Panel panel = adapter.getPanel();
                     if (!ClientWindowVisibility.panelShown(panel)) continue;
@@ -613,7 +613,7 @@ public final class ScreenPanelRegistry {
         ScreenPanelAdapter target = findCoveringPanelAt(screen, mouseX, mouseY);
 
         if (target != null) {
-            ScreenBounds bounds = boundsForAdapter(screen, target);
+            Reference bounds = boundsForAdapter(screen, target);
             if (bounds != null) {
                 target.mouseScrolled(bounds, mouseX, mouseY, scrollX, scrollY,
                         screen instanceof AbstractContainerScreen<?> acs ? acs : null);
@@ -656,7 +656,7 @@ public final class ScreenPanelRegistry {
         if (screen instanceof AbstractContainerScreen<?> acs) {
             ScreenRenderData data = SCREEN_DATA.get(acs);
             if (data != null) {
-                ScreenBounds frame = frameBounds(acs);
+                Reference frame = frameBounds(acs);
                 for (ScreenPanelAdapter adapter : data.menuMatches) {
                     Panel panel = adapter.getPanel();
                     if (!ClientWindowVisibility.panelShown(panel)) continue;
@@ -816,13 +816,13 @@ public final class ScreenPanelRegistry {
     }
 
     /**
-     * Helper: returns the {@link ScreenBounds} for an adapter on the given
+     * Helper: returns the {@link Reference} for an adapter on the given
      * screen — frame bounds for the adapter's container screen. Returns null
      * if no bounds available (the screen isn't an
      * {@link AbstractContainerScreen} — shouldn't happen for a covering
      * region adapter).
      */
-    private static @Nullable ScreenBounds boundsForAdapter(Screen screen,
+    private static @Nullable Reference boundsForAdapter(Screen screen,
                                                             ScreenPanelAdapter adapter) {
         if (screen instanceof AbstractContainerScreen<?> acs) {
             return frameBounds(acs);
@@ -985,7 +985,7 @@ public final class ScreenPanelRegistry {
     }
 
     // Post-§0042 split: computeSlotGroupBounds moved to menukit-containers'
-    // SlotGroupPanelRegistry — references vanilla Slot + SlotGroupBounds
+    // SlotGroupPanelRegistry — references vanilla Slot + Reference
     // (containers).
 
     /**
@@ -993,9 +993,9 @@ public final class ScreenPanelRegistry {
      * {@link AbstractContainerScreenAccessor}. Computed per-frame because
      * {@code leftPos}/{@code topPos} shift on resize and recipe-book toggle.
      */
-    private static ScreenBounds frameBounds(AbstractContainerScreen<?> screen) {
+    private static Reference frameBounds(AbstractContainerScreen<?> screen) {
         AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
-        return new ScreenBounds(
+        return new Reference(
                 acc.mk$getLeftPos(),
                 acc.mk$getTopPos(),
                 acc.mk$getImageWidth(),

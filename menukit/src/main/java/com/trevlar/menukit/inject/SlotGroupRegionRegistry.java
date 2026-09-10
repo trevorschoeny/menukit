@@ -4,7 +4,7 @@ import com.trevlar.menukit.core.Panel;
 import com.trevlar.menukit.core.RegionAnchor;
 import com.trevlar.menukit.core.RegionConstants;
 import com.trevlar.menukit.core.SlotGroupCategory;
-import com.trevlar.menukit.core.SlotGroupRegion;
+import com.trevlar.menukit.core.OutsideRegion;
 import com.trevlar.menukit.window.ClientWindowVisibility;
 
 import org.slf4j.Logger;
@@ -44,7 +44,7 @@ public final class SlotGroupRegionRegistry {
     // because two adapters targeting (PLAYER_INVENTORY, TOP_ALIGN_RIGHT) and
     // (FURNACE_INPUT, TOP_ALIGN_RIGHT) stack independently — they share a
     // region name but anchor to different slot groups.
-    private record SlotGroupKey(SlotGroupId group, SlotGroupRegion region) {}
+    private record SlotGroupKey(SlotGroupId group, OutsideRegion region) {}
     private static final Map<SlotGroupKey, List<Panel>> SLOT_GROUP = new HashMap<>();
     private static final Map<Panel, Integer> SLOT_GROUP_PADDING = new HashMap<>();
 
@@ -55,7 +55,7 @@ public final class SlotGroupRegionRegistry {
     // tiebreaker (captured via RegionRegistry.captureCallerModId so all four
     // region contexts share one capture rule), regSeq stabilizes two panels
     // from the same mod with the same priority. This is what makes
-    // SlotGroupRegion.priority(int) actually drive ordering — before this it
+    // OutsideRegion.priority(int) actually drive ordering — before this it
     // was a dead method with no registry pathway.
     private static final Map<Panel, Integer> SLOT_GROUP_PRIORITY = new HashMap<>();
     private static final Map<Panel, String>  SLOT_GROUP_MODID = new HashMap<>();
@@ -77,7 +77,7 @@ public final class SlotGroupRegionRegistry {
      * paths in {@link RegionRegistry}).
      */
     public static void registerSlotGroup(Panel panel, SlotGroupId group,
-                                          SlotGroupRegion region, int padding,
+                                          OutsideRegion region, int padding,
                                           int priority) {
         SlotGroupKey key = new SlotGroupKey(group, region);
         SLOT_GROUP.computeIfAbsent(key, k -> new ArrayList<>()).add(panel);
@@ -89,11 +89,11 @@ public final class SlotGroupRegionRegistry {
 
     /**
      * Back-compat overload — registers with {@link RegionAnchor#DEFAULT_PRIORITY}.
-     * Consumers that don't call {@code SlotGroupRegion.priority(...)} hit this
+     * Consumers that don't call {@code OutsideRegion.priority(...)} hit this
      * path and still get a deterministic sort via the modId tiebreaker.
      */
     public static void registerSlotGroup(Panel panel, SlotGroupId group,
-                                          SlotGroupRegion region, int padding) {
+                                          OutsideRegion region, int padding) {
         registerSlotGroup(panel, group, region, padding,
                 RegionAnchor.DEFAULT_PRIORITY);
     }
@@ -125,7 +125,7 @@ public final class SlotGroupRegionRegistry {
      *         under {@code (group, region)}
      */
     public static int axialPrefix(Panel self, SlotGroupId group,
-                                   SlotGroupRegion region) {
+                                   OutsideRegion region) {
         SlotGroupKey key = new SlotGroupKey(group, region);
         List<Panel> panels = sortedSlotGroupPanels(key);
         int prefix = 0;
@@ -149,7 +149,7 @@ public final class SlotGroupRegionRegistry {
      * the deterministic key {@code (priority asc, modId asc, registrationSeq
      * asc)} — the same ordering the Menu/HUD/Vanilla contexts apply in
      * {@link RegionRegistry}. This is what gives
-     * {@link SlotGroupRegion#priority(int)} its effect: lower priority stacks
+     * {@link OutsideRegion#priority(int)} its effect: lower priority stacks
      * first (closer to the region's anchor edge).
      */
     private static List<Panel> sortedSlotGroupPanels(SlotGroupKey key) {
@@ -172,9 +172,9 @@ public final class SlotGroupRegionRegistry {
      */
     public static void warnSlotGroupOverflowOnce(Panel panel,
                                                   SlotGroupId group,
-                                                  SlotGroupRegion region,
+                                                  OutsideRegion region,
                                                   int pw, int ph, int prefix,
-                                                  SlotGroupBounds bounds) {
+                                                  Reference bounds) {
         SlotGroupKey key = new SlotGroupKey(group, region);
         Set<SlotGroupKey> warned = WARNED_SLOT_GROUP
                 .computeIfAbsent(panel, p -> Collections.synchronizedSet(new HashSet<>()));

@@ -167,7 +167,7 @@ public final class SlotGroupPanelRegistry {
             if (adapter.getTargets() == null) continue;
             for (ResolvedSlotGroup group : resolved) {
                 if (!adapter.matches(group.id())) continue;
-                SlotGroupBounds bounds = computeSlotGroupBounds(group.slots(), screen);
+                Reference bounds = computeSlotGroupBounds(group.slots(), screen);
                 adapter.mouseClicked(bounds, group.id(), mouseX, mouseY, button, screen);
             }
         }
@@ -197,7 +197,7 @@ public final class SlotGroupPanelRegistry {
                 // Each GROUP gets its own box. Anchoring to a category's union was
                 // the 2026-09-09 regression: a created group declaring a vanilla
                 // category stretched that category's box and moved anchored panels.
-                SlotGroupBounds bounds = computeSlotGroupBounds(group.slots(), screen);
+                Reference bounds = computeSlotGroupBounds(group.slots(), screen);
                 adapter.render(graphics, bounds, group.id(), mouseX, mouseY, screen);
             }
         }
@@ -209,7 +209,7 @@ public final class SlotGroupPanelRegistry {
      * the returned bounds are absolute (includes {@code leftPos}/{@code topPos}).
      * Standard slot visual is 16×16.
      */
-    private static SlotGroupBounds computeSlotGroupBounds(List<Slot> slots,
+    private static Reference computeSlotGroupBounds(List<Slot> slots,
                                                            AbstractContainerScreen<?> screen) {
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
@@ -224,7 +224,7 @@ public final class SlotGroupPanelRegistry {
         AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
         int frameLeft = acc.mk$getLeftPos();
         int frameTop = acc.mk$getTopPos();
-        return new SlotGroupBounds(
+        return new Reference(
                 frameLeft + minX,
                 frameTop + minY,
                 maxX - minX,

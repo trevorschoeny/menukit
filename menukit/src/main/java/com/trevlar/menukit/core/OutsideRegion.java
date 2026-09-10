@@ -1,24 +1,32 @@
 package com.trevlar.menukit.core;
 
 /**
- * Named regions for positioning decoration panels inside vanilla menu screens.
- * Each region anchors to the menu's container frame (leftPos/topPos/imageWidth/imageHeight)
- * and declares a flow direction for stacking multiple panels in the same region.
+ * A region <b>outside</b> a reference rectangle: pick a side, pick which end to
+ * align to, and stack away from that end. Eleven of them.
  *
- * <p><b>Coverage.</b> Eight edge regions — one for each of the four menu sides
- * (left, right, top, bottom) combined with two alignment ends per side
- * (top/bottom for vertical sides, left/right for horizontal sides). The
- * {@code SIDE_ALIGN_END} naming reads as: "on {@code SIDE} of the menu,
- * aligned to {@code END}, stacking away from {@code END}."
+ * <p>This names the <em>vocabulary</em>, not the reference. The reference — which
+ * rectangle you are measured against — is decided by the call site: a
+ * {@code ScreenPanelAdapter} means the container menu's frame, a
+ * {@code SlotGroupPanelAdapter} means the slot group it targets. One enum serves
+ * both, because "to the right of the box, aligned to its top" means the same thing
+ * whichever box it is. (Before 5.0.0 this was two identical enums,
+ * {@code MenuRegion} and {@code SlotGroupRegion}, differing only in the reference
+ * they implied — which read as though a slot group had a region of its own.)
  *
- * <p>Plus three centered anchors — {@link #CENTER} for centered-in-frame
- * placement (Phase 14d-1 addition for modal dialogs), and {@link #TOP_CENTER}
- * / {@link #BOTTOM_CENTER} for above-/below-the-frame placement centered on
- * the horizontal axis (Phase 3b — Item 4a; brings MenuRegion to parity with
- * {@link HudRegion} / {@link ScreenRegion}, which each carry
- * TOP_CENTER / BOTTOM_CENTER / CENTER). {@code CENTER} is a single-position
- * anchor; {@code TOP_CENTER} / {@code BOTTOM_CENTER} stack vertically away
- * from the frame, each panel staying horizontally centered.
+ * <p>Its counterpart is {@link InsideRegion}, the nine spots <em>on</em> a
+ * rectangle. The two are shaped differently and do not merge: outside is
+ * parameterized by side and alignment end, inside by a three-by-three grid, and
+ * "outside the top-left corner" is not well defined.
+ *
+ * <p><b>Coverage.</b> Eight edge regions — each of the four sides combined with
+ * two alignment ends — plus three centered anchors. {@code SIDE_ALIGN_END} reads
+ * as: "on {@code SIDE} of the reference, aligned to {@code END}, stacking away
+ * from {@code END}."
+ *
+ * <p><b>{@link #CENTER} is the deliberate exception</b>: it centers a panel
+ * <em>inside</em> the reference rather than outside it, which is what a modal
+ * dialog wants. It is the one inside-placement in an outside vocabulary, kept here
+ * because modal placement has always lived on this enum. It does not stack.
  *
  * <p><b>Flow direction</b> — stacking grows away from the anchor end:
  * <ul>
@@ -26,15 +34,12 @@ package com.trevlar.menukit.core;
  *   <li>{@link #LEFT_ALIGN_BOTTOM} / {@link #RIGHT_ALIGN_BOTTOM} — flow up
  *   <li>{@link #TOP_ALIGN_LEFT} / {@link #BOTTOM_ALIGN_LEFT} — flow right
  *   <li>{@link #TOP_ALIGN_RIGHT} / {@link #BOTTOM_ALIGN_RIGHT} — flow left
- *   <li>{@link #TOP_CENTER} — flow up (above the frame, centered)
- *   <li>{@link #BOTTOM_CENTER} — flow down (below the frame, centered)
- *   <li>{@link #CENTER} — no stacking (single-position anchor)
+ *   <li>{@link #TOP_CENTER} — flow up, above the reference, centered
+ *   <li>{@link #BOTTOM_CENTER} — flow down, below the reference, centered
+ *   <li>{@link #CENTER} — no stacking
  * </ul>
- *
- * <p>See {@code Design Docs/Phase 12/M5_REGION_SYSTEM.md} for the full design
- * and {@code M5_REGION_SPECS.md} for the authoritative region catalog.
  */
-public enum MenuRegion {
+public enum OutsideRegion {
     LEFT_ALIGN_TOP,
     LEFT_ALIGN_BOTTOM,
     RIGHT_ALIGN_TOP,
@@ -111,7 +116,7 @@ public enum MenuRegion {
      * Returns a {@link RegionAnchor} pairing this region with an explicit
      * stacking priority. Use when sibling panels in the same region need
      * deterministic ordering relative to each other — pass the result
-     * anywhere a {@link MenuRegion} is accepted.
+     * anywhere a {@link OutsideRegion} is accepted.
      *
      * <p>Lower priority renders first (closer to the region's anchor edge).
      * Default priority (when {@code priority(int)} is not called) is
@@ -120,7 +125,7 @@ public enum MenuRegion {
      *
      * @see RegionAnchor
      */
-    public RegionAnchor<MenuRegion> priority(int priority) {
+    public RegionAnchor<OutsideRegion> priority(int priority) {
         return new RegionAnchor<>(this, priority);
     }
 }

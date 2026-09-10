@@ -1,6 +1,6 @@
 package com.trevlar.menukit.core;
 
-import com.trevlar.menukit.inject.ScreenBounds;
+import com.trevlar.menukit.inject.Reference;
 import com.trevlar.menukit.inject.ScreenOrigin;
 
 import java.util.Optional;
@@ -100,7 +100,7 @@ public final class RegionMath {
      * the 2nd+ panel in a vertically-stacked adaptive set; single-panel and
      * horizontal-flow regions are exact).
      */
-    public static int availableMenuHeight(MenuRegion region, ScreenBounds b,
+    public static int availableMenuHeight(OutsideRegion region, Reference b,
                                           int sh, int margin) {
         int topPos = b.topPos();
         int imageHeight = b.imageHeight();
@@ -140,7 +140,7 @@ public final class RegionMath {
      * That multi-panel-horizontal-adaptive case is rare; single-panel and all
      * vertical-flow regions are exact.
      */
-    public static int availableMenuWidth(MenuRegion region, ScreenBounds b,
+    public static int availableMenuWidth(OutsideRegion region, Reference b,
                                          int sw, int margin) {
         int leftPos = b.leftPos();
         int imageWidth = b.imageWidth();
@@ -174,11 +174,11 @@ public final class RegionMath {
         return sw - 2 * inset;
     }
 
-    // ── Screen-edge chrome anchoring (ScreenRegion) ─────────────────────
+    // ── Screen-edge chrome anchoring (InsideRegion) ─────────────────────
 
     /**
      * Places a {@code pw × ph} chrome panel at one of the nine
-     * {@link ScreenRegion} screen-edge spots, inset by {@code margin} from the
+     * {@link InsideRegion} screen-edge spots, inset by {@code margin} from the
      * edges it touches. Pure: the panel anchors to the SCREEN (not the content
      * frame), so unlike {@link #resolveMenu} it always resolves — a screen-edge
      * spot is on-screen by construction (a panel wider/taller than the screen
@@ -191,7 +191,7 @@ public final class RegionMath {
      * ({@link MainRegionLayout}) chrome paths, so a Back button / title anchors to
      * the screen identically in both.
      */
-    public static ScreenOrigin resolveScreenRegion(ScreenRegion region,
+    public static ScreenOrigin resolveScreenRegion(InsideRegion region,
             int sw, int sh, int pw, int ph, int margin) {
         int x = switch (region) {
             case TOP_LEFT, LEFT_CENTER, BOTTOM_LEFT -> margin;
@@ -234,7 +234,7 @@ public final class RegionMath {
      * @param sh      GUI-scaled screen height
      */
     public static Optional<ScreenOrigin> resolveMenu(
-            MenuRegion region, ScreenBounds bounds,
+            OutsideRegion region, Reference bounds,
             int pw, int ph, int prefix, int sw, int sh) {
 
         int leftPos = bounds.leftPos();
@@ -248,7 +248,7 @@ public final class RegionMath {
         // their whole point is to extend past the narrow menu frame toward the
         // screen edge, so the menu width/height is the wrong ceiling (Pass-3 fix:
         // BOTTOM_ALIGN_RIGHT was silently hiding any panel wider than 176px).
-        if (region == MenuRegion.CENTER) {
+        if (region == OutsideRegion.CENTER) {
             if (pw > imageWidth || ph > imageHeight) return Optional.empty();
         }
 
@@ -304,7 +304,7 @@ public final class RegionMath {
         // fit beside the narrow frame belongs on-screen, over the frame, not
         // gone). Hidden ONLY if the panel is larger than the safe area itself —
         // then there's genuinely nowhere on-screen to put it.
-        if (region != MenuRegion.CENTER) {
+        if (region != OutsideRegion.CENTER) {
             int m = RegionConstants.SCREEN_EDGE_MARGIN;
             if (pw > sw - 2 * m || ph > sh - 2 * m) return Optional.empty();
             int cx = Math.max(m, Math.min(origin.x(), sw - m - pw));
@@ -316,7 +316,7 @@ public final class RegionMath {
 
     // Post-§0042 split: resolveSlotGroup moved to menukit-containers'
     // SlotGroupRegionMath in core/. Slot-group region resolution references
-    // SlotGroupRegion (slot-group enum) and SlotGroupBounds (containers
+    // OutsideRegion (slot-group enum) and Reference (containers
     // type), so the math lives where its inputs live.
 
     // ── HUD context ─────────────────────────────────────────────────────
@@ -335,11 +335,11 @@ public final class RegionMath {
      *                region, plus one {@link RegionConstants#MENU_STACK_GAP} per preceding panel
      */
     public static Optional<ScreenOrigin> resolveHud(
-            HudRegion region, int sw, int sh,
+            InsideRegion region, int sw, int sh,
             int pw, int ph, int prefix) {
 
         int inset = RegionConstants.EDGE_INSET;
-        int crosshairClear = HudRegion.CENTER_CROSSHAIR_CLEARANCE;
+        int crosshairClear = RegionConstants.CENTER_CROSSHAIR_CLEARANCE;
 
         // Available vertical space along the flow axis — used for overflow.
         int available = switch (region) {
@@ -383,14 +383,14 @@ public final class RegionMath {
     }
 
     /**
-     * Region-relative placement for {@link ScreenRegion}s on a vanilla
+     * Region-relative placement for {@link InsideRegion}s on a vanilla
      * non-container screen (Options, Controls, KeyBinds, etc.).
      *
      * <p>Parallel to {@link #resolveHud}: anchored to the screen's
      * GUI-scaled w × h, with {@link RegionConstants#EDGE_INSET} from
      * each edge. The only semantic difference vs HUD positioning is that
      * vanilla screens have NO crosshair behind them — the {@link
-     * ScreenRegion#CENTER} region anchors to the true screen
+     * InsideRegion#CENTER} region anchors to the true screen
      * center, no crosshair clearance offset.
      *
      * <p>Returns {@link Optional#empty()} when {@code prefix + ph} exceeds
@@ -408,7 +408,7 @@ public final class RegionMath {
      *                region, plus one {@link RegionConstants#MENU_STACK_GAP} per preceding panel
      */
     public static Optional<ScreenOrigin> resolveVanillaScreen(
-            ScreenRegion region, int sw, int sh,
+            InsideRegion region, int sw, int sh,
             int pw, int ph, int prefix) {
 
         int inset = RegionConstants.EDGE_INSET;

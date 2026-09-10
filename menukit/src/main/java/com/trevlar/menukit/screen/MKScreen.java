@@ -12,7 +12,7 @@ import com.trevlar.menukit.core.PanelTreeLayout;
 import com.trevlar.menukit.core.RegionConstants;
 import com.trevlar.menukit.core.RegionMath;
 import com.trevlar.menukit.core.RenderContext;
-import com.trevlar.menukit.core.ScreenRegion;
+import com.trevlar.menukit.core.InsideRegion;
 import com.trevlar.menukit.window.ClientWindowVisibility;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -398,14 +398,14 @@ public class MKScreen extends Screen {
         }
 
         // Pass 3 — screen-edge-anchored chrome (e.g. the "Back" button or a
-        // title): positioned at a fixed ScreenRegion spot inset by
+        // title): positioned at a fixed InsideRegion spot inset by
         // SCREEN_EDGE_MARGIN, independent of the centered body stack (which
         // excludes it from layout + extent). Same screen-edge geometry the
         // custom-container path (MainRegionLayout) uses — one rule both contexts.
         if (panel.getPosition().mode() == PanelPosition.Mode.SCREEN_ANCHOR) {
             int m = RegionConstants.SCREEN_EDGE_MARGIN;
-            ScreenRegion anchor = panel.getPosition().screenAnchor();
-            if (anchor == null) anchor = ScreenRegion.TOP_LEFT;
+            InsideRegion anchor = panel.getPosition().screenAnchor();
+            if (anchor == null) anchor = InsideRegion.TOP_LEFT;
             var so = RegionMath.resolveScreenRegion(
                     anchor, this.width, this.height, outerW, outerH, m);
             return new int[]{so.x(), so.y(), outerW, outerH};
@@ -424,7 +424,7 @@ public class MKScreen extends Screen {
     private void computeLayout() {
         if (MainRegionLayout.hasMain(panels)) {
             // Movement ③ — a standalone screen can also name a MAIN panel and
-            // anchor siblings to it via MenuRegion (the unified placement model).
+            // anchor siblings to it via OutsideRegion (the unified placement model).
             // reserveTitle=false: MKScreen draws its title at the SCREEN top
             // (renderPanels), not at the frame top, so the frame needs no strip.
             // MainRegionLayout returns leftPos/topPos-relative bounds + the

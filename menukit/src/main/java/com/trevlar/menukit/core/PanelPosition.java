@@ -12,7 +12,7 @@ import java.util.function.Supplier;
  * <p><b>Movement ③ — the main-panel + region model.</b> A custom screen names
  * ONE panel as its {@link Mode#MAIN main} = its frame (centred on the screen,
  * exactly like a vanilla container's menu frame). Every other panel anchors to
- * that frame with a {@link Mode#REGION region} — the SAME {@link MenuRegion}
+ * that frame with a {@link Mode#REGION region} — the SAME {@link OutsideRegion}
  * vocabulary and the SAME {@link RegionMath} resolver vanilla-injected panels
  * use against the menu frame — so siblings inherit overlay-centring (①) and
  * vertical edge-awareness + auto-scroll (②) for free. This retired the old
@@ -26,7 +26,7 @@ import java.util.function.Supplier;
  *       designated main panel).</li>
  *   <li>{@link Mode#MAIN} — the screen's frame: one per screen, centred, the
  *       anchor every {@code REGION} sibling resolves against.</li>
- *   <li>{@link Mode#REGION} — anchored to the main panel via a {@link MenuRegion}
+ *   <li>{@link Mode#REGION} — anchored to the main panel via a {@link OutsideRegion}
  *       (RIGHT_ALIGN_TOP, BOTTOM_CENTER, …), resolved by {@link RegionMath}
  *       against the main panel's bounds.</li>
  *   <li>{@link Mode#SCREEN_ANCHOR} — pinned to a fixed screen corner (chrome).</li>
@@ -42,8 +42,8 @@ import java.util.function.Supplier;
  */
 public record PanelPosition(Mode mode,
                             @Nullable String anchorPanelId,
-                            @Nullable ScreenRegion screenAnchor,
-                            @Nullable MenuRegion menuRegion,
+                            @Nullable InsideRegion screenAnchor,
+                            @Nullable OutsideRegion menuRegion,
                             @Nullable Supplier<ScreenOrigin> pixelOrigin) {
 
     /** How a panel is positioned. */
@@ -58,14 +58,14 @@ public record PanelPosition(Mode mode,
          */
         MAIN,
         /**
-         * Anchored to the {@link #MAIN} panel via a {@link MenuRegion} (Movement
+         * Anchored to the {@link #MAIN} panel via a {@link OutsideRegion} (Movement
          * ③). Resolved by {@link RegionMath} against the main panel's bounds —
          * the same path vanilla-injected panels take against the menu frame, so
          * the panel is edge-aware on both axes and auto-scrolls on overflow.
          */
         REGION,
         /**
-         * Pinned to a fixed {@link ScreenRegion screen-edge spot} (Pass 3), inset
+         * Pinned to a fixed {@link InsideRegion screen-edge spot} (Pass 3), inset
          * by {@link RegionConstants#SCREEN_EDGE_MARGIN}. Excluded from the layout's
          * extent — chrome like a "Back" button (TOP_LEFT) or a title (TOP_CENTER)
          * stays put regardless of content size. See {@link #screenAnchor}.
@@ -110,18 +110,18 @@ public record PanelPosition(Mode mode,
 
     /**
      * Anchors the panel to the main panel via {@code region} (Movement ③) — the
-     * same {@link MenuRegion} vocabulary vanilla-injected panels use against the
+     * same {@link OutsideRegion} vocabulary vanilla-injected panels use against the
      * menu frame. RIGHT_ALIGN_TOP sits it to the right of the main panel, top-
      * aligned; BOTTOM_CENTER below it, centred; and so on. Resolved by
      * {@link RegionMath} against the main panel's bounds, so it is edge-aware on
      * both axes and auto-scrolls when it would overflow the screen.
      */
-    public static PanelPosition region(MenuRegion region) {
+    public static PanelPosition region(OutsideRegion region) {
         return new PanelPosition(Mode.REGION, null, null, region, null);
     }
 
     /**
-     * Pins the panel to a fixed {@link ScreenRegion screen-edge spot} (Pass 3) —
+     * Pins the panel to a fixed {@link InsideRegion screen-edge spot} (Pass 3) —
      * inset by {@link RegionConstants#SCREEN_EDGE_MARGIN} from the edges that spot
      * touches. The canonical screen-chrome placement: a "&lt; Back" button at
      * {@code TOP_LEFT}, a title at {@code TOP_CENTER}, a status line at
@@ -134,7 +134,7 @@ public record PanelPosition(Mode mode,
      * via {@link RegionMath#resolveScreenRegion} — the SAME screen-edge placement
      * in either context.
      */
-    public static PanelPosition screenAnchor(ScreenRegion region) {
+    public static PanelPosition screenAnchor(InsideRegion region) {
         return new PanelPosition(Mode.SCREEN_ANCHOR, null, region, null, null);
     }
 

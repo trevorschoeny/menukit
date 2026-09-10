@@ -2,7 +2,7 @@ package com.trevlar.menukit.hud;
 
 import com.trevlar.menukit.MK;
 
-import com.trevlar.menukit.core.HudRegion;
+import com.trevlar.menukit.core.InsideRegion;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.core.PanelStyle;
 import com.trevlar.menukit.core.RegionAnchor;
@@ -53,11 +53,11 @@ public class MKHudNotification {
     private final String key;
     private final MKHudAnchor anchor;
     // Region positioning (N7 parity with MKHudPanel). When non-null, position
-    // resolves through RegionMath.resolveHud (the same HudRegion system panels
+    // resolves through RegionMath.resolveHud (the same InsideRegion system panels
     // use) instead of the legacy MKHudAnchor.resolve path; offsetX/offsetY
     // still nudge the resolved origin. A notification is a singular popup, so
     // it resolves with a zero stacking prefix (no region registry).
-    private final @Nullable HudRegion region;
+    private final @Nullable InsideRegion region;
     private final int offsetX, offsetY;
     private final int durationMs;
     private final int fadeMs;
@@ -70,7 +70,7 @@ public class MKHudNotification {
     // Slide-in duration in milliseconds
     private static final int SLIDE_IN_MS = 200;
 
-    MKHudNotification(String key, MKHudAnchor anchor, @Nullable HudRegion region,
+    MKHudNotification(String key, MKHudAnchor anchor, @Nullable InsideRegion region,
                       int offsetX, int offsetY,
                       int durationMs, int fadeMs, SlideDirection slideFrom,
                       int slideDistance, PanelStyle style, int padding,
@@ -118,7 +118,7 @@ public class MKHudNotification {
         int panelH = contentH;
 
         // Resolve base position. Region mode (N7) routes through
-        // RegionMath.resolveHud — the same HudRegion system MKHudPanel uses —
+        // RegionMath.resolveHud — the same InsideRegion system MKHudPanel uses —
         // with a zero stacking prefix (a notification is a singular popup, not
         // a registry-stacked panel); offsetX/offsetY then nudge the resolved
         // origin. Legacy anchor mode falls back to MKHudAnchor.resolve.
@@ -216,7 +216,7 @@ public class MKHudNotification {
     public static class Builder {
         private final String key;
         private MKHudAnchor anchor = MKHudAnchor.TOP_CENTER;
-        private @Nullable HudRegion region;  // null unless .region() called
+        private @Nullable InsideRegion region;  // null unless .region() called
         private int offsetX = 0, offsetY = 10;
         private int durationMs = 3000;
         private int fadeMs = 500;
@@ -231,13 +231,13 @@ public class MKHudNotification {
         /**
          * Sets the screen-edge anchor and offset (default: TOP_CENTER, 0, 10).
          *
-         * <p><b>Legacy positioning path.</b> {@link com.trevlar.menukit.core.HudRegion}
-         * (via {@link #region(HudRegion)}) is the intended primary system,
+         * <p><b>Legacy positioning path.</b> {@link com.trevlar.menukit.core.InsideRegion}
+         * (via {@link #region(InsideRegion)}) is the intended primary system,
          * matching {@link MKHudPanel}; it routes through the same
          * {@link RegionMath#resolveHud} math panels use. {@code anchor(...)}
          * remains for back-compat and for the {@link MKHudAnchor#CENTER_LEFT}/
          * {@link MKHudAnchor#CENTER_RIGHT} vertical-center positions that
-         * HudRegion spells differently. Setting both is allowed; {@code region}
+         * InsideRegion spells differently. Setting both is allowed; {@code region}
          * wins when present.
          */
         public Builder anchor(MKHudAnchor anchor, int offsetX, int offsetY) {
@@ -249,7 +249,7 @@ public class MKHudNotification {
 
         /**
          * Positions this notification via a named
-         * {@link com.trevlar.menukit.core.HudRegion} — the parity path
+         * {@link com.trevlar.menukit.core.InsideRegion} — the parity path
          * with {@link MKHudPanel#builder(String)}'s {@code .region(...)}.
          * Position resolves through {@link RegionMath#resolveHud} (the same
          * math HUD panels use) with a zero stacking prefix, since a
@@ -263,7 +263,7 @@ public class MKHudNotification {
          * @param region the HUD region anchor
          * @return this builder, for chaining
          */
-        public Builder region(HudRegion region) {
+        public Builder region(InsideRegion region) {
             this.region = region;
             return this;
         }
@@ -277,7 +277,7 @@ public class MKHudNotification {
          * the region's anchor with a zero prefix). Equivalent to
          * {@code .region(anchor.region())}.
          */
-        public Builder region(RegionAnchor<HudRegion> anchor) {
+        public Builder region(RegionAnchor<InsideRegion> anchor) {
             this.region = anchor.region();
             return this;
         }

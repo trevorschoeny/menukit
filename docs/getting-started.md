@@ -54,7 +54,7 @@ Call this once from the client entry point. The adapter registers itself in its 
 ```java
 // Source: validator-mk, MkValidatorMkClient.java (trimmed)
 import com.trevlar.menukit.core.Button;
-import com.trevlar.menukit.core.MenuRegion;
+import com.trevlar.menukit.core.OutsideRegion;
 import com.trevlar.menukit.core.Panel;
 import com.trevlar.menukit.inject.ScreenPanelAdapter;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
@@ -64,7 +64,7 @@ Panel panel = Panel.builder("mymod:controls")
         .add(new Button(0, 0, 90, 16, Component.literal("Press"), b -> {}))
         .build();
 
-new ScreenPanelAdapter(panel, MenuRegion.RIGHT_ALIGN_TOP.priority(10))
+new ScreenPanelAdapter(panel, OutsideRegion.RIGHT_ALIGN_TOP.priority(10))
         .on(InventoryScreen.class);
 ```
 

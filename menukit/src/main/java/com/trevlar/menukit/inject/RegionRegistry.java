@@ -1,12 +1,12 @@
 package com.trevlar.menukit.inject;
 
-import com.trevlar.menukit.core.HudRegion;
-import com.trevlar.menukit.core.MenuRegion;
+import com.trevlar.menukit.core.InsideRegion;
+import com.trevlar.menukit.core.OutsideRegion;
 import com.trevlar.menukit.core.Panel;
 import com.trevlar.menukit.core.RegionAnchor;
 import com.trevlar.menukit.core.RegionConstants;
 import com.trevlar.menukit.core.RegionMath;
-import com.trevlar.menukit.core.ScreenRegion;
+import com.trevlar.menukit.core.InsideRegion;
 import com.trevlar.menukit.hud.MKHudPanelDef;
 import com.trevlar.menukit.window.ClientWindowVisibility;
 
@@ -95,18 +95,18 @@ public final class RegionRegistry {
 
     // Per-region panel lists. Registration order is append order; same-region
     // panels stack in declaration order.
-    private static final Map<MenuRegion, List<Panel>> MENU =
-            new EnumMap<>(MenuRegion.class);
-    private static final Map<HudRegion, List<MKHudPanelDef>> HUD =
-            new EnumMap<>(HudRegion.class);
-    // NOTE: ScreenRegion's constant order is NOT load-bearing here. This EnumMap is
+    private static final Map<OutsideRegion, List<Panel>> MENU =
+            new EnumMap<>(OutsideRegion.class);
+    private static final Map<InsideRegion, List<MKHudPanelDef>> HUD =
+            new EnumMap<>(InsideRegion.class);
+    // NOTE: InsideRegion's constant order is NOT load-bearing here. This EnumMap is
     // only keyed-accessed (computeIfAbsent / getOrDefault) and its sole .values()
     // walk (unregisterVanillaScreen) is order-irrelevant; sibling stacking sorts by
     // an explicit (priority, modId, regSeq) Comparator, never by ordinal. So the
-    // ScreenRegion↔VanillaScreenRegion merge moving CENTER's position is safe — do
-    // not add an ordinal/iteration-order assumption over ScreenRegion.
-    private static final Map<ScreenRegion, List<Panel>> VANILLA_SCREEN =
-            new EnumMap<>(ScreenRegion.class);
+    // InsideRegion↔VanillaScreenRegion merge moving CENTER's position is safe — do
+    // not add an ordinal/iteration-order assumption over InsideRegion.
+    private static final Map<InsideRegion, List<Panel>> VANILLA_SCREEN =
+            new EnumMap<>(InsideRegion.class);
 
     // Per-panel content padding — set at registration time so axial-prefix
     // stacking and overflow math can include padding when deriving axial extent.
@@ -142,15 +142,15 @@ public final class RegionRegistry {
     // overflow per (panel identity, region) pair logs once; subsequent
     // overflows are silent. WeakHashMap so entries GC with the panel when
     // the consumer drops its reference.
-    private static final Map<Panel, Set<MenuRegion>> WARNED_MENU =
+    private static final Map<Panel, Set<OutsideRegion>> WARNED_MENU =
             Collections.synchronizedMap(new WeakHashMap<>());
-    private static final Map<MKHudPanelDef, Set<HudRegion>> WARNED_HUD =
+    private static final Map<MKHudPanelDef, Set<InsideRegion>> WARNED_HUD =
             Collections.synchronizedMap(new WeakHashMap<>());
 
     // Post-§0042 split: SlotGroupContext registry state + methods live in
     // menukit-containers' parallel SlotGroupRegionRegistry. The slot-group
     // registries are independent because their key shape differs
-    // ((category, region) tuple vs single MenuRegion / HudRegion enum).
+    // ((category, region) tuple vs single OutsideRegion / InsideRegion enum).
 
     // ── MenuContext ─────────────────────────────────────────────────────
 
@@ -161,7 +161,7 @@ public final class RegionRegistry {
      * overflow math; priority + captured modId drive the deterministic sort
      * order applied at {@link #axialPrefix} time.
      */
-    public static void registerMenu(Panel panel, MenuRegion region, int padding,
+    public static void registerMenu(Panel panel, OutsideRegion region, int padding,
                                      int priority) {
         MENU.computeIfAbsent(region, r -> new ArrayList<>()).add(panel);
         MENU_PADDING.put(panel, padding);
@@ -176,7 +176,7 @@ public final class RegionRegistry {
      * about explicit ordering hit this path and still get a deterministic
      * sort via the modId tiebreaker.
      */
-    public static void registerMenu(Panel panel, MenuRegion region, int padding) {
+    public static void registerMenu(Panel panel, OutsideRegion region, int padding) {
         registerMenu(panel, region, padding, RegionAnchor.DEFAULT_PRIORITY);
     }
 
@@ -185,7 +185,7 @@ public final class RegionRegistry {
      * padding extension. Delegates with {@link ScreenPanelAdapter#DEFAULT_PADDING}
      * so behavior matches the default-padding adapter constructors.
      */
-    public static void registerMenu(Panel panel, MenuRegion region) {
+    public static void registerMenu(Panel panel, OutsideRegion region) {
         registerMenu(panel, region, ScreenPanelAdapter.DEFAULT_PADDING,
                 RegionAnchor.DEFAULT_PRIORITY);
     }
@@ -230,7 +230,7 @@ public final class RegionRegistry {
      *
      * @throws IllegalStateException if {@code self} is not registered in {@code region}
      */
-    public static int axialPrefix(Panel self, MenuRegion region) {
+    public static int axialPrefix(Panel self, OutsideRegion region) {
         List<Panel> panels = sortedMenuPanels(region);
         int prefix = 0;
         boolean horizontal = region.isHorizontalFlow();
@@ -258,7 +258,7 @@ public final class RegionRegistry {
      * Returns the panels registered in {@code region}, sorted by the
      * deterministic key (priority, modId, registrationSeq). Phase 16i.
      */
-    private static List<Panel> sortedMenuPanels(MenuRegion region) {
+    private static List<Panel> sortedMenuPanels(OutsideRegion region) {
         List<Panel> panels = MENU.getOrDefault(region, List.of());
         if (panels.size() <= 1) return panels;
         List<Panel> sorted = new ArrayList<>(panels);
@@ -272,7 +272,7 @@ public final class RegionRegistry {
     /**
      * Resolves the screen-space origin for a MenuContext panel. Consults the
      * registry (for the stacking prefix and the panel's registered padding),
-     * the current {@link ScreenBounds} (for the menu frame), and
+     * the current {@link Reference} (for the menu frame), and
      * {@link MenuChrome#of(net.minecraft.client.gui.screens.inventory.AbstractContainerScreen)}
      * (for chrome extents outside the declared frame), producing a screen-space
      * origin — or {@link ScreenOrigin#OUT_OF_REGION} when the panel overflows
@@ -286,8 +286,8 @@ public final class RegionRegistry {
      *               before any region use)
      */
     public static ScreenOrigin resolveMenuOrigin(Panel panel,
-            @org.jspecify.annotations.Nullable MenuRegion region,
-            ScreenBounds bounds,
+            @org.jspecify.annotations.Nullable OutsideRegion region,
+            Reference bounds,
             net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> screen) {
         // Pixel-precision override (§0057 Revision) — the panel's outer origin
         // comes from its per-frame supplier, verbatim; region math (and the
@@ -311,7 +311,7 @@ public final class RegionRegistry {
         // a screen with a top tab row. Each region then anchors within
         // those chrome-extended bounds per RegionMath's usual logic.
         MenuChrome.ChromeExtents chrome = MenuChrome.of(screen);
-        ScreenBounds effective = new ScreenBounds(
+        Reference effective = new Reference(
                 bounds.leftPos() - chrome.left(),
                 bounds.topPos() - chrome.top(),
                 bounds.imageWidth() + chrome.left() + chrome.right(),
@@ -343,8 +343,8 @@ public final class RegionRegistry {
      * @param pad    the panel's content padding (added around getWidth/getHeight)
      * @param prefix axial stacking offset of preceding visible same-region siblings
      */
-    public static ScreenOrigin resolveAround(Panel panel, MenuRegion region,
-            ScreenBounds frame, int pad, int prefix, int sw, int sh) {
+    public static ScreenOrigin resolveAround(Panel panel, OutsideRegion region,
+            Reference frame, int pad, int prefix, int sw, int sh) {
         // Reactive-sizing step of the ONE engine — feed the anchor-aware budget
         // BEFORE measuring so getWidth()/getHeight() reflect any wrap/scroll.
         feedRegionBudget(panel, region, frame, pad, sw, sh);
@@ -385,8 +385,8 @@ public final class RegionRegistry {
      * (menu frame vs main-panel bounds) differs, which is the whole point of
      * Movement ③.
      */
-    public static void feedRegionBudget(Panel panel, MenuRegion region,
-            ScreenBounds frame, int pad, int sw, int sh) {
+    public static void feedRegionBudget(Panel panel, OutsideRegion region,
+            Reference frame, int pad, int sw, int sh) {
         int m = RegionConstants.SCREEN_EDGE_MARGIN;
         if (panel.isOverlayPositioned()) {
             // Overlay floats centred → symmetric screen-width budget (matching
@@ -403,17 +403,17 @@ public final class RegionRegistry {
         panel.setAvailableContentHeight(availH - 2 * pad);
     }
 
-    private static void warnMenuOverflowOnce(Panel panel, MenuRegion region,
+    private static void warnMenuOverflowOnce(Panel panel, OutsideRegion region,
                                                    int pw, int ph, int prefix,
-                                                   ScreenBounds bounds) {
-        Set<MenuRegion> warned = WARNED_MENU
+                                                   Reference bounds) {
+        Set<OutsideRegion> warned = WARNED_MENU
                 .computeIfAbsent(panel, p -> Collections.synchronizedSet(
-                        EnumSet.noneOf(MenuRegion.class)));
+                        EnumSet.noneOf(OutsideRegion.class)));
         if (!warned.add(region)) return;
         int axisExtent = region.isHorizontalFlow() ? pw : ph;
         int axisCapacity = region.isHorizontalFlow() ? bounds.imageWidth() : bounds.imageHeight();
         LOGGER.warn(
-                "[RegionRegistry] Panel '{}' overflows MenuRegion.{} — axial extent " +
+                "[RegionRegistry] Panel '{}' overflows OutsideRegion.{} — axial extent " +
                 "{}px (including padding) + prefix {}px exceeds capacity {}px. " +
                 "Silent OUT_OF_REGION until this panel + region pair is resized.",
                 panel.getId(), region, axisExtent, prefix, axisCapacity);
@@ -424,7 +424,7 @@ public final class RegionRegistry {
     /** Registers a HUD panel def into a region with explicit priority. Called
      *  from {@link com.trevlar.menukit.hud.MKHudPanel.Builder#build()}.
      *  Phase 16i: priority + captured modId drive deterministic sort. */
-    public static void registerHud(MKHudPanelDef def, HudRegion region, int priority) {
+    public static void registerHud(MKHudPanelDef def, InsideRegion region, int priority) {
         HUD.computeIfAbsent(region, r -> new ArrayList<>()).add(def);
         HUD_PRIORITY.put(def, priority);
         HUD_MODID.put(def, captureCallerModId());
@@ -432,7 +432,7 @@ public final class RegionRegistry {
     }
 
     /** Back-compat overload — uses {@link RegionAnchor#DEFAULT_PRIORITY}. */
-    public static void registerHud(MKHudPanelDef def, HudRegion region) {
+    public static void registerHud(MKHudPanelDef def, InsideRegion region) {
         registerHud(def, region, RegionAnchor.DEFAULT_PRIORITY);
     }
 
@@ -440,7 +440,7 @@ public final class RegionRegistry {
      * Removes a previously-registered HUD panel def from every region
      * list it appears in and clears its per-def metadata. Phase 16j R5.
      * Idempotent. Symmetric counterpart to
-     * {@link #registerHud(MKHudPanelDef, HudRegion, int)}.
+     * {@link #registerHud(MKHudPanelDef, InsideRegion, int)}.
      *
      * <p>Note: this does NOT unregister the HUD panel def from
      * {@code MK}'s top-level HUD list (the render-each-frame
@@ -466,7 +466,7 @@ public final class RegionRegistry {
      *
      * @throws IllegalStateException if {@code self} is not registered in {@code region}
      */
-    public static int axialPrefix(MKHudPanelDef self, HudRegion region) {
+    public static int axialPrefix(MKHudPanelDef self, InsideRegion region) {
         List<MKHudPanelDef> panels = sortedHudPanels(region);
         int prefix = 0;
         for (MKHudPanelDef p : panels) {
@@ -481,7 +481,7 @@ public final class RegionRegistry {
     }
 
     /** Sorts HUD panels by the deterministic key (priority, modId, regSeq). */
-    private static List<MKHudPanelDef> sortedHudPanels(HudRegion region) {
+    private static List<MKHudPanelDef> sortedHudPanels(InsideRegion region) {
         List<MKHudPanelDef> panels = HUD.getOrDefault(region, List.of());
         if (panels.size() <= 1) return panels;
         List<MKHudPanelDef> sorted = new ArrayList<>(panels);
@@ -509,7 +509,7 @@ public final class RegionRegistry {
      * 2× padding contributes to subsequent siblings' offset); priority +
      * captured modId drive deterministic sort.
      */
-    public static void registerVanillaScreen(Panel panel, ScreenRegion region,
+    public static void registerVanillaScreen(Panel panel, InsideRegion region,
                                               int padding, int priority) {
         VANILLA_SCREEN.computeIfAbsent(region, r -> new ArrayList<>()).add(panel);
         VANILLA_SCREEN_PADDING.put(panel, padding);
@@ -539,14 +539,14 @@ public final class RegionRegistry {
      *
      * @throws IllegalStateException if {@code self} is not registered in {@code region}
      */
-    public static int axialPrefix(Panel self, ScreenRegion region) {
+    public static int axialPrefix(Panel self, InsideRegion region) {
         List<Panel> panels = sortedVanillaScreenPanels(region);
         int prefix = 0;
         for (Panel p : panels) {
             if (p == self) return prefix;
             if (!ClientWindowVisibility.panelShown(p)) continue;
             // Movement ① — overlays float centered, not in the stack. Skip them
-            // (parity with the MenuRegion axialPrefix above).
+            // (parity with the OutsideRegion axialPrefix above).
             if (p.isOverlayPositioned()) continue;
             int pad = VANILLA_SCREEN_PADDING.getOrDefault(p, 0);
             int extent = p.getHeight() + 2 * pad;
@@ -564,7 +564,7 @@ public final class RegionRegistry {
      * the screen's GUI-scaled dimensions to produce a screen-space origin —
      * or {@link ScreenOrigin#OUT_OF_REGION} when the panel overflows its region.
      */
-    public static ScreenOrigin resolveVanillaScreenOrigin(Panel panel, ScreenRegion region,
+    public static ScreenOrigin resolveVanillaScreenOrigin(Panel panel, InsideRegion region,
             int sw, int sh, net.minecraft.client.gui.screens.Screen screen) {
         int pad = VANILLA_SCREEN_PADDING.getOrDefault(panel, 0);
 
@@ -599,7 +599,7 @@ public final class RegionRegistry {
     }
 
     /** Sorts vanilla-screen panels by the deterministic key. */
-    private static List<Panel> sortedVanillaScreenPanels(ScreenRegion region) {
+    private static List<Panel> sortedVanillaScreenPanels(InsideRegion region) {
         List<Panel> panels = VANILLA_SCREEN.getOrDefault(region, List.of());
         if (panels.size() <= 1) return panels;
         List<Panel> sorted = new ArrayList<>(panels);
@@ -612,18 +612,18 @@ public final class RegionRegistry {
 
     // Deduplication state for one-shot OUT_OF_REGION warn on vanilla-screen
     // overflow. Parallel to WARNED_MENU / WARNED_HUD.
-    private static final Map<Panel, Set<ScreenRegion>> WARNED_VANILLA_SCREEN =
+    private static final Map<Panel, Set<InsideRegion>> WARNED_VANILLA_SCREEN =
             Collections.synchronizedMap(new WeakHashMap<>());
 
-    private static void warnVanillaScreenOverflowOnce(Panel panel, ScreenRegion region,
+    private static void warnVanillaScreenOverflowOnce(Panel panel, InsideRegion region,
                                                        int pw, int ph, int prefix,
                                                        int sw, int sh) {
-        Set<ScreenRegion> warned = WARNED_VANILLA_SCREEN
+        Set<InsideRegion> warned = WARNED_VANILLA_SCREEN
                 .computeIfAbsent(panel, p -> Collections.synchronizedSet(
-                        EnumSet.noneOf(ScreenRegion.class)));
+                        EnumSet.noneOf(InsideRegion.class)));
         if (!warned.add(region)) return;
         LOGGER.warn(
-                "[RegionRegistry] Panel '{}' overflows ScreenRegion.{} — extent " +
+                "[RegionRegistry] Panel '{}' overflows InsideRegion.{} — extent " +
                 "{}×{}px (including padding) + prefix {}px exceeds screen {}×{}. " +
                 "Silent OUT_OF_REGION until this panel + region pair is resized.",
                 panel.getId(), region, pw, ph, prefix, sw, sh);
@@ -732,22 +732,22 @@ public final class RegionRegistry {
      * Called from {@link com.trevlar.menukit.MK}'s HUD render loop
      * when {@link RegionMath#resolveHud} returns empty.
      */
-    public static void warnHudOverflowOnce(MKHudPanelDef def, HudRegion region,
+    public static void warnHudOverflowOnce(MKHudPanelDef def, InsideRegion region,
                                             int pw, int ph, int prefix,
                                             int screenWidth, int screenHeight) {
-        Set<HudRegion> warned = WARNED_HUD
+        Set<InsideRegion> warned = WARNED_HUD
                 .computeIfAbsent(def, d -> Collections.synchronizedSet(
-                        EnumSet.noneOf(HudRegion.class)));
+                        EnumSet.noneOf(InsideRegion.class)));
         if (!warned.add(region)) return;
         LOGGER.warn(
-                "[RegionRegistry] HUD panel '{}' overflows HudRegion.{} — axial extent " +
+                "[RegionRegistry] HUD panel '{}' overflows InsideRegion.{} — axial extent " +
                 "{}px + prefix {}px exceeds the region's available height in the " +
                 "{}x{} screen. Silent no-render until resized.",
                 def.name(), region, ph, prefix, screenWidth, screenHeight);
     }
 
     // Post-§0042 split: SlotGroupContext registry methods
-    // (registerSlotGroup, axialPrefix(Panel, SlotGroupCategory, SlotGroupRegion),
+    // (registerSlotGroup, axialPrefix(Panel, SlotGroupCategory, OutsideRegion),
     // warnSlotGroupOverflowOnce) live in menukit-containers'
     // SlotGroupRegionRegistry. The split is parallel to ScreenPanelRegistry's
     // — slot-group concerns extract to a containers-side companion.

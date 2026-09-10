@@ -24,7 +24,7 @@ MKHudPanel.builder("offshore:boat-health")
 
 Result: a 7 pixel tall bar renders 50 pixels above the bottom center of the window while `isActive()` returns true. `value` is a `Supplier<Float>` in the range 0 to 1.
 
-Sub-builders (`text`, `item`, `slot`, `bar`) end with `.done()`. `.element(PanelElement)` adds any element. `.region(HudRegion)` replaces `.anchor(...)` and stacks the panel with other panels in that region.
+Sub-builders (`text`, `item`, `slot`, `bar`) end with `.done()`. `.element(PanelElement)` adds any element. `.region(InsideRegion)` replaces `.anchor(...)` and stacks the panel with other panels in that region.
 
 ## Put a button on every container screen
 
@@ -38,7 +38,7 @@ Panel p = Panel.builder("mkv:region-everywhere")
         .add(((Button) Button.spec(70, 14, Component.literal("Click me"), b -> {}).at(0, 14))
                 .tooltip(Component.literal("A button inside a region panel.")))
         .build();
-ScreenPanelAdapter adapter = new ScreenPanelAdapter(p, MenuRegion.LEFT_ALIGN_TOP.priority(20));
+ScreenPanelAdapter adapter = new ScreenPanelAdapter(p, OutsideRegion.LEFT_ALIGN_TOP.priority(20));
 ```
 
 Result: the panel renders in the top left gutter of the inventory, every chest, and the creative inventory. Add `.on(InventoryScreen.class)` to limit it to the survival inventory. Call `adapter.unregister()` to remove it.
@@ -54,7 +54,7 @@ Panel panel = Panel.builder("inventoryplus:toolbar.inventory")
         .elements(buildInventoryChildren())
         .build();
 panel.showWhen(Toolbar::isToolbarScope);
-new SlotGroupPanelAdapter(panel, SlotGroupRegion.TOP_ALIGN_RIGHT)
+new SlotGroupPanelAdapter(panel, OutsideRegion.TOP_ALIGN_RIGHT)
         .on(SlotGroupCategory.PLAYER_INVENTORY);
 ```
 
@@ -62,7 +62,7 @@ Result: the panel renders above the right edge of the player inventory grid on e
 
 ```java
 // Source: inventory-plus, toolbar/Toolbar.java
-new SlotGroupPanelAdapter(panel, SlotGroupRegion.TOP_ALIGN_RIGHT)
+new SlotGroupPanelAdapter(panel, OutsideRegion.TOP_ALIGN_RIGHT)
         .on(SlotGroupCategory.CHEST_STORAGE,
             SlotGroupCategory.SHULKER_STORAGE,
             SlotGroupCategory.DISPENSER_STORAGE,
@@ -113,7 +113,7 @@ public static final PlayerStorageAttachment<NonNullList<ItemStack>> POCKETS =
         StorageAttachment.playerAttached("mymod", "pockets", 9);
 
 MKCContainerPanel.define("mymod:pockets")
-        .at(MenuRegion.LEFT_ALIGN_TOP, 7)
+        .at(OutsideRegion.LEFT_ALIGN_TOP, 7)
         .style(PanelStyle.RAISED)
         .parity(ScreenMatcher.all())
         .chrome(() -> List.of(new Button(0, 0, 60, 14, Component.literal("Sort"), b -> {})))
@@ -184,7 +184,7 @@ CUSTOM.open(serverPlayer);
 
 Result: `requestOpen()` sends one payload; the server opens the menu; the client shows a screen with one nine-slot group. The handler factory runs on both sides and must build the same storages in the same order. Pass the `type` argument straight to `MKCScreenHandler.builder(type)`.
 
-`p.group(id, storage, priority, columns)` sets shift-click priority and column count. `p.button(...)`, `p.text(...)`, and `p.element(...)` add elements to the panel. `p.region(MenuRegion)` anchors a second panel to the main one.
+`p.group(id, storage, priority, columns)` sets shift-click priority and column count. `p.button(...)`, `p.text(...)`, and `p.element(...)` add elements to the panel. `p.region(OutsideRegion)` anchors a second panel to the main one.
 
 ## Attach behavior to a slot by address
 

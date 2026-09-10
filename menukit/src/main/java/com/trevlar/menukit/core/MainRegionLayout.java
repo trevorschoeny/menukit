@@ -1,7 +1,7 @@
 package com.trevlar.menukit.core;
 
 import com.trevlar.menukit.inject.RegionRegistry;
-import com.trevlar.menukit.inject.ScreenBounds;
+import com.trevlar.menukit.inject.Reference;
 import com.trevlar.menukit.inject.ScreenOrigin;
 
 import java.util.EnumMap;
@@ -15,7 +15,7 @@ import java.util.function.Function;
  * Movement ③ — the custom-screen layout resolver. A custom screen names ONE
  * {@link PanelPosition.Mode#MAIN main} panel = its frame (centred on the screen
  * window, exactly like a vanilla container's menu frame); every other panel
- * anchors to that frame with a {@link MenuRegion} via {@link RegionMath#resolveMenu}
+ * anchors to that frame with a {@link OutsideRegion} via {@link RegionMath#resolveMenu}
  * — the SAME math vanilla-injected panels take against the menu frame. So the
  * relative verbs (rightOf / above / below) and their edge-unaware Tree layout are
  * retired for custom screens, and siblings get region anchoring + screen-edge
@@ -39,7 +39,7 @@ import java.util.function.Function;
  *       vanilla region path, which DOES have the 3-pass). Wiring an on-top pass here
  *       is a follow-up if an in-panel custom-screen overlay is ever needed.</li>
  *   <li><b>{@link PanelPosition.Mode#REGION}</b>: anchored to the main frame via
- *       its {@link MenuRegion}, clamped into the screen safe area. Siblings sharing
+ *       its {@link OutsideRegion}, clamped into the screen safe area. Siblings sharing
  *       a region stack with {@link RegionConstants#MENU_STACK_GAP}.</li>
  *   <li><b>{@link PanelPosition.Mode#SCREEN_ANCHOR}</b>: pinned to a screen corner
  *       (chrome like a Back button), independent of the frame.</li>
@@ -150,12 +150,12 @@ public final class MainRegionLayout {
 
         // The frame every sibling resolves against — the FULL main frame (title
         // strip + content) in screen coords, so siblings anchor OUTSIDE the title.
-        ScreenBounds frame = new ScreenBounds(leftPos, topPos, mainW, frameH);
+        Reference frame = new Reference(leftPos, topPos, mainW, frameH);
         int margin = RegionConstants.SCREEN_EDGE_MARGIN;
 
         // Running axial stacking prefix per region (declaration order), mirroring
         // RegionRegistry.axialPrefix for the vanilla path.
-        Map<MenuRegion, Integer> prefixByRegion = new EnumMap<>(MenuRegion.class);
+        Map<OutsideRegion, Integer> prefixByRegion = new EnumMap<>(OutsideRegion.class);
 
         for (Panel p : panels) {
             if (p == main) continue;
@@ -179,7 +179,7 @@ public final class MainRegionLayout {
             PanelPosition pos = p.getPosition();
             switch (pos.mode()) {
                 case REGION -> {
-                    MenuRegion region = pos.menuRegion();
+                    OutsideRegion region = pos.menuRegion();
                     if (region == null) continue; // malformed — skip defensively
                     // SHARED ENGINE — feed the anchor-aware width+height budget
                     // against the MAIN frame, EXACTLY as the vanilla path feeds it
@@ -209,8 +209,8 @@ public final class MainRegionLayout {
                     feedCentered(p, screenW);
                     int[] s = sizeFn.apply(p);
                     int pw = s[0], ph = s[1];
-                    ScreenRegion anchor = pos.screenAnchor();
-                    if (anchor == null) anchor = ScreenRegion.TOP_LEFT;
+                    InsideRegion anchor = pos.screenAnchor();
+                    if (anchor == null) anchor = InsideRegion.TOP_LEFT;
                     ScreenOrigin so = RegionMath.resolveScreenRegion(
                             anchor, screenW, screenH, pw, ph, margin);
                     bounds.put(p.getId(), new PanelBounds(so.x() - leftPos, so.y() - topPos, pw, ph));

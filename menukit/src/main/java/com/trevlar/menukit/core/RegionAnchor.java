@@ -5,8 +5,8 @@ package com.trevlar.menukit.core;
  * predictable ordering for sibling panels that share a region.
  *
  * <p>Consumers don't typically construct this directly — chain
- * {@code MenuRegion.RIGHT_ALIGN_TOP.priority(50)} (or the equivalent
- * {@link HudRegion#priority(int)}) and pass the result anywhere a region
+ * {@code OutsideRegion.RIGHT_ALIGN_TOP.priority(50)} (or the equivalent
+ * {@link InsideRegion#priority(int)}) and pass the result anywhere a region
  * is accepted. Adapter / builder overloads pick up the priority and pass
  * it through to the registry.
  *
@@ -25,16 +25,16 @@ package com.trevlar.menukit.core;
  *
  * <h3>Library-not-platform alignment (§0019)</h3>
  *
- * The default-priority path (consumers pass {@code MenuRegion.X} directly)
+ * The default-priority path (consumers pass {@code OutsideRegion.X} directly)
  * gets deterministic ordering for free via the modId tiebreaker — no API
  * change is required of consumers who don't care about explicit ordering.
  * The {@code priority(int)} chainable exists only for the case where a
  * consumer DOES want explicit ordering; library-not-platform says the
  * consumer asks only when they care.
  *
- * @param <R>      the region enum type — one of {@link MenuRegion},
- *                 {@link SlotGroupRegion}, {@link HudRegion}, or
- *                 {@link ScreenRegion} (all four expose
+ * @param <R>      the region enum type — one of {@link OutsideRegion},
+ *                 {@link OutsideRegion}, {@link InsideRegion}, or
+ *                 {@link InsideRegion} (all four expose
  *                 {@code priority(int)} returning a {@code RegionAnchor})
  * @param region   the region itself
  * @param priority the stacking priority within that region (lower = first)

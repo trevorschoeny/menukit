@@ -1,6 +1,6 @@
 package com.trevlar.menukit.hud;
 
-import com.trevlar.menukit.core.HudRegion;
+import com.trevlar.menukit.core.InsideRegion;
 import com.trevlar.menukit.core.PanelElement;
 import com.trevlar.menukit.core.PanelStyle;
 
@@ -24,7 +24,7 @@ import org.jspecify.annotations.Nullable;
  * when {@code region != null}, the HUD dispatch resolves via
  * {@link com.trevlar.menukit.core.RegionMath#resolveHud} with a
  * stacking prefix from
- * {@link com.trevlar.menukit.inject.RegionRegistry#axialPrefix(MKHudPanelDef, HudRegion)};
+ * {@link com.trevlar.menukit.inject.RegionRegistry#axialPrefix(MKHudPanelDef, InsideRegion)};
  * otherwise it falls back to {@code anchor.resolve(...)}. Builder validation
  * guarantees at most one is set. See M5 design doc §4.3.
  *
@@ -44,7 +44,7 @@ public record MKHudPanelDef(
         BooleanSupplier showWhen,
         boolean hideInScreen,
         @Nullable HudRenderCallback onRender,
-        @Nullable HudRegion region
+        @Nullable InsideRegion region
 ) {
     /**
      * Callback for custom rendering on a HUD panel.

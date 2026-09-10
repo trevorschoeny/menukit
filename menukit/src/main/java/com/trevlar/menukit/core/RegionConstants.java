@@ -3,28 +3,30 @@ package com.trevlar.menukit.core;
 /**
  * Single source of truth for the region-positioning layout constants —
  * stacking gaps and edge insets — shared across all four region contexts
- * ({@link MenuRegion}, {@link SlotGroupRegion}, {@link HudRegion},
- * {@link ScreenRegion}) and both pure math helpers
+ * ({@link OutsideRegion}, {@link OutsideRegion}, {@link InsideRegion},
+ * {@link InsideRegion}) and both pure math helpers
  * ({@link RegionMath}, {@link SlotGroupRegionMath}).
  *
  * <h2>Why a shared home (Phase 3b — Item 4c centralize)</h2>
  *
  * These constants previously lived inconsistently: {@link RegionMath} held
  * {@code STACK_GAP = 2} (consumed by the menu, slot-group, AND HUD prefix
- * paths), {@link ScreenRegion} held its own {@code STACK_GAP = 4} +
- * {@code EDGE_INSET = 4}, and {@link HudRegion} held {@code EDGE_INSET = 4}
+ * paths), {@link InsideRegion} held its own {@code STACK_GAP = 4} +
+ * {@code EDGE_INSET = 4}, and {@link InsideRegion} held {@code EDGE_INSET = 4}
  * but no stack gap of its own (the HUD prefix path borrowed
  * {@code RegionMath.STACK_GAP}). Four declarations, three of which had to
  * stay in lock-step by hand. This class hoists them into one place so a
  * value lives in exactly one spot.
  *
  * <p><b>This is the single public home (Phase 5 — symmetry pass).</b> The
- * per-enum constant faces ({@code ScreenRegion.STACK_GAP}/{@code
- * EDGE_INSET}, {@code HudRegion.EDGE_INSET}) were removed so all four region
- * enums present an identical surface — consumers read the values here. (The
- * lone exception is {@link HudRegion#CENTER_CROSSHAIR_CLEARANCE}, a genuinely
- * HUD-only value with no equivalent in the other three contexts, which stays
- * on {@code HudRegion}.) Values are unchanged — no visual change.
+ * per-enum constant faces ({@code InsideRegion.STACK_GAP}/{@code
+ * EDGE_INSET}, {@code InsideRegion.EDGE_INSET}) were removed so all four region
+ * enums present an identical surface — consumers read the values here. As of
+ * 5.0.0 that includes {@link #CENTER_CROSSHAIR_CLEARANCE}: it was the lone
+ * per-enum exception, and collapsing the HUD and screen vocabularies into one
+ * {@link InsideRegion} left it with nowhere else to live, since it applies to the
+ * HUD context and not the screen-chrome one. Values are unchanged — no visual
+ * change.
  *
  * <h2>Per-context values are PRESERVED, not collapsed</h2>
  *
@@ -69,7 +71,7 @@ public final class RegionConstants {
     /**
      * Stacking gap (pixels, GUI-scaled) for the vanilla non-container screen
      * context. {@code = 4}. Preserves the pre-hoist
-     * {@code ScreenRegion.STACK_GAP} value.
+     * {@code InsideRegion.STACK_GAP} value.
      */
     public static final int SCREEN_STACK_GAP = 4;
 
@@ -78,6 +80,20 @@ public final class RegionConstants {
      * contexts. {@code = 4}, matching vanilla's F3 debug-overlay convention.
      */
     public static final int EDGE_INSET = 4;
+
+    /**
+     * Extra downward offset for {@link InsideRegion#CENTER} on the HUD, so a
+     * centered HUD panel clears the crosshair. {@code = 16}.
+     *
+     * <p>HUD-only: the screen-chrome path resolves {@code CENTER} to the true
+     * centre. It lived on the old {@code HudRegion} enum for exactly that reason;
+     * with the HUD and screen vocabularies collapsed into one
+     * {@link InsideRegion}, a value that applies to one context and not the other
+     * cannot live on the enum, so it moves here. That it had to move is the
+     * clearest evidence that resolution is a property of the context, not of the
+     * region.
+     */
+    public static final int CENTER_CROSSHAIR_CLEARANCE = 16;
 
     /**
      * Screen-edge safe-area margin (pixels, GUI-scaled) for the adaptive
