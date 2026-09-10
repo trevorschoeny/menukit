@@ -62,13 +62,13 @@ A hidden element or panel is inert on every surface. It does not render, receive
 
 ## Reference
 
-A reference is the rectangle a panel is placed against. It is not the panel, and it has nothing to do with the panel's own size. Three kinds exist: a container screen's frame, one slot group's bounding box, and the game window.
+A reference is the rectangle a panel is measured against. It is not the panel and has no relation to the panel's size. Three kinds exist: a container screen's frame, one slot group's bounding box, and the game window. `Reference` is the record that carries all three.
 
-Which one a placement uses is decided by the call site. `ScreenPanelAdapter` measures from the menu frame, `SlotGroupPanelAdapter` from the slot group it targets, `MK.registerHud` from the window. So a region never names its reference.
+The call site picks the reference. `ScreenPanelAdapter` measures from the menu frame. `SlotGroupPanelAdapter` measures from the slot group it targets. `MKHudPanel.builder(...).region(...)` measures from the window. A region never names its reference.
 
 ## Region
 
-A region names where a panel sits relative to its reference. Two vocabularies exist, shaped differently:
+A region names where a panel sits relative to its reference. Two enums exist, one for each side of the reference's edge:
 
 | Type | Placement | Values |
 |---|---|---|
@@ -100,7 +100,9 @@ An element renders the same in every context. The context owns the machinery aro
 
 A `ScreenPanelAdapter` with no target renders on every container screen. `.on(Class...)` limits it to those screen classes and their subclasses. `.onAny()` states the default explicitly. `.onPlayerInventory()` limits it to the player inventory screen.
 
-A `SlotGroupPanelAdapter` requires `.on(SlotGroupCategory...)`. It renders once per category that resolves in the open menu. Categories cover every vanilla menu. A mod with its own menu registers a `SlotGroupResolver` for it.
+A `SlotGroupPanelAdapter` requires a target. `.on(SlotGroupCategory...)` renders once per category that resolves in the open menu. `.onGroup(SlotGroupId...)` renders once per named created group. `MKCContainerPanel.groupId(panelId, groupId)` and `MKCSlots.groupId(panelId, groupId)` return the id. Categories cover every vanilla menu. A mod with its own menu registers a `SlotGroupResolver` for it.
+
+A panel anchored to a slot group is measured from that one group, not from every slot sharing its category.
 
 Both adapters register in their constructor. `unregister()` removes them.
 
@@ -118,15 +120,15 @@ Every created slot group (Containers) declares a category and is listed under it
 
 A mod finds another mod's slots this way, with MenuKit types only.
 
-Mint your own category whenever no vanilla one would give another mod the right answer: `new SlotGroupCategory("mymod", "pouch")`. Pick a vanilla category instead when you want to inherit its meaning. A pocket that should turn up in every inventory search declares `PLAYER_INVENTORY` and is found by mods that have never heard of pockets. That choice is the interoperability decision, and it is yours. A category name becomes a public contract once another mod depends on it, so renaming one is a breaking change.
+Pick a vanilla category when the group is one of those things. A pocket group that declares `PLAYER_INVENTORY` appears in every inventory search run by a mod that has never heard of pockets. Mint a category when no vanilla one gives another mod the right answer: `new SlotGroupCategory("mymod", "pouch")`. A category name is a public contract once another mod depends on it. Renaming one is a breaking change.
 
-A category says what a slot is, never what may be done to it. That is an operation.
+A category says what a slot is. An operation says what may be done to it.
 
 ## Operation
 
-An operation is a bulk or shortcut action performed on a slot. Vanilla ships three: shift-click (`QUICK_MOVE`), double-click collect (`COLLECT`), and drag-fill (`DRAG_FILL`).
+An operation is a bulk or shortcut action performed on a slot. Vanilla ships three: shift-click (`MKCBehaviorKeys.QUICK_MOVE`, Containers), double-click collect (`BehaviorKeys.COLLECT`), and drag-fill (`BehaviorKeys.DRAG_FILL`).
 
-The vocabulary is open. An operation is named by a `BehaviorKey`, so any mod adds one: declare the key, publish it with `SlotOperations.define` so others can discover it through `SlotOperations.all()`, and consult it in your own code. MenuKit needs no change for a new operation to exist, and a slot opts out of it through the same call it uses for the built-in ones.
+The vocabulary is open. An operation is a `BehaviorKey`. A mod declares the key, publishes it with `SlotOperations.define`, and consults it in its own code. `SlotOperations.all()` lists every published operation. MenuKit needs no change for a new operation to exist.
 
 A slot resolves an operation in this order:
 
@@ -134,11 +136,13 @@ A slot resolves an operation in this order:
 per-slot declaration  >  the slot's group  >  the group's category  >  the key's default
 ```
 
-Each level is more specific than the one after it, so the winner never depends on which mod declared last. A group is one `SlotSpec`, and its `collect(false)` outranks its category's inherent value; a consumer overriding one slot outranks the group.
+Each level is more specific than the next, so the winner never depends on which mod declared last. A group's `collect(false)` outranks its category's inherent value. A per-slot declaration outranks the group.
 
-`SlotOperations.inherent(category, operation, value)` sets what an operation does for every group in a category, so a mod that mints a category says once that nothing in it may be collected. Registration order does not matter. Reading an operation during your own init does: every operation is a server-tier key, so it answers the key default until Containers installs its tier, and mod init order is not fixed. Declare at init, read during play. A per-slot declaration still wins, which is what lets a slot be inventory storage for search purposes and still sit out the bulk shortcuts. On a `SlotSpec` the per-group form is `collect(false)`, `dragFill(false)`, and `quickMove(NONE)`.
+`SlotOperations.inherent(category, operation, value)` sets an operation for every group in a category. A mod that mints a category states once that nothing in it may be collected. Registration order does not matter. Read time does. Every operation is a server-tier key. It returns the key default until Containers installs its tier, and mod init order is not fixed. Declare at init. Read during play.
 
-Inherent operations reach created slots, whose category travels with the group. A vanilla slot's category depends on the menu it is in, which the window cannot ask about, so a vanilla slot resolves from its own declaration or the key's default. That is the same answer in practice: every built-in operation defaults to vanilla's behavior.
+On a `SlotSpec` the per-group form is `collect(false)`, `dragFill(false)`, and `quickMove(NONE)`. A per-slot declaration still wins, so a slot can count as inventory storage for search and still sit out the bulk shortcuts.
+
+Inherent operations reach created slots, whose category travels with the group. A vanilla slot's category depends on its menu, which the window cannot ask about. A vanilla slot therefore resolves from its own declaration or the key's default. Every built-in operation defaults to vanilla's behavior, so the result is the same in practice.
 
 ## Created slot
 
@@ -148,9 +152,9 @@ A created slot is a real `Slot` that a mod adds to a menu through Containers. It
 
 ## Slot rendering
 
-Vanilla draws every slot. MenuKit runs no slot pass of its own on container screens. A created slot's panel writes the position into vanilla's `Slot.x` and `Slot.y` before vanilla's slot pass, and vanilla then draws the item, count, hover highlight, and ghost icon for created and vanilla slots alike.
+Vanilla draws every slot. MenuKit runs no slot pass of its own on container screens. A created slot's panel writes the position into vanilla's `Slot.x` and `Slot.y` before vanilla's slot pass. Vanilla then draws the item, count, hover highlight, and ghost icon for created and vanilla slots alike.
 
-One consequence reaches mods that never touch MenuKit. A mod that decorates slots through a mixin on vanilla's slot draw call marks created slots too. It needs no dependency on MenuKit and no interface to adopt. Inventory Plus is the worked example. Its lock icons and item marks appear on Inventory Max's pockets and equipment slots, with no code in either mod for that case.
+One consequence reaches mods that do not depend on MenuKit. A mod that decorates slots through a mixin on vanilla's slot draw call marks created slots too. It needs no dependency on MenuKit and no interface to adopt. Inventory Plus is the worked example. Its lock icons and item marks appear on Inventory Max's pockets and equipment slots, with no code in either mod for that case.
 
 A panel hides exactly what it covers. Flow panels composite between the vanilla slots and the created slots, inside vanilla's slot pass. A panel over part of a vanilla slot hides that part and no more. A created slot's item still draws over the chrome of the panel hosting it. Overlay panels draw after the slot pass, on top of it. An overlay panel is one that centers, dims behind, or tracks as modal.
 

@@ -19,6 +19,8 @@ What it does:
 - Positions panels by screen region and resizes them to fit automatically, wrapping and scrolling as needed, at any GUI scale.
 - Lets more than one mod add UI to the same screen without conflict: panels sharing a region stack in order instead of overlapping.
 - Creates real, server-synced slots as UI components and shows them on every container screen without per-screen setup.
+- Publishes every slot group, vanilla or created, under a category any mod can read, with or without a menu open.
+- Names what may be done to a slot as operations: shift-click, double-click collect, drag-fill, and any a mod adds. A slot, its group, or its category answers, in that order.
 - Attaches per-slot state to any slot, private per player or shared across viewers, stored on the slot's owner and readable with `/data get`.
 - Handles modal overlays, click-through prohibition, recipe-book awareness, and cursor stability across screen changes.
 
@@ -37,14 +39,14 @@ dependencies {
 }
 ```
 
-Declare what you use in `fabric.mod.json`:
+Declare what you use in `fabric.mod.json`, with both bounds ([why](docs/versioning.md)):
 
 ```json
-"depends": { "menukit": ">=5.0.0" }
+"depends": { "menukit": ">=5.0.0 <6.0.0" }
 ```
 
 ```json
-"depends": { "menukit": ">=5.0.0", "menukit-containers": ">=5.0.0" }
+"depends": { "menukit": ">=5.0.0 <6.0.0", "menukit-containers": ">=5.0.0 <6.0.0" }
 ```
 
 ## Example
@@ -93,6 +95,17 @@ The `validator-mk` and `validator-mkc` mods in the same workspace are the refere
 Both artifacts build from the workspace root: `./gradlew :menukit:build :menukit-containers:build`.
 
 ## Upgrading
+
+**To 5.0.0.** Four region enums are two, and two bounds records are one. Replace the type names; the constants inside are unchanged.
+
+| Was | Is |
+|---|---|
+| `MenuRegion`, `SlotGroupRegion` | `OutsideRegion` |
+| `HudRegion`, `ScreenRegion` | `InsideRegion` |
+| `ScreenBounds`, `SlotGroupBounds` | `Reference` |
+| `HudRegion.CENTER_CROSSHAIR_CLEARANCE` | `RegionConstants.CENTER_CROSSHAIR_CLEARANCE` |
+
+With Containers, every created slot group declares a `SlotGroupCategory`: `SlotSpec.at(id, category)`, `MKCSlots.onto(...).category(...)`, and `PanelBuilder.group(id, category, storage)`. A group without one fails at runtime on the first menu it opens. Each 5.0.0 changelog lists the full set.
 
 **To 4.0.0.** Vanilla draws every slot; MenuKit runs no slot pass of its own. Two public shapes changed:
 
