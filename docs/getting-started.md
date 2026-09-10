@@ -20,8 +20,17 @@ dependencies {
 Declare the dependency in `fabric.mod.json`:
 
 ```json
-"depends": { "menukit": ">=5.0.0" }
+"depends": { "menukit": ">=5.0.0 <6.0.0" }
 ```
+
+Declare both bounds. The lower bound guarantees the API you call exists. The upper bound stops
+the next breaking MenuKit from loading against a jar built before it existed, which would fail
+at a class load somewhere in the middle of a play session instead of at launch.
+
+Separate the bounds with a space. Fabric accepts a comma here and the resulting predicate then
+matches no version at all, which disables your mod without an error message.
+
+See [Versioning](versioning.md) for the full contract.
 
 ## 2. Register a HUD panel
 

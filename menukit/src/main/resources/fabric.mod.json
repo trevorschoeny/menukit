@@ -19,10 +19,10 @@
     "minecraft": "~26.2"
   },
   "breaks": {
-    "inventoryplus": "<1.5.0",
-    "inventorymax": "<1.0.2",
-    "hivesight": "<1.0.1",
-    "offshore": "<1.0.1",
-    "keybindery": "<1.0.3"
+    "inventoryplus": "<1.6.0",
+    "inventorymax": "<1.0.3",
+    "hivesight": "<1.0.2",
+    "offshore": "<1.0.2",
+    "keybindery": "<1.0.4"
   }
 }

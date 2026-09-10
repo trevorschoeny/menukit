@@ -110,3 +110,5 @@ MIT. See `LICENSE`.
 ## Issues
 
 [github.com/trevorschoeny/menukit/issues](https://github.com/trevorschoeny/menukit/issues).
+
+Version compatibility, and what to put in `depends`: [docs/versioning.md](docs/versioning.md).
