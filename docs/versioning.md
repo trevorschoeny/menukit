@@ -18,19 +18,25 @@ rebuilt for a newer Minecraft.
 
 ## What to declare
 
-Pin to the major you built against:
+Pin to the major.minor you built against, not just the major:
 
 ```json
-"depends": { "menukit": ">=5.0.0 <6.0.0" }
+"depends": { "menukit": ">=5.1.0 <6.0.0" }
 ```
 
-If you also use MenuKit: Containers, pin it the same way. Containers and MenuKit are released
-together and always carry the same version, so pick the same major for both.
+A minor release can add API. MenuKit 5.1.0 added `SlotOperations`, `SlotGroups`, and
+`SlotGroupSet`. If your mod calls those and only declares `">=5.0.0"`, it loads fine on
+MenuKit 5.0.0 and crashes with `NoSuchMethodError` the first time it calls something that
+does not exist yet at that version. Semantic versioning only promises new API moving forward
+within a major, so your floor has to track the minor you actually used.
+
+If you also use MenuKit: Containers, pin it the same way, to the minor you built against.
+Containers and MenuKit are released together and always carry the same version.
 
 ```json
 "depends": {
-  "menukit": ">=5.0.0 <6.0.0",
-  "menukit-containers": ">=5.0.0 <6.0.0"
+  "menukit": ">=5.1.0 <6.0.0",
+  "menukit-containers": ">=5.1.0 <6.0.0"
 }
 ```
 
