@@ -8,6 +8,10 @@ A lock is a veto. `SlotOperations.veto(rule)` registers a rule that can only say
 
 A click a mod sends counts as the operation it serves. `SlotOperations.as(take, put, clicks)` tags every click sent inside it, and the vetoes judge the tag's operation instead of the gesture, so a lock that blocks shift-click does not block a restock that shift-clicks. The slot's author still judges the gesture. The tag reaches the integrated server. A click sent without a tag counts as the gesture it looks like.
 
+Q, Ctrl-Q and F work the same with no screen open. While playing, they are the `DROP`, `DROP_STACK` and `OFFHAND_SWAP` operations on the selected hotbar slot, so a veto that stops Q in the inventory stops it mid-fight too. An offhand swap also asks the offhand slot.
+
+Operations have a role. `SlotOperations.define(op, Role.TAKE)` says an operation takes items out of a slot, `PUT` that it puts them in, `BOTH` that it does both. `SlotOperations.role(op)` reads it back, for any mod's operation. A settings screen can use it to show a lock on an item only the operations that could move that item.
+
 The client refuses to send a click its own slot refuses. A plain click, shift-click out, drop, swap, or drag onto a refused slot never leaves the client, so it holds on any server.
 
 Vanilla slots get the group and category rungs. A category's inherent operations reached created slots only in 5.0.0. Now `allows` reads a vanilla slot's category from its menu, so `inherent(PLAYER_HOTBAR, SHIFT_CLICK_IN, FALSE)` keeps shift-clicks out of the hotbar and lets them into the 9x3. `WindowEngine.resolve` gains an overload that takes memberships the caller states.

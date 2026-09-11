@@ -226,7 +226,7 @@ public static final BehaviorKey<TriBool> RESTOCK_TAKE = BehaviorKey.of(
         Tier.SERVER, KindTag.VANILLA_SLOT, KindTag.CREATED_SLOT);
 
 // init
-SlotOperations.define(RESTOCK_TAKE);
+SlotOperations.define(RESTOCK_TAKE, SlotOperations.Role.TAKE);
 
 // wherever the operation picks a slot
 if (!SlotOperations.allows(menu, slot, player, RESTOCK_TAKE)) continue;

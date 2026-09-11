@@ -94,7 +94,19 @@ public class MK implements ModInitializer {
         // SlotGroupCategories.all() / SlotOperations.all() and adds its own with
         // SlotGroupCategories.declare(...) / SlotOperations.define(...).
         SlotGroupCategory.vanilla().forEach(SlotGroupCategories::declare);
-        BehaviorKeys.VANILLA_OPERATIONS.forEach(SlotOperations::define);
+        // Each with the role it plays on a slot, so a settings screen can tell what
+        // takes items out from what puts them in.
+        SlotOperations.define(BehaviorKeys.CLICK_TAKE, SlotOperations.Role.TAKE);
+        SlotOperations.define(BehaviorKeys.CLICK_PUT, SlotOperations.Role.PUT);
+        SlotOperations.define(BehaviorKeys.SHIFT_CLICK_OUT, SlotOperations.Role.TAKE);
+        SlotOperations.define(BehaviorKeys.SHIFT_CLICK_IN, SlotOperations.Role.PUT);
+        SlotOperations.define(BehaviorKeys.COLLECT, SlotOperations.Role.TAKE);
+        SlotOperations.define(BehaviorKeys.DRAG_FILL, SlotOperations.Role.PUT);
+        SlotOperations.define(BehaviorKeys.HOTBAR_SWAP, SlotOperations.Role.BOTH);
+        SlotOperations.define(BehaviorKeys.OFFHAND_SWAP, SlotOperations.Role.BOTH);
+        SlotOperations.define(BehaviorKeys.DROP, SlotOperations.Role.TAKE);
+        SlotOperations.define(BehaviorKeys.DROP_STACK, SlotOperations.Role.TAKE);
+        SlotOperations.define(BehaviorKeys.WORLD_PICKUP, SlotOperations.Role.PUT);
         LOGGER.info("[MenuKit] Initialized");
     }
 
