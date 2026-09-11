@@ -66,6 +66,10 @@ A reference is the rectangle a panel is measured against. It is not the panel an
 
 The call site picks the reference. `ScreenPanelAdapter` measures from the menu frame. `SlotGroupPanelAdapter` measures from the slot group it targets. `MKHudPanel.builder(...).region(...)` measures from the window. A region never names its reference.
 
+## Panel on a vanilla screen
+
+`VanillaScreenPanelAdapter` anchors a panel onto any non-container screen — Options, Controls, KeyBinds, world-select, server-list, the title screen, the pause menu, anywhere `Screen` (not `AbstractContainerScreen`) is the superclass. `.on(ScreenClass...)` or `.onAny()` declares targeting; `InsideRegion` anchors it, the same enum a HUD panel uses. Render and click both gate on the panel's visibility, so `showWhen(...)` holds here exactly as it does on a container screen: a hidden panel draws nothing and eats no clicks. v1 is region-based only, with no modal or dim-behind machinery — fold on evidence.
+
 ## Region
 
 A region names where a panel sits relative to its reference. Two enums exist, one for each side of the reference's edge:

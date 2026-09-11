@@ -7,7 +7,7 @@ What MenuKit and MenuKit: Containers do not do, and the open gaps a consumer can
 These are not planned. Use vanilla or another library.
 
 - Config screens. Use YACL or Cloth Config.
-- Chat, the F3 overlay, world and server select, the title screen, and the pause menu.
+- Chat and the F3 overlay. Both render outside the `Screen` system `VanillaScreenPanelAdapter` targets.
 - Nested panels. A panel holds elements only.
 - Themes and skins. `PanelStyle` and `ControlStyle` are the full set.
 - Animation beyond HUD notifications.
