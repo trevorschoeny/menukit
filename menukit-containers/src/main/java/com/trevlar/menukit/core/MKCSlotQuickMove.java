@@ -84,14 +84,14 @@ public final class MKCSlotQuickMove {
     @SuppressWarnings("removal")
     private static boolean exports(AbstractContainerMenu menu, MKCSlot slot, Player player) {
         return WindowEngine.resolve(slot.address(), MKCBehaviorKeys.QUICK_MOVE).exports()
-                && SlotOperations.allows(menu, slot, player, BehaviorKeys.SHIFT_CLICK_OUT);
+                && SlotOperations.allowsGesture(menu, slot, player, BehaviorKeys.SHIFT_CLICK_OUT);
     }
 
     /** Whether a created slot takes a shift-click: the SHIFT_CLICK_IN operation, and the deprecated key. */
     @SuppressWarnings("removal")
     private static boolean imports(AbstractContainerMenu menu, MKCSlot slot, Player player) {
         return WindowEngine.resolve(slot.address(), MKCBehaviorKeys.QUICK_MOVE).imports()
-                && SlotOperations.allows(menu, slot, player, BehaviorKeys.SHIFT_CLICK_IN);
+                && SlotOperations.allowsGesture(menu, slot, player, BehaviorKeys.SHIFT_CLICK_IN);
     }
 
     /**

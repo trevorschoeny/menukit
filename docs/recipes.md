@@ -239,5 +239,13 @@ With two lang lines:
 "slot_operation.mymod.restock_take.description": "Auto-restock may pull a refill out of this slot."
 ```
 
-Result: the operation appears in `SlotOperations.all()` for every mod to list, a slot's author can turn it off per slot, group, or category (`SlotOperations.inherent`), and a locking mod's veto reaches it. An operation that moves items between two slots is two keys, one for the slot being emptied and one for the slot being filled, so a lock can answer each side on its own.
+If the operation moves items by sending clicks, send them under its name:
+
+```java
+SlotOperations.as(RESTOCK_TAKE, RESTOCK_PUT, () -> {
+    gameMode.handleContainerInput(menu.containerId, from, 0, ContainerInput.QUICK_MOVE, player);
+});
+```
+
+Result: the operation appears in `SlotOperations.all()` for every mod to list, a slot's author can turn it off per slot, group, or category (`SlotOperations.inherent`), and a locking mod's veto reaches it. An operation that moves items between two slots is two keys, one for the slot being emptied and one for the slot being filled, so a lock can answer each side on its own. Its clicks are judged as the operation, not as the shift-click or plain click they look like, so a lock that blocks shift-click does not block it.
 

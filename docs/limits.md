@@ -30,6 +30,7 @@ Behavior that is incomplete in the current release.
 | Window scope | Every address resolves in the primary scope. Per-tab and per-sub-window scopes are not active. |
 | Panel and element addressing | The window addresses slots. It does not yet address panels or elements. |
 | Operations on a slot reached with no menu open | World pickup (`Inventory.getFreeSlot`) has no menu, so a vanilla slot's category is unknown there and MenuKit alone cannot mint its address. `WORLD_PICKUP` on such a slot resolves from the key's default and then the vetoes. With Containers present the slot has an address and a per-slot declaration reaches it. |
+| Operations the server works out for itself, on a server without MenuKit | The client refuses to send a click whose own slot refuses it: plain click, shift-click out, drop, swap, a slot joining a drag. Where a shift-click lands, what double-click collect sweeps, and where a picked-up item goes are decided by the server. Those hold in singleplayer and on a LAN host, where MenuKit runs the server side, and not on a server that does not run it. |
 | Persisting a created slot identity | An `Address` has no codec, and the client-side addressing helper is internal. A consumer that must remember one created slot across sessions encodes the identity itself. Vanilla slot indices are unaffected. |
 | Drop rule key | `dropsOnDeath(DropRule)` on a player storage attachment covers death. No window key covers drop rules. |
 | Block-entity container resolver | Registering a custom resolver for a block entity is a no-op. |

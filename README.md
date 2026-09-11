@@ -20,7 +20,7 @@ What it does:
 - Lets more than one mod add UI to the same screen without conflict: panels sharing a region stack in order instead of overlapping.
 - Creates real, server-synced slots as UI components and shows them on every container screen without per-screen setup.
 - Publishes every slot group, vanilla or created, under a category any mod can read, with or without a menu open.
-- Names what may be done to a slot as operations: vanilla's nine, split one per gesture, and any a mod adds, each with a display name and description. A slot, its group, or its category answers, in that order, and a locking mod lays a veto over all three. Every operation asks `SlotOperations.allows` before it acts.
+- Names what may be done to a slot as operations: vanilla's eleven, split one per gesture and plain clicks included, and any a mod adds, each with a display name and description. A slot, its group, or its category answers, in that order, and a locking mod lays a veto over all three. Every operation asks `SlotOperations.allows` before it acts, and a click a mod sends counts as the operation it serves.
 - Attaches per-slot state to any slot, private per player or shared across viewers, stored on the slot's owner and readable with `/data get`.
 - Handles modal overlays, click-through prohibition, recipe-book awareness, and cursor stability across screen changes.
 

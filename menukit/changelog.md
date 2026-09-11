@@ -1,10 +1,14 @@
 5.1.0: Every operation in the game can be listed, named, scoped, and blocked. Adds API and breaks nothing.
 
-Vanilla's operations are split as far as they go. Nine keys, one per thing a player can do to a slot: `SHIFT_CLICK_OUT`, `SHIFT_CLICK_IN`, `COLLECT`, `DRAG_FILL`, `HOTBAR_SWAP`, `OFFHAND_SWAP`, `DROP`, `DROP_STACK`, and `WORLD_PICKUP`. They are `BehaviorKeys.VANILLA_OPERATIONS`. Every one is on by default. MenuKit now enforces them itself at vanilla's own seams, for every slot kind, so a mod that depends on MenuKit alone gets the enforcement without Containers.
+Vanilla's operations are split as far as they go. Eleven keys, one per thing a player can do to a slot: `CLICK_TAKE`, `CLICK_PUT`, `SHIFT_CLICK_OUT`, `SHIFT_CLICK_IN`, `COLLECT`, `DRAG_FILL`, `HOTBAR_SWAP`, `OFFHAND_SWAP`, `DROP`, `DROP_STACK`, and `WORLD_PICKUP`. A plain click takes, puts, or both when it swaps. They are `BehaviorKeys.VANILLA_OPERATIONS`. Every one is on by default. MenuKit now enforces them itself at vanilla's own seams, for every slot kind, so a mod that depends on MenuKit alone gets the enforcement without Containers.
 
 Operations have names. `SlotOperations.name(op)` and `description(op)` return translatable text on `slot_operation.<namespace>.<path>` and `.description`, and a mod ships the lines for its own operations in its lang file. A settings screen can list every operation that exists with words a player can read.
 
 A lock is a veto. `SlotOperations.veto(rule)` registers a rule that can only say no, laid over whatever a slot's author declared. `SlotOperations.allows(menu, slot, player, op)` is the one question: the cascade says yes and no veto says no. Every vanilla seam asks it, and an operation a mod adds should ask it too. A veto sees a `SlotRef` with the container and index, the live slot and menu, the acting player, and the slot's category.
+
+A click a mod sends counts as the operation it serves. `SlotOperations.as(take, put, clicks)` tags every click sent inside it, and the vetoes judge the tag's operation instead of the gesture, so a lock that blocks shift-click does not block a restock that shift-clicks. The slot's author still judges the gesture. The tag reaches the integrated server. A click sent without a tag counts as the gesture it looks like.
+
+The client refuses to send a click its own slot refuses. A plain click, shift-click out, drop, swap, or drag onto a refused slot never leaves the client, so it holds on any server.
 
 Vanilla slots get the group and category rungs. A category's inherent operations reached created slots only in 5.0.0. Now `allows` reads a vanilla slot's category from its menu, so `inherent(PLAYER_HOTBAR, SHIFT_CLICK_IN, FALSE)` keeps shift-clicks out of the hotbar and lets them into the 9x3. `WindowEngine.resolve` gains an overload that takes memberships the caller states.
 

@@ -126,7 +126,7 @@ A category says what a slot is. An operation says what may be done to it.
 
 ## Operation
 
-An operation is something done to a slot. Vanilla ships nine, split one key per thing a player can do: `SHIFT_CLICK_OUT`, `SHIFT_CLICK_IN`, `COLLECT` (double-click), `DRAG_FILL`, `HOTBAR_SWAP`, `OFFHAND_SWAP`, `DROP`, `DROP_STACK`, and `WORLD_PICKUP`. They are `BehaviorKeys.VANILLA_OPERATIONS`, every one on by default, and MenuKit enforces them at vanilla's own seams for every slot kind. A swap has two slots, and both must allow it.
+An operation is something done to a slot. Vanilla ships eleven, split one key per thing a player can do: `CLICK_TAKE`, `CLICK_PUT`, `SHIFT_CLICK_OUT`, `SHIFT_CLICK_IN`, `COLLECT` (double-click), `DRAG_FILL`, `HOTBAR_SWAP`, `OFFHAND_SWAP`, `DROP`, `DROP_STACK`, and `WORLD_PICKUP`. They are `BehaviorKeys.VANILLA_OPERATIONS`, every one on by default, and MenuKit enforces them at vanilla's own seams for every slot kind. A plain click takes, puts, or both when it swaps different items. A swap key has two slots, and both must allow it. The client refuses to send a click its own slot refuses, so that part holds on any server.
 
 The vocabulary is open. An operation is a `BehaviorKey`. A mod declares the key, publishes it with `SlotOperations.define`, ships a name and a description in its lang file, and asks `SlotOperations.allows` in its own code before acting. `SlotOperations.all()` lists every published operation. `SlotOperations.name(op)` and `description(op)` are translatable components on `slot_operation.<namespace>.<path>` and `.description`, so a settings screen can list them. MenuKit needs no change for a new operation to exist.
 
@@ -141,6 +141,8 @@ Each level is more specific than the next, so the winner never depends on which 
 The second is a veto. `SlotOperations.veto(rule)` registers a rule that can only say no, for a mod that is not the slot's author: a player's lock is the case. A veto sits beside the cascade and subtracts, so it never overwrites what the slot's author declared and has nothing to restore when the lock lifts. A veto that throws is logged once and skipped.
 
 `SlotOperations.allows(menu, slot, player, operation)` is the one question: the cascade says yes and no veto says no. Every seam asks it, and so should every operation a mod adds. The `SlotRef` a veto sees carries the container and index, the live slot and menu when there is one, the acting player when there is one, and the slot's category.
+
+A mod that performs its operation by sending clicks wraps them: `SlotOperations.as(take, put, () -> sendClicks())`, or `as(op, ...)` when both sides are one operation. Each click sent inside carries the operation it serves, the first for the slot it takes from and the second for the slot it puts into. The vetoes judge that operation instead of the gesture, so a lock that refuses shift-click but allows restock lets the restock's shift-click through. The slot's author still judges the gesture. The tag reaches the integrated server. Clicks must be sent inside the block, on the calling thread. A simulated click that is not wrapped counts as the gesture it looks like.
 
 Registration order does not matter. Read time does. Every operation is a server-tier key. It returns the key default until Containers installs its tier, and mod init order is not fixed. Declare at init. Read during play.
 
