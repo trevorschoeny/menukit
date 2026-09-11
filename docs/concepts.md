@@ -120,6 +120,20 @@ Every created slot group (Containers) declares a category and is listed under it
 
 A mod finds another mod's slots this way, with MenuKit types only.
 
+Groups are listed too, with no menu open, for a settings screen that runs from the title screen:
+
+| Call | Answers |
+|---|---|
+| `SlotGroups.all()` | every declared group: one per vanilla category, and every created group |
+| `SlotGroups.listing()` | the player-facing rows: each lone group, and each named set once |
+| `SlotGroups.entryKey(id)` | the key a choice about a group on a live menu was saved under |
+
+A category cannot tell a mod's pockets from the main inventory when both declare `PLAYER_INVENTORY`; a group can. A mod that splits one thing into many groups, one per anchor, puts them in one `SlotGroupSet` with `SlotGroups.declare(id, category, set)`, and the listing shows the set as one row. A choice saved under a set's key reaches every group in it.
+
+Groups and sets are named like operations. `SlotGroups.name(id)` and `name(set)` are translatable on `slot_group.<...>` and `slot_group_set.<namespace>.<path>`; MenuKit ships vanilla's, and a mod ships its own. `SlotGroupId.asString()` and `SlotGroupSet.asString()` are stable text for a config file, with `parse` and a `CODEC` each.
+
+A container-panel group registers at init and is listed from the title screen. A group built with a menu (`MKCSlots.onto`) is listed after the first menu that carries it; to list it from the title screen, its mod declares it at init with `SlotGroups.declare`.
+
 Pick a vanilla category when the group is one of those things. A pocket group that declares `PLAYER_INVENTORY` appears in every inventory search run by a mod that has never heard of pockets. Mint a category when no vanilla one gives another mod the right answer: `new SlotGroupCategory("mymod", "pouch")`. A category name is a public contract once another mod depends on it. Renaming one is a breaking change.
 
 A category says what a slot is. An operation says what may be done to it.

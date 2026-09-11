@@ -14,6 +14,8 @@ Operations have a role. `SlotOperations.define(op, Role.TAKE)` says an operation
 
 The client refuses to send a click its own slot refuses. A plain click, shift-click out, drop, swap, or drag onto a refused slot never leaves the client, so it holds on any server.
 
+Slot groups are listed with no menu open. `SlotGroups.all()` is every declared group, vanilla's one per category and every created group, and `SlotGroups.listing()` is the player-facing list a settings screen shows. A `SlotGroupSet` joins many groups into one row, so a mod that anchors per slot shows one entry instead of one per slot, and a choice saved under the set reaches all of them through `SlotGroups.entryKey(id)`. Groups and sets have translatable names on keys derived from their ids, and MenuKit ships names for vanilla's. `SlotGroupId` and `SlotGroupSet` gain `asString()`, `parse`, and a `CODEC`, stable text for saving a choice.
+
 Vanilla slots get the group and category rungs. A category's inherent operations reached created slots only in 5.0.0. Now `allows` reads a vanilla slot's category from its menu, so `inherent(PLAYER_HOTBAR, SHIFT_CLICK_IN, FALSE)` keeps shift-clicks out of the hotbar and lets them into the 9x3. `WindowEngine.resolve` gains an overload that takes memberships the caller states.
 
 Deprecated: nothing in MenuKit itself. Containers' `QUICK_MOVE` is deprecated in its own changelog.
