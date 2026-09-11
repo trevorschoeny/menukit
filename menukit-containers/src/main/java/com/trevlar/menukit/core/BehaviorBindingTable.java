@@ -61,9 +61,14 @@ public final class BehaviorBindingTable implements ServerTierBridge, Authoritati
 
     @Override
     public <V> Decl<V> resolve(Address address, BehaviorKey<V> key) {
+        return resolve(address, key, java.util.List.of());
+    }
+
+    @Override
+    public <V> Decl<V> resolve(Address address, BehaviorKey<V> key, java.util.Collection<GroupKey> alsoMemberOf) {
         Decl<V> slot = declAt(address, key);
         if (slot instanceof Decl.Set<V>) return slot;           // server overrides at slot
-        Decl<V> group = declForGroups(address, key);
+        Decl<V> group = declForGroups(address, key, alsoMemberOf);
         if (group instanceof Decl.Set<V>) return group;         // server overrides at group
         return Decl.inherit();                                  // server does not override
     }
@@ -93,11 +98,12 @@ public final class BehaviorBindingTable implements ServerTierBridge, Authoritati
     }
 
     @SuppressWarnings("unchecked")
-    private <V> Decl<V> declForGroups(Address address, BehaviorKey<V> key) {
+    private <V> Decl<V> declForGroups(Address address, BehaviorKey<V> key,
+                                      java.util.Collection<GroupKey> alsoMemberOf) {
         Decl<V> result = null;
         int best = Integer.MIN_VALUE;
         for (GroupBinding b : groups) {                 // registration order
-            if (!b.group().contains(address)) continue;
+            if (!b.group().contains(address) && !alsoMemberOf.contains(b.group())) continue;
             Decl<?> d = b.decls().get(key);
             if (d == null) continue;
             // Same rule as the client engine: higher precedence wins, last-declared

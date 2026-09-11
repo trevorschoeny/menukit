@@ -1,6 +1,8 @@
 package com.trevlar.menukit.core;
 
 import com.trevlar.menukit.mixin.AbstractContainerMenuInvoker;
+import com.trevlar.menukit.window.BehaviorKeys;
+import com.trevlar.menukit.window.SlotOperations;
 import com.trevlar.menukit.window.WindowEngine;
 
 import net.minecraft.world.entity.player.Player;
@@ -78,9 +80,18 @@ public final class MKCSlotQuickMove {
         return routeIntoSlots(menu, player, source, groupReps);
     }
 
-    /** A created slot's quick-move participation, resolved from the engine by its address. */
-    private static QuickMoveParticipation qmpOf(MKCSlot slot) {
-        return WindowEngine.resolve(slot.address(), MKCBehaviorKeys.QUICK_MOVE);
+    /** Whether a created slot yields to a shift-click: the SHIFT_CLICK_OUT operation, and the deprecated key. */
+    @SuppressWarnings("removal")
+    private static boolean exports(AbstractContainerMenu menu, MKCSlot slot, Player player) {
+        return WindowEngine.resolve(slot.address(), MKCBehaviorKeys.QUICK_MOVE).exports()
+                && SlotOperations.allows(menu, slot, player, BehaviorKeys.SHIFT_CLICK_OUT);
+    }
+
+    /** Whether a created slot takes a shift-click: the SHIFT_CLICK_IN operation, and the deprecated key. */
+    @SuppressWarnings("removal")
+    private static boolean imports(AbstractContainerMenu menu, MKCSlot slot, Player player) {
+        return WindowEngine.resolve(slot.address(), MKCBehaviorKeys.QUICK_MOVE).imports()
+                && SlotOperations.allows(menu, slot, player, BehaviorKeys.SHIFT_CLICK_IN);
     }
 
     /**
@@ -92,14 +103,14 @@ public final class MKCSlotQuickMove {
                                              int firstSlotIndex) {
         SlotGroup sourceGroup = source.getGroup();
         if (source.isInert() || !source.hasItem()) return ItemStack.EMPTY;
-        if (!qmpOf(source).exports()) return ItemStack.EMPTY;
+        if (!exports(menu, source, player)) return ItemStack.EMPTY;
 
         ItemStack original = source.getItem().copy();
         ItemStack working = source.getItem();
         AbstractContainerMenuInvoker mover = (AbstractContainerMenuInvoker) menu;
 
         // 1. Other slot groups that import + accept, highest priority first.
-        for (SlotGroup candidate : sortedImporters(groupReps, sourceGroup, working)) {
+        for (SlotGroup candidate : sortedImporters(menu, player, groupReps, sourceGroup, working)) {
             if (working.isEmpty()) break;
             mover.mk$moveItemStackTo(working,
                     candidate.getFlatIndexStart(), candidate.getFlatIndexEnd(), false);
@@ -124,7 +135,7 @@ public final class MKCSlotQuickMove {
         if (!source.hasItem() || !source.mayPickup(player)) return ItemStack.EMPTY;
 
         ItemStack working = source.getItem();
-        List<SlotGroup> importers = sortedImporters(groupReps, null, working);
+        List<SlotGroup> importers = sortedImporters(menu, player, groupReps, null, working);
         if (importers.isEmpty()) return ItemStack.EMPTY; // nothing wants it → vanilla's job
 
         ItemStack original = working.copy();
@@ -148,14 +159,15 @@ public final class MKCSlotQuickMove {
      * menu participation is group-granular (the representative); per-slot GATING is
      * still enforced slot-by-slot inside the vanilla move.
      */
-    private static List<SlotGroup> sortedImporters(Map<SlotGroup, MKCSlot> groupReps, SlotGroup exclude,
+    private static List<SlotGroup> sortedImporters(AbstractContainerMenu menu, Player player,
+                                                   Map<SlotGroup, MKCSlot> groupReps, SlotGroup exclude,
                                                    ItemStack stack) {
         List<SlotGroup> out = new ArrayList<>();
         for (Map.Entry<SlotGroup, MKCSlot> e : groupReps.entrySet()) {
             SlotGroup group = e.getKey();
             MKCSlot rep = e.getValue();
             if (group == exclude) continue;
-            if (!qmpOf(rep).imports()) continue;
+            if (!imports(menu, rep, player)) continue;
             if (!rep.mayPlace(stack)) continue;
             out.add(group);
         }

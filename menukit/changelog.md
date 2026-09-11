@@ -1,3 +1,15 @@
+5.1.0: Every operation in the game can be listed, named, scoped, and blocked. Adds API and breaks nothing.
+
+Vanilla's operations are split as far as they go. Nine keys, one per thing a player can do to a slot: `SHIFT_CLICK_OUT`, `SHIFT_CLICK_IN`, `COLLECT`, `DRAG_FILL`, `HOTBAR_SWAP`, `OFFHAND_SWAP`, `DROP`, `DROP_STACK`, and `WORLD_PICKUP`. They are `BehaviorKeys.VANILLA_OPERATIONS`. Every one is on by default. MenuKit now enforces them itself at vanilla's own seams, for every slot kind, so a mod that depends on MenuKit alone gets the enforcement without Containers.
+
+Operations have names. `SlotOperations.name(op)` and `description(op)` return translatable text on `slot_operation.<namespace>.<path>` and `.description`, and a mod ships the lines for its own operations in its lang file. A settings screen can list every operation that exists with words a player can read.
+
+A lock is a veto. `SlotOperations.veto(rule)` registers a rule that can only say no, laid over whatever a slot's author declared. `SlotOperations.allows(menu, slot, player, op)` is the one question: the cascade says yes and no veto says no. Every vanilla seam asks it, and an operation a mod adds should ask it too. A veto sees a `SlotRef` with the container and index, the live slot and menu, the acting player, and the slot's category.
+
+Vanilla slots get the group and category rungs. A category's inherent operations reached created slots only in 5.0.0. Now `allows` reads a vanilla slot's category from its menu, so `inherent(PLAYER_HOTBAR, SHIFT_CLICK_IN, FALSE)` keeps shift-clicks out of the hotbar and lets them into the 9x3. `WindowEngine.resolve` gains an overload that takes memberships the caller states.
+
+Deprecated: nothing in MenuKit itself. Containers' `QUICK_MOVE` is deprecated in its own changelog.
+
 5.0.0: Slots now say what they are and what may be done to them, and placement names its parts. Three changes, one of them breaking.
 
 Slot groups are a registry. Created slot groups appear next to the vanilla categories, and the registry answers without a menu open. `SlotGroupCategories.all()` lists every category that exists. `SlotGroupCategories.of(menu)` lists the slots in each category on an open menu. `SlotGroupCategories.categoriesBySlot(menu)` answers per slot. A mod mints its own category when no vanilla one fits.

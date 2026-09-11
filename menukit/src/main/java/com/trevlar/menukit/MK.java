@@ -94,8 +94,7 @@ public class MK implements ModInitializer {
         // SlotGroupCategories.all() / SlotOperations.all() and adds its own with
         // SlotGroupCategories.declare(...) / SlotOperations.define(...).
         SlotGroupCategory.vanilla().forEach(SlotGroupCategories::declare);
-        SlotOperations.define(BehaviorKeys.COLLECT);
-        SlotOperations.define(BehaviorKeys.DRAG_FILL);
+        BehaviorKeys.VANILLA_OPERATIONS.forEach(SlotOperations::define);
         LOGGER.info("[MenuKit] Initialized");
     }
 

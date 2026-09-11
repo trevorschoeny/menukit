@@ -2,7 +2,7 @@ package com.trevlar.menukit.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
-import com.trevlar.menukit.core.GatingContext;
+import com.trevlar.menukit.window.ActingPlayer;
 
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -12,21 +12,21 @@ import org.spongepowered.asm.mixin.Mixin;
 
 /**
  * Captures the acting player for the duration of a click transaction, so a deep
- * gating seam (vanilla's {@code moveItemStackTo}, which has no player) can read it
- * via {@link GatingContext}. Set on entry, cleared in {@code finally} (never
- * leaks). Generalizes Inventory Max's lock click-capture.
+ * seam with no player in scope (vanilla's {@code moveItemStackTo}) can read it
+ * through {@link ActingPlayer}. Set on entry, cleared in {@code finally}, so it
+ * never leaks past the click.
  */
 @Mixin(AbstractContainerMenu.class)
-public class MKCActingPlayerMixin {
+public class MKActingPlayerMixin {
 
     @WrapMethod(method = "clicked")
-    private void mkc$captureActingPlayer(int slotId, int button, ContainerInput clickType, Player player,
-                                         Operation<Void> original) {
-        GatingContext.setActingPlayer(player);
+    private void mk$captureActingPlayer(int slotId, int button, ContainerInput clickType, Player player,
+                                        Operation<Void> original) {
+        ActingPlayer.set(player);
         try {
             original.call(slotId, button, clickType, player);
         } finally {
-            GatingContext.clearActingPlayer();
+            ActingPlayer.clear();
         }
     }
 }
