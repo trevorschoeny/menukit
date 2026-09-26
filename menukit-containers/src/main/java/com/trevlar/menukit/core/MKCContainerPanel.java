@@ -343,6 +343,7 @@ public final class MKCContainerPanel {
      * {@code Window.slot(address(panelId, groupId, i)).set(KEY, value)} outranks it
      * by specificity rather than by who declared last.
      */
+    @SuppressWarnings("removal") // QUICK_MOVE stays declared for 5.0.0 readers until 6.0.0
     private static void armInlineBehavior(String containerPanelId, SlotSpec spec) {
         SlotGate gate = spec.gateValue();
         TriBool binding = spec.bindingValue();
@@ -358,6 +359,9 @@ public final class MKCContainerPanel {
             addresses.add(a);
             CreatedSlotCategories.index(a, spec.category());
         }
+        // Listed with no menu open (SlotGroups): this path registers at init, so the
+        // group shows from the title screen.
+        com.trevlar.menukit.inject.SlotGroups.declare(groupId(containerPanelId, spec.groupId()), spec.category());
         if (gate == null && binding == null && mending == null && quickMove == null
                 && collect == null && dragFill == null) return;
 
@@ -373,9 +377,16 @@ public final class MKCContainerPanel {
         if (gate != null)      WindowEngine.setGroup(group, MKCBehaviorKeys.GATING, Decl.set(gate));
         if (binding != null)   WindowEngine.setGroup(group, MKCBehaviorKeys.BINDING, Decl.set(binding));
         if (mending != null)   WindowEngine.setGroup(group, MKCBehaviorKeys.MENDING, Decl.set(mending));
-        if (quickMove != null) WindowEngine.setGroup(group, MKCBehaviorKeys.QUICK_MOVE, Decl.set(quickMove));
-        // The operation keys live MK-side (an MK-only mod can name them on a vanilla
-        // slot); MKC enforces them at vanilla's seams (MKCOperationMixin).
+        // quickMove(p) is deprecated sugar for the two shift-click operations. The
+        // old key is still declared so a 5.0.0 consumer reading it by key sees the
+        // same value; the routing ANDs both.
+        if (quickMove != null) {
+            WindowEngine.setGroup(group, MKCBehaviorKeys.QUICK_MOVE, Decl.set(quickMove));
+            WindowEngine.setGroup(group, BehaviorKeys.SHIFT_CLICK_OUT, Decl.set(TriBool.of(quickMove.exports())));
+            WindowEngine.setGroup(group, BehaviorKeys.SHIFT_CLICK_IN, Decl.set(TriBool.of(quickMove.imports())));
+        }
+        // The operation keys live MK-side, and MenuKit enforces them at vanilla's
+        // seams (MKOperationsMixin) for every slot kind.
         if (collect != null)   WindowEngine.setGroup(group, BehaviorKeys.COLLECT, Decl.set(collect));
         if (dragFill != null)  WindowEngine.setGroup(group, BehaviorKeys.DRAG_FILL, Decl.set(dragFill));
     }

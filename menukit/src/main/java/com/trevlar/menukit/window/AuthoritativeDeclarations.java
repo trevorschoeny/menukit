@@ -22,4 +22,13 @@ public interface AuthoritativeDeclarations {
      * {@code null}) when the server does not override.
      */
     <V> Decl<V> resolve(Address address, BehaviorKey<V> key);
+
+    /**
+     * {@link #resolve(Address, BehaviorKey)} with memberships the caller states
+     * (see {@link WindowEngine#resolve(Address, BehaviorKey, java.util.Collection)}).
+     * The default ignores them; a tier that holds group bindings overrides.
+     */
+    default <V> Decl<V> resolve(Address address, BehaviorKey<V> key, java.util.Collection<GroupKey> alsoMemberOf) {
+        return resolve(address, key);
+    }
 }

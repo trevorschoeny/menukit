@@ -66,6 +66,10 @@ A reference is the rectangle a panel is measured against. It is not the panel an
 
 The call site picks the reference. `ScreenPanelAdapter` measures from the menu frame. `SlotGroupPanelAdapter` measures from the slot group it targets. `MKHudPanel.builder(...).region(...)` measures from the window. A region never names its reference.
 
+## Panel on a vanilla screen
+
+`VanillaScreenPanelAdapter` anchors a panel onto any non-container screen — Options, Controls, KeyBinds, world-select, server-list, the title screen, the pause menu, anywhere `Screen` (not `AbstractContainerScreen`) is the superclass. `.on(ScreenClass...)` or `.onAny()` declares targeting; `InsideRegion` anchors it, the same enum a HUD panel uses. Render and click both gate on the panel's visibility, so `showWhen(...)` holds here exactly as it does on a container screen: a hidden panel draws nothing and eats no clicks. v1 is region-based only, with no modal or dim-behind machinery — fold on evidence.
+
 ## Region
 
 A region names where a panel sits relative to its reference. Two enums exist, one for each side of the reference's edge:
@@ -120,29 +124,49 @@ Every created slot group (Containers) declares a category and is listed under it
 
 A mod finds another mod's slots this way, with MenuKit types only.
 
+Groups are listed too, with no menu open, for a settings screen that runs from the title screen:
+
+| Call | Answers |
+|---|---|
+| `SlotGroups.all()` | every declared group: one per vanilla category, and every created group |
+| `SlotGroups.listing()` | the player-facing rows: each lone group, and each named set once |
+| `SlotGroups.entryKey(id)` | the key a choice about a group on a live menu was saved under |
+
+A category cannot tell a mod's pockets from the main inventory when both declare `PLAYER_INVENTORY`; a group can. A mod that splits one thing into many groups, one per anchor, puts them in one `SlotGroupSet` with `SlotGroups.declare(id, category, set)`, and the listing shows the set as one row. A choice saved under a set's key reaches every group in it.
+
+Groups and sets are named like operations. `SlotGroups.name(id)` and `name(set)` are translatable on `slot_group.<...>` and `slot_group_set.<namespace>.<path>`; MenuKit ships vanilla's, and a mod ships its own. `SlotGroupId.asString()` and `SlotGroupSet.asString()` are stable text for a config file, with `parse` and a `CODEC` each.
+
+A container-panel group registers at init and is listed from the title screen. A group built with a menu (`MKCSlots.onto`) is listed after the first menu that carries it; to list it from the title screen, its mod declares it at init with `SlotGroups.declare`.
+
 Pick a vanilla category when the group is one of those things. A pocket group that declares `PLAYER_INVENTORY` appears in every inventory search run by a mod that has never heard of pockets. Mint a category when no vanilla one gives another mod the right answer: `new SlotGroupCategory("mymod", "pouch")`. A category name is a public contract once another mod depends on it. Renaming one is a breaking change.
 
 A category says what a slot is. An operation says what may be done to it.
 
 ## Operation
 
-An operation is a bulk or shortcut action performed on a slot. Vanilla ships three: shift-click (`MKCBehaviorKeys.QUICK_MOVE`, Containers), double-click collect (`BehaviorKeys.COLLECT`), and drag-fill (`BehaviorKeys.DRAG_FILL`).
+An operation is something done to a slot. Vanilla ships eleven, split one key per thing a player can do: `CLICK_TAKE`, `CLICK_PUT`, `SHIFT_CLICK_OUT`, `SHIFT_CLICK_IN`, `COLLECT` (double-click), `DRAG_FILL`, `HOTBAR_SWAP`, `OFFHAND_SWAP`, `DROP`, `DROP_STACK`, and `WORLD_PICKUP`. They are `BehaviorKeys.VANILLA_OPERATIONS`, every one on by default, and MenuKit enforces them at vanilla's own seams for every slot kind. A plain click takes, puts, or both when it swaps different items. A swap key has two slots, and both must allow it. The client refuses to send a click its own slot refuses, so that part holds on any server. Q, Ctrl-Q and F while playing, with no screen open, are the same `DROP`, `DROP_STACK` and `OFFHAND_SWAP` on the selected hotbar slot, refused by the client before it drops or sends and by the server when the action arrives. An offhand swap also needs the offhand slot to allow it.
 
-The vocabulary is open. An operation is a `BehaviorKey`. A mod declares the key, publishes it with `SlotOperations.define`, and consults it in its own code. `SlotOperations.all()` lists every published operation. MenuKit needs no change for a new operation to exist.
+An operation has a role: it takes items out of a slot, puts items in, or both. `SlotOperations.define(op, Role.TAKE)` records it and `SlotOperations.role(op)` reads it, so a settings screen can tell which operations matter for a lock on an item already in a slot. `define(op)` without a role means both.
 
-A slot resolves an operation in this order:
+The vocabulary is open. An operation is a `BehaviorKey`. A mod declares the key, publishes it with `SlotOperations.define`, ships a name and a description in its lang file, and asks `SlotOperations.allows` in its own code before acting. `SlotOperations.all()` lists every published operation. `SlotOperations.name(op)` and `description(op)` are translatable components on `slot_operation.<namespace>.<path>` and `.description`, so a settings screen can list them. MenuKit needs no change for a new operation to exist.
+
+Two things decide what a slot allows. The first is the cascade, what the slot's author declared:
 
 ```
 per-slot declaration  >  the slot's group  >  the group's category  >  the key's default
 ```
 
-Each level is more specific than the next, so the winner never depends on which mod declared last. A group's `collect(false)` outranks its category's inherent value. A per-slot declaration outranks the group.
+Each level is more specific than the next, so the winner never depends on which mod declared last. `SlotOperations.inherent(category, operation, value)` sets the category rung once. A group's own declaration outranks it. A per-slot declaration outranks the group. A vanilla slot has one group per category on a menu, so for vanilla slots the group and the category are one rung, and "shift-click may land in the 9x3 but not the hotbar" is `inherent(PLAYER_HOTBAR, SHIFT_CLICK_IN, FALSE)`.
 
-`SlotOperations.inherent(category, operation, value)` sets an operation for every group in a category. A mod that mints a category states once that nothing in it may be collected. Registration order does not matter. Read time does. Every operation is a server-tier key. It returns the key default until Containers installs its tier, and mod init order is not fixed. Declare at init. Read during play.
+The second is a veto. `SlotOperations.veto(rule)` registers a rule that can only say no, for a mod that is not the slot's author: a player's lock is the case. A veto sits beside the cascade and subtracts, so it never overwrites what the slot's author declared and has nothing to restore when the lock lifts. A veto that throws is logged once and skipped.
 
-On a `SlotSpec` the per-group form is `collect(false)`, `dragFill(false)`, and `quickMove(NONE)`. A per-slot declaration still wins, so a slot can count as inventory storage for search and still sit out the bulk shortcuts.
+`SlotOperations.allows(menu, slot, player, operation)` is the one question: the cascade says yes and no veto says no. Every seam asks it, and so should every operation a mod adds. The `SlotRef` a veto sees carries the container and index, the live slot and menu when there is one, the acting player when there is one, and the slot's category. A move a mod makes on the server with no click behind it, such as a direct `quickMoveStack` call, still names a player: the one whose inventory the menu shows.
 
-Inherent operations reach created slots, whose category travels with the group. A vanilla slot's category depends on its menu, which the window cannot ask about. A vanilla slot therefore resolves from its own declaration or the key's default. Every built-in operation defaults to vanilla's behavior, so the result is the same in practice.
+A mod that performs its operation by sending clicks wraps them: `SlotOperations.as(take, put, () -> sendClicks())`, or `as(op, ...)` when both sides are one operation. Each click sent inside carries the operation it serves, the first for the slot it takes from and the second for the slot it puts into. The vetoes judge that operation instead of the gesture, so a lock that refuses shift-click but allows restock lets the restock's shift-click through. The slot's author still judges the gesture. The tag reaches the integrated server. Clicks must be sent inside the block, on the calling thread. A simulated click that is not wrapped counts as the gesture it looks like.
+
+Registration order does not matter. Read time does. Every operation is a server-tier key. It returns the key default until Containers installs its tier, and mod init order is not fixed. Declare at init. Read during play.
+
+On a `SlotSpec` the per-group form is `collect(false)` and `dragFill(false)`; any other operation is `set(key, value)`. `quickMove(NONE)` is deprecated sugar for the two shift-click keys.
 
 ## Created slot
 

@@ -200,4 +200,52 @@ Window.slot(a).set(MKCBehaviorKeys.GATING, new SlotGate() {
 });
 ```
 
-Result: slot 0 of the `ring` group accepts gold ingots only, one per slot, whenever a slot with that address exists in an open menu. `MKCBehaviorKeys` lists the keys: `GATING`, `QUICK_MOVE`, `BINDING`, `MENDING`. `SlotSpec.gate(SlotGate)` and `SlotSpec.accepts(Predicate)` set the same gate at declaration time for container-parity slots.
+Result: slot 0 of the `ring` group accepts gold ingots only, one per slot, whenever a slot with that address exists in an open menu. `MKCBehaviorKeys` lists the keys: `GATING`, `BINDING`, `MENDING`. The operations are `BehaviorKeys.VANILLA_OPERATIONS`. `SlotSpec.gate(SlotGate)` and `SlotSpec.accepts(Predicate)` set the same gate at declaration time for container-parity slots.
+
+## Block operations on a locked slot
+
+Needs: MenuKit. Call at common init.
+
+```java
+SlotOperations.veto((ref, op) ->
+        ref.container() instanceof Inventory inv
+                && ref.player() != null && ref.player().getUUID().equals(inv.player.getUUID())
+                && MyLocks.isLocked(ref.containerSlot())
+                && MyLocks.blocks(op));
+```
+
+Result: every operation in the game, vanilla's and any other mod's, asks `SlotOperations.allows` before it acts, and this rule refuses the ones the player chose on the slots the player locked. A veto can only say no, so it never overwrites what the slot's author declared and there is nothing to restore on unlock. `SlotOperations.all()` is the list a settings screen shows, with `SlotOperations.name(op)` and `description(op)` for the words. The player check keeps a per-player lock from answering for another player on the same integrated server. Declare nothing on the slots themselves.
+
+## Add an operation of your own
+
+Needs: MenuKit. Define at common init; ask before acting.
+
+```java
+public static final BehaviorKey<TriBool> RESTOCK_TAKE = BehaviorKey.of(
+        Identifier.fromNamespaceAndPath("mymod", "restock_take"), TriBool.class, TriBool.TRUE,
+        Tier.SERVER, KindTag.VANILLA_SLOT, KindTag.CREATED_SLOT);
+
+// init
+SlotOperations.define(RESTOCK_TAKE, SlotOperations.Role.TAKE);
+
+// wherever the operation picks a slot
+if (!SlotOperations.allows(menu, slot, player, RESTOCK_TAKE)) continue;
+```
+
+With two lang lines:
+
+```json
+"slot_operation.mymod.restock_take": "Restock takes from",
+"slot_operation.mymod.restock_take.description": "Auto-restock may pull a refill out of this slot."
+```
+
+If the operation moves items by sending clicks, send them under its name:
+
+```java
+SlotOperations.as(RESTOCK_TAKE, RESTOCK_PUT, () -> {
+    gameMode.handleContainerInput(menu.containerId, from, 0, ContainerInput.QUICK_MOVE, player);
+});
+```
+
+Result: the operation appears in `SlotOperations.all()` for every mod to list, a slot's author can turn it off per slot, group, or category (`SlotOperations.inherent`), and a locking mod's veto reaches it. An operation that moves items between two slots is two keys, one for the slot being emptied and one for the slot being filled, so a lock can answer each side on its own. Its clicks are judged as the operation, not as the shift-click or plain click they look like, so a lock that blocks shift-click does not block it.
+

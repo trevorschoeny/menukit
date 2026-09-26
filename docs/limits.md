@@ -7,7 +7,7 @@ What MenuKit and MenuKit: Containers do not do, and the open gaps a consumer can
 These are not planned. Use vanilla or another library.
 
 - Config screens. Use YACL or Cloth Config.
-- Chat, the F3 overlay, world and server select, the title screen, and the pause menu.
+- Chat and the F3 overlay. Both render outside the `Screen` system `VanillaScreenPanelAdapter` targets.
 - Nested panels. A panel holds elements only.
 - Themes and skins. `PanelStyle` and `ControlStyle` are the full set.
 - Animation beyond HUD notifications.
@@ -29,7 +29,9 @@ Behavior that is incomplete in the current release.
 | Server-fired reactions | Client-observed reactions fire. Server-authoritative firing resolves to a no-op. |
 | Window scope | Every address resolves in the primary scope. Per-tab and per-sub-window scopes are not active. |
 | Panel and element addressing | The window addresses slots. It does not yet address panels or elements. |
-| Inherent operations on a vanilla slot | A category's inherent operations reach created slots only. A vanilla slot's category depends on its menu, which the window cannot ask about. Declare the operation on the slot instead. |
+| A slot group built with a menu, before any menu | `MKCSlots.onto(menu, player)` registers a group when that menu is built, so `SlotGroups` lists it only after the first one. Declare the group at init with `SlotGroups.declare` to list it from the title screen. |
+| Operations on a slot reached with no menu open | World pickup (`Inventory.getFreeSlot`) has no menu, so a vanilla slot's category is unknown there and MenuKit alone cannot mint its address. `WORLD_PICKUP` on such a slot resolves from the key's default and then the vetoes. With Containers present the slot has an address and a per-slot declaration reaches it. |
+| Operations the server works out for itself, on a server without MenuKit | The client refuses to send a click whose own slot refuses it: plain click, shift-click out, drop, swap, a slot joining a drag. Where a shift-click lands, what double-click collect sweeps, and where a picked-up item goes are decided by the server. Those hold in singleplayer and on a LAN host, where MenuKit runs the server side, and not on a server that does not run it. The same goes for a Q action a mod sends to the connection itself instead of through `LocalPlayer.drop`. |
 | Persisting a created slot identity | An `Address` has no codec, and the client-side addressing helper is internal. A consumer that must remember one created slot across sessions encodes the identity itself. Vanilla slot indices are unaffected. |
 | Drop rule key | `dropsOnDeath(DropRule)` on a player storage attachment covers death. No window key covers drop rules. |
 | Block-entity container resolver | Registering a custom resolver for a block entity is a no-op. |
