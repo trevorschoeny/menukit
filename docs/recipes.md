@@ -97,6 +97,29 @@ Panel main = Panel.builder("mymod:settings")
 
 Result: a strip across the top of the screen that wraps into rows, with the selected tab's body below it filling the rest of the screen. A body is a `List<PanelElement>`, the same as `ScrollContainer` content. To open the menu on a given tab, set `tab` before `setScreen`. Hiding a tab re-splits the rows and moves the body. For one scrolling row, use `Tabs.Mode.SIDE_SCROLL`.
 
+## Add a tab to another mod's menu
+
+Needs: MenuKit. The owner names the menu; you add to it at your client init.
+
+```java
+// Owner, when its settings screen opens
+Tabs.builder()
+        .menu(Identifier.fromNamespaceAndPath("ownermod", "settings"))
+        .selected(() -> tab, id -> tab = id)
+        .tab("general", Component.literal("General"), generalBody)
+        .tab(Tabs.tab("pockets").label(Component.literal("Pockets")).standIn()
+                .body(() -> List.of(new TextLabel(0, 0, Component.literal("Install My Mod to use Pockets.")))))
+        .build();
+
+// Your mod, client init
+Tabs.addTo(Identifier.fromNamespaceAndPath("ownermod", "settings"),
+        Tabs.tab("pockets").label(Component.literal("Pockets")).body(() -> PocketSettings.body()));
+Tabs.addTo(Identifier.fromNamespaceAndPath("ownermod", "settings"),
+        Tabs.tab("mending").label(Component.literal("Mending")).after("pockets").body(() -> MendSettings.body()));
+```
+
+Result: your Pockets tab replaces the owner's stand-in in the same place, and Mending sits right after it. Your bodies are built each time the menu opens and read your own config. Without your mod, the owner's Pockets stand-in shows with a dimmed label. The owner builds its `Tabs` when its screen opens, so every tab added at init is in it.
+
 ## Lay out elements in a row
 
 Needs: MenuKit.

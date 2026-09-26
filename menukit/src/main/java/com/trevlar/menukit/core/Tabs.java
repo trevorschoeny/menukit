@@ -8,6 +8,8 @@ import net.minecraft.resources.Identifier;
 
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -107,6 +109,17 @@ import java.util.function.Supplier;
  * key there. No arrow keys: MenuKit has no element focus, and elements see a key
  * before a focused text field does, so arrows on the strip would steal them.
  *
+ * <h3>Tabs from other mods</h3>
+ *
+ * A menu with a {@linkplain Builder#menu name} takes tabs from other mods:
+ * {@link #addTo(Identifier, TabSpec)} at their init, with a body factory so each
+ * body is built fresh, against that mod's own config, every time the owner builds.
+ * The owner's builder order is the menu's order. A contribution takes the slot of
+ * an owner tab marked {@link TabSpec#standIn() standIn()} with the same id, or
+ * places itself {@link TabSpec#after after} or {@link TabSpec#before before} a tab;
+ * contributions that share an anchor are ordered by id, so the result does not
+ * depend on which mod initialised first. See {@link TabMenus} for the full rule.
+ *
  * <p>Known limit, shared with hidden panels: a widget-wrapping element (a
  * {@link TextField}) in a tab that is not shown is still registered with the
  * screen, so it can keep keyboard focus. See {@link TextField}.
@@ -140,6 +153,9 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     private static final String ELLIPSIS = "...";
     private static final int COLOR_SELECTED = 0xFFFFFFFF;
     private static final int COLOR_UNSELECTED = 0xFFA0A0A0;
+    // A stand-in's label is dimmed: the tab is there to say its mod is missing.
+    private static final int COLOR_STAND_IN_SELECTED = 0xFF909090;
+    private static final int COLOR_STAND_IN_UNSELECTED = 0xFF606060;
 
     // Vanilla's own tab and page-arrow sprites (Create World's tab bar).
     private static final Identifier SPRITE_TAB = Identifier.withDefaultNamespace("widget/tab");
@@ -188,7 +204,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         this.childY = b.childY;
         this.mode = b.mode;
         this.align = b.align;
-        this.tabs = List.copyOf(b.tabs);
+        this.tabs = List.copyOf(b.resolveTabs());
         this.selected = b.selected;
         this.onSelect = b.onSelect;
         this.fixedWidth = b.width;
@@ -202,6 +218,47 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     /** Starts a tab with an id; give it a label and a body. */
     public static TabSpec tab(String id) {
         return new TabSpec(id);
+    }
+
+    /**
+     * Adds a tab to the menu named {@code menu}, from a mod that does not own it.
+     * Call at your mod's init. The tab shows every time the owner builds the menu,
+     * from the next build on, and never if nobody builds it.
+     *
+     * <p>The body must be a factory ({@link TabSpec#body(Supplier)}): it is built
+     * each time the menu opens, against your own config. Place the tab by giving
+     * it the id of one of the owner's stand-ins, or with {@link TabSpec#after} or
+     * {@link TabSpec#before}; with neither it goes at the end.
+     *
+     * @throws IllegalStateException if another tab added to this menu has the
+     *         same id, or the body is a finished list, or the tab is a stand-in
+     */
+    public static void addTo(Identifier menu, TabSpec tab) {
+        Objects.requireNonNull(menu, "menu");
+        Objects.requireNonNull(tab, "tab");
+        if (tab.label == null) throw new IllegalStateException("Tabs: tab '" + tab.id + "' has no label");
+        if (tab.bodyFactory == null) {
+            throw new IllegalStateException("Tabs: tab '" + tab.id + "' added to " + menu + " needs a body "
+                    + "factory, body(() -> elements), because it is built every time the menu opens");
+        }
+        if (tab.standIn) {
+            throw new IllegalStateException("Tabs: tab '" + tab.id + "' added to " + menu + " is marked "
+                    + "standIn(); only the menu's owner declares stand-ins");
+        }
+        TabMenus.add(menu, tab);
+    }
+
+    /** The ids of this element's tabs, in strip order, hidden ones included. */
+    public List<String> tabIds() {
+        List<String> ids = new ArrayList<>(tabs.size());
+        for (Tab t : tabs) ids.add(t.id);
+        return ids;
+    }
+
+    /** Whether the tab with this id is a stand-in nothing has replaced. */
+    public boolean isStandIn(String id) {
+        for (Tab t : tabs) if (t.id.equals(id)) return t.standIn;
+        return false;
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -579,7 +636,10 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
                     : (hovered ? SPRITE_TAB_HOVER : SPRITE_TAB);
             g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, tx, ty, p.w, TAB_HEIGHT);
             int textY = ty + (TAB_HEIGHT - font.lineHeight) / 2 + 1;
-            g.centeredText(font, p.text, tx + p.w / 2, textY, isSelected ? COLOR_SELECTED : COLOR_UNSELECTED);
+            int color = p.tab.standIn
+                    ? (isSelected ? COLOR_STAND_IN_SELECTED : COLOR_STAND_IN_UNSELECTED)
+                    : (isSelected ? COLOR_SELECTED : COLOR_UNSELECTED);
+            g.centeredText(font, p.text, tx + p.w / 2, textY, color);
             if (hovered && p.truncated) hoveredTruncated = p;
         }
         if (s.overflow) {
@@ -797,12 +857,15 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         final Component label;
         final @Nullable BooleanSupplier visibleWhen;
         final List<PanelElement> body;
+        final boolean standIn;
 
-        private Tab(String id, Component label, @Nullable BooleanSupplier visibleWhen, List<PanelElement> body) {
+        private Tab(String id, Component label, @Nullable BooleanSupplier visibleWhen, List<PanelElement> body,
+                    boolean standIn) {
             this.id = id;
             this.label = label;
             this.visibleWhen = visibleWhen;
             this.body = body;
+            this.standIn = standIn;
         }
 
         public String id() { return id; }
@@ -815,14 +878,22 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
 
     /** A tab under construction. An {@code icon(...)} can join the label here later without breaking anything. */
     public static final class TabSpec {
+        private static final Logger LOGGER = LoggerFactory.getLogger("menukit");
+
         private final String id;
         private @Nullable Component label;
         private @Nullable BooleanSupplier visibleWhen;
         private List<PanelElement> body = List.of();
+        private @Nullable Supplier<List<PanelElement>> bodyFactory;
+        private boolean standIn;
+        private @Nullable String anchor;
+        private boolean anchorIsBefore;
 
         private TabSpec(String id) {
             this.id = Objects.requireNonNull(id, "id");
         }
+
+        public String id() { return id; }
 
         public TabSpec label(Component label) {
             this.label = Objects.requireNonNull(label, "label");
@@ -835,15 +906,69 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
             return this;
         }
 
-        /** The body: elements positioned from the body's top-left. */
+        /** The body: elements positioned from the body's top-left. For the owner's own tabs. */
         public TabSpec body(List<PanelElement> body) {
             this.body = List.copyOf(body);
+            this.bodyFactory = null;
             return this;
         }
 
+        /**
+         * The body as a factory, run each time the menu is built, so the body's
+         * elements are fresh and read the current config. Required for a tab added
+         * with {@link Tabs#addTo}; fine for the owner's tabs too.
+         */
+        public TabSpec body(Supplier<List<PanelElement>> factory) {
+            this.bodyFactory = Objects.requireNonNull(factory, "factory");
+            return this;
+        }
+
+        /**
+         * Owner only: this tab stands in for one another mod may add. A tab added
+         * to the menu with the same id takes this one's place, label and body; with
+         * nothing to replace it, the tab shows with a dimmed label and this body,
+         * typically a line saying which mod to install.
+         */
+        public TabSpec standIn() {
+            this.standIn = true;
+            return this;
+        }
+
+        /** For a tab added with {@link Tabs#addTo}: place it right after the tab with this id. */
+        public TabSpec after(String id) {
+            this.anchor = Objects.requireNonNull(id, "id");
+            this.anchorIsBefore = false;
+            return this;
+        }
+
+        /** For a tab added with {@link Tabs#addTo}: place it right before the tab with this id. */
+        public TabSpec before(String id) {
+            this.anchor = Objects.requireNonNull(id, "id");
+            this.anchorIsBefore = true;
+            return this;
+        }
+
+        boolean isStandIn() { return standIn; }
+        @Nullable String anchor() { return anchor; }
+        boolean anchorIsBefore() { return anchorIsBefore; }
+
+        /**
+         * Builds the tab, running the body factory. A factory that throws is
+         * another mod's bug, and the owner's screen must still open: the tab gets a
+         * one-line body saying so, and the exception is logged.
+         */
         Tab build() {
             if (label == null) throw new IllegalStateException("Tabs: tab '" + id + "' has no label");
-            return new Tab(id, label, visibleWhen, body);
+            List<PanelElement> built = body;
+            if (bodyFactory != null) {
+                try {
+                    built = List.copyOf(bodyFactory.get());
+                } catch (RuntimeException e) {
+                    LOGGER.error("[MenuKit] the body of tab '{}' failed to build", id, e);
+                    built = List.of(new TextLabel(0, 0, Component.literal("This tab failed to build; see the log.")));
+                }
+            }
+            return new Tab(id, label, visibleWhen, built, standIn);
         }
     }
 
@@ -851,7 +976,8 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         private int childX, childY;
         private Mode mode = Mode.WRAP;
         private Align align = Align.LEFT;
-        private final List<Tab> tabs = new ArrayList<>();
+        private final List<TabSpec> tabs = new ArrayList<>();
+        private @Nullable Identifier menu;
         private @Nullable Supplier<@Nullable String> selected;
         private @Nullable Consumer<String> onSelect;
         private int width = -1, height = -1;
@@ -893,9 +1019,23 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
             return tab(Tabs.tab(id).label(label).body(body));
         }
 
-        /** Adds a tab built with {@link Tabs#tab(String)}. */
+        /** Adds a tab built with {@link Tabs#tab(String)}. The builder's order is the strip's order. */
         public Builder tab(TabSpec spec) {
-            tabs.add(spec.build());
+            Objects.requireNonNull(spec, "spec");
+            if (spec.anchor != null) {
+                throw new IllegalStateException("Tabs: tab '" + spec.id + "' uses after/before, which place a "
+                        + "tab added by another mod; in the owner's builder, the order you add tabs is the order");
+            }
+            tabs.add(spec);
+            return this;
+        }
+
+        /**
+         * Names this menu so other mods can add tabs to it with {@link Tabs#addTo}.
+         * Every tab added to this name before {@link #build()} is in the result.
+         */
+        public Builder menu(Identifier name) {
+            this.menu = Objects.requireNonNull(name, "name");
             return this;
         }
 
@@ -913,10 +1053,18 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         public Tabs build() {
             if (selected == null) throw new IllegalStateException("Tabs: selected(supplier, onSelect) is required");
             Set<String> ids = new HashSet<>();
-            for (Tab t : tabs) {
+            for (TabSpec t : tabs) {
                 if (!ids.add(t.id)) throw new IllegalStateException("Tabs: two tabs share the id '" + t.id + "'");
             }
             return new Tabs(this);
+        }
+
+        /** The owner's tabs with any added to this menu merged in, each built now (bodies included). */
+        private List<Tab> resolveTabs() {
+            List<TabSpec> specs = menu == null ? tabs : TabMenus.merge(menu, tabs);
+            List<Tab> out = new ArrayList<>(specs.size());
+            for (TabSpec spec : specs) out.add(spec.build());
+            return out;
         }
     }
 }
