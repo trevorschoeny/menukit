@@ -75,6 +75,15 @@ import java.util.function.Supplier;
  *       its space kept, once its end is reached). The wheel over the strip and the
  *       arrows move one tab at a time, and a newly selected tab, including one
  *       selected from outside, scrolls into view with the least movement.</li>
+ *   <li><b>{@link Mode#SIDEBAR}</b>: a column of tabs down the left, the body to
+ *       its right. The top tab turned on its side: the selected tab reaches 4 px
+ *       further left and opens into the page, the others close against it with the
+ *       page's edge. The column is as wide as its widest label, at most a third of
+ *       the element, and every tab in it is that wide. {@link Align} places the
+ *       label in the tab ({@link Align#FILL} as {@link Align#LEFT}), and labels
+ *       stay put on selection so the column reads as a list. Taller than the
+ *       element, it scrolls exactly as side-scroll does, turned vertical: up and
+ *       down arrows, the wheel, one tab at a time, the selection kept in view.</li>
  * </ul>
  * {@link Align#FILL} gives every tab in a row its label width plus an equal
  * share of the row's leftover space: every label always fits, and short labels
@@ -124,10 +133,12 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         /** Break into as many rows as the width needs. */
         WRAP,
         /** Stay one row and scroll horizontally. */
-        SIDE_SCROLL
+        SIDE_SCROLL,
+        /** A column down the left, the body to its right; scrolls vertically when too tall. */
+        SIDEBAR
     }
 
-    /** Where tabs sit within a row. */
+    /** Where tabs sit within a row; in {@link Mode#SIDEBAR}, where the label sits within its tab. */
     public enum Align { LEFT, CENTER, RIGHT, FILL }
 
     /** Height of one row of tabs. */
@@ -163,6 +174,20 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     private static final Identifier SPRITE_FORWARD_HOVER = Identifier.withDefaultNamespace("widget/page_forward_highlighted");
     private static final int ARROW_SPRITE_W = 23;
     private static final int ARROW_SPRITE_H = 13;
+
+    // The sidebar tab, drawn rather than blitted. Vanilla's tab sprite is a
+    // nine-slice that TILES its middle, so drawn thicker than its native 24 px (as
+    // a sidebar tab is: the column's whole width) it repeats its outline lines
+    // across the tab. These are the sprite's own colours and structure, turned on
+    // its side with the middle stretched instead. The cost: a resource pack that
+    // restyles vanilla's tabs restyles the top strip and not the sidebar.
+    /** How much shorter an unselected tab is than the selected one, per the sprite. */
+    private static final int SIDE_INSET = 4;
+    private static final int TAB_EDGE = 0xBF000000;        // outer line
+    private static final int TAB_LIGHT = 0x33FFFFFF;       // inner line, and the page edge's light line
+    private static final int TAB_LIGHT_HOVER = 0xFFFFFFFF; // inner line under the mouse
+    private static final int TAB_FILL = 0xDB000000;        // an unselected tab's face
+    private static final int TAB_CLEAR = 0;                // the selected tab shows the page through it
 
     // ── Declared structure (fixed at construction, §0022) ──────────────────
 
@@ -268,8 +293,14 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     /** One tab placed on the strip, in strip-local coordinates (side-scroll: content space). */
     private record Placed(Tab tab, int x, int y, int w, String text, boolean truncated) {}
 
-    /** The strip for one width and one visible set. */
-    private record StripLayout(List<Placed> placed, int height, boolean overflow, int contentWidth) {}
+    /**
+     * The strip for one width and one visible set. In {@link Mode#SIDEBAR}
+     * {@code height} is the column's full length, {@code columnWidth} its width,
+     * and whether it overflows depends on the element's height, so it is asked
+     * of {@link #overflows}, never read from {@code overflow}.
+     */
+    private record StripLayout(List<Placed> placed, int height, boolean overflow, int contentWidth,
+                               int columnWidth) {}
 
     private @Nullable StripLayout strip;
     private int stripWidthKey = -1;
@@ -299,7 +330,8 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         Font font = Minecraft.getInstance().font;
         List<Tab> visible = new ArrayList<>();
         for (int i = mask.nextSetBit(0); i >= 0; i = mask.nextSetBit(i + 1)) visible.add(tabs.get(i));
-        if (visible.isEmpty() || width <= 0) return new StripLayout(List.of(), 0, false, 0);
+        if (visible.isEmpty() || width <= 0) return new StripLayout(List.of(), 0, false, 0, 0);
+        if (mode == Mode.SIDEBAR) return layoutSidebar(width, visible);
 
         int n = visible.size();
         int[] natural = new int[n];
@@ -355,7 +387,35 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
             contentWidth = Math.max(contentWidth, x);
             y += TAB_HEIGHT;
         }
-        return new StripLayout(List.copyOf(placed), y, overflow, contentWidth);
+        return new StripLayout(List.copyOf(placed), y, overflow, contentWidth, 0);
+    }
+
+    /** One column, one tab per row, all as wide as the widest label, capped at a third of the element. */
+    private StripLayout layoutSidebar(int width, List<Tab> visible) {
+        Font font = Minecraft.getInstance().font;
+        int cap = Math.max(Math.min(MIN_TAB_WIDTH, width), width / 3);
+        int column = Math.min(sidebarNaturalWidth(visible), cap);
+        List<Placed> placed = new ArrayList<>(visible.size());
+        int room = column - 2 * LABEL_PAD - SIDE_INSET;
+        for (int i = 0; i < visible.size(); i++) {
+            Tab t = visible.get(i);
+            String text = t.label.getString();
+            boolean truncated = false;
+            if (font.width(text) > room) {
+                text = font.plainSubstrByWidth(text, Math.max(0, room - font.width(ELLIPSIS))) + ELLIPSIS;
+                truncated = true;
+            }
+            placed.add(new Placed(t, 0, i * TAB_HEIGHT, column, text, truncated));
+        }
+        return new StripLayout(List.copyOf(placed), visible.size() * TAB_HEIGHT, false, column, column);
+    }
+
+    /** The column width every label fits in whole: the widest label, its padding, and the unselected inset. */
+    private static int sidebarNaturalWidth(List<Tab> visible) {
+        Font font = Minecraft.getInstance().font;
+        int w = MIN_TAB_WIDTH;
+        for (Tab t : visible) w = Math.max(w, font.width(t.label) + 2 * LABEL_PAD + SIDE_INSET);
+        return w;
     }
 
     private static int sum(int[] a, int from, int to) {
@@ -390,20 +450,48 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Side-scroll geometry
+    // Scroll geometry: along the strip's own axis (x for side-scroll, y for the sidebar)
     // ════════════════════════════════════════════════════════════════════════
 
-    /** Left edge of the tab viewport within the element (after the back arrow when overflowing). */
-    private int stripViewportLeft(StripLayout s) {
-        return s.overflow ? ARROW_WIDTH : 0;
+    private boolean sidebar() {
+        return mode == Mode.SIDEBAR;
     }
 
-    private int stripViewportWidth(StripLayout s) {
-        return s.overflow ? Math.max(1, getWidth() - 2 * ARROW_WIDTH) : getWidth();
+    /** Whether the strip is longer than its room and scrolls. */
+    private boolean overflows(StripLayout s) {
+        return sidebar() ? s.height > getHeight() : s.overflow;
+    }
+
+    /** The element's length along the strip's axis. */
+    private int axisLength() {
+        return sidebar() ? getHeight() : getWidth();
+    }
+
+    /** The strip's full content length along its axis. */
+    private int contentLength(StripLayout s) {
+        return sidebar() ? s.height : s.contentWidth;
+    }
+
+    /** Where a tab starts along the axis, and how long it is. */
+    private int posOf(Placed p) {
+        return sidebar() ? p.y : p.x;
+    }
+
+    private int lengthOf(Placed p) {
+        return sidebar() ? TAB_HEIGHT : p.w;
+    }
+
+    /** Start of the tab viewport along the axis (after the back arrow when overflowing). */
+    private int stripViewportStart(StripLayout s) {
+        return overflows(s) ? ARROW_WIDTH : 0;
+    }
+
+    private int stripViewportLength(StripLayout s) {
+        return overflows(s) ? Math.max(1, axisLength() - 2 * ARROW_WIDTH) : axisLength();
     }
 
     private int maxStripScroll(StripLayout s) {
-        return s.overflow ? Math.max(0, s.contentWidth - stripViewportWidth(s)) : 0;
+        return overflows(s) ? Math.max(0, contentLength(s) - stripViewportLength(s)) : 0;
     }
 
     private void clampStripScroll(StripLayout s) {
@@ -412,40 +500,56 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
 
     /** Scrolls the least distance that brings {@code tab} fully into view. */
     private void scrollIntoView(StripLayout s, Tab tab) {
-        if (!s.overflow) return;
+        if (!overflows(s)) return;
         for (Placed p : s.placed) {
             if (p.tab != tab) continue;
-            int view = stripViewportWidth(s);
-            if (p.x < stripScroll) stripScroll = p.x;
-            else if (p.x + p.w > stripScroll + view) stripScroll = p.x + p.w - view;
+            int view = stripViewportLength(s);
+            if (posOf(p) < stripScroll) stripScroll = posOf(p);
+            else if (posOf(p) + lengthOf(p) > stripScroll + view) stripScroll = posOf(p) + lengthOf(p) - view;
         }
         clampStripScroll(s);
     }
 
-    /** One tab left (-1) or right (+1): snaps to the next tab edge in that direction. */
+    /** One tab back (-1) or forward (+1): snaps to the next tab edge in that direction. */
     private void stepStrip(StripLayout s, int dir) {
-        if (!s.overflow) return;
+        if (!overflows(s)) return;
         if (dir > 0) {
             for (Placed p : s.placed) {
-                if (p.x > stripScroll) { stripScroll = p.x; break; }
+                if (posOf(p) > stripScroll) { stripScroll = posOf(p); break; }
             }
         } else {
             int target = 0;
             for (Placed p : s.placed) {
-                if (p.x < stripScroll) target = p.x;
+                if (posOf(p) < stripScroll) target = posOf(p);
             }
             stripScroll = target;
         }
         clampStripScroll(s);
     }
 
+    /** Whether an element-local point is on the strip (the sidebar column, or the rows on top). */
+    private boolean onStrip(StripLayout s, double lx, double ly) {
+        if (sidebar()) return lx >= 0 && lx < s.columnWidth && ly >= 0 && ly < getHeight();
+        return ly >= 0 && ly < s.height;
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // Bodies
     // ════════════════════════════════════════════════════════════════════════
 
-    /** The body top, in element-local coordinates. */
+    /** The body's top-left, in element-local coordinates: below the strip, or right of the sidebar. */
     private int bodyTop(StripLayout s) {
+        if (sidebar()) return 0;
         return s.height + (s.height > 0 ? BODY_GAP : 0);
+    }
+
+    private int bodyLeft(StripLayout s) {
+        if (!sidebar()) return 0;
+        return s.columnWidth + (s.columnWidth > 0 ? BODY_GAP : 0);
+    }
+
+    private int bodyWidth(StripLayout s) {
+        return Math.max(1, getWidth() - bodyLeft(s));
     }
 
     /** The shown body, laid out for the current body size, scrolling when it overflows. */
@@ -455,7 +559,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
 
     private @Nullable BodyView bodyView(StripLayout s, @Nullable Tab tab) {
         if (tab == null) return null;
-        int w = getWidth();
+        int w = bodyWidth(s);
         int h = Math.max(0, getHeight() - bodyTop(s));
         int sig = signature(tab.body);
         if (body != null && body.tab == tab && body.width == w && body.height == h && body.layoutSig == sig) {
@@ -528,13 +632,17 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         if (fixedWidth >= 0) return fixedWidth;
         Font font = Minecraft.getInstance().font;
         int row = 0, widestBody = 0;
+        List<Tab> visible = new ArrayList<>();
         for (Tab t : tabs) {
             if (!t.isVisible()) continue;
+            visible.add(t);
             row += Math.max(font.width(t.label) + 2 * LABEL_PAD, MIN_TAB_WIDTH);
             for (PanelElement e : t.body) {
                 if (e.isVisible()) widestBody = Math.max(widestBody, e.getChildX() + e.naturalWidth());
             }
         }
+        // A sidebar sits beside the body; a strip sits above it.
+        if (sidebar()) return visible.isEmpty() ? widestBody : sidebarNaturalWidth(visible) + BODY_GAP + widestBody;
         return Math.max(row, widestBody);
     }
 
@@ -544,10 +652,13 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     private int naturalHeightCache = -1;
     private int naturalHeightKey = 0;
 
-    /** The strip plus the tallest visible body, at the current width: steady across tab switches. */
+    /**
+     * The strip plus the tallest visible body (the sidebar: the taller of the
+     * column and that body), at the current width: steady across tab switches.
+     */
     private int naturalHeight() {
         StripLayout s = strip();
-        int w = getWidth();
+        int w = bodyWidth(s);
         int key = naturalKey(w);
         if (naturalHeightCache >= 0 && key == naturalHeightKey) return naturalHeightCache;
         int tallest = 0;
@@ -557,7 +668,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
             Panel.reflowForWrap(t.body);
             tallest = Math.max(tallest, Panel.contentHeightOf(t.body));
         }
-        naturalHeightCache = bodyTop(s) + tallest;
+        naturalHeightCache = sidebar() ? Math.max(s.height, tallest) : bodyTop(s) + tallest;
         naturalHeightKey = naturalKey(w); // after layout, so a settled body doesn't re-measure
         return naturalHeightCache;
     }
@@ -600,7 +711,6 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     @Override
     public void render(RenderContext ctx) {
         var g = ctx.graphics();
-        Font font = Minecraft.getInstance().font;
         int sx = ctx.originX() + childX;
         int sy = ctx.originY() + childY;
         originX = sx;
@@ -618,8 +728,34 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         lastShown = shown == null ? null : shown.id;
 
         // ── Strip ──
-        int viewLeft = sx + stripViewportLeft(s);
-        int viewRight = viewLeft + stripViewportWidth(s);
+        if (sidebar()) {
+            renderSidebar(ctx, s, shown, sx, sy);
+        } else {
+            renderStrip(ctx, s, shown, sx, sy);
+        }
+
+        // ── Body ──
+        BodyView b = bodyView(s, shown);
+        if (b == null) return;
+        int bx = sx + bodyLeft(s), by = sy + bodyTop(s);
+        RenderContext bodyCtx = new RenderContext(g, bx, by, ctx.mouseX(), ctx.mouseY());
+        if (b.scroll != null) {
+            b.scroll.render(bodyCtx);
+        } else {
+            if (b.height > 0) g.enableScissor(bx, by, bx + b.width, by + b.height);
+            for (PanelElement e : b.tab.body) {
+                if (e.isVisible()) e.render(bodyCtx);
+            }
+            if (b.height > 0) g.disableScissor();
+        }
+    }
+
+    /** The strip across the top ({@link Mode#WRAP}, {@link Mode#SIDE_SCROLL}). */
+    private void renderStrip(RenderContext ctx, StripLayout s, @Nullable Tab shown, int sx, int sy) {
+        var g = ctx.graphics();
+        Font font = Minecraft.getInstance().font;
+        int viewLeft = sx + stripViewportStart(s);
+        int viewRight = viewLeft + stripViewportLength(s);
         int shift = s.overflow ? stripScroll : 0;
         if (s.overflow) g.enableScissor(viewLeft, sy, viewRight, sy + s.height);
         Placed hoveredTruncated = null;
@@ -654,20 +790,118 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         if (hoveredTruncated != null) {
             MKTooltip.queue(g, hoveredTruncated.tab.label, ctx.mouseX(), ctx.mouseY());
         }
+    }
 
-        // ── Body ──
-        BodyView b = bodyView(s, shown);
-        if (b == null) return;
-        RenderContext bodyCtx = new RenderContext(g, sx, sy + bodyTop(s), ctx.mouseX(), ctx.mouseY());
-        if (b.scroll != null) {
-            b.scroll.render(bodyCtx);
-        } else {
-            if (b.height > 0) g.enableScissor(sx, sy + bodyTop(s), sx + b.width, sy + bodyTop(s) + b.height);
-            for (PanelElement e : b.tab.body) {
-                if (e.isVisible()) e.render(bodyCtx);
-            }
-            if (b.height > 0) g.disableScissor();
+    /** The column down the left ({@link Mode#SIDEBAR}). */
+    private void renderSidebar(RenderContext ctx, StripLayout s, @Nullable Tab shown, int sx, int sy) {
+        var g = ctx.graphics();
+        Font font = Minecraft.getInstance().font;
+        boolean overflow = overflows(s);
+        int viewTop = sy + stripViewportStart(s);
+        int viewBottom = viewTop + stripViewportLength(s);
+        int shift = overflow ? stripScroll : 0;
+        int column = s.columnWidth;
+        if (overflow) g.enableScissor(sx, viewTop, sx + column, viewBottom);
+        Placed hoveredTruncated = null;
+        for (Placed p : s.placed) {
+            int ty = viewTop + p.y - shift;
+            if (ty + TAB_HEIGHT <= viewTop || ty >= viewBottom) continue;
+            boolean isSelected = p.tab == shown;
+            boolean hovered = ctx.hasMouseInput()
+                    && ctx.mouseX() >= sx && ctx.mouseX() < sx + column
+                    && ctx.mouseY() >= Math.max(ty, viewTop) && ctx.mouseY() < Math.min(ty + TAB_HEIGHT, viewBottom);
+            drawSideTab(g, sx, ty, column, TAB_HEIGHT, isSelected, hovered);
+            // Labels line up down the column whatever is selected, so it reads as a
+            // list: the selected tab grows toward the left, its label does not move.
+            int textW = font.width(p.text);
+            int faceLeft = sx + SIDE_INSET;
+            int textX = switch (align) {
+                case LEFT, FILL -> faceLeft + LABEL_PAD;
+                case CENTER -> faceLeft + (column - SIDE_INSET - textW) / 2;
+                case RIGHT -> sx + column - LABEL_PAD - textW;
+            };
+            int textY = (ty + ty + TAB_HEIGHT - font.lineHeight) / 2 + 1;
+            int color = p.tab.standIn
+                    ? (isSelected ? COLOR_STAND_IN_SELECTED : COLOR_STAND_IN_UNSELECTED)
+                    : (isSelected ? COLOR_SELECTED : COLOR_UNSELECTED);
+            g.text(font, p.text, textX, textY, color);
+            if (hovered && p.truncated) hoveredTruncated = p;
         }
+        if (overflow) {
+            g.disableScissor();
+            renderVerticalArrows(ctx, s, sx, sy);
+        }
+        if (hoveredTruncated != null) {
+            MKTooltip.queue(g, hoveredTruncated.tab.label, ctx.mouseX(), ctx.mouseY());
+        }
+    }
+
+    /**
+     * One sidebar tab: vanilla's tab sprite turned on its side, open toward the
+     * page on the right. Along the tab's thickness (left to right) the sprite's
+     * rows: the unselected inset, the outer cap line, the inner cap line, the
+     * face (stretched), and at the page the inner line, then the page edge's
+     * light and dark lines, which the selected tab leaves open. Across its length
+     * (top to bottom) each row is edge, inner line, face, inner line, edge.
+     */
+    private static void drawSideTab(net.minecraft.client.gui.GuiGraphicsExtractor g, int x, int y, int w, int h,
+                                    boolean selected, boolean hovered) {
+        int L = hovered ? TAB_LIGHT_HOVER : TAB_LIGHT;
+        int E = TAB_EDGE, P = TAB_LIGHT;
+        int face = selected ? TAB_CLEAR : TAB_FILL;
+        int cx = x + (selected ? 0 : SIDE_INSET);
+        int stretch = x + w - cx - 2 - 3;          // cap lines before, three page-side lines after
+        int[][] rows = selected
+                ? new int[][]{{E, E, E}, {E, L, L}, {E, L, face}, {E, L, face}, {P, L, TAB_CLEAR}, {E, E, TAB_CLEAR}}
+                : new int[][]{{E, E, E}, {E, L, L}, {E, L, face}, hovered ? new int[]{E, L, L} : new int[]{E, L, face},
+                              {P, P, P}, {E, E, E}};
+        int[] thickness = {1, 1, Math.max(0, stretch), 1, 1, 1};
+        for (int i = 0; i < rows.length; i++) {
+            int t = thickness[i];
+            if (t > 0) drawSideTabRow(g, cx, y, t, h, rows[i]);
+            cx += t;
+        }
+    }
+
+    /** One row of the sprite, {@code t} px thick: {edge, inner, face} mirrored across the tab's length. */
+    private static void drawSideTabRow(net.minecraft.client.gui.GuiGraphicsExtractor g, int x, int y, int t, int h,
+                                       int[] row) {
+        fillIfVisible(g, x, y, x + t, y + 1, row[0]);
+        fillIfVisible(g, x, y + 1, x + t, y + 2, row[1]);
+        fillIfVisible(g, x, y + 2, x + t, y + h - 2, row[2]);
+        fillIfVisible(g, x, y + h - 2, x + t, y + h - 1, row[1]);
+        fillIfVisible(g, x, y + h - 1, x + t, y + h, row[0]);
+    }
+
+    private static void fillIfVisible(net.minecraft.client.gui.GuiGraphicsExtractor g, int x0, int y0, int x1, int y1,
+                                      int color) {
+        if ((color >>> 24) != 0 && x1 > x0 && y1 > y0) g.fill(x0, y0, x1, y1, color);
+    }
+
+    /** The side-scroll arrows turned to point up and down, at the column's two ends. */
+    private void renderVerticalArrows(RenderContext ctx, StripLayout s, int sx, int sy) {
+        var g = ctx.graphics();
+        int column = s.columnWidth;
+        int cx = sx + column / 2;
+        // An arrow is hidden once its end is reached; its space stays, so tabs don't shift.
+        if (stripScroll > 0) {
+            boolean hover = ctx.isHovered(childX, childY, column, ARROW_WIDTH);
+            blitTurned(g, hover ? SPRITE_BACK_HOVER : SPRITE_BACK, cx, sy + ARROW_WIDTH / 2);
+        }
+        if (stripScroll < maxStripScroll(s)) {
+            boolean hover = ctx.isHovered(childX, childY + getHeight() - ARROW_WIDTH, column, ARROW_WIDTH);
+            blitTurned(g, hover ? SPRITE_FORWARD_HOVER : SPRITE_FORWARD, cx, sy + getHeight() - ARROW_WIDTH / 2);
+        }
+    }
+
+    /** A page arrow turned a quarter clockwise (back points up, forward down), centred on (cx, cy). */
+    private static void blitTurned(net.minecraft.client.gui.GuiGraphicsExtractor g, Identifier sprite, int cx, int cy) {
+        g.pose().pushMatrix();
+        g.pose().translate((float) cx, (float) cy);
+        g.pose().rotate((float) (Math.PI / 2));
+        g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, -ARROW_SPRITE_W / 2, -ARROW_SPRITE_H / 2,
+                ARROW_SPRITE_W, ARROW_SPRITE_H);
+        g.pose().popMatrix();
     }
 
     private void renderArrows(RenderContext ctx, StripLayout s, int sx, int sy) {
@@ -693,7 +927,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     public void renderOverlay(RenderContext ctx) {
         if (body == null || !originValid) return;
         StripLayout s = strip();
-        RenderContext bodyCtx = new RenderContext(ctx.graphics(), ctx.originX() + childX,
+        RenderContext bodyCtx = new RenderContext(ctx.graphics(), ctx.originX() + childX + bodyLeft(s),
                 ctx.originY() + childY + bodyTop(s), ctx.mouseX(), ctx.mouseY());
         if (body.scroll != null) {
             body.scroll.renderOverlay(bodyCtx);
@@ -730,14 +964,18 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         }
 
         double lx = mouseX - originX, ly = mouseY - originY;
-        if (ly >= 0 && ly < s.height) {
+        if (onStrip(s, lx, ly)) {
             if (button != 0) return true;                 // the strip eats its own clicks
-            if (s.overflow && lx < ARROW_WIDTH) { stepStrip(s, -1); return true; }
-            if (s.overflow && lx >= getWidth() - ARROW_WIDTH) { stepStrip(s, +1); return true; }
-            int shift = s.overflow ? stripScroll : 0;
-            double contentX = lx - stripViewportLeft(s) + shift;
+            boolean overflow = overflows(s);
+            double along = sidebar() ? ly : lx;          // position along the strip's axis
+            if (overflow && along < ARROW_WIDTH) { stepStrip(s, -1); return true; }
+            if (overflow && along >= axisLength() - ARROW_WIDTH) { stepStrip(s, +1); return true; }
+            double contentAlong = along - stripViewportStart(s) + (overflow ? stripScroll : 0);
             for (Placed p : s.placed) {
-                if (contentX >= p.x && contentX < p.x + p.w && ly >= p.y && ly < p.y + TAB_HEIGHT) {
+                boolean hit = sidebar()
+                        ? contentAlong >= p.y && contentAlong < p.y + TAB_HEIGHT
+                        : contentAlong >= p.x && contentAlong < p.x + p.w && ly >= p.y && ly < p.y + TAB_HEIGHT;
+                if (hit) {
                     select(p.tab);
                     return true;
                 }
@@ -750,7 +988,8 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     }
 
     private boolean clickChildren(BodyView b, double mouseX, double mouseY, int button) {
-        int bx = originX, by = originY + bodyTop(strip());
+        StripLayout s = strip();
+        int bx = originX + bodyLeft(s), by = originY + bodyTop(s);
         for (PanelElement e : b.tab.body) {
             if (!e.isVisible()) continue;
             int ex = bx + e.getChildX(), ey = by + e.getChildY();
@@ -764,9 +1003,9 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (!originValid) return false;
         StripLayout s = strip();
-        double ly = mouseY - originY;
-        if (ly >= 0 && ly < s.height) {
-            if (!s.overflow) return false;
+        double lx = mouseX - originX, ly = mouseY - originY;
+        if (onStrip(s, lx, ly)) {
+            if (!overflows(s)) return false;
             double delta = scrollY != 0 ? scrollY : scrollX;
             if (delta == 0) return false;
             stepStrip(s, delta > 0 ? -1 : +1);             // wheel up = back, down = forward
@@ -980,7 +1219,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
             return this;
         }
 
-        /** {@link Mode#WRAP} (default) or {@link Mode#SIDE_SCROLL}. */
+        /** {@link Mode#WRAP} (default), {@link Mode#SIDE_SCROLL}, or {@link Mode#SIDEBAR}. */
         public Builder mode(Mode mode) {
             this.mode = Objects.requireNonNull(mode, "mode");
             return this;
