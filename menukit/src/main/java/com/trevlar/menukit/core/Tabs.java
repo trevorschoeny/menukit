@@ -7,7 +7,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
 import org.jspecify.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +44,7 @@ import java.util.function.Supplier;
  * <h3>Selection is a lens (§0026)</h3>
  *
  * The consumer owns which tab is selected: a supplier reads it every frame and
- * a callback writes it when the player clicks a tab or uses the keyboard.
+ * a callback writes it when the player clicks a tab.
  * Selecting a tab from outside is writing your own field; the strip shows it on
  * the next frame. When the selected tab is hidden, the nearest visible tab is
  * <em>shown</em> (the next one, else the previous) and <b>nothing is written</b>,
@@ -100,14 +99,6 @@ import java.util.function.Supplier;
  * of this element: switching away and back, hiding tabs, and resizing leave it
  * where the player left it. That is view state, like a panel's own auto-scroll
  * offset, not consumer state.
- *
- * <h3>Keyboard</h3>
- *
- * Vanilla's tab contract: Ctrl+Tab and Ctrl+Shift+Tab cycle through the visible
- * tabs, and Ctrl+1 to Ctrl+9 (and Ctrl+0 for the tenth) jump to one. Cmd works in
- * place of Ctrl, but on macOS the system takes Cmd+Tab, so physical Ctrl is the
- * key there. No arrow keys: MenuKit has no element focus, and elements see a key
- * before a focused text field does, so arrows on the strip would steal them.
  *
  * <h3>Tabs from other mods</h3>
  *
@@ -622,7 +613,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         Tab shown = shownTab();
         clampStripScroll(s);
         if (shown != null && !Objects.equals(shown.id, lastShown)) {
-            scrollIntoView(s, shown);     // clicked, keyed, or selected from outside
+            scrollIntoView(s, shown);     // clicked, or selected from outside
         }
         lastShown = shown == null ? null : shown.id;
 
@@ -803,28 +794,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        // Ctrl or Cmd: the body's own shortcuts rarely use either with Tab or a digit.
-        boolean ctrl = (modifiers & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
-        if (ctrl) {
-            List<Tab> visible = new ArrayList<>();
-            for (Tab t : tabs) if (t.isVisible()) visible.add(t);
-            if (!visible.isEmpty()) {
-                if (keyCode == GLFW.GLFW_KEY_TAB) {
-                    int at = visible.indexOf(shownTab());
-                    int step = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0 ? -1 : 1;
-                    select(visible.get(Math.floorMod(at + step, visible.size())));
-                    return true;
-                }
-                if (keyCode >= GLFW.GLFW_KEY_0 && keyCode <= GLFW.GLFW_KEY_9) {
-                    // Vanilla's mapping: 1..9 are the first nine tabs, 0 the tenth.
-                    int index = Math.floorMod(keyCode - GLFW.GLFW_KEY_1, 10);
-                    if (index < visible.size()) {
-                        select(visible.get(index));
-                        return true;
-                    }
-                }
-            }
-        }
+        // No shortcuts of its own (Trev, 2026-09-26): keys go to the shown body.
         BodyView b = liveBody();
         if (b == null) return false;
         if (b.scroll != null) return b.scroll.keyPressed(keyCode, scanCode, modifiers);
