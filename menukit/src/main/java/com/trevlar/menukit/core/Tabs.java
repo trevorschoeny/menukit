@@ -141,6 +141,9 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
 
     /** Height of one row of tabs. */
     public static final int TAB_HEIGHT = 20;
+
+    /** How far down an unselected tab's visible body starts, per vanilla's tab sprite. */
+    private static final int UNSELECTED_LABEL_INSET = 3;
     /** Padding on each side of a label. */
     public static final int LABEL_PAD = 8;
     /** Narrowest a tab gets, whatever its label. */
@@ -641,7 +644,12 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
                     ? (hovered ? SPRITE_SELECTED_HOVER : SPRITE_SELECTED)
                     : (hovered ? SPRITE_TAB_HOVER : SPRITE_TAB);
             g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, tx, ty, p.w, TAB_HEIGHT);
-            int textY = ty + (TAB_HEIGHT - font.lineHeight) / 2 + 1;
+            // Vanilla's rule (MenuTabButton.renderLabel): an unselected tab's sprite
+            // starts its visible body 3 px down, so its label centers in the box below
+            // that inset, not over the full height. Same arithmetic as vanilla's
+            // scrolling-string centering, so both states match vanilla to the pixel.
+            int labelTop = ty + (isSelected ? 0 : UNSELECTED_LABEL_INSET);
+            int textY = (labelTop + ty + TAB_HEIGHT - font.lineHeight) / 2 + 1;
             int color = p.tab.standIn
                     ? (isSelected ? COLOR_STAND_IN_SELECTED : COLOR_STAND_IN_UNSELECTED)
                     : (isSelected ? COLOR_SELECTED : COLOR_UNSELECTED);
