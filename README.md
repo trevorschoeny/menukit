@@ -33,20 +33,20 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    modImplementation 'maven.modrinth:menukit:5.0.0+26.2'
+    modImplementation 'maven.modrinth:menukit:5.1.0+26.2'
     // Only if the mod creates slots or custom menus. Pulls in menukit transitively.
-    modImplementation 'maven.modrinth:menukit-containers:5.0.0+26.2'
+    modImplementation 'maven.modrinth:menukit-containers:5.1.0+26.2'
 }
 ```
 
 Declare what you use in `fabric.mod.json`, with both bounds ([why](docs/versioning.md)):
 
 ```json
-"depends": { "menukit": ">=5.0.0 <6.0.0" }
+"depends": { "menukit": ">=5.1.0 <6.0.0" }
 ```
 
 ```json
-"depends": { "menukit": ">=5.0.0 <6.0.0", "menukit-containers": ">=5.0.0 <6.0.0" }
+"depends": { "menukit": ">=5.1.0 <6.0.0", "menukit-containers": ">=5.1.0 <6.0.0" }
 ```
 
 ## Example
@@ -95,6 +95,8 @@ The `validator-mk` and `validator-mkc` mods in the same workspace are the refere
 Both artifacts build from the workspace root: `./gradlew :menukit:build :menukit-containers:build`.
 
 ## Upgrading
+
+**To 5.1.0.** Nothing breaks. `SlotSpec.quickMove(...)` and `MKCBehaviorKeys.QUICK_MOVE` are deprecated for removal in 6.0.0; declare `BehaviorKeys.SHIFT_CLICK_OUT` and `SHIFT_CLICK_IN` instead.
 
 **To 5.0.0.** Four region enums are two, and two bounds records are one. Replace the type names; the constants inside are unchanged.
 
