@@ -73,6 +73,8 @@ final class TabMenus {
             if (c == null) {
                 roots.add(o);
             } else if (o.isStandIn()) {
+                // Only the place carries over. The contribution is added as it came,
+                // so its own visibleWhen (or none) applies, never the stand-in's.
                 roots.add(c);
             } else {
                 roots.add(o);

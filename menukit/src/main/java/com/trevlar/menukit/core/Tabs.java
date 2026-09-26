@@ -928,6 +928,11 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
          * to the menu with the same id takes this one's place, label and body; with
          * nothing to replace it, the tab shows with a dimmed label and this body,
          * typically a line saying which mod to install.
+         *
+         * <p>Only the place carries over. The replacement keeps its own
+         * {@code visibleWhen}, or always shows if it has none: a stand-in's
+         * visibility is about advertising the missing mod (an owner's "hide the
+         * companion's tabs" switch), not about the real feature once it is there.
          */
         public TabSpec standIn() {
             this.standIn = true;
