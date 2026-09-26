@@ -20,7 +20,7 @@ What it does:
 - Lets more than one mod add UI to the same screen without conflict: panels sharing a region stack in order instead of overlapping.
 - Creates real, server-synced slots as UI components and shows them on every container screen without per-screen setup.
 - Publishes every slot group, vanilla or created, under a category any mod can read, with or without a menu open.
-- Names what may be done to a slot as operations: vanilla's eleven, split one per gesture and plain clicks included, and any a mod adds, each with a display name and description. A slot, its group, or its category answers, in that order, and a locking mod lays a veto over all three. Every operation asks `SlotOperations.allows` before it acts, and a click a mod sends counts as the operation it serves.
+- Names each thing that can be done to a slot as an operation. Vanilla's actions become eleven, one per gesture, plain clicks included, and a mod can add its own. Each has a display name and a description. A slot answers for itself first, then its group, then its category, and a locking mod can veto any of them. Every operation checks `SlotOperations.allows` before it acts, and a click a mod sends counts as the operation it was sent for.
 - Attaches per-slot state to any slot, private per player or shared across viewers, stored on the slot's owner and readable with `/data get`.
 - Handles modal overlays, click-through prohibition, recipe-book awareness, and cursor stability across screen changes.
 
@@ -39,7 +39,7 @@ dependencies {
 }
 ```
 
-Declare what you use in `fabric.mod.json`, with both bounds ([why](docs/versioning.md)):
+Declare what you use in `fabric.mod.json`, with both bounds ([why](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md)):
 
 ```json
 "depends": { "menukit": ">=5.1.0 <6.0.0" }
@@ -78,10 +78,10 @@ MKCContainerPanel.define("mymod:pockets")
 
 ## Docs
 
-- [Getting started](docs/getting-started.md): dependency, one HUD panel, one inventory-screen panel.
-- [Concepts](docs/concepts.md): panels, elements, regions, the four contexts, slots, addresses.
-- [Recipes](docs/recipes.md): the common tasks, with samples from shipping mods.
-- [Limits](docs/limits.md): what MenuKit does not do and the open gaps.
+- [Getting started](https://github.com/trevorschoeny/menukit/blob/main/docs/getting-started.md): dependency, one HUD panel, one inventory-screen panel.
+- [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md): panels, elements, regions, the four contexts, slots, addresses.
+- [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md): the common tasks, with samples from shipping mods.
+- [Limits](https://github.com/trevorschoeny/menukit/blob/main/docs/limits.md): what MenuKit does not do and the open gaps.
 - [Reference](https://trevorschoeny.github.io/menukit/): the generated javadoc for both artifacts.
 
 The `validator-mk` and `validator-mkc` mods in the same workspace are the reference consumers, with compiling usage of every primitive.
@@ -96,9 +96,13 @@ Both artifacts build from the workspace root: `./gradlew :menukit:build :menukit
 
 ## Upgrading
 
-**To 5.1.0.** Nothing breaks. `SlotSpec.quickMove(...)` and `MKCBehaviorKeys.QUICK_MOVE` are deprecated for removal in 6.0.0; declare `BehaviorKeys.SHIFT_CLICK_OUT` and `SHIFT_CLICK_IN` instead.
+### To 5.1.0
 
-**To 5.0.0.** Four region enums are two, and two bounds records are one. Replace the type names; the constants inside are unchanged.
+Nothing breaks. `SlotSpec.quickMove(...)` and `MKCBehaviorKeys.QUICK_MOVE` are deprecated for removal in 6.0.0; declare `BehaviorKeys.SHIFT_CLICK_OUT` and `SHIFT_CLICK_IN` instead.
+
+### To 5.0.0
+
+Four region enums are two, and two bounds records are one. Replace the type names; the constants inside are unchanged.
 
 | Was | Is |
 |---|---|
@@ -109,14 +113,18 @@ Both artifacts build from the workspace root: `./gradlew :menukit:build :menukit
 
 With Containers, every created slot group declares a `SlotGroupCategory`: `SlotSpec.at(id, category)`, `MKCSlots.onto(...).category(...)`, and `PanelBuilder.group(id, category, storage)`. A group without one fails at runtime on the first menu it opens. Each 5.0.0 changelog lists the full set.
 
-**To 4.0.0.** Vanilla draws every slot; MenuKit runs no slot pass of its own. Two public shapes changed:
+### To 4.0.0
+
+Vanilla draws every slot; MenuKit runs no slot pass of its own. Two public shapes changed:
 
 - `CreatedSlotResolver.resolve` returns the live in-menu `Slot` instead of a position. Read `x` and `y` off the returned slot.
 - `SlotRendering` keeps the frame helper and its constants. The item-drawing helpers are gone, because vanilla draws the item.
 
-A mod that only builds panels, elements, or slots through the documented builders needs no change. [concepts.md](docs/concepts.md) describes the rendering model.
+A mod that only builds panels, elements, or slots through the documented builders needs no change. [concepts.md](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md) describes the rendering model.
 
-**To 3.0.0.** The Java package moved from `com.trevorschoeny.menukit` to `com.trevlar.menukit`. Replace the prefix in every import. No class or method names changed.
+### To 3.0.0
+
+The Java package moved from `com.trevorschoeny.menukit` to `com.trevlar.menukit`. Replace the prefix in every import. No class or method names changed.
 
 ## License
 
@@ -125,5 +133,3 @@ MIT. See `LICENSE`.
 ## Issues
 
 [github.com/trevorschoeny/menukit/issues](https://github.com/trevorschoeny/menukit/issues).
-
-Version compatibility, and what to put in `depends`: [docs/versioning.md](docs/versioning.md).
