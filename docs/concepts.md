@@ -27,7 +27,7 @@ A `PanelElement` is one item inside a panel. Its position is relative to the pan
 |---|---|
 | Render only | `TextLabel`, `Icon`, `Divider`, `ItemDisplay`, `ProgressBar`, `InfoBox` |
 | Interactive | `Button`, `Toggle`, `Checkbox`, `Radio` (with `RadioGroup`), `Slider`, `TextField`, `Dropdown`, `DropdownMulti` |
-| Composite | `ScrollContainer`, `ConfirmDialog`, `AlertDialog` |
+| Composite | `ScrollContainer`, `Tabs`, `ConfirmDialog`, `AlertDialog` |
 | Slot (Containers) | `SlotElement`, `SlotFlowElement` |
 
 A consumer implements `PanelElement` for a custom element.
@@ -55,6 +55,24 @@ A stateful element does not own its state. It reads the value from a `Supplier` 
 `build()` freezes the panel's element list. No method adds an element to a built panel. Visibility, position, and supplier-driven content change at runtime. To change the element list, build a new panel.
 
 A hidden element or panel is inert on every surface. It does not render, receive clicks, show a tooltip, or reserve layout.
+
+## Size
+
+Width flows down from the panel to its elements. A label wraps to it and a slider caps to it. Height does not flow down unless an element asks: an element whose `fillsHeight()` returns true takes the room from its top edge to the bottom of the panel's viewport, through `fillHeight(int)`. The viewport is the panel's pinned height or, for a screen's MAIN panel, the screen's height. With no viewport the element gets -1 and takes its natural height. No built-in element but `Tabs` fills height.
+
+## Tabs
+
+`Tabs` is a tab strip and the area below it that shows the selected tab's body. One element holds both, so the body's top edge follows the strip's height. Each tab has a string id, a label, a body, and an optional `visibleWhen`. A body is a list of elements positioned from the body's top-left, laid out to the body width the way a panel lays out its own elements, and scrolled when it is taller than the body area.
+
+Selection is consumer state. `selected(supplier, onSelect)` reads the selected id every frame and writes the id the player picks. To select a tab from outside, write your own field. When the selected tab is hidden, the next visible tab is shown, else the previous one, and nothing is written, so the tab takes the selection back when it reappears.
+
+Two modes. `WRAP` breaks the strip into the fewest rows the width allows and splits the tabs so the rows are about equally full. A tab keeps its row and place when another is selected. `SIDE_SCROLL` keeps one row. When it overflows it scrolls from the left, arrows appear at both ends, and a newly selected tab scrolls into view.
+
+`align(...)` is `LEFT`, `CENTER`, `RIGHT`, or `FILL`, applied per row. `FILL` gives every tab in a row its label width plus an equal share of the leftover space, the last row included. In `SIDE_SCROLL`, alignment applies only while the row fits. A label wider than its tab is cut with "..." and shows in full on hover.
+
+By default `Tabs` fills its panel's width and height. Put it in a screen's MAIN panel for a full-screen tabbed menu. `size(width, height)` fixes both, for a panel with no height to give. Each tab keeps its body's scroll position while the element exists.
+
+Ctrl+Tab and Ctrl+Shift+Tab cycle the visible tabs, and Ctrl+1 to Ctrl+9 select one. Cmd also works, except Cmd+Tab on macOS, which the system takes. Arrow keys do nothing, because MenuKit has no element focus and the strip would take them from a focused text field.
 
 ## Layout helpers
 

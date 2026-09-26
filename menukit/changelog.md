@@ -1,3 +1,5 @@
+5.2.0 (unreleased): Tabs. `Tabs` is a tab strip with the selected tab's body below it, for tabbed settings menus. It wraps into rows or scrolls sideways, aligns tabs left, centred, right or to fill each row, hides tabs live, and keeps each tab's scroll position. Selection is your own field, so opening a menu on a given tab is setting it first. Elements can now take their height from their panel (`fillsHeight()`), which is how a `Tabs` fills a full screen. Adds API and breaks nothing.
+
 5.1.0: An inventory mod can now list every slot operation in the game, show each one to the player by name, and block the ones they pick on the slots they pick. This release adds API and breaks nothing.
 
 Vanilla's slot actions are split into one operation per gesture: click to take, click to place, shift-click out, shift-click in, double-click collect, drag fill, hotbar swap, offhand swap, drop one, drop stack, and item pickup. All of them are on by default. MenuKit enforces them itself, so a mod that depends on MenuKit alone gets them without Containers. Q, Ctrl-Q and F count as the same operations when no screen is open.

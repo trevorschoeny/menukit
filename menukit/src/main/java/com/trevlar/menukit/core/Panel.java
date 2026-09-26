@@ -603,6 +603,16 @@ public class Panel {
         // region panel without shrinking the ones that fit.)
         layoutElementsWithin(contentWidth);
         reflowForWrap();
+        // Height flows DOWN to the elements that fill it (the vertical twin of the
+        // width budget above): a filling element takes the viewport from its top
+        // edge down, so its bottom lands exactly on the viewport's and the panel
+        // never scrolls it. With no viewport it is released (-1) to its natural
+        // height. Only elements that declare fillsHeight() are touched, so every
+        // other element's size is exactly what it was before this step existed.
+        for (PanelElement e : elements) {
+            if (!e.fillsHeight()) continue;
+            e.fillHeight(viewportHeight > 0 ? Math.max(1, viewportHeight - e.getChildY()) : -1);
+        }
         int naturalContentHeight = aggregateRawContentHeight();
 
         cachedScrollContainer = null;
@@ -657,6 +667,11 @@ public class Panel {
      * a scrollbar reserve (first at full width to detect overflow, then narrower).
      */
     private void layoutElementsWithin(int contentWidth) {
+        layoutElementsWithin(elements, contentWidth);
+    }
+
+    /** {@link #layoutElementsWithin(int)} over any element list; shared with {@link Tabs}' bodies. */
+    static void layoutElementsWithin(List<PanelElement> elements, int contentWidth) {
         for (PanelElement e : elements) {
             int budget = contentWidth - e.getChildX();
             if (budget < MIN_ELEMENT_WIDTH) budget = MIN_ELEMENT_WIDTH;
@@ -725,6 +740,11 @@ public class Panel {
      * row) don't double-count.
      */
     private void reflowForWrap() {
+        reflowForWrap(elements);
+    }
+
+    /** {@link #reflowForWrap()} over any element list; shared with {@link Tabs}' bodies. */
+    static void reflowForWrap(List<PanelElement> elements) {
         if (elements.isEmpty()) return;
         int n = elements.size();
 
@@ -775,6 +795,11 @@ public class Panel {
      * configuration pass) and returns the max {@code childY + height}.
      */
     private int aggregateRawContentHeight() {
+        return contentHeightOf(elements);
+    }
+
+    /** The max {@code childY + height} over the visible elements; shared with {@link Tabs}' bodies. */
+    static int contentHeightOf(List<PanelElement> elements) {
         int max = 0;
         for (PanelElement e : elements) {
             if (!e.isVisible()) continue;

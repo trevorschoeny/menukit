@@ -69,6 +69,34 @@ new SlotGroupPanelAdapter(panel, OutsideRegion.TOP_ALIGN_RIGHT)
             SlotGroupCategory.HOPPER_STORAGE);
 ```
 
+## Build a full-screen tabbed menu
+
+Needs: MenuKit.
+
+```java
+// Source: validator-mk, TabsDemoScreen.java (trimmed)
+private static String tab = "general";   // yours to keep, and to set before opening
+
+Tabs tabs = Tabs.builder()
+        .mode(Tabs.Mode.WRAP)
+        .align(Tabs.Align.FILL)
+        .selected(() -> tab, id -> tab = id)
+        .tab("general", Component.literal("General"), generalBody)
+        .tab(Tabs.tab("pockets")
+                .label(Component.literal("Pockets"))
+                .visibleWhen(() -> config.showMaxTabs)
+                .body(pocketsBody))
+        .build();
+
+Panel main = Panel.builder("mymod:settings")
+        .style(PanelStyle.RAISED)
+        .position(PanelPosition.main())
+        .add(tabs)
+        .build();
+```
+
+Result: a strip across the top of the screen that wraps into rows, with the selected tab's body below it filling the rest of the screen. A body is a `List<PanelElement>`, the same as `ScrollContainer` content. To open the menu on a given tab, set `tab` before `setScreen`. Hiding a tab re-splits the rows and moves the body. For one scrolling row, use `Tabs.Mode.SIDE_SCROLL`.
+
 ## Lay out elements in a row
 
 Needs: MenuKit.

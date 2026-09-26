@@ -179,6 +179,33 @@ public interface PanelElement {
      */
     default int extraLayoutHeight() { return 0; }
 
+    // ── Reactive sizing — height flows DOWN to filling elements ─────────
+    //
+    // The vertical twin of the width budget. Most elements have a height of their
+    // own (a label's line, a button's 20px) and never take one from the panel. An
+    // element that is an AREA rather than a control, a tab strip with its bodies,
+    // wants whatever height the panel has. It says so with fillsHeight(), and the
+    // owning Panel hands it the room from its top edge to the bottom of the
+    // panel's viewport on every configuration pass. Opt-in only: an element that
+    // does not declare it is never touched, so no existing element changes size.
+
+    /**
+     * Whether this element takes its height from the panel ({@link #fillHeight}).
+     * Default {@code false}.
+     */
+    default boolean fillsHeight() { return false; }
+
+    /**
+     * The height this element should occupy: the owning panel's viewport (its
+     * pinned height, or the screen-edge height budget) from this element's top
+     * edge down. {@code -1} when the panel has no viewport, meaning "use your
+     * natural height". Called only on elements whose {@link #fillsHeight()} is
+     * {@code true}. Default: no-op.
+     *
+     * @param height pixels from this element's top to the viewport bottom, or -1
+     */
+    default void fillHeight(int height) {}
+
     // ── Visibility ─────────────────────────────────────────────────────
     // Elements can be conditionally shown. The screen checks this before
     // rendering or routing clicks — invisible elements are fully inert.
