@@ -255,6 +255,12 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         return ids;
     }
 
+    /** Whether the tab with this id shows on the strip right now (its {@code visibleWhen}, read once). */
+    public boolean isTabVisible(String id) {
+        for (Tab t : tabs) if (t.id.equals(id)) return t.isVisible();
+        return false;
+    }
+
     /** Whether the tab with this id is a stand-in nothing has replaced. */
     public boolean isStandIn(String id) {
         for (Tab t : tabs) if (t.id.equals(id)) return t.standIn;
