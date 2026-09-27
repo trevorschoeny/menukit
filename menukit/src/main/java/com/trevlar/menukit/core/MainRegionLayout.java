@@ -61,6 +61,16 @@ public final class MainRegionLayout {
      *  stack's titleHeight reservation so the title never overprints the first row. */
     private static final int TITLE_STRIP = 14;
 
+    /** Where a screen's title sits, which decides the room reserved for it. */
+    public enum TitleBand {
+        /** Inside the frame, above the MAIN content (vanilla container screens). */
+        IN_FRAME,
+        /** At the top of the screen, outside the frame (a standalone screen's default). */
+        SCREEN_TOP,
+        /** Nowhere: no title drawn, no room reserved; the frame may reach the top margin. */
+        NONE
+    }
+
     /**
      * @param leftPos main frame screen-X (and the origin for leftPos-relative bounds)
      * @param topPos  main frame screen-Y
@@ -101,6 +111,14 @@ public final class MainRegionLayout {
     public static Result resolve(List<Panel> panels, Function<Panel, int[]> sizeFn,
                                  int screenW, int screenH, boolean reserveTitle,
                                  boolean autoFitMain) {
+        return resolve(panels, sizeFn, screenW, screenH,
+                reserveTitle ? TitleBand.IN_FRAME : TitleBand.SCREEN_TOP, autoFitMain);
+    }
+
+    /** {@link #resolve(List, Function, int, int, boolean, boolean)} with the title's place named. */
+    public static Result resolve(List<Panel> panels, Function<Panel, int[]> sizeFn,
+                                 int screenW, int screenH, TitleBand titleBand,
+                                 boolean autoFitMain) {
         Panel main = null;
         for (Panel p : panels) {
             if (p.getPosition().mode() == PanelPosition.Mode.MAIN) { main = p; break; }
@@ -123,14 +141,14 @@ public final class MainRegionLayout {
         // must NOT scroll — its vanilla slots are pinned in absolute coords with no
         // scroll hook (the host passes false there). Fed BEFORE the measure, exactly
         // like the width budget, so the measure reflects any wrap/scroll.
-        if (autoFitMain) feedMainHeight(main, screenH);
+        if (autoFitMain) feedMainHeight(main, screenH, titleBand);
         int[] ms = sizeFn.apply(main);
         int mainW = ms[0], mainContentH = ms[1];
         // Reserve the title strip at the top of the frame (the vanilla-container
         // convention the legacy BODY-stack reserved via titleHeight): the screen
         // title draws in the strip, the MAIN panel's content sits BELOW it. Without
         // this the title overprinted the main panel's first row (③ blocker).
-        int titleStrip = reserveTitle ? TITLE_STRIP : 0;
+        int titleStrip = titleBand == TitleBand.IN_FRAME ? TITLE_STRIP : 0;
         int frameH = mainContentH + titleStrip;
         int leftPos = (screenW - mainW) / 2;
         int topPos = (screenH - frameH) / 2;
@@ -142,8 +160,11 @@ public final class MainRegionLayout {
         // below it. Container screens (reserveTitle) draw the title INSIDE the frame
         // and need no screen-top clamp. Inert for a short frame whose centred top
         // already sits well below the band.
-        if (!reserveTitle) {
+        // With no title at all the frame only keeps the screen-edge margin.
+        if (titleBand == TitleBand.SCREEN_TOP) {
             topPos = Math.max(topPos, RegionConstants.SCREEN_EDGE_MARGIN + TITLE_STRIP);
+        } else if (titleBand == TitleBand.NONE) {
+            topPos = Math.max(topPos, RegionConstants.SCREEN_EDGE_MARGIN);
         }
         // MAIN content below the title strip; bounds are leftPos/topPos-relative.
         bounds.put(main.getId(), new PanelBounds(0, titleStrip, mainW, mainContentH));
@@ -268,8 +289,9 @@ public final class MainRegionLayout {
      * overlay / dialog grows naturally (a too-tall overlay is a consumer bug, not
      * something to silently scroll) and screen-anchored chrome is small by design.
      */
-    private static void feedMainHeight(Panel p, int screenH) {
+    private static void feedMainHeight(Panel p, int screenH, TitleBand titleBand) {
+        int title = titleBand == TitleBand.NONE ? 0 : TITLE_STRIP;
         p.setAvailableContentHeight(
-                screenH - 2 * RegionConstants.SCREEN_EDGE_MARGIN - TITLE_STRIP - 2 * p.interiorPadding());
+                screenH - 2 * RegionConstants.SCREEN_EDGE_MARGIN - title - 2 * p.interiorPadding());
     }
 }

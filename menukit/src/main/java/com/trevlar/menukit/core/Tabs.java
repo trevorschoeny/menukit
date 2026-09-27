@@ -81,9 +81,12 @@ import java.util.function.Supplier;
  *       page's edge. The column is as wide as its widest label, at most a third of
  *       the element, and every tab in it is that wide. {@link Align} places the
  *       label in the tab ({@link Align#FILL} as {@link Align#LEFT}), and labels
- *       stay put on selection so the column reads as a list. Taller than the
- *       element, it scrolls exactly as side-scroll does, turned vertical: up and
- *       down arrows, the wheel, one tab at a time, the selection kept in view.</li>
+ *       stay put on selection so the column reads as a list. Two slim buttons
+ *       bracket the tabs, one above and one below, always there, each greyed out
+ *       at its end (both when every tab fits). They, the wheel over the column,
+ *       and a newly selected tab scroll it one tab at a time.
+ *       {@link Builder#sidebarHeader} puts elements above the column (a Back
+ *       button, say), in the column's width; the body still starts at the top.</li>
  * </ul>
  * {@link Align#FILL} gives every tab in a row its label width plus an equal
  * share of the row's leftover space: every label always fits, and short labels
@@ -154,6 +157,10 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     public static final int BODY_GAP = 4;
     /** Width reserved at each end of an overflowing side-scroll strip for its arrow. */
     public static final int ARROW_WIDTH = 25;
+    /** Height of the sidebar's scroll buttons, above and below its tabs. */
+    public static final int SIDEBAR_SCROLL_HEIGHT = 10;
+    /** Space between the sidebar header and the scroll button under it. */
+    public static final int SIDEBAR_HEADER_GAP = 4;
 
     private static final String ELLIPSIS = "...";
     private static final int COLOR_SELECTED = 0xFFFFFFFF;
@@ -198,6 +205,10 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     private final Consumer<String> onSelect;
     private final int fixedWidth;   // -1 = take the panel's width
     private final int fixedHeight;  // -1 = take the panel's height (fillHeight)
+    /** Elements above the sidebar column, positioned from its top-left. Empty outside SIDEBAR. */
+    private final List<PanelElement> sidebarHeader;
+    /** The sidebar's scroll buttons, above and below the tabs; null outside SIDEBAR. */
+    private final @Nullable ScrollButton scrollUp, scrollDown;
 
     // ── Resolved geometry ──────────────────────────────────────────────────
 
@@ -232,6 +243,16 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         this.onSelect = b.onSelect;
         this.fixedWidth = b.width;
         this.fixedHeight = b.height;
+        this.sidebarHeader = List.copyOf(b.sidebarHeader);
+        if (mode == Mode.SIDEBAR) {
+            this.scrollUp = new ScrollButton(-1, btn -> stepStrip(strip(), -1),
+                    () -> stripScroll <= 0);
+            this.scrollDown = new ScrollButton(+1, btn -> stepStrip(strip(), +1),
+                    () -> stripScroll >= maxStripScroll(strip()));
+        } else {
+            this.scrollUp = null;
+            this.scrollDown = null;
+        }
     }
 
     public static Builder builder() {
@@ -304,7 +325,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
      * of {@link #overflows}, never read from {@code overflow}.
      */
     private record StripLayout(List<Placed> placed, int height, boolean overflow, int contentWidth,
-                               int columnWidth) {}
+                               int columnWidth, int headerHeight) {}
 
     private @Nullable StripLayout strip;
     private int stripWidthKey = -1;
@@ -322,20 +343,24 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     private StripLayout strip() {
         int w = getWidth();
         BitSet mask = visibleMask();
-        if (strip == null || w != stripWidthKey || !mask.equals(stripVisibleKey)) {
+        int headerSig = signature(sidebarHeader);
+        if (strip == null || w != stripWidthKey || !mask.equals(stripVisibleKey) || headerSig != stripHeaderKey) {
             strip = layoutStrip(w, mask);
             stripWidthKey = w;
             stripVisibleKey = mask;
+            stripHeaderKey = signature(sidebarHeader); // after layout, so a settled header doesn't relay
         }
         return strip;
     }
+
+    private int stripHeaderKey = 0;
 
     private StripLayout layoutStrip(int width, BitSet mask) {
         Font font = Minecraft.getInstance().font;
         List<Tab> visible = new ArrayList<>();
         for (int i = mask.nextSetBit(0); i >= 0; i = mask.nextSetBit(i + 1)) visible.add(tabs.get(i));
-        if (visible.isEmpty() || width <= 0) return new StripLayout(List.of(), 0, false, 0, 0);
         if (mode == Mode.SIDEBAR) return layoutSidebar(width, visible);
+        if (visible.isEmpty() || width <= 0) return new StripLayout(List.of(), 0, false, 0, 0, 0);
 
         int n = visible.size();
         int[] natural = new int[n];
@@ -391,14 +416,24 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
             contentWidth = Math.max(contentWidth, x);
             y += TAB_HEIGHT;
         }
-        return new StripLayout(List.copyOf(placed), y, overflow, contentWidth, 0);
+        return new StripLayout(List.copyOf(placed), y, overflow, contentWidth, 0, 0);
     }
 
-    /** One column, one tab per row, all as wide as the widest label, capped at a third of the element. */
+    /**
+     * One column, one tab per row, all as wide as the widest label or header
+     * element, capped at a third of the element; the header laid out to it.
+     */
     private StripLayout layoutSidebar(int width, List<Tab> visible) {
         Font font = Minecraft.getInstance().font;
+        if (width <= 0 || (visible.isEmpty() && !anyVisible(sidebarHeader))) {
+            return new StripLayout(List.of(), 0, false, 0, 0, 0);
+        }
         int cap = Math.max(Math.min(MIN_TAB_WIDTH, width), width / 3);
-        int column = Math.min(sidebarNaturalWidth(visible), cap);
+        int column = Math.min(Math.max(sidebarNaturalWidth(visible), headerNaturalWidth()), cap);
+        // The header is laid out the way a panel lays out its own elements, to the column's width.
+        Panel.layoutElementsWithin(sidebarHeader, column);
+        Panel.reflowForWrap(sidebarHeader);
+        int headerHeight = Panel.contentHeightOf(sidebarHeader);
         List<Placed> placed = new ArrayList<>(visible.size());
         int room = column - 2 * LABEL_PAD - SIDE_INSET;
         for (int i = 0; i < visible.size(); i++) {
@@ -411,7 +446,21 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
             }
             placed.add(new Placed(t, 0, i * TAB_HEIGHT, column, text, truncated));
         }
-        return new StripLayout(List.copyOf(placed), visible.size() * TAB_HEIGHT, false, column, column);
+        return new StripLayout(List.copyOf(placed), visible.size() * TAB_HEIGHT, false, column, column,
+                headerHeight);
+    }
+
+    private int headerNaturalWidth() {
+        int w = 0;
+        for (PanelElement e : sidebarHeader) {
+            if (e.isVisible()) w = Math.max(w, e.getChildX() + e.naturalWidth());
+        }
+        return w;
+    }
+
+    private static boolean anyVisible(List<PanelElement> elements) {
+        for (PanelElement e : elements) if (e.isVisible()) return true;
+        return false;
     }
 
     /** The column width every label fits in whole: the widest label, its padding, and the unselected inset. */
@@ -463,12 +512,12 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
 
     /** Whether the strip is longer than its room and scrolls. */
     private boolean overflows(StripLayout s) {
-        return sidebar() ? s.height > getHeight() : s.overflow;
+        return sidebar() ? s.height > stripViewportLength(s) : s.overflow;
     }
 
-    /** The element's length along the strip's axis. */
-    private int axisLength() {
-        return sidebar() ? getHeight() : getWidth();
+    /** Where the sidebar's up button sits: under the header and its gap, or at the top. */
+    private int sidebarUpY(StripLayout s) {
+        return s.headerHeight > 0 ? s.headerHeight + SIDEBAR_HEADER_GAP : 0;
     }
 
     /** The strip's full content length along its axis. */
@@ -485,13 +534,18 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         return sidebar() ? TAB_HEIGHT : p.w;
     }
 
-    /** Start of the tab viewport along the axis (after the back arrow when overflowing). */
+    /**
+     * Start of the tab viewport along the axis: after the back arrow when a
+     * side-scroll row overflows; in the sidebar, always under the up button.
+     */
     private int stripViewportStart(StripLayout s) {
-        return overflows(s) ? ARROW_WIDTH : 0;
+        if (sidebar()) return sidebarUpY(s) + SIDEBAR_SCROLL_HEIGHT;
+        return s.overflow ? ARROW_WIDTH : 0;
     }
 
     private int stripViewportLength(StripLayout s) {
-        return overflows(s) ? Math.max(1, axisLength() - 2 * ARROW_WIDTH) : axisLength();
+        if (sidebar()) return Math.max(0, getHeight() - stripViewportStart(s) - SIDEBAR_SCROLL_HEIGHT);
+        return s.overflow ? Math.max(1, getWidth() - 2 * ARROW_WIDTH) : getWidth();
     }
 
     private int maxStripScroll(StripLayout s) {
@@ -646,7 +700,10 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
             }
         }
         // A sidebar sits beside the body; a strip sits above it.
-        if (sidebar()) return visible.isEmpty() ? widestBody : sidebarNaturalWidth(visible) + BODY_GAP + widestBody;
+        if (sidebar()) {
+            int column = Math.max(sidebarNaturalWidth(visible), headerNaturalWidth());
+            return column + BODY_GAP + widestBody;
+        }
         return Math.max(row, widestBody);
     }
 
@@ -672,13 +729,15 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
             Panel.reflowForWrap(t.body);
             tallest = Math.max(tallest, Panel.contentHeightOf(t.body));
         }
-        naturalHeightCache = sidebar() ? Math.max(s.height, tallest) : bodyTop(s) + tallest;
+        // The sidebar column: header, both scroll buttons, and every tab.
+        int column = stripViewportStart(s) + s.height + SIDEBAR_SCROLL_HEIGHT;
+        naturalHeightCache = sidebar() ? Math.max(column, tallest) : bodyTop(s) + tallest;
         naturalHeightKey = naturalKey(w); // after layout, so a settled body doesn't re-measure
         return naturalHeightCache;
     }
 
     private int naturalKey(int width) {
-        int key = width * 31 + visibleMask().hashCode();
+        int key = (width * 31 + visibleMask().hashCode()) * 31 + signature(sidebarHeader);
         for (Tab t : tabs) {
             if (t.isVisible()) key = key * 31 + signature(t.body);
         }
@@ -796,16 +855,35 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         }
     }
 
-    /** The column down the left ({@link Mode#SIDEBAR}). */
+    /** The column down the left ({@link Mode#SIDEBAR}): header, up button, tabs, down button. */
     private void renderSidebar(RenderContext ctx, StripLayout s, @Nullable Tab shown, int sx, int sy) {
         var g = ctx.graphics();
         Font font = Minecraft.getInstance().font;
+        int column = s.columnWidth;
+        if (column <= 0) return;
+
+        // Header: ordinary elements, positioned from the column's top-left.
+        RenderContext columnCtx = new RenderContext(g, sx, sy, ctx.mouseX(), ctx.mouseY());
+        for (PanelElement e : sidebarHeader) {
+            if (e.isVisible()) e.render(columnCtx);
+        }
+
+        // The two scroll buttons: real Buttons, so they have MenuKit's button look
+        // and states. Placed every frame, since the column's height follows the screen.
+        int upY = sidebarUpY(s);
+        scrollUp.setChildPosition(0, upY);
+        scrollUp.fillWidth(column);
+        scrollDown.setChildPosition(0, getHeight() - SIDEBAR_SCROLL_HEIGHT);
+        scrollDown.fillWidth(column);
+        scrollUp.render(columnCtx);
+        scrollDown.render(columnCtx);
+
+        // The tabs, clipped to the room between the buttons.
         boolean overflow = overflows(s);
         int viewTop = sy + stripViewportStart(s);
         int viewBottom = viewTop + stripViewportLength(s);
         int shift = overflow ? stripScroll : 0;
-        int column = s.columnWidth;
-        if (overflow) g.enableScissor(sx, viewTop, sx + column, viewBottom);
+        g.enableScissor(sx, viewTop, sx + column, viewBottom);
         Placed hoveredTruncated = null;
         for (Placed p : s.placed) {
             int ty = viewTop + p.y - shift;
@@ -831,10 +909,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
             g.text(font, p.text, textX, textY, color);
             if (hovered && p.truncated) hoveredTruncated = p;
         }
-        if (overflow) {
-            g.disableScissor();
-            renderVerticalArrows(ctx, s, sx, sy);
-        }
+        g.disableScissor();
         if (hoveredTruncated != null) {
             MKTooltip.queue(g, hoveredTruncated.tab.label, ctx.mouseX(), ctx.mouseY());
         }
@@ -882,30 +957,29 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         if ((color >>> 24) != 0 && x1 > x0 && y1 > y0) g.fill(x0, y0, x1, y1, color);
     }
 
-    /** The side-scroll arrows turned to point up and down, at the column's two ends. */
-    private void renderVerticalArrows(RenderContext ctx, StripLayout s, int sx, int sy) {
-        var g = ctx.graphics();
-        int column = s.columnWidth;
-        int cx = sx + column / 2;
-        // An arrow is hidden once its end is reached; its space stays, so tabs don't shift.
-        if (stripScroll > 0) {
-            boolean hover = ctx.isHovered(childX, childY, column, ARROW_WIDTH);
-            blitTurned(g, hover ? SPRITE_BACK_HOVER : SPRITE_BACK, cx, sy + ARROW_WIDTH / 2);
-        }
-        if (stripScroll < maxStripScroll(s)) {
-            boolean hover = ctx.isHovered(childX, childY + getHeight() - ARROW_WIDTH, column, ARROW_WIDTH);
-            blitTurned(g, hover ? SPRITE_FORWARD_HOVER : SPRITE_FORWARD, cx, sy + getHeight() - ARROW_WIDTH / 2);
-        }
-    }
+    /**
+     * A sidebar scroll button: a slim MenuKit {@link Button} with a small arrow
+     * in place of a label. Greyed out, and deaf to clicks, at its end.
+     */
+    private static final class ScrollButton extends Button {
+        private final int dir;
 
-    /** A page arrow turned a quarter clockwise (back points up, forward down), centred on (cx, cy). */
-    private static void blitTurned(net.minecraft.client.gui.GuiGraphicsExtractor g, Identifier sprite, int cx, int cy) {
-        g.pose().pushMatrix();
-        g.pose().translate((float) cx, (float) cy);
-        g.pose().rotate((float) (Math.PI / 2));
-        g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, -ARROW_SPRITE_W / 2, -ARROW_SPRITE_H / 2,
-                ARROW_SPRITE_W, ARROW_SPRITE_H);
-        g.pose().popMatrix();
+        ScrollButton(int dir, Consumer<Button> onClick, BooleanSupplier disabledWhen) {
+            super(0, 0, MIN_TAB_WIDTH, SIDEBAR_SCROLL_HEIGHT, Component.empty(), onClick, disabledWhen);
+            this.dir = dir;
+        }
+
+        /** A 5 by 3 arrow, pointing up or down, in the label's colour. */
+        @Override
+        protected void renderContent(RenderContext ctx, int sx, int sy) {
+            int color = isDisabled() ? 0xFF808080 : 0xFFFFFFFF;
+            int cx = sx + getWidth() / 2;
+            int tip = sy + (getHeight() - 3) / 2 + (dir < 0 ? 0 : 2);
+            for (int i = 0; i < 3; i++) {
+                int y = tip + (dir < 0 ? i : -i);
+                ctx.graphics().fill(cx - i, y, cx + i + 1, y + 1, color);
+            }
+        }
     }
 
     private void renderArrows(RenderContext ctx, StripLayout s, int sx, int sy) {
@@ -969,17 +1043,13 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
 
         double lx = mouseX - originX, ly = mouseY - originY;
         if (onStrip(s, lx, ly)) {
+            if (sidebar()) return clickSidebar(s, mouseX, mouseY, ly, button);
             if (button != 0) return true;                 // the strip eats its own clicks
-            boolean overflow = overflows(s);
-            double along = sidebar() ? ly : lx;          // position along the strip's axis
-            if (overflow && along < ARROW_WIDTH) { stepStrip(s, -1); return true; }
-            if (overflow && along >= axisLength() - ARROW_WIDTH) { stepStrip(s, +1); return true; }
-            double contentAlong = along - stripViewportStart(s) + (overflow ? stripScroll : 0);
+            if (s.overflow && lx < ARROW_WIDTH) { stepStrip(s, -1); return true; }
+            if (s.overflow && lx >= getWidth() - ARROW_WIDTH) { stepStrip(s, +1); return true; }
+            double contentX = lx - stripViewportStart(s) + (s.overflow ? stripScroll : 0);
             for (Placed p : s.placed) {
-                boolean hit = sidebar()
-                        ? contentAlong >= p.y && contentAlong < p.y + TAB_HEIGHT
-                        : contentAlong >= p.x && contentAlong < p.x + p.w && ly >= p.y && ly < p.y + TAB_HEIGHT;
-                if (hit) {
+                if (contentX >= p.x && contentX < p.x + p.w && ly >= p.y && ly < p.y + TAB_HEIGHT) {
                     select(p.tab);
                     return true;
                 }
@@ -989,6 +1059,37 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         if (b == null) return false;
         if (b.scroll != null) return b.scroll.mouseClicked(mouseX, mouseY, button);
         return clickChildren(b, mouseX, mouseY, button);
+    }
+
+    /** A click in the sidebar column: header elements, then the scroll buttons, then a tab. */
+    private boolean clickSidebar(StripLayout s, double mouseX, double mouseY, double ly, int button) {
+        for (PanelElement e : sidebarHeader) {
+            if (e.isVisible() && hits(e, originX, originY, mouseX, mouseY) && e.mouseClicked(mouseX, mouseY, button)) {
+                return true;
+            }
+        }
+        for (ScrollButton bar : List.of(scrollUp, scrollDown)) {
+            if (hits(bar, originX, originY, mouseX, mouseY)) {
+                bar.mouseClicked(mouseX, mouseY, button);
+                return true;                              // a greyed-out bar still eats its click
+            }
+        }
+        if (button != 0) return true;                     // the column eats its own clicks
+        int viewStart = stripViewportStart(s);
+        if (ly < viewStart || ly >= viewStart + stripViewportLength(s)) return true;
+        double contentY = ly - viewStart + (overflows(s) ? stripScroll : 0);
+        for (Placed p : s.placed) {
+            if (contentY >= p.y && contentY < p.y + TAB_HEIGHT) {
+                select(p.tab);
+                return true;
+            }
+        }
+        return true;
+    }
+
+    private static boolean hits(PanelElement e, int ox, int oy, double mouseX, double mouseY) {
+        int ex = ox + e.getChildX(), ey = oy + e.getChildY();
+        return mouseX >= ex && mouseX < ex + e.getWidth() && mouseY >= ey && mouseY < ey + e.getHeight();
     }
 
     private boolean clickChildren(BodyView b, double mouseX, double mouseY, int button) {
@@ -1026,6 +1127,14 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        // Releases go everywhere un-hit-tested, so a pressed button always lets go.
+        for (PanelElement e : sidebarHeader) {
+            if (e.isVisible()) e.mouseReleased(mouseX, mouseY, button);
+        }
+        if (scrollUp != null) {
+            scrollUp.mouseReleased(mouseX, mouseY, button);
+            scrollDown.mouseReleased(mouseX, mouseY, button);
+        }
         BodyView b = liveBody();
         if (b == null) return false;
         if (b.scroll != null) return b.scroll.mouseReleased(mouseX, mouseY, button);
@@ -1037,7 +1146,10 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        // No shortcuts of its own (Trev, 2026-09-26): keys go to the shown body.
+        // No shortcuts of its own (Trev, 2026-09-26): keys go to the header, then the shown body.
+        for (PanelElement e : sidebarHeader) {
+            if (e.isVisible() && e.keyPressed(keyCode, scanCode, modifiers)) return true;
+        }
         BodyView b = liveBody();
         if (b == null) return false;
         if (b.scroll != null) return b.scroll.keyPressed(keyCode, scanCode, modifiers);
@@ -1067,11 +1179,13 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     @Override
     public void onAttach(net.minecraft.client.gui.screens.Screen screen) {
         for (Tab t : tabs) for (PanelElement e : t.body) e.onAttach(screen);
+        for (PanelElement e : sidebarHeader) e.onAttach(screen);
     }
 
     @Override
     public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
         for (Tab t : tabs) for (PanelElement e : t.body) e.onDetach(screen);
+        for (PanelElement e : sidebarHeader) e.onDetach(screen);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -1213,6 +1327,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         private @Nullable Supplier<@Nullable String> selected;
         private @Nullable Consumer<String> onSelect;
         private int width = -1, height = -1;
+        private final List<PanelElement> sidebarHeader = new ArrayList<>();
 
         private Builder() {}
 
@@ -1282,8 +1397,23 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
             return this;
         }
 
+        /**
+         * Elements above the sidebar's tab column (a Back button, say), positioned
+         * from the column's top-left and laid out to its width the way a panel
+         * lays out its own elements. The column widens to fit them, within its
+         * cap; the body beside it still starts at the top. {@link Mode#SIDEBAR} only.
+         */
+        public Builder sidebarHeader(PanelElement... elements) {
+            for (PanelElement e : elements) sidebarHeader.add(Objects.requireNonNull(e, "element"));
+            return this;
+        }
+
         public Tabs build() {
             if (selected == null) throw new IllegalStateException("Tabs: selected(supplier, onSelect) is required");
+            if (!sidebarHeader.isEmpty() && mode != Mode.SIDEBAR) {
+                throw new IllegalStateException("Tabs: sidebarHeader(...) needs mode(Mode.SIDEBAR); there is no "
+                        + "column above which to put it");
+            }
             Set<String> ids = new HashSet<>();
             for (TabSpec t : tabs) {
                 if (!ids.add(t.id)) throw new IllegalStateException("Tabs: two tabs share the id '" + t.id + "'");

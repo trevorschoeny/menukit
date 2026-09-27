@@ -68,6 +68,9 @@ public class MKScreen extends Screen {
 
     private final List<Panel> panels;
 
+    /** Whether the title is drawn at the screen top with a band reserved for it. See {@link #hideTitle()}. */
+    private boolean titleBand = true;
+
     /** Panel ID → computed layout bounds (in layout-local space). */
     private Map<String, PanelBounds> panelBounds = new LinkedHashMap<>();
 
@@ -95,6 +98,20 @@ public class MKScreen extends Screen {
     protected MKScreen(Component title, List<Panel> panels) {
         super(title);
         this.panels = List.copyOf(panels);
+    }
+
+    /**
+     * No title band: the title is not drawn and no room is kept for it, so the
+     * main panel can reach the top of the screen. The title still names the
+     * screen for narration. Call from the subclass constructor.
+     */
+    protected final void hideTitle() {
+        this.titleBand = false;
+    }
+
+    /** Whether the title band shows (false after {@link #hideTitle()}). */
+    public boolean showsTitle() {
+        return titleBand;
     }
 
     /**
@@ -190,8 +207,10 @@ public class MKScreen extends Screen {
         // reserves TITLE_HEIGHT above the body for it, but never painted it, so
         // every standalone screen showed a blank title band. The corner Back
         // panel is top-LEFT, so a top-center title never collides with it.
-        graphics.centeredText(this.font, this.title,
-                this.width / 2, RegionConstants.SCREEN_EDGE_MARGIN, 0xFFFFFFFF);
+        if (titleBand) {
+            graphics.centeredText(this.font, this.title,
+                    this.width / 2, RegionConstants.SCREEN_EDGE_MARGIN, 0xFFFFFFFF);
+        }
 
         // ── Modal state survey ────────────────────────────────────────
         // anyDimBehind   → render a dim overlay between non-dim and dim panels
@@ -436,7 +455,8 @@ public class MKScreen extends Screen {
             // consumer no longer pins a height by hand.
             var layout = MainRegionLayout.resolve(
                     panels, this::computePanelSize, this.width, this.height,
-                    /*reserveTitle=*/ false, /*autoFitMain=*/ true);
+                    titleBand ? MainRegionLayout.TitleBand.SCREEN_TOP : MainRegionLayout.TitleBand.NONE,
+                    /*autoFitMain=*/ true);
             panelBounds = layout.bounds();
             leftPos = layout.leftPos();
             topPos  = layout.topPos();
@@ -449,7 +469,7 @@ public class MKScreen extends Screen {
         // content); pass 0 for both min dims.
         var layout = PanelTreeLayout.resolve(
                 panels, this::computePanelSizeCentered,
-                BODY_GAP, RELATIVE_GAP, TITLE_HEIGHT,
+                BODY_GAP, RELATIVE_GAP, titleBand ? TITLE_HEIGHT : 0,
                 /*minImageWidth=*/ 0, /*minImageHeight=*/ 0);
         panelBounds = layout.bounds();
         leftPos = (width  - layout.totalWidth())  / 2 - layout.layoutOriginX();
@@ -464,7 +484,7 @@ public class MKScreen extends Screen {
         leftPos = Math.max(leftPos, m - layout.layoutOriginX());
         // Reserve the title band on the top clamp so a too-tall body docks BELOW
         // the centered title (drawn at y=m) instead of overprinting its first row.
-        topPos  = Math.max(topPos,  m + TITLE_HEIGHT - layout.layoutOriginY());
+        topPos  = Math.max(topPos,  m + (titleBand ? TITLE_HEIGHT : 0) - layout.layoutOriginY());
     }
 
     // ── Rendering ───────────────────────────────────────────────────────
