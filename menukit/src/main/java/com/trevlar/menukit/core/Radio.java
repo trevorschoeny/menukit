@@ -303,7 +303,7 @@ public class Radio<T> extends AbstractPanelElement<Radio<T>> {
                 }
             } else {
                 // Single-line: vertically centered with the box (legacy path).
-                int textY = sy + (BOX_SIZE - font.lineHeight) / 2 + 1;
+                int textY = MKText.centeredTextY(sy, sy + BOX_SIZE);
                 graphics.text(font, label, textX, textY, color, false);
             }
         }

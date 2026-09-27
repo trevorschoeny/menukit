@@ -553,8 +553,7 @@ public class Button extends AbstractPanelElement<Button> {
             List<FormattedCharSequence> lines = font.split(text, wrapWidth);
             // getHeight() already grew the box to hold these lines; vertically
             // center the wrapped block within the (grown) box height.
-            int blockHeight = lines.size() * font.lineHeight;
-            int lineY = sy + (getHeight() - blockHeight) / 2;
+            int lineY = MKText.centeredBlockY(sy, sy + getHeight(), lines.size());
             for (FormattedCharSequence line : lines) {
                 // Center each line horizontally: indent by half the leftover
                 // width inside the box (box width minus this line's pixel width).

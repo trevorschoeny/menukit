@@ -374,7 +374,7 @@ public class Checkbox extends AbstractPanelElement<Checkbox> {
                 }
             } else {
                 // Single-line legacy path: vertically center the label with the box.
-                int textY = sy + (BOX_SIZE - font.lineHeight) / 2 + 1;
+                int textY = MKText.centeredTextY(sy, sy + BOX_SIZE);
                 graphics.text(font, label, textX, textY, color, false);
             }
         }

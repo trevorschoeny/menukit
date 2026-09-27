@@ -248,7 +248,7 @@ public final class Section extends AbstractPanelElement<Section> {
         if (ctx.isHovered(childX, childY, w, HEADER_HEIGHT)) {
             g.fill(hx, hy, hx + w, hy + HEADER_HEIGHT, HOVER_FILL);
         }
-        int textY = hy + (HEADER_HEIGHT - font.lineHeight) / 2 + 1;
+        int textY = MKText.centeredTextY(hy, hy + HEADER_HEIGHT);
         int x = hx + 1;
         String arrow = isOpen ? ARROW_OPEN : ARROW_CLOSED;
         g.text(font, arrow, x, textY, titleColor, false);

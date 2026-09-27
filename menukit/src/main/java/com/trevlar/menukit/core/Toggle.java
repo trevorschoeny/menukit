@@ -476,8 +476,7 @@ public class Toggle extends AbstractPanelElement<Toggle> {
                     int barW = getWidth();
                     int innerWrapWidth = Math.max(1, barW - 2 * LABEL_PAD);
                     List<FormattedCharSequence> lines = font.split(label, innerWrapWidth);
-                    int blockH = lines.size() * font.lineHeight;
-                    int lineY = sy + (getHeight() - blockH) / 2; // vertical center
+                    int lineY = MKText.centeredBlockY(sy, sy + getHeight(), lines.size());
                     for (FormattedCharSequence line : lines) {
                         int lineW = font.width(line);
                         int lineX = sx + (barW - lineW) / 2; // horizontal center

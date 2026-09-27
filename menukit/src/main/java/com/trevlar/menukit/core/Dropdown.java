@@ -544,7 +544,7 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
             // the centered single-line label used to sit; subsequent lines
             // step down by lineHeight. drawString takes FormattedCharSequence
             // directly (same path TextLabel's wrap rides).
-            int lineY = sy + triggerVPad();
+            int lineY = MKText.centeredTextY(sy, sy + triggerHeight);
             for (FormattedCharSequence line : lines) {
                 graphics.text(font, line, textAreaX, lineY, COLOR_TEXT, true);
                 lineY += font.lineHeight;
@@ -561,15 +561,15 @@ public final class Dropdown<T> extends AbstractPanelElement<Dropdown<T>> {
 
         // Chevron on the right edge — ▼ when closed, ▲ when open.
         // Reserved space already excluded from text area. PINNED to the TOP
-        // line (sy + triggerVPad()) rather than vertically centered against the
+        // line (the single-line label's row) rather than vertically centered against the
         // now-possibly-taller trigger, so it stays beside line 1 of a wrapped
         // label (a centered chevron would drift to the vertical middle of a
         // two-line trigger, away from the text it annotates). For a single-line
-        // trigger triggerVPad() IS the centered offset, so this is unchanged.
+        // trigger that row IS the centred one, so the chevron lines up with the label.
         Component chevron = Component.literal(open ? "▲" : "▼");
         int chevW = font.width(chevron);
         int chevX = sx + triggerWidth - CHEVRON_RESERVED_W + (CHEVRON_RESERVED_W - chevW) / 2 - 1;
-        int chevY = sy + triggerVPad();
+        int chevY = MKText.centeredTextY(sy, sy + triggerHeight);
         graphics.text(font, chevron, chevX, chevY, COLOR_TEXT, true);
     }
 

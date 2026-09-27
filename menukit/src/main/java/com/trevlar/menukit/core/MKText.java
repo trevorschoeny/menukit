@@ -71,6 +71,34 @@ public final class MKText {
      *               always renders with vanilla's default shadow
      *               behavior)
      */
+    /**
+     * Where to draw one line of text so it looks centred in the box from
+     * {@code top} to {@code bottom}: vanilla's rule, {@code (top + bottom -
+     * lineHeight) / 2 + 1}, the same arithmetic as its button labels and its
+     * scrolling-text helper ({@code ActiveTextCollector.defaultScrollingHelper}).
+     *
+     * <p><b>Why the {@code + 1}.</b> Minecraft's font line is 9 px, but a glyph
+     * does not fill it evenly. Capitals and most lowercase sit in the top 7 rows,
+     * the drop shadow adds one row under them, and the 9th row is only reached by
+     * the shadow of a descender (g, p, y). Centring the whole 9 px line therefore
+     * puts what the eye reads, the capitals, a pixel too high; one pixel down
+     * centres the capitals instead. Every MenuKit control that draws text in a box
+     * goes through this, so a 16 px button and a 16 px toggle side by side put
+     * their text on the same row.
+     */
+    public static int centeredTextY(int top, int bottom) {
+        return centeredBlockY(top, bottom, 1);
+    }
+
+    /**
+     * {@link #centeredTextY} for a block of {@code lines} lines, stacked at
+     * {@code lineHeight}: where the first line goes. One line is the same answer.
+     */
+    public static int centeredBlockY(int top, int bottom, int lines) {
+        Font font = Minecraft.getInstance().font;
+        return (top + bottom - Math.max(1, lines) * font.lineHeight) / 2 + 1;
+    }
+
     public static void render(GuiGraphicsExtractor graphics, Component text,
                               TextAlignment align,
                               int x1, int x2, int y1, int y2,
@@ -92,9 +120,10 @@ public final class MKText {
                 case CENTER -> x1 + (boundsW - textW) / 2;
                 case RIGHT -> x2 - textW;
             };
-            // Vertical centering inside y1..y2.
-            int boundsH = y2 - y1;
-            int textY = y1 + (boundsH - font.lineHeight) / 2;
+            // Vertical centering inside y1..y2, by vanilla's rule, which is also
+            // what the scrolling branch below gets from vanilla: fitting and
+            // overflowing labels sit on the same row.
+            int textY = centeredTextY(y1, y2);
             graphics.text(font, text, textX, textY, color, shadow);
         } else {
             // Overflows — defer to vanilla's scroll primitive. The
@@ -150,7 +179,7 @@ public final class MKText {
                                    int x, int y, int width,
                                    int color, boolean shadow) {
         Font font = Minecraft.getInstance().font;
-        render(graphics, text, TextAlignment.LEFT, x, x + width, y, y + font.lineHeight,
+        render(graphics, text, TextAlignment.LEFT, x, x + width, y - 1, y - 1 + font.lineHeight,
                 color, shadow);
     }
 
@@ -211,8 +240,7 @@ public final class MKText {
                 case CENTER -> x1 + (boundsW - textW) / 2;
                 case RIGHT -> x2 - textW;
             };
-            int boundsH = y2 - y1;
-            int textY = y1 + (boundsH - font.lineHeight) / 2;
+            int textY = centeredTextY(y1, y2);
             graphics.text(font, text, textX, textY, color, shadow);
             return;
         }
@@ -232,8 +260,7 @@ public final class MKText {
         int scrollOffset = (int) Mth.lerp(phase, 0.0, scrollDistance);
 
         int textX = x1 - scrollOffset;
-        int boundsH = y2 - y1;
-        int textY = y1 + (boundsH - font.lineHeight) / 2;
+        int textY = centeredTextY(y1, y2);
         graphics.enableScissor(x1, y1, x2, y2);
         graphics.text(font, text, textX, textY, color, shadow);
         graphics.disableScissor();

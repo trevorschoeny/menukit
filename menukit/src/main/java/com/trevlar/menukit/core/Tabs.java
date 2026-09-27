@@ -840,7 +840,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
             // that inset, not over the full height. Same arithmetic as vanilla's
             // scrolling-string centering, so both states match vanilla to the pixel.
             int labelTop = ty + (isSelected ? 0 : UNSELECTED_LABEL_INSET);
-            int textY = (labelTop + ty + TAB_HEIGHT - font.lineHeight) / 2 + 1;
+            int textY = MKText.centeredTextY(labelTop, ty + TAB_HEIGHT);
             int color = p.tab.standIn
                     ? (isSelected ? COLOR_STAND_IN_SELECTED : COLOR_STAND_IN_UNSELECTED)
                     : (isSelected ? COLOR_SELECTED : COLOR_UNSELECTED);
@@ -914,7 +914,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
                 case CENTER -> faceLeft + (tabW - SIDE_INSET - textW) / 2;
                 case RIGHT -> tabX + tabW - LABEL_PAD - textW;
             };
-            int textY = (ty + ty + TAB_HEIGHT - font.lineHeight) / 2 + 1;
+            int textY = MKText.centeredTextY(ty, ty + TAB_HEIGHT);
             int color = p.tab.standIn
                     ? (isSelected ? COLOR_STAND_IN_SELECTED : COLOR_STAND_IN_UNSELECTED)
                     : (isSelected ? COLOR_SELECTED : COLOR_UNSELECTED);

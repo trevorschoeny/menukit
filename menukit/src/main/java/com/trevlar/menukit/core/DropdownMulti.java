@@ -388,7 +388,7 @@ public final class DropdownMulti<T> extends AbstractPanelElement<DropdownMulti<T
         Component chevron = Component.literal(open ? "▲" : "▼");
         int chevW = font.width(chevron);
         int chevX = sx + triggerWidth - CHEVRON_RESERVED_W + (CHEVRON_RESERVED_W - chevW) / 2 - 1;
-        int chevY = sy + (triggerHeight - font.lineHeight) / 2;
+        int chevY = MKText.centeredTextY(sy, sy + triggerHeight);
         graphics.text(font, chevron, chevX, chevY, COLOR_TEXT, true);
     }
 
