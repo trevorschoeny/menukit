@@ -47,11 +47,20 @@ import com.trevlar.menukit.core.layout.ElementSpec;
  * <h3>Scroll position state — Principle 8 lens pattern</h3>
  *
  * Scroll position is consumer state. The library reads via
- * {@link DoubleSupplier} (returning a normalized 0.0-to-1.0 value) and
- * notifies via {@link DoubleConsumer} on scroll events. Consumer mutates
- * their own state in the callback; library reads supplier next frame.
- * Out-of-range supplier values are silently clamped (matches ProgressBar
- * convention).
+ * {@link DoubleSupplier} and notifies via {@link DoubleConsumer} on scroll
+ * events. Consumer mutates their own state in the callback; library reads
+ * supplier next frame. Out-of-range supplier values are silently clamped
+ * (matches ProgressBar convention).
+ *
+ * <p>Two units. {@link Builder#scrollOffset} is a fraction, 0.0 at the top and
+ * 1.0 at the end. {@link Builder#scrollPixels} is pixels from the top. The
+ * difference shows when the content changes height: a fraction keeps the
+ * <em>proportion</em>, so everything on screen moves; pixels keep what is at
+ * the top of the viewport, so a section opening in view stays where it is and
+ * the scroll range just gets longer. Anything whose content grows or shrinks
+ * while shown should hold pixels. A pixel position past the new end is
+ * clamped, and the clamp is written back, so a later growth does not jump to
+ * the old, larger value.
  *
  * <h3>Scroll input — v1 sources</h3>
  *
@@ -129,6 +138,8 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
     private final int contentHeight;
     private final DoubleSupplier scrollOffsetSupplier;
     private final @Nullable DoubleConsumer onScrollOffsetChanged;
+    /** Whether the supplier and callback speak pixels ({@link Builder#scrollPixels}) rather than a fraction. */
+    private final boolean pixelState;
 
     /**
      * Optional disabled predicate (Phase 3b — Item 8). When it returns true,
@@ -177,6 +188,7 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
                              List<PanelElement> content, int contentHeight,
                              DoubleSupplier scrollOffsetSupplier,
                              @Nullable DoubleConsumer onScrollOffsetChanged,
+                             boolean pixelState,
                              @Nullable BooleanSupplier disabledWhen) {
         this.childX = childX;
         this.childY = childY;
@@ -186,6 +198,7 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
         this.contentHeight = contentHeight;
         this.scrollOffsetSupplier = scrollOffsetSupplier;
         this.onScrollOffsetChanged = onScrollOffsetChanged;
+        this.pixelState = pixelState;
         this.disabledWhen = disabledWhen;
     }
 
@@ -220,15 +233,23 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
         return Math.max(0, contentHeight - viewportHeight());
     }
 
-    /** Current scroll offset clamped to [0, 1]. */
-    private double scrollOffset() {
+    /** Current scroll position in pixels, unrounded, clamped to [0, max], whichever unit the state is in. */
+    private double scrollPixelsExact() {
         double raw = scrollOffsetSupplier.getAsDouble();
-        return Math.max(0.0, Math.min(1.0, raw));
+        int max = maxScrollPixels();
+        if (pixelState) return Math.max(0.0, Math.min(max, raw));
+        return Math.max(0.0, Math.min(1.0, raw)) * max;
     }
 
-    /** Current scroll position in pixels (offset × maxScrollPixels). */
+    /** Current scroll position in whole pixels. */
     private int scrollPixels() {
-        return (int) (scrollOffset() * maxScrollPixels());
+        return (int) scrollPixelsExact();
+    }
+
+    /** Current scroll position as a fraction of the range, for the scrollbar handle. */
+    private double scrollOffset() {
+        int max = maxScrollPixels();
+        return max == 0 ? 0.0 : scrollPixelsExact() / max;
     }
 
     /** Scrollbar handle height — fixed-size matching vanilla's
@@ -248,11 +269,17 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
         return SCROLLER_TRACK_PADDING + (int) (scrollOffset() * handleRange);
     }
 
-    /** Notifies the consumer of a new scroll offset (clamped). */
+    /** Notifies the consumer of a new scroll position given as a fraction of the range. */
     private void notifyOffset(double newOffset) {
+        notifyPixels(newOffset * maxScrollPixels());
+    }
+
+    /** Notifies the consumer of a new scroll position in pixels (clamped), in the state's own unit. */
+    private void notifyPixels(double newPixels) {
         if (onScrollOffsetChanged == null) return;
-        double clamped = Math.max(0.0, Math.min(1.0, newOffset));
-        onScrollOffsetChanged.accept(clamped);
+        int max = maxScrollPixels();
+        double clamped = Math.max(0.0, Math.min(max, newPixels));
+        onScrollOffsetChanged.accept(pixelState ? clamped : (max == 0 ? 0.0 : clamped / max));
     }
 
     // ── PanelElement Implementation ───────────────────────────────────────
@@ -297,6 +324,14 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
         // later and wins by vanilla's last-call-wins semantics; the container
         // tooltip shows when the cursor is over the container's empty area/chrome.
         queueTooltip(ctx);
+
+        // A pixel position past the end (the content got shorter) is clamped when
+        // read; write the clamp back, so the content growing again later does not
+        // jump the view to the old, larger position.
+        if (pixelState && onScrollOffsetChanged != null) {
+            double raw = scrollOffsetSupplier.getAsDouble();
+            if (raw != scrollPixelsExact()) onScrollOffsetChanged.accept(scrollPixelsExact());
+        }
 
         // Per-frame drag offset update. While draggingHandle is true,
         // sample the current mouse Y from the RenderContext and update
@@ -575,8 +610,7 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
         // Wheel down (scrollY < 0) scrolls content down (offset increases).
         int max = maxScrollPixels();
         if (max == 0) return false;
-        double delta = -scrollY * SCROLL_PIXELS_PER_TICK / (double) max;
-        notifyOffset(scrollOffset() + delta);
+        notifyPixels(scrollPixelsExact() - scrollY * SCROLL_PIXELS_PER_TICK);
         return true;
     }
 
@@ -676,6 +710,7 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
         private int contentHeightOverride = -1;
         private @Nullable DoubleSupplier scrollOffsetSupplier = null;
         private @Nullable DoubleConsumer onScrollOffsetChanged = null;
+        private boolean pixelState = false;
         private @Nullable BooleanSupplier disabledWhen = null;
 
         Builder() {}
@@ -749,6 +784,20 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
             this.scrollOffsetSupplier = Objects.requireNonNull(supplier,
                     "scrollOffset supplier must not be null");
             this.onScrollOffsetChanged = callback;
+            this.pixelState = false;
+            return this;
+        }
+
+        /**
+         * Like {@link #scrollOffset}, but the state is pixels from the top
+         * instead of a fraction. Use it when the content can change height while
+         * shown (a section opening, a list growing): what is on screen stays put
+         * and the range gets longer or shorter. Replaces {@link #scrollOffset};
+         * set one or the other.
+         */
+        public Builder scrollPixels(DoubleSupplier supplier, @Nullable DoubleConsumer callback) {
+            scrollOffset(supplier, callback);
+            this.pixelState = true;
             return this;
         }
 
@@ -783,7 +832,7 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
                     : autoComputeContentHeight(content);
             return new ScrollContainer(childX, childY, width, height,
                     content, finalContentHeight,
-                    scrollOffsetSupplier, onScrollOffsetChanged, disabledWhen);
+                    scrollOffsetSupplier, onScrollOffsetChanged, pixelState, disabledWhen);
         }
 
         /**
@@ -815,13 +864,15 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
             final int cho = contentHeightOverride;
             final DoubleSupplier so = scrollOffsetSupplier;
             final DoubleConsumer cb = onScrollOffsetChanged;
+            final boolean px = pixelState;
             final BooleanSupplier dw = disabledWhen;
             return new ElementSpec() {
                 @Override public int width()  { return w; }
                 @Override public int height() { return h; }
                 @Override public PanelElement at(int x, int y) {
                     Builder b = ScrollContainer.builder().at(x, y).size(w, h)
-                            .content(ct).scrollOffset(so, cb);
+                            .content(ct);
+                    if (px) b.scrollPixels(so, cb); else b.scrollOffset(so, cb);
                     if (cho >= 0) b.contentHeight(cho);
                     if (dw != null) b.disabledWhen(dw);
                     return b.build();

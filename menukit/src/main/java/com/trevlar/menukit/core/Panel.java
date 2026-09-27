@@ -139,7 +139,9 @@ public class Panel {
     private int lastFitAvailHeight = Integer.MIN_VALUE;
 
     // ── Phase 16g Auto-Scroll state ────────────────────────────────────
-    // Scroll offset (0.0 - 1.0) for the auto-scroll wrap. Panel owns the
+    // Scroll position, in pixels from the top, for the auto-scroll wrap. Pixels,
+    // not a fraction: when content changes height while shown, what is on
+    // screen stays put (ScrollContainer.Builder.scrollPixels). Panel owns the
     // state directly here rather than delegating to a consumer-side field
     // because auto-scroll is an internal Panel concern — the consumer
     // never sees the inner ScrollContainer. Mutable; updated by
@@ -643,7 +645,7 @@ public class Panel {
                         .at(0, 0)
                         .size(outerWidth, viewportHeight)
                         .content(elements)
-                        .scrollOffset(() -> scrollOffset, v -> scrollOffset = v)
+                        .scrollPixels(() -> scrollOffset, v -> scrollOffset = v)
                         .build();
             }
         }

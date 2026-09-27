@@ -206,7 +206,11 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
 
     // ── View state (not consumer state) ────────────────────────────────────
 
-    /** Each tab's body scroll, normalised 0..1, kept for the life of this element. */
+    /**
+     * Each tab's body scroll in pixels from the top, kept for the life of this
+     * element. Pixels, not a fraction: a body that grows while shown (a section
+     * opening) keeps what is on screen where it is.
+     */
     private final Map<String, Double> bodyScroll = new HashMap<>();
     /** Side-scroll strip offset in pixels, when the row overflows. */
     private int stripScroll = 0;
@@ -583,7 +587,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
                     .size(w, h)
                     .content(tab.body)
                     .contentHeight(contentH)
-                    .scrollOffset(() -> bodyScroll.getOrDefault(id, 0.0), v -> bodyScroll.put(id, v))
+                    .scrollPixels(() -> bodyScroll.getOrDefault(id, 0.0), v -> bodyScroll.put(id, v))
                     .build();
         }
         // Signature AFTER layout, so a settled body doesn't re-lay itself out every frame.
