@@ -100,17 +100,32 @@ public class MK implements ModInitializer {
                 com.trevlar.menukit.inject.SlotGroups.declare(com.trevlar.menukit.inject.SlotGroupId.vanilla(c), c));
         // Each with the role it plays on a slot, so a settings screen can tell what
         // takes items out from what puts them in.
-        SlotOperations.define(BehaviorKeys.CLICK_TAKE, SlotOperations.Role.TAKE);
-        SlotOperations.define(BehaviorKeys.CLICK_PUT, SlotOperations.Role.PUT);
-        SlotOperations.define(BehaviorKeys.SHIFT_CLICK_OUT, SlotOperations.Role.TAKE);
-        SlotOperations.define(BehaviorKeys.SHIFT_CLICK_IN, SlotOperations.Role.PUT);
-        SlotOperations.define(BehaviorKeys.COLLECT, SlotOperations.Role.TAKE);
-        SlotOperations.define(BehaviorKeys.DRAG_FILL, SlotOperations.Role.PUT);
-        SlotOperations.define(BehaviorKeys.HOTBAR_SWAP, SlotOperations.Role.BOTH);
-        SlotOperations.define(BehaviorKeys.OFFHAND_SWAP, SlotOperations.Role.BOTH);
-        SlotOperations.define(BehaviorKeys.DROP, SlotOperations.Role.TAKE);
-        SlotOperations.define(BehaviorKeys.DROP_STACK, SlotOperations.Role.TAKE);
-        SlotOperations.define(BehaviorKeys.WORLD_PICKUP, SlotOperations.Role.PUT);
+        // Where each one applies, from what vanilla does (26.2): an output slot takes
+        // nothing in, the crafter's result can't be touched at all, double-click
+        // collect skips the results whose menus override canTakeItemForPickAll, and a
+        // pickup lands only in the hotbar, the main inventory and the offhand.
+        SlotGroupCategory[] outputs = {
+                SlotGroupCategory.CRAFTING_OUTPUT, SlotGroupCategory.CRAFTER_RESULT, SlotGroupCategory.FURNACE_OUTPUT,
+                SlotGroupCategory.ANVIL_OUTPUT, SlotGroupCategory.GRINDSTONE_OUTPUT, SlotGroupCategory.SMITHING_OUTPUT,
+                SlotGroupCategory.LOOM_OUTPUT, SlotGroupCategory.STONECUTTER_OUTPUT,
+                SlotGroupCategory.CARTOGRAPHY_OUTPUT, SlotGroupCategory.MERCHANT_RESULT};
+        var takes = SlotOperations.AppliesTo.vanillaExcept(SlotGroupCategory.CRAFTER_RESULT);
+        var puts = SlotOperations.AppliesTo.vanillaExcept(outputs);
+        SlotOperations.define(BehaviorKeys.CLICK_TAKE, SlotOperations.Role.TAKE, takes);
+        SlotOperations.define(BehaviorKeys.CLICK_PUT, SlotOperations.Role.PUT, puts);
+        SlotOperations.define(BehaviorKeys.SHIFT_CLICK_OUT, SlotOperations.Role.TAKE, takes);
+        SlotOperations.define(BehaviorKeys.SHIFT_CLICK_IN, SlotOperations.Role.PUT, puts);
+        SlotOperations.define(BehaviorKeys.COLLECT, SlotOperations.Role.TAKE, SlotOperations.AppliesTo.vanillaExcept(
+                SlotGroupCategory.CRAFTER_RESULT, SlotGroupCategory.CRAFTING_OUTPUT,
+                SlotGroupCategory.CARTOGRAPHY_OUTPUT, SlotGroupCategory.MERCHANT_RESULT,
+                SlotGroupCategory.SMITHING_OUTPUT, SlotGroupCategory.STONECUTTER_OUTPUT));
+        SlotOperations.define(BehaviorKeys.DRAG_FILL, SlotOperations.Role.PUT, puts);
+        SlotOperations.define(BehaviorKeys.HOTBAR_SWAP, SlotOperations.Role.BOTH, takes);
+        SlotOperations.define(BehaviorKeys.OFFHAND_SWAP, SlotOperations.Role.BOTH, takes);
+        SlotOperations.define(BehaviorKeys.DROP, SlotOperations.Role.TAKE, takes);
+        SlotOperations.define(BehaviorKeys.DROP_STACK, SlotOperations.Role.TAKE, takes);
+        SlotOperations.define(BehaviorKeys.WORLD_PICKUP, SlotOperations.Role.PUT, SlotOperations.AppliesTo.vanilla(
+                SlotGroupCategory.PLAYER_HOTBAR, SlotGroupCategory.PLAYER_INVENTORY, SlotGroupCategory.PLAYER_OFFHAND));
         LOGGER.info("[MenuKit] Initialized");
     }
 
