@@ -37,6 +37,26 @@ import java.util.function.Consumer;
  *     .elements(buttonRow).style(PanelStyle.RAISED).build();
  * }</pre>
  *
+ * <h3>Pushing an element to the far edge</h3>
+ *
+ * {@link Builder#width(int)} declares the row's overall pixel width, and
+ * {@link Builder#addSpacer()} adds a flexible gap that expands to fill
+ * whatever the other children and spacing leave over — the CSS
+ * {@code justify-content: space-between} case, for a header with one thing
+ * on the left and another on the right:
+ *
+ * <pre>{@code
+ * List<PanelElement> header = Row.at(0, 0).width(220).spacing(6)
+ *     .add(Button.spec(60, 16, Component.literal("Back"), this::onBack))
+ *     .addSpacer()
+ *     .add(Button.spec(60, 16, Component.literal("Reset"), this::onReset))
+ *     .build();
+ * }</pre>
+ *
+ * Several spacers in one row split the leftover evenly (the odd pixel to the
+ * last one), so a three-part header — one thing pinned to each edge and one
+ * centred — is two spacers, not a special case.
+ *
  * <h3>Nesting</h3>
  *
  * Row supports nesting via {@link Builder#addRow(Consumer)} and
@@ -76,6 +96,7 @@ public final class Row {
         private final int originX;
         private final int originY;
         private int spacing = 0;
+        private int width = -1;
         private CrossAlign crossAlign = CrossAlign.START;
         private final List<LayoutEntry> entries = new ArrayList<>();
 
@@ -91,6 +112,34 @@ public final class Row {
                         "spacing must be >= 0, got " + px);
             }
             this.spacing = px;
+            return this;
+        }
+
+        /**
+         * Declares the row's overall pixel width — the budget an
+         * {@link #addSpacer()} expands into. Only needed when the row has a
+         * spacer; without one this is just what {@link #computeMainAxisExtent()}
+         * reports to an outer nesting Row/Column, in place of the sum of the
+         * children (e.g. to reserve room for a sibling that grows later).
+         */
+        public Builder width(int px) {
+            if (px <= 0) {
+                throw new IllegalArgumentException("width must be > 0, got " + px);
+            }
+            this.width = px;
+            return this;
+        }
+
+        /**
+         * A flexible gap: expands to fill whatever {@link #width(int)} leaves
+         * over after the row's other children and the spacing between them —
+         * how "Back" and "Reset" end up pinned to opposite edges of one row.
+         * Several spacers split the leftover evenly, the odd pixel going to
+         * the last one. Requires {@link #width(int)}; building without it
+         * throws.
+         */
+        public Builder addSpacer() {
+            entries.add(LayoutEntry.spacer());
             return this;
         }
 
@@ -164,8 +213,13 @@ public final class Row {
 
         // ── Internal — used by nesting and by build() ─────────────────
 
-        /** Main-axis (horizontal) extent: sum of child widths plus spacings. */
+        /**
+         * Main-axis (horizontal) extent: the declared {@link #width(int)} when
+         * set (a row with a spacer occupies that whole budget when nested),
+         * else the sum of child widths plus spacings.
+         */
         int computeMainAxisExtent() {
+            if (width > 0) return width;
             if (entries.isEmpty()) return 0;
             int sum = 0;
             for (int i = 0; i < entries.size(); i++) {
@@ -192,6 +246,7 @@ public final class Row {
          */
         List<PanelElement> buildAt(int baseX, int baseY) {
             int crossExtent = computeCrossAxisExtent();
+            int[] advance = resolveAdvances();
             List<PanelElement> result = new ArrayList<>();
             int x = baseX;
             for (int i = 0; i < entries.size(); i++) {
@@ -206,10 +261,49 @@ public final class Row {
                     case END -> baseY + (crossExtent - entry.height());
                 };
                 result.addAll(entry.emitAt(x, y));
-                x += entry.width();
+                x += advance[i];
                 if (i < entries.size() - 1) x += spacing;
             }
             return result;
+        }
+
+        /**
+         * The main-axis distance to advance past each entry: its own width,
+         * except a spacer, which gets an even share of whatever {@link #width}
+         * leaves over once every other entry and every gap between entries is
+         * accounted for. The odd pixel, if the leftover doesn't divide evenly,
+         * goes to the last spacer, so the row's total still lands exactly on
+         * {@code width}.
+         */
+        private int[] resolveAdvances() {
+            int n = entries.size();
+            int[] advance = new int[n];
+            int spacerCount = 0;
+            for (int i = 0; i < n; i++) {
+                advance[i] = entries.get(i).width();
+                if (entries.get(i).isSpacer()) spacerCount++;
+            }
+            if (spacerCount == 0) return advance;
+            if (width <= 0) {
+                throw new IllegalStateException(
+                        "Row: addSpacer() needs width(px) set, to know how much room it has to fill");
+            }
+            int fixedExtent = 0;
+            for (int i = 0; i < n; i++) {
+                fixedExtent += advance[i];
+                if (i < n - 1) fixedExtent += spacing;
+            }
+            int leftover = Math.max(0, width - fixedExtent);
+            int perSpacer = leftover / spacerCount;
+            int remainder = leftover % spacerCount;
+            int seen = 0;
+            for (int i = 0; i < n; i++) {
+                if (entries.get(i).isSpacer()) {
+                    seen++;
+                    advance[i] = perSpacer + (seen == spacerCount ? remainder : 0);
+                }
+            }
+            return advance;
         }
     }
 }

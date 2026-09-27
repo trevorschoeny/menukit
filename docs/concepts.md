@@ -84,6 +84,8 @@ Position the row after a section as if the section were closed. When it opens, t
 
 `Row` and `Column` compute positions at build time and return a `List<PanelElement>`. They do not exist at runtime. An element enters a layout as an `ElementSpec`, produced by the element's static `spec(...)` factory. `.build()` returns positioned elements that go into a panel with `.add(...)`.
 
+`Row.width(px)` declares the row's overall pixel budget and `.addSpacer()` adds a flexible gap that expands to fill whatever the other children and spacing leave over, so one thing pins to the row's left edge and another to its right (`Back .... Reset`). Several spacers split the leftover evenly, the odd pixel to the last one. `addSpacer()` without `width(px)` throws — a spacer with nothing to expand into is a bug, not a silent no-op.
+
 ## Reference
 
 A reference is the rectangle a panel is measured against. It is not the panel and has no relation to the panel's size. Three kinds exist: a container screen's frame, one slot group's bounding box, and the game window. `Reference` is the record that carries all three.

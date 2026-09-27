@@ -31,13 +31,15 @@ final class LayoutEntry {
     private final int width;
     private final int height;
     private final boolean leaf;
+    private final boolean spacer;
     private final BiFunction<Integer, Integer, List<PanelElement>> emitter;
 
-    private LayoutEntry(int width, int height, boolean leaf,
+    private LayoutEntry(int width, int height, boolean leaf, boolean spacer,
                         BiFunction<Integer, Integer, List<PanelElement>> emitter) {
         this.width = width;
         this.height = height;
         this.leaf = leaf;
+        this.spacer = spacer;
         this.emitter = emitter;
     }
 
@@ -52,13 +54,17 @@ final class LayoutEntry {
      */
     boolean isLeaf() { return leaf; }
 
+    /** True for {@link #spacer()} — a gap with no element, whose share of the
+     *  row's leftover width is resolved by the caller before emitting. */
+    boolean isSpacer() { return spacer; }
+
     List<PanelElement> emitAt(int x, int y) {
         return emitter.apply(x, y);
     }
 
     /** Wraps an {@link ElementSpec} as a single-element entry. */
     static LayoutEntry fromSpec(ElementSpec spec) {
-        return new LayoutEntry(spec.width(), spec.height(), true,
+        return new LayoutEntry(spec.width(), spec.height(), true, false,
                 (x, y) -> List.of(spec.at(x, y)));
     }
 
@@ -70,6 +76,15 @@ final class LayoutEntry {
      */
     static LayoutEntry fromNested(int width, int height,
             BiFunction<Integer, Integer, List<PanelElement>> emitter) {
-        return new LayoutEntry(width, height, false, emitter);
+        return new LayoutEntry(width, height, false, false, emitter);
+    }
+
+    /**
+     * A flexible gap: zero intrinsic width, emits nothing, and stands for
+     * "whatever room {@link Row.Builder#width(int)} leaves over" — see
+     * {@link Row.Builder#addSpacer()}.
+     */
+    static LayoutEntry spacer() {
+        return new LayoutEntry(0, 0, false, true, (x, y) -> List.of());
     }
 }
