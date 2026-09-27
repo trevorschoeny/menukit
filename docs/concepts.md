@@ -74,6 +74,12 @@ By default `Tabs` fills its panel's width and height. Put it in a screen's MAIN 
 
 Other mods can add tabs to a menu that has a name. The owner names it with `menu(id)` on the builder, and another mod calls `Tabs.addTo(id, tab)` at its init. An added tab's body is a factory, `body(() -> elements)`, because it is built every time the owner builds the menu, against the adding mod's own config. The owner's builder order is the menu's order. An owner tab marked `standIn()` holds a place for a tab another mod may add: an added tab with the same id takes its place, and with nothing to replace it the stand-in shows with a dimmed label. Only the place carries over: the replacement keeps its own `visibleWhen`, or always shows, so an owner's switch that hides its stand-ins never hides the real tabs. Any other added tab places itself with `after(id)` or `before(id)`, or goes at the end. Added tabs that share a place are ordered by id, so the result does not depend on which mod loaded first. Two mods adding the same id to one menu is refused at the second `addTo`. A tab added to a menu nobody builds is never shown.
 
+## Section
+
+`Section.builder(title)` is a collapsible section: a header row with an arrow, an optional color swatch, the title, and a grey summary read every frame. Clicking the header opens and closes it. Its children are positioned from the top-left of the content area under the header, laid out to the section's width, and get clicks, keys and overlays as they would directly on the panel. A closed section's children are not drawn and get no input except mouse releases.
+
+Position the row after a section as if the section were closed. When it opens, the panel's reflow pushes later rows down by the content's height, and the scroll height follows, the same way a wrapped `Flow` pushes rows. Sections nest. Open state belongs to the element and starts closed; `open(true)` starts it open, and `linked(state, onToggle)` hands it to the consumer.
+
 ## Layout helpers
 
 `Row` and `Column` compute positions at build time and return a `List<PanelElement>`. They do not exist at runtime. An element enters a layout as an `ElementSpec`, produced by the element's static `spec(...)` factory. `.build()` returns positioned elements that go into a panel with `.add(...)`.
