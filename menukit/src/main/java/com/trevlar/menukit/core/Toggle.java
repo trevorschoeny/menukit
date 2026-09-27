@@ -607,7 +607,19 @@ public class Toggle extends AbstractPanelElement<Toggle> {
     public static Toggle linked(int childX, int childY, int width, int height,
                                 BooleanSupplier state,
                                 Consumer<Boolean> onToggle) {
-        return new LinkedToggle(childX, childY, width, height, state, onToggle);
+        return linked(childX, childY, width, height, state, onToggle, null);
+    }
+
+    /**
+     * {@link #linked(int, int, int, int, BooleanSupplier, Consumer)}, greyed out
+     * and deaf to clicks while {@code disabledWhen} is true, read every frame.
+     * Chains with {@link #label} like any toggle.
+     */
+    public static Toggle linked(int childX, int childY, int width, int height,
+                                BooleanSupplier state,
+                                Consumer<Boolean> onToggle,
+                                @Nullable BooleanSupplier disabledWhen) {
+        return new LinkedToggle(childX, childY, width, height, state, onToggle, disabledWhen);
     }
 
     // ── Sprite-backed Toggle variant ───────────────────────────────────
@@ -789,13 +801,14 @@ public class Toggle extends AbstractPanelElement<Toggle> {
         private final Consumer<Boolean> onToggleConsumer;
 
         LinkedToggle(int childX, int childY, int width, int height,
-                     BooleanSupplier state, Consumer<Boolean> onToggle) {
+                     BooleanSupplier state, Consumer<Boolean> onToggle,
+                     @Nullable BooleanSupplier disabledWhen) {
             // Super's Consumer<Boolean> is a dummy — the applyState override
             // below fully replaces parent's state-commit behavior, so super's
             // callback is never fired. Super's `state` field is also dead
             // storage after construction (currentState() override reads the
             // supplier instead).
-            super(childX, childY, width, height, state.getAsBoolean(), b -> {});
+            super(childX, childY, width, height, state.getAsBoolean(), b -> {}, disabledWhen);
             this.stateSupplier = state;
             this.onToggleConsumer = onToggle;
         }

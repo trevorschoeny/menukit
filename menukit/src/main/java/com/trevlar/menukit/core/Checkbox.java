@@ -34,7 +34,10 @@ import java.util.function.Supplier;
  *
  * Checkbox owns a mutable boolean, a narrow exception to MenuKit's
  * declared-structure discipline. See {@link Toggle} for the full architectural
- * justification; the same rationale applies here.
+ * justification; the same rationale applies here. When the state lives
+ * somewhere else (a config field, another setting that changes it, a menu
+ * reopened after the value moved), use {@link #linked Checkbox.linked}: it
+ * holds no state and reads the consumer's supplier every frame.
  *
  * <h3>Dynamic-width limitation with supplier labels</h3>
  *
@@ -270,16 +273,33 @@ public class Checkbox extends AbstractPanelElement<Checkbox> {
     // ── State ──────────────────────────────────────────────────────────
 
     /** Returns the current checked state. */
-    public boolean isChecked() { return state; }
+    public boolean isChecked() { return currentState(); }
 
     /**
      * Sets the checked state programmatically. Fires {@code onToggle} with
      * the new state if it differs from the current state; no-op otherwise.
      */
     public void setChecked(boolean checked) {
-        if (this.state == checked) return;
-        this.state = checked;
-        onToggle.accept(checked);
+        if (currentState() == checked) return;
+        applyState(checked);
+    }
+
+    /**
+     * The state to draw and to flip from. Same extension point as
+     * {@link Toggle}'s: the base reads its own field, {@link #linked} reads the
+     * consumer's supplier. Called once per render and once per click.
+     */
+    protected boolean currentState() {
+        return state;
+    }
+
+    /**
+     * Commits a new state: the base stores it and fires {@code onToggle}; the
+     * linked variant only fires, and the consumer's store is the state.
+     */
+    protected void applyState(boolean newState) {
+        this.state = newState;
+        onToggle.accept(newState);
     }
 
     /** Returns whether the checkbox is currently disabled. */
@@ -319,7 +339,7 @@ public class Checkbox extends AbstractPanelElement<Checkbox> {
         }
 
         // Check-mark sprite when checked
-        if (state) {
+        if (currentState()) {
             // Center the 9×8 sprite in the 10×10 box: 0.5px horizontal margin
             // (flush-left with 1px right), 1px top margin.
             int markX = sx;
@@ -378,15 +398,65 @@ public class Checkbox extends AbstractPanelElement<Checkbox> {
         if (isDisabled()) return false;
         if (!hovered) return false;
 
-        // Flip state and fire callback.
-        state = !state;
-        onToggle.accept(state);
+        applyState(!currentState());
         return true;
     }
 
-    // Phase 9 note: Checkbox.linked will be a subclass that overrides render()
-    // and mouseClicked() to read from / write to a consumer-supplied
-    // BooleanSupplier instead of the internal `state` field. Class and
-    // methods are deliberately non-final. Refactoring into protected helpers
-    // happens in Phase 9 when the linked variant is actually built.
+    // ── State-linked variant ───────────────────────────────────────────
+
+    /**
+     * A checkbox whose state lives in consumer code, the checkbox twin of
+     * {@link Toggle#linked}. {@code state} is read every frame to draw the
+     * check; a click calls {@code onChange} with the new value and stores
+     * nothing, so the box always shows what {@code state} says. A setter that
+     * also changes other settings, or a menu kept across a trip to another
+     * screen, shows the true value with no refresh step.
+     *
+     * <pre>{@code
+     * Checkbox.linked(0, 0, IPConfig::armorRestock, Component.literal("Armor restock"),
+     *         IPConfig::setArmorRestock);
+     * }</pre>
+     *
+     * Same look, size, label wrap and {@link Flow}
+     * behaviour as a plain checkbox.
+     */
+    public static Checkbox linked(int childX, int childY, BooleanSupplier state, Component label,
+                                  Consumer<Boolean> onChange) {
+        return linked(childX, childY, state, label, onChange, null);
+    }
+
+    /**
+     * {@link #linked(int, int, BooleanSupplier, Component, Consumer)}, greyed
+     * out and deaf to clicks while {@code disabledWhen} is true, read every
+     * frame. For an option that only applies while its parent is on:
+     * {@code () -> !IPConfig.armorRestock()}.
+     */
+    public static Checkbox linked(int childX, int childY, BooleanSupplier state, Component label,
+                                  Consumer<Boolean> onChange, @Nullable BooleanSupplier disabledWhen) {
+        return new LinkedCheckbox(childX, childY, state, wrap(label), onChange, disabledWhen);
+    }
+
+    /** Consumer-owned state: the supplier is the state, the callback is the only write. */
+    static final class LinkedCheckbox extends Checkbox {
+        private final BooleanSupplier stateSupplier;
+        private final Consumer<Boolean> onChange;
+
+        LinkedCheckbox(int childX, int childY, BooleanSupplier state, Supplier<Component> label,
+                       Consumer<Boolean> onChange, @Nullable BooleanSupplier disabledWhen) {
+            // Super's field and callback are dead: both hooks are overridden.
+            super(childX, childY, state.getAsBoolean(), label, b -> {}, disabledWhen);
+            this.stateSupplier = java.util.Objects.requireNonNull(state, "state");
+            this.onChange = java.util.Objects.requireNonNull(onChange, "onChange");
+        }
+
+        @Override
+        protected boolean currentState() {
+            return stateSupplier.getAsBoolean();
+        }
+
+        @Override
+        protected void applyState(boolean newState) {
+            onChange.accept(newState);
+        }
+    }
 }
