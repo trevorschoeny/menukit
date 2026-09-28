@@ -1,9 +1,8 @@
 package com.trevlar.menukit.containers.core;
 
 import com.trevlar.menukit.window.Address;
-import com.trevlar.menukit.window.BehaviorBindingTable;
-import com.trevlar.menukit.window.VanillaAddressing;
 import com.trevlar.menukit.window.WindowEngine;
+import com.trevlar.menukit.window.VanillaAddressing;
 
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.player.Player;
@@ -44,14 +43,14 @@ public final class WindowGating {
 
     /** Whether {@code stack} may be placed into {@code slot} (gating), in the acting context. */
     public static boolean mayPlace(AbstractContainerMenu menu, Slot slot, ItemStack stack) {
-        if (BehaviorBindingTable.INSTANCE.isEmpty()) return true;
+        if (!WindowEngine.hasServerDeclarations()) return true;
         SlotGate gate = gateFor(menu, slot);
         return gate == SlotGate.OPEN || gate.mayPlace(stack, GatingContext.current());
     }
 
     /** Whether {@code player} may take from {@code slot} (gating), in the acting context. */
     public static boolean mayPickup(AbstractContainerMenu menu, Slot slot, Player player) {
-        if (BehaviorBindingTable.INSTANCE.isEmpty()) return true;
+        if (!WindowEngine.hasServerDeclarations()) return true;
         SlotGate gate = gateFor(menu, slot);
         return gate == SlotGate.OPEN || gate.mayPickup(player, GatingContext.current());
     }
@@ -60,14 +59,14 @@ public final class WindowGating {
 
     /** Whether automation may insert {@code stack} into a placed-container slot. */
     public static boolean mayPlaceInto(Container container, int slotIndex, ItemStack stack) {
-        if (BehaviorBindingTable.INSTANCE.isEmpty()) return true;
+        if (!WindowEngine.hasServerDeclarations()) return true;
         SlotGate gate = automationGate(container, slotIndex);
         return gate == SlotGate.OPEN || gate.mayPlace(stack, GatingContext.current());
     }
 
     /** Whether automation may extract from a placed-container slot (no player). */
     public static boolean mayExtractFrom(Container container, int slotIndex) {
-        if (BehaviorBindingTable.INSTANCE.isEmpty()) return true;
+        if (!WindowEngine.hasServerDeclarations()) return true;
         SlotGate gate = automationGate(container, slotIndex);
         // null player: automation. A gate that bypasses for non-capable players
         // (a lock) still enforces here, because automation has no player to exempt.
@@ -83,21 +82,21 @@ public final class WindowGating {
 
     /** Whether {@code stack} may be placed into {@code slot} (gating), by container address. */
     public static boolean mayPlaceAt(Slot slot, ItemStack stack) {
-        if (BehaviorBindingTable.INSTANCE.isEmpty()) return true;
+        if (!WindowEngine.hasServerDeclarations()) return true;
         SlotGate gate = slotGate(slot);
         return gate == SlotGate.OPEN || gate.mayPlace(stack, GatingContext.current());
     }
 
     /** Whether {@code player} may take from {@code slot} (gating), by container address. */
     public static boolean mayPickupAt(Slot slot, Player player) {
-        if (BehaviorBindingTable.INSTANCE.isEmpty()) return true;
+        if (!WindowEngine.hasServerDeclarations()) return true;
         SlotGate gate = slotGate(slot);
         return gate == SlotGate.OPEN || gate.mayPickup(player, GatingContext.current());
     }
 
     /** The per-item stack cap for {@code slot} (gating), clamped to {@code vanillaMax}. */
     public static int maxStackAt(Slot slot, ItemStack stack, int vanillaMax) {
-        if (BehaviorBindingTable.INSTANCE.isEmpty()) return vanillaMax;
+        if (!WindowEngine.hasServerDeclarations()) return vanillaMax;
         SlotGate gate = slotGate(slot);
         return gate == SlotGate.OPEN ? vanillaMax
                 : Math.min(gate.maxStackSize(stack, vanillaMax), vanillaMax);
@@ -116,7 +115,7 @@ public final class WindowGating {
      * {@code MKCSlot.mayPickup}'s binding check, addressed by container.
      */
     public static boolean bindingDeniesPickup(Slot slot, Player player) {
-        if (BehaviorBindingTable.INSTANCE.isEmpty()) return false;
+        if (!WindowEngine.hasServerDeclarations()) return false;
         Address a = VanillaAddressing.addressOf(slot.container, slot.getContainerSlot()).orElse(null);
         if (a == null || !WindowEngine.resolve(a, MKCBehaviorKeys.BINDING).asBoolean()) return false;
         if (player == null || player.hasInfiniteMaterials()) return false; // creative bypass (§0051)
