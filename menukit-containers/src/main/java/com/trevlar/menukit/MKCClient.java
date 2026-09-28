@@ -53,17 +53,12 @@ public class MKCClient implements ClientModInitializer {
         com.trevlar.menukit.window.SlotWindowResolver.setCreatedSlotResolver(
                 com.trevlar.menukit.core.CreatedSlotAdapter.INSTANCE);
 
-        // THE ONE WINDOW — kind-aware addressing for the shared client slot→address
-        // rule, so a created slot resolves to its CREATED address (not a vanilla-style
-        // one) for BOTH observed reactions and hover/click signals. MK-alone falls
-        // back to vanilla addressing.
-        com.trevlar.menukit.window.ClientSlotAddressing.install(
-                com.trevlar.menukit.core.SlotAddresses::of);
+        // Slot state's client player lookup, kept out of common code.
+        com.trevlar.menukit.core.MKSlotState.installClientPlayer(
+                () -> net.minecraft.client.Minecraft.getInstance().player);
 
-        // Created slot groups publish into MK core's slot-group registry, so
-        // SlotGroupCategories.of(menu) / categoriesBySlot(menu) name created and
-        // vanilla slots alike — the kind-blind way one mod finds another's slots.
-        com.trevlar.menukit.core.CreatedSlotCategories.install();
+        // The kind-aware slot address rule and the created-group resolver are
+        // installed from MKC.init, on both sides (6.0.0: a server needs them too).
 
         // Container-parity chrome. Build each MKCContainerPanel's display panel
         // (chrome + slot presentation) and wire its ScreenPanelAdapter, scoped by
@@ -73,10 +68,12 @@ public class MKCClient implements ClientModInitializer {
         // so no GUI object was ever constructed on a dedicated server.
         MKCContainerPanel.wireRegisteredChrome();
 
-        // MKCMenu turnkey screens. Register each defined custom menu's screen with
-        // MenuScreens (default MKCHandledScreen, or the consumer's .screen(...) factory).
-        // Same client-only, definitions-already-populated timing as the chrome above.
-        com.trevlar.menukit.screen.MKCMenu.registerScreens();
+        // MKCMenu turnkey screens: each defined custom menu's screen registered with
+        // MenuScreens (default MKCHandledScreen, or the consumer's MKCMenu.screen(...)).
+        // At client start, after every mod's client initializer (which may call
+        // MKCMenu.screen(...)): Fabric does not order client entrypoints between mods.
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED.register(
+                client -> com.trevlar.menukit.screen.MKCMenu.registerScreens());
 
         // Slot projection — client seam. Append a player's registered projected
         // slots onto a foreign container menu (chest/furnace/donkey) at screen
