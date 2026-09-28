@@ -279,6 +279,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
      *         same id, or the body is a finished list, or the tab is a stand-in
      */
     public static void addTo(Identifier menu, TabSpec tab) {
+        com.trevlar.menukit.window.Declarations.requireOpen("Tabs.addTo(" + menu + ")");
         Objects.requireNonNull(menu, "menu");
         Objects.requireNonNull(tab, "tab");
         if (tab.label == null) throw new IllegalStateException("Tabs: tab '" + tab.id + "' has no label");

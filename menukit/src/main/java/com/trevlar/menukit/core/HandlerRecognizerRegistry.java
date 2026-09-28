@@ -87,6 +87,7 @@ public class HandlerRecognizerRegistry {
      * the default fallback. First match wins.
      */
     public static void register(Recognizer recognizer) {
+        com.trevlar.menukit.window.Declarations.requireOpen("HandlerRecognizerRegistry.register");
         recognizers.add(recognizer);
     }
 

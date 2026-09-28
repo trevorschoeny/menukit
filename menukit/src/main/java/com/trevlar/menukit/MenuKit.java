@@ -24,6 +24,10 @@ public final class MenuKit implements ModInitializer {
     }
 
     private static void init() {
+        // Declarations freeze at the first server start, after every entrypoint
+        // (on a client, MKClient freezes at client start, which comes first).
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(
+                server -> com.trevlar.menukit.window.Declarations.freeze("server starting"));
         // The shared vocabularies, on both sides: every vanilla slot category, and
         // the operations vanilla itself ships. A consumer reads these through
         // SlotGroupCategories.all() / SlotOperations.all() and adds its own with

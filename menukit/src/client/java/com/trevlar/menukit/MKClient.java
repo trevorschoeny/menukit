@@ -55,6 +55,10 @@ public class MKClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        // Declarations freeze once every client entrypoint has run (§0063).
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED.register(
+                client -> com.trevlar.menukit.window.Declarations.freeze("client started"));
+
         MK.initClient();
 
         // Item Tips — enriched tooltips showing durability and food stats.

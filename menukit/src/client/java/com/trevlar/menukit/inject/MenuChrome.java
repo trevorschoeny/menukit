@@ -86,6 +86,7 @@ public final class MenuChrome {
      */
     public static <T extends AbstractContainerScreen<?>> void register(
             Class<T> screenClass, ChromeProvider provider) {
+        com.trevlar.menukit.window.Declarations.requireOpen("MenuChrome.register");
         ChromeProvider existing = PROVIDERS.get(screenClass);
         if (existing != null) {
             LOGGER.warn("[MenuChrome] provider for {} already registered — ignoring second registration",
