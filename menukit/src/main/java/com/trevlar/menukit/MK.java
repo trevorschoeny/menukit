@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import com.trevlar.menukit.core.SlotGroupCategory;
 import com.trevlar.menukit.inject.SlotGroupCategories;
@@ -64,7 +65,11 @@ public class MK implements ModInitializer {
     private static final Map<String, MKHudNotification> notificationDefs = new LinkedHashMap<>();
 
     // ── Active notifications (runtime animation state) ────────────────────
-    private static final Map<String, ActiveNotification> activeNotifications = new LinkedHashMap<>();
+    // Written by notify() from any thread (a server-side feature in singleplayer
+    // notifies from the server thread) and read by the HUD on the render thread:
+    // synchronized, and render works on a snapshot.
+    private static final Map<String, ActiveNotification> activeNotifications =
+            java.util.Collections.synchronizedMap(new LinkedHashMap<>());
 
     /** Snapshot of what a caller passed to {@link #notify}, plus trigger time. */
     record ActiveNotification(long triggerTimeMs,
@@ -276,8 +281,12 @@ public class MK implements ModInitializer {
 
         var expired = new ArrayList<String>();
         long now = System.currentTimeMillis();
+        List<Map.Entry<String, ActiveNotification>> snapshot;
+        synchronized (activeNotifications) {
+            snapshot = new ArrayList<>(activeNotifications.entrySet());
+        }
 
-        for (var entry : activeNotifications.entrySet()) {
+        for (var entry : snapshot) {
             String key = entry.getKey();
             ActiveNotification active = entry.getValue();
             MKHudNotification def = notificationDefs.get(key);
@@ -293,7 +302,12 @@ public class MK implements ModInitializer {
                     elapsed, active.textData(), active.itemData());
         }
 
-        expired.forEach(activeNotifications::remove);
+        // Remove only the entry that expired: a notify() since the snapshot replaced it.
+        synchronized (activeNotifications) {
+            for (var entry : snapshot) {
+                if (expired.contains(entry.getKey())) activeNotifications.remove(entry.getKey(), entry.getValue());
+            }
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════

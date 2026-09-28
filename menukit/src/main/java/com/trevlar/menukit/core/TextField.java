@@ -150,8 +150,10 @@ public class TextField extends AbstractPanelElement<TextField> {
         if (editable != null) editBox.setEditable(editable);
         if (hint != null) editBox.setHint(hint);
         if (filter != null) editBox.setFilter(filter);
-        if (onChange != null) editBox.setResponder(onChange);
+        // The initial value first, then the responder: setting the starting text is
+        // not a change the consumer made, and onChange must not report it.
         if (initialValue != null) editBox.setValue(initialValue);
+        if (onChange != null) editBox.setResponder(onChange);
     }
 
     // ── PanelElement protocol ──────────────────────────────────────────
@@ -371,7 +373,7 @@ public class TextField extends AbstractPanelElement<TextField> {
             return this;
         }
 
-        /** Optional max character length. Default: 256 (vanilla EditBox default is 32). */
+        /** Optional max character length. Default: vanilla EditBox's own, 32. */
         public Builder maxLength(int maxLength) {
             if (maxLength <= 0) {
                 throw new IllegalArgumentException("maxLength must be > 0, got " + maxLength);

@@ -418,6 +418,18 @@ public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
     }
 
     /**
+     * An outside click reaches every child, so an open popover in the content (a
+     * Dropdown) closes like one anywhere else. Each child decides for itself, by its
+     * own bounds, whether the click was outside it.
+     */
+    @Override
+    public void notifyClickOutsideOverlay(double mouseX, double mouseY) {
+        for (PanelElement c : content) {
+            if (c.isVisible()) c.notifyClickOutsideOverlay(mouseX, mouseY);
+        }
+    }
+
+    /**
      * Forwards the host's unclipped overlay pass to children at scroll-translated
      * coords (Pass 3). A child Dropdown paints its popover in renderOverlay (not
      * render), so without this an open dropdown inside the scroll shows its

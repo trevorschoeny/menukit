@@ -162,6 +162,26 @@ public class ItemDisplay extends AbstractPanelElement<ItemDisplay> {
     @Override public int getWidth() { return size; }
     @Override public int getHeight() { return size; }
 
+    /**
+     * Vanilla's decorations with the two flags honoured separately. Vanilla draws
+     * count and bar together; an empty count text hides the count, and a copy with
+     * no damage hides the durability bar.
+     * ponytail: a bundle's fullness bar is not durability and still shows with the
+     * count alone.
+     */
+    private void decorations(net.minecraft.client.gui.GuiGraphicsExtractor graphics, net.minecraft.client.gui.Font font,
+                             ItemStack stack, int x, int y) {
+        if (showCount && showDurability) {
+            graphics.itemDecorations(font, stack, x, y);
+        } else if (showDurability) {
+            graphics.itemDecorations(font, stack, x, y, "");
+        } else if (showCount) {
+            ItemStack noBar = stack.copy();
+            noBar.remove(net.minecraft.core.component.DataComponents.DAMAGE);
+            graphics.itemDecorations(font, noBar, x, y);
+        }
+    }
+
     @Override
     public void render(RenderContext ctx) {
         ItemStack stack = stackSupplier.get();
@@ -180,15 +200,11 @@ public class ItemDisplay extends AbstractPanelElement<ItemDisplay> {
             graphics.pose().translate((float) drawX, (float) drawY);
             graphics.pose().scale(scale, scale);
             graphics.item(stack, 0, 0);
-            if (showCount || showDurability) {
-                graphics.itemDecorations(mc.font, stack, 0, 0);
-            }
+            decorations(graphics, mc.font, stack, 0, 0);
             graphics.pose().popMatrix();
         } else {
             graphics.item(stack, drawX, drawY);
-            if (showCount || showDurability) {
-                graphics.itemDecorations(mc.font, stack, drawX, drawY);
-            }
+            decorations(graphics, mc.font, stack, drawX, drawY);
         }
 
         // Tooltip — fires when cursor is over the icon bounds. Queue via

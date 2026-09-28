@@ -444,7 +444,7 @@ public class Button extends AbstractPanelElement<Button> {
         if (tint != null) {
             int argb = tint.getAsInt();
             if (argb != 0) {
-                ctx.graphics().fill(sx + 1, sy + 1, sx + width - 1, sy + getHeight() - 1, argb);
+                ctx.graphics().fill(sx + 1, sy + 1, sx + getWidth() - 1, sy + getHeight() - 1, argb);
             }
         }
         renderContent(ctx, sx, sy);
@@ -497,28 +497,28 @@ public class Button extends AbstractPanelElement<Button> {
             // distinct pressed visual, so MK synthesizes one for
             // consumer-feedback parity with the MK INSET pressed state.
             ControlStyle.renderVanillaButton(ctx.graphics(),
-                    sx, sy, width, h,
+                    sx, sy, getWidth(), h,
                     !disabled,
                     hovered || pressed);
             if (pressed && !disabled) {
                 ControlStyle.renderVanillaPressedOverlay(ctx.graphics(),
-                        sx, sy, width, h);
+                        sx, sy, getWidth(), h);
             }
             return;
         }
         // MK style (default) — RAISED panel with state overlays.
         if (disabled) {
-            PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, h, PanelStyle.DARK);
+            PanelRendering.renderPanel(ctx.graphics(), sx, sy, getWidth(), h, PanelStyle.DARK);
         } else if (pressed) {
             // Press affordance — INSET sprite (sunken bevel) signals "the
             // button is currently being pushed down." Skips the hover overlay
             // since the depressed look is itself the feedback.
-            PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, h, PanelStyle.INSET);
+            PanelRendering.renderPanel(ctx.graphics(), sx, sy, getWidth(), h, PanelStyle.INSET);
         } else {
-            PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, h, PanelStyle.RAISED);
+            PanelRendering.renderPanel(ctx.graphics(), sx, sy, getWidth(), h, PanelStyle.RAISED);
             if (hovered) {
                 // Translucent highlight overlay (inside the border)
-                ctx.graphics().fill(sx + 1, sy + 1, sx + width - 1, sy + h - 1,
+                ctx.graphics().fill(sx + 1, sy + 1, sx + getWidth() - 1, sy + h - 1,
                         0x30FFFFFF);
             }
         }
@@ -558,7 +558,7 @@ public class Button extends AbstractPanelElement<Button> {
                 // Center each line horizontally: indent by half the leftover
                 // width inside the box (box width minus this line's pixel width).
                 int lineWidth = font.width(line);
-                int lineX = sx + (width - lineWidth) / 2;
+                int lineX = sx + (getWidth() - lineWidth) / 2;
                 ctx.graphics().text(font, line, lineX, lineY, textColor, true);
                 lineY += font.lineHeight;
             }
@@ -570,7 +570,7 @@ public class Button extends AbstractPanelElement<Button> {
         // centered when the label fits and scrolls it back-and-forth (vanilla's
         // button-label primitive) on the rare too-narrow box where wrap didn't
         // engage (e.g. a single unbreakable token wider than the inner budget).
-        MKText.renderCentered(ctx.graphics(), text, sx, sy, width, height,
+        MKText.renderCentered(ctx.graphics(), text, sx, sy, getWidth(), height,
                 textColor, true);
     }
 

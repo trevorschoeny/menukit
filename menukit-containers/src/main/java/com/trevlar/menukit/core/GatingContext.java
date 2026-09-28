@@ -16,8 +16,8 @@ import org.jspecify.annotations.Nullable;
  * A deep seam (a hopper transfer, vanilla's {@code moveItemStackTo}) has no player
  * in scope. MenuKit captures the acting player at the click boundary
  * ({@link com.trevlar.menukit.window.ActingPlayer}, cleared in a {@code finally})
- * so a nested decision can see it. Automation (no player) and client-side
- * prediction leave it {@code null}.
+ * so a nested decision can see it. It is set on both sides: the client's
+ * prediction of a click runs with the local player. Automation leaves it {@code null}.
  */
 public final class GatingContext {
 

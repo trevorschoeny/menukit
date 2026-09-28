@@ -1030,6 +1030,26 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         }
     }
 
+    /**
+     * An outside click reaches the header and the shown body, so an open popover
+     * there (a Dropdown) closes like one anywhere else.
+     */
+    @Override
+    public void notifyClickOutsideOverlay(double mouseX, double mouseY) {
+        for (PanelElement e : sidebarHeader) {
+            if (e.isVisible()) e.notifyClickOutsideOverlay(mouseX, mouseY);
+        }
+        BodyView b = liveBody();
+        if (b == null) return;
+        if (b.scroll != null) {
+            b.scroll.notifyClickOutsideOverlay(mouseX, mouseY);
+            return;
+        }
+        for (PanelElement e : b.tab.body) {
+            if (e.isVisible()) e.notifyClickOutsideOverlay(mouseX, mouseY);
+        }
+    }
+
     /** The shown body's overlays (an open Dropdown popover), unclipped, after all base renders. */
     @Override
     public void renderOverlay(RenderContext ctx) {

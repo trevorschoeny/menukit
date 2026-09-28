@@ -41,8 +41,10 @@ public abstract class MKYaclControllerOverlayMixin {
     // 26.2 / YACL 3.9.5: the render entry point followed vanilla's
     // extract/draw split — Renderable.render → extractRenderState
     // (verified against the 3.9.5+26.2 jar, 2026-07-02).
+    // require = 0: a YACL release that renames this method must cost the pressed
+    // overlay on its controllers, not the game at load.
     @Inject(method = "extractRenderState(Lnet/minecraft/client/gui/GuiGraphicsExtractor;IIF)V",
-            at = @At("TAIL"))
+            at = @At("TAIL"), require = 0)
     private void mk$drawPressedOverlay(GuiGraphicsExtractor graphics, int mouseX,
                                              int mouseY, float partialTick,
                                              CallbackInfo ci) {
