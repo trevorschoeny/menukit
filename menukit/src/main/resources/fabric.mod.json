@@ -4,7 +4,7 @@
   "version": "${version}",
   "name": "MenuKit",
   "icon": "icon.png",
-  "description": "MenuKit is the UI library for Fabric mods. HUD panels, widgets, layouts, modal panels on vanilla menus, region anchoring, click-through prohibition, recipe-book awareness — all client-only. For custom container menus and slot state, see MenuKit: Containers.",
+  "description": "MenuKit is a UI library for Fabric mods: HUD panels, widgets, layouts, tabs, panels on vanilla menus placed by region, click-through prevention and recipe-book awareness, all on the client. For custom container menus and slot state, see MenuKit: Containers.",
   "authors": ["trevorschoeny"],
   "license": "MIT",
   "environment": "client",

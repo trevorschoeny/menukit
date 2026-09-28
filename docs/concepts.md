@@ -84,7 +84,7 @@ Position the row after a section as if the section were closed. When it opens, t
 
 `Row` and `Column` compute positions at build time and return a `List<PanelElement>`. They do not exist at runtime. An element enters a layout as an `ElementSpec`, produced by the element's static `spec(...)` factory. `.build()` returns positioned elements that go into a panel with `.add(...)`.
 
-`Row.width(px)` declares the row's overall pixel budget and `.addSpacer()` adds a flexible gap that expands to fill whatever the other children and spacing leave over, so one thing pins to the row's left edge and another to its right (`Back .... Reset`). Several spacers split the leftover evenly, the odd pixel to the last one. `addSpacer()` without `width(px)` throws — a spacer with nothing to expand into is a bug, not a silent no-op.
+`Row.width(px)` declares the row's overall pixel budget and `.addSpacer()` adds a flexible gap that expands to fill whatever the other children and spacing leave over, so one thing pins to the row's left edge and another to its right (`Back .... Reset`). Several spacers split the leftover evenly, the odd pixel to the last one. `addSpacer()` without `width(px)` throws, since a spacer with nothing to expand into is a mistake in the layout.
 
 ## Reference
 
@@ -94,7 +94,7 @@ The call site picks the reference. `ScreenPanelAdapter` measures from the menu f
 
 ## Panel on a vanilla screen
 
-`VanillaScreenPanelAdapter` anchors a panel onto any non-container screen — Options, Controls, KeyBinds, world-select, server-list, the title screen, the pause menu, anywhere `Screen` (not `AbstractContainerScreen`) is the superclass. `.on(ScreenClass...)` or `.onAny()` declares targeting; `InsideRegion` anchors it, the same enum a HUD panel uses. Render and click both gate on the panel's visibility, so `showWhen(...)` holds here exactly as it does on a container screen: a hidden panel draws nothing and eats no clicks. v1 is region-based only, with no modal or dim-behind machinery — fold on evidence.
+`VanillaScreenPanelAdapter` anchors a panel onto any screen that is not a container screen: Options, Controls, KeyBinds, world select, the server list, the title screen, the pause menu, anything whose superclass is `Screen` rather than `AbstractContainerScreen`. `.on(ScreenClass...)` or `.onAny()` declares targeting; `InsideRegion` anchors it, the same enum a HUD panel uses. Render and click both gate on the panel's visibility, so `showWhen(...)` holds here exactly as it does on a container screen: a hidden panel draws nothing and eats no clicks. It places by region only. There is no modal and no dimming behind a panel on these screens yet.
 
 ## Region
 
