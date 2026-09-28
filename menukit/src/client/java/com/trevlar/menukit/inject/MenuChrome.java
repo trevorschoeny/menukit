@@ -89,9 +89,8 @@ public final class MenuChrome {
         com.trevlar.menukit.window.Declarations.requireOpen("MenuChrome.register");
         ChromeProvider existing = PROVIDERS.get(screenClass);
         if (existing != null) {
-            LOGGER.warn("[MenuChrome] provider for {} already registered — ignoring second registration",
-                    screenClass.getName());
-            return;
+            throw new IllegalStateException("MenuChrome: a provider for " + screenClass.getName()
+                    + " is already registered; two would be settled by load order (§0063)");
         }
         PROVIDERS.put(screenClass, provider);
         LOGGER.info("[MenuChrome] registered provider for {}", screenClass.getSimpleName());
