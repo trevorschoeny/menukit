@@ -7,7 +7,6 @@ import com.trevlar.menukit.core.RenderContext;
 import com.trevlar.menukit.hud.MKHudNotification;
 import com.trevlar.menukit.hud.MKHudPanelDef;
 
-import net.fabricmc.api.ModInitializer;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -53,7 +52,7 @@ import org.jetbrains.annotations.ApiStatus;
  * {@link #setRecipeBookOpen}, {@link #init}. {@link #onInitialize()} is the
  * Fabric entry point and is internal.
  */
-public class MK implements ModInitializer {
+public class MK {
 
     /** MenuKit's own logger — independent of any consuming mod's logger. */
     public static final Logger LOGGER = LoggerFactory.getLogger("menukit");
@@ -80,62 +79,6 @@ public class MK implements ModInitializer {
     // Mod lifecycle
     // ══════════════════════════════════════════════════════════════════════
 
-    @ApiStatus.Internal
-    @Override
-    public void onInitialize() {
-        init();
-    }
-
-    /** Common-side initialization for the MenuKit artifact. Post-§0042 split:
-     *  M1 state-machinery init + verification init moved to
-     *  {@code MKC} (the `menukit-containers` artifact). MenuKit
-     *  has no common-side state to register (HUD registration is lazy via
-     *  consumer {@link #registerHud} calls). Retained as a no-op log so
-     *  consumer mods that explicitly call {@code MK.init()} for ordering
-     *  continue to compile and produce a visible init trace. */
-    public static void init() {
-        // The shared vocabularies, on both sides: every vanilla slot category, and
-        // the operations vanilla itself ships. A consumer reads these through
-        // SlotGroupCategories.all() / SlotOperations.all() and adds its own with
-        // SlotGroupCategories.declare(...) / SlotOperations.define(...).
-        // Every vanilla slot group, one per category (the group a vanilla resolver
-        // contributes), so SlotGroups lists them with no menu open. Declaring a group
-        // declares its category too.
-        SlotGroupCategory.vanilla().forEach(c ->
-                com.trevlar.menukit.inject.SlotGroups.declare(com.trevlar.menukit.inject.SlotGroupId.vanilla(c), c));
-        // Vanilla menus' slot groups resolved from a live menu, on both sides: a
-        // server resolves categories too (creative's picker is added by MKClient).
-        com.trevlar.menukit.inject.VanillaSlotGroupResolvers.registerAll();
-        // Each with the role it plays on a slot, so a settings screen can tell what
-        // takes items out from what puts them in.
-        // Where each one applies, from what vanilla does (26.2): an output slot takes
-        // nothing in, the crafter's result can't be touched at all, double-click
-        // collect skips the results whose menus override canTakeItemForPickAll, and a
-        // pickup lands only in the hotbar, the main inventory and the offhand.
-        SlotGroupCategory[] outputs = {
-                SlotGroupCategory.CRAFTING_OUTPUT, SlotGroupCategory.CRAFTER_RESULT, SlotGroupCategory.FURNACE_OUTPUT,
-                SlotGroupCategory.ANVIL_OUTPUT, SlotGroupCategory.GRINDSTONE_OUTPUT, SlotGroupCategory.SMITHING_OUTPUT,
-                SlotGroupCategory.LOOM_OUTPUT, SlotGroupCategory.STONECUTTER_OUTPUT,
-                SlotGroupCategory.CARTOGRAPHY_OUTPUT, SlotGroupCategory.MERCHANT_RESULT};
-        var takes = SlotOperations.AppliesTo.vanillaExcept(SlotGroupCategory.CRAFTER_RESULT);
-        var puts = SlotOperations.AppliesTo.vanillaExcept(outputs);
-        SlotOperations.define(BehaviorKeys.CLICK_TAKE, SlotOperations.Role.TAKE, takes);
-        SlotOperations.define(BehaviorKeys.CLICK_PUT, SlotOperations.Role.PUT, puts);
-        SlotOperations.define(BehaviorKeys.SHIFT_CLICK_OUT, SlotOperations.Role.TAKE, takes);
-        SlotOperations.define(BehaviorKeys.SHIFT_CLICK_IN, SlotOperations.Role.PUT, puts);
-        SlotOperations.define(BehaviorKeys.COLLECT, SlotOperations.Role.TAKE, SlotOperations.AppliesTo.vanillaExcept(
-                SlotGroupCategory.CRAFTER_RESULT, SlotGroupCategory.CRAFTING_OUTPUT,
-                SlotGroupCategory.CARTOGRAPHY_OUTPUT, SlotGroupCategory.MERCHANT_RESULT,
-                SlotGroupCategory.SMITHING_OUTPUT, SlotGroupCategory.STONECUTTER_OUTPUT));
-        SlotOperations.define(BehaviorKeys.DRAG_FILL, SlotOperations.Role.PUT, puts);
-        SlotOperations.define(BehaviorKeys.HOTBAR_SWAP, SlotOperations.Role.BOTH, takes);
-        SlotOperations.define(BehaviorKeys.OFFHAND_SWAP, SlotOperations.Role.BOTH, takes);
-        SlotOperations.define(BehaviorKeys.DROP, SlotOperations.Role.TAKE, takes);
-        SlotOperations.define(BehaviorKeys.DROP_STACK, SlotOperations.Role.TAKE, takes);
-        SlotOperations.define(BehaviorKeys.WORLD_PICKUP, SlotOperations.Role.PUT, SlotOperations.AppliesTo.vanilla(
-                SlotGroupCategory.PLAYER_HOTBAR, SlotGroupCategory.PLAYER_INVENTORY, SlotGroupCategory.PLAYER_OFFHAND));
-        LOGGER.info("[MenuKit] Initialized");
-    }
 
     /** Client-side initialization for the MenuKit artifact. Invoked from
      *  {@link MKClient#onInitializeClient()}. Post-§0042 split: M1

@@ -9,7 +9,7 @@
   "license": "MIT",
   "environment": "*",
   "entrypoints": {
-    "main": ["com.trevlar.menukit.MK"],
+    "main": ["com.trevlar.menukit.MenuKit"],
     "client": ["com.trevlar.menukit.MKClient"]
   },
   "mixins": ["menukit.mixins.json"],

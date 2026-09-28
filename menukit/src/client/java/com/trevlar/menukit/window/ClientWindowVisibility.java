@@ -33,13 +33,13 @@ public final class ClientWindowVisibility {
     /** Client-side: should this panel display/interact this frame (own visibility AND engine VISIBILITY)? */
     public static boolean panelShown(Panel panel) {
         if (!panel.isVisible()) return false;
-        return WindowEngine.resolve(PanelAddressing.of(panel), BehaviorKeys.VISIBILITY).visible();
+        return WindowEngine.resolve(addressOf(panel), BehaviorKeys.VISIBILITY).visible();
     }
 
     /** Client-side: should this element of {@code panel} display/interact (own visibility AND engine VISIBILITY)? */
     public static boolean elementShown(Panel panel, PanelElement element) {
         if (!element.isVisible()) return false;
-        return WindowEngine.resolve(PanelAddressing.of(panel, element), BehaviorKeys.VISIBILITY).visible();
+        return WindowEngine.resolve(addressOf(panel, element), BehaviorKeys.VISIBILITY).visible();
     }
 
     /**
@@ -50,6 +50,30 @@ public final class ClientWindowVisibility {
      */
     public static boolean panelOpaque(Panel panel) {
         if (!panel.isOpaque()) return false;
-        return WindowEngine.resolve(PanelAddressing.of(panel), BehaviorKeys.OPACITY).asBoolean();
+        return WindowEngine.resolve(addressOf(panel), BehaviorKeys.OPACITY).asBoolean();
+    }
+
+    // A live panel's and element's addresses (moved from PanelAddressing, which is
+    // common since 6.0.0 and cannot name the client Panel type).
+
+    /** The {@link Address} of {@code panel} itself (its own visibility/opacity/inertness). */
+    private static Address addressOf(Panel panel) {
+        return PanelAddressing.ofPanel(panel.getId());
+    }
+
+    /** The {@link Address} of {@code element} within {@code panel}. */
+    private static Address addressOf(Panel panel, PanelElement element) {
+        return PanelAddressing.ofElement(panel.getId(), elementDeclId(panel, element));
+    }
+
+    /**
+     * An element's durable declaration id — its explicit {@code elementDeclId} when
+     * given (Phase 0), else its registration-order position in the panel (stable
+     * across reopen as long as the element list order is). Never a runtime counter.
+     */
+    private static String elementDeclId(Panel panel, PanelElement element) {
+        String declId = element.getElementDeclId();
+        if (declId != null) return declId;
+        return "idx:" + panel.getRawElements().indexOf(element);
     }
 }

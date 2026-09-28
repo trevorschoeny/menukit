@@ -1,14 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// MenuKit — the UI library for Fabric mods. HUD panels, widgets, layouts,
-// modal panels, region anchoring, click-through prohibition, recipe-book
-// awareness — all client-only. Compile-time enforced as `environment: client`
-// so consumer mods depending only on this artifact cannot accidentally
-// reference server-coupled APIs (those live in :menukit-containers).
+// MenuKit: the window (one interface to any slot, panel or element), the slot
+// operations and slot groups, and the UI library (panels, elements, layouts,
+// HUD, regions). Universal since 6.0.0 (§0062): src/main runs on both sides,
+// src/client is what touches a screen, and Loom's split source sets make the
+// compiler hold that line.
 //
-// Per §0042: this artifact retains the bare `menukit` mod ID. The slot
-// extension (MenuKit: Containers) is published separately as menukit-containers.
-//
-// Produces menukit-1.0.0.jar — no dependency on any other subproject.
+// Keeps the bare `menukit` mod ID. MenuKit: Containers (the slot extension) is
+// published separately and depends on this one-way.
 // ═══════════════════════════════════════════════════════════════════════════
 
 plugins {
@@ -73,6 +71,15 @@ dependencies {
 }
 
 loom {
+    // §0062: what touches a screen lives in src/client; src/main is what runs on
+    // both sides. The compiler refuses a main class that reaches a client one.
+    splitEnvironmentSourceSets()
+    mods {
+        menukit {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
     runs {
         client { ideConfigGenerated = false }
         // Test Gallery: boots straight into the generated test world in run/saves/TestGallery.

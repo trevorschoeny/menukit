@@ -74,7 +74,15 @@ public class MKClient implements ClientModInitializer {
         // without MKC. Resolvers register the 22 vanilla menu classes (M8 §6)
         // so consumer mods anchoring panels to recognized slot groups work
         // even when MKC is not loaded.
-        VanillaSlotGroupResolvers.registerClient();   // the rest registered in MK.init, both sides
+        // Seeing through creative's slot wrapper: a client class, so installed here.
+        com.trevlar.menukit.inject.Slots.installUnwrap(slot -> {
+            if (slot instanceof com.trevlar.menukit.mixin.SlotWrapperAccessor wrapper) {
+                net.minecraft.world.inventory.Slot t = wrapper.mk$getTarget();
+                if (t != null) return t;
+            }
+            return slot;
+        });
+        com.trevlar.menukit.inject.CreativeSlotGroupResolver.registerClient();   // the rest registered in MK.init, both sides
 
         // M8 — library-owned ScreenEvents.AFTER_INIT dispatch for MenuContext
         // adapters. Replaces per-consumer listener boilerplate. See
