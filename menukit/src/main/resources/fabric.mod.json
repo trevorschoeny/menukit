@@ -7,7 +7,7 @@
   "description": "MenuKit is a UI library for Fabric mods: HUD panels, widgets, layouts, tabs, panels on vanilla menus placed by region, click-through prevention and recipe-book awareness, all on the client. For custom container menus and slot state, see MenuKit: Containers.",
   "authors": ["trevorschoeny"],
   "license": "MIT",
-  "environment": "client",
+  "environment": "*",
   "entrypoints": {
     "main": ["com.trevlar.menukit.MK"],
     "client": ["com.trevlar.menukit.MKClient"]

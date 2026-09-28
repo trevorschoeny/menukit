@@ -74,7 +74,7 @@ public class MKClient implements ClientModInitializer {
         // without MKC. Resolvers register the 22 vanilla menu classes (M8 §6)
         // so consumer mods anchoring panels to recognized slot groups work
         // even when MKC is not loaded.
-        VanillaSlotGroupResolvers.registerAll();
+        VanillaSlotGroupResolvers.registerClient();   // the rest registered in MK.init, both sides
 
         // M8 — library-owned ScreenEvents.AFTER_INIT dispatch for MenuContext
         // adapters. Replaces per-consumer listener boilerplate. See
@@ -86,8 +86,9 @@ public class MKClient implements ClientModInitializer {
         // when loaded, contributes additional owned-SlotGroup dispatch through
         // its own facade rather than completing this feature.
         //
-        // Ordering: VanillaSlotGroupResolvers.registerAll() above must run
-        // first so the first screen-open can resolve categories correctly.
+        // Ordering: VanillaSlotGroupResolvers.registerAll() (MK.init, which Fabric
+        // runs before any client entrypoint) must run first so the first
+        // screen-open can resolve categories correctly.
         SlotGroupPanelRegistry.init();
 
         // Phase 18r-5 follow-up — MK-managed focus janitor. Wires

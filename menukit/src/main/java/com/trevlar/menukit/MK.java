@@ -103,6 +103,9 @@ public class MK implements ModInitializer {
         // declares its category too.
         SlotGroupCategory.vanilla().forEach(c ->
                 com.trevlar.menukit.inject.SlotGroups.declare(com.trevlar.menukit.inject.SlotGroupId.vanilla(c), c));
+        // Vanilla menus' slot groups resolved from a live menu, on both sides: a
+        // server resolves categories too (creative's picker is added by MKClient).
+        com.trevlar.menukit.inject.VanillaSlotGroupResolvers.registerAll();
         // Each with the role it plays on a slot, so a settings screen can tell what
         // takes items out from what puts them in.
         // Where each one applies, from what vanilla does (26.2): an output slot takes
