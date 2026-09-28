@@ -177,7 +177,7 @@ Result: nine real slots render in the top left gutter of the survival inventory,
 
 The category is required. It says what the group is to other mods: `SlotGroupCategories.of(menu)` lists the group under it next to the vanilla categories, on every menu it sits on, so a search that walks the player's inventory menu can treat pockets as inventory and leave an elytra slot alone. Use a vanilla category when the group is one of those things; declare your own (`new SlotGroupCategory("mymod", "equipment")`) when it is not. The name is a contract once another mod depends on it.
 
-`SlotSpec.quickMove(NONE)`, `collect(false)`, and `dragFill(false)` keep a group out of the bulk shortcuts: shift-click, double-click collect, and drag-fill. The slot stays storage; the shortcuts skip it.
+`SlotSpec.shiftClickOut(false)`, `shiftClickIn(false)`, `collect(false)`, and `dragFill(false)` keep a group out of the bulk shortcuts: shift-click, double-click collect, and drag-fill. The slot stays storage; the shortcuts skip it.
 
 `SlotSpec.accepts(Predicate<ItemStack>)` limits what a slot takes. `SlotSpec.revealWhen(BooleanSupplier)` hides the slots until the supplier returns true. Death, keepInventory, Curse of Vanishing, and Curse of Binding behave as they do for vanilla slots. `POCKETS.dropsOnDeath(DropRule.KEEP)` overrides the death rule.
 
@@ -243,15 +243,15 @@ Needs: MenuKit: Containers. Call at common init.
 
 ```java
 // Source: inventory-max, equipment/EquipmentSlots.java (trimmed)
-Address a = CreatedSlotAdapter.addressOf("mymod:ring", "ring", 0);
-Window.slot(a).set(MKCBehaviorKeys.GATING, new SlotGate() {
+Address a = Address.createdSlot(MKCSlots.groupId("mymod:ring", "ring"), 0);
+Window.slot(a).gate(new SlotGate() {
     @Override public boolean mayPlace(ItemStack stack, GatingContext ctx) { return stack.is(Items.GOLD_INGOT); }
     @Override public boolean mayPickup(Player player, GatingContext ctx) { return true; }
     @Override public int maxStackSize(ItemStack stack, int vanillaMax) { return Math.min(1, vanillaMax); }
 });
 ```
 
-Result: slot 0 of the `ring` group accepts gold ingots only, one per slot, whenever a slot with that address exists in an open menu. `MKCBehaviorKeys` lists the keys: `GATING`, `BINDING`, `MENDING`. The operations are `BehaviorKeys.VANILLA_OPERATIONS`. `SlotSpec.gate(SlotGate)` and `SlotSpec.accepts(Predicate)` set the same gate at declaration time for container-parity slots.
+Result: slot 0 of the `ring` group accepts gold ingots only, one per slot, whenever a slot with that address exists in an open menu. `SlotGate` and `GatingContext` are `com.trevlar.menukit.window` types, and `BehaviorKeys.GATING` and `BINDING` are MenuKit keys enforced for every slot kind, so a MenuKit-only mod can gate a vanilla slot the same way. `MKCBehaviorKeys.MENDING` stays in Containers. The operations are `BehaviorKeys.VANILLA_OPERATIONS`. `SlotSpec.gate(SlotGate)` and `SlotSpec.accepts(Predicate)` set the same gate at declaration time for container-parity slots.
 
 ## Block operations on a locked slot
 
