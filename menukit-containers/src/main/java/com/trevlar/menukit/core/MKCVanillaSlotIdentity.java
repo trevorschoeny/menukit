@@ -32,8 +32,26 @@ public final class MKCVanillaSlotIdentity implements VanillaSlotIdentity {
                 .map(rs -> new Resolved(stableId(rs.key()), rs.localSlotIndex()));
     }
 
+    // Menu-free seams (world pickup, hoppers) mint an address per slot per call, and
+    // the id is the same string every time for the same container: intern it by key.
+    // Modded keys hold a mutable tag, so they are never cached.
+    // ponytail: cleared wholesale past MAX_IDS; bounded per-key eviction if it ever matters.
+    private static final int MAX_IDS = 4096;
+    private static final java.util.Map<PersistentContainerKey, String> IDS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     /** A deterministic, side-stable string id for a persistent container key. */
     private static String stableId(PersistentContainerKey key) {
+        if (key instanceof PersistentContainerKey.Modded) return buildId(key);
+        String id = IDS.get(key);
+        if (id != null) return id;
+        if (IDS.size() >= MAX_IDS) IDS.clear();
+        id = buildId(key);
+        IDS.put(key, id);
+        return id;
+    }
+
+    private static String buildId(PersistentContainerKey key) {
         return switch (key) {
             case PersistentContainerKey.PlayerInventory p -> "player:" + p.playerId();
             case PersistentContainerKey.EnderChest e -> "ender:" + e.playerId();
