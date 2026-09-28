@@ -6,9 +6,12 @@
   "mixins": [
     "CompoundContainerAccessor",
     "MKClickContextMixin",
+    "MKDispenserGateMixin",
+    "MKHopperGateMixin",
+    "MKInventoryInsertMixin",
     "MKOperationsMixin",
     "MKPlayerActionMixin",
-    "MKWorldPickupMixin",
+    "MKSlotGateMixin",
     "SlotPositionAccessor"
   ],
   "client": [

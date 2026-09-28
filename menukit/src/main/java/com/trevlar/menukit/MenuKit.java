@@ -66,7 +66,7 @@ public final class MenuKit implements ModInitializer {
         SlotOperations.define(BehaviorKeys.OFFHAND_SWAP, SlotOperations.Role.BOTH, takes);
         SlotOperations.define(BehaviorKeys.DROP, SlotOperations.Role.TAKE, takes);
         SlotOperations.define(BehaviorKeys.DROP_STACK, SlotOperations.Role.TAKE, takes);
-        SlotOperations.define(BehaviorKeys.WORLD_PICKUP, SlotOperations.Role.PUT, SlotOperations.AppliesTo.vanilla(
+        SlotOperations.define(BehaviorKeys.INVENTORY_INSERT, SlotOperations.Role.PUT, SlotOperations.AppliesTo.vanilla(
                 SlotGroupCategory.PLAYER_HOTBAR, SlotGroupCategory.PLAYER_INVENTORY, SlotGroupCategory.PLAYER_OFFHAND));
         LOGGER.info("[MenuKit] Initialized");
     }
