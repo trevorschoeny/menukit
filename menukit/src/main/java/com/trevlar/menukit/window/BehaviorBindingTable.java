@@ -1,11 +1,5 @@
-package com.trevlar.menukit.core;
+package com.trevlar.menukit.window;
 
-import com.trevlar.menukit.window.Address;
-import com.trevlar.menukit.window.AuthoritativeDeclarations;
-import com.trevlar.menukit.window.BehaviorKey;
-import com.trevlar.menukit.window.Decl;
-import com.trevlar.menukit.window.GroupKey;
-import com.trevlar.menukit.window.ServerTierBridge;
 
 import java.util.List;
 import java.util.Map;
@@ -13,28 +7,23 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * MKC's server-authoritative behavior store — the implementation of MK's two
- * server-tier ports ({@link ServerTierBridge} write side, {@link
- * AuthoritativeDeclarations} read/AXIS-1 side). Registered with
- * {@code ServerTier.install(...)} at MKC init so the engine routes server-tier
- * declarations here and consults this above the client cascade.
+ * The window's server tier: server-authoritative declarations (gating, binding,
+ * mending, the operations), keyed by {@link Address}, with the same per-slot &gt;
+ * per-group walk the client engine uses. {@link #resolve} returns the server's
+ * winning {@link Decl.Set}, or {@link Decl#inherit()} when the server does not
+ * override, so the engine falls through to the client tier and the default.
  *
- * <h2>Authority + the presence fast-path</h2>
+ * <p>Always present (§0062): until 6.0.0 this lived in Containers and MenuKit held
+ * a null object until Containers installed it, so a MenuKit-only mod's server-tier
+ * declarations did nothing and a declaration made before Containers' init had to
+ * be buffered. 6.0.0's phase 2 folds it and the client store into one (§0063).
  *
- * This holds the SERVER-tier declarations (gating, drop-rule, …) keyed by
- * {@link Address}, with the same per-slot &gt; per-group walk the client engine
- * uses, but at server authority. {@link #resolve} returns the server's winning
- * {@link Decl.Set}, or {@link Decl#inherit()} when the server does not override
- * (so the engine falls through to the client tier / library default).
- *
- * <p>{@link #isEmpty()} / {@link #hasBinding(Address)} back the "the slots nobody
- * touches stay exactly vanilla" guarantee: the Phase-4 server seam early-outs on
- * any address with no binding, so an un-addressed slot incurs zero library logic.
- *
- * <p>(The store/walk mirrors the MK client engine's — the cascade algorithm is
- * the same; the two tiers differ only in authority and side, not in shape.)
+ * <p>{@link #isEmpty()} and {@link #hasBinding(Address)} back "the slots nobody
+ * touches stay exactly vanilla": a server seam early-outs on an address with no
+ * binding.
  */
-public final class BehaviorBindingTable implements ServerTierBridge, AuthoritativeDeclarations {
+@org.jetbrains.annotations.ApiStatus.Internal
+public final class BehaviorBindingTable {
 
     public static final BehaviorBindingTable INSTANCE = new BehaviorBindingTable();
 
@@ -45,26 +34,22 @@ public final class BehaviorBindingTable implements ServerTierBridge, Authoritati
 
     private record GroupBinding(GroupKey group, Map<BehaviorKey<?>, Decl<?>> decls) {}
 
-    // ── ServerTierBridge (write) ────────────────────────────────────────
+    // ── write ───────────────────────────────────────────────────────────
 
-    @Override
     public <V> void declare(Address address, BehaviorKey<V> key, Decl<V> decl) {
         perAddress.computeIfAbsent(address, a -> new ConcurrentHashMap<>()).put(key, decl);
     }
 
-    @Override
     public <V> void declareGroup(GroupKey group, BehaviorKey<V> key, Decl<V> decl) {
         bindingFor(group).put(key, decl);
     }
 
-    // ── AuthoritativeDeclarations (read; AXIS-1) ────────────────────────
+    // ── read (AXIS-1) ───────────────────────────────────────────────────
 
-    @Override
     public <V> Decl<V> resolve(Address address, BehaviorKey<V> key) {
         return resolve(address, key, java.util.List.of());
     }
 
-    @Override
     public <V> Decl<V> resolve(Address address, BehaviorKey<V> key, java.util.Collection<GroupKey> alsoMemberOf) {
         Decl<V> slot = declAt(address, key);
         if (slot instanceof Decl.Set<V>) return slot;           // server overrides at slot

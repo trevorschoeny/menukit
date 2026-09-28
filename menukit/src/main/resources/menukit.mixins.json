@@ -4,6 +4,7 @@
   "package": "com.trevlar.menukit.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
+    "CompoundContainerAccessor",
     "MKClickContextMixin",
     "MKOperationsMixin",
     "MKPlayerActionMixin",

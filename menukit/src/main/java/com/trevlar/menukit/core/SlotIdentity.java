@@ -1,5 +1,7 @@
 package com.trevlar.menukit.core;
 
+import com.trevlar.menukit.window.PersistentContainerKey;
+
 import net.minecraft.world.Container;
 import net.minecraft.world.inventory.Slot;
 

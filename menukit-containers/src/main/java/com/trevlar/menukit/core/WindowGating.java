@@ -1,6 +1,7 @@
 package com.trevlar.menukit.core;
 
 import com.trevlar.menukit.window.Address;
+import com.trevlar.menukit.window.BehaviorBindingTable;
 import com.trevlar.menukit.window.VanillaAddressing;
 import com.trevlar.menukit.window.WindowEngine;
 
