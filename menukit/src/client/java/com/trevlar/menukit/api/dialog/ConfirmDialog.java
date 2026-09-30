@@ -44,8 +44,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * new ScreenPanelAdapter(deleteDialog)
  *     .on(MyMenuScreen.class);
  *
- * // Trigger from another button:
- * deleteButton.onClick(() -> confirmDeleteOpen = true);
+ * // Open it from another button:
+ * Button.builder().label(Component.literal("Delete")).onClick(() -> confirmDeleteOpen = true).build();
  * }</pre>
  *
  * <h3>Cross-context applicability</h3>
