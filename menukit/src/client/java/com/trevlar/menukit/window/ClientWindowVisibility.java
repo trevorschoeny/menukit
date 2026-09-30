@@ -60,7 +60,7 @@ public final class ClientWindowVisibility {
     // A live panel's and element's addresses (moved from PanelAddressing, which is
     // common since 6.0.0 and cannot name the client Panel type).
 
-    /** The {@link Address} of {@code panel} itself (its own visibility/opacity/inertness). */
+    /** The {@link Address} of {@code panel} itself (its own visibility and opacity). */
     private static Address addressOf(Panel panel) {
         return PanelAddressing.ofPanel(panel.id());
     }

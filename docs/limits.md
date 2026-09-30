@@ -29,7 +29,7 @@ Behavior that is incomplete in the current release.
 | Unplaced panels on a standalone screen | The default stacks later panels below the main one with a 14 pixel gap, assuming every earlier stacked panel is shown. With one hidden, those after it sit 12 pixels lower than the old column did. Declare `region(BOTTOM_CENTER)` with your own `.offset` for exact spacing. |
 | Offsets and stacking | `.offset(dx, dy)` moves one panel after placement; siblings stack on its un-nudged size. An offset that pushes a panel over its sibling overlaps it. |
 | Created slot in an overlay panel | Not supported. Overlay panels draw after vanilla's slot pass, so a slot they host is placed one frame late and drawn under the panel. Put created slots in flow panels. |
-| Reactions | `ON_INSERT_OBSERVED` and `ON_TAKE_OBSERVED` fire on the client. `ON_INSERT` and `ON_TAKE`, the server-side pair, are declared but nothing fires them yet. |
+| Reactions | `ON_INSERT_OBSERVED` and `ON_TAKE_OBSERVED` fire on the client when a slot's synced contents change. They are UI feedback. There is no server-side reaction key; server code that must act on a change hooks the slot or menu method that makes it. |
 | Window scope | Every address resolves in the primary scope. Per-tab and per-sub-window scopes are not active. |
 | Panel and element addressing | `Window.panel(id)` and `Window.element(...)` carry visibility and opacity. Gates, operations and reactions apply to slots only. |
 | A slot group built with a menu, before any menu | `CreatedSlots.onto(menu, player)` registers a group when that menu is built, so `SlotGroups` lists it only after the first one. Declare the group at init with `SlotGroups.declare` to list it from the title screen. |
