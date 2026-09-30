@@ -32,7 +32,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * registered slot sits over a vanilla slot, vanilla's first-hit
  * {@code getHoveredSlot} would return the covered vanilla slot. The hook resolves
  * the point against the revealed registered slots first and, when one wins, returns <b>the slot that is in {@code menu.slots}</b> — the raw
- * {@code MKCSlot} on a survival inventory, the creative {@code SlotWrapper}
+ * {@code CreatedSlot} on a survival inventory, the creative {@code SlotWrapper}
  * that wraps it on the creative screen. Returning the in-menu slot is load-bearing
  * in creative: its click path hard-casts the hovered slot to {@code SlotWrapper}.
  * A {@code null} return for an in-panel gap makes the covered vanilla slot inert.
@@ -45,7 +45,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * to the slot.
  *
  * <p>Both forward to {@link SlotScreenDispatcher}, which no-ops without
- * MenuKit-Containers (§0042).
+ * MenuKit-Containers (§0062).
  */
 @Mixin(AbstractContainerScreen.class)
 public abstract class MKSlotInputMixin {

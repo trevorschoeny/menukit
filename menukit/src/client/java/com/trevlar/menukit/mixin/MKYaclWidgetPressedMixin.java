@@ -1,6 +1,6 @@
 package com.trevlar.menukit.mixin;
 
-import com.trevlar.menukit.core.MKPressedTracker;
+import com.trevlar.menukit.core.PressedTracker;
 
 
 import net.minecraft.client.input.MouseButtonEvent;
@@ -13,9 +13,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * <b>ACCEPTED aesthetic-only exception to §0019</b> (see
- * {@link MKVanillaButtonPressedMixin} class javadoc for the
- * full carve-out rationale).
+ * Part of MenuKit's one styling exception to §0019, recorded in §0068 (see
+ * {@link MKVanillaButtonPressedMixin}).
  *
  * <p>YACL counterpart to {@link MKVanillaButtonPressedMixin} —
  * tracks press state on YACL's controller-element widgets (subclasses
@@ -29,7 +28,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *
  * MK doesn't take YACL as a runtime dependency. When YACL is absent
  * (which is most environments — only consumer mods that JIJ YACL per
- * §0031 bring it in), Mixin sees the target classes can't be resolved
+ * §0028 bring it in), Mixin sees the target classes can't be resolved
  * and silently skips this mixin entirely thanks to {@code @Pseudo}
  * (plus {@code require = 0} per injection, so partial-target presence
  * is tolerated too). No runtime error, no behavior change.
@@ -41,7 +40,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * lives where {@code mouseClicked} bodies live (the per-element classes
  * since YACL 3.9.5); the pressed-overlay render lives where the render
  * body lives ({@code ControllerWidget.extractRenderState} — the sibling
- * overlay mixin). Both share state via {@link MKPressedTracker}.
+ * overlay mixin). Both share state via {@link PressedTracker}.
  */
 @ApiStatus.Internal
 @Pseudo
@@ -77,7 +76,7 @@ public abstract class MKYaclWidgetPressedMixin {
         // handling this click"). Filters out cursor-over-widget
         // clicks that didn't actually fire on us.
         if (Boolean.TRUE.equals(cir.getReturnValue())) {
-            MKPressedTracker.markPressed(this);
+            PressedTracker.markPressed(this);
         }
     }
 

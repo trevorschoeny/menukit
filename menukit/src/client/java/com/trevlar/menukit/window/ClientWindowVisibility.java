@@ -1,7 +1,11 @@
 package com.trevlar.menukit.window;
 
-import com.trevlar.menukit.core.Panel;
-import com.trevlar.menukit.core.PanelElement;
+import com.trevlar.menukit.api.window.Address;
+import com.trevlar.menukit.api.window.BehaviorKeys;
+import com.trevlar.menukit.api.window.VisibilityRule;
+import com.trevlar.menukit.api.window.WindowEngine;
+import com.trevlar.menukit.api.panel.Panel;
+import com.trevlar.menukit.api.element.PanelElement;
 
 /**
  * The one client-side gate that folds the engine {@code VISIBILITY} behavior into
@@ -10,8 +14,8 @@ import com.trevlar.menukit.core.PanelElement;
  *
  * <h2>Why this and not {@code Panel.isVisible()}</h2>
  *
- * {@code Panel.isVisible()} (the panel's own field / {@code showWhen} supplier) is
- * called on BOTH sides — a created slot's server-side {@code MKCSlot.isInert} reads
+ * {@code Panel.isVisible()} (the panel's own field / {@code visibleWhen} supplier) is
+ * called on BOTH sides — a created slot's server-side {@code CreatedSlot.isInert} reads
  * it for sync. Engine VISIBILITY is CLIENT-tier and MUST be resolved on the client
  * only (the engine store is shared client+server in single-player, so resolving it
  * server-side would let a client hide stop server sync). So the engine resolution
@@ -58,12 +62,12 @@ public final class ClientWindowVisibility {
 
     /** The {@link Address} of {@code panel} itself (its own visibility/opacity/inertness). */
     private static Address addressOf(Panel panel) {
-        return PanelAddressing.ofPanel(panel.getId());
+        return PanelAddressing.ofPanel(panel.id());
     }
 
     /** The {@link Address} of {@code element} within {@code panel}. */
     private static Address addressOf(Panel panel, PanelElement element) {
-        return PanelAddressing.ofElement(panel.getId(), elementDeclId(panel, element));
+        return PanelAddressing.ofElement(panel.id(), elementDeclId(panel, element));
     }
 
     /**
@@ -72,7 +76,7 @@ public final class ClientWindowVisibility {
      * across reopen as long as the element list order is). Never a runtime counter.
      */
     private static String elementDeclId(Panel panel, PanelElement element) {
-        String declId = element.getElementDeclId();
+        String declId = element.declId();
         if (declId != null) return declId;
         return "idx:" + panel.getRawElements().indexOf(element);
     }

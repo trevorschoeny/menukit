@@ -1,5 +1,6 @@
 package com.trevlar.menukit.core;
 
+import com.trevlar.menukit.api.panel.PanelStyle;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
@@ -15,7 +16,7 @@ import net.minecraft.resources.Identifier;
  * themselves with fills, matching vanilla's inventory panel look.
  *
  * <p>Part of the canonical MenuKit hierarchy:
- * Screen → Panel → SlotGroup → MKCSlot
+ * Screen → Panel → SlotGroup → CreatedSlot
  */
 public final class PanelRendering {
 

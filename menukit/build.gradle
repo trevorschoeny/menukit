@@ -66,7 +66,7 @@ dependencies {
     // MenuKitYaclControllerPressedMixin (@Pseudo target). MK does NOT
     // depend on YACL at runtime — the mixin uses @Pseudo to be
     // tolerant of YACL absence (silently skips). YACL only enters the
-    // runtime environment via consumer mods that bundle it per §0031.
+    // runtime environment via consumer mods that bundle it per §0028.
     compileOnly "maven.modrinth:yacl:3.9.6+26.2-fabric"
 }
 
@@ -99,7 +99,7 @@ jar {
 }
 
 // ── Modrinth Publishing ────────────────────────────────────────────────
-// MenuKit retains the bare `menukit` Modrinth project ID per §0042.
+// MenuKit retains the bare `menukit` Modrinth project ID per §0062.
 modrinth {
     token = System.getenv("MODRINTH_TOKEN")
     projectId = "menukit"
@@ -138,15 +138,16 @@ tasks.register('verifyJarVersion') {
 build.dependsOn verifyJarVersion
 
 // ── Javadoc: the published API reference ────────────────────────────────
-// Consumer-facing reference only. Mixins, network payloads, and state
-// plumbing are implementation and stay out of the generated site.
+// Consumer-facing reference only: the api packages (§0068). Everything else is
+// internal and stays out of the generated site.
 // doclint keeps broken {@link}s as errors (a stale link is a doc bug);
 // `missing` and `html` are off because getter @return tags and heading
 // levels are noise, not defects.
 javadoc {
-    exclude 'com/trevlar/menukit/mixin/**'
-    exclude 'com/trevlar/menukit/network/**'
-    exclude 'com/trevlar/menukit/state/**'
+    // §0068: the reference is the public API, the api packages of both source sets.
+    source += sourceSets.client.allJava
+    classpath += sourceSets.client.compileClasspath + sourceSets.main.output + sourceSets.client.output
+    include 'com/trevlar/menukit/api/**', 'com/trevlar/menukit/containers/api/**'
     options.addBooleanOption('Xdoclint:all,-missing,-html,-accessibility', true)
     options.tags = ['implNote:a:Implementation note:', 'implSpec:a:Implementation requirements:', 'apiNote:a:API note:']
     options.encoding = 'UTF-8'

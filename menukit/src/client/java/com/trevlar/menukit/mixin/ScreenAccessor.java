@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 /**
  * Phase 14d-3 — accessor mixin exposing {@code Screen.addWidget} and
  * {@code Screen.removeWidget}. Used by {@link
- * com.trevlar.menukit.core.TextField} to register its wrapped
+ * com.trevlar.menukit.api.element.TextField} to register its wrapped
  * {@code EditBox} for input dispatch (children + narratables) WITHOUT
  * adding it to the renderables list.
  *

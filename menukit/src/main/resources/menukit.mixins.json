@@ -28,7 +28,6 @@
     "MKItemOutlineMarkMixin",
     "MKListHoverSuppressMixin",
     "MKLocalDropMixin",
-    "MKModalKeyboardHandlerMixin",
     "MKModalMouseHandlerMixin",
     "MKRecipeBookAccessor",
     "MKSlotInputMixin",

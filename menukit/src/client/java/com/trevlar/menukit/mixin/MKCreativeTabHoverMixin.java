@@ -1,6 +1,7 @@
 package com.trevlar.menukit.mixin;
 
-import com.trevlar.menukit.core.MKFocus;
+import com.trevlar.menukit.inject.ScreenPanelRegistry;
+import com.trevlar.menukit.api.panel.Focus;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
@@ -13,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * §0051 Fix 3 — creative tab-hover suppression under a modal. The cosmetic
+ * §0055 Fix 3 — creative tab-hover suppression under a modal. The cosmetic
  * companion to the slot-hover claim in {@link MKSlotInputMixin}.
  *
  * <p>That hook suppresses <em>slot</em> hover by returning {@code null} from
@@ -24,7 +25,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * hover mixin's own javadoc anticipates ("fold a creative-specific mixin into
  * {@code checkTabHovering} returning false when modal up").
  *
- * <h3>Why creative-only is correct here (§0051)</h3>
+ * <h3>Why creative-only is correct here (§0055)</h3>
  *
  * Tabs exist only on the creative inventory screen — there is no survival analog
  * to unify, so this is legitimate mode-specific UI getting a mode-specific hook,
@@ -48,7 +49,7 @@ public abstract class MKCreativeTabHoverMixin {
      *
      * <p>Previously this only checked for a visible modal, so a non-modal
      * opaque panel (e.g. the pockets controls) sitting over a tab let the tab
-     * still glow through. Routing through {@link MKFocus#isInertUnderPanel} —
+     * still glow through. Routing through {@link Focus#isInertUnderPanel} —
      * the same predicate slot hover, widget hover, tooltip, and the click-eat
      * use — closes that highlight-through and keeps tabs from drifting from
      * every other surface.
@@ -61,7 +62,7 @@ public abstract class MKCreativeTabHoverMixin {
     private void mk$suppressTabHoverWhenModal(GuiGraphicsExtractor guiGraphics, CreativeModeTab tab,
                                                    int mouseX, int mouseY,
                                                    CallbackInfoReturnable<Boolean> cir) {
-        if (MKFocus.isInertUnderPanel(mouseX, mouseY)) {
+        if (Focus.isInertUnderPanel(mouseX, mouseY)) {
             cir.setReturnValue(false);
         }
     }

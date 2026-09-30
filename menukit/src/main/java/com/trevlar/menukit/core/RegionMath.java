@@ -1,7 +1,10 @@
 package com.trevlar.menukit.core;
 
-import com.trevlar.menukit.inject.Reference;
-import com.trevlar.menukit.inject.ScreenOrigin;
+import com.trevlar.menukit.api.panel.InsideRegion;
+import com.trevlar.menukit.api.panel.OutsideRegion;
+import com.trevlar.menukit.api.panel.RegionConstants;
+import com.trevlar.menukit.api.panel.Reference;
+import com.trevlar.menukit.api.panel.ScreenOrigin;
 
 import java.util.Optional;
 import org.jetbrains.annotations.ApiStatus;
@@ -93,7 +96,7 @@ public final class RegionMath {
      * auto-scrolls into exactly the room its anchor leaves toward the screen edge,
      * rather than rendering off-screen (then getting clamped over the frame). The
      * caller subtracts the panel's 2×padding to get the content-height ceiling for
-     * {@link com.trevlar.menukit.core.Panel#setAvailableContentHeight}.
+     * {@link com.trevlar.menukit.api.panel.Panel#setAvailableContentHeight}.
      *
      * <p>Like {@link #availableMenuWidth}, the stacking prefix is ignored here —
      * the budget is computed for the region's anchor edge (an over-estimate for
@@ -132,7 +135,7 @@ public final class RegionMath {
      * menu frame and the screen width. Mirrors {@link #resolveMenu}'s per-region
      * anchor geometry so the budget and the origin agree on where the panel
      * sits. The caller subtracts the panel's 2×padding to get the content
-     * budget for {@link com.trevlar.menukit.core.Panel#setAvailableContentWidth}.
+     * budget for {@link com.trevlar.menukit.api.panel.Panel#setAvailableContentWidth}.
      *
      * <p>Horizontal-flow regions (TOP/BOTTOM_ALIGN) ignore the stacking prefix
      * here — the budget is computed for the region's anchor edge, an

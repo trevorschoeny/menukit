@@ -1,7 +1,7 @@
 package com.trevlar.menukit.mixin;
 
-import com.trevlar.menukit.core.ControlStyle;
-import com.trevlar.menukit.core.MKPressedTracker;
+import com.trevlar.menukit.api.element.ControlStyle;
+import com.trevlar.menukit.core.PressedTracker;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractButton;
@@ -14,31 +14,21 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * <b>ACCEPTED aesthetic-only exception to §0019 (library-not-platform).</b>
+ * <b>MenuKit's one styling exception to §0019, recorded in §0068.</b>
  *
- * <p>Applies MenuKit's vanilla-style pressed visual (inverted bevel +
- * dark overlay) to EVERY vanilla {@link AbstractButton} in the game —
- * title screen, Options, Pause, world-select, Controls, etc. — so
- * vanilla Minecraft picks up the "button feels like it's being pushed
- * in" affordance MenuKit's own VANILLA-styled controls have.
+ * <p>Applies MenuKit's vanilla-style pressed visual (inverted bevel and a dark
+ * overlay) to every vanilla {@link AbstractButton} in the game (title screen,
+ * Options, Pause, world select, Controls), so a vanilla button looks pushed in
+ * while pressed, the same as MenuKit's own VANILLA-styled controls. With the two
+ * YACL mixins it is library-wide and always on, and it changes how buttons MenuKit
+ * did not create look. §0068 keeps it (Trev, 2026-09-27: players see it as part of
+ * MenuKit's feel) and records it so it stays the only one: a second styling change
+ * to vanilla needs its own record.
  *
- * <h3>Why this is acceptable despite §0019</h3>
- *
- * §0019 forbids ambient consumer-facing policy defaults: MK shouldn't
- * impose behavior on consumers' UIs that they can't opt out of.
- * Forcing a pressed visual on every vanilla button is exactly that
- * kind of ambient change. Trev's carve-out (2026-05-24): the rule
- * relaxes for changes that are <b>purely aesthetic</b> — they modify
- * what gets drawn but don't intercept input, change behavior, expose
- * new APIs, or alter any callback. This mixin satisfies that test:
- * it reads existing widget state ({@code isHovered}, {@code active},
- * a press-tracker flag) and overlays a sprite on top of vanilla's
- * own draw. Nothing functional changes — pressing a button does
- * exactly what it did before, just looks slightly different mid-press.
- *
- * <p>If a future mixin under this exception starts intercepting
- * input, modifying behavior, or adding feature surface, the
- * exception no longer applies and the §0019 concerns reactivate.
+ * <p>It is visual only. It reads existing widget state ({@code isHovered},
+ * {@code active}, a press-tracker flag) and draws over vanilla's own draw;
+ * pressing a button does exactly what it did before. A change here that
+ * intercepted input or changed behaviour would fall outside the exception.
  *
  * <h3>Known costs we accept</h3>
  *
@@ -79,20 +69,20 @@ public abstract class MKVanillaButtonPressedMixin {
                                       CallbackInfo ci) {
         // Vanilla's dispatch only calls onClick when isMouseOver is true,
         // so reaching here means the press originated on this button.
-        MKPressedTracker.markPressed(this);
+        PressedTracker.markPressed(this);
     }
 
     @Inject(method = "extractWidgetRenderState", at = @At("TAIL"))
     private void mk$drawVanillaPressedOverlay(GuiGraphicsExtractor graphics, int mouseX,
                                                     int mouseY, float partialTick,
                                                     CallbackInfo ci) {
-        // Press tracking via shared MKPressedTracker — the same
+        // Press tracking via shared PressedTracker — the same
         // tracker the YACL mixins use, so all "vanilla-style pressed
         // visual" code paths share one source of truth.
         // isPressedAndCheckRelease auto-clears the whole map when
         // GLFW reports mouse released, so stale entries drain on the
         // next render frame (sub-perceptible).
-        if (!MKPressedTracker.isPressedAndCheckRelease(this)) return;
+        if (!PressedTracker.isPressedAndCheckRelease(this)) return;
 
         // Don't draw the overlay when the user has dragged off the
         // button (mouse still held but no longer over us). Matches

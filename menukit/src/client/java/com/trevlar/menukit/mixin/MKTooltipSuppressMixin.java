@@ -1,6 +1,7 @@
 package com.trevlar.menukit.mixin;
 
-import com.trevlar.menukit.core.MKFocus;
+import com.trevlar.menukit.inject.ScreenPanelRegistry;
+import com.trevlar.menukit.api.panel.Focus;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
@@ -103,7 +104,7 @@ public abstract class MKTooltipSuppressMixin {
         // content (an element tooltip, the panel tooltip): it passes, even over the
         // panel's own claim. Everything else under a claim is suppressed.
         if (com.trevlar.menukit.inject.PanelHost.renderingLivePanel()) return;
-        if (MKFocus.isInertUnderPanelAtCursor()) {
+        if (Focus.isInertUnderPanelAtCursor()) {
             ci.cancel();
         }
     }

@@ -1,6 +1,6 @@
 package com.trevlar.menukit.mixin;
 
-import com.trevlar.menukit.core.MKFocus;
+import com.trevlar.menukit.api.panel.Focus;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -31,9 +31,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * <ul>
  *   <li>the cursor is covered by any MK content (opaque panel background,
  *       active element-overlay bounds, or a solid interactive element — see
- *       {@link MKFocus#isCursorCovered}), AND</li>
+ *       {@link Focus#isCursorCovered}), AND</li>
  *   <li>this widget is NOT MK-managed — i.e., NOT registered via
- *       {@link MKFocus#addWidget}. MK-managed widgets (TextField's
+ *       {@link Focus#addWidget}. MK-managed widgets (TextField's
  *       wrapped EditBox, Keybindery's SearchBox EditBox, any consumer
  *       widget intentionally placed inside an MK panel) keep their
  *       hover state because their visual feedback is desired.</li>
@@ -78,7 +78,7 @@ public abstract class MKWidgetHoverSuppressMixin {
         // SearchBox EditBox, any consumer widget intentionally registered
         // inside an MK panel) keep their hover state — their visual
         // feedback is the whole point of being inside the panel.
-        if (MKFocus.isManaged(screen, (GuiEventListener) (Object) this)) return;
+        if (Focus.isManaged(screen, (GuiEventListener) (Object) this)) return;
 
         // Compute current cursor coords. Matches
         // MKModalMouseHandlerMixin's formula — uses
@@ -92,7 +92,7 @@ public abstract class MKWidgetHoverSuppressMixin {
 
         // Unified inertness predicate (modal-global OR covered by an opaque
         // panel/element/overlay) — same question every other suppressor asks.
-        if (MKFocus.isInertUnderPanel(scaledX, scaledY)) {
+        if (Focus.isInertUnderPanel(scaledX, scaledY)) {
             cir.setReturnValue(false);
         }
     }

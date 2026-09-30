@@ -1,17 +1,19 @@
 package com.trevlar.menukit.inject;
 
-import com.trevlar.menukit.core.ChildDispatch;
-import com.trevlar.menukit.core.InputContext;
-import com.trevlar.menukit.core.InsideRegion;
-import com.trevlar.menukit.core.OutsideRegion;
-import com.trevlar.menukit.core.Panel;
-import com.trevlar.menukit.core.PanelElement;
-import com.trevlar.menukit.core.PanelPosition;
+import com.trevlar.menukit.api.panel.Reference;
+import com.trevlar.menukit.api.panel.ScreenOrigin;
+import com.trevlar.menukit.api.element.ChildDispatch;
+import com.trevlar.menukit.api.element.InputContext;
+import com.trevlar.menukit.api.panel.InsideRegion;
+import com.trevlar.menukit.api.panel.OutsideRegion;
+import com.trevlar.menukit.api.panel.Panel;
+import com.trevlar.menukit.api.element.PanelElement;
+import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.core.PanelRendering;
-import com.trevlar.menukit.core.PanelStyle;
-import com.trevlar.menukit.core.RegionConstants;
+import com.trevlar.menukit.api.panel.PanelStyle;
+import com.trevlar.menukit.api.panel.RegionConstants;
 import com.trevlar.menukit.core.RegionMath;
-import com.trevlar.menukit.core.RenderContext;
+import com.trevlar.menukit.api.element.RenderContext;
 import com.trevlar.menukit.window.ClientWindowVisibility;
 
 import net.fabricmc.loader.api.FabricLoader;
@@ -42,7 +44,7 @@ import java.util.function.Supplier;
 /**
  * One place panels live (§0065). Each of the five contexts instantiates a host: a
  * container screen, a non-container vanilla screen, a slot group, the HUD, a
- * standalone screen ({@code MKScreen}, {@code MKCHandledScreen}). The five stay as
+ * standalone screen ({@code MKScreen}, {@code CustomContainerScreen}). The five stay as
  * mental models (§0028); the five copies of stacking, budget, render, claim and
  * dispatch collapse into this class.
  *
@@ -74,7 +76,7 @@ import java.util.function.Supplier;
  * anything claim this point?", "is a modal up?") are answered, across every host on
  * the current screen. Frame order on a container screen is {@link ContainerScreenLayers}'.
  *
- * <p>Internal: consumers declare panels through adapters, {@code MKHudPanel} or a
+ * <p>Internal: consumers declare panels through adapters, {@code HudPanel} or a
  * standalone screen; they never build a host.
  */
 @ApiStatus.Internal
@@ -94,7 +96,7 @@ public final class PanelHost {
         SLOT_GROUP("slot group"),
         /** The in-game HUD: screen spots on the game window; render only, no input. */
         HUD("HUD"),
-        /** A standalone screen ({@code MKScreen}, {@code MKCHandledScreen}): its own main panel is the frame. */
+        /** A standalone screen ({@code MKScreen}, {@code CustomContainerScreen}): its own main panel is the frame. */
         STANDALONE("standalone screen");
 
         private final String label;
@@ -178,7 +180,7 @@ public final class PanelHost {
 
     /**
      * A standalone host's own slots: whether {@code panel} hosts the live slot under
-     * the point. {@code MKCHandledScreen} answers for its slot groups, so its opaque
+     * the point. {@code CustomContainerScreen} answers for its slot groups, so its opaque
      * panels claim their rectangles without making their own slots inert.
      */
     @FunctionalInterface
@@ -263,7 +265,7 @@ public final class PanelHost {
     /**
      * Standalone: a panel's content size ({width, height}, padding excluded) when the
      * panel's own {@code getWidth/getHeight} does not know it all (a
-     * {@code MKCHandledScreen} panel also holds slot groups). Default: the panel's own.
+     * {@code CustomContainerScreen} panel also holds slot groups). Default: the panel's own.
      */
     public PanelHost contentSize(Function<Panel, int[]> size) { this.contentSize = size; return this; }
 
@@ -296,7 +298,7 @@ public final class PanelHost {
     public synchronized Entry add(Panel panel, PanelPosition position, int padding, String modId, int seq) {
         requireSupported(kind, panel, position);
         if (position.mode() == PanelPosition.Mode.MAIN && mainEntry() != null) {
-            throw new IllegalArgumentException("MenuKit: panel '" + panel.getId()
+            throw new IllegalArgumentException("MenuKit: panel '" + panel.id()
                     + "' is a second main() on one screen; a screen has one frame.");
         }
         Entry entry = new Entry(panel, position, padding, modId, seq);
@@ -325,7 +327,7 @@ public final class PanelHost {
      * overlay floats centred on the screen wherever it is hosted); the rest depend
      * on what the context has to place against.
      */
-    static void requireSupported(Kind kind, Panel panel, PanelPosition position) {
+    public static void requireSupported(Kind kind, Panel panel, PanelPosition position) {
         PanelPosition.Mode mode = position.mode();
         boolean ok = switch (mode) {
             case UNPLACED -> false;
@@ -344,7 +346,7 @@ public final class PanelHost {
                 case SLOT_GROUP -> "region(OutsideRegion), center() or pixel(...)";
                 case STANDALONE -> "main(), region(OutsideRegion), screenAnchor(InsideRegion), center() or pixel(...)";
             };
-            throw new IllegalArgumentException("MenuKit: panel '" + panel.getId() + "' is "
+            throw new IllegalArgumentException("MenuKit: panel '" + panel.id() + "' is "
                     + position.describe() + ", which a " + kind.label() + " cannot place. "
                     + "Declare .position(PanelPosition." + hint + ") on the panel.");
         }
@@ -354,7 +356,7 @@ public final class PanelHost {
 
     /**
      * The one "is this panel shown" answer: its own visibility (imperative or
-     * {@code showWhen}) and the engine's VISIBILITY key. A hidden panel is skipped
+     * {@code visibleWhen}) and the engine's VISIBILITY key. A hidden panel is skipped
      * before layout, so it is never measured, never placed, and its pixel supplier
      * never runs.
      */
@@ -363,7 +365,7 @@ public final class PanelHost {
     }
 
     /**
-     * The claim rule (§0065, §0058 as reworded 2026-09-27): does this placed panel
+     * The claim rule (§0065 as reworded 2026-09-27): does this placed panel
      * take the point, so whatever lies beneath it is inert?
      *
      * <ol>
@@ -666,7 +668,7 @@ public final class PanelHost {
     private void warnOnce(Entry e, String what) {
         if (!warned.add(e)) return;
         LOGGER.warn("[PanelHost] Panel '{}' on the {} {}; not placed until it fits.",
-                e.panel().getId(), kind.label(), what);
+                e.panel().id(), kind.label(), what);
     }
 
     // ── Render ─────────────────────────────────────────────────────────

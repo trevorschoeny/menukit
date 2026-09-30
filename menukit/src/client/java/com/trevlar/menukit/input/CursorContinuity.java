@@ -95,7 +95,7 @@ public final class CursorContinuity {
 
     /**
      * Restores the stashed cursor position if one is pending, then clears
-     * the stash. Wired from {@code MKClient.onInitializeClient} via
+     * the stash. Wired from {@code MenuKitClient.onInitializeClient} via
      * {@link #registerRestoreHook} as a universal {@code AFTER_INIT}
      * listener so it fires for ANY screen open (vanilla, MK, MKC, third-
      * party — same behavior). One-shot semantics: cleared after restore

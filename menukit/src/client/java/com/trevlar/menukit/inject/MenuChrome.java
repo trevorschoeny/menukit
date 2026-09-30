@@ -74,10 +74,10 @@ public final class MenuChrome {
     /**
      * Registers a chrome provider for a screen class. First registration of
      * a class wins; subsequent calls with the same class are no-ops with a
-     * warning log (same pattern as {@code MKSlotState.register}).
+     * warning log (same pattern as {@code SlotState.register}).
      *
      * <p>Called at mod init — library-shipped providers register during
-     * {@code MKClient.onInitializeClient}; modded consumers register
+     * {@code MenuKitClient.onInitializeClient}; modded consumers register
      * from their own {@code ClientModInitializer}.
      *
      * @param screenClass the concrete screen class
@@ -86,7 +86,7 @@ public final class MenuChrome {
      */
     public static <T extends AbstractContainerScreen<?>> void register(
             Class<T> screenClass, ChromeProvider provider) {
-        com.trevlar.menukit.window.Declarations.requireOpen("MenuChrome.register");
+        com.trevlar.menukit.api.window.Declarations.requireOpen("MenuChrome.register");
         ChromeProvider existing = PROVIDERS.get(screenClass);
         if (existing != null) {
             throw new IllegalStateException("MenuChrome: a provider for " + screenClass.getName()

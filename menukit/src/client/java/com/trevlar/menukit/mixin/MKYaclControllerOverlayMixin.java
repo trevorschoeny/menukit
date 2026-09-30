@@ -1,7 +1,7 @@
 package com.trevlar.menukit.mixin;
 
-import com.trevlar.menukit.core.ControlStyle;
-import com.trevlar.menukit.core.MKPressedTracker;
+import com.trevlar.menukit.api.element.ControlStyle;
+import com.trevlar.menukit.core.PressedTracker;
 
 import dev.isxander.yacl3.api.utils.Dimension;
 import dev.isxander.yacl3.gui.controllers.ControllerWidget;
@@ -16,13 +16,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * <b>ACCEPTED aesthetic-only exception to §0019</b> (see
- * {@link MKVanillaButtonPressedMixin} class javadoc for the
- * full carve-out rationale).
+ * Part of MenuKit's one styling exception to §0019, recorded in §0068 (see
+ * {@link MKVanillaButtonPressedMixin}).
  *
  * <p>Render-time overlay for YACL controller widgets (toggles,
  * sliders, dropdowns, color-pickers) when they're being pressed.
- * Reads press state from {@link MKPressedTracker} (set by
+ * Reads press state from {@link PressedTracker} (set by
  * {@link MKYaclWidgetPressedMixin} on the AbstractWidget
  * superclass). Both YACL mixins use {@code @Pseudo} so they
  * silently skip when YACL isn't loaded.
@@ -48,7 +47,7 @@ public abstract class MKYaclControllerOverlayMixin {
     private void mk$drawPressedOverlay(GuiGraphicsExtractor graphics, int mouseX,
                                              int mouseY, float partialTick,
                                              CallbackInfo ci) {
-        if (!MKPressedTracker.isPressedAndCheckRelease(this)) return;
+        if (!PressedTracker.isPressedAndCheckRelease(this)) return;
 
         // isHovered() is on ControllerWidget (not the YACL AbstractWidget
         // base). getDimension() is inherited from AbstractWidget. Cast

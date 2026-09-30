@@ -6,7 +6,7 @@ import net.minecraft.world.inventory.Slot;
 /**
  * The neutral plug MenuKit exposes so panel-hosted registered slots can resolve
  * hover/click through a <b>library-owned</b> screen dispatch — without MenuKit ever
- * referencing a registered-slot type (§0042).
+ * referencing a registered-slot type (§0062).
  *
  * <p>Drawing is not this hook's concern: a registered slot is a real {@code Slot}
  * that VANILLA draws in its own slot pass, once its presenting {@code SlotElement}
@@ -23,7 +23,7 @@ import net.minecraft.world.inventory.Slot;
  * (hover / click / scroll / release) that fire on <b>every</b> container screen —
  * survival inventory, creative (via {@code super.render}), and every chest/furnace/anvil.
  * MenuKit-Containers owns the registered-slot <em>input resolution</em>: fed by the live
- * {@code SlotElementRegistry}, it answers which {@code MKCSlot} (if any) a panel-hosted
+ * {@code SlotElementRegistry}, it answers which {@code CreatedSlot} (if any) a panel-hosted
  * slot covers at a screen point. That resolution plugs in here. Drawing the slot is
  * vanilla's job, not this hook's.
  *
@@ -37,7 +37,7 @@ import net.minecraft.world.inventory.Slot;
  *
  * <h3>Why a library-owned dispatch at all (the §0019 evolution)</h3>
  *
- * {@code MKCSlots} historically shipped <em>no</em> dispatch — the consumer
+ * {@code CreatedSlots} historically shipped <em>no</em> dispatch — the consumer
  * hand-wrote a per-screen render/input mixin and called the static helpers. That
  * left slots silently invisible on any screen the consumer forgot (creative is a
  * sibling class of the survival inventory, not a subclass, so targeting "the
@@ -53,7 +53,7 @@ public interface SlotScreenHook {
     /**
      * Whether {@code slot} is a created (registered) slot. Lets MenuKit find the
      * layer boundary in vanilla's slot pass — the first created slot — without
-     * naming an MKC type (§0042). Default false: MK-alone there are none.
+     * naming an MKC type (§0062). Default false: MK-alone there are none.
      */
     default boolean isCreated(Slot slot) { return false; }
 

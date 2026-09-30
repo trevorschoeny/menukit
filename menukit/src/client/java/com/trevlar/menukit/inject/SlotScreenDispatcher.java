@@ -6,7 +6,7 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The §0042 firewall between MenuKit's registered-slot screen <em>dispatch</em> and
+ * The §0062 firewall between MenuKit's registered-slot screen <em>dispatch</em> and
  * MenuKit-Containers' registered-slot <em>work</em>.
  *
  * <p>MenuKit's hooks on {@code AbstractContainerScreen} (frame start / hover / click /
@@ -28,7 +28,7 @@ public final class SlotScreenDispatcher {
 
     /**
      * The single registered-slot hook, or null when MenuKit-Containers is absent.
-     * Written once from {@code MKCClient.onInitializeClient}, read
+     * Written once from {@code MenuKitContainersClient.onInitializeClient}, read
      * from the render/input threads — hence volatile.
      */
     private static volatile @Nullable SlotScreenHook hook = null;

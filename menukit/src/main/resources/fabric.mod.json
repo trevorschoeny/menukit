@@ -4,13 +4,13 @@
   "version": "${version}",
   "name": "MenuKit",
   "icon": "icon.png",
-  "description": "MenuKit is a UI library for Fabric mods: HUD panels, widgets, layouts, tabs, panels on vanilla menus placed by region, click-through prevention and recipe-book awareness, all on the client. For custom container menus and slot state, see MenuKit: Containers.",
+  "description": "A UI library for Fabric mods: panels, buttons, sliders, tabs and HUD readouts, placed on the HUD, vanilla screens and your own screens, with slot groups and slot operations every mod can read. For created slots and custom container menus, add MenuKit: Containers.",
   "authors": ["trevorschoeny"],
   "license": "MIT",
   "environment": "*",
   "entrypoints": {
     "main": ["com.trevlar.menukit.MenuKit"],
-    "client": ["com.trevlar.menukit.MKClient"]
+    "client": ["com.trevlar.menukit.MenuKitClient"]
   },
   "mixins": ["menukit.mixins.json"],
   "depends": {

@@ -9,7 +9,11 @@ Definitions of the terms MenuKit coins and the rules that bind consumer code. Ev
 | MenuKit (`menukit`) | Client and server (UI on the client) | Elements, panels, layout helpers, HUD panels, placement on vanilla screens, standalone screens |
 | MenuKit: Containers (`menukit-containers`) | Client and server | Created slots, custom container menus, per-slot state, storage attachments |
 
-Containers depends on MenuKit. MenuKit does not depend on Containers. A client-only mod that depends on MenuKit alone cannot import a Containers type. The build fails.
+Containers depends on MenuKit. MenuKit does not depend on Containers. A mod that depends on MenuKit alone cannot import a Containers type; the build fails.
+
+## Public API
+
+The API is the `api` packages: `com.trevlar.menukit.api.*` and `com.trevlar.menukit.containers.api.*`. [Versioning](versioning.md) covers them. Every other package carries `@ApiStatus.Internal` and is outside the contract, so a mod that calls into one can break in any release. Each artifact has a common half and a client half, and the compiler keeps screen code out of the common half. The `api` packages span both halves; a class that names a screen type is client-only, and the javadoc says so.
 
 ## Panel
 
@@ -63,6 +67,8 @@ With no secondary handler attached, non-left clicks pass through to vanilla. A d
 
 `Button`, `Toggle`, `Checkbox` and `Radio` behave like vanilla widgets: a click plays vanilla's click sound, Tab moves keyboard focus onto them in screen order (a focused control draws its hover look), Enter or Space presses the focused one, and the narrator reads its label and, for the boolean controls, its on or off state. `Slider` and `TextField` are vanilla's own `AbstractSliderButton` and `EditBox`, exposed through `widget()`. An element that is not drawn (its panel hidden, its section closed, its tab not shown) cannot take focus.
 
+While a modal panel is shown on a vanilla screen, a key goes to the panels' elements first, then Escape runs the modal's `onEscape`, then any other key goes to the focused widget if MenuKit placed it (a dialog's text field, for instance), and then the key is dropped, so the screen under the modal never acts on it. Keys vanilla handles outside the screen still work: F11, the F3 combinations, the narrator hotkey and screenshots.
+
 ## Tint
 
 `Button` and `Toggle` accept `tint(IntSupplier)`. The supplier runs each frame and returns an ARGB value that fills the control inside its border, over the background, and under the label. Returning 0 draws no tint. The tint shows consumer-owned state, such as a pinned mode, that the control itself does not store.
@@ -87,7 +93,7 @@ Every input method receives an `InputContext`, as `render` receives a `RenderCon
 
 `build()` freezes the panel's element list. No method adds an element to a built panel. Visibility, position, and supplier-driven content change at runtime. To change the element list, build a new panel.
 
-A hidden element or panel is inert on every surface. It does not render, receive clicks, show a tooltip, or reserve layout.
+A hidden element or panel is inert on every surface. It does not render, receive clicks or show a tooltip. It takes no room in a panel's layout or a `Flow`; `Row` and `Column` place at build time, so a hidden element there keeps its gap.
 
 ## Size
 
@@ -135,7 +141,7 @@ Where a panel sits is declared once, on the panel: `Panel.builder(id).position(P
 
 Two modifiers ride any placement. `.priority(n)` orders panels that share a region (lower sits nearer the anchor edge) and is the z-order within a host (lower draws underneath). The default is 100; ties go by the registering mod's id, then by registration order, so the order is the same on every launch. `.offset(dx, dy)` nudges one panel after it is placed; its siblings stack as if it had not moved.
 
-A panel with no placement is unplaced. An adapter or the HUD rejects it at registration, naming the panel. `MKScreen` and `MKCScreenHandler` give it a default instead: the first unplaced panel becomes `main()`, and each later one stacks below it.
+A panel with no placement is unplaced. An adapter or the HUD rejects it at registration, naming the panel. `MKScreen` and a custom menu's screen give it a default instead: the first unplaced panel becomes `main()`, and each later one stacks below it.
 
 A panel wraps its width to the space its placement leaves and scrolls its height when taller than its room. `Panel.size(w, h)`, `pinnedWidth(w)`, and `pinnedHeight(h)` override this.
 
@@ -163,8 +169,8 @@ A context is the answer to one question: what is this panel placed against? Each
 | Container screen | The menu frame | `ScreenPanelAdapter` | region, screenAnchor, center, pixel | Yes |
 | Other vanilla screen | The screen | `VanillaScreenPanelAdapter` | screenAnchor, center, pixel | Yes |
 | Slot group | One slot group's box | `SlotGroupPanelAdapter` | region, center, pixel | Yes |
-| HUD | The game window during play | `MKHudPanel` | screenAnchor (`.region(...)`), pixel | No |
-| Standalone | A screen the consumer opens | `MKScreen` (subclass), `MKCHandledScreen` | main, region, screenAnchor, center, pixel | Yes |
+| HUD | The game window during play | `HudPanel` | screenAnchor (`.region(...)`), pixel | No |
+| Standalone | A screen the consumer opens | `MKScreen` (subclass), `CustomContainerScreen` | main, region, screenAnchor, center, pixel | Yes |
 
 A placement a context cannot resolve is rejected at registration. HUD panels do not receive input; for a clickable HUD control, open a standalone screen from a key binding.
 
@@ -187,11 +193,11 @@ A `ScreenPanelAdapter` with no target renders on every container screen. `.on(Cl
 
 A `VanillaScreenPanelAdapter` requires `.on(Class...)` or `.onAny()`.
 
-A `SlotGroupPanelAdapter` requires a target. `.on(SlotGroupCategory...)` renders once per category that resolves in the open menu. `.onGroup(SlotGroupId...)` renders once per named created group. `MKCContainerPanel.groupId(panelId, groupId)` and `MKCSlots.groupId(panelId, groupId)` return the id. Categories cover every vanilla menu. A mod with its own menu registers a `SlotGroupResolver` for it.
+A `SlotGroupPanelAdapter` requires a target. `.on(SlotGroupCategory...)` renders once per category that resolves in the open menu. `.onGroup(SlotGroupId...)` renders once per named created group. `ContainerPanel.groupId(panelId, groupId)` and `CreatedSlots.groupId(panelId, groupId)` return the id. Categories cover every vanilla menu. A mod with its own menu registers a `SlotGroupResolver` for it.
 
 A panel anchored to a slot group is measured from that one group, not from every slot sharing its category.
 
-Adapters and HUD panels are declarations. Declare them from your initializer: constructing, targeting or unregistering one after the client starts throws, the same as every other MenuKit declaration. A panel that comes and goes at runtime keeps its adapter and gates itself with `showWhen(...)`; a hidden panel is not measured, takes no room in its region and claims nothing.
+Adapters and HUD panels are declarations. Declare them from your initializer: constructing, targeting or unregistering one after the client starts throws, the same as every other MenuKit declaration. A panel that comes and goes at runtime keeps its adapter and gates itself with `visibleWhen(...)`; a hidden panel is not measured, takes no room in its region and claims nothing.
 
 ## Slot group category
 
@@ -213,7 +219,6 @@ Groups are listed too, with no menu open, for a settings screen that runs from t
 |---|---|
 | `SlotGroups.all()` | every declared group: one per vanilla category, and every created group |
 | `SlotGroups.listing()` | the player-facing rows: each lone group, and each named set once |
-| `SlotGroups.entryKey(id)` | the key a choice about a group on a live menu was saved under |
 | `SlotGroups.of(slotRef)` | the group one slot is in, as a veto sees it; `null` when nothing is known |
 
 A category cannot tell a mod's pockets from the main inventory when both declare `PLAYER_INVENTORY`; a group can. A mod that splits one thing into many groups, one per anchor, puts them in one `SlotGroupSet` with `SlotGroups.declare(id, category, set)`, and the listing shows the set as one row. A choice saved under a set's key reaches every group in it.
@@ -222,7 +227,7 @@ Groups and sets are named like operations. `SlotGroups.name(id)` and `name(set)`
 
 `SlotGroups.of(slotRef)` names the group of the slot a `SlotRef` describes: a created slot's own group, never its category's, so a veto can tell a pocket from the main inventory; a vanilla slot's group on its menu; and for a player-inventory slot with no menu, as a world pickup has, the vanilla group its index sits in. A created slot needs Containers installed to be told apart.
 
-A container-panel group registers at init and is listed from the title screen. A group built with a menu (`MKCSlots.onto`) is listed after the first menu that carries it; to list it from the title screen, its mod declares it at init with `SlotGroups.declare`.
+A container-panel group registers at init and is listed from the title screen. A group built with a menu (`CreatedSlots.onto`) is listed after the first menu that carries it; to list it from the title screen, its mod declares it at init with `SlotGroups.declare`.
 
 Pick a vanilla category when the group is one of those things. A pocket group that declares `PLAYER_INVENTORY` appears in every inventory search run by a mod that has never heard of pockets. Mint a category when no vanilla one gives another mod the right answer: `new SlotGroupCategory("mymod", "pouch")`. A category name is a public contract once another mod depends on it. Renaming one is a breaking change.
 
@@ -262,9 +267,9 @@ A gate is the slot author's other rule: what the slot accepts and releases, and 
 
 A created slot is a real `Slot` that a mod adds to a menu through Containers. It syncs through vanilla's slot protocol. Its contents persist through a `StorageAttachment` on the slot's owner: a player, block entity, entity, or item stack.
 
-`MKCContainerPanel` creates slots on the player's inventory menu and projects them onto every container screen. `MKCScreenHandler` creates slots on a custom menu.
+`ContainerPanel` creates slots on the player's inventory menu and projects them onto every container screen. `CustomContainerMenu` creates slots on a custom menu. `CreatedSlot.of(slot)` tells a created slot from any other, on any screen, creative's included.
 
-Containers has the same two halves as MenuKit, and the compiler holds the line between them. What builds slots, stores state and judges writes is common: it runs on the server and the client alike. What draws is client-only: `SlotElement`, `MKCHandledScreen`, and the client halves `ClientMenu`, `ClientContainerPanel` and `ClientSlots`. A custom menu's handler knows each panel's id, its slot groups and whether it is shown; how a panel looks is a MenuKit `Panel`, built by the client screen from `ClientMenu.of(menu).panel(id, ...)`. Whether it is shown is the server's, synced to the client. A player may toggle only a panel declared `toggleable()`, and a client may open a menu only when its `validWhen` holds, which is also how long it stays open.
+Containers has the same two halves as MenuKit, and the compiler holds the line between them. What builds slots, stores state and judges writes is common: it runs on the server and the client alike. What draws is client-only: `SlotElement`, `CustomContainerScreen`, and the client halves `ClientMenu`, `ClientContainerPanel` and `ClientSlots`. A custom menu's handler knows each panel's id, its slot groups and whether it is shown; how a panel looks is a MenuKit `Panel`, built by the client screen from `ClientMenu.of(menu).panel(id, ...)`. Whether it is shown is the server's, synced to the client. A player may toggle only a panel declared `toggleable()`, and a client may open a menu only when its `validWhen` holds, which is also how long it stays open.
 
 A server with Containers requires it on every client. Before the world loads, it checks that a joining client has Containers and disconnects one that does not, with a message naming MenuKit and MenuKit: Containers and linking their pages. A client with Containers on a server without it builds no created slots and sends nothing Containers-only, instead of desyncing.
 
@@ -280,14 +285,18 @@ A panel hides exactly what it covers. Flow panels composite between the vanilla 
 
 ## Address
 
-An `Address` names one slot without holding a reference to it. The same address resolves after a menu reopens and on both client and server. `Address.createdSlot(group, index)` names a created slot, with the group from `MKCSlots.groupId(panelId, groupId)` or `MKCContainerPanel.groupId(...)`. `Window.slot(address).set(key, value)` attaches behavior by address.
+An `Address` names one slot without holding a reference to it. The same address resolves after a menu reopens and on both client and server. `Address.createdSlot(group, index)` names a created slot, with the group from `CreatedSlots.groupId(panelId, groupId)` or `ContainerPanel.groupId(...)`. `Window.slot(address).set(key, value)` attaches behaviour by address. A veto reads a slot's address from its `SlotRef` with `address()`. `asString()`, `Address.parse` and `Address.CODEC` save one as text; never save its parts.
 
 ## Slot state channel
 
-A `SlotStateChannel<T>` stores one typed value per slot, separate from the slot's item. `MKSlotState.register(id, codec, streamCodec, defaultValue, visibility, canWrite)` creates one at common init. `PRIVATE` stores one value per viewer. `SHARED` stores one value per slot for all viewers. Values persist as NBT on the slot's owner and are readable with `/data get`. A value equal to the default is no entry at all, and reading never creates one.
+A `SlotStateChannel<T>` stores one typed value per slot, separate from the slot's item. `SlotState.register(id, codec, streamCodec, defaultValue, visibility, canWrite)` creates one at common init. Read and write it by address (`get(address)`, `set(address, value)`), or by the live `Slot` when you hold one (`get(slot)`, `set(slot, value)`, and the forms that take a player). `PRIVATE` stores one value per viewer. `SHARED` stores one value per slot for all viewers. Values persist as NBT on the slot's owner and are readable with `/data get`. A value equal to the default is no entry at all, and reading never creates one.
 
 The server trusts nothing a client sends about slot state. It judges every write, in order: the channel exists; the value parses with the channel's `StreamCodec`, and what is stored is the channel's own re-encoding of it; the write names the player's open menu and an active slot on it; the channel's `canWrite(player, slot)` allows it; the player is within a write rate. A `SHARED` channel's rule defaults to refusing every client, so a shared channel names who may write it. A refused write changes nothing, and the writer's client gets the server's value back. Values travel as the channel's `StreamCodec` bytes, and a client that cannot decode one skips it.
 
 ## Storage
 
 A `Storage` is the item container behind a created slot group. `StorageAttachment.playerAttached(namespace, key, size)` builds one that persists on the player. `EphemeralStorage.of(size)` builds one that lasts for the menu session. Containers also provides block-scoped and item-scoped attachments.
+
+## One styling change
+
+MenuKit draws a pressed look on every vanilla button and every YACL controller while it is held down, including buttons MenuKit did not create. It is always on and changes nothing but the drawing. It is the one change MenuKit makes to how vanilla looks; the library otherwise leaves vanilla's appearance and behaviour to the mods that use it.

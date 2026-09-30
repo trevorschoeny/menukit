@@ -32,7 +32,7 @@ import org.jetbrains.annotations.ApiStatus;
  *
  * Two things have to be true at once. <b>A panel hides exactly what it covers</b>
  * — pixel for pixel, the way paint does: a panel over half a vanilla slot hides
- * half of it, and the slot stays a normal slot underneath (§0058's opacity is
+ * half of it, and the slot stays a normal slot underneath (§0065's opacity is
  * about input; visually a panel is simply on top). So panel chrome must draw
  * <em>after</em> the vanilla slots it may cover. And <b>vanilla draws every
  * slot</b>, created ones included, so a created slot's item must draw

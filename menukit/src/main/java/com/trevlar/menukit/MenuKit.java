@@ -1,8 +1,8 @@
 package com.trevlar.menukit;
 
-import com.trevlar.menukit.core.SlotGroupCategory;
-import com.trevlar.menukit.window.BehaviorKeys;
-import com.trevlar.menukit.window.SlotOperations;
+import com.trevlar.menukit.api.slot.SlotGroupCategory;
+import com.trevlar.menukit.api.window.BehaviorKeys;
+import com.trevlar.menukit.api.window.SlotOperations;
 
 import net.fabricmc.api.ModInitializer;
 
@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 /**
  * MenuKit's common initializer, on both sides (§0062): the shared vocabularies
  * every other mod reads, declared before anyone can read them. The client half
- * is {@link MKClient}.
+ * is {@link MenuKitClient}.
  */
 public final class MenuKit implements ModInitializer {
 
@@ -25,9 +25,9 @@ public final class MenuKit implements ModInitializer {
 
     private static void init() {
         // Declarations freeze at the first server start, after every entrypoint
-        // (on a client, MKClient freezes at client start, which comes first).
+        // (on a client, MenuKitClient freezes at client start, which comes first).
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(
-                server -> com.trevlar.menukit.window.Declarations.freeze("server starting"));
+                server -> com.trevlar.menukit.api.window.Declarations.freeze("server starting"));
         // The shared vocabularies, on both sides: every vanilla slot category, and
         // the operations vanilla itself ships. A consumer reads these through
         // SlotGroupCategories.all() / SlotOperations.all() and adds its own with
@@ -36,9 +36,9 @@ public final class MenuKit implements ModInitializer {
         // contributes), so SlotGroups lists them with no menu open. Declaring a group
         // declares its category too.
         SlotGroupCategory.vanilla().forEach(c ->
-                com.trevlar.menukit.inject.SlotGroups.declare(com.trevlar.menukit.inject.SlotGroupId.category(c), c));
+                com.trevlar.menukit.api.slot.SlotGroups.declare(com.trevlar.menukit.api.slot.SlotGroupId.category(c), c));
         // Vanilla menus' slot groups resolved from a live menu, on both sides: a
-        // server resolves categories too (creative's picker is added by MKClient).
+        // server resolves categories too (creative's picker is added by MenuKitClient).
         com.trevlar.menukit.inject.VanillaSlotGroupResolvers.registerAll();
         // Each with the role it plays on a slot, so a settings screen can tell what
         // takes items out from what puts them in.

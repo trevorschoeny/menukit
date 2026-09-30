@@ -10,22 +10,22 @@ import org.jspecify.annotations.Nullable;
  * MenuKit's {@code getHoveredSlot} mixin.
  *
  * <p>Defined MenuKit-side (not MenuKit-Containers-side) so the library mixin that
- * consumes it compiles without MenuKit-Containers (§0042). It carries only the
+ * consumes it compiles without MenuKit-Containers (§0062). It carries only the
  * vanilla {@link Slot} type, never a registered-slot type.
  *
- * <p>Three outcomes mirror {@code MKCSlotInput.Resolution}:
+ * <p>Three outcomes mirror {@code CreatedSlotInput.Resolution}:
  * <ul>
  *   <li>{@link #PASS} — no revealed slot claims the point; vanilla slot
  *       resolution proceeds untouched.</li>
  *   <li>{@link #of(Slot)} — a revealed slot is under the point; the caller
  *       overrides vanilla's resolution with this slot. <b>This is the slot that
  *       lives in the screen's own {@code menu.slots}</b> — the raw
- *       {@code MKCSlot} on a survival inventory, or the creative
+ *       {@code CreatedSlot} on a survival inventory, or the creative
  *       {@code SlotWrapper} that wraps it on the creative screen (creative's
  *       click path hard-casts the hovered slot to {@code SlotWrapper}, so the
  *       wrapper, not the bare slot, must be surfaced).</li>
  *   <li>{@link #BLOCK} — the point is inside a revealed slot panel but between
- *       slots; the covered vanilla slot is inert (§0037 bounding-box opacity).
+ *       slots; the covered vanilla slot is inert (§0065 bounding-box opacity).
  *       The caller returns {@code null} hover so a gap click can't fall through.</li>
  * </ul>
  */

@@ -15,8 +15,8 @@ import org.spongepowered.asm.mixin.gen.Accessor;
  * <p>Client-only — the recipe book is purely a client-side UI widget.
  *
  * <p>Part of the <b>MenuKit</b> framework internals. Consumers should
- * use {@link com.trevlar.menukit.MKClient#isRecipeBookOpen()}
- * and {@link com.trevlar.menukit.MKClient#setRecipeBookOpen(boolean)}
+ * use {@link com.trevlar.menukit.MenuKitClient#isRecipeBookOpen()}
+ * and {@link com.trevlar.menukit.MenuKitClient#setRecipeBookOpen(boolean)}
  * instead of casting to this interface directly.
  */
 @ApiStatus.Internal

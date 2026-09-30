@@ -1,5 +1,6 @@
 package com.trevlar.menukit.core;
 
+import com.trevlar.menukit.api.element.SlotRendering;
 import net.minecraft.client.renderer.state.gui.GuiItemRenderState;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -42,7 +43,7 @@ public final class ItemOutline {
     private static int pending = 0;
 
     /** Runs {@code draws} with every item it records marked as a silhouette in {@code argb}. */
-    static void silhouettes(int argb, Runnable draws) {
+    public static void silhouettes(int argb, Runnable draws) {
         int previous = pending;
         pending = argb;
         try {

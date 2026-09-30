@@ -1,6 +1,6 @@
 package com.trevlar.menukit.mixin;
 
-import com.trevlar.menukit.core.MKFocus;
+import com.trevlar.menukit.api.panel.Focus;
 
 import net.minecraft.client.gui.components.AbstractSelectionList;
 
@@ -62,7 +62,7 @@ public abstract class MKListHoverSuppressMixin {
     private void mk$suppressListHoverWhenOpaque(CallbackInfoReturnable<?> cir) {
         // Unified inertness predicate (modal-global OR covered) — same question
         // every other suppressor asks.
-        if (MKFocus.isInertUnderPanelAtCursor()) {
+        if (Focus.isInertUnderPanelAtCursor()) {
             cir.setReturnValue(null);
         }
     }

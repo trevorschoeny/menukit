@@ -1,7 +1,14 @@
 package com.trevlar.menukit.inject;
 
-import com.trevlar.menukit.core.MKFocus;
-import com.trevlar.menukit.core.Panel;
+import com.trevlar.menukit.api.panel.ScreenPanelAdapter;
+import com.trevlar.menukit.api.slot.SlotGroupId;
+import com.trevlar.menukit.api.panel.SlotGroupPanelAdapter;
+import com.trevlar.menukit.api.panel.VanillaScreenPanelAdapter;
+import com.trevlar.menukit.api.panel.Reference;
+import com.trevlar.menukit.api.slot.ResolvedSlotGroup;
+import com.trevlar.menukit.api.slot.SlotGroupCategories;
+import com.trevlar.menukit.api.panel.Focus;
+import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevlar.menukit.mixin.ScreenAccessor;
 
@@ -45,7 +52,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * When a screen opens, it gets up to three kinds of host, bottom to top:
  * <ol>
  *   <li><b>own</b>: a standalone screen's own panels ({@code MKScreen},
- *       {@code MKCHandledScreen}), attached by the screen itself
+ *       {@code CustomContainerScreen}), attached by the screen itself
  *       ({@link #attachOwnHost});</li>
  *   <li><b>context</b>: the adapters targeting this screen (container adapters on a
  *       container screen, vanilla-screen adapters on any other);</li>
@@ -76,13 +83,13 @@ public final class ScreenPanelRegistry {
     private static final List<VanillaScreenPanelAdapter> VANILLA = new CopyOnWriteArrayList<>();
     private static final List<SlotGroupPanelAdapter> SLOT_GROUP = new CopyOnWriteArrayList<>();
 
-    static void declare(ScreenPanelAdapter adapter) { CONTAINER.add(adapter); }
-    static void declare(VanillaScreenPanelAdapter adapter) { VANILLA.add(adapter); }
-    static void declare(SlotGroupPanelAdapter adapter) { SLOT_GROUP.add(adapter); }
+    public static void declare(ScreenPanelAdapter adapter) { CONTAINER.add(adapter); }
+    public static void declare(VanillaScreenPanelAdapter adapter) { VANILLA.add(adapter); }
+    public static void declare(SlotGroupPanelAdapter adapter) { SLOT_GROUP.add(adapter); }
 
-    static void withdraw(ScreenPanelAdapter adapter) { CONTAINER.remove(adapter); }
-    static void withdraw(VanillaScreenPanelAdapter adapter) { VANILLA.remove(adapter); }
-    static void withdraw(SlotGroupPanelAdapter adapter) { SLOT_GROUP.remove(adapter); }
+    public static void withdraw(ScreenPanelAdapter adapter) { CONTAINER.remove(adapter); }
+    public static void withdraw(VanillaScreenPanelAdapter adapter) { VANILLA.remove(adapter); }
+    public static void withdraw(SlotGroupPanelAdapter adapter) { SLOT_GROUP.remove(adapter); }
 
     // ── Hosts per screen ───────────────────────────────────────────────
 
@@ -116,7 +123,7 @@ public final class ScreenPanelRegistry {
 
     /**
      * Attaches a standalone screen's own host, so global questions (claims, modals)
-     * see its panels. Called by {@code MKScreen} and {@code MKCHandledScreen} from
+     * see its panels. Called by {@code MKScreen} and {@code CustomContainerScreen} from
      * their {@code init}; idempotent.
      */
     public static void attachOwnHost(Screen screen, PanelHost host) {
@@ -160,7 +167,7 @@ public final class ScreenPanelRegistry {
 
     private static volatile boolean checkpointRun = false;
 
-    /** Registers the one {@code AFTER_INIT} listener. Called once from {@code MKClient}. */
+    /** Registers the one {@code AFTER_INIT} listener. Called once from {@code MenuKitClient}. */
     public static void init() {
         ScreenEvents.AFTER_INIT.register(ScreenPanelRegistry::onScreenInit);
     }
@@ -229,7 +236,7 @@ public final class ScreenPanelRegistry {
             boolean modal = modalUpOn(s);
             for (int i = routed.size() - 1; i >= 0; i--) {
                 if (routed.get(i).mouseClicked(event.x(), event.y(), event.button(), modal)) {
-                    MKFocus.blurOnOutsideBounds(s, event.x(), event.y());
+                    Focus.blurOnOutsideBounds(s, event.x(), event.y());
                     return false;
                 }
             }
@@ -256,15 +263,22 @@ public final class ScreenPanelRegistry {
             // Escape with an injected modal up dismisses the topmost modal (its
             // onEscape; ConfirmDialog/AlertDialog wire theirs) instead of closing the
             // screen out from under it. Eaten either way while the modal is up.
+            Panel topModal = topmostModal(routed);
+            if (topModal == null) return true;
             if (keyEvent.key() == GLFW.GLFW_KEY_ESCAPE) {
-                Panel topModal = topmostModal(routed);
-                if (topModal != null) {
-                    Runnable escape = topModal.getEscapeAction();
-                    if (escape != null) escape.run();
-                    return false;
-                }
+                Runnable escape = topModal.getEscapeAction();
+                if (escape != null) escape.run();
+                return false;
             }
-            return true;
+            // §0068: under an injected modal a key the panels did not take goes to the
+            // screen's focused widget when MenuKit placed it (a dialog's text field, a
+            // control's focus stand-in), then is eaten, so the screen under the modal
+            // never acts on it. Vanilla's global keys (F11, F3 combinations, the
+            // narrator hotkey, screenshots) are handled outside Screen.keyPressed and
+            // are never gated.
+            var focused = s.getFocused();
+            if (focused != null && Focus.isManaged(s, focused)) focused.keyPressed(keyEvent);
+            return false;
         });
     }
 
@@ -276,10 +290,10 @@ public final class ScreenPanelRegistry {
     private static void requireTargeting() {
         List<String> missing = new ArrayList<>();
         for (VanillaScreenPanelAdapter a : VANILLA) {
-            if (!a.isTargetingDeclared()) missing.add("VanillaScreenPanelAdapter " + a.getPanel().getId());
+            if (!a.isTargetingDeclared()) missing.add("VanillaScreenPanelAdapter " + a.getPanel().id());
         }
         for (SlotGroupPanelAdapter a : SLOT_GROUP) {
-            if (!a.isTargetingDeclared()) missing.add("SlotGroupPanelAdapter " + a.getPanel().getId());
+            if (!a.isTargetingDeclared()) missing.add("SlotGroupPanelAdapter " + a.getPanel().id());
         }
         if (missing.isEmpty()) return;
         String message = "MenuKit: adapters constructed but never targeted (.on(...)): "
@@ -344,7 +358,7 @@ public final class ScreenPanelRegistry {
     /**
      * Layer 2 of {@link ContainerScreenLayers}: the FLOW layer of the registry's
      * hosts (context, then slot groups). The screen's own FLOW (an
-     * {@code MKCHandledScreen}'s panels) drew earlier, under vanilla's slots.
+     * {@code CustomContainerScreen}'s panels) drew earlier, under vanilla's slots.
      */
     public static void renderFlow(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
                                   int mouseX, int mouseY) {
@@ -471,9 +485,9 @@ public final class ScreenPanelRegistry {
 
     /**
      * Whether an injected modal gates window-level input on the current screen (the
-     * keyboard gate and the cursor lock). A standalone screen's own modal is left to
-     * that screen, which routes keys to the modal itself (a dialog's text field must
-     * still type).
+     * cursor lock; the keyboard gate is the {@code allowKeyPress} listener above). A
+     * standalone screen's own modal is left to that screen, which routes keys to the
+     * modal itself (a dialog's text field must still type).
      */
     public static boolean modalGatesInput() {
         return topmostModal(routedOn(currentScreen())) != null;
@@ -500,7 +514,7 @@ public final class ScreenPanelRegistry {
             // Vanilla never sees this click, so the natural focus hand-over can't
             // run: blur a focused MK widget the click landed outside of. (Outside a
             // modal, placed is null and the modal's own widgets keep focus.)
-            MKFocus.blurOnOutsideBounds(screen, mouseX, mouseY);
+            Focus.blurOnOutsideBounds(screen, mouseX, mouseY);
         }
         return true;
     }

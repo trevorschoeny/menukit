@@ -1,6 +1,6 @@
 package com.trevlar.menukit.inject;
 
-import com.trevlar.menukit.core.Panel;
+import com.trevlar.menukit.api.panel.Panel;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
