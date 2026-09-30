@@ -2,72 +2,61 @@ package com.trevlar.menukit.core;
 
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
- * Coordinator for a set of {@link Radio} elements that share single-selection
- * state. Holds the currently selected value and fires an {@code onSelect}
- * callback when the selection changes.
+ * The lens a set of {@code Radio} buttons shares: which value is selected, read
+ * from the consumer every frame and written back when the player picks another
+ * (§0026, §0066). It stores nothing.
  *
- * <p><b>Not a {@link PanelElement}.</b> RadioGroup is a plain state-holding
- * object — consumers construct it once, then pass it to each Radio in the
- * group. Radios render their own checked state by comparing their value
- * against the group's current selection.
+ * <pre>{@code
+ * RadioGroup<Mode> mode = RadioGroup.state(() -> config.mode, m -> config.mode = m);
+ * Radio.builder(mode, Mode.FAST).label(Component.literal("Fast")).build();
+ * Radio.builder(mode, Mode.SAFE).label(Component.literal("Safe")).at(0, 14).build();
+ * }</pre>
  *
- * <p>This coordinator-as-plain-object pattern preserves the library's
- * "Panel is the ceiling of composition" principle — RadioGroup does not
- * contain its Radios, and Radios are not children of the group. They live
- * in panels like any other element; the group is pure wiring.
+ * <p><b>Not an element.</b> The group holds no Radios, and Radios are not its
+ * children: each lives in a panel like any other element and asks the group
+ * whether its value is the selected one. The group is wiring only, which keeps
+ * "a Panel is the ceiling of composition" true.
  *
- * <h3>Mutable state</h3>
+ * <p>Values are compared with {@link Objects#equals}, so they should implement
+ * {@code equals} (enums do). A {@code get} that returns {@code null} selects no
+ * Radio.
  *
- * RadioGroup holds a mutable selection value, a narrow exception to the
- * declared-structure discipline. See {@link Toggle} for the architectural
- * justification; the same rationale applies at the group level here —
- * selection changes do not affect structural shape, only which Radio
- * renders as checked.
- *
- * <h3>Value equality</h3>
- *
- * RadioGroup compares selections via {@link Objects#equals(Object, Object)}.
- * Values should implement {@code equals}/{@code hashCode} (enums do this by
- * default). Null is supported as a valid selection — a group constructed
- * with {@code null} as its initial selection renders no Radio as checked
- * until one is clicked.
- *
- * @param <T> the value type used to identify selections (typically an enum)
- * @see Radio
+ * @param <T> the value type (typically an enum)
  */
-public class RadioGroup<T> {
+public final class RadioGroup<T> {
 
-    private final Consumer<T> onSelect;
+    private final Supplier<T> get;
+    private final Consumer<T> set;
 
-    // Mutable state — the exception documented above.
-    private T selected;
-
-    /**
-     * @param initialSelection initial selected value (may be null for
-     *                         "nothing selected initially")
-     * @param onSelect         fired when the selection changes, with the
-     *                         new selected value
-     */
-    public RadioGroup(T initialSelection, Consumer<T> onSelect) {
-        this.selected = initialSelection;
-        this.onSelect = onSelect;
-    }
-
-    /** Returns the currently selected value. May be null. */
-    public T getSelected() {
-        return selected;
+    private RadioGroup(Supplier<T> get, Consumer<T> set) {
+        this.get = get;
+        this.set = set;
     }
 
     /**
-     * Sets the selection programmatically. Fires {@code onSelect} with the
-     * new value if it differs from the current selection (per
-     * {@link Objects#equals(Object, Object)}); no-op otherwise.
+     * The group's lens: {@code get} is read every frame by each Radio to draw
+     * itself; {@code set} receives the value of a Radio the player picks, only
+     * when it differs from the current selection.
      */
-    public void setSelected(T value) {
-        if (Objects.equals(this.selected, value)) return;
-        this.selected = value;
-        onSelect.accept(value);
+    public static <T> RadioGroup<T> state(Supplier<T> get, Consumer<T> set) {
+        return new RadioGroup<>(Objects.requireNonNull(get, "get"), Objects.requireNonNull(set, "set"));
+    }
+
+    /** The currently selected value, read from the consumer. May be null. */
+    public T selected() {
+        return get.get();
+    }
+
+    /** Whether {@code value} is the selected one. */
+    public boolean isSelected(T value) {
+        return Objects.equals(get.get(), value);
+    }
+
+    /** Selects {@code value}: hands it to the consumer when it differs from the current selection. */
+    public void select(T value) {
+        if (!isSelected(value)) set.accept(value);
     }
 }

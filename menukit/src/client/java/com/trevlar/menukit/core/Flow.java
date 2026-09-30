@@ -2,210 +2,245 @@ package com.trevlar.menukit.core;
 
 import net.minecraft.client.gui.screens.Screen;
 
+import org.jspecify.annotations.Nullable;
+
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
- * The general reactive flow-wrap primitive — a {@link PanelElement} that holds a
- * run of child elements and FLOWS the visible ones left-to-right into the panel's
- * available content width, WRAPPING to new rows that grow downward when the run
- * exceeds that width. The element analogue of {@code SlotFlowElement} (which does
- * the same for slots, on a uniform 18px pitch); {@code Flow} handles
- * heterogeneous, variable-width children — buttons, badges, icons, labels.
+ * A run of elements laid out left to right at the panel's runtime width,
+ * wrapping onto new rows when it runs out of room: the runtime row. Holds
+ * heterogeneous children (buttons, checkboxes, labels, icons), the element
+ * analogue of {@code SlotFlowElement}.
  *
- * <h3>Why this exists — comprehensive wrapping</h3>
+ * <pre>{@code
+ * Flow.builder().gap(10, 4)
+ *         .add(onOffToggle)
+ *         .add(Flow.spacer())
+ *         .add(resetButton)            // pinned to the right edge
+ *         .build();
+ * }</pre>
  *
- * Reactive wrapping already covers text ({@link TextLabel} wraps to its budget),
- * a button's label, and slots ({@code SlotFlowElement}). The one shape it did NOT
- * cover was a horizontal RUN of elements wrapping to multiple rows: {@link
- * com.trevlar.menukit.core.layout.Row} is a BUILD-TIME helper (it bakes
- * positions once at {@code build()} and does not exist at runtime, so it can't
- * reflow when the width changes). {@code Flow} is the runtime container that
- * closes that gap, so wrapping is comprehensive across every content kind.
+ * <h3>Spacers: label left, control right (§0066)</h3>
  *
- * <h3>Reactive sizing — same contract as SlotFlowElement</h3>
+ * {@link #spacer()} is a gap that takes whatever the row's other children and
+ * gaps leave of the Flow's width, split evenly among the row's spacers (the odd
+ * pixel to the last). A row with a spacer therefore fills the Flow's width: a
+ * label, a spacer and a control is a settings row with the control pinned to the
+ * right edge, at whatever width the panel has, with no width handed to whoever
+ * built it (a {@link Tabs} body factory never knows its width). When the row is
+ * too narrow and wraps, a spacer that ends up at the start or end of a row takes
+ * nothing, and the control sits under its label.
  *
- * {@link #naturalWidth()} reports the ALL-children single-row width (visibility-
- * independent), so the owning {@link Panel}'s {@code min(naturalWidth, ceiling)}
- * resolves to the screen-edge ceiling whenever the run is wider than the room
- * available — a budget that's stable across child reveals. The flow wraps the
- * VISIBLE children into that budget and {@link #getWidth()}/{@link #getHeight()}
- * report the HUG of the wrapped layout (so the panel stays as small as the
- * content, never reserving the full single-row width). Reactive to reveals and
- * to a window resize, no empty space, no flash.
+ * <h3>Reactive sizing</h3>
  *
- * <h3>Owns its children's positions (§0047)</h3>
+ * {@link #naturalWidth()} is every child side by side, so the panel hands the
+ * Flow the room it has; each layout pass lays the children out to that width
+ * (a label too long for the row wraps, a button caps), wraps them into rows, and
+ * reports the hug of the result ({@link #getWidth()}/{@link #getHeight()}; the
+ * full width when a row has a spacer). A wrap reports its extra rows as
+ * {@link #extraLayoutHeight()}, so the panel pushes what is below down.
  *
- * The children live INSIDE this element, not in the panel's element list — so the
- * panel's reflow never sees them; the flow positions them itself each layout pass
- * via {@code setChildPosition} into panel-content coordinates ({@code flow.childX
- * + cellX}, {@code flow.childY + cellY}). Because the children then share the
- * panel-content coordinate space the flow lives in, render is a plain
- * {@code child.render(ctx)} and input forwarding hit-tests each child against the
- * same content origin — no offset bookkeeping. Position is pure presentation; a
- * child's identity is untouched.
+ * <h3>An interactive host</h3>
  *
- * <h3>First-class interactive host</h3>
- *
- * Like {@link ScrollContainer}, {@code Flow} forwards the full input + lifecycle
- * surface to its children (click, scroll, release, key, attach/detach, overlay),
- * so a wrapping toolbar of {@link Button}s behaves exactly as the same buttons
- * would directly on the panel. A child whose interaction surface differs from its
- * bounds (a {@link Dropdown} popover) works because the flow forwards the overlay
- * claim. {@code mouseClicked} has no {@link RenderContext}, so the flow caches the
- * panel-content origin from {@link #render}/{@link #hitTest} (the ScrollContainer
- * idiom) to locate children at click time.
+ * The children live inside the Flow, which places them itself (in the panel's
+ * content coordinates, so they share its origin). Render and input reach them
+ * through {@link ChildDispatch}, exactly as the same elements directly on the
+ * panel: clicks, the wheel, keys, releases, popovers, attach and detach. A
+ * disabled Flow (its own {@code disabledWhen}) disables everything in it.
  */
-public final class Flow extends AbstractPanelElement<Flow> {
+public final class Flow extends AbstractPanelElement {
 
-    @Override protected Flow self() { return this; }
-
-    /** Default inter-child gap on both axes, in pixels. */
+    /** Default gap between children, on both axes. */
     public static final int DEFAULT_GAP = 4;
 
     private final List<PanelElement> children;
-    private int gapX = DEFAULT_GAP;
-    private int gapY = DEFAULT_GAP;
+    private final int gapX;
+    private final int gapY;
 
-    /** The wrap ceiling — the content width the flow may occupy before wrapping.
-     *  {@code <= 0} until the panel feeds one via {@link #layoutWithin}; until then
-     *  {@link #effectiveCap()} falls back to the all-children single-row width
-     *  (so frame 0, before any layout pass, reads as one row). */
+    /** The width the panel gives the Flow; until the first pass, one row's worth. */
     private int budget = -1;
 
-    // Cached hug dimensions from the last relayout, plus the (budget, visibility,
-    // child-size) signature that produced them — so the four geometry/input
-    // accessors that each need current positions don't re-walk the children every
-    // call when nothing changed (the positions persist on the children between
-    // passes; only this element writes them).
+    // The last layout's hug size and the inputs it was computed from, so the
+    // several geometry calls a frame makes do not each walk the children.
     private int lastWidth = 0;
     private int lastHeight = 0;
-    private int lastLayoutSig = Integer.MIN_VALUE;
-    /** Forces the first {@link #relayout} regardless of the sentinel, so a first
-     *  signature that happened to hash to {@code Integer.MIN_VALUE} can't skip the
-     *  initial layout (which would leave lastWidth/lastHeight at 0 for a frame). */
-    private boolean everLaidOut = false;
+    private int lastSignature = 0;
+    private boolean laidOut = false;
 
-    private Flow(List<PanelElement> children) {
-        this.children = List.copyOf(children);
+    private Flow(Builder b) {
+        super(b);
+        this.children = List.copyOf(b.children);
+        this.gapX = b.gapX;
+        this.gapY = b.gapY;
     }
 
-    /** Begins a flow over the given children (declaration order = flow order). */
-    public static Flow of(List<PanelElement> children) {
-        return new Flow(children);
+    public static Builder builder() {
+        return new Builder();
     }
-
-    /** Sets the inter-child gap (same value on both axes). Chainable. */
-    public Flow gap(int px) {
-        return gap(px, px);
-    }
-
-    /** Sets the horizontal + vertical inter-child gaps independently. Chainable. */
-    public Flow gap(int horizontal, int vertical) {
-        this.gapX = Math.max(0, horizontal);
-        this.gapY = Math.max(0, vertical);
-        return this;
-    }
-
-    // ── Reactive sizing ────────────────────────────────────────────────
 
     /**
-     * Stores the panel's content-width budget as the wrap ceiling. Because
-     * {@link #naturalWidth()} reports the (larger) all-children single-row width,
-     * the panel's {@code min(naturalWidth, ceiling)} hands us the screen-edge
-     * ceiling — stable across child reveals (it depends on screen geometry, not
-     * which children are visible).
+     * A flexible gap: takes the row's leftover width, shared with the row's other
+     * spacers. See the class notes.
      */
+    public static PanelElement spacer() {
+        return new Spacer();
+    }
+
+    /** The spacer: nothing to draw, no input, a width the Flow sets per layout. */
+    private static final class Spacer implements PanelElement {
+        int x, y, w;
+        @Override public int getChildX() { return x; }
+        @Override public int getChildY() { return y; }
+        @Override public int getWidth() { return w; }
+        @Override public int getHeight() { return 0; }
+        @Override public int naturalWidth() { return 0; }
+        @Override public void render(RenderContext ctx) {}
+    }
+
+    // ── Layout ─────────────────────────────────────────────────────────
+
+    /** Stores the room the panel gives the Flow: the width its rows wrap at. */
     @Override
     public void layoutWithin(int budget) {
         this.budget = Math.max(1, budget);
     }
 
-    /**
-     * The ALL-children single-row width (every child's width plus the gaps
-     * between them), intentionally visibility-INDEPENDENT so the panel's
-     * {@code min(naturalWidth, ceiling)} resolves to the stable screen-edge
-     * ceiling. Never the per-frame hug width — that is {@link #getWidth()}.
-     */
+    /** Every child side by side (spacers take nothing), whatever is visible: a budget stable across reveals. */
     @Override
     public int naturalWidth() {
         int total = 0, count = 0;
         for (PanelElement c : children) {
-            total += c.getWidth();
+            if (c instanceof Spacer) continue;
+            total += c.naturalWidth();
             count++;
         }
-        if (count > 1) total += (count - 1) * gapX;
-        return Math.max(1, total);
+        return Math.max(1, total + Math.max(0, count - 1) * gapX);
     }
 
-    /** The wrap ceiling actually in force this frame (fed budget, or the natural
-     *  single-row width before the first {@link #layoutWithin}). */
-    private int effectiveCap() {
+    private int cap() {
         return budget > 0 ? budget : naturalWidth();
     }
 
+    /** One row of children, and the spacers in it. */
+    private record RowOf(List<PanelElement> members, int top) {}
+
     /**
-     * Lays out the VISIBLE children into rows that wrap at {@link #effectiveCap()},
-     * writing each child's panel-content position via {@code setChildPosition} and
-     * caching the resulting hug {@link #lastWidth}/{@link #lastHeight}. Gated by a
-     * cheap signature so it only re-walks when the budget, a child's visibility, or
-     * a child's size actually changed (positions persist on the children between
-     * passes — only this element writes them).
+     * Lays the shown children out: each to the Flow's width (a long label wraps),
+     * then into rows that break before a child that would pass the width (a
+     * spacer never breaks a row), then each row's leftover shared among its
+     * spacers. Positions are written in the panel's content coordinates. Skipped
+     * when nothing that affects it changed.
      */
     private void relayout() {
-        int sig = layoutSignature();
-        if (everLaidOut && sig == lastLayoutSig) return;
-        everLaidOut = true;
-        lastLayoutSig = sig;
+        int sig = signature();
+        if (laidOut && sig == lastSignature) return;
+        int cap = cap();
+        for (PanelElement c : children) {
+            if (c.isVisible() && !(c instanceof Spacer)) c.layoutWithin(cap);
+        }
 
-        int cap = effectiveCap();
-        int x = 0;          // running x within the current row (content-relative)
-        int rowTop = 0;     // top y of the current row (content-relative)
-        int rowH = 0;       // tallest child in the current row
-        int maxRowW = 0;    // widest completed/in-progress row
-        boolean firstInRow = true;
-
+        List<RowOf> rows = new ArrayList<>();
+        List<PanelElement> row = new ArrayList<>();
+        int x = 0, top = 0, rowH = 0;
         for (PanelElement c : children) {
             if (!c.isVisible()) continue;
-            int cw = c.getWidth();
-            int ch = c.getHeight();
-            // Wrap when this child (plus the gap before it) would exceed the cap —
-            // but never wrap the first child of a row (a child wider than the cap
-            // takes its own row and overflows rather than vanishing).
-            if (!firstInRow && x + gapX + cw > cap) {
-                maxRowW = Math.max(maxRowW, x);
-                rowTop += rowH + gapY;
+            boolean spacer = c instanceof Spacer;
+            int w = spacer ? 0 : c.getWidth();
+            boolean hasContent = row.stream().anyMatch(e -> !(e instanceof Spacer));
+            if (!spacer && hasContent && x + gapX + w > cap) {
+                rows.add(new RowOf(row, top));
+                top += rowH + gapY;
+                row = new ArrayList<>();
                 x = 0;
                 rowH = 0;
-                firstInRow = true;
             }
-            if (!firstInRow) x += gapX;
-            if (c instanceof AbstractPanelElement<?> ape) {
-                // Position in panel-content space so render + hit-test share the
-                // flow's coordinate frame (no per-cell origin shift needed).
-                ape.setChildPosition(childX + x, childY + rowTop);
-            }
-            x += cw;
-            rowH = Math.max(rowH, ch);
-            firstInRow = false;
+            if (!row.isEmpty()) x += gapX;
+            row.add(c);
+            x += w;
+            if (!spacer) rowH = Math.max(rowH, c.getHeight());
         }
-        maxRowW = Math.max(maxRowW, x);
-        lastWidth = maxRowW;
-        lastHeight = (rowH == 0 && rowTop == 0) ? 0 : rowTop + rowH;
+        if (!row.isEmpty()) rows.add(new RowOf(row, top));
+
+        int widest = 0, bottom = 0;
+        for (RowOf r : rows) {
+            int w = place(r, cap);
+            widest = Math.max(widest, w);
+            int h = 0;
+            for (PanelElement c : r.members()) h = Math.max(h, c.getHeight());
+            bottom = Math.max(bottom, r.top() + h);
+        }
+        lastWidth = widest;
+        lastHeight = bottom;
+        laidOut = true;
+        lastSignature = signature(); // after layout: a settled layout does not relayout
     }
 
-    /** Cheap, allocation-free hash of the wrap inputs — the budget plus each
-     *  child's visibility + size — so {@link #relayout} skips re-walking when
-     *  nothing that affects the layout has changed. */
-    private int layoutSignature() {
-        int sig = 31 * 1 + effectiveCap();
+    /**
+     * Places one row: children left to right with the gap between them, each
+     * spacer taking its share of the leftover (a spacer at either end of a row
+     * that wrapped takes nothing). Returns the row's width.
+     */
+    private int place(RowOf r, int cap) {
+        List<PanelElement> m = r.members();
+        // Spacers between content count; one leading or trailing does not.
+        int firstContent = -1, lastContent = -1;
+        for (int i = 0; i < m.size(); i++) {
+            if (!(m.get(i) instanceof Spacer)) {
+                if (firstContent < 0) firstContent = i;
+                lastContent = i;
+            }
+        }
+        int fixed = 0, spacers = 0;
+        for (int i = 0; i < m.size(); i++) {
+            PanelElement c = m.get(i);
+            if (i > 0) fixed += gapX;
+            if (c instanceof Spacer) {
+                if (live(i, firstContent, lastContent)) spacers++;
+            } else {
+                fixed += c.getWidth();
+            }
+        }
+        int leftover = Math.max(0, cap - fixed);
+        int share = spacers > 0 ? leftover / spacers : 0;
+        int odd = spacers > 0 ? leftover % spacers : 0;
+        int x = 0, seen = 0;
+        for (int i = 0; i < m.size(); i++) {
+            PanelElement c = m.get(i);
+            if (i > 0) x += gapX;
+            if (c instanceof Spacer s) {
+                boolean live = live(i, firstContent, lastContent);
+                if (live) seen++;
+                s.w = live ? share + (seen == spacers ? odd : 0) : 0;
+                s.x = childX + x;
+                s.y = childY + r.top();
+                x += s.w;
+            } else {
+                if (c instanceof AbstractPanelElement ape) ape.setChildPosition(childX + x, childY + r.top());
+                x += c.getWidth();
+            }
+        }
+        return x;
+    }
+
+    /**
+     * Whether a spacer takes room: only between two children of its row. A
+     * spacer left at the end of a row (its control wrapped to the next row) or at
+     * the start of one takes nothing, so the wrapped control sits at the left.
+     */
+    private static boolean live(int i, int firstContent, int lastContent) {
+        return firstContent >= 0 && i > firstContent && i < lastContent;
+    }
+
+    private int signature() {
+        int sig = 31 + cap();
         sig = sig * 31 + childX;
         sig = sig * 31 + childY;
-        sig = sig * 31 + gapX;
-        sig = sig * 31 + gapY;
         for (PanelElement c : children) {
             boolean vis = c.isVisible();
             sig = sig * 31 + (vis ? 1 : 0);
-            if (vis) {
+            if (vis && !(c instanceof Spacer)) {
                 sig = sig * 31 + c.getWidth();
                 sig = sig * 31 + c.getHeight();
             }
@@ -225,176 +260,126 @@ public final class Flow extends AbstractPanelElement<Flow> {
         return lastHeight;
     }
 
-    /**
-     * Extra height the flow occupies BEYOND a single row because it wrapped — so
-     * the owning {@link Panel}'s reflow pushes elements below the flow down by
-     * exactly the wrap's growth (the same contract a multi-line {@link Button}
-     * honors). The author positions the next sibling assuming one row
-     * ({@link #singleRowHeight()}); a wrap then pushes it down, never over it.
-     */
+    /** The extra height of the rows past the first: what a wrap adds. */
     @Override
     public int extraLayoutHeight() {
         relayout();
-        return Math.max(0, lastHeight - singleRowHeight());
+        int oneRow = 0;
+        for (PanelElement c : children) if (c.isVisible()) oneRow = Math.max(oneRow, c.getHeight());
+        return Math.max(0, lastHeight - oneRow);
     }
 
-    /** The flow's height if every visible child sat on one row — the tallest
-     *  visible child (zero when none are visible). */
-    private int singleRowHeight() {
-        int h = 0;
-        for (PanelElement c : children) {
-            if (c.isVisible()) h = Math.max(h, c.getHeight());
-        }
-        return h;
-    }
+    @Override
+    public void fillWidth(int width) {}
 
-    // ── Render ─────────────────────────────────────────────────────────
+    // ── Render and input (the children share the Flow's origin) ────────
 
     @Override
     public void render(RenderContext ctx) {
         relayout();
-        cacheContentOrigin(ctx.originX(), ctx.originY());
-        for (PanelElement c : children) {
-            if (c.isVisible()) c.render(ctx);
-        }
+        ChildDispatch.render(children, ctx.disabledIf(ownDisabled()));
     }
 
     @Override
     public void renderOverlay(RenderContext ctx) {
-        for (PanelElement c : children) {
-            if (c.isVisible()) c.renderOverlay(ctx);
-        }
+        ChildDispatch.renderOverlay(children, ctx.disabledIf(ownDisabled()));
     }
 
-    // ── Input forwarding (the ScrollContainer container-host idiom) ─────
-
-    /** Interactive iff any child is — so the flow claims clicks (blocks vanilla
-     *  behind it on a non-opaque panel) only where a child would. */
+    /** Interactive where a child is, so on a transparent panel it claims only its children. */
     @Override
     public boolean isInteractive() {
-        for (PanelElement c : children) {
-            if (c.isVisible() && c.isInteractive()) return true;
-        }
+        for (PanelElement c : children) if (c.isVisible() && c.isInteractive()) return true;
         return false;
     }
 
+    /** Wants an event only over a child, so the gaps between children claim nothing. */
     @Override
-    public boolean hitTest(double mouseX, double mouseY, int contentX, int contentY) {
-        cacheContentOrigin(contentX, contentY);
+    public boolean hitTest(InputContext in) {
         relayout();
-        for (PanelElement c : children) {
-            if (c.isVisible() && c.hitTest(mouseX, mouseY, contentX, contentY)) return true;
-        }
-        return false;
+        return ChildDispatch.hitTest(children, in);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (!cachedOriginValid) return false;
+    public boolean mouseClicked(InputContext in, int button) {
         relayout();
-        // Active child overlay (a Dropdown popover) claims first, anywhere in its
-        // bounds — mirrors the dispatcher's two-pass order.
-        for (PanelElement c : children) {
-            if (!c.isVisible()) continue;
-            int[] ov = c.getActiveOverlayBounds();
-            if (ov != null && mouseX >= ov[0] && mouseX < ov[0] + ov[2]
-                    && mouseY >= ov[1] && mouseY < ov[1] + ov[3]) {
-                return c.mouseClicked(mouseX, mouseY, button);
-            }
-        }
-        for (PanelElement c : children) {
-            if (!c.isVisible()) continue;
-            if (c.hitTest(mouseX, mouseY, cachedContentX, cachedContentY)
-                    && c.mouseClicked(mouseX, mouseY, button)) {
-                return true;
-            }
-        }
-        return false;
+        return ChildDispatch.mouseClicked(children, in.disabledIf(ownDisabled()), button);
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (!cachedOriginValid) return false;
+    public boolean mouseScrolled(InputContext in, double scrollX, double scrollY) {
         relayout();
-        // Active child overlay (a scrollable Dropdown popover) claims the wheel
-        // anywhere in its bounds — symmetric with mouseClicked's Pass-0, so a
-        // popover that hangs outside the flow still scrolls its own item list.
-        for (PanelElement c : children) {
-            if (!c.isVisible()) continue;
-            int[] ov = c.getActiveOverlayBounds();
-            if (ov != null && mouseX >= ov[0] && mouseX < ov[0] + ov[2]
-                    && mouseY >= ov[1] && mouseY < ov[1] + ov[3]) {
-                return c.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
-            }
-        }
-        for (PanelElement c : children) {
-            if (!c.isVisible()) continue;
-            if (c.hitTest(mouseX, mouseY, cachedContentX, cachedContentY)
-                    && c.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) {
-                return true;
-            }
-        }
+        return ChildDispatch.mouseScrolled(children, in.disabledIf(ownDisabled()), scrollX, scrollY);
+    }
+
+    @Override
+    public boolean mouseReleased(InputContext in, int button) {
+        ChildDispatch.mouseReleased(children, in, button);
         return false;
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        // Release is broadcast un-hit-tested (drag-ends off-element resolve), so
-        // forward to every visible child regardless of position.
-        for (PanelElement c : children) {
-            if (c.isVisible()) c.mouseReleased(mouseX, mouseY, button);
-        }
-        return false;
+    public boolean keyPressed(InputContext in, int keyCode, int scanCode, int modifiers) {
+        return ChildDispatch.keyPressed(children, in.disabledIf(ownDisabled()), keyCode, scanCode, modifiers);
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        for (PanelElement c : children) {
-            if (c.isVisible() && c.keyPressed(keyCode, scanCode, modifiers)) return true;
-        }
-        return false;
+    public int @Nullable [] getActiveOverlayBounds(InputContext in) {
+        return ChildDispatch.activeOverlay(children, in);
     }
 
     @Override
-    public int @org.jspecify.annotations.Nullable [] getActiveOverlayBounds() {
-        for (PanelElement c : children) {
-            if (!c.isVisible()) continue;
-            int[] ov = c.getActiveOverlayBounds();
-            if (ov != null) return ov;
-        }
-        return null;
-    }
-
-    @Override
-    public void notifyClickOutsideOverlay(double mouseX, double mouseY) {
-        for (PanelElement c : children) {
-            if (c.isVisible()) c.notifyClickOutsideOverlay(mouseX, mouseY);
-        }
+    public void notifyClickOutsideOverlay(InputContext in) {
+        ChildDispatch.notifyClickOutside(children, in);
     }
 
     @Override
     public void onAttach(Screen screen) {
-        for (PanelElement c : children) c.onAttach(screen);
+        ChildDispatch.attach(children, screen);
     }
 
     @Override
     public void onDetach(Screen screen) {
-        for (PanelElement c : children) c.onDetach(screen);
+        ChildDispatch.detach(children, screen);
     }
 
-    // ── Content-origin cache (so mouseClicked can locate children) ─────
-    // mouseClicked/mouseScrolled get screen coords but no RenderContext, so the
-    // panel-content origin is cached from render()/hitTest() — the same one-frame-
-    // fresh cache ScrollContainer uses. The dispatcher hit-tests the flow before
-    // calling these, so the cache is always populated by then.
+    // ── Builder ────────────────────────────────────────────────────────
 
-    private int cachedContentX = 0;
-    private int cachedContentY = 0;
-    private boolean cachedOriginValid = false;
+    public static final class Builder extends AbstractPanelElement.Builder<Flow, Builder> {
+        private final List<PanelElement> children = new ArrayList<>();
+        private int gapX = DEFAULT_GAP;
+        private int gapY = DEFAULT_GAP;
 
-    private void cacheContentOrigin(int contentX, int contentY) {
-        this.cachedContentX = contentX;
-        this.cachedContentY = contentY;
-        this.cachedOriginValid = true;
+        private Builder() {}
+
+        @Override protected Builder self() { return this; }
+
+        /** Adds a child (or a {@link Flow#spacer()}). Declaration order is flow order. */
+        public Builder add(PanelElement child) {
+            children.add(Objects.requireNonNull(child, "child"));
+            return this;
+        }
+
+        /** Adds children, in order. */
+        public Builder addAll(List<? extends PanelElement> children) {
+            for (PanelElement c : children) add(c);
+            return this;
+        }
+
+        /** The gap between children, both axes. Default 4. */
+        public Builder gap(int px) {
+            return gap(px, px);
+        }
+
+        /** The gap between children in a row, and between rows. */
+        public Builder gap(int horizontal, int vertical) {
+            this.gapX = Math.max(0, horizontal);
+            this.gapY = Math.max(0, vertical);
+            return this;
+        }
+
+        @Override
+        public Flow build() {
+            return new Flow(this);
+        }
     }
 }

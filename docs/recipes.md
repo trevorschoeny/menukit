@@ -34,9 +34,11 @@ Needs: MenuKit. Call from the client entry point.
 // Source: validator-mk, MkToggleActivations.java (trimmed)
 Panel p = Panel.builder("mkv:region-everywhere")
         .style(PanelStyle.RAISED)
-        .add(new TextLabel(0, 0, Component.literal("Region panel"), TextLabel.COLOR_LIGHT, true))
-        .add(((Button) Button.spec(70, 14, Component.literal("Click me"), b -> {}).at(0, 14))
-                .tooltip(Component.literal("A button inside a region panel.")))
+        .add(TextLabel.builder().text(Component.literal("Region panel"))
+                .color(TextLabel.COLOR_LIGHT).shadow(true).build())
+        .add(Button.builder().label(Component.literal("Click me")).at(0, 14).size(70, 14)
+                .onClick(() -> {})
+                .tooltip(Component.literal("A button inside a region panel.")).build())
         .position(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP).priority(20))
         .build();
 new ScreenPanelAdapter(p);
@@ -84,7 +86,7 @@ private static String tab = "general";   // yours to keep, and to set before ope
 Tabs tabs = Tabs.builder()
         .mode(Tabs.Mode.WRAP)
         .align(Tabs.Align.FILL)
-        .selected(() -> tab, id -> tab = id)
+        .state(() -> tab, id -> tab = id)
         .tab("general", Component.literal("General"), generalBody)
         .tab(Tabs.tab("pockets")
                 .label(Component.literal("Pockets"))
@@ -109,10 +111,11 @@ Needs: MenuKit. The owner names the menu; you add to it at your client init.
 // Owner, when its settings screen opens
 Tabs.builder()
         .menu(Identifier.fromNamespaceAndPath("ownermod", "settings"))
-        .selected(() -> tab, id -> tab = id)
+        .state(() -> tab, id -> tab = id)
         .tab("general", Component.literal("General"), generalBody)
         .tab(Tabs.tab("pockets").label(Component.literal("Pockets")).standIn()
-                .body(() -> List.of(new TextLabel(0, 0, Component.literal("Install My Mod to use Pockets.")))))
+                .body(() -> List.of(TextLabel.builder()
+                        .text(Component.literal("Install My Mod to use Pockets.")).build())))
         .build();
 
 // Your mod, client init
@@ -131,14 +134,62 @@ Needs: MenuKit.
 ```java
 // Source: MenuKit javadoc, core/layout/Row.java
 List<PanelElement> buttonRow = Row.at(20, 30).spacing(4)
-        .add(Button.spec(60, 20, Component.literal("OK"),     this::onConfirm))
-        .add(Button.spec(60, 20, Component.literal("Cancel"), this::onCancel))
+        .add(Button.builder().label(Component.literal("OK")).size(60, 20).onClick(this::onConfirm).build())
+        .add(Button.builder().label(Component.literal("Cancel")).size(60, 20).onClick(this::onCancel).build())
         .build();
 
 Panel p = Panel.builder("mymod:confirm").elements(buttonRow).build();
 ```
 
-Result: two 60 by 20 buttons at y 30, starting at x 20, with a 4 pixel gap. `Column` has the same shape on the vertical axis. `.crossAlign(CrossAlign.CENTER)` centers children on the cross axis. A hidden element keeps its space.
+Result: two 60 by 20 buttons at y 30, starting at x 20, with a 4 pixel gap. `Column` has the same shape on the vertical axis. `.crossAlign(CrossAlign.CENTER)` centers children on the cross axis. A hidden element keeps its space. `Row` places at build time; for a row that follows the panel's width, use a `Flow` (next recipe).
+
+## Build a settings body: label left, control right, greyed while off
+
+Needs: MenuKit. The body of a settings tab, built by the tab's body factory.
+
+```java
+// Source: validator-mk, SettingsDemoScreen.java (trimmed)
+List<PanelElement> body = new ArrayList<>();
+BooleanSupplier off = () -> !config.enabled();
+
+// A header row: the feature switch at the left, Reset pinned to the right edge at any width.
+body.add(Flow.builder().at(0, 0)
+        .add(Toggle.builder().state(config::enabled, config::setEnabled)
+                .label(() -> Component.literal(config.enabled() ? "On" : "Off")).size(40, 16).build())
+        .add(Flow.spacer())
+        .add(Button.builder().label(Component.literal("Reset to Defaults")).size(0, 16)
+                .onClick(config::reset).build())
+        .build());
+// A rule as wide as the body.
+body.add(Divider.horizontal().at(0, 22).build());
+// A setting: its label at the left, its control at the right, both grey while the feature is off.
+body.add(Flow.builder().at(0, 28).disabledWhen(off)
+        .add(TextLabel.builder().text(Component.literal("Rows")).build())
+        .add(Flow.spacer())
+        .add(Slider.ofInts(1, 6).size(100, 16).state(config::rows, config::setRows).build())
+        .build());
+body.add(Flow.builder().at(0, 50).disabledWhen(off)
+        .add(TextLabel.builder().text(Component.literal("Speed")).build())
+        .add(Flow.spacer())
+        .add(Dropdown.ofEnum(Speed.class).size(80, 16).state(config::speed, config::setSpeed).build())
+        .build());
+```
+
+Result: the switch sits at the left and Reset at the right edge of the tab body, and each setting's control sits at the right edge beside its label, whatever the window's width; when the window is too narrow the control drops under its label. The divider spans the body. While the feature is off, every setting row is grey and ignores the mouse and keys. `Panel.disabledWhen(...)` greys a whole panel the same way.
+
+## Outline an item in its group's colour
+
+Needs: MenuKit.
+
+```java
+// In a slot decoration, where the item would be drawn:
+SlotRendering.drawItemOutline(graphics, stack, x, y, 0xFFE0A030);
+
+// Or as an element:
+ItemDisplay.builder().item(() -> stack).outline(() -> lockColour(stack)).build();
+```
+
+Result: the item is drawn with a one pixel line of that colour around its own shape (not its square). A colour of 0 draws the item alone.
 
 ## Handle a right click and tint a button
 
@@ -146,15 +197,17 @@ Needs: MenuKit 3.1.0.
 
 ```java
 // Source: menukit, core/Button.java and core/Click.java
-Button pin = new Button(0, 0, 60, 16, Component.literal("Mode"), b -> cycleMode());
-pin.onSecondaryClick(click -> {
-    if (click.isShiftRight()) clearMode();
-    else if (click.isRight()) cycleModeBackward();
-});
-pin.tint(() -> pinned ? 0x50FFC000 : 0);
+Button pin = Button.builder().label(Component.literal("Mode")).size(60, 16)
+        .onClick(this::cycleMode)
+        .onSecondaryClick(click -> {
+            if (click.isShiftRight()) clearMode();
+            else if (click.isRight()) cycleModeBackward();
+        })
+        .tint(() -> pinned ? 0x50FFC000 : 0)
+        .build();
 ```
 
-Result: left click runs `cycleMode`. Right click runs `cycleModeBackward`, and shift with right click runs `clearMode`. While `pinned` is true an amber wash fills the button under its label. `Toggle` takes the same two methods with the same contract.
+Result: left click runs `cycleMode`. Right click runs `cycleModeBackward`, and shift with right click runs `clearMode`. While `pinned` is true an amber wash fills the button under its label. `Toggle` takes the same two builder methods with the same contract.
 
 A control with no `onSecondaryClick` handler passes non-left clicks to vanilla. A disabled control consumes neither kind.
 
@@ -171,7 +224,7 @@ MKCContainerPanel.define("mymod:pockets")
         .at(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP).priority(20), 7)
         .style(PanelStyle.RAISED)
         .parity(ScreenMatcher.all())
-        .chrome(() -> List.of(new Button(0, 0, 60, 14, Component.literal("Sort"), b -> {})))
+        .chrome(() -> List.of(Button.builder().label(Component.literal("Sort")).size(60, 14).build()))
         .addSlot(SlotSpec.at("pockets", SlotGroupCategory.PLAYER_INVENTORY).count(9)
                 .storage(player -> POCKETS.bind(player)))
         .register();

@@ -21,9 +21,9 @@ import java.util.function.Consumer;
  *
  * <pre>{@code
  * List<PanelElement> stack = Column.at(0, 0).spacing(2)
- *     .add(TextLabel.spec(Component.literal("Line 1")))
- *     .add(TextLabel.spec(Component.literal("Line 2")))
- *     .add(TextLabel.spec(Component.literal("Line 3")))
+ *     .add(TextLabel.builder().text(Component.literal("Line 1")).build())
+ *     .add(TextLabel.builder().text(Component.literal("Line 2")).build())
+ *     .add(TextLabel.builder().text(Component.literal("Line 3")).build())
  *     .build();
  * }</pre>
  *

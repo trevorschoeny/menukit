@@ -1,500 +1,278 @@
 package com.trevlar.menukit.core;
 
-import com.trevlar.menukit.mixin.ScreenAccessor;
-
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 
 import org.jspecify.annotations.Nullable;
 
+import java.util.List;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
-import java.util.function.DoubleConsumer;
-import java.util.function.DoubleFunction;
-import java.util.function.DoubleSupplier;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
-import com.trevlar.menukit.core.layout.ElementSpec;
-
 /**
- * Continuous-value slider control. Phase 14d-4 — wraps vanilla
- * {@link AbstractSliderButton} via composition, per the
- * <i>follow-vanilla-when-wrapping</i> discipline. ~150 LOC of vanilla-
- * tested mechanism (drag, keyboard navigation, narration, sprite states,
- * value clamping, cursor changes, sound on release) inherited cleanly.
- * Library owns layout integration + lifecycle; vanilla owns the slider
- * mechanism.
+ * A slider: vanilla's {@link AbstractSliderButton} (§0020), laid out and
+ * lensed by MenuKit (§0026, §0066). Vanilla owns the mechanism (drag, arrow keys,
+ * narration, sprites, the cursor, the sound); MenuKit owns placement, the lens
+ * and the disabled cascade. The vanilla widget is exposed through
+ * {@link #widget()}.
  *
- * <h3>Lens pattern (Principle 8) — Supplier+Consumer</h3>
+ * <h3>Three scales, one lens</h3>
  *
- * Consumer holds the value as a normalized double in [0, 1]. The slider
- * reads via {@link DoubleSupplier} per frame to stay in sync with consumer
- * state (programmatic external updates, settings sync, etc.) and writes
- * via {@link DoubleConsumer} on user input (drag, keyboard step). Vanilla's
- * {@code setValue} clamp + change-guard makes per-frame supplier-pull
- * idempotent — no spurious onChange fires when supplier returns the
- * already-stored value.
- *
- * <p>No imperative {@code setValue(double)} escape hatch (unlike
- * {@code TextField}'s Consumer-only-plus-setValue shape) — consumer-as-
- * source-of-truth means there's no "library holds state, consumer pushes
- * in" gap to fill. For programmatic resets, consumers just write to their
- * own state; the slider auto-syncs via supplier-pull on the next frame.
- *
- * <p>Map to consumer's domain externally — internal value is always [0, 1]:
  * <pre>{@code
- * // 30-110 FOV range:
- * .value(() -> (fov - 30) / 80.0, v -> fov = (int)(30 + v * 80))
+ * // a fraction, 0 to 1
+ * Slider.builder().size(120, 16)
+ *         .state(() -> volume, v -> volume = v)
+ *         .label(v -> Component.literal(Math.round(v * 100) + "%"))
+ *         .build();
  *
- * // 0-100 percent:
- * .value(() -> percent / 100.0, v -> percent = (int)(v * 100))
+ * // whole numbers from 2 to 50 (the integer lens)
+ * Slider.ofInts(2, 50).size(180, 16)
+ *         .state(config::threshold, config::setThreshold)
+ *         .build();                                   // label: the number
+ *
+ * // an enum's constants in order (the enum lens)
+ * Slider.ofEnum(Speed.class).size(120, 16)
+ *         .state(config::speed, config::setSpeed)
+ *         .label(s -> Component.literal(s.displayName()))
+ *         .build();
  * }</pre>
  *
- * <h3>In-track label — `.label(DoubleFunction&lt;Component&gt;)`</h3>
- *
- * Vanilla bakes label rendering into the slider track via
- * {@code getMessage()} / {@code updateMessage()}; the displayed text
- * updates whenever {@code updateMessage()} is called. {@link Builder#label}
- * exposes this — consumer-supplied function called on every value change
- * to compute the displayed text. Default: empty.
- *
- * <p>Narration auto-derives from the same source — vanilla reads
- * {@code "gui.narrate.slider"} translated with the current message, so
- * screen readers announce "Slider: Volume: 50%" without consumer effort.
- * No separate narration-label override exposed (vanilla doesn't expose
- * one either, and following vanilla keeps the wrap thin).
+ * {@code state(get, set)} is required. The slider reads {@code get} every frame,
+ * so a value changed elsewhere shows at once, and hands {@code set} a new value
+ * on each drag step or arrow key; it stores nothing. On an integer or enum scale
+ * the handle snaps to the steps, and the arrow keys move one step.
  *
  * <h3>Lifecycle</h3>
  *
- * Reuses 14d-3's {@link PanelElement#onAttach} / {@link PanelElement#onDetach}
- * hooks. The wrapped slider is registered with the host screen via
- * {@code addWidget} (input-dispatch only, NOT renderables) so vanilla's
- * screen widget pipeline routes keyboard / focus / narration to it. The
- * slider renders manually in {@link #render} after panel backgrounds —
- * sidesteps the renderables-list "panel background covers widget" trap
- * documented in 14d-3 / {@link ScreenAccessor}.
+ * The vanilla widget is registered with the screen as a widget, not a
+ * renderable ({@link #onAttach}), so vanilla's focus, keyboard and narration
+ * reach it while MenuKit draws it after the panel background. Known limit,
+ * shared with {@link TextField}: a slider in a panel hidden mid-screen stays
+ * registered and can keep keyboard focus.
  *
- * <h3>Cross-context applicability</h3>
- *
- * <ul>
- *   <li><b>MenuContext:</b> yes — settings panels, brightness/opacity controls.</li>
- *   <li><b>StandaloneContext:</b> yes — MenuKit-native screens.</li>
- *   <li><b>SlotGroupContext:</b> no — slot-group anchors are for slot decorations.</li>
- *   <li><b>HudContext:</b> no — HUDs are render-only (no input dispatch).</li>
- * </ul>
- *
- * <h3>Visibility-driven lifecycle gotcha (Q7 deferred per
- * {@code DEFERRED.md} 14d-3 — inherited)</h3>
- *
- * Same shape as TextField: v1 fires onAttach at screen init only
- * (regardless of panel visibility), onDetach at screen close. Mid-screen
- * visibility changes don't re-attach. Mild gotcha for slider since drag
- * binds to mouse-up which fires regardless of focus, but the keyboard-
- * edit-mode flag could end up stale if the panel is hidden mid-edit.
- * Recommended consumer pattern: blur via {@code screen.setFocused(null)}
- * before hiding a panel containing an active slider.
- *
- * <h3>Modal-with-slider (Q4 deferred per {@code DEFERRED.md} 14d-3 —
- * inherited)</h3>
- *
- * Inside a {@code tracksAsModal} panel, M9's keyboard mixin eats keystrokes
- * (except Escape) before vanilla's pipeline routes them to the focused
- * widget — keyboard arrow stepping doesn't work. Mouse drag still works
- * (M9 dispatches clicks to the modal's elements). Same fold-on-evidence
- * trigger as TextField's modal case; defer until concrete consumer
- * surfaces the need.
+ * @param <V> the value type: {@code Double} (a fraction), {@code Integer}, or an enum
  */
-public class Slider extends AbstractPanelElement<Slider> {
-
-    @Override protected Slider self() { return this; }
-
-    // Non-final since Pass 3: column-fill (fillWidth) restretches the slider
-    // to the column's widest extent. Mutating it also re-widths the wrapped
-    // vanilla MKSlider so its render + internal hit-test agree with getWidth().
-    private int width;
-    private final int height;
-    private final DoubleSupplier valueSupplier;
-    private final MKSlider slider;
+public class Slider<V> extends AbstractPanelElement {
 
     /**
-     * Optional disabled predicate (Phase 3b — Item 8). When it returns true,
-     * the slider renders greyed (vanilla {@code active = false} → the disabled
-     * sprite + gray text) and ignores all interaction (drag, keyboard, scroll)
-     * because the wrapped widget's {@code active} flag gates vanilla's own
-     * input handling. Per-frame predicate shape, matching Button/Toggle's
-     * {@code disabledWhen}. Null = always enabled.
+     * Where a value sits on the track, as a fraction, and back. {@code steps} is
+     * the number of distinct values (0 for a continuous scale).
      */
-    private final @Nullable BooleanSupplier disabledWhen;
+    record Scale<V>(Function<V, Double> toFraction, Function<Double, V> fromFraction, int steps,
+                    Function<V, Component> defaultLabel) {
 
-    /** Track which screen we're attached to so detach knows what to remove from. */
+        /** The continuous scale, 0 to 1, clamped. */
+        static Scale<Double> fraction() {
+            return new Scale<>(v -> clamp01(v), f -> clamp01(f), 0, v -> Component.empty());
+        }
+
+        /** Whole numbers from {@code min} to {@code max} inclusive. */
+        static Scale<Integer> ints(int min, int max) {
+            if (max <= min) throw new IllegalArgumentException("Slider.ofInts: max must be above min, got " + min + ".." + max);
+            int span = max - min;
+            return new Scale<>(v -> clamp01((Math.max(min, Math.min(max, v)) - min) / (double) span),
+                    f -> min + (int) Math.round(clamp01(f) * span), span + 1,
+                    v -> Component.literal(String.valueOf(v)));
+        }
+
+        /** The given values in order, evenly spaced along the track. */
+        static <E> Scale<E> of(List<E> values) {
+            if (values.size() < 2) throw new IllegalArgumentException("Slider: a list scale needs at least two values");
+            List<E> copy = List.copyOf(values);
+            int last = copy.size() - 1;
+            return new Scale<>(v -> {
+                        int i = copy.indexOf(v);
+                        return i < 0 ? 0.0 : i / (double) last;
+                    },
+                    f -> copy.get((int) Math.round(clamp01(f) * last)), copy.size(),
+                    v -> Component.literal(String.valueOf(v)));
+        }
+
+        /** The value one step from {@code fraction} in direction {@code dir} (-1 or +1), as a fraction. */
+        double step(double fraction, int dir) {
+            if (steps <= 1) return fraction;
+            int last = steps - 1;
+            int index = (int) Math.round(clamp01(fraction) * last);
+            return Math.max(0, Math.min(last, index + dir)) / (double) last;
+        }
+    }
+
+    private final Scale<V> scale;
+    private final Supplier<V> stateGet;
+    private final Function<V, Component> label;
+    private final MKSlider slider;
     private @Nullable Screen attachedScreen;
 
-    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
+    protected Slider(Builder<V> b) {
+        super(b);
+        this.scale = b.scale;
+        this.stateGet = b.stateGet;
+        this.label = b.label != null ? b.label : b.scale.defaultLabel();
+        double initial = scale.toFraction().apply(stateGet.get());
+        Consumer<V> set = b.stateSet;
+        this.slider = new MKSlider(width, height, label.apply(stateGet.get()), initial,
+                f -> set.accept(scale.fromFraction().apply(f)),
+                f -> label.apply(scale.fromFraction().apply(f)), scale);
+    }
 
-    private Slider(Builder b) {
-        this.childX = b.childX;
-        this.childY = b.childY;
-        this.width = b.width;
-        this.height = b.height;
-        this.valueSupplier = b.valueSupplier;
-        this.disabledWhen = b.disabledWhen;
+    /** A slider over a fraction, 0 to 1. */
+    public static Builder<Double> builder() {
+        return new Builder<>(Scale.fraction());
+    }
 
-        // Pull initial value from consumer state via supplier; clamp to
-        // the [0, 1] contract before passing to vanilla.
-        double initialValue = clamp01(valueSupplier.getAsDouble());
-        this.slider = new MKSlider(0, 0, width, height,
-                b.labelFn.apply(initialValue), initialValue,
-                b.valueConsumer, b.labelFn);
+    /** A slider over the whole numbers {@code min} to {@code max} inclusive (the integer lens). */
+    public static Builder<Integer> ofInts(int min, int max) {
+        return new Builder<>(Scale.ints(min, max));
+    }
+
+    /** A slider over an enum's constants, in declaration order (the enum lens). */
+    public static <E extends Enum<E>> Builder<E> ofEnum(Class<E> type) {
+        return new Builder<>(Scale.of(List.of(type.getEnumConstants())));
     }
 
     private static double clamp01(double d) {
-        if (d < 0.0) return 0.0;
-        if (d > 1.0) return 1.0;
-        return d;
+        return d < 0.0 ? 0.0 : Math.min(d, 1.0);
     }
 
-    // ── PanelElement protocol ──────────────────────────────────────────
-
-    @Override public int getWidth()  { return width; }
-    @Override public int getHeight() { return height; }
-
-    // Authored width for the reactive cap (Verification-4) — see Button.
-    private int authoredWidth = Integer.MIN_VALUE;
-    private int authoredW() {
-        if (authoredWidth == Integer.MIN_VALUE) authoredWidth = width;
-        return authoredWidth;
+    /** The vanilla widget this element draws and registers (§0020): for narration or focus checks. */
+    public AbstractSliderButton widget() {
+        return slider;
     }
 
-    /**
-     * Column-fill (Pass 3): stretch this slider to the column's widest extent.
-     * Re-widths BOTH this element's reported width AND the wrapped vanilla
-     * {@link MKSlider} (whose own render + drag hit-test key off its width), so
-     * the full filled track is draggable — no dead strip on the right.
-     */
-    @Override
-    public void fillWidth(int width) {
-        this.authoredWidth = width;
-        this.width = width;
-        this.slider.setWidth(width);
-    }
+    // ── PanelElement ───────────────────────────────────────────────────
 
-    /** Natural (authored) track width before any panel constraint. */
-    @Override public int naturalWidth() { return authoredW(); }
-
-    /** Cap the track to the panel's budget so it never bleeds; reversible. */
-    @Override
-    public void layoutWithin(int budget) {
-        int w = Math.min(authoredW(), budget);
-        this.width = w;
-        this.slider.setWidth(w);
-    }
-
-    /** Interactive — handles click/drag, so it claims (blocks vanilla behind) on a non-opaque panel. */
     @Override public boolean isInteractive() { return true; }
 
     @Override
     public void render(RenderContext ctx) {
-        // Per-frame supplier pull — keeps the wrapped slider in sync with
-        // consumer state (programmatic resets, settings syncs). Clamped
-        // for display robustness; supplier contract is "return [0, 1]"
-        // but defensive clamp avoids visual oddities if consumer state
-        // drifts out of range.
-        double supplied = clamp01(valueSupplier.getAsDouble());
-        slider.syncFromSupplier(supplied);
-
-        // Disabled-state sync (Phase 3b — Item 8). Drive vanilla's `active`
-        // flag from the predicate each frame: active=false makes vanilla
-        // render the disabled sprite + gray text AND skip its own input
-        // handling (mouseClicked/keyPressed/drag are all gated on active in
-        // AbstractWidget/AbstractSliderButton), so a disabled slider is both
-        // greyed and inert with no extra plumbing on our side.
-        slider.active = !isDisabled();
-
-        // Update wrapped slider screen-space coords to match the panel's
-        // current content origin + this element's panel-local position.
-        int screenX = ctx.originX() + childX;
-        int screenY = ctx.originY() + childY;
-        slider.setX(screenX);
-        slider.setY(screenY);
-
-        // Render manually here so it draws AFTER the panel background
-        // (which renders between super.render and this point). The slider
-        // is registered with the screen via Screen.addWidget (children +
-        // narratables only — NOT renderables) so vanilla's input dispatch
-        // / focus / keyboard / narration still reach it. Same pattern as
-        // TextField — see ScreenAccessor mixin.
-        if (ctx.hasMouseInput()) {
-            slider.extractRenderState(ctx.graphics(), ctx.mouseX(), ctx.mouseY(), 0f);
-        } else {
-            // HudContext or other input-less render path — render with
-            // sentinel mouse coords so the slider's hover state stays false.
-            slider.extractRenderState(ctx.graphics(), -1, -1, 0f);
-        }
-
-        // Tooltip — fires over the slider track bounds. Skipped if the user
-        // is actively dragging (slider.isHoveredOrFocused captures drag focus
-        // too; combining ctx.isHovered() with that wouldn't change behavior
-        // since drag implies hover). Queued for end-of-frame flush.
-        Supplier<Component> tooltipSupplier = getTooltipSupplier();
-        if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
-            Component ttText = tooltipSupplier.get();
-            if (ttText != null) {
-                MKTooltip.queue(ctx.graphics(),
-                        ttText, ctx.mouseX(), ctx.mouseY());
-            }
-        }
+        // The lens, every frame: the widget shows what the consumer holds.
+        slider.syncFromSupplier(scale.toFraction().apply(stateGet.get()));
+        // Disabled (own or cascaded): vanilla's inactive widget draws greyed and
+        // ignores drag, keys and wheel on its own.
+        slider.active = !disabled(ctx);
+        slider.setX(ctx.originX() + childX);
+        slider.setY(ctx.originY() + childY);
+        slider.setWidth(width);
+        // Drawn here, after the panel background (it is a widget, not a renderable).
+        slider.extractRenderState(ctx.graphics(), ctx.hasMouseInput() ? ctx.mouseX() : -1,
+                ctx.hasMouseInput() ? ctx.mouseY() : -1, 0f);
+        queueTooltip(ctx);
     }
-
-    // ── Chainable configuration ────────────────────────────────────────
-    //
-    // showWhen + tooltip return Slider for free via the SELF self-type.
-    // Position + size are configured on the Builder (.at()/.size()).
-
-    // ── Lifecycle ──────────────────────────────────────────────────────
 
     @Override
     public void onAttach(Screen screen) {
         if (attachedScreen == screen) return;
+        if (attachedScreen != null) onDetach(attachedScreen);
         attachedScreen = screen;
-        ((ScreenAccessor) screen).mk$addWidget(slider);
+        MKFocus.addWidget(screen, slider);
     }
 
     @Override
     public void onDetach(Screen screen) {
-        if (attachedScreen == screen) {
-            ((ScreenAccessor) screen).mk$removeWidget(slider);
-            attachedScreen = null;
-        }
-    }
-
-    // ── Imperative API ─────────────────────────────────────────────────
-
-    /**
-     * Returns the slider's current internal value in [0, 1]. Snapshot —
-     * re-read for latest. Canonical pattern is to track value via your own
-     * consumer state (the lens-write side); getValue is the read-side
-     * counterpart for direct access when needed.
-     */
-    public double getValue() {
-        return slider.getValueAccess();
-    }
-
-    /** Returns whether the wrapped slider is currently focused. */
-    public boolean isFocused() {
-        return slider.isFocused();
-    }
-
-    /** Returns whether the slider is currently disabled (Phase 3b — Item 8). */
-    public boolean isDisabled() {
-        return disabledWhen != null && disabledWhen.getAsBoolean();
+        if (attachedScreen != screen) return;
+        MKFocus.removeWidget(screen, slider);
+        attachedScreen = null;
     }
 
     // ── Builder ────────────────────────────────────────────────────────
 
-    public static Builder builder() { return new Builder(); }
+    public static class Builder<V> extends AbstractPanelElement.Builder<Slider<V>, Builder<V>> {
+        private final Scale<V> scale;
+        private @Nullable Supplier<V> stateGet;
+        private @Nullable Consumer<V> stateSet;
+        private @Nullable Function<V, Component> label;
 
-    public static final class Builder {
-        private int childX = 0;
-        private int childY = 0;
-        private int width = -1;
-        private int height = -1;
-        private @Nullable DoubleSupplier valueSupplier;
-        private @Nullable DoubleConsumer valueConsumer;
-        private DoubleFunction<Component> labelFn = v -> Component.empty();
-        private @Nullable BooleanSupplier disabledWhen;
-
-        private Builder() {}
-
-        /** Panel-local position. Default (0, 0). */
-        public Builder at(int childX, int childY) {
-            this.childX = childX;
-            this.childY = childY;
-            return this;
+        Builder(Scale<V> scale) {
+            this.scale = scale;
         }
 
-        /** Required: width × height in pixels. Vanilla's DEFAULT_HEIGHT is 20. */
-        public Builder size(int width, int height) {
-            this.width = width;
-            this.height = height;
+        @Override protected Builder<V> self() { return this; }
+
+        /** Required: size in pixels. Vanilla's slider is 20 tall. */
+        @Override
+        public Builder<V> size(int width, int height) {
+            return super.size(width, height);
+        }
+
+        /**
+         * Required: the lens. {@code get} is read every frame; {@code set} receives
+         * the new value on each drag step or arrow key.
+         */
+        public Builder<V> state(Supplier<V> get, Consumer<V> set) {
+            this.stateGet = Objects.requireNonNull(get, "get");
+            this.stateSet = Objects.requireNonNull(set, "set");
             return this;
         }
 
         /**
-         * Required: lens pair for the slider's normalized [0, 1] value.
-         * Library reads supplier each frame to sync the slider's display;
-         * library calls consumer on user input (drag, keyboard step).
-         *
-         * <p>Map to consumer's domain externally — internal value is
-         * always [0, 1].
+         * The text inside the track for a value; the narrator reads it too.
+         * Default: empty for a fraction, the value for an integer or enum scale.
          */
-        public Builder value(DoubleSupplier supplier, DoubleConsumer consumer) {
-            this.valueSupplier = Objects.requireNonNull(supplier, "supplier must not be null");
-            this.valueConsumer = Objects.requireNonNull(consumer, "consumer must not be null");
+        public Builder<V> label(Function<V, Component> label) {
+            this.label = Objects.requireNonNull(label, "label");
             return this;
         }
 
-        /**
-         * Optional in-track label function — called on every value change
-         * to compute the displayed text rendered inside the slider track.
-         * Default: {@code v -> Component.empty()} (no in-track label).
-         *
-         * <p>Vanilla bakes label rendering into the slider track via
-         * {@code getMessage()} / {@code updateMessage()}; this builder
-         * exposes that pattern. Narration auto-derives from the label
-         * output, so screen readers announce the live value.
-         */
-        public Builder label(DoubleFunction<Component> labelFn) {
-            this.labelFn = Objects.requireNonNull(labelFn, "labelFn must not be null");
-            return this;
-        }
-
-        /**
-         * Optional disabled predicate (Phase 3b — Item 8). When it returns
-         * true, the slider renders greyed and ignores all interaction (drag,
-         * keyboard, scroll). Per-frame predicate shape, matching
-         * Button/Toggle's {@code disabledWhen}. Default: always enabled.
-         */
-        public Builder disabledWhen(BooleanSupplier disabledWhen) {
-            this.disabledWhen = Objects.requireNonNull(disabledWhen, "disabledWhen must not be null");
-            return this;
-        }
-
-        public Slider build() {
-            if (width <= 0 || height <= 0) {
-                throw new IllegalStateException(
-                        "Slider.Builder: .size(w, h) must be called with positive values; "
-                        + "got width=" + width + ", height=" + height);
-            }
-            if (valueSupplier == null || valueConsumer == null) {
-                throw new IllegalStateException(
-                        "Slider.Builder: .value(supplier, consumer) is required");
-            }
-            return new Slider(this);
-        }
-
-        /**
-         * Layout terminal (Phase 3b — Item 6). Returns an {@link ElementSpec}
-         * for use in {@link com.trevlar.menukit.core.layout.Row} /
-         * {@link com.trevlar.menukit.core.layout.Column}, instead of
-         * building the Slider at a fixed position. The spec's reported
-         * dimensions are the configured {@code .size(w, h)}; the layout helper
-         * calls {@link ElementSpec#at(int, int)}, which re-runs this builder's
-         * configuration positioned at the computed coordinates.
-         *
-         * <p>Validates the same required fields as {@link #build()} up front,
-         * so a misconfigured builder fails at {@code spec()} call time rather
-         * than later inside the layout helper.
-         */
-        public ElementSpec spec() {
-            if (width <= 0 || height <= 0) {
-                throw new IllegalStateException(
-                        "Slider.Builder.spec(): .size(w, h) must be called with positive values; "
-                        + "got width=" + width + ", height=" + height);
-            }
-            if (valueSupplier == null || valueConsumer == null) {
-                throw new IllegalStateException(
-                        "Slider.Builder.spec(): .value(supplier, consumer) is required");
-            }
-            // Capture config into a final snapshot so each at(x,y) builds a
-            // fresh, correctly-positioned Slider (childX/childY are fixed at
-            // construction per THESIS Principle 4 — ElementSpec is the
-            // deferred-construction path that supplies them).
-            final int w = width, h = height;
-            final DoubleSupplier vs = valueSupplier;
-            final DoubleConsumer vc = valueConsumer;
-            final DoubleFunction<Component> lf = labelFn;
-            final BooleanSupplier dw = disabledWhen;
-            return new ElementSpec() {
-                @Override public int width()  { return w; }
-                @Override public int height() { return h; }
-                @Override public PanelElement at(int x, int y) {
-                    Builder b = Slider.builder().at(x, y).size(w, h)
-                            .value(vs, vc).label(lf);
-                    if (dw != null) b.disabledWhen(dw);
-                    return b.build();
-                }
-            };
+        @Override
+        public Slider<V> build() {
+            require(width > 0 && height > 0, "size(w, h) is required");
+            require(stateGet != null, "state(get, set) is required; a Slider shows the consumer's value");
+            return new Slider<>(this);
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────
-    // MKSlider — AbstractSliderButton subclass wiring vanilla's
-    // abstract methods to the lens callbacks
-    // ──────────────────────────────────────────────────────────────────
+    // ── The vanilla widget ─────────────────────────────────────────────
 
     /**
-     * AbstractSliderButton subclass that wires vanilla's abstract methods
-     * to the lens callbacks: {@code applyValue()} fires the consumer;
-     * {@code updateMessage()} computes the in-track label via the
-     * builder's labelFn.
-     *
-     * <p>Also exposes a {@link #syncFromSupplier} path: directly updates
-     * the internal value field (bypassing setValue's applyValue trigger)
-     * when the per-frame supplier pull returns a value that differs from
-     * the stored one. Without this, supplier-pull → setValue(d) →
-     * applyValue() → consumer.accept(d) would create a no-op write-back
-     * loop on every external state update (consumer state was already d;
-     * just got told to accept(d) again). The bypass keeps internal/external
-     * sync frictionless without spurious onChange fires.
-     *
-     * <p>Per Q3 advisor verdict (round 1 sign-off): subclass over mixin —
-     * subclass is per-element scoped (only affects MenuKit's wrapped
-     * sliders), mixin would affect ALL AbstractSliderButton instances
-     * ecosystem-wide. Same precedent as TextField's MKEditBox.
+     * Vanilla's slider wired to the lens: {@code applyValue} (a player's change)
+     * writes through; {@code syncFromSupplier} (the consumer's value) updates the
+     * handle without writing back. A subclass, not a mixin, so only MenuKit's
+     * sliders are affected.
      */
     private static final class MKSlider extends AbstractSliderButton {
 
-        private final DoubleConsumer valueConsumer;
-        private final DoubleFunction<Component> labelFn;
+        private final Consumer<Double> write;
+        private final Function<Double, Component> text;
+        private final Scale<?> scale;
 
-        MKSlider(int x, int y, int width, int height,
-                      Component initialMessage, double initialValue,
-                      DoubleConsumer valueConsumer,
-                      DoubleFunction<Component> labelFn) {
-            super(x, y, width, height, initialMessage, initialValue);
-            this.valueConsumer = valueConsumer;
-            this.labelFn = labelFn;
+        MKSlider(int width, int height, Component message, double initial,
+                 Consumer<Double> write, Function<Double, Component> text, Scale<?> scale) {
+            super(0, 0, width, height, message, initial);
+            this.write = write;
+            this.text = text;
+            this.scale = scale;
         }
 
-        /**
-         * Sync the internal value from a supplier-pulled value, bypassing
-         * applyValue (so the consumer doesn't get told to accept the value
-         * it just supplied). Only updates if values differ to avoid
-         * redundant updateMessage calls per frame.
-         *
-         * <p>Direct field access on {@code this.value} (protected on
-         * AbstractSliderButton) — sidesteps vanilla's {@code setValue}
-         * which calls {@code applyValue} on changed values.
-         */
-        void syncFromSupplier(double supplied) {
-            if (supplied != this.value) {
-                this.value = supplied;
+        /** The consumer's value, shown without being written back. */
+        void syncFromSupplier(double fraction) {
+            if (fraction != this.value) {
+                this.value = fraction;
                 updateMessage();
             }
         }
 
-        /** Read-access to the protected value field for {@link Slider#getValue}. */
-        double getValueAccess() {
-            return this.value;
+        /** On a stepped scale the arrow keys move one step (vanilla's per-pixel step could stay on one value). */
+        @Override
+        public boolean keyPressed(KeyEvent event) {
+            if (scale.steps() > 1 && canChangeValue && (event.isLeft() || event.isRight())) {
+                setValue(scale.step(value, event.isLeft() ? -1 : 1));
+                return true;
+            }
+            return super.keyPressed(event);
         }
 
         @Override
         protected void applyValue() {
-            // Fired when user input (drag, keyboard) changes the value
-            // via vanilla's setValue path. Push to consumer's lens-write
-            // callback. (Not fired by our syncFromSupplier path — that
-            // bypasses by design.)
-            valueConsumer.accept(this.value);
+            write.accept(this.value);
         }
 
         @Override
         protected void updateMessage() {
-            // Fired after every value change (user input via vanilla's
-            // setValue OR our supplier sync via syncFromSupplier) to
-            // refresh the in-track display text. Reads label fn against
-            // the current value and pushes through AbstractWidget.setMessage.
-            this.setMessage(labelFn.apply(this.value));
+            setMessage(text.apply(this.value));
         }
     }
 }

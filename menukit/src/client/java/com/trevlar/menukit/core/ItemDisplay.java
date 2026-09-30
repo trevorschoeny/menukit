@@ -1,258 +1,164 @@
 package com.trevlar.menukit.core;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
 
+import org.jspecify.annotations.Nullable;
+
+import java.util.Objects;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
- * An item icon rendered at a fixed position with optional count overlay
- * and durability bar. No interaction. Distinct from a slot — ItemDisplay
- * has no sync, no storage binding, no mutation; it only renders.
+ * An item drawn at a fixed size, with its count and durability bar, and
+ * optionally a coloured outline. No input, no storage: it only draws.
  *
- * <p>Works in all three rendering contexts. Render-only element.
+ * <pre>{@code
+ * ItemDisplay.builder().item(() -> player.getMainHandItem()).size(16, 16)
+ *         .outline(() -> locked ? 0xFFFF5555 : 0)
+ *         .build();
+ * }</pre>
  *
- * <p>Two forms for the item content:
- * <ul>
- *   <li><b>Fixed stack</b> — pass an {@link ItemStack} directly.</li>
- *   <li><b>Supplier-driven stack</b> — pass a {@code Supplier<ItemStack>}
- *   for stacks that change over time.</li>
- * </ul>
+ * <p>Count and durability overlays show by default, as vanilla draws a slot;
+ * {@code hideCount()} and {@code hideDurability()} turn them off. A size other
+ * than 16 scales the item through the pose matrix (items are square: the smaller
+ * side is used).
  *
- * <p>Items are always square. The {@code size} parameter is a single int;
- * width equals height. Defaults to {@link #DEFAULT_SIZE} (16 pixels),
- * matching vanilla's native item render size.
+ * <h3>Outline</h3>
  *
- * <p>Count and durability overlays default to visible, matching vanilla
- * item rendering. Consumers wanting an icon-only display (no overlays)
- * pass {@code showCount=false, showDurability=false} explicitly.
- *
- * <p>Rendering delegates to vanilla's {@code GuiGraphicsExtractor.renderItem} and
- * {@code renderItemDecorations} — MenuKit ships no custom visual of its
- * own for this element.
- *
- * @see PanelElement The interface this implements
- * @see Icon         The sprite-rendering primitive (non-item case)
+ * {@code outline(argb)} draws a one-pixel line of that colour around the item's
+ * own silhouette, read every frame (0 for none). It is
+ * {@link SlotRendering#drawItemOutline}, the same primitive a slot decoration
+ * uses.
  */
-public class ItemDisplay extends AbstractPanelElement<ItemDisplay> {
+public class ItemDisplay extends AbstractPanelElement {
 
-    @Override protected ItemDisplay self() { return this; }
-
-    /** Native item render size — vanilla renders items at this size. */
+    /** Vanilla's item size. */
     public static final int DEFAULT_SIZE = 16;
 
-    private int size;
-    private final Supplier<ItemStack> stackSupplier;
+    private final Supplier<ItemStack> item;
     private final boolean showCount;
     private final boolean showDurability;
+    private final @Nullable IntSupplier outline;
 
-    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2). The
-    // ItemDisplay-specific semantic — "overrides any item-intrinsic
-    // tooltip vanilla would otherwise show; opt-in since ItemDisplay is
-    // decorative" — is consumer-facing intent; the base just holds the
-    // supplier and ItemDisplay.render() owns when to queue it.
-
-    // ── Constructors: fixed stack ─────────────────────────────────────
-
-    /**
-     * Creates an ItemDisplay with a fixed stack at the default 16×16 size,
-     * showing both count and durability overlays.
-     */
-    public ItemDisplay(int childX, int childY, ItemStack stack) {
-        this(childX, childY, DEFAULT_SIZE, wrap(stack), true, true);
+    protected ItemDisplay(Builder b) {
+        super(b);
+        this.item = b.item;
+        this.showCount = b.showCount;
+        this.showDurability = b.showDurability;
+        this.outline = b.outline;
     }
 
-    // ── M8 Layout Spec ─────────────────────────────────────────────────
-
-    /**
-     * Returns an {@link com.trevlar.menukit.core.layout.ElementSpec}
-     * for a fixed-stack item display at default size with count + durability
-     * overlays.
-     */
-    public static com.trevlar.menukit.core.layout.ElementSpec spec(ItemStack stack) {
-        return spec(DEFAULT_SIZE, stack, true, true);
+    public static Builder builder() {
+        return new Builder();
     }
 
-    /** Layout spec with explicit size and overlay flags, fixed stack. */
-    public static com.trevlar.menukit.core.layout.ElementSpec spec(
-            int size, ItemStack stack, boolean showCount, boolean showDurability) {
-        return new com.trevlar.menukit.core.layout.ElementSpec() {
-            @Override public int width()  { return size; }
-            @Override public int height() { return size; }
-            @Override public PanelElement at(int x, int y) {
-                return new ItemDisplay(x, y, size, stack, showCount, showDurability);
-            }
-        };
-    }
+    /** The stack the display would draw right now. */
+    public ItemStack getCurrentStack() { return item.get(); }
 
-    /** Layout spec for supplier-driven stack at default size with overlays. */
-    public static com.trevlar.menukit.core.layout.ElementSpec spec(
-            Supplier<ItemStack> stack) {
-        return spec(DEFAULT_SIZE, stack, true, true);
-    }
+    @Override public void layoutWithin(int budget) {}
+    @Override public void fillWidth(int width) {}
 
-    /** Layout spec with explicit size, overlay flags, supplier-driven stack. */
-    public static com.trevlar.menukit.core.layout.ElementSpec spec(
-            int size, Supplier<ItemStack> stack,
-            boolean showCount, boolean showDurability) {
-        return new com.trevlar.menukit.core.layout.ElementSpec() {
-            @Override public int width()  { return size; }
-            @Override public int height() { return size; }
-            @Override public PanelElement at(int x, int y) {
-                return new ItemDisplay(x, y, size, stack, showCount, showDurability);
-            }
-        };
-    }
-
-    /**
-     * Creates an ItemDisplay with a fixed stack, explicit size, and
-     * explicit overlay visibility.
-     *
-     * @param childX         X position within panel content area
-     * @param childY         Y position within panel content area
-     * @param size           render size in pixels (width = height = size)
-     * @param stack          the item stack
-     * @param showCount      whether to render the count overlay
-     * @param showDurability whether to render the durability bar
-     */
-    public ItemDisplay(int childX, int childY, int size, ItemStack stack,
-                       boolean showCount, boolean showDurability) {
-        this(childX, childY, size, wrap(stack), showCount, showDurability);
-    }
-
-    // ── Constructors: supplier-driven stack ───────────────────────────
-
-    /**
-     * Creates an ItemDisplay with a supplier-driven stack at the default
-     * 16×16 size, showing both count and durability overlays.
-     */
-    public ItemDisplay(int childX, int childY, Supplier<ItemStack> stack) {
-        this(childX, childY, DEFAULT_SIZE, stack, true, true);
-    }
-
-    /**
-     * Creates an ItemDisplay with a supplier-driven stack, explicit size,
-     * and explicit overlay visibility.
-     *
-     * @param childX         X position within panel content area
-     * @param childY         Y position within panel content area
-     * @param size           render size in pixels (width = height = size)
-     * @param stack          supplier invoked each frame; must not return null
-     * @param showCount      whether to render the count overlay
-     * @param showDurability whether to render the durability bar
-     */
-    public ItemDisplay(int childX, int childY, int size, Supplier<ItemStack> stack,
-                       boolean showCount, boolean showDurability) {
-        this.childX = childX;
-        this.childY = childY;
-        this.size = size;
-        this.stackSupplier = stack;
-        this.showCount = showCount;
-        this.showDurability = showDurability;
-    }
-
-    /** Wraps a fixed stack into a one-shot supplier, unifying the render path. */
-    private static Supplier<ItemStack> wrap(ItemStack stack) {
-        return () -> stack;
-    }
-
-    // ── PanelElement Implementation ────────────────────────────────────
-
-    @Override public int getWidth() { return size; }
-    @Override public int getHeight() { return size; }
-
-    /**
-     * Vanilla's decorations with the two flags honoured separately. Vanilla draws
-     * count and bar together; an empty count text hides the count, and a copy with
-     * no damage hides the durability bar.
-     * ponytail: a bundle's fullness bar is not durability and still shows with the
-     * count alone.
-     */
-    private void decorations(net.minecraft.client.gui.GuiGraphicsExtractor graphics, net.minecraft.client.gui.Font font,
-                             ItemStack stack, int x, int y) {
+    private void decorations(GuiGraphicsExtractor g, Font font, ItemStack stack, int x, int y) {
         if (showCount && showDurability) {
-            graphics.itemDecorations(font, stack, x, y);
+            g.itemDecorations(font, stack, x, y);
         } else if (showDurability) {
-            graphics.itemDecorations(font, stack, x, y, "");
+            g.itemDecorations(font, stack, x, y, "");        // an empty count text hides the count
         } else if (showCount) {
-            ItemStack noBar = stack.copy();
-            noBar.remove(net.minecraft.core.component.DataComponents.DAMAGE);
-            graphics.itemDecorations(font, noBar, x, y);
+            ItemStack noBar = stack.copy();                  // no damage, no bar
+            noBar.remove(DataComponents.DAMAGE);
+            g.itemDecorations(font, noBar, x, y);
         }
     }
 
     @Override
     public void render(RenderContext ctx) {
-        ItemStack stack = stackSupplier.get();
-        if (stack == null || stack.isEmpty()) return;
-
-        var mc = Minecraft.getInstance();
-        var graphics = ctx.graphics();
-        int drawX = ctx.originX() + childX;
-        int drawY = ctx.originY() + childY;
-
-        if (size != DEFAULT_SIZE) {
-            // Vanilla renders items at 16×16. For non-default sizes, scale
-            // through the pose matrix.
-            float scale = size / (float) DEFAULT_SIZE;
-            graphics.pose().pushMatrix();
-            graphics.pose().translate((float) drawX, (float) drawY);
-            graphics.pose().scale(scale, scale);
-            graphics.item(stack, 0, 0);
-            decorations(graphics, mc.font, stack, 0, 0);
-            graphics.pose().popMatrix();
-        } else {
-            graphics.item(stack, drawX, drawY);
-            decorations(graphics, mc.font, stack, drawX, drawY);
-        }
-
-        // Tooltip — fires when cursor is over the icon bounds. Queue via
-        // setTooltipForNextFrame so the end-of-frame flush draws it.
-        Supplier<Component> tooltipSupplier = getTooltipSupplier();
-        if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
-            Component ttText = tooltipSupplier.get();
-            if (ttText != null) {
-                MKTooltip.queue(graphics, ttText, ctx.mouseX(), ctx.mouseY());
+        ItemStack stack = item.get();
+        if (stack != null && !stack.isEmpty()) {
+            var g = ctx.graphics();
+            Font font = Minecraft.getInstance().font;
+            int x = ctx.originX() + childX;
+            int y = ctx.originY() + childY;
+            int argb = outline != null ? outline.getAsInt() : 0;
+            int size = Math.min(width, height);
+            boolean scaled = size != DEFAULT_SIZE;
+            if (scaled) {
+                float s = size / (float) DEFAULT_SIZE;
+                g.pose().pushMatrix();
+                g.pose().translate((float) x, (float) y);
+                g.pose().scale(s, s);
+                x = 0;
+                y = 0;
             }
+            if (argb != 0) SlotRendering.drawItemOutline(g, stack, x, y, argb);
+            else g.item(stack, x, y);
+            decorations(g, font, stack, x, y);
+            if (scaled) g.pose().popMatrix();
+        }
+        queueTooltip(ctx);
+    }
+
+    public static class Builder extends AbstractPanelElement.Builder<ItemDisplay, Builder> {
+        private @Nullable Supplier<ItemStack> item;
+        private boolean showCount = true;
+        private boolean showDurability = true;
+        private @Nullable IntSupplier outline;
+
+        protected Builder() {
+            this.width = DEFAULT_SIZE;
+            this.height = DEFAULT_SIZE;
+        }
+
+        @Override protected Builder self() { return this; }
+
+        /** Required: the stack. */
+        public Builder item(ItemStack stack) {
+            Objects.requireNonNull(stack, "stack");
+            return item(() -> stack);
+        }
+
+        /** Required: the stack, read every frame. An empty stack draws nothing. */
+        public Builder item(Supplier<ItemStack> stack) {
+            this.item = Objects.requireNonNull(stack, "stack");
+            return this;
+        }
+
+        /** Size in pixels; the item scales to the smaller side. Default 16 x 16. */
+        @Override
+        public Builder size(int width, int height) {
+            return super.size(width, height);
+        }
+
+        /** Hides the count overlay. */
+        public Builder hideCount() {
+            this.showCount = false;
+            return this;
+        }
+
+        /** Hides the durability bar. */
+        public Builder hideDurability() {
+            this.showDurability = false;
+            return this;
+        }
+
+        /** A one-pixel outline of this ARGB colour around the item's silhouette. */
+        public Builder outline(int argb) {
+            return outline(() -> argb);
+        }
+
+        /** An outline colour read every frame; 0 draws none. */
+        public Builder outline(IntSupplier argb) {
+            this.outline = Objects.requireNonNull(argb, "argb");
+            return this;
+        }
+
+        @Override
+        public ItemDisplay build() {
+            require(item != null, "item(...) is required");
+            return new ItemDisplay(this);
         }
     }
-
-    // ── Chainable configuration ────────────────────────────────────────
-    //
-    // showWhen + tooltip + at return ItemDisplay for free via the SELF self-type.
-
-    /**
-     * Fluent resize sugar — sets the item render size in pixels (items are
-     * always square, so this is a single dimension) and returns this display
-     * for chaining. Additive to the positional constructors.
-     *
-     * <p><b>Single-arg by design.</b> The canonical widget resize signature is
-     * {@code .size(int width, int height)} (Button/Toggle/Divider/etc.).
-     * {@code ItemDisplay} is one of the two sanctioned deviations (the other is
-     * Dropdown/DropdownMulti {@code .triggerSize(...)}): items render square, so
-     * a second dimension would be redundant. See the size-shape convention note
-     * on {@link AbstractPanelElement}.
-     */
-    public ItemDisplay size(int size) {
-        this.size = size;
-        return this;
-    }
-
-    // mouseClicked + isHovered inherit from PanelElement. isVisible +
-    // setVisible inherit from AbstractPanelElement (Phase 18r-2).
-
-    // ── Element Queries ────────────────────────────────────────────────
-
-    /** Returns the item stack the ItemDisplay would render right now. */
-    public ItemStack getCurrentStack() { return stackSupplier.get(); }
-
-    /** Returns the render size in pixels (width and height are equal). */
-    public int getSize() { return size; }
-
-    /** Returns whether the count overlay renders. */
-    public boolean showsCount() { return showCount; }
-
-    /** Returns whether the durability bar renders. */
-    public boolean showsDurability() { return showDurability; }
 }

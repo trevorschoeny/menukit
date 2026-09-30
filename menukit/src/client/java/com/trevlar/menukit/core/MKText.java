@@ -7,8 +7,11 @@ import net.minecraft.client.gui.TextAlignment;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.TextColor;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.util.Util;
+
+import java.util.List;
 
 /**
  * Shared text-rendering helper for MK widgets that render single-line
@@ -264,5 +267,56 @@ public final class MKText {
         graphics.enableScissor(x1, y1, x2, y2);
         graphics.text(font, text, textX, textY, color, shadow);
         graphics.disableScissor();
+    }
+
+    // ── The one wrap helper (6.0.0 plan, decision 5) ──────────────────
+    //
+    // Every text-bearing element wraps its text the same way: only when the
+    // text is wider than the room it has, split by vanilla's own font.split (the
+    // splitter chat, tooltips and book pages use, so the breaks match what a
+    // player expects), one line every lineHeight. TextLabel, InfoBox, Button,
+    // Toggle, Checkbox, Radio and Dropdown's trigger each carried their own copy
+    // of this; these three calls are the copy they share now. The decision stays
+    // reversible because an element keeps only the wrap width, recomputed on every
+    // layout pass: a wider pass returns 0 and the text is one line again.
+
+    /**
+     * The width {@code text} should wrap to inside {@code available} pixels:
+     * {@code 0} (don't wrap) when it fits on one line, else {@code available},
+     * floored at 1 so the splitter never sees a non-positive width.
+     */
+    public static int wrapWidth(Component text, int available) {
+        if (text == null) return 0;
+        return Minecraft.getInstance().font.width(text) > available ? Math.max(1, available) : 0;
+    }
+
+    /** The lines {@code text} breaks into at {@code wrapWidth}; one line when {@code wrapWidth <= 0}. */
+    public static List<FormattedCharSequence> lines(Component text, int wrapWidth) {
+        Font font = Minecraft.getInstance().font;
+        if (wrapWidth <= 0) return List.of(text.getVisualOrderText());
+        List<FormattedCharSequence> lines = font.split(text, wrapWidth);
+        return lines.isEmpty() ? List.of(FormattedCharSequence.EMPTY) : lines;
+    }
+
+    /** How many lines {@code text} takes at {@code wrapWidth} (at least 1). */
+    public static int lineCount(Component text, int wrapWidth) {
+        return wrapWidth <= 0 ? 1 : lines(text, wrapWidth).size();
+    }
+
+    /**
+     * Draws {@code text} broken at {@code wrapWidth}, the first line at
+     * {@code y}, one line every {@code lineHeight}. Each line starts at {@code x};
+     * with {@code centreIn > 0} each is centred in {@code [x, x + centreIn)}
+     * instead (a button's label).
+     */
+    public static void drawWrapped(GuiGraphicsExtractor graphics, Component text, int wrapWidth,
+                                   int x, int y, int centreIn, int color, boolean shadow) {
+        Font font = Minecraft.getInstance().font;
+        int lineY = y;
+        for (FormattedCharSequence line : lines(text, wrapWidth)) {
+            int lineX = centreIn > 0 ? x + (centreIn - font.width(line)) / 2 : x;
+            graphics.text(font, line, lineX, lineY, color, shadow);
+            lineY += font.lineHeight;
+        }
     }
 }

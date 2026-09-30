@@ -71,7 +71,7 @@ import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
 
 Panel panel = Panel.builder("mymod:controls")
-        .add(new Button(0, 0, 90, 16, Component.literal("Press"), b -> {}))
+        .add(Button.builder().label(Component.literal("Press")).size(90, 16).onClick(() -> {}).build())
         .position(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP).priority(10))
         .build();
 
@@ -79,6 +79,8 @@ new ScreenPanelAdapter(panel).on(InventoryScreen.class);
 ```
 
 Result: a 90 by 16 button renders in the top right gutter of the survival inventory screen.
+
+Every element is built the same way: `X.builder()`, the settings it needs, `build()` (see [Builders and one vocabulary](concepts.md#builders-and-one-vocabulary)). A control that shows a value takes a `state(get, set)` over your own field: `Toggle.builder().state(config::sort, config::setSort).label(Component.literal("Sort")).build()`.
 
 The panel says where it sits (`position`); the adapter says which screens it appears on. Without `.on(...)` the panel renders on every container screen. Declare adapters from your client initializer; to show a panel only some of the time, give it a `showWhen` rather than removing its adapter.
 

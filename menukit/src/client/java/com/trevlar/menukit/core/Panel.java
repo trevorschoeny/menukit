@@ -43,7 +43,7 @@ import java.util.function.Supplier;
  *       the state; Panel reads via the supplier on each {@code isVisible()}
  *       call. Canonical for Phase 10 injected panels, HUDs, and standalone
  *       screens, following the Phase 8/9 state-ownership pattern
- *       ({@code Toggle.linked}).</li>
+ *       (a {@code Toggle}'s {@code state(get, set)}).</li>
  * </ul>
  * The two modes are mutually exclusive — see {@link #showWhen(java.util.function.BooleanSupplier)} for
  * precedence semantics.
@@ -141,7 +141,7 @@ public class Panel {
     // ── Phase 16g Auto-Scroll state ────────────────────────────────────
     // Scroll position, in pixels from the top, for the auto-scroll wrap. Pixels,
     // not a fraction: when content changes height while shown, what is on
-    // screen stays put (ScrollContainer.Builder.scrollPixels). Panel owns the
+    // screen stays put (ScrollContainer.Builder.state, in pixels). Panel owns the
     // state directly here rather than delegating to a consumer-side field
     // because auto-scroll is an internal Panel concern — the consumer
     // never sees the inner ScrollContainer. Mutable; updated by
@@ -172,10 +172,16 @@ public class Panel {
     // over the imperative `visible` field — isVisible() reads the supplier, and
     // setVisible(...) silently no-ops. Clear with showWhen(null) to revert to
     // imperative control. Matches the Phase 8/9 state-ownership pattern
-    // (Toggle.linked): consumer holds the state; library reads via supplier.
+    // (a Toggle's state lens): consumer holds the state; library reads via supplier.
     // Uses BooleanSupplier (no boxing), unified with the element-level
     // showWhen / disabledWhen / revealWhen predicate type.
     private @Nullable BooleanSupplier visibilitySupplier;
+
+    // The panel-wide disabled cascade (§0066). While it holds, every element of
+    // the panel draws its disabled look and takes no clicks, wheel or keys: the
+    // host hands the panel's elements disabled contexts. The panel is still
+    // present (it claims its area, §0065); only what is inside is inert.
+    private @Nullable BooleanSupplier disabledSupplier;
 
     // Opacity / dim / modal-tracking flags (Phase 14d-2.5 M9 mechanism).
     //
@@ -298,8 +304,8 @@ public class Panel {
      *
      * <pre>{@code
      * Panel p = Panel.builder("settings")
-     *     .add(new Button(...))
-     *     .add(new Toggle(...))
+     *     .add(Button.builder().label(Component.literal("OK")).onClick(this::ok).build())
+     *     .add(Toggle.builder().state(cfg::on, cfg::setOn).label(Component.literal("On")).build())
      *     .style(PanelStyle.RAISED)
      *     .position(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP))
      *     .build();
@@ -326,6 +332,7 @@ public class Panel {
         private PanelStyle style = PanelStyle.RAISED;
         private PanelPosition position = PanelPosition.UNPLACED;
         private int toggleKey = NO_TOGGLE_KEY;
+        private @Nullable BooleanSupplier disabledWhen;
 
         private Builder(String id) {
             this.id = id;
@@ -336,7 +343,7 @@ public class Panel {
          * with {@link #add(PanelElement)} — call order is: this resets the
          * list, subsequent {@code add(...)} append to it.
          */
-        public Builder elements(List<PanelElement> elements) {
+        public Builder elements(List<? extends PanelElement> elements) {
             this.elements.clear();
             this.elements.addAll(elements);
             return this;
@@ -345,33 +352,6 @@ public class Panel {
         /** Appends a single element to the panel's element list. */
         public Builder add(PanelElement element) {
             this.elements.add(element);
-            return this;
-        }
-
-        /**
-         * Appends an element declared as an
-         * {@link com.trevlar.menukit.core.layout.ElementSpec} — the same
-         * fluent shape the dialog and {@code Row}/{@code Column} builders
-         * consume. The spec is instantiated immediately at its declared origin
-         * ({@code 0, 0}), so a consumer can write
-         * {@code Panel.builder(id).add(Button.spec(...))} without dropping to a
-         * raw constructor.
-         *
-         * <p>The instantiated element keeps its declared {@code (0, 0)} origin
-         * unless the consumer repositions it. To place several specs at fixed
-         * offsets, instantiate them through {@code Button.spec(...).at(x, y)}
-         * (the spec's own {@code at(...)} returns the positioned element) and
-         * feed those to {@link #add(PanelElement)}, or compose them with a
-         * {@code Row}/{@code Column} and pass the resulting list to
-         * {@link #elements(List)} — both layout helpers compute positions for
-         * you. This overload simply completes builder symmetry with the layout
-         * + dialog builders, which already accept {@code ElementSpec}.
-         *
-         * @param spec the element specification (dims + deferred construction)
-         * @return this builder, for chaining
-         */
-        public Builder add(com.trevlar.menukit.core.layout.ElementSpec spec) {
-            this.elements.add(spec.at(0, 0));
             return this;
         }
 
@@ -408,9 +388,21 @@ public class Panel {
             return this;
         }
 
+        /**
+         * Disables the whole panel while {@code condition} holds, read every frame:
+         * every element draws greyed and takes no input (the disabled cascade,
+         * §0066). See {@link Panel#disabledWhen}.
+         */
+        public Builder disabledWhen(BooleanSupplier condition) {
+            this.disabledWhen = java.util.Objects.requireNonNull(condition, "condition");
+            return this;
+        }
+
         /** Builds the configured Panel. */
         public Panel build() {
-            return new Panel(id, elements, visible, style, position, toggleKey);
+            Panel panel = new Panel(id, elements, visible, style, position, toggleKey);
+            panel.disabledSupplier = disabledWhen;
+            return panel;
         }
     }
 
@@ -650,7 +642,7 @@ public class Panel {
                         .at(0, 0)
                         .size(outerWidth, viewportHeight)
                         .content(elements)
-                        .scrollPixels(() -> scrollOffset, v -> scrollOffset = v)
+                        .state(() -> scrollOffset, v -> scrollOffset = v)
                         .build();
             }
         }
@@ -760,7 +752,7 @@ public class Panel {
         int[] baseline = new int[n];
         for (int i = 0; i < n; i++) {
             PanelElement e = elements.get(i);
-            baseline[i] = (e instanceof AbstractPanelElement<?> ape)
+            baseline[i] = (e instanceof AbstractPanelElement ape)
                     ? ape.reflowBaselineY() : e.getChildY();
         }
 
@@ -782,7 +774,7 @@ public class Panel {
                 rowY = dY;
             }
             PanelElement e = elements.get(idx);
-            if (e instanceof AbstractPanelElement<?> ape) {
+            if (e instanceof AbstractPanelElement ape) {
                 // Live Y = baseline + push; baseline untouched (reversible).
                 ape.applyReflowedY(dY + cumulative);
             }
@@ -1086,7 +1078,7 @@ public class Panel {
      * it on each call, and {@link #setVisible(boolean)} becomes a silent no-op.
      *
      * <p>This matches the Phase 8/9 state-ownership pattern established by
-     * {@code Toggle.linked}: the consumer holds the state, the library reads
+     * an element's {@code state(get, set)}: the consumer holds the state, the library reads
      * it via the supplier, and there is no parallel library-owned field that
      * could desync from consumer state.
      *
@@ -1122,6 +1114,26 @@ public class Panel {
             this.visible = true;
         }
         return this;
+    }
+
+    // ── Disabled (the panel-wide cascade, §0066) ───────────────────────
+
+    /**
+     * Disables the whole panel while {@code condition} holds, read every frame
+     * (pass {@code null} to clear). Every element draws its disabled look (text
+     * and section headers grey, controls dark) and takes no clicks, wheel or
+     * keys; containers pass it down to their children. The panel itself stays
+     * present: it still claims its area, so nothing behind it reacts either.
+     * Chainable.
+     */
+    public Panel disabledWhen(@Nullable BooleanSupplier condition) {
+        this.disabledSupplier = condition;
+        return this;
+    }
+
+    /** Whether the panel is disabled right now. */
+    public boolean isDisabled() {
+        return disabledSupplier != null && disabledSupplier.getAsBoolean();
     }
 
     // ── Opacity / dim / modal-tracking (M9) ────────────────────────────

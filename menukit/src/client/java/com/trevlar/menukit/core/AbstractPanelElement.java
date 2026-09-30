@@ -4,194 +4,156 @@ import net.minecraft.network.chat.Component;
 
 import org.jspecify.annotations.Nullable;
 
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
- * Abstract base for library-provided {@link PanelElement} implementations.
- * Holds the cross-cutting state every concrete element needs (visibility —
- * imperative + supplier-driven) so individual elements don't each re-implement
- * the same pattern.
+ * Base of MenuKit's own elements: built once by a builder, immutable after
+ * (§0066, applying §0022 to elements).
  *
- * <h2>Why an abstract base, not just defaults on the interface</h2>
+ * <h2>One vocabulary</h2>
  *
- * Java interfaces can't hold instance state (no fields), so a supplier-driven
- * visibility flag has to live somewhere concrete. Two options were considered:
- * (a) add the field + chainable {@code showWhen()} to every element class
- * (Button, Toggle, Checkbox, etc. — ~14 classes, ~5 lines each), or
- * (b) introduce this base and let library elements extend it. We took (b)
- * because every library element implements {@link PanelElement} directly
- * (no other supers to clash with) and the duplication-vs-base trade tips
- * toward base when new cross-cutting chainables ({@code .disabled()} etc.)
- * become free to add later in one place.
+ * Every element's builder extends {@link Builder}, so the same idea has the same
+ * name on every element:
+ * <ul>
+ *   <li>{@code at(x, y)}: position in the panel's content area.</li>
+ *   <li>{@code size(w, h)}: on the elements that take a size (the rest size
+ *       themselves from their content).</li>
+ *   <li>{@code visibleWhen(supplier)}: shown while it holds, read every frame.</li>
+ *   <li>{@code disabledWhen(supplier)}: greyed and inert while it holds.</li>
+ *   <li>{@code tooltip(text)}: the hover tooltip.</li>
+ *   <li>{@code state(get, set)}: the lens onto the consumer's value, on every
+ *       element that shows one (§0026). An element never stores the value: it
+ *       reads {@code get} every frame and hands a change to {@code set}.</li>
+ *   <li>{@code onClick(Runnable)}: what a press does.</li>
+ *   <li>{@code style(ControlStyle)}: MenuKit's look or vanilla's.</li>
+ *   <li>{@code opaque(boolean)}: whether it is solid on a transparent panel.</li>
+ *   <li>{@code declId(id)}: a stable id for the window's address.</li>
+ * </ul>
+ *
+ * <h2>What an instance keeps</h2>
+ *
+ * Only what a container needs: {@link #setChildPosition} (a {@link Flow} or a
+ * {@code Row}/{@code Column} places its children), and the layout protocol a
+ * panel drives every pass ({@link #layoutWithin}, {@link #fillWidth}). Nothing
+ * else about an element changes after {@code build()}; what varies at runtime is
+ * read from suppliers.
+ *
+ * <h2>The one width-cap helper</h2>
+ *
+ * An element given a {@code size} keeps its authored width as its
+ * {@link #naturalWidth()}; the panel's layout pass caps the live width to the room
+ * it has ({@code min(authored, budget)}), reversibly, and a column's
+ * {@code CrossAlign.FILL} re-authors it ({@link #fillWidth}). Elements that size
+ * themselves from content, or never shrink (an icon, a checkbox square), override
+ * these.
+ *
+ * <h2>Disabled</h2>
+ *
+ * {@link #disabled(RenderContext)} and {@link #disabled(InputContext)} answer
+ * "should this element look and act disabled now": its own {@code disabledWhen},
+ * or the disabled panel or container around it (the cascade the contexts carry).
  *
  * <h2>Consumer custom elements</h2>
  *
- * The {@link PanelElement} interface stays as the consumer-facing extension
- * point — custom elements can {@code implement PanelElement} directly and
- * provide their own {@link PanelElement#isVisible} override if they need
- * conditional visibility. They lose the chainable {@code .showWhen()} sugar
- * but the dispatch sites only consult {@code isVisible()} so functionality
- * is identical.
- *
- * <h2>Visibility precedence</h2>
- *
- * Mirrors {@link Panel#showWhen}: when {@link #showWhen} is called with a
- * non-null supplier, the supplier drives {@link #isVisible}. {@link #setVisible}
- * silently no-ops while a supplier is active (consumer holds the state, library
- * reads via supplier). Clearing with {@code showWhen(null)} reverts to
- * imperative control and resets {@code visible = true}.
- *
- * <h2>Self-type parameter ({@code SELF}) — fluent chaining without downcasts</h2>
- *
- * The class is parameterized on its own concrete type ({@code SELF extends
- * AbstractPanelElement<SELF>}). Every cross-cutting chainable setter here
- * ({@code showWhen}, {@code tooltip}, {@code at}, {@code setElementOpaque},
- * {@code declId}, …) returns {@code SELF} via the abstract {@link #self()}
- * hook, which each concrete subclass implements as {@code return this}. This
- * means a chain that starts with a {@code Button} stays typed as {@code Button}
- * all the way through — no chain-order downcast trap, and per-widget covariant
- * re-typing overrides (the old hand-written {@code tooltip}/{@code showWhen}
- * narrowing overrides) are no longer needed. The curiously-recurring generic
- * is purely a compile-time convenience: {@code AbstractPanelElement} is never
- * referenced as a field/param/return type anywhere, only as a supertype, so
- * the generic is fully contained to the class declarations.
+ * A consumer may extend this class for its own element, with its own builder
+ * extending {@link Builder} (and the protected constructor taking it), or with
+ * the no-argument constructor and its own fields; or implement
+ * {@link PanelElement} directly.
  */
-public abstract class AbstractPanelElement<SELF extends AbstractPanelElement<SELF>>
-        implements PanelElement {
+public abstract class AbstractPanelElement implements PanelElement {
 
-    /**
-     * Returns {@code this} typed as the concrete subclass. Each subclass
-     * implements this as {@code return this;}. The base's chainable setters
-     * route their return through this hook so they hand back the concrete
-     * type instead of {@code AbstractPanelElement}, keeping fluent chains
-     * typed end-to-end.
-     */
-    protected abstract SELF self();
+    // ── Position (mutable only through the container protocol) ─────────
 
-    /**
-     * Imperative visibility state. Defaults true (matches
-     * {@link PanelElement#isVisible}'s default). Read by {@link #isVisible}
-     * only when {@link #visibilitySupplier} is null.
-     */
-    private boolean visible = true;
-
-    /**
-     * Supplier-driven visibility, mirroring {@link Panel#showWhen}. When
-     * non-null, takes precedence over {@link #visible}. Cleared by
-     * {@code showWhen(null)}. Uses {@link BooleanSupplier} (no boxing) to
-     * match {@code disabledWhen}/{@code revealWhen} across the element API.
-     */
-    private @Nullable BooleanSupplier visibilitySupplier;
-
-    /**
-     * Returns whether this element is currently visible.
-     *
-     * <p>If a visibility supplier is set (via {@link #showWhen(BooleanSupplier)}),
-     * returns the supplier's current value. Otherwise returns the imperative
-     * {@code visible} field controlled via {@link #setVisible(boolean)}.
-     */
-    @Override
-    public boolean isVisible() {
-        if (visibilitySupplier != null) {
-            return visibilitySupplier.getAsBoolean();
-        }
-        return visible;
-    }
-
-    /**
-     * Sets this element's imperative visibility.
-     *
-     * <p>Silently no-ops when a {@link #showWhen} supplier is active — the
-     * supplier owns visibility in that mode. Call {@code showWhen(null)}
-     * first to revert to imperative control.
-     */
-    public void setVisible(boolean visible) {
-        if (visibilitySupplier != null) return; // silent no-op when supplier active
-        this.visible = visible;
-    }
-
-    /**
-     * Installs a supplier that drives this element's visibility. The supplier
-     * is consulted on every {@link #isVisible} call (typically every frame
-     * from {@code render} + every input dispatch), so keep it cheap.
-     *
-     * <p>Mirrors {@link Panel#showWhen}. The consumer-side mental model is
-     * "consumer holds the boolean source-of-truth; library reads via
-     * supplier"; same shape as {@link Toggle#linked}.
-     *
-     * <p>Use case: 3 buttons in one panel, 2 conditionally visible. Without
-     * this you'd need two panels and a {@code STACK_GAP} between them.
-     *
-     * <p>Pass {@code null} to clear the supplier and revert to imperative
-     * control. The prior {@link #setVisible} state is NOT restored — the
-     * element resets to default-visible (matching {@link Panel#showWhen}).
-     *
-     * @return this element, for method chaining.
-     */
-    public SELF showWhen(@Nullable BooleanSupplier supplier) {
-        this.visibilitySupplier = supplier;
-        if (supplier == null) {
-            // Reset to default-visible per the Panel.showWhen-locked semantics.
-            this.visible = true;
-        }
-        return self();
-    }
-
-    // ── Position (§0047 — mutable presentation; identity stays frozen) ──
-    //
-    // childX/childY are the element's position within the panel's content
-    // area (after padding). They were per-element {@code final} fields until
-    // §0047; hoisted here and made mutable so an element can be repositioned
-    // at runtime, exactly mirroring how a registered MKCSlot carries a
-    // mutable renderX/renderY (setRenderPosition). The render + input paths
-    // already read position via getChildX()/getChildY() every frame, so a
-    // mutation takes effect on the next frame with NO dispatcher changes.
-    //
-    // Identity (§0022 sync-critical core) is unaffected — position is pure
-    // client-side presentation; the server neither renders nor syncs it.
-    // Concrete subclasses assign these in their constructors exactly as before
-    // (the prior {@code this.childX = childX} assignments are unchanged; the
-    // fields just live here now instead of being re-declared in each element).
-
-    /** Element X within the panel content area. Mutable since §0047. */
+    /** Element X within the panel content area. */
     protected int childX;
 
-    /** Element Y within the panel content area. Mutable since §0047. This is the
-     *  LIVE render Y — equal to the {@link #reflowBaselineY() baseline} plus any
-     *  wrap-push the panel's reflow applied (see {@link #applyReflowedY}). Render,
-     *  hit-test, and auto-size all read it (via the getter or, for consumer
-     *  elements, the field directly), so it must always hold the live position. */
+    /**
+     * Element Y within the panel content area: the LIVE render Y, the
+     * {@link #reflowBaselineY() baseline} plus any push the panel's wrap reflow
+     * applied.
+     */
     protected int childY;
 
-    // ── Wrap-reflow baseline (the dead-move-button fix) ────────────────
-    // The panel's reflowForWrap pushes elements down when an element above wraps
-    // (grows taller). To stay reversible it needs each element's BASELINE Y — the
-    // authored / explicitly-moved position, distinct from the live childY (which
-    // = baseline + push). The baseline used to live in a Panel-level int[] snapshot
-    // captured ONCE on the first config pass; that snapshot never saw a runtime
-    // setChildPosition, so reflow re-asserted the stale first-pass Y every pass and
-    // clobbered explicit moves (Trev's "setChildPosition (move) does nothing").
-    // Hoisting the baseline onto the element — where at()/setChildPosition() update
-    // it — fixes that: a move re-bases the stack instead of being overwritten.
-    //
-    // Lazy capture: subclasses assign childY directly in their constructors (the
-    // base can't intercept that), so the baseline is captured from childY on the
-    // first reflow read, BEFORE any push is applied. at()/setChildPosition() then
-    // keep it current on every explicit move.
+    // ── Size: the one width-cap helper ─────────────────────────────────
+
+    /** The resolved (live) width: the authored width, capped by the last layout pass. */
+    protected int width;
+
+    /** The authored height. Elements whose label wraps grow past it in {@link #getHeight()}. */
+    protected int height;
+
+    /** The authored width, the cap's target; re-authored by {@link #fillWidth}. */
+    protected int authoredWidth;
+
+    // ── Declared once, by the builder ──────────────────────────────────
+
+    private final @Nullable BooleanSupplier visibleWhen;
+    private final @Nullable BooleanSupplier disabledWhen;
+    private final @Nullable Supplier<Component> tooltip;
+    private final boolean opaque;
+    private final @Nullable String declId;
+
+    // ── Wrap-reflow baseline ───────────────────────────────────────────
+    // The panel's reflow pushes elements down when an element above wraps. To stay
+    // reversible it needs each element's BASELINE Y (the authored or explicitly
+    // moved position), distinct from the live childY (baseline + push). A builder
+    // sets it at construction; a custom element that assigns childY in its own
+    // constructor has it captured lazily on the first reflow read. A move through
+    // setChildPosition re-bases it, so reflow never clobbers an explicit move.
     private int baselineY;
-    private boolean baselineCaptured = false;
+    private boolean baselineCaptured;
+
+    /** Builds from {@code b}: position, size and the shared vocabulary. */
+    protected AbstractPanelElement(Builder<?, ?> b) {
+        this.childX = b.x;
+        this.childY = b.y;
+        this.width = Math.max(0, b.width);
+        this.authoredWidth = this.width;
+        this.height = Math.max(0, b.height);
+        this.visibleWhen = b.visibleWhen;
+        this.disabledWhen = b.disabledWhen;
+        this.tooltip = b.tooltip;
+        this.opaque = b.opaque;
+        this.declId = b.declId;
+        this.baselineY = b.y;
+        this.baselineCaptured = true;
+    }
+
+    /**
+     * For a consumer's custom element without a builder: at {@code (0, 0)}, no
+     * size, always shown, never disabled, solid, no tooltip. The subclass assigns
+     * {@link #childX}/{@link #childY} and reports its own size.
+     */
+    protected AbstractPanelElement() {
+        this.visibleWhen = null;
+        this.disabledWhen = null;
+        this.tooltip = null;
+        this.opaque = true;
+        this.declId = null;
+    }
+
+    // ── Position ───────────────────────────────────────────────────────
 
     @Override public int getChildX() { return childX; }
     @Override public int getChildY() { return childY; }
 
     /**
-     * The authored/explicitly-set baseline Y the panel's {@code reflowForWrap}
-     * stacks from. Captured lazily from {@link #childY} on first read (so a
-     * constructor-assigned position is honored) and updated by {@link #at} /
-     * {@link #setChildPosition}. Package-private — only {@code Panel}'s reflow
-     * reads it. NOT the live position (that's {@link #getChildY()}).
+     * Moves this element (the container protocol): a {@link Flow} places its
+     * children with it every layout pass, and {@code Row}/{@code Column} place a
+     * built element with it. Render and input read the position every frame, so
+     * a move takes effect on the next frame. Client-side presentation only; the
+     * element's identity is unchanged.
      */
+    public void setChildPosition(int x, int y) {
+        this.childX = x;
+        this.childY = y;
+        this.baselineY = y;
+        this.baselineCaptured = true;
+    }
+
+    /** The baseline Y the panel's reflow stacks from. Package-private: {@code Panel}'s reflow reads it. */
     int reflowBaselineY() {
         if (!baselineCaptured) {
             baselineY = childY;
@@ -200,216 +162,177 @@ public abstract class AbstractPanelElement<SELF extends AbstractPanelElement<SEL
         return baselineY;
     }
 
-    /**
-     * Sets the LIVE render Y to {@code y} = baseline + wrap-push. Called only by
-     * {@code Panel.reflowForWrap}; leaves the baseline untouched so the push is
-     * reversible (a wider frame that un-wraps restores {@code baseline + 0}).
-     * Package-private.
-     */
+    /** Sets the live Y to baseline plus the reflow push, leaving the baseline alone. Package-private. */
     void applyReflowedY(int y) {
         this.childY = y;
     }
 
-    /**
-     * Moves this element's presentation position at runtime (§0047). Position
-     * is mutable presentation, not frozen structure — the element's identity,
-     * index, and sync participation are untouched. Client-side only.
-     *
-     * <p>The render path ({@code ctx.originX() + getChildX()}) and the input
-     * path ({@link PanelElement#hitTest}, which composes
-     * {@code contentX + getChildX()}) both read position via the getters every
-     * frame, so the new position takes effect on the next frame. Panel
-     * auto-size (which walks {@code getChildX()+getWidth()}) likewise reflects
-     * it. Mirrors {@code MKCSlot.setRenderPosition(x, y)} on the slot side.
-     *
-     * @param x new panel-local X
-     * @param y new panel-local Y
-     */
-    public void setChildPosition(int x, int y) {
-        this.childX = x;
-        this.childY = y;
-        // Re-base the wrap-reflow stack on an explicit move: y becomes the new
-        // baseline, so the panel's reflow stacks from here instead of re-asserting
-        // the old captured baseline (which is what made runtime moves no-op).
-        this.baselineY = y;
-        this.baselineCaptured = true;
+    // ── Size ───────────────────────────────────────────────────────────
+
+    @Override public int getWidth() { return width; }
+    @Override public int getHeight() { return height; }
+
+    /** The authored width: what the element asks for with room to spare. */
+    @Override public int naturalWidth() { return authoredWidth; }
+
+    /** Caps the live width to the room the panel gives, reversibly. */
+    @Override public void layoutWithin(int budget) { this.width = Math.min(authoredWidth, budget); }
+
+    /** Column fill: the column's widest extent becomes this element's authored width. */
+    @Override public void fillWidth(int width) {
+        this.authoredWidth = width;
+        this.width = width;
     }
 
-    /**
-     * Fluent positioning sugar — sets this element's panel-local position and
-     * returns the concrete element for chaining. Equivalent to
-     * {@link #setChildPosition(int, int)} but chainable, so the simple widgets
-     * (Button, Toggle, Checkbox, Radio, Divider, ProgressBar, TextLabel, Icon,
-     * ItemDisplay) can be authored as {@code new Button(...).at(x, y)} instead
-     * of threading x/y through the constructor. Additive — the positional
-     * constructors still work; {@code .at()} just lets a consumer move the
-     * position out of the constructor argument list when that reads cleaner.
-     *
-     * @param childX panel-local X within the panel content area
-     * @param childY panel-local Y within the panel content area
-     * @return this element, typed as the concrete subclass, for chaining
-     */
-    public SELF at(int childX, int childY) {
-        this.childX = childX;
-        this.childY = childY;
-        // Authored position is the wrap-reflow baseline (same as setChildPosition).
-        this.baselineY = childY;
-        this.baselineCaptured = true;
-        return self();
+    // ── The shared vocabulary, read ────────────────────────────────────
+
+    @Override
+    public boolean isVisible() {
+        return visibleWhen == null || visibleWhen.getAsBoolean();
     }
 
-    // ── On the absence of a hoisted .size() (intentional) ──────────────
-    //
-    // .at() is hoisted here because childX/childY live here — one storage
-    // location, one covariant chainable. .size() is deliberately NOT hoisted:
-    // width/height storage differs per widget (Button/Icon hold int width +
-    // int height; ItemDisplay holds a single square `size`; Checkbox / Radio /
-    // TextLabel / InfoBox auto-size from content and have no settable size at
-    // all). A clean base hoist would need a SizedPanelElement<SELF> sub-base
-    // just for the 6 fixed-size widgets — added generic complexity for 6 small
-    // methods, deliberately declined (DISCOVERY N3 + SizedPanelElement-doc).
-    // So each fixed-size widget keeps its own .size(...); the asymmetry with
-    // the hoisted .at() is documented intent, not an oversight.
-    //
-    // Size-shape convention (DISCOVERY B#2). The canonical fixed-size signature
-    // is .size(int width, int height) — Button / Toggle / Divider / ProgressBar
-    // / Icon all use it. Two sanctioned deviations exist and are the ONLY ones:
-    //   - Dropdown / DropdownMulti use .triggerSize(int, int) (the dimension is
-    //     the closed trigger box, not the open popover).
-    //   - ItemDisplay uses .size(int) single-arg (items render square, so
-    //     width == height — a second arg would be redundant).
-
-    // ── Tooltip (hover-triggered) ──────────────────────────────────────
-    //
-    // Hoisted in Phase 18r-2 from per-widget duplication (Button, Toggle,
-    // Checkbox, Slider, Radio, Divider, Dropdown, Icon, ItemDisplay,
-    // ProgressBar, TextLabel, TextField each held an identical
-    // tooltipSupplier field + two chainable setters). The cross-cutting
-    // FIELD + chainable lives here; per-widget render code still owns
-    // the trigger logic (when to actually queue the tooltip) since trigger
-    // varies — Button suppresses on press, Dropdown gates on trigger-vs-
-    // popover, etc. Per-widget render reads via {@link #getTooltipSupplier()}.
-
-    /**
-     * Optional hover-triggered tooltip text supplier. Set via
-     * {@link #tooltip(Component)} or {@link #tooltip(Supplier)} during the
-     * element construction chain. Read by per-widget render code via
-     * {@link #getTooltipSupplier()} to decide whether to queue a tooltip
-     * for the current frame.
-     */
-    private @Nullable Supplier<Component> tooltipSupplier;
-
-    /**
-     * Attaches a hover-triggered tooltip with fixed text. Returns this
-     * element for method chaining. Tooltip renders at the mouse position
-     * using vanilla's tooltip styling.
-     *
-     * <p>Post-construction configuration setter — intended to be called
-     * once during the construction chain. See
-     * {@code Design Docs/Element Design Docs/TOOLTIP_DESIGN_DOC.md}.
-     */
-    public SELF tooltip(Component text) {
-        return tooltip(() -> text);
-    }
-
-    /**
-     * Attaches a hover-triggered tooltip with supplier-driven text. The
-     * supplier is invoked each frame while hovered. Returns this element
-     * for method chaining.
-     */
-    public SELF tooltip(@Nullable Supplier<Component> supplier) {
-        this.tooltipSupplier = supplier;
-        return self();
-    }
-
-    /**
-     * Returns the currently-attached tooltip supplier, or {@code null} if
-     * none. Concrete widgets read this from their {@code render()} to
-     * decide whether to call {@code setTooltipForNextFrame} for the
-     * current frame (gated on their own hover + suppression logic).
-     */
-    protected @Nullable Supplier<Component> getTooltipSupplier() {
-        return tooltipSupplier;
-    }
-
-    /**
-     * The universal {@link PanelElement} tooltip contract — returns the
-     * {@code .tooltip(...)}-set supplier. Same backing field as the
-     * protected {@link #getTooltipSupplier()} (which per-widget render code
-     * already reads); this public override exposes it through the interface
-     * so the shared {@link PanelElement#queueTooltip(RenderContext)} and any
-     * future uniform tooltip tooling can read it for every element type.
-     */
     @Override
     public @Nullable Supplier<Component> tooltipSupplier() {
-        return tooltipSupplier;
-    }
-
-    // ── Per-element opacity (M9; the claim rule of §0065) ──
-    //
-    // M9 panel opacity is an INPUT-layer property. Since 6.0.0 the claim rule is
-    // simple: an opaque panel claims its whole rectangle, with no holes; a
-    // transparent panel claims only its solid elements (shown, opaque,
-    // interactive). This flag is what "opaque" means for an element on a
-    // transparent panel. Default true.
-
-    private boolean elementOpaque = true;
-
-    /**
-     * Sets whether this element is solid (M9). On a transparent panel
-     * ({@code Panel.opaque(false)}) only solid, interactive elements claim input,
-     * so a non-opaque element there lets clicks, hover and tooltips reach what is
-     * behind it. On an opaque panel it makes no difference: the panel claims its
-     * whole rectangle (§0065, no holes). Default {@code true}.
-     *
-     * <p>Input-layer only; rendering is unaffected.
-     *
-     * @return this element, for chaining
-     */
-    public SELF setElementOpaque(boolean opaque) {
-        this.elementOpaque = opaque;
-        return self();
+        return tooltip;
     }
 
     @Override
     public boolean isElementOpaque() {
-        return elementOpaque;
-    }
-
-    // ── Declaration id (THE ONE WINDOW — Address keystone) ─────────────
-    //
-    // Phase 0 of the window unification: a panel element needs a
-    // deterministic, reopen-stable identity so the window can resolve it by
-    // address across a screen reopen. By default that identity is the
-    // element's registration position in its panel's immutable element list
-    // (the localIndex precedent — computed where the address is minted, not
-    // a runtime counter). This OPTIONAL field is the consumer-supplied
-    // override for when list order isn't a reliable handle (the panel-id
-    // precedent). See {@link PanelElement#getElementDeclId()} for the full
-    // identity contract. Purely additive identity data — no behavior.
-
-    /**
-     * Optional explicit declaration id. {@code null} means identity falls back
-     * to registration position in the panel's element list. Set via
-     * {@link #declId(String)}.
-     */
-    private @Nullable String elementDeclId;
-
-    /**
-     * Assigns an explicit, stable declaration id for this element within its
-     * panel, overriding the default position-based identity. Use when the
-     * element list order is not a reliable handle. Returns this element for
-     * chaining.
-     *
-     * @param id a stable id, unique within the owning panel
-     */
-    public SELF declId(String id) {
-        this.elementDeclId = id;
-        return self();
+        return opaque;
     }
 
     @Override
     public @Nullable String getElementDeclId() {
-        return elementDeclId;
+        return declId;
+    }
+
+    /** Whether this element's own {@code disabledWhen} holds (not the cascade). */
+    protected final boolean ownDisabled() {
+        return disabledWhen != null && disabledWhen.getAsBoolean();
+    }
+
+    /** Whether this element should look disabled this frame: its own predicate, or its panel's or container's. */
+    protected final boolean disabled(RenderContext ctx) {
+        return ctx.disabled() || ownDisabled();
+    }
+
+    /** Whether this element should act disabled for this event: its own predicate, or its panel's or container's. */
+    protected final boolean disabled(InputContext in) {
+        return in.disabled() || ownDisabled();
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // Builder
+    // ════════════════════════════════════════════════════════════════════
+
+    /**
+     * The builder every MenuKit element's builder extends: the shared vocabulary,
+     * in one place, with the same names everywhere. A concrete builder adds its
+     * element's own settings, validates in {@code build()}, and makes {@link #size}
+     * public when its element takes one.
+     *
+     * @param <E> the element built
+     * @param <B> the concrete builder, so a chain stays typed end to end
+     */
+    public abstract static class Builder<E extends PanelElement, B extends Builder<E, B>> {
+
+        /** Position within the panel's content area. Default {@code (0, 0)}. */
+        protected int x, y;
+        /** Authored size, or {@code -1} when not given. */
+        protected int width = -1, height = -1;
+        protected @Nullable BooleanSupplier visibleWhen;
+        protected @Nullable BooleanSupplier disabledWhen;
+        protected @Nullable Supplier<Component> tooltip;
+        protected boolean opaque = true;
+        protected @Nullable String declId;
+
+        protected Builder() {}
+
+        /** Returns {@code this} as the concrete builder. */
+        protected abstract B self();
+
+        /** Builds the element. Throws {@link IllegalStateException} when a required setting is missing. */
+        public abstract E build();
+
+        /** Panel-local position: where the element sits in its panel's content area. Default {@code (0, 0)}. */
+        public B at(int x, int y) {
+            this.x = x;
+            this.y = y;
+            return self();
+        }
+
+        /**
+         * The element's size in pixels. Protected here: a builder whose element
+         * takes a size overrides this as public; an element that sizes itself from
+         * its content has none to take.
+         */
+        protected B size(int width, int height) {
+            if (width < 0 || height < 0) {
+                throw new IllegalArgumentException("size must not be negative, got " + width + "x" + height);
+            }
+            this.width = width;
+            this.height = height;
+            return self();
+        }
+
+        /** Shown only while {@code condition} holds, read every frame. A hidden element is fully inert. */
+        public B visibleWhen(BooleanSupplier condition) {
+            this.visibleWhen = Objects.requireNonNull(condition, "condition");
+            return self();
+        }
+
+        /**
+         * Greyed and inert while {@code condition} holds, read every frame. On a
+         * container (a {@link Section}, {@link Tabs}, {@link ScrollContainer},
+         * {@link Flow}) it disables everything inside as well.
+         */
+        public B disabledWhen(BooleanSupplier condition) {
+            this.disabledWhen = Objects.requireNonNull(condition, "condition");
+            return self();
+        }
+
+        /** A hover tooltip with fixed text. */
+        public B tooltip(Component text) {
+            Objects.requireNonNull(text, "text");
+            this.tooltip = () -> text;
+            return self();
+        }
+
+        /** A hover tooltip read every frame while hovered; a {@code null} result shows none. */
+        public B tooltip(Supplier<Component> text) {
+            this.tooltip = Objects.requireNonNull(text, "text");
+            return self();
+        }
+
+        /**
+         * Whether the element is solid on a transparent panel ({@code Panel.opaque(false)}):
+         * there only solid, interactive elements claim input, so a non-opaque one lets
+         * clicks, hover and tooltips through to what is behind it. On an opaque panel
+         * it makes no difference (the panel claims its whole rectangle, §0065).
+         * Default {@code true}. Was {@code setElementOpaque}.
+         */
+        public B opaque(boolean opaque) {
+            this.opaque = opaque;
+            return self();
+        }
+
+        /**
+         * A stable id within the panel, for the window's address of this element,
+         * used instead of its position in the panel's element list. Use it when
+         * the list's order is not a reliable handle (elements included
+         * conditionally).
+         */
+        public B declId(String id) {
+            this.declId = Objects.requireNonNull(id, "id");
+            return self();
+        }
+
+        /** Throws {@link IllegalStateException} naming the builder when {@code ok} is false. */
+        protected final void require(boolean ok, String message) {
+            if (ok) return;
+            Class<?> owner = getClass().getEnclosingClass();
+            String name = owner != null ? owner.getSimpleName() + ".Builder" : getClass().getSimpleName();
+            throw new IllegalStateException(name + ": " + message);
+        }
     }
 }

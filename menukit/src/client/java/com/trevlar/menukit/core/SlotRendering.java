@@ -1,6 +1,7 @@
 package com.trevlar.menukit.core;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * The recessed 18×18 slot frame for registered slots that live outside a
@@ -14,6 +15,10 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * This class deliberately reimplements none of it.
  *
  * <p>Parallel to {@link PanelRendering}, which handles panel-level backgrounds.
+ *
+ * <p>It also holds the one item-decoration primitive a slot decoration needs and
+ * vanilla lacks, {@link #drawItemOutline}: a coloured outline around an item's own
+ * silhouette (Inventory Plus marks locked items with their lock group's colour).
  */
 public final class SlotRendering {
 
@@ -42,5 +47,34 @@ public final class SlotRendering {
             return;
         }
         PanelRendering.renderPanel(g, sx, sy, size, size, PanelStyle.INSET);
+    }
+
+    /**
+     * Draws {@code stack} at {@code (x, y)} with a one-pixel outline of
+     * {@code argb} around the item's own silhouette, the shape of its sprite, not
+     * its 16x16 box. For a slot decoration or any hand-drawn item; an
+     * {@link ItemDisplay} takes it as {@code outline(...)}.
+     *
+     * <p>How: the item is drawn four times, one pixel left, right, up and down,
+     * as a flat silhouette in {@code argb} (MenuKit's silhouette pipeline over the
+     * item's own sprite in vanilla's item atlas), then drawn normally on top. Every
+     * item vanilla draws from its atlas gets it, which is every item at gui size;
+     * an oversized item (one whose model reaches outside its 16x16 box, which
+     * vanilla draws through a separate picture-in-picture path) draws without an
+     * outline. Call it where the item would be drawn: it draws the item itself.
+     *
+     * @param argb the outline's colour, alpha byte included; 0 draws the item alone
+     */
+    public static void drawItemOutline(GuiGraphicsExtractor g, ItemStack stack, int x, int y, int argb) {
+        if (stack.isEmpty()) return;
+        if (argb != 0) {
+            ItemOutline.silhouettes(argb, () -> {
+                g.fakeItem(stack, x - 1, y);
+                g.fakeItem(stack, x + 1, y);
+                g.fakeItem(stack, x, y - 1);
+                g.fakeItem(stack, x, y + 1);
+            });
+        }
+        g.item(stack, x, y);
     }
 }

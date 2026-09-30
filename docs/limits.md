@@ -45,17 +45,21 @@ Behavior that is incomplete in the current release.
 
 | Element | Current behavior |
 |---|---|
-| `TextLabel`, dialog bodies | Single line. Multi-line text is a `Column` of labels. |
-| `Row`, `Column` | No `FILL` cross-alignment. No grid helper. |
+| `Row`, `Column` | Build time only. For a row that follows the panel's width at runtime, use `Flow` with `Flow.spacer()`. No grid helper. |
 | `Dropdown` | Fixed item list. No type-to-filter. |
 | Secondary click and tint | `Button` and `Toggle` only. Other shipped elements take left clicks alone. A custom `PanelElement` handles any button in its own `mouseClicked`. |
 | `ScrollContainer` | Vertical only. No keyboard scrolling. The scrollbar stays visible. |
-| `Slider` | Normalized 0 to 1 value. No steps, no range handle, no vertical orientation. |
+| `Slider` | A 0 to 1 fraction, whole numbers (`ofInts`) or an enum's constants (`ofEnum`). No range handle, no vertical orientation. |
+| `Slider`, `TextField` on a panel injected onto a vanilla screen | The claim routes clicks to the panel's elements before vanilla sees them, and these two take their clicks as vanilla widgets, so a click does not reach them there. On a standalone screen (`MKScreen`, `MKCHandledScreen`) they work. |
+| `Slider`, `TextField` in a hidden panel | Stay registered with the screen and can keep keyboard focus. Blur them (`screen.setFocused(null)`) before hiding their panel. |
+| Keyboard focus on `Button`, `Toggle`, `Checkbox`, `Radio` | Follows the screen's widget order, which is panel order. An element that stops being drawn loses focusability a quarter second later, not the same frame. |
+| Disabled `Tabs` | The strip and the body are inert and the body greys; the strip's labels keep their colours. |
+| Item outline (`SlotRendering.drawItemOutline`, `ItemDisplay.outline`) | Items whose model reaches outside their 16 by 16 box, which vanilla draws through a separate path, draw without the outline. |
 | Auto-sizing elements with supplier content | The build measures width once. Reserve width for the longest expected content. |
 
 ## Runtime constraints
 
-- `build()` freezes a panel's element list. Build a new panel to change it.
+- `build()` freezes a panel's element list, and every element is immutable after its own `build()`. Build a new panel to change the list.
 - A `ScreenPanelAdapter` with no target renders on every container screen. A `SlotGroupPanelAdapter` or `VanillaScreenPanelAdapter` with no `.on(...)` fails at the first screen open with the panel id in the message.
 - Adapters, HUD panels and notifications are declarations: constructing, targeting or unregistering one after the client starts throws. Gate a panel at runtime with `showWhen`.
 - A panel with no placement is rejected by adapters and the HUD. Only `MKScreen` and `MKCScreenHandler` place an unplaced panel for you.

@@ -2,827 +2,337 @@ package com.trevlar.menukit.core;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.FormattedCharSequence;
 
 import org.jspecify.annotations.Nullable;
 
-import java.util.List;
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
- * A two-state on/off control. The general primitive for boolean setting
- * interactions. Clicking flips the state and fires a callback with the new
- * boolean value.
+ * A two-state on/off control: MenuKit's general boolean primitive, a lens onto
+ * the consumer's boolean and only a lens (§0026, §0066).
  *
- * <p>Renders using MenuKit's existing {@link PanelStyle} vocabulary rather
- * than a custom toggle sprite:
+ * <pre>{@code
+ * Toggle.builder()
+ *         .state(config::autoSort, config::setAutoSort)
+ *         .label(Component.literal("Auto sort"))
+ *         .build();
+ * }</pre>
+ *
+ * <h3>State is the consumer's</h3>
+ *
+ * {@code state(get, set)} is required. The toggle reads {@code get} every frame
+ * to draw itself and hands the flipped value to {@code set} on a click; it stores
+ * nothing. If {@code set} does not change what {@code get} returns (a setting
+ * that refuses, an exception swallowed), the next frame shows the unchanged
+ * value: what is displayed is always what the consumer reports.
+ *
+ * <h3>Faces</h3>
  * <ul>
- *   <li><b>Off:</b> {@link PanelStyle#RAISED} background</li>
- *   <li><b>On:</b> {@link PanelStyle#INSET} background (visually "pressed in")</li>
- *   <li><b>Hover (either state):</b> translucent white highlight overlay</li>
- *   <li><b>Disabled:</b> {@link PanelStyle#DARK} background; no hover highlight;
- *   clicks are ignored</li>
+ *   <li><b>Switch</b> (default): raised when off, inset when on, dark when
+ *       disabled, a highlight on hover. Needs a {@code size}.</li>
+ *   <li><b>Labelled</b> ({@code label(...)}): the same bar with its label on it,
+ *       as wide as the label needs; the label wraps and the bar grows when the
+ *       panel is narrower.</li>
+ *   <li><b>Sprite</b> ({@code sprite(...)}): the consumer's sprite as-is when
+ *       off, with its lightness inverted when on, so one texture shows both
+ *       states.</li>
  * </ul>
+ * For the conventional box-and-check-mark, use {@link Checkbox}.
  *
- * <p>For a sprite-backed toggle, see
- * {@link #sprite(int, int, int, int, boolean, Consumer, Identifier)} — the
- * on state renders the same sprite through MenuKit's HSL-lightness
- * inversion pipeline, so consumers don't author two textures.
+ * <h3>Input</h3>
  *
- * <p>Toggle supports an optional {@link #label(Component) label}. A labeled Toggle
- * renders as a <b>bar that shows its label</b> (raised = off, inset = on), auto-sized
- * to fit the text — the label sits on the toggle body, so it is unmistakably the
- * toggle's own, not text beside it. An unlabeled Toggle is the bare switch. For the
- * conventional settings-checkbox visual (square + check-mark) instead, use
- * {@code Checkbox}.
- *
- * <h3>Mutable-state exception to the declared-structure discipline</h3>
- *
- * MenuKit's declared-structure discipline says structure is frozen at
- * construction and visibility is the only mutable dimension. Toggle is one
- * of a narrow set of elements (alongside {@code Checkbox} and {@code Radio})
- * that owns mutable boolean state as a second mutable dimension.
- *
- * <p>The exception is legitimate because state changes do not affect
- * structural shape — flipping a toggle does not add or remove elements,
- * does not alter layout, and does not mutate the panel's element list.
- * The only things that change are the internal boolean and the subsequent
- * render pass. No downstream structural consequence.
- *
- * <p>Scope of the exception: Toggle, Checkbox, Radio. Does not extend to
- * other elements. For state that lives outside the element (config files,
- * block entities, player attachments), use the Phase 9 state-linked variant
- * (see {@code Toggle.linked(...)}) which reads from a consumer-owned
- * {@link BooleanSupplier} instead of owning state internally.
- *
- * @see PanelElement The interface this implements
- * @see Button       Non-toggling interactive primitive
+ * Left click flips it, with vanilla's click sound; other buttons reach
+ * {@code onSecondaryClick} when set, and never flip it. Tab focuses it, Enter or
+ * Space flips it, and the narrator reads its label and on/off state (the shared
+ * {@link ElementWidget}).
  */
-public class Toggle extends AbstractPanelElement<Toggle> {
+public class Toggle extends AbstractPanelElement {
 
-    @Override protected Toggle self() { return this; }
+    private final BooleanSupplier stateGet;
+    private final Consumer<Boolean> stateSet;
+    private final @Nullable Supplier<Component> label;
+    private final @Nullable Consumer<Click> onSecondaryClick;
+    private final @Nullable IntSupplier tint;
+    // The vanilla stand-in for sound, focus and narration (ElementWidget), made at
+    // the first screen attach, not with the element: a Containers menu builds its
+    // panels on the dedicated server too, where no screen class exists.
+    private @Nullable ElementWidget widget;
 
-    /** Horizontal inset for an on-body label inside the toggle bar. */
-    public static final int LABEL_PAD = 6;
-    /** Vertical inset (top == bottom) for a WRAPPED multi-line on-body label —
-     *  the breathing room above the first line and below the last so the
-     *  wrapped text doesn't kiss the bar's RAISED/INSET border. */
-    public static final int LABEL_VPAD = 4;
-    /** On-body label color — readable on the RAISED/INSET bar (matches Button text). */
-    public static final int LABEL_COLOR = 0xFFFFFFFF;
-    /** Muted on-body label color when disabled. */
-    public static final int LABEL_DISABLED_COLOR = 0xFF808080;
-
-    private int width;
-    private int height;
-    private final Consumer<Boolean> onToggle;
-    private final @Nullable BooleanSupplier disabledWhen;
-
-    // Optional label drawn centered on the bar (like a Button's text). Null =
-    // unlabeled (the original switch-only Toggle). Set via the chainable label(...)
-    // — the element auto-widens to fit the label and the whole bounds toggles.
-    private @Nullable Supplier<Component> labelSupplier = null;
-
-    // Mutable state — the one narrow exception to the declared-structure
-    // discipline, documented in the class javadoc above.
-    private boolean state;
-
-    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
-
-    // Render-frame state — hover updated each render, read by mouseClicked.
-    private boolean hovered = false;
-
-    // 3.1.0 — same contract as Button: non-left buttons reach this handler
-    // when set, else fall through to vanilla. A secondary click never flips
-    // the toggle's state; that stays a left-click action.
-    private @Nullable Consumer<Click> onSecondaryClick = null;
-
-    // 3.1.0 — per-frame ARGB tint over the background, under the label. 0 = none.
-    private @Nullable IntSupplier tint = null;
-
-    /** See {@link Button#onSecondaryClick(Consumer)}; identical contract. */
-    public Toggle onSecondaryClick(@Nullable Consumer<Click> handler) {
-        this.onSecondaryClick = handler;
-        return this;
-    }
-
-    /** See {@link Button#tint(IntSupplier)}; identical contract. */
-    public Toggle tint(@Nullable IntSupplier tint) {
-        this.tint = tint;
-        return this;
-    }
-
-    /**
-     * Creates an always-enabled Toggle.
-     *
-     * @param childX       X position within panel content area
-     * @param childY       Y position within panel content area
-     * @param width        width in pixels
-     * @param height       height in pixels
-     * @param initialState starting boolean state
-     * @param onToggle     fired on each state change with the new state
-     */
-    public Toggle(int childX, int childY, int width, int height,
-                  boolean initialState,
-                  Consumer<Boolean> onToggle) {
-        this(childX, childY, width, height, initialState, onToggle, null);
-    }
-
-    /**
-     * Creates a Toggle with a disabled-state predicate. When the predicate
-     * returns true, the toggle renders with a dark background and ignores
-     * clicks.
-     *
-     * @param childX       X position within panel content area
-     * @param childY       Y position within panel content area
-     * @param width        width in pixels
-     * @param height       height in pixels
-     * @param initialState starting boolean state
-     * @param onToggle     fired on each state change with the new state
-     * @param disabledWhen returns true when the toggle should be disabled,
-     *                     or null for always enabled
-     */
-    public Toggle(int childX, int childY, int width, int height,
-                  boolean initialState,
-                  Consumer<Boolean> onToggle,
-                  @Nullable BooleanSupplier disabledWhen) {
-        this.childX = childX;
-        this.childY = childY;
-        this.width = width;
-        this.height = height;
-        this.state = initialState;
-        this.onToggle = onToggle;
-        this.disabledWhen = disabledWhen;
-    }
-
-    // ── M8 Layout Spec ─────────────────────────────────────────────────
-
-    /**
-     * Returns an {@link com.trevlar.menukit.core.layout.ElementSpec}
-     * for use in {@link com.trevlar.menukit.core.layout.Row} or
-     * {@link com.trevlar.menukit.core.layout.Column} layouts.
-     */
-    public static com.trevlar.menukit.core.layout.ElementSpec spec(
-            int width, int height, boolean initialState, Consumer<Boolean> onToggle) {
-        return spec(width, height, initialState, onToggle, null);
-    }
-
-    /** Layout spec with optional disabled-predicate. */
-    public static com.trevlar.menukit.core.layout.ElementSpec spec(
-            int width, int height, boolean initialState,
-            Consumer<Boolean> onToggle, @Nullable BooleanSupplier disabledWhen) {
-        return new com.trevlar.menukit.core.layout.ElementSpec() {
-            @Override public int width()  { return width; }
-            @Override public int height() { return height; }
-            @Override public PanelElement at(int x, int y) {
-                return new Toggle(x, y, width, height, initialState, onToggle, disabledWhen);
-            }
-        };
-    }
-
-    // ── PanelElement Implementation ────────────────────────────────────
-
-    // Panel-assigned width cap (Verification-4). A labeled bar caps to this so
-    // it never bleeds past the panel edge; MAX_VALUE = uncapped. A bare switch
-    // ignores it (intrinsic). Reversible — re-set each layout pass.
+    // The labelled bar's layout: the width cap and its label's wrap width (the one
+    // wrap helper), recomputed every layout pass, so both are reversible. A bare or
+    // sprite switch never touches them.
     private int widthCap = Integer.MAX_VALUE;
+    private int wrapWidth = 0;
 
-    // ── Reactive label wrap ────────────────────────────────────────────
-    // Wrapped line count for the LABELED bar's on-body label at the capped
-    // inner width. 0/1 = the label fits on a single line → legacy intrinsic
-    // height + the existing centered-scroll render path. >1 = the label
-    // wrapped: getHeight() grows the bar to fit the lines and render() draws
-    // the FormattedCharSequence lines centered at successive lineHeight
-    // offsets, exactly mirroring TextLabel's font.split(...) wrap mechanism.
-    //
-    // Mutable + recomputed every layoutWithin pass (like widthCap), so wrap
-    // is fully REVERSIBLE: a later wider budget that fits the label on one
-    // line resets this back to single-line and the bar shrinks to its
-    // authored height. A bare/sprite switch never touches this (its
-    // layoutWithin is a no-op), so it stays intrinsic.
-    private int wrappedLineCount = 1;
+    protected Toggle(Builder b) {
+        super(b);
+        this.stateGet = b.stateGet;
+        this.stateSet = b.stateSet;
+        this.label = b.label;
+        this.onSecondaryClick = b.onSecondaryClick;
+        this.tint = b.tint;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    // ── Size ───────────────────────────────────────────────────────────
+
+    private @Nullable Component currentLabel() {
+        return label == null ? null : label.get();
+    }
+
+    /** The labelled bar's natural width: its label plus padding, at least the authored width. */
+    @Override
+    public int naturalWidth() {
+        Component text = currentLabel();
+        if (text == null) return authoredWidth;
+        return Math.max(authoredWidth, Minecraft.getInstance().font.width(text) + 2 * ElementConstants.LABEL_PAD);
+    }
 
     @Override
     public int getWidth() {
-        if (labelSupplier == null) return width; // bare switch — intrinsic
-        Component label = labelSupplier.get();
-        if (label == null) return width;
-        // Labeled = a bar auto-sized to the text (min the passed switch width),
-        // then capped to the panel's budget (the label scrolls inside if it
-        // can't fit the capped bar).
-        int natural = Math.max(width, Minecraft.getInstance().font.width(label) + 2 * LABEL_PAD);
-        return Math.min(natural, widthCap);
+        return currentLabel() == null ? authoredWidth : Math.min(naturalWidth(), widthCap);
     }
 
     @Override
     public int getHeight() {
-        // Single-line (the common case + every bare/sprite switch): the
-        // authored height, untouched.
-        if (wrappedLineCount <= 1) return height;
-        // Wrapped: grow the bar to fit the stacked lines plus top/bottom
-        // breathing room. Math.max guards the floor — a wrapped label NEVER
-        // shrinks the bar below its authored height, it only grows it (mirrors
-        // TextLabel's grow-only contract).
-        var font = Minecraft.getInstance().font;
-        int wrapped = LABEL_VPAD + wrappedLineCount * font.lineHeight + LABEL_VPAD;
-        return Math.max(height, wrapped);
+        Component text = currentLabel();
+        if (text == null || wrapWidth <= 0) return height;
+        int lines = MKText.lineCount(text, wrapWidth);
+        return Math.max(height, lines * Minecraft.getInstance().font.lineHeight + 2 * ElementConstants.LABEL_VPAD);
     }
 
-    /** Natural (uncapped) bar width — the auto-widen-to-label extent, or the
-     *  switch width when unlabeled. Drives the panel hug-width. */
-    @Override
-    public int naturalWidth() {
-        if (labelSupplier == null) return width;
-        Component label = labelSupplier.get();
-        if (label == null) return width;
-        return Math.max(width, Minecraft.getInstance().font.width(label) + 2 * LABEL_PAD);
-    }
-
-    /** Cap the labeled BAR to the panel's budget (reversible); a bare/sprite
-     *  switch is intrinsic and ignores it, mirroring its fillWidth no-op.
-     *
-     *  <p>Beyond the width cap, this also resolves the label's WRAP: at the
-     *  capped inner width (the bar's budget minus the L+R label inset) it asks
-     *  the vanilla font splitter how many lines the label takes. If the label's
-     *  natural single-line width exceeds that inner area it wraps (line count
-     *  &gt; 1) and {@link #getHeight()} grows the bar to fit; if it fits, the
-     *  count resets to 1 and the bar stays single-line. Recomputed every pass,
-     *  so a later wider budget un-wraps it — fully reversible (mirrors
-     *  TextLabel.layoutWithin). */
+    /** A labelled bar caps to the budget and wraps its label inside; a switch keeps its size. */
     @Override
     public void layoutWithin(int budget) {
-        // Bare/sprite switch — intrinsic, no cap and no wrap. Reset wrap state
-        // so a label that was later cleared can't leave a stale grown height.
-        if (labelSupplier == null) { this.wrappedLineCount = 1; return; }
-
-        this.widthCap = budget;
-
-        Component label = labelSupplier.get();
-        if (label == null) { this.wrappedLineCount = 1; return; }
-
-        var font = Minecraft.getInstance().font;
-        // The bar's resolved width is its natural extent clamped to the budget
-        // (same min() getWidth() applies); the label lives inside that minus
-        // the L+R inset. Wrapping engages only when the label's natural
-        // single-line width exceeds this inner area.
-        int barWidth = Math.min(naturalWidth(), budget);
-        int innerWrapWidth = Math.max(1, barWidth - 2 * LABEL_PAD);
-        // font.split is the same vanilla wrapper chat / tooltips / book pages
-        // use, so the wrapped break points match player expectations.
-        int lines = font.split(label, innerWrapWidth).size();
-        this.wrappedLineCount = Math.max(1, lines);
+        Component text = currentLabel();
+        if (text == null) { wrapWidth = 0; return; }
+        widthCap = budget;
+        wrapWidth = MKText.wrapWidth(text, Math.min(naturalWidth(), budget) - 2 * ElementConstants.LABEL_PAD);
     }
 
-    /**
-     * Extra vertical pixels the WRAPPED bar occupies beyond its authored
-     * height — {@code getHeight() - height} when wrapped, else {@code 0}. The
-     * owning {@link Panel} reflows the elements below this toggle downward by
-     * exactly this amount, so a label that grows from one line to two pushes
-     * (never paints over) what's beneath it. Mirrors TextLabel.extraLayoutHeight.
-     */
     @Override
     public int extraLayoutHeight() {
-        if (wrappedLineCount <= 1) return 0;
-        return Math.max(0, getHeight() - height);
+        return wrapWidth > 0 ? Math.max(0, getHeight() - height) : 0;
     }
 
-    /**
-     * Column-fill (Pass 3): stretch the LABELED bar form to the column's widest
-     * extent. A bare/sprite switch is intrinsically sized — stretching its track
-     * would distort it — so {@code fillWidth} is a no-op when there's no label
-     * (the same intrinsic-width principle Icon/Checkbox/Radio follow).
-     */
+    /** Column fill stretches a labelled bar; a switch or sprite would distort, so it keeps its size. */
     @Override
     public void fillWidth(int width) {
-        if (labelSupplier != null) this.width = width;
+        if (label != null) authoredWidth = width;
     }
 
-    /** Interactive — handles clicks, so it claims (blocks vanilla behind) on a non-opaque panel. */
     @Override public boolean isInteractive() { return true; }
-
-    // ── State ──────────────────────────────────────────────────────────
-
-    /** Returns the current toggle state. */
-    public boolean isOn() { return currentState(); }
-
-    /**
-     * Sets the toggle state programmatically. Fires {@code onToggle} with
-     * the new state if it differs from the current state; no-op otherwise.
-     * This lets chat commands, keybinds, or other non-click paths flip the
-     * toggle while keeping observed callback behavior consistent.
-     */
-    public void setOn(boolean newState) {
-        toggleTo(newState);
-    }
-
-    /** Returns whether the toggle is currently disabled. */
-    public boolean isDisabled() {
-        return disabledWhen != null && disabledWhen.getAsBoolean();
-    }
-
-    /** Returns whether the mouse is currently over this toggle (updated each frame). */
-    public boolean isHovered() { return hovered; }
-
-    // ── State extension points (factored for subclasses) ──────────────
-
-    /**
-     * Returns the Toggle's current boolean state.
-     *
-     * <p><b>Stable extension point for consumer Toggle subclasses.</b>
-     * Override to read state from external storage (supplier, block entity,
-     * config file, etc.). The default implementation returns the
-     * element-owned internal state.
-     *
-     * <p>Base Toggle's render and click handling call {@code currentState()}
-     * exactly once per frame. Subclasses overriding {@code currentState()}
-     * may rely on this: their supplier is invoked once per frame for base
-     * Toggle's rendering purposes. If the supplier returns different values
-     * across rapid successive calls, only the first call per frame affects
-     * the rendered output.
-     */
-    protected boolean currentState() {
-        return state;
-    }
-
-    /**
-     * Commits a state transition. Subclasses define what "commit" means for
-     * their state-ownership model:
-     *
-     * <ul>
-     *   <li>Base Toggle (element-owned state): writes the new state to
-     *       internal storage and fires the {@code onToggle} callback with
-     *       the new state.</li>
-     *   <li>{@link #linked(int, int, int, int, java.util.function.BooleanSupplier, java.util.function.Consumer) Toggle.linked}
-     *       (consumer-owned state): fires the consumer's callback with the new
-     *       state; consumer is responsible for updating their own state. No
-     *       internal storage commit happens.</li>
-     * </ul>
-     *
-     * <p>Called from the {@code toggleTo} orchestration helper after the
-     * short-circuit no-op check passes. Implementations should be atomic —
-     * the state transition and the callback notification are conceptually
-     * a single event.
-     *
-     * <p><b>Stable extension point.</b> Signature and semantic contract
-     * maintained across MenuKit versions.
-     */
-    protected void applyState(boolean newState) {
-        this.state = newState;
-        onToggle.accept(newState);
-    }
-
-    /**
-     * Orchestration: short-circuit on same-state, then applyState commits
-     * and fires the callback atomically. Used by mouseClicked and setOn.
-     */
-    private void toggleTo(boolean newState) {
-        if (currentState() == newState) return;
-        applyState(newState);
-    }
-
-    // ── Chainable configuration ────────────────────────────────────────
-    //
-    // showWhen + tooltip + at return Toggle for free via the SELF self-type.
-
-    /**
-     * Fluent resize sugar — sets the toggle's base pixel dimensions and
-     * returns this toggle for chaining. For a labeled toggle the effective
-     * width auto-widens to fit the label (see {@link #getWidth()}); this sets
-     * the unlabeled/minimum width. Additive to the positional constructors.
-     */
-    public Toggle size(int width, int height) {
-        this.width = width;
-        this.height = height;
-        return this;
-    }
-
-    /**
-     * Sets an on-body label: the Toggle becomes a bar that shows this label (raised
-     * = off, inset = on), auto-sized to fit it, the whole bar hovering + toggling as
-     * one — the label is the toggle's own, not text beside it. Pass {@code null} to
-     * clear (reverting to the bare switch).
-     */
-    public Toggle label(@Nullable Component label) {
-        this.labelSupplier = label == null ? null : () -> label;
-        return this;
-    }
-
-    /** Supplier-driven label (re-evaluated each frame for dynamic text). */
-    public Toggle label(@Nullable Supplier<Component> label) {
-        this.labelSupplier = label;
-        return this;
-    }
 
     // ── Rendering ──────────────────────────────────────────────────────
 
-    /**
-     * Orchestrates the render pass: hover-state update, background paint
-     * (via the extension hook), tooltip dispatch. Final by design — the
-     * extension surface for consumer subclasses is
-     * {@link #renderBackground(RenderContext, int, int, boolean, boolean, boolean)},
-     * not this orchestration method.
-     */
     @Override
     public final void render(RenderContext ctx) {
         int sx = ctx.originX() + childX;
         int sy = ctx.originY() + childY;
+        boolean disabled = disabled(ctx);
+        // Read the lens once per frame, so the frame is consistent with itself.
+        boolean on = stateGet.getAsBoolean();
+        boolean hovered = isHovered(ctx);
+        Component text = currentLabel();
+        if (widget != null) widget.track(sx, sy, getWidth(), getHeight(), hovered, !disabled, CommonComponents.optionNameValue(
+                narrationName(text), CommonComponents.optionStatus(on)));
 
-        // Update hover state — false on HUDs (no input dispatch).
-        hovered = isHovered(ctx);
-
-        // Read current state exactly once per frame so the render pass is
-        // internally consistent even when currentState() is backed by a
-        // consumer-supplied BooleanSupplier (e.g., Toggle.linked).
-        boolean disabled = isDisabled();
-        boolean on = currentState();
-
-        renderBackground(ctx, sx, sy, on, disabled, hovered);
-        // Consumer tint (3.1.0) — over the background, under the label, inside
-        // the border. Here rather than in the hook so subclass overrides keep it.
+        renderBackground(ctx, sx, sy, on, disabled, hovered || (widget != null && widget.focused()));
         if (tint != null) {
             int argb = tint.getAsInt();
-            if (argb != 0) {
-                ctx.graphics().fill(sx + 1, sy + 1, sx + getWidth() - 1, sy + getHeight() - 1, argb);
+            if (argb != 0) ctx.graphics().fill(sx + 1, sy + 1, sx + getWidth() - 1, sy + getHeight() - 1, argb);
+        }
+        if (text != null) {
+            int color = disabled ? ElementConstants.TEXT_DISABLED : ElementConstants.TEXT_LIGHT;
+            if (wrapWidth > 0) {
+                int lines = MKText.lineCount(text, wrapWidth);
+                MKText.drawWrapped(ctx.graphics(), text, wrapWidth, sx,
+                        MKText.centeredBlockY(sy, sy + getHeight(), lines), getWidth(), color, true);
+            } else {
+                MKText.renderCentered(ctx.graphics(), text, sx, sy, getWidth(), height, color, true);
             }
         }
+        if (hovered) queueTooltip(ctx);
+    }
 
-        // On-body label: a labeled Toggle is a bar showing its label, so the label is
-        // unmistakably the toggle's own (not text beside it). Drawn exactly like
-        // Button.renderContent — centered, shadowed, scroll-on-overflow, same text
-        // colors — so a labeled toggle is visually a button (raised) whose on-state
-        // simply stays depressed (inset). getWidth() already covers it for hover +
-        // hit-testing.
-        if (labelSupplier != null) {
-            Component label = labelSupplier.get();
-            if (label != null) {
-                int textColor = disabled ? LABEL_DISABLED_COLOR : LABEL_COLOR;
-                if (wrappedLineCount > 1) {
-                    // Wrapped: the single-line centered-scroll path can't show a
-                    // label too long for the bar, so split it into the SAME
-                    // FormattedCharSequence lines vanilla uses (font.split at the
-                    // capped inner width) and draw each centered, stacked at
-                    // successive lineHeight offsets. The block is vertically
-                    // centered in the (grown) bar so it sits evenly between the
-                    // top/bottom borders; each line is horizontally centered like
-                    // the single-line path. The on-state "depressed" INSET body
-                    // is painted by renderBackground (which reads getHeight()),
-                    // so it grows with the bar automatically — unchanged here.
-                    var font = Minecraft.getInstance().font;
-                    int barW = getWidth();
-                    int innerWrapWidth = Math.max(1, barW - 2 * LABEL_PAD);
-                    List<FormattedCharSequence> lines = font.split(label, innerWrapWidth);
-                    int lineY = MKText.centeredBlockY(sy, sy + getHeight(), lines.size());
-                    for (FormattedCharSequence line : lines) {
-                        int lineW = font.width(line);
-                        int lineX = sx + (barW - lineW) / 2; // horizontal center
-                        ctx.graphics().text(font, line, lineX, lineY, textColor, true);
-                        lineY += font.lineHeight;
-                    }
-                } else {
-                    // Single-line: unchanged centered-scroll path (drawn exactly
-                    // like Button.renderContent).
-                    MKText.renderCentered(ctx.graphics(), label,
-                            sx, sy, getWidth(), height, textColor, true);
-                }
-            }
-        }
-
-        // Hover-triggered tooltip — deferred to end-of-frame by vanilla.
-        Supplier<Component> tooltipSupplier = getTooltipSupplier();
-        if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
-            Component ttText = tooltipSupplier.get();
-            if (ttText != null) {
-                MKTooltip.queue(ctx.graphics(), ttText,
-                        ctx.mouseX(), ctx.mouseY());
-            }
-        }
+    /** The narrator's name for this toggle: its label, else its tooltip. */
+    private Component narrationName(@Nullable Component text) {
+        if (text != null) return text;
+        Supplier<Component> t = tooltipSupplier();
+        Component tip = t != null ? t.get() : null;
+        return tip != null ? tip : Component.empty();
     }
 
     /**
-     * Paints the toggle's full visual — background and any state-dependent
-     * overlays. Called from {@link #render(RenderContext)} after hover and
-     * on/off state have been resolved for the frame. Default implementation
-     * uses {@link PanelStyle} backgrounds (RAISED off, INSET on, DARK
-     * disabled) plus the translucent white hover highlight.
+     * Paints the toggle for this frame: raised off, inset on, dark disabled, and
+     * the hover highlight. Covers the grown height when a label wrapped.
      *
-     * <p><b>Stable extension point for consumer Toggle subclasses.</b>
-     * The signature {@code (RenderContext, int sx, int sy, boolean on,
-     * boolean disabled, boolean hovered)} and the semantic contract —
-     * {@code sx}/{@code sy} are the absolute screen-space top-left of
-     * the toggle; this hook owns ALL state-dependent painting (subclasses
-     * paint their own hover/disabled overlays) — are maintained across
-     * MenuKit versions. Consumer subclasses may rely on these properties.
+     * <p><b>Stable extension point.</b> {@code sx}/{@code sy} are the toggle's
+     * screen-space top-left; this hook owns all state-dependent painting.
      */
     protected void renderBackground(RenderContext ctx, int sx, int sy,
-                                     boolean on, boolean disabled, boolean hovered) {
-        int w = getWidth();   // labeled = a bar sized to its label; unlabeled = the switch
-        // getHeight() (not the authored `height`) so a WRAPPED labeled bar's
-        // RAISED/INSET body grows to contain its stacked lines — the on-state
-        // "depressed" styling stays, it just gets taller. For every single-line
-        // / bare / sprite variant getHeight() == height, so this is a no-op
-        // there and the non-wrapped visual is byte-for-byte unchanged.
-        int h = getHeight();
-        PanelStyle bg = disabled ? PanelStyle.DARK
-                      : on       ? PanelStyle.INSET
-                                 : PanelStyle.RAISED;
+                                    boolean on, boolean disabled, boolean hovered) {
+        int w = getWidth(), h = getHeight();
+        PanelStyle bg = disabled ? PanelStyle.DARK : on ? PanelStyle.INSET : PanelStyle.RAISED;
         PanelRendering.renderPanel(ctx.graphics(), sx, sy, w, h, bg);
-
-        // Hover highlight — same pattern as Button
         if (!disabled && hovered) {
-            ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1,
-                    0x30FFFFFF);
+            ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1, ElementConstants.HOVER_OVERLAY);
         }
     }
 
-    // ── Click Handling ─────────────────────────────────────────────────
+    // ── Input ──────────────────────────────────────────────────────────
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (isDisabled()) return false;
-        if (!hovered) return false;
+    public boolean mouseClicked(InputContext in, int button) {
+        if (disabled(in)) return false;
         if (button != Click.LEFT) {
-            // Secondary click: handler or fall-through; never toggles.
             if (onSecondaryClick == null) return false;
             onSecondaryClick.accept(Click.of(button));
             return true;
         }
-
-        toggleTo(!currentState());
+        ElementWidget.playClickSound();
+        flip();
         return true;
     }
 
-    // ── State-linked variant ───────────────────────────────────────────
-
-    /**
-     * Creates a Toggle whose state lives in consumer code instead of inside
-     * the element. The consumer provides a {@link BooleanSupplier} that
-     * drives rendering each frame and a {@link Consumer Consumer&lt;Boolean&gt;}
-     * that fires with the new state when the user clicks to toggle.
-     *
-     * <h4>Persistence framing</h4>
-     *
-     * State persistence is a consumer concern. MenuKit does not ship a
-     * persistence abstraction — no {@code PersistentValue<T>}, no
-     * {@code BooleanFlag}, no config-backed state helpers. If you need a
-     * toggle whose state persists, use {@code Toggle.linked} and back the
-     * supplier and callback with wherever your state actually lives: a
-     * block entity, player attachment, config file, static field on a
-     * singleton, or anywhere else. The supplier reads; the callback
-     * signals. The library gives you the visual element and user input
-     * handling; the storage is yours to define.
-     *
-     * <h4>Self-healing behavior</h4>
-     *
-     * If the {@code onToggle} callback fails to update consumer state
-     * (bug, exception, swallowed error), the next frame's render reads
-     * the supplier and shows the unchanged state. The toggle visually
-     * snaps back to its pre-click appearance. State displayed is always
-     * state reported by the supplier — there is no internal state that
-     * could diverge from consumer state.
-     *
-     * <h4>Typical usage</h4>
-     *
-     * <pre>{@code
-     * Toggle.linked(x, y, w, h,
-     *     () -> config.autoSort,
-     *     newState -> config.autoSort = newState);
-     * }</pre>
-     *
-     * @param childX   X position within panel content area
-     * @param childY   Y position within panel content area
-     * @param width    width in pixels
-     * @param height   height in pixels
-     * @param state    supplier invoked each frame to drive rendering
-     * @param onToggle fired on user-initiated state changes, carrying the
-     *                 new state; consumer updates their own state store in
-     *                 response. Unified with the element-owned Toggle's
-     *                 {@code Consumer<Boolean>} callback shape.
-     */
-    public static Toggle linked(int childX, int childY, int width, int height,
-                                BooleanSupplier state,
-                                Consumer<Boolean> onToggle) {
-        return linked(childX, childY, width, height, state, onToggle, null);
+    /** Hands the flipped value to the consumer; stores nothing. */
+    private void flip() {
+        stateSet.accept(!stateGet.getAsBoolean());
     }
 
-    /**
-     * {@link #linked(int, int, int, int, BooleanSupplier, Consumer)}, greyed out
-     * and deaf to clicks while {@code disabledWhen} is true, read every frame.
-     * Chains with {@link #label} like any toggle.
-     */
-    public static Toggle linked(int childX, int childY, int width, int height,
-                                BooleanSupplier state,
-                                Consumer<Boolean> onToggle,
-                                @Nullable BooleanSupplier disabledWhen) {
-        return new LinkedToggle(childX, childY, width, height, state, onToggle, disabledWhen);
+    /** Enter or Space on the focused toggle. */
+    private void press() {
+        if (!ownDisabled()) flip();
     }
 
-    // ── Sprite-backed Toggle variant ───────────────────────────────────
-
-    /**
-     * Creates a Toggle whose visual is a consumer-supplied sprite. The off
-     * state renders the sprite as-is; the on state renders the sprite through
-     * {@link com.trevlar.menukit.core.MKRenderPipelines#GUI_BRIGHTNESS_INVERTED
-     * the HSL-lightness-inversion pipeline} so the same sprite asset
-     * communicates both states without the consumer authoring a second
-     * "toggled" texture. Hue + saturation are preserved through the
-     * inversion; only the per-pixel lightness flips. Hover overlay applies
-     * on top of either state; disabled adds a dark overlay.
-     *
-     * <p>Pairs with the static-state Toggle constructor — state is owned
-     * inside the element. For consumer-owned state, use the
-     * {@link #spriteLinked(int, int, int, int, BooleanSupplier, Consumer, Identifier)
-     * spriteLinked} variant.
-     *
-     * @param childX       X position within panel content area
-     * @param childY       Y position within panel content area
-     * @param width        toggle width in pixels (typically matches sprite width)
-     * @param height       toggle height in pixels (typically matches sprite height)
-     * @param initialState starting boolean state
-     * @param onToggle     fired on each state change with the new state
-     * @param sprite       sprite identifier for both off and on states (on state
-     *                     is rendered through the HSL-inversion pipeline)
-     */
-    public static Toggle sprite(int childX, int childY, int width, int height,
-                                 boolean initialState, Consumer<Boolean> onToggle,
-                                 Identifier sprite) {
-        return new SpriteToggle(childX, childY, width, height,
-                initialState, onToggle, (Supplier<Identifier>) () -> sprite);
+    @Override
+    public void onAttach(net.minecraft.client.gui.screens.Screen screen) {
+        if (widget == null) widget = new ElementWidget(this::press);
+        widget.attach(screen);
     }
 
-    /**
-     * Sprite-driven Toggle whose sprite is computed per-frame from a
-     * {@link Supplier}. Enables state-swap patterns where on/off should use
-     * different sprite assets entirely (rather than the default HSL-inversion
-     * of one sprite). For the inversion-based pattern, prefer
-     * {@link #sprite(int, int, int, int, boolean, Consumer, Identifier)}.
-     */
-    public static Toggle sprite(int childX, int childY, int width, int height,
-                                 boolean initialState, Consumer<Boolean> onToggle,
-                                 Supplier<Identifier> sprite) {
-        return new SpriteToggle(childX, childY, width, height,
-                initialState, onToggle, sprite);
+    @Override
+    public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
+        if (widget != null) widget.detach(screen);
     }
 
-    /**
-     * {@link #linked Linked} + {@link #sprite sprite} combination: consumer-
-     * owned state, sprite-backed visual with HSL-inversion on the on state.
-     * The {@code onToggle} callback carries the new state, matching every
-     * other Toggle factory.
-     */
-    public static Toggle spriteLinked(int childX, int childY, int width, int height,
-                                       BooleanSupplier state, Consumer<Boolean> onToggle,
-                                       Identifier sprite) {
-        return new SpriteLinkedToggle(childX, childY, width, height,
-                state, onToggle, (Supplier<Identifier>) () -> sprite);
+    // ── Builder ────────────────────────────────────────────────────────
+
+    public static class Builder extends AbstractPanelElement.Builder<Toggle, Builder> {
+        private @Nullable BooleanSupplier stateGet;
+        private @Nullable Consumer<Boolean> stateSet;
+        private @Nullable Supplier<Component> label;
+        private @Nullable Consumer<Click> onSecondaryClick;
+        private @Nullable IntSupplier tint;
+        private @Nullable Supplier<Identifier> sprite;
+
+        protected Builder() {
+            this.width = 0;
+            this.height = Button.DEFAULT_HEIGHT;
+        }
+
+        @Override protected Builder self() { return this; }
+
+        /**
+         * Required: the lens. {@code get} is read every frame; {@code set} receives
+         * the new value when the player flips it. The toggle stores nothing.
+         */
+        public Builder state(BooleanSupplier get, Consumer<Boolean> set) {
+            this.stateGet = Objects.requireNonNull(get, "get");
+            this.stateSet = Objects.requireNonNull(set, "set");
+            return this;
+        }
+
+        /**
+         * Size in pixels. A switch or sprite needs one; a labelled toggle grows to
+         * fit its label and treats this width as its minimum. Default height 20.
+         */
+        @Override
+        public Builder size(int width, int height) {
+            return super.size(width, height);
+        }
+
+        /** A label on the bar: the toggle becomes a labelled bar, sized to it. */
+        public Builder label(Component label) {
+            Objects.requireNonNull(label, "label");
+            return label(() -> label);
+        }
+
+        /** A label read every frame ("On" / "Off", say). */
+        public Builder label(Supplier<Component> label) {
+            this.label = Objects.requireNonNull(label, "label");
+            return this;
+        }
+
+        /** A sprite face: the sprite as-is when off, lightness-inverted when on. */
+        public Builder sprite(Identifier sprite) {
+            Objects.requireNonNull(sprite, "sprite");
+            return sprite(() -> sprite);
+        }
+
+        /** A sprite face read every frame (different art per state, say). */
+        public Builder sprite(Supplier<Identifier> sprite) {
+            this.sprite = Objects.requireNonNull(sprite, "sprite");
+            return this;
+        }
+
+        /** Handles every non-left mouse button; those clicks never flip the toggle. See {@link Button.Builder#onSecondaryClick}. */
+        public Builder onSecondaryClick(Consumer<Click> handler) {
+            this.onSecondaryClick = Objects.requireNonNull(handler, "handler");
+            return this;
+        }
+
+        /** An ARGB fill over the face, read every frame; 0 for none. See {@link Button.Builder#tint}. */
+        public Builder tint(IntSupplier tint) {
+            this.tint = Objects.requireNonNull(tint, "tint");
+            return this;
+        }
+
+        @Override
+        public Toggle build() {
+            require(stateGet != null, "state(get, set) is required; a Toggle shows the consumer's value");
+            require(label != null || width > 0, "a toggle without a label needs size(w, h)");
+            return sprite != null ? new SpriteToggle(this, sprite) : new Toggle(this);
+        }
     }
 
-    /**
-     * Supplier-driven-sprite variant of
-     * {@link #spriteLinked(int, int, int, int, BooleanSupplier, Consumer, Identifier)}.
-     * The sprite is computed per frame from the {@link Supplier}, matching the
-     * {@code sprite(...)} factory's Identifier/Supplier overload pair.
-     */
-    public static Toggle spriteLinked(int childX, int childY, int width, int height,
-                                       BooleanSupplier state, Consumer<Boolean> onToggle,
-                                       Supplier<Identifier> sprite) {
-        return new SpriteLinkedToggle(childX, childY, width, height,
-                state, onToggle, sprite);
-    }
+    /** The sprite face: the consumer's sprite, lightness-inverted when on. */
+    static final class SpriteToggle extends Toggle {
+        private final Supplier<Identifier> sprite;
 
-    /**
-     * Sprite-backed Toggle specialization. Overrides
-     * {@link #renderBackground} to paint a consumer-supplied sprite instead
-     * of the default {@link PanelStyle} backgrounds. Off state uses vanilla's
-     * {@link RenderPipelines#GUI_TEXTURED}; on state uses MenuKit's
-     * brightness-inversion pipeline so the same sprite reads as "toggled."
-     * Package-private — consumers reach this via
-     * {@link #sprite(int, int, int, int, boolean, Consumer, Identifier)}.
-     */
-    static class SpriteToggle extends Toggle {
-        /** Hover overlay color — same translucent white as default Toggle. */
-        private static final int HOVER_OVERLAY = 0x30FFFFFF;
-        /** Disabled overlay color — ~50% black darkens the sprite. */
-        private static final int DISABLED_OVERLAY = 0x80000000;
-
-        private final Supplier<Identifier> spriteSupplier;
-
-        SpriteToggle(int childX, int childY, int width, int height,
-                     boolean initialState, Consumer<Boolean> onToggle,
-                     Supplier<Identifier> sprite) {
-            super(childX, childY, width, height, initialState, onToggle);
-            this.spriteSupplier = sprite;
+        SpriteToggle(Builder b, Supplier<Identifier> sprite) {
+            super(b);
+            this.sprite = sprite;
         }
 
         @Override
         protected void renderBackground(RenderContext ctx, int sx, int sy,
-                                         boolean on, boolean disabled, boolean hovered) {
-            Identifier id = spriteSupplier.get();
+                                        boolean on, boolean disabled, boolean hovered) {
+            Identifier id = sprite.get();
             if (id == null) return;
-            int w = getWidth();
-            int h = getHeight();
-
+            int w = getWidth(), h = getHeight();
+            var g = ctx.graphics();
             if (disabled) {
-                // Off-state sprite + dark overlay. Disabled overrides the
-                // toggled-state visual; whatever the consumer expects to
-                // see for a disabled control wins over the on/off look.
-                ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);
-                ctx.graphics().fill(sx, sy, sx + w, sy + h, DISABLED_OVERLAY);
+                g.blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);
+                g.fill(sx, sy, sx + w, sy + h, ElementConstants.DISABLED_OVERLAY);
             } else if (on) {
-                // Toggled — HSL-lightness inversion of the same sprite.
-                // Animation, alpha edges, etc. all pass through unchanged;
-                // only the per-pixel lightness flips.
-                ctx.graphics().blitSprite(
-                        MKRenderPipelines.GUI_BRIGHTNESS_INVERTED, id, sx, sy, w, h);
+                g.blitSprite(MKRenderPipelines.GUI_BRIGHTNESS_INVERTED, id, sx, sy, w, h);
             } else {
-                // Off — sprite as-is.
-                ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);
+                g.blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);
             }
-
-            // Hover overlay on top of either state. Mirrors default Toggle
-            // hover treatment; gives consistent hover feedback regardless of
-            // whether the toggle is on or off.
             if (!disabled && hovered) {
-                ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1,
-                        HOVER_OVERLAY);
+                g.fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1, ElementConstants.HOVER_OVERLAY);
             }
-        }
-    }
-
-    /**
-     * {@link SpriteToggle} + {@link LinkedToggle} composition: sprite visual
-     * with HSL-inversion on the on state, plus consumer-owned state via
-     * {@link BooleanSupplier} + {@link Consumer Consumer&lt;Boolean&gt;}.
-     * Package-private — consumers reach this via
-     * {@link #spriteLinked(int, int, int, int, BooleanSupplier, Consumer, Identifier)}.
-     */
-    static final class SpriteLinkedToggle extends SpriteToggle {
-        private final BooleanSupplier stateSupplier;
-        private final Consumer<Boolean> onToggleConsumer;
-
-        SpriteLinkedToggle(int childX, int childY, int width, int height,
-                           BooleanSupplier state, Consumer<Boolean> onToggle,
-                           Supplier<Identifier> sprite) {
-            // Super's Consumer<Boolean> is a dummy — applyState override
-            // below replaces state-commit behavior, same shape as LinkedToggle.
-            super(childX, childY, width, height, state.getAsBoolean(), b -> {}, sprite);
-            this.stateSupplier = state;
-            this.onToggleConsumer = onToggle;
-        }
-
-        @Override
-        protected boolean currentState() {
-            return stateSupplier.getAsBoolean();
-        }
-
-        @Override
-        protected void applyState(boolean newState) {
-            // Consumer-owned state — fire the new-state callback; consumer
-            // mutates their own state; the supplier returns it next frame.
-            onToggleConsumer.accept(newState);
-        }
-    }
-
-    /**
-     * State-linked Toggle specialization. Overrides {@link #currentState}
-     * to read from a consumer-supplied {@link BooleanSupplier} and
-     * {@link #applyState} to fire a {@link Consumer Consumer&lt;Boolean&gt;}
-     * new-state signal without any internal state commit. Package-private —
-     * consumers access via
-     * {@link #linked(int, int, int, int, BooleanSupplier, Consumer)}.
-     */
-    static final class LinkedToggle extends Toggle {
-        private final BooleanSupplier stateSupplier;
-        private final Consumer<Boolean> onToggleConsumer;
-
-        LinkedToggle(int childX, int childY, int width, int height,
-                     BooleanSupplier state, Consumer<Boolean> onToggle,
-                     @Nullable BooleanSupplier disabledWhen) {
-            // Super's Consumer<Boolean> is a dummy — the applyState override
-            // below fully replaces parent's state-commit behavior, so super's
-            // callback is never fired. Super's `state` field is also dead
-            // storage after construction (currentState() override reads the
-            // supplier instead).
-            super(childX, childY, width, height, state.getAsBoolean(), b -> {}, disabledWhen);
-            this.stateSupplier = state;
-            this.onToggleConsumer = onToggle;
-        }
-
-        @Override
-        protected boolean currentState() {
-            return stateSupplier.getAsBoolean();
-        }
-
-        @Override
-        protected void applyState(boolean newState) {
-            // Consumer-owned state — no internal commit to do.
-            // Fire the new-state callback; consumer mutates their state; the
-            // supplier returns the new value on next frame.
-            onToggleConsumer.accept(newState);
         }
     }
 }

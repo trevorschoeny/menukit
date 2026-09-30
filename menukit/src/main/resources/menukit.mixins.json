@@ -23,6 +23,8 @@
     "MKHasClickedOutsideContainerMixin",
     "MKHasClickedOutsideCreativeMixin",
     "MKHasClickedOutsideMixin",
+    "MKItemOutlineDrawMixin",
+    "MKItemOutlineMarkMixin",
     "MKListHoverSuppressMixin",
     "MKLocalDropMixin",
     "MKModalKeyboardHandlerMixin",

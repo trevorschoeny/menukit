@@ -193,21 +193,18 @@ public final class ConfirmDialog {
             //
             // Cancel is on the left, Confirm on the right (matches vanilla
             // ConfirmScreen's convention).
-            //
-            // Runnables wrap to Consumer<Button> for Button.spec — the
-            // Button instance is unused; we just call the consumer's logic.
             final Runnable cancelRun = onCancel;
             final Runnable confirmRun = onConfirm;
             List<PanelElement> elements = Column.at(PADDING, PADDING)
                     .spacing(SECTION_GAP)
                     .crossAlign(CrossAlign.CENTER)
-                    .add(TextLabel.spec(title))
-                    .add(TextLabel.spec(body))
+                    .add(TextLabel.builder().text(title).build())
+                    .add(TextLabel.builder().text(body).build())
                     .addRow(r -> r.spacing(BUTTON_GAP)
-                            .add(Button.spec(BUTTON_W, BUTTON_H, cancelLabel,
-                                    btn -> cancelRun.run()))
-                            .add(Button.spec(BUTTON_W, BUTTON_H, confirmLabel,
-                                    btn -> confirmRun.run())))
+                            .add(Button.builder().label(cancelLabel).size(BUTTON_W, BUTTON_H)
+                                    .onClick(cancelRun).build())
+                            .add(Button.builder().label(confirmLabel).size(BUTTON_W, BUTTON_H)
+                                    .onClick(confirmRun).build()))
                     .build();
 
             String panelId = (id != null)

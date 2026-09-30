@@ -29,8 +29,8 @@ import java.util.function.Consumer;
  *
  * <pre>{@code
  * List<PanelElement> buttonRow = Row.at(20, 30).spacing(4)
- *     .add(Button.spec(60, 20, Component.literal("OK"), this::onConfirm))
- *     .add(Button.spec(60, 20, Component.literal("Cancel"), this::onCancel))
+ *     .add(Button.builder().label(Component.literal("OK")).size(60, 20).onClick(this::onConfirm).build())
+ *     .add(Button.builder().label(Component.literal("Cancel")).size(60, 20).onClick(this::onCancel).build())
  *     .build();
  *
  * Panel p = Panel.builder("confirm")
@@ -47,9 +47,9 @@ import java.util.function.Consumer;
  *
  * <pre>{@code
  * List<PanelElement> header = Row.at(0, 0).width(220).spacing(6)
- *     .add(Button.spec(60, 16, Component.literal("Back"), this::onBack))
+ *     .add(Button.builder().label(Component.literal("Back")).size(60, 16).onClick(this::onBack).build())
  *     .addSpacer()
- *     .add(Button.spec(60, 16, Component.literal("Reset"), this::onReset))
+ *     .add(Button.builder().label(Component.literal("Reset")).size(60, 16).onClick(this::onReset).build())
  *     .build();
  * }</pre>
  *

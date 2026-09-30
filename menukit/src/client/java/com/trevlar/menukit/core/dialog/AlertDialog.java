@@ -148,11 +148,11 @@ public final class AlertDialog {
             List<PanelElement> elements = Column.at(PADDING, PADDING)
                     .spacing(SECTION_GAP)
                     .crossAlign(CrossAlign.CENTER)
-                    .add(TextLabel.spec(title))
-                    .add(TextLabel.spec(body))
+                    .add(TextLabel.builder().text(title).build())
+                    .add(TextLabel.builder().text(body).build())
                     .addRow(r -> r
-                            .add(Button.spec(BUTTON_W, BUTTON_H, acknowledgeLabel,
-                                    btn -> ackRun.run())))
+                            .add(Button.builder().label(acknowledgeLabel).size(BUTTON_W, BUTTON_H)
+                                    .onClick(ackRun).build()))
                     .build();
 
             String panelId = (id != null)

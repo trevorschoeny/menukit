@@ -187,9 +187,10 @@ public class MKHudPanel {
             // HUD default styling: white, shadow on (1× scale, no backdrop, no
             // wrap are the TextLabel defaults). Folded onto TextLabel — the former
             // HUD-only MKHudText is gone; HUD text is now a TextLabel variant.
-            elements.add(new TextLabel(x, y,
-                    () -> Component.literal(text.get()),
-                    0xFFFFFFFF, true));
+            elements.add(TextLabel.builder().at(x, y)
+                    .text(() -> Component.literal(text.get()))
+                    .color(0xFFFFFFFF).shadow(true)
+                    .build());
             return this;
         }
 
@@ -205,7 +206,7 @@ public class MKHudPanel {
          * overlays default to visible (matching vanilla item rendering).
          */
         public Builder item(int x, int y, Supplier<ItemStack> item) {
-            elements.add(new ItemDisplay(x, y, item));
+            elements.add(ItemDisplay.builder().at(x, y).item(item).build());
             return this;
         }
 
@@ -375,12 +376,10 @@ public class MKHudPanel {
             // away). Configure scale/backdrop/onRender via the fluent chain; wrap
             // width is set directly (it's consumer-declared for the HUD, not
             // Panel-budget-driven).
-            TextLabel label = new TextLabel(x, y, text, color, shadow)
-                    .scale(scale)
-                    .backdrop(backdrop)
-                    .onRender(onRender);
-            if (wrapWidth > 0) label.setWrapWidth(wrapWidth);
-            parent.elements.add(label);
+            TextLabel.Builder label = TextLabel.builder().at(x, y).text(text).color(color).shadow(shadow)
+                    .scale(scale).backdrop(backdrop).wrapWidth(wrapWidth);
+            if (onRender != null) label.onRender(onRender);
+            parent.elements.add(label.build());
             return parent;
         }
     }
@@ -409,7 +408,10 @@ public class MKHudPanel {
         public ItemBuilder hideDurability() { this.showDurability = false; return this; }
 
         public Builder done() {
-            parent.elements.add(new ItemDisplay(x, y, size, item, showCount, showDurability));
+            ItemDisplay.Builder display = ItemDisplay.builder().at(x, y).item(item).size(size, size);
+            if (!showCount) display.hideCount();
+            if (!showDurability) display.hideDurability();
+            parent.elements.add(display.build());
             return parent;
         }
     }
@@ -442,8 +444,10 @@ public class MKHudPanel {
         public BarBuilder label(Supplier<Component> label) { this.label = label; return this; }
 
         public Builder done() {
-            parent.elements.add(new ProgressBar(x, y, barW, barH,
-                    value, direction, fillColor, bgColor, label));
+            ProgressBar.Builder bar = ProgressBar.builder().at(x, y).size(barW, barH)
+                    .value(value).direction(direction).fillColor(fillColor).bgColor(bgColor);
+            if (label != null) bar.label(label);
+            parent.elements.add(bar.build());
             return parent;
         }
     }

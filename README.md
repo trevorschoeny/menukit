@@ -11,7 +11,7 @@ It ships as two artifacts from this repository:
 
 `menukit-containers` depends on `menukit`. A mod that needs no slots depends on `menukit` alone and stays client-only.
 
-Components: buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, tooltips, icons, item displays, progress bars, dividers, and scroll containers. Containers adds slots.
+Components: buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, tooltips, icons, item displays (with a coloured outline), progress bars, dividers, scroll containers, runtime rows (`Flow`), collapsible sections and tabs. Containers adds slots. Every component is built by a builder with the same vocabulary (`at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state`, `onClick`, `style`), and every control that shows a value is a lens onto your own field.
 
 What it does:
 - Places UI in five contexts with one set of components: the HUD, container screens, other vanilla screens, named slot groups, and standalone screens. Each context is one host that places, draws and routes its panels the same way.
@@ -22,6 +22,7 @@ What it does:
 - Publishes every slot group, vanilla or created, under a category any mod can read, with or without a menu open.
 - Names each thing that can be done to a slot as an operation. Vanilla's actions become eleven, one per gesture, plain clicks included, and a mod can add its own. Each has a display name and a description. A slot answers for itself first, then its group, then its category, and a locking mod can veto any of them. Every operation checks `SlotOperations.allows` before it acts, and a click a mod sends counts as the operation it was sent for.
 - Attaches per-slot state to any slot, private per player or shared across viewers, stored on the slot's owner and readable with `/data get`.
+- Gives its controls vanilla's click sound, narration and keyboard focus, and greys a whole panel or group at once with one `disabledWhen`.
 - Handles modal overlays, recipe-book awareness, and cursor stability across screen changes. What a panel covers is inert: an opaque panel takes every point of its rectangle, a see-through one only its buttons and controls, so a slot or widget under a panel neither highlights, clicks nor shows a tooltip.
 
 Its types are vanilla types (a MenuKit slot is a real `Slot`). Requires Fabric.
@@ -99,6 +100,8 @@ Both artifacts build from the workspace root: `./gradlew :menukit:build :menukit
 ### To 6.0.0 (in development)
 
 6.0.0 removes and renames; it is built in phases, and the 6.0.0 migration guide lists every change. The placement change touches most mods: a panel declares where it sits once, with `.position(PanelPosition.region(...).priority(n).offset(dx, dy))`, and the adapters take only `(panel)` or `(panel, padding)`. A HUD panel uses `.region(InsideRegion.X).offset(dx, dy)` where it used `.anchor(MKHudAnchor.X, dx, dy)`. Adapters and HUD panels are declared at init; hide one at runtime with `showWhen`.
+
+The element change touches every mod with UI: elements are built by builders (`Button.builder().label(text).size(w, h).onClick(run).build()`), their positional constructors and `spec(...)` factories are gone, and a control that shows a value takes `state(get, set)` over your field (`Toggle.linked`, `Checkbox.linked` and the stateful constructors are gone). An element's `showWhen` is `visibleWhen` on its builder, `setElementOpaque` is `opaque`, and a custom element's input methods take an `InputContext`.
 
 ### To 5.1.0
 

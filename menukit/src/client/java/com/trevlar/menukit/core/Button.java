@@ -1,848 +1,440 @@
 package com.trevlar.menukit.core;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.FormattedCharSequence;
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
-import java.util.List;
-import java.util.function.BooleanSupplier;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
- * An interactive button within a {@link Panel}. Renders a raised panel
- * background with centered text. Supports hover detection, a click handler,
- * and an optional disabled predicate.
+ * An interactive button within a {@link Panel}: a raised background with a
+ * centred label, an icon, or a consumer sprite as its whole face.
  *
- * <p>This is MenuKit's core button abstraction. The default form renders
- * centered text on a raised panel background. An icon-only variant is
- * available via {@link #icon(int, int, int, Identifier, Consumer)} and its
- * supplier overload.
+ * <pre>{@code
+ * Button.builder()
+ *         .label(Component.literal("Sort"))
+ *         .at(0, 0).size(60, 16)
+ *         .onClick(this::sort)
+ *         .tooltip(Component.literal("Sort this container"))
+ *         .build();
+ * }</pre>
  *
- * <p>Left-click only by default. Right-clicks and middle-clicks fall through
- * to vanilla's slot handling unless a secondary-click handler is attached via
- * {@link #onSecondaryClick(Consumer)}; that handler receives a {@link Click}
- * carrying the button and modifier state (shift+right etc). Custom element
- * implementations can handle any mouse button.
- *
- * <h3>Construction — prefer {@link #spec} / {@code .at(x,y)}</h3>
- *
- * The positional constructors take {@code childX}/{@code childY} as their
- * leading arguments. The fluent path keeps the position out of the argument
- * list and reads cleaner: use {@link #spec(int, int, Component, Consumer)} to
- * drop a button into a {@code Row}/{@code Column} layout (which computes its
- * position), or construct without a position and call
- * {@link AbstractPanelElement#at(int, int) .at(x, y)} +
- * {@link #size(int, int) .size(w, h)}. The positional constructors remain for
- * the cases where threading {@code (x, y)} through the constructor is the
- * clearest spelling; they are not deprecated, just no longer the only path.
- *
- * <p>Rendering styles:
+ * <h3>Three faces, one builder</h3>
  * <ul>
- *   <li><b>Normal:</b> raised panel background, white text with shadow</li>
- *   <li><b>Hovered:</b> raised panel background + translucent highlight, white text</li>
- *   <li><b>Pressed:</b> inset panel background (sunken bevel) while a left-click is held —
- *       a tactile "the player is pushing this button" affordance. Cleared on release</li>
- *   <li><b>Disabled:</b> dark panel background, gray text</li>
+ *   <li><b>Label</b> (default): {@code label(text)}. A width of 0 sizes the
+ *       button to its label. When the panel narrows it below the label, the label
+ *       wraps and the button grows taller.</li>
+ *   <li><b>Icon</b>: {@code icon(sprite)}, a square button with the sprite inset
+ *       2px so the bevel shows; dimmed while disabled. Pair it with a tooltip.</li>
+ *   <li><b>Sprite</b>: {@code sprite(sprite)}, the sprite is the whole button
+ *       (frame included); pressed draws it with its lightness inverted, hovered
+ *       adds a highlight, disabled a dark overlay. A label, if given, sits on
+ *       top.</li>
  * </ul>
+ *
+ * <h3>Input</h3>
+ *
+ * Left click runs {@code onClick} and plays vanilla's click sound. Other buttons
+ * reach {@code onSecondaryClick} when one is set (it gets a {@link Click} with
+ * the modifier keys), else fall through to vanilla. Keyboard: Tab focuses the
+ * button and Enter or Space presses it, through the shared {@link ElementWidget},
+ * which also gives it narration. Disabled (its own {@code disabledWhen}, or its
+ * panel's) it draws greyed and takes nothing.
  *
  * <h3>Extension points for consumer subclasses</h3>
  *
- * Consumer code can customize Button rendering by subclassing and overriding
- * the protected hooks: {@link #renderBackground(RenderContext, int, int)} and
- * {@link #renderContent(RenderContext, int, int)}. Those methods carry a
- * stability contract — their signatures and semantic contracts are maintained
- * across MenuKit versions. See their javadocs for the contract details.
- *
- * <p>The top-level {@link #render(RenderContext)} is {@code final} — it
- * orchestrates hover-state update, background paint, content paint, and
- * tooltip dispatch in that order. The extension surface is the hooks, not
- * the orchestration.
+ * A subclass (Keybindery's chord face is one) builds through
+ * {@link #Button(Builder)} and overrides {@link #renderBackground} and
+ * {@link #renderContent}, which receive this frame's {@link Look}. The
+ * orchestrating {@link #render} is final.
  *
  * @see PanelElement  The interface this implements
- * @see TextLabel     Non-interactive text element
+ * @see Toggle        A button that stays pressed
  */
-public class Button extends AbstractPanelElement<Button> {
+public class Button extends AbstractPanelElement {
 
-    @Override protected Button self() { return this; }
+    /** The look this frame, handed to the render hooks. */
+    public record Look(boolean hovered, boolean pressed, boolean disabled) {}
 
-    // width is the RESOLVED (post-constraint) width — what getWidth reports and
-    // what render paints. Under a panel's layoutWithin pass it shrinks from the
-    // authored intent below. height is the AUTHORED (intent) box height — what
-    // getHeight reports when the label fits on one line. When the panel narrows
-    // the box below the label's natural width the label WRAPS (wrapWidth below),
-    // and getHeight GROWS past this authored value to fit the wrapped lines (it
-    // only ever grows, never shrinks below the authored height).
-    private int width;
-    private int height;
+    /** Height when the builder is given no size: vanilla's button height. */
+    public static final int DEFAULT_HEIGHT = 20;
 
-    // ── Reactive label wrap (mirrors TextLabel's Phase 16g auto-wrap) ──
-    // When wrapWidth > 0 the label renders multi-line — the label text is split
-    // via font.split(text, innerWrapWidth) and each FormattedCharSequence is
-    // drawn centered at successive lineHeight offsets, and getHeight() grows to
-    // lineCount × lineHeight (+ vertical padding) instead of the authored box
-    // height. Set by layoutWithin during the panel's reactive pass ONLY when the
-    // panel narrowed the button below its natural single-line label width; a
-    // later wider budget clears it back to 0 (single-line), so the wrap is fully
-    // REVERSIBLE. Zero (default) = single-line legacy behavior (centered/scroll).
-    //
-    // This is the documented Button contract (PanelElement#layoutWithin): a
-    // Button "shrinks its box to the budget and wraps its label across multiple
-    // lines, growing taller to fit." The historical behavior capped the box and
-    // horizontal-scrolled the label — a contract violation this field fixes.
-    //
-    // NOTE: wrapWidth holds the INNER text budget (box width minus horizontal
-    // label padding), so it is what we pass straight to font.split — the same
-    // value getHeight/render need. layoutWithin derives it from the resolved box.
+    private final Component label;
+    private final Runnable onClick;
+    private final @Nullable Consumer<Click> onSecondaryClick;
+    private final @Nullable IntSupplier tint;
+    private final ControlStyle style;
+    // The vanilla stand-in for sound, focus and narration (ElementWidget), made at
+    // the first screen attach, not with the element: a Containers menu builds its
+    // panels on the dedicated server too, where no screen class exists.
+    private @Nullable ElementWidget widget;
+
+    // The label's wrap width (the one wrap helper, MKText.wrapWidth): 0 = one
+    // line; else the INNER text width the label breaks at. Set by layoutWithin
+    // only when the panel narrowed the button below its label, cleared by a wider
+    // pass, so the wrap is reversible.
     private int wrapWidth = 0;
 
-    // Authored (intent) width, captured lazily the first time the panel queries
-    // naturalWidth/layoutWithin (sentinel = not yet captured). Keeping the intent
-    // separate is what makes the shrink reversible — a later wider budget
-    // restores width to the authored value (the fix for the historical fillWidth
-    // "ratchet"). .size()/fillWidth re-author it explicitly.
-    private int authoredWidth = Integer.MIN_VALUE;
-
-    private final Component text;
-    private final Consumer<Button> onClick;
-    private final @Nullable BooleanSupplier disabledWhen;
-
-    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2). Access
-    // via getTooltipSupplier() in render().
-
-    // Hover state — updated each render frame. Not persisted.
-    // Read by mouseClicked to gate the click on hover.
-    private boolean hovered = false;
-
-    // Press affordance — true while a left-click is held down on this button.
-    // Set in mouseClicked, cleared in mouseReleased. Drives the INSET
-    // background style so the button visually depresses while held, returning
-    // to RAISED on release. Pure cosmetic state; the actual click action
-    // already fired on mouseClicked.
+    // The press affordance: true from a left press on this button until the
+    // release. Interaction state, not a frame cache: it is set by the press and
+    // cleared by the release (and by the poll in render, for a release that went
+    // to another screen after this button navigated away).
     private boolean pressed = false;
 
-    // Phase 18s follow-up — visual style for the button background.
-    // Defaults to MK (existing look). VANILLA uses vanilla Minecraft's
-    // widget/button sprite atlas. Set via .style(ControlStyle); see
-    // {@link ControlStyle} for the design rationale.
-    private ControlStyle controlStyle = ControlStyle.MK;
-
-    // 3.1.0 — optional handler for any non-left button (right, middle,
-    // shift+right ...). Null (default) = those clicks fall through to vanilla,
-    // exactly as before. Set via .onSecondaryClick(...).
-    private @Nullable Consumer<Click> onSecondaryClick = null;
-
-    // 3.1.0 — optional composable tint. Read each frame; the ARGB it returns is
-    // filled over the background (under the label) so a consumer can show a
-    // state the button itself doesn't own (a pinned mode, a warning). 0 = no
-    // tint. Set via .tint(...).
-    private @Nullable IntSupplier tint = null;
-
-    /**
-     * @param childX       X position within panel content area
-     * @param childY       Y position within panel content area
-     * @param width        button width in pixels
-     * @param height       button height in pixels
-     * @param text         button label
-     * @param onClick      fired on left-click when enabled
-     * @param disabledWhen returns true when the button should be disabled (grayed, non-clickable),
-     *                     or null for always enabled
-     */
-    public Button(int childX, int childY, int width, int height,
-                  Component text, Consumer<Button> onClick,
-                  @Nullable BooleanSupplier disabledWhen) {
-        this.childX = childX;
-        this.childY = childY;
-        this.width = width;
-        this.height = height;
-        this.text = text;
-        this.onClick = onClick;
-        this.disabledWhen = disabledWhen;
+    /** Builds from {@code b}. Protected so a consumer subclass can build through a {@link Builder}. */
+    protected Button(Builder b) {
+        super(b);
+        this.label = b.label;
+        this.onClick = b.onClick;
+        this.onSecondaryClick = b.onSecondaryClick;
+        this.tint = b.tint;
+        this.style = b.style;
     }
 
-    /** Convenience: always-enabled button. */
-    public Button(int childX, int childY, int width, int height,
-                  Component text, Consumer<Button> onClick) {
-        this(childX, childY, width, height, text, onClick, null);
+    /** Starts a button. Give it a {@code label}, an {@code icon} or a {@code sprite}, and an {@code onClick}. */
+    public static Builder builder() {
+        return new Builder();
     }
 
-    // ── M8 Layout Spec ─────────────────────────────────────────────────
+    // ── Size ───────────────────────────────────────────────────────────
 
-    /**
-     * Returns an {@link com.trevlar.menukit.core.layout.ElementSpec}
-     * for use in {@link com.trevlar.menukit.core.layout.Row} or
-     * {@link com.trevlar.menukit.core.layout.Column} layouts.
-     * Always-enabled variant.
-     */
-    public static com.trevlar.menukit.core.layout.ElementSpec spec(
-            int width, int height, Component text, Consumer<Button> onClick) {
-        return spec(width, height, text, onClick, null);
+    /** The label's single-line width plus padding: a width-0 button's natural size. */
+    private int labelWidth() {
+        return Minecraft.getInstance().font.width(label) + ElementConstants.LABEL_PAD * 2;
     }
-
-    /**
-     * Layout spec with optional disabled-predicate. See
-     * {@link #Button(int, int, int, int, Component, Consumer, BooleanSupplier)}.
-     */
-    public static com.trevlar.menukit.core.layout.ElementSpec spec(
-            int width, int height, Component text, Consumer<Button> onClick,
-            @Nullable BooleanSupplier disabledWhen) {
-        return new com.trevlar.menukit.core.layout.ElementSpec() {
-            @Override public int width()  { return width; }
-            @Override public int height() { return height; }
-            @Override public PanelElement at(int x, int y) {
-                return new Button(x, y, width, height, text, onClick, disabledWhen);
-            }
-        };
-    }
-
-    // ── PanelElement Implementation ────────────────────────────────────
 
     @Override
     public int getWidth() {
-        // Floor at the label's intrinsic width when no explicit width was given
-        // (width <= 0). Makes a width-0 button (the "let the column FILL size me"
-        // seed the gallery models) report a real natural extent instead of 0 —
-        // so a column of only width-0 buttons can't silently collapse to nothing,
-        // and a width-0 button is visible outside FILL too. Icon/Sprite buttons
-        // always carry an explicit size, so this never narrows them.
-        if (width > 0) return width;
-        return Minecraft.getInstance().font.width(text) + LABEL_PAD * 2;
+        // A width-0 button reports its label's width until the first layout pass.
+        return width > 0 ? width : labelWidth();
     }
 
     @Override
     public int getHeight() {
-        // Single-line (wrap disabled): the authored box height, unchanged.
         if (wrapWidth <= 0) return height;
-        // Wrapped: ask the vanilla font splitter how many lines the label
-        // produces at the resolved inner budget (the same font.split call
-        // vanilla uses for chat / tooltips / book pages, so wrap semantics
-        // match player expectations), then size the box to hold them all plus
-        // the vertical frame padding. Math.max floors at the authored height —
-        // getHeight ONLY ever grows when wrapped, never shrinks the box below
-        // its intrinsic height (a one-line label in a tall authored button
-        // keeps that authored height).
-        Font font = Minecraft.getInstance().font;
-        int lineCount = Math.max(1, font.split(text, wrapWidth).size());
-        int wrappedHeight = lineCount * font.lineHeight + VERTICAL_PAD * 2;
-        return Math.max(height, wrappedHeight);
+        int lines = MKText.lineCount(label, wrapWidth);
+        return Math.max(height, lines * Minecraft.getInstance().font.lineHeight + ElementConstants.LABEL_VPAD * 2);
     }
 
-    /** Horizontal padding around a width-0 button's auto-sized label. */
-    private static final int LABEL_PAD = 6;
-
-    /** Vertical padding above + below the wrapped label block, so multi-line
-     *  text doesn't butt against the button's top/bottom bevel. */
-    private static final int VERTICAL_PAD = 4;
-
-    /** Column-fill (Pass 3): stretch this button to the column's widest extent.
-     *  Re-authors the intent so the panel's reactive pass treats this as the
-     *  natural width to clamp against. */
-    @Override public void fillWidth(int width) {
-        this.authoredWidth = width;
-        this.width = width;
-    }
-
-    // ── Reactive sizing (Verification-4): cap, label scrolls ───────────
-
-    /** Lazily capture the authored width the first time it's queried. */
-    private int authoredW() {
-        if (authoredWidth == Integer.MIN_VALUE) authoredWidth = width;
-        return authoredWidth;
-    }
-
-    /** Natural label width when this button auto-sizes (authored width <= 0). */
-    private int labelNaturalWidth() {
-        return Minecraft.getInstance().font.width(text) + LABEL_PAD * 2;
-    }
-
-    /**
-     * Natural (unconstrained) width: the authored width when one was given,
-     * else the intrinsic label width. Drives the panel's hug-width; stays
-     * constant under constraint so a narrow pass is reversible.
-     */
     @Override
     public int naturalWidth() {
-        int aw = authoredW();
-        return aw > 0 ? aw : labelNaturalWidth();
+        return authoredWidth > 0 ? authoredWidth : labelWidth();
     }
 
-    /**
-     * Resolve to the panel-assigned budget: shrink the box to {@code min(natural,
-     * budget)} so the button never bleeds past the panel, THEN wrap the label
-     * across multiple lines when the narrowed box is too small for the label on
-     * one line. This is the documented contract (PanelElement#layoutWithin): a
-     * Button "shrinks its box to the budget and wraps its label across multiple
-     * lines, growing taller to fit."
-     *
-     * <p>Wrap is engaged ONLY when the box's inner text area is narrower than the
-     * label's natural single-line width — at a roomy budget the wrap clears
-     * ({@code wrapWidth = 0}) so the button reports its authored single-line
-     * height again. A later wider pass therefore un-wraps it, fully REVERSIBLY
-     * (mirrors {@link TextLabel#layoutWithin}).
-     */
+    /** Caps the button to the budget, then wraps its label when the capped box can't hold it on one line. */
     @Override
     public void layoutWithin(int budget) {
-        // Box cap — unchanged: never bleed past the panel.
         this.width = Math.min(naturalWidth(), budget);
-        // Inner text area = the resolved box minus the horizontal label frame.
-        // (Floor at 1 so font.split never gets a non-positive budget on an
-        // extremely narrow box.)
-        int innerBudget = Math.max(1, this.width - LABEL_PAD * 2);
-        // The label's natural width WITHOUT the frame pad — the single-line text
-        // extent we compare the inner budget against.
-        int labelNaturalWidthInner = Minecraft.getInstance().font.width(text);
-        // Engage wrap only when the label can't fit on one line in the inner
-        // area; otherwise clear it (reversible — a wider budget restores
-        // single-line). wrapWidth stores the INNER budget directly so getHeight
-        // and renderContent can pass it straight to font.split.
-        this.wrapWidth = (innerBudget < labelNaturalWidthInner) ? innerBudget : 0;
+        this.wrapWidth = MKText.wrapWidth(label, width - ElementConstants.LABEL_PAD * 2);
     }
 
-    /**
-     * Extra vertical pixels this button occupies BEYOND its authored box height
-     * because its label wrapped under {@link #layoutWithin} — i.e.
-     * {@code getHeight() - authoredHeight} when wrapped, else {@code 0}. The
-     * owning {@link Panel} reflows the elements below this button downward by
-     * exactly this amount, so a button that grows from one line to two pushes —
-     * never paints over — what's beneath it (mirrors
-     * {@link TextLabel#extraLayoutHeight}).
-     */
+    /** The extra height a wrapped label adds, so the panel pushes what is below down. */
     @Override
     public int extraLayoutHeight() {
-        // height is the authored box height (getHeight grows past it when
-        // wrapped); the delta is the reflow push. Zero when not wrapped, since
-        // getHeight() == height there.
         return wrapWidth > 0 ? getHeight() - height : 0;
     }
 
-    /** Interactive — handles clicks, so it claims (blocks vanilla behind) on a non-opaque panel. */
     @Override public boolean isInteractive() { return true; }
 
-    /** Returns the button's display text. */
-    public Component getText() { return text; }
-
-    /** Returns whether the button is currently disabled. */
-    public boolean isDisabled() {
-        return disabledWhen != null && disabledWhen.getAsBoolean();
-    }
-
-    /** Returns whether the mouse is currently over this button (updated each frame). */
-    public boolean isHovered() { return hovered; }
-
-    /** Returns whether a left-click is currently held down on this button. */
-    public boolean isPressed() { return pressed; }
-
-    // ── Tooltip (optional hover-triggered configuration) ───────────────
-
-    // ── Chainable configuration ────────────────────────────────────────
-    //
-    // showWhen + tooltip + at live on AbstractPanelElement and return the
-    // concrete Button type for free via the SELF self-type — no hand-written
-    // covariant overrides needed.
-
-    /**
-     * Fluent resize sugar — sets the button's pixel dimensions and returns
-     * this button for chaining. Additive to the positional constructors;
-     * lets a consumer write {@code new Button(...).size(w, h)} when that
-     * reads cleaner than threading width/height through the constructor.
-     */
-    public Button size(int width, int height) {
-        this.authoredWidth = width;
-        this.width = width;
-        this.height = height;
-        return this;
-    }
-
-    /**
-     * Phase 18s follow-up — selects the button's visual style.
-     * {@link ControlStyle#MK} (default) uses MenuKit's RAISED-panel
-     * look; {@link ControlStyle#VANILLA} uses Minecraft's standard
-     * widget/button sprite atlas (square corners, gray gradient).
-     * Returns {@code this} for chaining.
-     */
-    public Button style(ControlStyle style) {
-        this.controlStyle = (style != null) ? style : ControlStyle.MK;
-        return this;
-    }
-
-    /** Returns the current visual style. */
-    public ControlStyle getStyle() { return controlStyle; }
-
-    /**
-     * Attaches a handler for every non-left mouse button. The handler gets a
-     * {@link Click} and can branch on {@link Click#isRight()},
-     * {@link Click#isMiddle()}, {@link Click#isShiftRight()}. When set, the
-     * button consumes those clicks (they no longer reach vanilla); when null
-     * (the default) they fall through as before. Disabled buttons ignore
-     * secondary clicks just like primary ones.
-     */
-    public Button onSecondaryClick(@Nullable Consumer<Click> handler) {
-        this.onSecondaryClick = handler;
-        return this;
-    }
-
-    /**
-     * Attaches a per-frame tint supplier. The returned ARGB is filled inside the
-     * button's border, over the background and under the label; return 0 for
-     * no tint. Composable with any style/state: e.g.
-     * {@code .tint(() -> pinned ? 0x50FFC000 : 0)} to show a pinned mode.
-     */
-    public Button tint(@Nullable IntSupplier tint) {
-        this.tint = tint;
-        return this;
-    }
+    /** The button's label. */
+    public Component getLabel() { return label; }
 
     // ── Rendering ──────────────────────────────────────────────────────
 
     /**
-     * Orchestrates the render pass: coordinate compute, hover-state update,
-     * background paint, content paint, and tooltip dispatch in that order.
-     * Final by design — the extension surface for consumer subclasses is the
-     * two protected hooks ({@link #renderBackground} and {@link #renderContent}),
-     * not this orchestration method.
+     * Resolves this frame's look (hovered, pressed, disabled), paints background,
+     * tint and content through the hooks, keeps the vanilla widget current, and
+     * queues the tooltip. Final: the extension surface is the two hooks.
      */
     @Override
     public final void render(RenderContext ctx) {
         int sx = ctx.originX() + childX;
         int sy = ctx.originY() + childY;
+        boolean disabled = disabled(ctx);
 
-        // Update hover state from current mouse position. In contexts without
-        // input dispatch (HUDs) isHovered() returns false, so `hovered` stays
-        // false regardless of where the mouse cursor actually is.
-        hovered = isHovered(ctx);
-
-        // Press-affordance ground-truth sync. mouseReleased dispatches
-        // reliably when press and release happen on the same screen, but
-        // some Buttons (e.g., validator-mk's persistent inventory Test
-        // button) live across screen transitions: a click that navigates
-        // to a new screen sees the release dispatched to the new screen,
-        // never to this button instance. Without this sync, `pressed`
-        // would stick true until the next mouseReleased on this button's
-        // screen — which might never come. Polling GLFW's actual mouse
-        // state at render time keeps `pressed` honest regardless of where
-        // the release event was routed.
-        if (pressed && Minecraft.getInstance() != null
-                && Minecraft.getInstance().getWindow() != null) {
-            int btnState = GLFW.glfwGetMouseButton(
-                    Minecraft.getInstance().getWindow().handle(),
-                    GLFW.GLFW_MOUSE_BUTTON_LEFT);
-            if (btnState == GLFW.GLFW_RELEASE) {
-                pressed = false;
-            }
+        // A press whose release went to another screen (the button navigated
+        // away) never reaches this button; the mouse state is the truth.
+        if (pressed && Minecraft.getInstance() != null && Minecraft.getInstance().getWindow() != null
+                && GLFW.glfwGetMouseButton(Minecraft.getInstance().getWindow().handle(),
+                        GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_RELEASE) {
+            pressed = false;
         }
 
-        renderBackground(ctx, sx, sy);
-        // Consumer tint (3.1.0) — over the background, under the label, inside
-        // the 1px border. Lives here (not in renderBackground) so a subclass
-        // that overrides the background hook still gets it for free.
+        boolean hovered = isHovered(ctx);
+        if (widget != null) widget.track(sx, sy, getWidth(), getHeight(), hovered, !disabled, narration());
+        Look look = new Look(hovered || (widget != null && widget.focused()), pressed && !disabled, disabled);
+
+        renderBackground(ctx, sx, sy, look);
+        // The consumer tint: over the background, under the label, inside the
+        // border. Here, not in the hook, so a subclass that repaints the
+        // background keeps it.
         if (tint != null) {
             int argb = tint.getAsInt();
-            if (argb != 0) {
-                ctx.graphics().fill(sx + 1, sy + 1, sx + getWidth() - 1, sy + getHeight() - 1, argb);
-            }
+            if (argb != 0) ctx.graphics().fill(sx + 1, sy + 1, sx + getWidth() - 1, sy + getHeight() - 1, argb);
         }
-        renderContent(ctx, sx, sy);
+        renderContent(ctx, sx, sy, look);
+        if (hovered) queueTooltip(ctx);
+    }
 
-        // Hover-triggered tooltip — setTooltipForNextFrame defers the tooltip
-        // draw to end-of-frame (correct z-ordering above items and other
-        // elements). The 26.2 method name is setTooltipForNextFrame;
-        // earlier versions called this renderTooltip.
-        Supplier<Component> tooltipSupplier = getTooltipSupplier();
-        if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
-            Component ttText = tooltipSupplier.get();
-            if (ttText != null) {
-                MKTooltip.queue(ctx.graphics(), ttText,
-                        ctx.mouseX(), ctx.mouseY());
-            }
-        }
+    /** What the narrator reads: the label, or the tooltip for an icon or sprite with none. */
+    private Component narration() {
+        if (!label.getString().isEmpty()) return label;
+        Supplier<Component> t = tooltipSupplier();
+        Component text = t != null ? t.get() : null;
+        return text != null ? text : Component.empty();
     }
 
     /**
-     * Paints the button's panel background — raised when enabled, dark when
-     * disabled, plus a translucent highlight overlay when hovered. Called
-     * before {@link #renderContent}.
+     * Paints the background: raised, inset while pressed, dark while disabled,
+     * with the hover highlight; or vanilla's button sprite under
+     * {@link ControlStyle#VANILLA}. Covers the grown height when the label wraps.
      *
-     * <p><b>Stable extension point for consumer Button subclasses.</b> The
-     * signature {@code (RenderContext ctx, int sx, int sy)} and the semantic
-     * contract — {@code sx}/{@code sy} are the absolute screen-space top-left
-     * of the button, this hook runs before {@link #renderContent}, this hook
-     * does not mutate Button state — are maintained across MenuKit versions.
-     * Consumer subclasses may rely on these properties.
-     *
-     * <p>Override this hook to paint a custom background while keeping the
-     * default content rendering, or call {@code super.renderBackground(...)}
-     * and layer additional painting on top.
+     * <p><b>Stable extension point.</b> {@code sx}/{@code sy} are the button's
+     * screen-space top-left; runs before {@link #renderContent}; must not mutate
+     * the button.
      */
-    protected void renderBackground(RenderContext ctx, int sx, int sy) {
-        boolean disabled = isDisabled();
-        // The background box covers the GROWN button height (getHeight()), not the
-        // authored `height` — so a wrapped multi-line label gets its frame/edges
-        // around EVERY line, not just line 1 (otherwise the box stays single-line
-        // tall and the wrapped lines spill outside it). Mirrors the same getHeight()
-        // fix on Dropdown's trigger background. Inert when not wrapped (getHeight()
-        // == height for a single-line / pinned-height button).
-        int h = getHeight();
-        if (controlStyle == ControlStyle.VANILLA) {
-            // Vanilla style — sprite atlas + optional pressed overlay.
-            // Base sprite picks per state (default / highlighted /
-            // disabled). When pressed (and not disabled), the
-            // renderVanillaPressedOverlay draws an inverted-bevel +
-            // dark-fill overlay on top — vanilla's own atlas has no
-            // distinct pressed visual, so MK synthesizes one for
-            // consumer-feedback parity with the MK INSET pressed state.
-            ControlStyle.renderVanillaButton(ctx.graphics(),
-                    sx, sy, getWidth(), h,
-                    !disabled,
-                    hovered || pressed);
-            if (pressed && !disabled) {
-                ControlStyle.renderVanillaPressedOverlay(ctx.graphics(),
-                        sx, sy, getWidth(), h);
-            }
+    protected void renderBackground(RenderContext ctx, int sx, int sy, Look look) {
+        int w = getWidth(), h = getHeight();
+        if (style == ControlStyle.VANILLA) {
+            ControlStyle.renderVanillaButton(ctx.graphics(), sx, sy, w, h, !look.disabled(),
+                    look.hovered() || look.pressed());
+            if (look.pressed()) ControlStyle.renderVanillaPressedOverlay(ctx.graphics(), sx, sy, w, h);
             return;
         }
-        // MK style (default) — RAISED panel with state overlays.
-        if (disabled) {
-            PanelRendering.renderPanel(ctx.graphics(), sx, sy, getWidth(), h, PanelStyle.DARK);
-        } else if (pressed) {
-            // Press affordance — INSET sprite (sunken bevel) signals "the
-            // button is currently being pushed down." Skips the hover overlay
-            // since the depressed look is itself the feedback.
-            PanelRendering.renderPanel(ctx.graphics(), sx, sy, getWidth(), h, PanelStyle.INSET);
+        if (look.disabled()) {
+            PanelRendering.renderPanel(ctx.graphics(), sx, sy, w, h, PanelStyle.DARK);
+        } else if (look.pressed()) {
+            PanelRendering.renderPanel(ctx.graphics(), sx, sy, w, h, PanelStyle.INSET);
         } else {
-            PanelRendering.renderPanel(ctx.graphics(), sx, sy, getWidth(), h, PanelStyle.RAISED);
-            if (hovered) {
-                // Translucent highlight overlay (inside the border)
-                ctx.graphics().fill(sx + 1, sy + 1, sx + getWidth() - 1, sy + h - 1,
-                        0x30FFFFFF);
+            PanelRendering.renderPanel(ctx.graphics(), sx, sy, w, h, PanelStyle.RAISED);
+            if (look.hovered()) {
+                ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1, ElementConstants.HOVER_OVERLAY);
             }
         }
     }
 
     /**
-     * Paints the button's content — by default, the centered text label.
-     * Called after {@link #renderBackground}, before tooltip dispatch.
+     * Paints the content: by default the label, centred; wrapped onto several
+     * centred lines when the panel narrowed the button below it, else on one line
+     * that scrolls if it still overflows.
      *
-     * <p><b>Stable extension point for consumer Button subclasses.</b> The
-     * signature {@code (RenderContext ctx, int sx, int sy)} and the semantic
-     * contract — {@code sx}/{@code sy} are the absolute screen-space top-left
-     * of the button, this hook runs after {@link #renderBackground}, this hook
-     * does not mutate Button state — are maintained across MenuKit versions.
-     * Consumer subclasses may rely on these properties.
-     *
-     * <p>Override this hook to paint custom content (icon, multi-line text,
-     * composite visuals) while keeping the default panel-style background.
+     * <p><b>Stable extension point.</b> {@code sx}/{@code sy} are the button's
+     * screen-space top-left; runs after {@link #renderBackground}; must not mutate
+     * the button.
      */
-    protected void renderContent(RenderContext ctx, int sx, int sy) {
-        // 26.2 ARGB requirement: colors must have a non-zero alpha byte or
-        // the underlying draw silently discards the text (ARGB.alpha != 0).
-        int textColor = isDisabled() ? 0xFF808080 : 0xFFFFFFFF;
-
+    protected void renderContent(RenderContext ctx, int sx, int sy, Look look) {
+        int color = look.disabled() ? ElementConstants.TEXT_DISABLED : ElementConstants.TEXT_LIGHT;
         if (wrapWidth > 0) {
-            // Wrapped (reactive): the panel narrowed this button below its
-            // label's single-line width, so the label spans multiple lines.
-            // Split via the same vanilla font.split tooltips / book pages use,
-            // then draw each line CENTERED horizontally, with the whole block
-            // centered vertically in the box.
-            Font font = Minecraft.getInstance().font;
-            List<FormattedCharSequence> lines = font.split(text, wrapWidth);
-            // getHeight() already grew the box to hold these lines; vertically
-            // center the wrapped block within the (grown) box height.
-            int lineY = MKText.centeredBlockY(sy, sy + getHeight(), lines.size());
-            for (FormattedCharSequence line : lines) {
-                // Center each line horizontally: indent by half the leftover
-                // width inside the box (box width minus this line's pixel width).
-                int lineWidth = font.width(line);
-                int lineX = sx + (getWidth() - lineWidth) / 2;
-                ctx.graphics().text(font, line, lineX, lineY, textColor, true);
-                lineY += font.lineHeight;
-            }
+            int lines = MKText.lineCount(label, wrapWidth);
+            MKText.drawWrapped(ctx.graphics(), label, wrapWidth, sx, MKText.centeredBlockY(sy, sy + getHeight(), lines),
+                    getWidth(), color, true);
             return;
         }
-
-        // Single-line (wrap disabled) — UNCHANGED legacy path. Text centered
-        // within button bounds, scroll-on-overflow: MKText.renderCentered draws
-        // centered when the label fits and scrolls it back-and-forth (vanilla's
-        // button-label primitive) on the rare too-narrow box where wrap didn't
-        // engage (e.g. a single unbreakable token wider than the inner budget).
-        MKText.renderCentered(ctx.graphics(), text, sx, sy, getWidth(), height,
-                textColor, true);
+        MKText.renderCentered(ctx.graphics(), label, sx, sy, getWidth(), height, color, true);
     }
 
-    // ── Click Handling ─────────────────────────────────────────────────
+    // ── Input ──────────────────────────────────────────────────────────
 
-    /**
-     * Handles mouse clicks. Left-click (button 0) fires {@code onClick}. Any
-     * other button fires the {@link #onSecondaryClick} handler when one is
-     * attached, else falls through to vanilla handling. Disabled buttons
-     * don't consume clicks either way.
-     */
+    /** Left click presses (sound, then {@code onClick}); another button reaches {@code onSecondaryClick}, if set. */
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (isDisabled()) return false;
-        // The screen hit-tests before dispatching, so `hovered` should always
-        // be true here. Keep the check as defensive symmetry.
-        if (!hovered) return false;
+    public boolean mouseClicked(InputContext in, int button) {
+        if (disabled(in)) return false;
         if (button != Click.LEFT) {
-            // Secondary click: consumed only when a handler asked for it.
             if (onSecondaryClick == null) return false;
             onSecondaryClick.accept(Click.of(button));
             return true;
         }
-
-        // Set press-affordance state BEFORE invoking onClick. Order matters
-        // for click handlers that immediately query button visual state.
+        // The press affordance is set before onClick, so a handler that reads the
+        // button's look sees it pressed.
         pressed = true;
-        onClick.accept(this);
+        ElementWidget.playClickSound();
+        onClick.run();
         return true;
     }
 
-    /**
-     * Clears the press-affordance state on left-button release. Fires
-     * regardless of cursor position (the dispatcher routes release events
-     * un-hit-tested per {@link PanelElement#mouseReleased}), so a
-     * press-then-drag-off still releases the visual depression. Returns
-     * {@code false} — release isn't "consumed" in the usual sense; we just
-     * piggyback on the dispatch to reset cosmetic state.
-     */
+    /** Releases the press affordance, wherever the cursor now is. */
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (button == 0) {
-            pressed = false;
-        }
+    public boolean mouseReleased(InputContext in, int button) {
+        if (button == Click.LEFT) pressed = false;
         return false;
     }
 
-    // ── Icon-only Button variant ───────────────────────────────────────
-
-    /**
-     * Creates a square Button that renders a centered sprite instead of a
-     * text label. Size is a single int (square only).
-     *
-     * <p>The sprite is inset 2px from the button's edges so the panel-style
-     * border (RAISED bevel, INSET sunken edge) remains visible around the
-     * icon. When the button is disabled, the sprite is dimmed to ~40% alpha
-     * as an accessibility signal; hover/pressed states are communicated by
-     * the panel-style background shift.
-     *
-     * <p><b>Accessibility:</b> Icon-only buttons convey meaning through sprite
-     * alone, which can be less discoverable than text labels. Pairing
-     * {@code Button.icon} with a tooltip via {@link #tooltip(Component)} or
-     * {@link #tooltip(Supplier)} is strongly recommended for accessibility
-     * and discoverability. Users hovering over an icon button should learn
-     * its purpose from the tooltip.
-     *
-     * <p>For a sprite that swaps based on consumer state, use the
-     * {@link #icon(int, int, int, Supplier, Consumer) supplier overload}.
-     *
-     * @param childX  X position within panel content area
-     * @param childY  Y position within panel content area
-     * @param size    width and height in pixels (square)
-     * @param sprite  the sprite identifier to render
-     * @param onClick fired on left-click when enabled
-     */
-    public static Button icon(int childX, int childY, int size,
-                              Identifier sprite, Consumer<Button> onClick) {
-        return icon(childX, childY, size, (Supplier<Identifier>) () -> sprite, onClick);
+    /** Enter or Space on the focused button (vanilla played the sound). */
+    private void press() {
+        if (!ownDisabled()) onClick.run();
     }
 
-    /**
-     * Creates a square Button whose sprite is driven by a supplier. The
-     * supplier is invoked each frame, enabling state-swap-by-icon patterns
-     * (e.g., {@code () -> isActive ? iconOn : iconOff}).
-     *
-     * <p>See {@link #icon(int, int, int, Identifier, Consumer)} for the
-     * accessibility recommendation on pairing with a tooltip.
-     *
-     * @param childX  X position within panel content area
-     * @param childY  Y position within panel content area
-     * @param size    width and height in pixels (square)
-     * @param sprite  supplier invoked each frame to produce the sprite identifier
-     * @param onClick fired on left-click when enabled
-     */
-    public static Button icon(int childX, int childY, int size,
-                              Supplier<Identifier> sprite, Consumer<Button> onClick) {
-        return new IconButton(childX, childY, size, sprite, onClick);
+    @Override
+    public void onAttach(net.minecraft.client.gui.screens.Screen screen) {
+        if (widget == null) widget = new ElementWidget(this::press);
+        widget.attach(screen);
     }
 
-    /**
-     * Icon-only Button specialization. Overrides {@link #renderContent} to
-     * paint a centered sprite instead of the default centered text.
-     * Package-private — consumers use the {@link #icon(int, int, int, Identifier, Consumer)}
-     * factory methods, which return {@code Button}.
-     */
+    @Override
+    public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
+        if (widget != null) widget.detach(screen);
+    }
+
+    // ── Builder ────────────────────────────────────────────────────────
+
+    public static class Builder extends AbstractPanelElement.Builder<Button, Builder> {
+        private Component label = Component.empty();
+        private Runnable onClick = () -> {};
+        private @Nullable Consumer<Click> onSecondaryClick;
+        private @Nullable IntSupplier tint;
+        private ControlStyle style = ControlStyle.MK;
+        private @Nullable Supplier<Identifier> icon;
+        private @Nullable Supplier<Identifier> sprite;
+
+        protected Builder() {
+            this.width = 0;
+            this.height = DEFAULT_HEIGHT;
+        }
+
+        @Override protected Builder self() { return this; }
+
+        /** The text on the button. */
+        public Builder label(Component label) {
+            this.label = Objects.requireNonNull(label, "label");
+            return this;
+        }
+
+        /** Size in pixels. A width of 0 sizes the button to its label. Default {@code 0 x 20}. */
+        @Override
+        public Builder size(int width, int height) {
+            return super.size(width, height);
+        }
+
+        /** What a left click (or Enter on the focused button) does. */
+        public Builder onClick(Runnable onClick) {
+            this.onClick = Objects.requireNonNull(onClick, "onClick");
+            return this;
+        }
+
+        /**
+         * Handles every non-left mouse button (right, middle, shift+right, via the
+         * {@link Click}); those clicks are consumed instead of reaching vanilla.
+         */
+        public Builder onSecondaryClick(Consumer<Click> handler) {
+            this.onSecondaryClick = Objects.requireNonNull(handler, "handler");
+            return this;
+        }
+
+        /**
+         * An ARGB fill over the background and under the label, read every frame; 0
+         * for none. Shows a state the button does not own: {@code () -> pinned ? 0x50FFC000 : 0}.
+         */
+        public Builder tint(IntSupplier tint) {
+            this.tint = Objects.requireNonNull(tint, "tint");
+            return this;
+        }
+
+        /** {@link ControlStyle#MK} (default) or {@link ControlStyle#VANILLA}'s button sprite. */
+        public Builder style(ControlStyle style) {
+            this.style = Objects.requireNonNull(style, "style");
+            return this;
+        }
+
+        /** An icon button: {@code sprite} centred, inset 2px. Square: size it {@code (n, n)}. */
+        public Builder icon(Identifier sprite) {
+            Objects.requireNonNull(sprite, "sprite");
+            return icon(() -> sprite);
+        }
+
+        /** An icon button whose sprite is read every frame (a state shown by icon). */
+        public Builder icon(Supplier<Identifier> sprite) {
+            this.icon = Objects.requireNonNull(sprite, "sprite");
+            return this;
+        }
+
+        /** A sprite button: {@code sprite} is the whole button, frame included. */
+        public Builder sprite(Identifier sprite) {
+            Objects.requireNonNull(sprite, "sprite");
+            return sprite(() -> sprite);
+        }
+
+        /** A sprite button whose sprite is read every frame. */
+        public Builder sprite(Supplier<Identifier> sprite) {
+            this.sprite = Objects.requireNonNull(sprite, "sprite");
+            return this;
+        }
+
+        @Override
+        public Button build() {
+            require(icon == null || sprite == null, "icon(...) and sprite(...) are two different faces; pick one");
+            if (icon != null) {
+                require(width > 0 && height > 0, "an icon button needs size(n, n)");
+                return new IconButton(this, icon);
+            }
+            if (sprite != null) {
+                require(width > 0 && height > 0, "a sprite button needs size(w, h), the sprite's own size");
+                return new SpriteButton(this, sprite);
+            }
+            return new Button(this);
+        }
+    }
+
+    // ── Icon face ──────────────────────────────────────────────────────
+
+    /** A square button with a centred sprite. Intrinsic: never stretched or shrunk. */
     static final class IconButton extends Button {
-        /** Sprite inset on all sides so the panel-style border stays visible. */
         private static final int INSET = 2;
-        /** Sprite alpha when the button is disabled (~40% for accessibility dim). */
         private static final float DISABLED_ALPHA = 0.4f;
+        private final Supplier<Identifier> sprite;
 
-        private final Supplier<Identifier> spriteSupplier;
-
-        IconButton(int childX, int childY, int size,
-                   Supplier<Identifier> sprite, Consumer<Button> onClick) {
-            super(childX, childY, size, size, Component.empty(), onClick);
-            this.spriteSupplier = sprite;
+        IconButton(Builder b, Supplier<Identifier> sprite) {
+            super(b);
+            this.sprite = sprite;
         }
 
-        /** Square graphic — opt OUT of column-fill (stretching smears the
-         *  sprite), mirroring the bare/sprite Toggle carve-out. */
-        @Override public void fillWidth(int width) { /* intrinsic square */ }
-
-        /** Intrinsic square — ignore the panel's width budget (no shrink, no
-         *  label-wrap growth); the icon keeps its authored size. */
-        @Override public void layoutWithin(int budget) { /* intrinsic square */ }
+        @Override public void fillWidth(int width) {}
+        @Override public void layoutWithin(int budget) {}
 
         @Override
-        protected void renderContent(RenderContext ctx, int sx, int sy) {
-            Identifier id = spriteSupplier.get();
+        protected void renderContent(RenderContext ctx, int sx, int sy, Look look) {
+            Identifier id = sprite.get();
             if (id == null) return;
-
-            int iconSize = getWidth() - INSET * 2;
-            float alpha = isDisabled() ? DISABLED_ALPHA : 1.0f;
-            ctx.graphics().blitSprite(
-                    RenderPipelines.GUI_TEXTURED, id,
-                    sx + INSET, sy + INSET, iconSize, iconSize,
-                    alpha);
+            int size = getWidth() - INSET * 2;
+            ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx + INSET, sy + INSET, size, size,
+                    look.disabled() ? DISABLED_ALPHA : 1.0f);
         }
     }
 
-    // ── Custom-sprite Button variant ───────────────────────────────────
+    // ── Sprite face ────────────────────────────────────────────────────
 
-    /**
-     * Creates a Button whose <i>entire background</i> is a consumer-supplied
-     * sprite, replacing the default RAISED / INSET / DARK panel styles. The
-     * sprite is responsible for the whole button look — frame, fill, any
-     * decoration. Use this when the default panel-style chrome doesn't fit
-     * (themed buttons, embossed buttons, sprite-art buttons, etc.).
-     *
-     * <p>Per-state rendering:
-     * <ul>
-     *   <li><b>Normal:</b> sprite drawn as-is.</li>
-     *   <li><b>Hovered:</b> sprite + translucent white overlay (same hover
-     *       affordance as the default Button).</li>
-     *   <li><b>Pressed:</b> sprite rendered through a custom GLSL pipeline
-     *       that inverts each pixel's HSL <i>lightness</i> while preserving
-     *       hue and saturation. Blacks → whites, dark blues → light blues,
-     *       light greys → dark greys. Reads as "this button is being pushed
-     *       down" without relying on a separate pressed-state texture.</li>
-     *   <li><b>Disabled:</b> sprite + dark translucent overlay (~50% black).</li>
-     * </ul>
-     *
-     * <p>Optional text label sits on top of the sprite, centered, using the
-     * same font/color rules as a default Button. Pass {@link Component#empty()}
-     * for a sprite-only button.
-     *
-     * @param childX  X position within panel content area
-     * @param childY  Y position within panel content area
-     * @param width   button width in pixels
-     * @param height  button height in pixels
-     * @param sprite  the sprite identifier to use as the button background
-     * @param label   centered text label, or {@link Component#empty()} for sprite-only
-     * @param onClick fired on left-click when enabled
-     */
-    public static Button sprite(int childX, int childY, int width, int height,
-                                Identifier sprite, Component label,
-                                Consumer<Button> onClick) {
-        return new SpriteButton(childX, childY, width, height, label,
-                (Supplier<Identifier>) () -> sprite, onClick);
-    }
-
-    /**
-     * Sprite-only convenience overload — equivalent to
-     * {@link #sprite(int, int, int, int, Identifier, Component, Consumer)}
-     * with {@link Component#empty()} as the label.
-     */
-    public static Button sprite(int childX, int childY, int width, int height,
-                                Identifier sprite, Consumer<Button> onClick) {
-        return sprite(childX, childY, width, height, sprite, Component.empty(), onClick);
-    }
-
-    /**
-     * Supplier-driven sprite overload. The supplier is invoked each frame,
-     * enabling state-swap patterns (e.g.,
-     * {@code () -> isMuted ? muteOn : muteOff}). The brightness-inverted
-     * pressed state still applies — the inversion runs on whatever sprite
-     * the supplier currently returns.
-     */
-    public static Button sprite(int childX, int childY, int width, int height,
-                                Supplier<Identifier> sprite, Component label,
-                                Consumer<Button> onClick) {
-        return new SpriteButton(childX, childY, width, height, label, sprite, onClick);
-    }
-
-    /**
-     * Sprite-only supplier overload. See
-     * {@link #sprite(int, int, int, int, Supplier, Component, Consumer)}.
-     */
-    public static Button sprite(int childX, int childY, int width, int height,
-                                Supplier<Identifier> sprite, Consumer<Button> onClick) {
-        return sprite(childX, childY, width, height, sprite, Component.empty(), onClick);
-    }
-
-    /**
-     * Custom-sprite Button specialization. Overrides {@link #renderBackground}
-     * to paint a consumer-supplied sprite (with state-driven variations)
-     * instead of the default panel-style backgrounds. {@link #renderContent}
-     * is inherited — the centered text label still renders on top.
-     * Package-private — consumers use the {@link #sprite(int, int, int, int, Identifier, Consumer)}
-     * factory methods, which return {@code Button}.
-     */
+    /** A button whose whole face is a consumer sprite. Intrinsic: never stretched or shrunk. */
     static final class SpriteButton extends Button {
-        /** Hover overlay color — same translucent white as the default Button. */
-        private static final int HOVER_OVERLAY = 0x30FFFFFF;
-        /** Disabled overlay color — ~50% black darkens the sprite as the disabled affordance. */
-        private static final int DISABLED_OVERLAY = 0x80000000;
+        private final Supplier<Identifier> sprite;
 
-        private final Supplier<Identifier> spriteSupplier;
-
-        SpriteButton(int childX, int childY, int width, int height,
-                     Component text, Supplier<Identifier> sprite,
-                     Consumer<Button> onClick) {
-            super(childX, childY, width, height, text, onClick);
-            this.spriteSupplier = sprite;
+        SpriteButton(Builder b, Supplier<Identifier> sprite) {
+            super(b);
+            this.sprite = sprite;
         }
 
-        /** A sprite background is authored at a specific size — opt OUT of
-         *  column-fill so it isn't smeared, mirroring Toggle.sprite. A consumer
-         *  wanting a wide sprite button authors it at that width. */
-        @Override public void fillWidth(int width) { /* intrinsic sprite size */ }
-
-        /** Authored-size sprite — ignore the panel's width budget (shrinking
-         *  would smear the art); the consumer sizes it deliberately. */
-        @Override public void layoutWithin(int budget) { /* intrinsic sprite size */ }
+        @Override public void fillWidth(int width) {}
+        @Override public void layoutWithin(int budget) {}
 
         @Override
-        protected void renderBackground(RenderContext ctx, int sx, int sy) {
-            Identifier id = spriteSupplier.get();
+        protected void renderBackground(RenderContext ctx, int sx, int sy, Look look) {
+            Identifier id = sprite.get();
             if (id == null) return;
-            int w = getWidth();
-            int h = getHeight();
-
-            if (isDisabled()) {
-                // Sprite + dark overlay.
-                ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);
-                ctx.graphics().fill(sx, sy, sx + w, sy + h, DISABLED_OVERLAY);
-            } else if (isPressed()) {
-                // Sprite through the HSL-lightness-inversion pipeline.
-                // No additional overlay — the inverted lightness IS the
-                // pressed-state affordance.
-                ctx.graphics().blitSprite(
-                        MKRenderPipelines.GUI_BRIGHTNESS_INVERTED, id, sx, sy, w, h);
+            int w = getWidth(), h = getHeight();
+            var g = ctx.graphics();
+            if (look.disabled()) {
+                g.blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);
+                g.fill(sx, sy, sx + w, sy + h, ElementConstants.DISABLED_OVERLAY);
+            } else if (look.pressed()) {
+                // The lightness-inverted sprite is the pressed affordance.
+                g.blitSprite(MKRenderPipelines.GUI_BRIGHTNESS_INVERTED, id, sx, sy, w, h);
             } else {
-                // Normal sprite.
-                ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);
-                if (isHovered()) {
-                    // Translucent white overlay — same hover affordance as
-                    // the default Button. Inset by 1px (mirrors the default).
-                    ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1,
-                            HOVER_OVERLAY);
-                }
+                g.blitSprite(RenderPipelines.GUI_TEXTURED, id, sx, sy, w, h);
+                if (look.hovered()) g.fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1, ElementConstants.HOVER_OVERLAY);
             }
         }
     }

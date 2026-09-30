@@ -1,168 +1,91 @@
 package com.trevlar.menukit.core;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
+import org.jspecify.annotations.Nullable;
+
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * A sprite rendered at a fixed position and explicit size. No interaction.
- * The "show a picture" primitive of the component library.
+ * A sprite at a fixed size: the "show a picture" primitive. No input.
  *
- * <p>Works in all three rendering contexts (inventory menus, HUDs, standalone
- * screens). Composable as the render portion of future icon-only Button
- * variants and state-indicating Toggle variants.
+ * <pre>{@code
+ * Icon.builder().sprite(MY_SPRITE).size(16, 16).tooltip(Component.literal("Locked")).build();
+ * }</pre>
  *
- * <p>Two forms:
- * <ul>
- *   <li><b>Fixed sprite</b> — pass an {@link Identifier} directly.</li>
- *   <li><b>Supplier-driven sprite</b> — pass a {@code Supplier<Identifier>} to
- *   drive the sprite from consumer state (toggle states, gameplay events,
- *   flip-book animation).</li>
- * </ul>
+ * <p>The sprite may be read every frame ({@code sprite(Supplier)}), for a state
+ * shown by picture or a flip-book animation. Intrinsic: an icon keeps its size
+ * however narrow the panel. Disabled (its own {@code disabledWhen} or its
+ * panel's), it draws at 40% alpha.
  *
- * <p>Both forms share the render path — the fixed constructor wraps the
- * identifier in a one-shot supplier at construction time, so per-frame
- * render logic doesn't branch on which form was used.
- *
- * <h3>Hover-triggered tooltip support</h3>
- *
- * Icon tracks hover state internally to support hover-triggered tooltips
- * (via {@link #tooltip(Component)} / {@link #tooltip(Supplier)}). Hover
- * state is transient (recomputed each frame) and does not affect Icon's
- * structural contract as a render-only element. Icon remains non-interactive
- * — no {@code mouseClicked} override — even with hover tracking added.
- *
- * <h3>Scope</h3>
- * <ul>
- *   <li>No automatic sizing — sprite dimensions are explicit constructor
- *   parameters.</li>
- *   <li>No tint, alpha, or color modulation.</li>
- *   <li>No active/pressed state rendering.</li>
- *   <li>No timing — consumer-driven animation via supplier.</li>
- * </ul>
- *
- * @see PanelElement  The interface this implements
- * @see Button        Interactive button element (Phase 9 adds icon-only variant)
- * @see TextLabel     Text rendering primitive
+ * @see Button  An icon that can be pressed ({@code Button.builder().icon(...)})
  */
-public class Icon extends AbstractPanelElement<Icon> {
+public class Icon extends AbstractPanelElement {
 
-    @Override protected Icon self() { return this; }
+    private static final float DISABLED_ALPHA = 0.4f;
 
-    private int width;
-    private int height;
-    private final Supplier<Identifier> spriteSupplier;
+    private final Supplier<Identifier> sprite;
 
-    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
-
-    // Transient hover state — updated each frame. Does not make Icon
-    // interactive; exists only to gate tooltip rendering.
-    private boolean hovered = false;
-
-    /**
-     * Creates an Icon with a fixed sprite.
-     */
-    public Icon(int childX, int childY, int width, int height, Identifier sprite) {
-        this(childX, childY, width, height, (Supplier<Identifier>) () -> sprite);
+    protected Icon(Builder b) {
+        super(b);
+        this.sprite = b.sprite;
     }
 
-    // ── M8 Layout Spec ─────────────────────────────────────────────────
-
-    /**
-     * Returns an {@link com.trevlar.menukit.core.layout.ElementSpec}
-     * for a fixed-sprite icon.
-     */
-    public static com.trevlar.menukit.core.layout.ElementSpec spec(
-            int width, int height, Identifier sprite) {
-        return new com.trevlar.menukit.core.layout.ElementSpec() {
-            @Override public int width()  { return width; }
-            @Override public int height() { return height; }
-            @Override public PanelElement at(int x, int y) {
-                return new Icon(x, y, width, height, sprite);
-            }
-        };
+    public static Builder builder() {
+        return new Builder();
     }
 
-    /** Layout spec for supplier-driven sprite. */
-    public static com.trevlar.menukit.core.layout.ElementSpec spec(
-            int width, int height, Supplier<Identifier> spriteSupplier) {
-        return new com.trevlar.menukit.core.layout.ElementSpec() {
-            @Override public int width()  { return width; }
-            @Override public int height() { return height; }
-            @Override public PanelElement at(int x, int y) {
-                return new Icon(x, y, width, height, spriteSupplier);
-            }
-        };
+    /** The sprite the icon would draw right now. */
+    public Identifier getCurrentSprite() {
+        return sprite.get();
     }
 
-    /**
-     * Creates an Icon whose sprite is driven by a supplier.
-     */
-    public Icon(int childX, int childY, int width, int height,
-                Supplier<Identifier> spriteSupplier) {
-        this.childX = childX;
-        this.childY = childY;
-        this.width = width;
-        this.height = height;
-        this.spriteSupplier = spriteSupplier;
-    }
-
-    // ── PanelElement Implementation ────────────────────────────────────
-
-    @Override public int getWidth() { return width; }
-    @Override public int getHeight() { return height; }
+    @Override public void layoutWithin(int budget) {}
+    @Override public void fillWidth(int width) {}
 
     @Override
     public void render(RenderContext ctx) {
-        // Update hover state — false on HUDs (no input dispatch).
-        hovered = isHovered(ctx);
-
-        ctx.graphics().blitSprite(
-                RenderPipelines.GUI_TEXTURED,
-                spriteSupplier.get(),
-                ctx.originX() + childX, ctx.originY() + childY,
-                width, height);
-
-        // Hover-triggered tooltip — deferred to end-of-frame.
-        Supplier<Component> tooltipSupplier = getTooltipSupplier();
-        if (hovered && tooltipSupplier != null && ctx.hasMouseInput()) {
-            Component ttText = tooltipSupplier.get();
-            if (ttText != null) {
-                MKTooltip.queue(ctx.graphics(), ttText,
-                        ctx.mouseX(), ctx.mouseY());
-            }
+        Identifier id = sprite.get();
+        if (id != null) {
+            ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id,
+                    ctx.originX() + childX, ctx.originY() + childY, width, height,
+                    disabled(ctx) ? DISABLED_ALPHA : 1.0f);
         }
+        queueTooltip(ctx);
     }
 
-    // mouseClicked inherits from PanelElement. isVisible + setVisible
-    // inherit from AbstractPanelElement (Phase 18r-2).
+    public static class Builder extends AbstractPanelElement.Builder<Icon, Builder> {
+        private @Nullable Supplier<Identifier> sprite;
 
-    // ── Chainable configuration ────────────────────────────────────────
-    //
-    // showWhen + tooltip + at return Icon for free via the SELF self-type.
+        protected Builder() {}
 
-    /**
-     * Fluent resize sugar — sets the icon's pixel dimensions and returns this
-     * icon for chaining. Additive to the positional constructors.
-     */
-    public Icon size(int width, int height) {
-        this.width = width;
-        this.height = height;
-        return this;
-    }
+        @Override protected Builder self() { return this; }
 
-    // ── Element Queries ────────────────────────────────────────────────
+        /** Required: the sprite. */
+        public Builder sprite(Identifier sprite) {
+            Objects.requireNonNull(sprite, "sprite");
+            return sprite(() -> sprite);
+        }
 
-    /** Returns the sprite identifier the Icon would render right now. */
-    public Identifier getCurrentSprite() {
-        return spriteSupplier.get();
-    }
+        /** Required: the sprite, read every frame. */
+        public Builder sprite(Supplier<Identifier> sprite) {
+            this.sprite = Objects.requireNonNull(sprite, "sprite");
+            return this;
+        }
 
-    /** Returns whether the mouse is currently over this Icon (updated each frame). */
-    public boolean isHovered() {
-        return hovered;
+        /** Required: size in pixels. */
+        @Override
+        public Builder size(int width, int height) {
+            return super.size(width, height);
+        }
+
+        @Override
+        public Icon build() {
+            require(sprite != null, "sprite(...) is required");
+            require(width > 0 && height > 0, "size(w, h) is required");
+            return new Icon(this);
+        }
     }
 }

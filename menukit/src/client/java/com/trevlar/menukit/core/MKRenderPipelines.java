@@ -12,9 +12,10 @@ import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.ApiStatus;
 
 /**
- * MenuKit-owned {@link RenderPipeline}s for GUI rendering. Currently holds
- * one pipeline: {@link #GUI_BRIGHTNESS_INVERTED}, used by
- * {@code Button.sprite(...)}'s pressed-state visual.
+ * MenuKit-owned {@link RenderPipeline}s for GUI rendering:
+ * {@link #GUI_BRIGHTNESS_INVERTED}, the pressed look of a sprite button or
+ * sprite toggle, and {@link #GUI_SILHOUETTE}, the coloured item outline
+ * ({@code SlotRendering.drawItemOutline}).
  *
  * <p>Config mirrors vanilla's 26.2 {@code RenderPipelines.GUI_TEXTURED}
  * (MATRICES_PROJECTION + SAMPLER0 bind groups, TRANSLUCENT color target,
@@ -55,6 +56,24 @@ public final class MKRenderPipelines {
             .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
             .withVertexShader(Identifier.fromNamespaceAndPath("menukit", "core/button_brightness_invert"))
             .withFragmentShader(Identifier.fromNamespaceAndPath("menukit", "core/button_brightness_invert"))
+            .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
+            .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
+            .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
+            .withPrimitiveTopology(PrimitiveTopology.QUADS)
+            .build();
+
+    /**
+     * GUI textured pipeline whose fragment shader draws every visible pixel of
+     * the texture in the vertex colour: a flat silhouette of a sprite. Used to
+     * draw an item's outline from its own sprite in vanilla's item atlas
+     * ({@code SlotRendering.drawItemOutline}). Same bind groups, vertex format and
+     * blend as {@link #GUI_BRIGHTNESS_INVERTED}; the vertex stage is shared.
+     */
+    public static final RenderPipeline GUI_SILHOUETTE = RenderPipeline.builder()
+            .withLocation(Identifier.fromNamespaceAndPath("menukit", "pipeline/gui_silhouette"))
+            .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+            .withVertexShader(Identifier.fromNamespaceAndPath("menukit", "core/button_brightness_invert"))
+            .withFragmentShader(Identifier.fromNamespaceAndPath("menukit", "core/item_silhouette"))
             .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
             .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
             .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)

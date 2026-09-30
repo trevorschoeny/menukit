@@ -21,18 +21,35 @@ Panel ids are global. Prefix every id with the mod id: `"mymod:controls"`.
 
 ## Element
 
-A `PanelElement` is one item inside a panel. Its position is relative to the panel's content area. The constructor sets it once. MenuKit ships these elements:
+A `PanelElement` is one item inside a panel. Its position is relative to the panel's content area. MenuKit ships these elements:
 
 | Kind | Types |
 |---|---|
 | Render only | `TextLabel`, `Icon`, `Divider`, `ItemDisplay`, `ProgressBar`, `InfoBox` |
 | Interactive | `Button`, `Toggle`, `Checkbox`, `Radio` (with `RadioGroup`), `Slider`, `TextField`, `Dropdown`, `DropdownMulti` |
-| Composite | `ScrollContainer`, `Tabs`, `ConfirmDialog`, `AlertDialog` |
+| Composite | `ScrollContainer`, `Flow`, `Section`, `Tabs`, `ConfirmDialog`, `AlertDialog` |
 | Slot (Containers) | `SlotElement`, `SlotFlowElement` |
 
-A consumer implements `PanelElement` for a custom element.
+A consumer implements `PanelElement` for a custom element, or extends `AbstractPanelElement`.
 
-Constructor argument order is `(childX, childY, [width, height,] content, [callback])`. Elements that size from their content omit width and height.
+## Builders and one vocabulary
+
+Every element is built by its builder and does not change after `build()`: `Button.builder()...build()`. The same idea has the same name on every builder:
+
+| Method | Meaning |
+|---|---|
+| `at(x, y)` | Position in the panel's content area. |
+| `size(w, h)` | Size, on the elements that take one. The rest size themselves from their content. |
+| `visibleWhen(supplier)` | Shown while it holds, read every frame. |
+| `disabledWhen(supplier)` | Greyed and inert while it holds. On a container it disables everything inside. |
+| `tooltip(text)` | The hover tooltip, fixed or read every frame. |
+| `state(get, set)` | The lens onto the consumer's value (see State). |
+| `onClick(Runnable)` | What a press does. |
+| `style(ControlStyle)` | MenuKit's look or vanilla's. |
+| `opaque(boolean)` | Whether the element is solid on a transparent panel. |
+| `declId(id)` | A stable id for the element's window address. |
+
+An instance keeps only what a container needs: `setChildPosition(x, y)` (a `Flow`, `Row` or `Column` places its children with it) and the layout calls a panel makes every pass. Anything that varies at runtime is read from a supplier.
 
 ## Mouse buttons
 
@@ -42,13 +59,29 @@ A `Click` record carries the button index and the shift, control, and alt state 
 
 With no secondary handler attached, non-left clicks pass through to vanilla. A disabled control consumes neither kind.
 
+## Keyboard, sound and narration
+
+`Button`, `Toggle`, `Checkbox` and `Radio` behave like vanilla widgets: a click plays vanilla's click sound, Tab moves keyboard focus onto them in screen order (a focused control draws its hover look), Enter or Space presses the focused one, and the narrator reads its label and, for the boolean controls, its on or off state. `Slider` and `TextField` are vanilla's own `AbstractSliderButton` and `EditBox`, exposed through `widget()`. An element that is not drawn (its panel hidden, its section closed, its tab not shown) cannot take focus.
+
 ## Tint
 
 `Button` and `Toggle` accept `tint(IntSupplier)`. The supplier runs each frame and returns an ARGB value that fills the control inside its border, over the background, and under the label. Returning 0 draws no tint. The tint shows consumer-owned state, such as a pinned mode, that the control itself does not store.
 
 ## State
 
-A stateful element does not own its state. It reads the value from a `Supplier` each frame and writes through a callback on interaction. Persistence is the consumer's. The exceptions are `Toggle`, `Checkbox`, and `Radio`, which hold a boolean value unless the `linked` factory constructs them.
+A stateful element is a lens and only a lens. `state(get, set)` reads the value from `get` every frame and hands a change to `set`; the element stores nothing, so a value changed elsewhere shows at once and a setter that refuses a change shows the refusal on the next frame. Persistence is the consumer's. `Toggle`, `Checkbox`, `Slider`, `TextField`, `Dropdown` and `DropdownMulti` require a `state`; a `Radio` reads its `RadioGroup.state(get, set)`.
+
+Some state is the element's own view state, not the consumer's: whether a `Section` is open, a `ScrollContainer`'s scroll, a `Tabs` body's scroll, whether a dropdown's popover is open. `Section` and `ScrollContainer` take a `state(get, set)` to hand theirs to the consumer.
+
+`Slider` and `Dropdown` take typed lenses for whole numbers and enums: `Slider.ofInts(min, max)`, `Slider.ofEnum(Mode.class)`, `Dropdown.ofInts(min, max)`, `Dropdown.ofEnum(Mode.class)`. Their `state` and `label` speak `Integer` or the enum. `Slider.builder()` is the 0 to 1 fraction.
+
+## Disabled
+
+`disabledWhen` on an element greys it and makes it inert. `Panel.disabledWhen(supplier)` does the same for every element of the panel, and a container's own `disabledWhen` (a `Section`, `Tabs`, `ScrollContainer` or `Flow`) does it for everything inside. Text greys too: `TextLabel`, `InfoBox` and a section's header draw in the disabled grey. A disabled panel still claims its area, so what is behind it stays inert; its elements take no clicks, wheel or keys. Mouse releases still arrive, so a drag can end.
+
+## Input context
+
+Every input method receives an `InputContext`, as `render` receives a `RenderContext`: the content origin, the mouse, and whether the element's surroundings are disabled. No element caches its origin or its hover state from the last frame. A container hands its children a context moved to their origin through `ChildDispatch`, the one dispatch every host and container uses: an open popover takes a click first, then the first child whose hit test contains the point.
 
 ## Structure does not change after build
 
@@ -64,7 +97,7 @@ Width flows down from the panel to its elements. A label wraps to it and a slide
 
 `Tabs` is a tab strip and the area below it that shows the selected tab's body. One element holds both, so the body's top edge follows the strip's height. Each tab has a string id, a label, a body, and an optional `visibleWhen`. A body is a list of elements positioned from the body's top-left, laid out to the body width the way a panel lays out its own elements, and scrolled when it is taller than the body area.
 
-Selection is consumer state. `selected(supplier, onSelect)` reads the selected id every frame and writes the id the player picks. To select a tab from outside, write your own field. When the selected tab is hidden, the next visible tab is shown, else the previous one, and nothing is written, so the tab takes the selection back when it reappears.
+Selection is consumer state. `state(get, set)` reads the selected id every frame and writes the id the player picks. To select a tab from outside, write your own field. When the selected tab is hidden, the next visible tab is shown, else the previous one, and nothing is written, so the tab takes the selection back when it reappears.
 
 Three modes. `WRAP` breaks the strip into the fewest rows the width allows and splits the tabs so the rows are about equally full. A tab keeps its row and place when another is selected. `SIDE_SCROLL` keeps one row. When it overflows it scrolls from the left, arrows appear at both ends, and a newly selected tab scrolls into view. `SIDEBAR` puts the tabs in a column down the left with the body to its right. It is the top tab turned on its side: the selected tab reaches further left and opens into the page. The column is as wide as its widest label, at most a third of the element. When the tabs are taller than the column, vanilla's thin list scrollbar runs down its left edge. Drag the handle, or click the track to jump there. The wheel moves one tab at a time, and a newly selected tab scrolls into view. The tabs narrow to make room for the bar, so the body does not move. `sidebarHeader(elements...)` puts elements above the column, such as a Back button, in the column's width. The body beside the column still starts at the top. Resource packs that restyle vanilla's tabs change the top strip but not the sidebar, which is drawn in vanilla's tab colors.
 
@@ -78,11 +111,13 @@ Other mods can add tabs to a menu that has a name. The owner names it with `menu
 
 `Section.builder(title)` is a collapsible section: a header row with an arrow, an optional color swatch, the title, and a grey summary read every frame. Clicking the header opens and closes it. Its children are positioned from the top-left of the content area under the header, laid out to the section's width, and get clicks, keys and overlays as they would directly on the panel. A closed section's children are not drawn and get no input except mouse releases.
 
-Position the row after a section as if the section were closed. When it opens, the panel's reflow pushes later rows down by the content's height, and the scroll height follows, the same way a wrapped `Flow` pushes rows. Sections nest. Open state belongs to the element and starts closed; `open(true)` starts it open, and `linked(state, onToggle)` hands it to the consumer.
+Position the row after a section as if the section were closed. When it opens, the panel's reflow pushes later rows down by the content's height, and the scroll height follows, the same way a wrapped `Flow` pushes rows. Sections nest. Open state is the element's view state and starts closed; `open(true)` starts it open, and `state(get, set)` hands it to the consumer. A disabled section greys its header and everything in it.
 
 ## Layout helpers
 
-`Row` and `Column` compute positions at build time and return a `List<PanelElement>`. They do not exist at runtime. An element enters a layout as an `ElementSpec`, produced by the element's static `spec(...)` factory. `.build()` returns positioned elements that go into a panel with `.add(...)`.
+`Row` and `Column` compute positions at build time and return a `List<PanelElement>`. They do not exist at runtime. An element enters a layout built: `.add(Button.builder()...build())`, and the helper moves it into place. A custom element that can only be constructed once its position is known implements `ElementSpec`. `.build()` returns positioned elements that go into a panel with `.add(...)` or `.elements(...)`.
+
+`Flow` is the runtime row: its children flow left to right at the panel's width and wrap to new rows. `Flow.spacer()` takes whatever a row's other children leave of that width, so a label, a spacer and a control is a settings row with the control pinned to the right edge at any window size, and nobody has to know the width. When the row wraps, the control drops under its label.
 
 `Row.width(px)` declares the row's overall pixel budget and `.addSpacer()` adds a flexible gap that expands to fill whatever the other children and spacing leave over, so one thing pins to the row's left edge and another to its right (`Back .... Reset`). Several spacers split the leftover evenly, the odd pixel to the last one. `addSpacer()` without `width(px)` throws, since a spacer with nothing to expand into is a mistake in the layout.
 

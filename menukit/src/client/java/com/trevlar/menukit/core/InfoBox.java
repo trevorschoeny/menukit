@@ -2,195 +2,110 @@ package com.trevlar.menukit.core;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
-import net.minecraft.util.FormattedCharSequence;
 
-import java.util.List;
+import org.jspecify.annotations.Nullable;
+
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * A persistent info box rendered at a declared panel position. Auto-sizes to
- * its text content and draws with a {@link PanelStyle#RAISED} background.
+ * A block of text on a raised background: an explanation or a notice inside a
+ * panel. No input.
  *
- * <p>Distinct from the hover-triggered tooltip set via {@code .tooltip(...)}
- * on interactive elements (Button, Toggle, Checkbox, Radio, Icon). That form
- * uses vanilla's tooltip rendering at the mouse position. This form renders
- * at a declared position persistently. The element was renamed from
- * {@code Tooltip} to {@code InfoBox} to remove the name collision with the
- * {@code .tooltip(...)} hover-tooltip chainable that lives on every element.
+ * <pre>{@code
+ * InfoBox.builder().text(Component.literal("Locks apply to every container.")).build();
+ * }</pre>
  *
- * <p>Works in all three rendering contexts. Render-only element.
- *
- * <h3>Dynamic-width limitation with supplier text</h3>
- *
- * Auto-sizing elements with supplier-based variable content cannot guarantee
- * layout stability — if the supplier returns different-length text each
- * frame, the element's width changes per frame but panel layout is not
- * re-resolved per frame. Consumers needing stable layout should use
- * fixed-content variants or ensure the supplier returns same-width content
- * across evaluations.
- *
- * @see PanelElement The interface this implements
+ * <p>Sizes itself from its text, with {@link #PADDING} around it; wraps when its
+ * panel is narrower, growing taller. Draws its text in the disabled grey while
+ * disabled (its own {@code disabledWhen}, or its panel's or container's).
  */
-public class InfoBox extends AbstractPanelElement<InfoBox> {
+public class InfoBox extends AbstractPanelElement {
 
-    @Override protected InfoBox self() { return this; }
-
-    /** Padding on all sides of the info-box text, in pixels. */
+    /** Space between the background's edge and the text. */
     public static final int PADDING = 4;
 
-    /** Default text color — vanilla inventory-label dark gray. */
-    public static final int DEFAULT_TEXT_COLOR = 0xFF404040;
-
-    private final Supplier<Component> textSupplier;
-
-    /**
-     * Creates an InfoBox with fixed text.
-     *
-     * @param childX X position within panel content area
-     * @param childY Y position within panel content area
-     * @param text   the text to display
-     */
-    public InfoBox(int childX, int childY, Component text) {
-        this(childX, childY, () -> text);
-    }
-
-    /**
-     * Creates an InfoBox whose text is driven by a supplier. The supplier is
-     * invoked each frame.
-     *
-     * @param childX X position within panel content area
-     * @param childY Y position within panel content area
-     * @param text   supplier invoked each frame; must not return null
-     */
-    public InfoBox(int childX, int childY, Supplier<Component> text) {
-        this.childX = childX;
-        this.childY = childY;
-        this.textSupplier = text;
-    }
-
-    // ── M8 Layout Spec ─────────────────────────────────────────────────
-
-    /**
-     * Returns an {@link com.trevlar.menukit.core.layout.ElementSpec}
-     * for a static-text info box. Width inferred from font metrics + padding.
-     */
-    public static com.trevlar.menukit.core.layout.ElementSpec spec(Component text) {
-        int textW = Minecraft.getInstance().font.width(text);
-        int w = textW + 2 * PADDING;
-        int h = Minecraft.getInstance().font.lineHeight + 2 * PADDING;
-        return new com.trevlar.menukit.core.layout.ElementSpec() {
-            @Override public int width()  { return w; }
-            @Override public int height() { return h; }
-            @Override public PanelElement at(int x, int y) {
-                return new InfoBox(x, y, text);
-            }
-        };
-    }
-
-    /**
-     * Layout spec for supplier-driven info-box text with consumer-declared
-     * dimensions. Required for dynamic content — consumer locks max-width
-     * up front so layout stays stable as supplier values change.
-     */
-    public static com.trevlar.menukit.core.layout.ElementSpec spec(
-            int width, int height, Supplier<Component> text) {
-        return new com.trevlar.menukit.core.layout.ElementSpec() {
-            @Override public int width()  { return width; }
-            @Override public int height() { return height; }
-            @Override public PanelElement at(int x, int y) {
-                return new InfoBox(x, y, text);
-            }
-        };
-    }
-
-    // ── PanelElement Implementation ────────────────────────────────────
-
-    // Panel-assigned wrap width for the box's TEXT AREA (Verification-4).
-    // 0 = single-line (natural). When the panel budget is narrower than the
-    // natural one-line box, the text wraps to this width and the box grows
-    // taller — so an InfoBox reacts to its panel like every other element
-    // instead of bleeding past the edge. Reversible: a wider pass clears it.
+    private final Supplier<Component> text;
     private int wrapWidth = 0;
+
+    protected InfoBox(Builder b) {
+        super(b);
+        this.text = b.text;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /** The text the box would draw right now. */
+    public Component getCurrentText() { return text.get(); }
+
+    @Override
+    public int naturalWidth() {
+        Component t = text.get();
+        return (t != null ? Minecraft.getInstance().font.width(t) : 0) + 2 * PADDING;
+    }
 
     @Override
     public int getWidth() {
-        if (wrapWidth > 0) return wrapWidth + 2 * PADDING;
-        Component text = textSupplier.get();
-        int textWidth = text != null ? Minecraft.getInstance().font.width(text) : 0;
-        return textWidth + 2 * PADDING;
+        return wrapWidth > 0 ? wrapWidth + 2 * PADDING : naturalWidth();
     }
 
     @Override
     public int getHeight() {
-        var font = Minecraft.getInstance().font;
-        if (wrapWidth > 0) {
-            Component text = textSupplier.get();
-            int lines = text == null ? 1 : Math.max(1, font.split(text, wrapWidth).size());
-            return lines * font.lineHeight + 2 * PADDING;
-        }
-        return font.lineHeight + 2 * PADDING;
+        Component t = text.get();
+        int lines = t == null ? 1 : MKText.lineCount(t, wrapWidth);
+        return lines * Minecraft.getInstance().font.lineHeight + 2 * PADDING;
     }
 
-    /** Natural one-line box width (text + padding) — drives the panel hug-width. */
-    @Override
-    public int naturalWidth() {
-        Component text = textSupplier.get();
-        int textWidth = text != null ? Minecraft.getInstance().font.width(text) : 0;
-        return textWidth + 2 * PADDING;
-    }
-
-    /**
-     * Wrap the box's text to the panel budget, growing the box taller, when the
-     * natural one-line box wouldn't fit; otherwise stay single-line. Reversible.
-     */
     @Override
     public void layoutWithin(int budget) {
-        int natural = naturalWidth();
-        this.wrapWidth = (budget < natural) ? Math.max(1, budget - 2 * PADDING) : 0;
+        wrapWidth = MKText.wrapWidth(text.get(), budget - 2 * PADDING);
     }
 
-    /** Extra box height beyond a single line once wrapped — drives panel reflow. */
     @Override
     public int extraLayoutHeight() {
-        if (wrapWidth <= 0) return 0;
-        return Math.max(0, getHeight() - (Minecraft.getInstance().font.lineHeight + 2 * PADDING));
+        return wrapWidth > 0 ? Math.max(0, getHeight() - (Minecraft.getInstance().font.lineHeight + 2 * PADDING)) : 0;
     }
+
+    @Override
+    public void fillWidth(int width) {}
 
     @Override
     public void render(RenderContext ctx) {
-        Component text = textSupplier.get();
-        if (text == null) return;
-
-        var font = Minecraft.getInstance().font;
+        Component t = text.get();
+        if (t == null) return;
         int sx = ctx.originX() + childX;
         int sy = ctx.originY() + childY;
-        int width = getWidth();
-        int height = getHeight();
-
-        // Raised panel background
-        PanelRendering.renderPanel(ctx.graphics(), sx, sy, width, height, PanelStyle.RAISED);
-
-        // Text inside the padded content area — multi-line when the panel
-        // wrapped it, single-line otherwise.
-        if (wrapWidth > 0) {
-            List<FormattedCharSequence> lines = font.split(text, wrapWidth);
-            int ly = sy + PADDING;
-            for (FormattedCharSequence line : lines) {
-                ctx.graphics().text(font, line, sx + PADDING, ly, DEFAULT_TEXT_COLOR, false);
-                ly += font.lineHeight;
-            }
-        } else {
-            ctx.graphics().text(font, text,
-                    sx + PADDING, sy + PADDING,
-                    DEFAULT_TEXT_COLOR, false);
-        }
-
-        // Hover tooltip — InfoBox inherits .tooltip(...) from AbstractPanelElement
-        // but historically never fired it (a present-but-dead setter). Wired now
-        // so a tooltip set on an InfoBox actually displays, like every other element.
+        PanelRendering.renderPanel(ctx.graphics(), sx, sy, getWidth(), getHeight(), PanelStyle.RAISED);
+        int color = disabled(ctx) ? ElementConstants.TEXT_DISABLED : ElementConstants.TEXT_DARK;
+        MKText.drawWrapped(ctx.graphics(), t, wrapWidth, sx + PADDING, sy + PADDING, 0, color, false);
         queueTooltip(ctx);
     }
 
-    /** Returns the current info-box text. Resolves the supplier. */
-    public Component getCurrentText() { return textSupplier.get(); }
+    public static class Builder extends AbstractPanelElement.Builder<InfoBox, Builder> {
+        private @Nullable Supplier<Component> text;
+
+        protected Builder() {}
+
+        @Override protected Builder self() { return this; }
+
+        /** Required: the text. */
+        public Builder text(Component text) {
+            Objects.requireNonNull(text, "text");
+            return text(() -> text);
+        }
+
+        /** Required: the text, read every frame. */
+        public Builder text(Supplier<Component> text) {
+            this.text = Objects.requireNonNull(text, "text");
+            return this;
+        }
+
+        @Override
+        public InfoBox build() {
+            require(text != null, "text(...) is required");
+            return new InfoBox(this);
+        }
+    }
 }

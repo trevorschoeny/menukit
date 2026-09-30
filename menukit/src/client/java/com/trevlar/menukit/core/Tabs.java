@@ -32,7 +32,7 @@ import java.util.function.Supplier;
  * Tabs tabs = Tabs.builder()
  *         .mode(Tabs.Mode.WRAP)
  *         .align(Tabs.Align.FILL)
- *         .selected(() -> state.tab, id -> state.tab = id)
+ *         .state(() -> state.tab, id -> state.tab = id)
  *         .tab("general", Component.literal("General"), generalBody)
  *         .tab(Tabs.tab("pockets")
  *                 .label(Component.literal("Pockets"))
@@ -129,9 +129,7 @@ import java.util.function.Supplier;
  * {@link TextField}) in a tab that is not shown is still registered with the
  * screen, so it can keep keyboard focus. See {@link TextField}.
  */
-public final class Tabs extends AbstractPanelElement<Tabs> {
-
-    @Override protected Tabs self() { return this; }
+public final class Tabs extends AbstractPanelElement {
 
     /** How the strip lays out when the tabs don't fit one row. */
     public enum Mode {
@@ -238,21 +236,15 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
     /** The tab shown last frame, to scroll a newly selected tab into view. */
     private @Nullable String lastShown = null;
 
-    // Screen-space origin from the last render; input hooks get no RenderContext
-    // (the same one-frame-stale cache ScrollContainer uses).
-    private int originX, originY;
-    private boolean originValid = false;
-
     private Tabs(Builder b) {
-        this.childX = b.childX;
-        this.childY = b.childY;
+        super(b);
         this.mode = b.mode;
         this.align = b.align;
         this.tabs = List.copyOf(b.resolveTabs());
         this.selected = b.selected;
         this.onSelect = b.onSelect;
-        this.fixedWidth = b.width;
-        this.fixedHeight = b.height;
+        this.fixedWidth = b.fixedWidth;
+        this.fixedHeight = b.fixedHeight;
         this.sidebarHeader = List.copyOf(b.sidebarHeader);
     }
 
@@ -643,7 +635,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
                     .size(w, h)
                     .content(tab.body)
                     .contentHeight(contentH)
-                    .scrollPixels(() -> bodyScroll.getOrDefault(id, 0.0), v -> bodyScroll.put(id, v))
+                    .state(() -> bodyScroll.getOrDefault(id, 0.0), v -> bodyScroll.put(id, v))
                     .build();
         }
         // Signature AFTER layout, so a settled body doesn't re-lay itself out every frame.
@@ -778,9 +770,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         var g = ctx.graphics();
         int sx = ctx.originX() + childX;
         int sy = ctx.originY() + childY;
-        originX = sx;
-        originY = sy;
-        originValid = true;
+        boolean disabled = disabled(ctx);
 
         queueTooltip(ctx); // element-level tooltip first, so a tab's own wins
 
@@ -792,27 +782,43 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         }
         lastShown = shown == null ? null : shown.id;
 
-        // ── Strip ──
+        // ── Strip ── (a disabled strip draws as if nothing were hovered)
+        RenderContext stripCtx = disabled ? new RenderContext(g, ctx.originX(), ctx.originY(), -1, -1, true) : ctx;
         if (sidebar()) {
-            renderSidebar(ctx, s, shown, sx, sy);
+            renderSidebar(stripCtx, s, shown, sx, sy);
         } else {
-            renderStrip(ctx, s, shown, sx, sy);
+            renderStrip(stripCtx, s, shown, sx, sy);
         }
 
-        // ── Body ──
+        // ── Body ── (everything in it disabled with the Tabs)
         BodyView b = bodyView(s, shown);
         if (b == null) return;
-        int bx = sx + bodyLeft(s), by = sy + bodyTop(s);
-        RenderContext bodyCtx = new RenderContext(g, bx, by, ctx.mouseX(), ctx.mouseY());
+        RenderContext bodyCtx = bodyRender(ctx, s);
         if (b.scroll != null) {
             b.scroll.render(bodyCtx);
         } else {
+            int bx = bodyCtx.originX(), by = bodyCtx.originY();
             if (b.height > 0) g.enableScissor(bx, by, bx + b.width, by + b.height);
-            for (PanelElement e : b.tab.body) {
-                if (e.isVisible()) e.render(bodyCtx);
-            }
+            ChildDispatch.render(b.tab.body, bodyCtx);
             if (b.height > 0) g.disableScissor();
         }
+    }
+
+    /** The body's render context: origin at the body's top-left, the disabled cascade added. */
+    private RenderContext bodyRender(RenderContext ctx, StripLayout s) {
+        return ctx.at(ctx.originX() + childX + bodyLeft(s), ctx.originY() + childY + bodyTop(s))
+                .disabledIf(ownDisabled());
+    }
+
+    /** The body's input context, the same way. */
+    private InputContext bodyInput(InputContext in, StripLayout s) {
+        return in.at(in.originX() + childX + bodyLeft(s), in.originY() + childY + bodyTop(s))
+                .disabledIf(ownDisabled());
+    }
+
+    /** The sidebar header's input context: origin at the column's top-left. */
+    private InputContext columnInput(InputContext in) {
+        return in.at(in.originX() + childX, in.originY() + childY).disabledIf(ownDisabled());
     }
 
     /** The strip across the top ({@link Mode#WRAP}, {@link Mode#SIDE_SCROLL}). */
@@ -865,10 +871,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         if (column <= 0) return;
 
         // Header: ordinary elements, positioned from the column's top-left.
-        RenderContext columnCtx = new RenderContext(g, sx, sy, ctx.mouseX(), ctx.mouseY());
-        for (PanelElement e : sidebarHeader) {
-            if (e.isVisible()) e.render(columnCtx);
-        }
+        ChildDispatch.render(sidebarHeader, ctx.at(sx, sy).disabledIf(ownDisabled()));
 
         // The tabs, clipped to the column under the header. When they overflow,
         // the scrollbar takes a lane on the column's left (the side away from the
@@ -1036,66 +1039,58 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
      * there (a Dropdown) closes like one anywhere else.
      */
     @Override
-    public void notifyClickOutsideOverlay(double mouseX, double mouseY) {
-        for (PanelElement e : sidebarHeader) {
-            if (e.isVisible()) e.notifyClickOutsideOverlay(mouseX, mouseY);
-        }
+    public void notifyClickOutsideOverlay(InputContext in) {
+        ChildDispatch.notifyClickOutside(sidebarHeader, columnInput(in));
         BodyView b = liveBody();
         if (b == null) return;
-        if (b.scroll != null) {
-            b.scroll.notifyClickOutsideOverlay(mouseX, mouseY);
-            return;
-        }
-        for (PanelElement e : b.tab.body) {
-            if (e.isVisible()) e.notifyClickOutsideOverlay(mouseX, mouseY);
-        }
+        InputContext inner = bodyInput(in, strip());
+        if (b.scroll != null) b.scroll.notifyClickOutsideOverlay(inner);
+        else ChildDispatch.notifyClickOutside(b.tab.body, inner);
     }
 
-    /** The shown body's overlays (an open Dropdown popover), unclipped, after all base renders. */
+    /** The header's and the shown body's overlays (an open Dropdown popover), unclipped, after all base renders. */
     @Override
     public void renderOverlay(RenderContext ctx) {
-        if (body == null || !originValid) return;
-        StripLayout s = strip();
-        RenderContext bodyCtx = new RenderContext(ctx.graphics(), ctx.originX() + childX + bodyLeft(s),
-                ctx.originY() + childY + bodyTop(s), ctx.mouseX(), ctx.mouseY());
-        if (body.scroll != null) {
-            body.scroll.renderOverlay(bodyCtx);
-        } else {
-            for (PanelElement e : body.tab.body) {
-                if (e.isVisible()) e.renderOverlay(bodyCtx);
-            }
-        }
+        ChildDispatch.renderOverlay(sidebarHeader,
+                ctx.at(ctx.originX() + childX, ctx.originY() + childY).disabledIf(ownDisabled()));
+        BodyView b = liveBody();
+        if (b == null) return;
+        RenderContext bodyCtx = bodyRender(ctx, strip());
+        if (b.scroll != null) b.scroll.renderOverlay(bodyCtx);
+        else ChildDispatch.renderOverlay(b.tab.body, bodyCtx);
     }
 
     // ════════════════════════════════════════════════════════════════════════
     // Input
     // ════════════════════════════════════════════════════════════════════════
 
-    /** The shown body as last rendered, or null. Input goes only to the shown tab. */
+    /** The shown body as last laid out, or null. Input goes only to the shown tab. */
     private @Nullable BodyView liveBody() {
         Tab shown = shownTab();
         return (body != null && body.tab == shown) ? body : null;
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (!originValid) return false;
+    public boolean mouseClicked(InputContext in, int button) {
         StripLayout s = strip();
         BodyView b = liveBody();
+        InputContext inner = b == null ? null : bodyInput(in, s);
 
         // An open popover in the body claims the click anywhere in its bounds.
         if (b != null) {
-            int[] ov = overlayBounds(b);
-            if (ov != null && mouseX >= ov[0] && mouseX < ov[0] + ov[2] && mouseY >= ov[1] && mouseY < ov[1] + ov[3]) {
-                return b.scroll != null ? b.scroll.mouseClicked(mouseX, mouseY, button)
-                        : clickChildren(b, mouseX, mouseY, button);
+            int[] ov = b.scroll != null ? b.scroll.getActiveOverlayBounds(inner)
+                    : ChildDispatch.activeOverlay(b.tab.body, inner);
+            if (ov != null && in.isInside(ov)) {
+                return b.scroll != null ? b.scroll.mouseClicked(inner, button)
+                        : ChildDispatch.mouseClicked(b.tab.body, inner, button);
             }
         }
 
-        double lx = mouseX - originX, ly = mouseY - originY;
+        double lx = in.mouseX() - (in.originX() + childX), ly = in.mouseY() - (in.originY() + childY);
         if (onStrip(s, lx, ly)) {
-            if (sidebar()) return clickSidebar(s, mouseX, mouseY, ly, button);
-            if (button != 0) return true;                 // the strip eats its own clicks
+            if (disabled(in)) return true;               // a disabled strip eats its clicks, picks nothing
+            if (sidebar()) return clickSidebar(s, in, lx, ly, button);
+            if (button != Click.LEFT) return true;        // the strip eats its own clicks
             if (s.overflow && lx < ARROW_WIDTH) { stepStrip(s, -1); return true; }
             if (s.overflow && lx >= getWidth() - ARROW_WIDTH) { stepStrip(s, +1); return true; }
             double contentX = lx - stripViewportStart(s) + (s.overflow ? stripScroll : 0);
@@ -1108,21 +1103,16 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
             return true;
         }
         if (b == null) return false;
-        if (b.scroll != null) return b.scroll.mouseClicked(mouseX, mouseY, button);
-        return clickChildren(b, mouseX, mouseY, button);
+        if (b.scroll != null) return b.scroll.hitTest(inner) && b.scroll.mouseClicked(inner, button);
+        return ChildDispatch.mouseClicked(b.tab.body, inner, button);
     }
 
     /** A click in the sidebar column: header elements, then the scrollbar lane, then a tab. */
-    private boolean clickSidebar(StripLayout s, double mouseX, double mouseY, double ly, int button) {
-        for (PanelElement e : sidebarHeader) {
-            if (e.isVisible() && hits(e, originX, originY, mouseX, mouseY) && e.mouseClicked(mouseX, mouseY, button)) {
-                return true;
-            }
-        }
-        if (button != 0) return true;                     // the column eats its own clicks
+    private boolean clickSidebar(StripLayout s, InputContext in, double lx, double ly, int button) {
+        if (ChildDispatch.mouseClicked(sidebarHeader, columnInput(in), button)) return true;
+        if (button != Click.LEFT) return true;            // the column eats its own clicks
         int viewStart = stripViewportStart(s);
         if (ly < viewStart || ly >= viewStart + stripViewportLength(s)) return true;
-        double lx = mouseX - originX;
         if (lx < scrollbarLane(s)) {
             // On the handle: grab it where it was pressed. On the track: jump so the
             // handle centres on the click, and keep holding it, as vanilla's list does.
@@ -1145,30 +1135,12 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         return true;
     }
 
-    private static boolean hits(PanelElement e, int ox, int oy, double mouseX, double mouseY) {
-        int ex = ox + e.getChildX(), ey = oy + e.getChildY();
-        return mouseX >= ex && mouseX < ex + e.getWidth() && mouseY >= ey && mouseY < ey + e.getHeight();
-    }
-
-    private boolean clickChildren(BodyView b, double mouseX, double mouseY, int button) {
-        StripLayout s = strip();
-        int bx = originX + bodyLeft(s), by = originY + bodyTop(s);
-        for (PanelElement e : b.tab.body) {
-            if (!e.isVisible()) continue;
-            int ex = bx + e.getChildX(), ey = by + e.getChildY();
-            if (mouseX < ex || mouseX >= ex + e.getWidth() || mouseY < ey || mouseY >= ey + e.getHeight()) continue;
-            if (e.mouseClicked(mouseX, mouseY, button)) return true;
-        }
-        return false;
-    }
-
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (!originValid) return false;
+    public boolean mouseScrolled(InputContext in, double scrollX, double scrollY) {
         StripLayout s = strip();
-        double lx = mouseX - originX, ly = mouseY - originY;
+        double lx = in.mouseX() - (in.originX() + childX), ly = in.mouseY() - (in.originY() + childY);
         if (onStrip(s, lx, ly)) {
-            if (!overflows(s)) return false;
+            if (!overflows(s) || disabled(in)) return false;
             double delta = scrollY != 0 ? scrollY : scrollX;
             if (delta == 0) return false;
             stepStrip(s, delta > 0 ? -1 : +1);             // wheel up = back, down = forward
@@ -1176,71 +1148,56 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         }
         BodyView b = liveBody();
         if (b == null) return false;
-        if (b.scroll != null) return b.scroll.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
-        for (PanelElement e : b.tab.body) {
-            if (e.isVisible() && e.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
-        }
-        return false;
+        InputContext inner = bodyInput(in, s);
+        if (b.scroll != null) return b.scroll.mouseScrolled(inner, scrollX, scrollY);
+        return ChildDispatch.mouseScrolled(b.tab.body, inner, scrollX, scrollY);
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+    public boolean mouseReleased(InputContext in, int button) {
         // Releases go everywhere un-hit-tested, so a pressed button always lets go.
-        for (PanelElement e : sidebarHeader) {
-            if (e.isVisible()) e.mouseReleased(mouseX, mouseY, button);
-        }
-        if (button == 0) draggingScroller = false;
+        ChildDispatch.mouseReleased(sidebarHeader, columnInput(in), button);
+        if (button == Click.LEFT) draggingScroller = false;
         BodyView b = liveBody();
         if (b == null) return false;
-        if (b.scroll != null) return b.scroll.mouseReleased(mouseX, mouseY, button);
-        for (PanelElement e : b.tab.body) {
-            if (e.isVisible()) e.mouseReleased(mouseX, mouseY, button);
-        }
+        InputContext inner = bodyInput(in, strip());
+        if (b.scroll != null) return b.scroll.mouseReleased(inner, button);
+        ChildDispatch.mouseReleased(b.tab.body, inner, button);
         return false;
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(InputContext in, int keyCode, int scanCode, int modifiers) {
         // No shortcuts of its own (Trev, 2026-09-26): keys go to the header, then the shown body.
-        for (PanelElement e : sidebarHeader) {
-            if (e.isVisible() && e.keyPressed(keyCode, scanCode, modifiers)) return true;
-        }
+        if (ChildDispatch.keyPressed(sidebarHeader, columnInput(in), keyCode, scanCode, modifiers)) return true;
         BodyView b = liveBody();
         if (b == null) return false;
-        if (b.scroll != null) return b.scroll.keyPressed(keyCode, scanCode, modifiers);
-        for (PanelElement e : b.tab.body) {
-            if (e.isVisible() && e.keyPressed(keyCode, scanCode, modifiers)) return true;
-        }
-        return false;
+        InputContext inner = bodyInput(in, strip());
+        if (b.scroll != null) return b.scroll.keyPressed(inner, keyCode, scanCode, modifiers);
+        return ChildDispatch.keyPressed(b.tab.body, inner, keyCode, scanCode, modifiers);
     }
 
     @Override
-    public int @Nullable [] getActiveOverlayBounds() {
+    public int @Nullable [] getActiveOverlayBounds(InputContext in) {
+        int[] header = ChildDispatch.activeOverlay(sidebarHeader, columnInput(in));
+        if (header != null) return header;
         BodyView b = liveBody();
-        return b == null ? null : overlayBounds(b);
-    }
-
-    private static int @Nullable [] overlayBounds(BodyView b) {
-        if (b.scroll != null) return b.scroll.getActiveOverlayBounds();
-        for (PanelElement e : b.tab.body) {
-            if (!e.isVisible()) continue;
-            int[] ov = e.getActiveOverlayBounds();
-            if (ov != null) return ov;
-        }
-        return null;
+        if (b == null) return null;
+        InputContext inner = bodyInput(in, strip());
+        return b.scroll != null ? b.scroll.getActiveOverlayBounds(inner) : ChildDispatch.activeOverlay(b.tab.body, inner);
     }
 
     /** Every tab's body attaches, shown or not, as a hidden panel's elements do. */
     @Override
     public void onAttach(net.minecraft.client.gui.screens.Screen screen) {
-        for (Tab t : tabs) for (PanelElement e : t.body) e.onAttach(screen);
-        for (PanelElement e : sidebarHeader) e.onAttach(screen);
+        for (Tab t : tabs) ChildDispatch.attach(t.body, screen);
+        ChildDispatch.attach(sidebarHeader, screen);
     }
 
     @Override
     public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
-        for (Tab t : tabs) for (PanelElement e : t.body) e.onDetach(screen);
-        for (PanelElement e : sidebarHeader) e.onDetach(screen);
+        for (Tab t : tabs) ChildDispatch.detach(t.body, screen);
+        ChildDispatch.detach(sidebarHeader, screen);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -1366,32 +1323,27 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
                     built = List.copyOf(bodyFactory.get());
                 } catch (RuntimeException e) {
                     LOGGER.error("[MenuKit] the body of tab '{}' failed to build", id, e);
-                    built = List.of(new TextLabel(0, 0, Component.literal("This tab failed to build; see the log.")));
+                    built = List.of(TextLabel.builder()
+                            .text(Component.literal("This tab failed to build; see the log.")).build());
                 }
             }
             return new Tab(id, label, visibleWhen, built, standIn);
         }
     }
 
-    public static final class Builder {
-        private int childX, childY;
+    public static final class Builder extends AbstractPanelElement.Builder<Tabs, Builder> {
         private Mode mode = Mode.WRAP;
         private Align align = Align.LEFT;
         private final List<TabSpec> tabs = new ArrayList<>();
         private @Nullable Identifier menu;
         private @Nullable Supplier<@Nullable String> selected;
         private @Nullable Consumer<String> onSelect;
-        private int width = -1, height = -1;
+        private int fixedWidth = -1, fixedHeight = -1;
         private final List<PanelElement> sidebarHeader = new ArrayList<>();
 
         private Builder() {}
 
-        /** Panel-local position. Default (0, 0). */
-        public Builder at(int x, int y) {
-            this.childX = x;
-            this.childY = y;
-            return this;
-        }
+        @Override protected Builder self() { return this; }
 
         /** {@link Mode#WRAP} (default), {@link Mode#SIDE_SCROLL}, or {@link Mode#SIDEBAR}. */
         public Builder mode(Mode mode) {
@@ -1406,13 +1358,13 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         }
 
         /**
-         * The selection lens: {@code supplier} reads which tab is selected every
-         * frame (null or an unknown id shows the first visible tab), and
-         * {@code onSelect} writes the id the player picks. Required.
+         * Required: the selection lens. {@code get} reads which tab is selected
+         * every frame (null or an unknown id shows the first visible tab), and
+         * {@code set} receives the id the player picks.
          */
-        public Builder selected(Supplier<@Nullable String> supplier, Consumer<String> onSelect) {
-            this.selected = Objects.requireNonNull(supplier, "supplier");
-            this.onSelect = Objects.requireNonNull(onSelect, "onSelect");
+        public Builder state(Supplier<@Nullable String> get, Consumer<String> set) {
+            this.selected = Objects.requireNonNull(get, "get");
+            this.onSelect = Objects.requireNonNull(set, "set");
             return this;
         }
 
@@ -1445,11 +1397,12 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
          * A fixed box instead of filling the panel, for a panel with no height
          * budget (a panel on a vanilla screen, say).
          */
+        @Override
         public Builder size(int width, int height) {
             if (width <= 0 || height <= 0) throw new IllegalArgumentException("Tabs: size must be positive");
-            this.width = width;
-            this.height = height;
-            return this;
+            this.fixedWidth = width;
+            this.fixedHeight = height;
+            return super.size(width, height);
         }
 
         /**
@@ -1464,7 +1417,7 @@ public final class Tabs extends AbstractPanelElement<Tabs> {
         }
 
         public Tabs build() {
-            if (selected == null) throw new IllegalStateException("Tabs: selected(supplier, onSelect) is required");
+            if (selected == null) throw new IllegalStateException("Tabs: state(get, set) is required");
             if (!sidebarHeader.isEmpty() && mode != Mode.SIDEBAR) {
                 throw new IllegalStateException("Tabs: sidebarHeader(...) needs mode(Mode.SIDEBAR); there is no "
                         + "column above which to put it");

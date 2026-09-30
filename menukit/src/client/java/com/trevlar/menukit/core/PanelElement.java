@@ -16,18 +16,12 @@ import java.util.function.Supplier;
  * live on the handler, not on the panel itself); in HUD panels and
  * standalone-screen panels they are the only content.
  *
- * <p>Elements are per-panel-instance — each panel constructs its own
- * elements via its builder. Elements aren't shared between panels.
+ * <p>Elements are per-panel-instance: each panel holds its own elements.
+ * Elements aren't shared between panels.
  *
- * <p>Works uniformly across all three rendering contexts (inventory menus,
- * HUDs, standalone screens). The {@link RenderContext} bundles per-frame
- * state; in contexts without input dispatch (HUDs), {@link RenderContext#hasMouseInput}
- * returns {@code false} and {@link #mouseClicked} is never called by the
- * dispatcher.
- *
- * <p>Core implementations: {@link Button}, {@link TextLabel}.
- * Consumer mods can implement this interface for custom element types
- * (icons, progress bars, etc.).
+ * <p>MenuKit's own elements are built with builders and extend
+ * {@link AbstractPanelElement} (§0066). Consumer mods can implement this
+ * interface directly for custom element types.
  *
  * <h3>Coordinate contract</h3>
  *
@@ -36,39 +30,34 @@ import java.util.function.Supplier;
  * <ul>
  *   <li><b>Panel-local</b>: {@link #getChildX} / {@link #getChildY} specify
  *       the element's position within the panel's content area (after
- *       padding). Fixed at construction; never mutated.</li>
+ *       padding).</li>
  *   <li><b>Screen-space</b>: absolute coordinates in the game window's
- *       GUI-scaled pixel grid. Used by {@link RenderContext#mouseX} /
- *       {@link RenderContext#mouseY} and by the {@code mouseX} / {@code mouseY}
- *       parameters of {@link #mouseClicked}. {@link RenderContext#originX} /
- *       {@link RenderContext#originY} are the screen-space origin of the
- *       panel's content area.</li>
+ *       GUI-scaled pixel grid. {@link RenderContext} and {@link InputContext}
+ *       carry the content origin and the mouse in screen space.</li>
  * </ul>
  *
- * Render code composes the two: the element paints at
+ * Render and input compose the two the same way: the element's top-left is
  * {@code (ctx.originX() + getChildX(), ctx.originY() + getChildY())}.
- * Input code uses screen-space directly — the dispatcher hit-tests in
- * screen-space and passes screen-space {@code mouseX} / {@code mouseY} to
- * {@link #mouseClicked}. Implementations of {@link #mouseClicked} should
- * trust this and not re-compose with panel-local coords.
  *
- * <p>All three dispatchers conform to this contract: the native inventory-menu
- * dispatcher in {@code MKCHandledScreen}, the standalone-screen
- * dispatcher in {@code MKScreen}, and the Phase 10 injection adapter
- * {@code ScreenPanelAdapter}. Consumer implementations of
- * {@link PanelElement} can rely on screen-space coords in {@link #mouseClicked}
- * regardless of which context their panel ends up in.
+ * <h3>Input receives its context (§0066)</h3>
+ *
+ * Every input method takes an {@link InputContext}, as {@link #render} takes a
+ * {@link RenderContext}: the content origin, the mouse, and whether the
+ * element's panel or container is disabled. An element never caches its origin
+ * or its hover state from the last frame. The one dispatcher (the panel's host,
+ * or a container through {@link ChildDispatch}) hit-tests before it calls
+ * {@link #mouseClicked} and {@link #mouseScrolled}, and does not deliver clicks,
+ * wheel or keys at all in a disabled context.
  *
  * @see Panel              The container that holds elements
- * @see Button             Interactive button element
- * @see TextLabel          Static or dynamic text element
  * @see RenderContext      Per-frame render state
+ * @see InputContext       Per-event input state
+ * @see ChildDispatch      How a container dispatches to its children
  */
 public interface PanelElement {
 
     // ── Position & Bounds ──────────────────────────────────────────────
     // Coordinates are relative to the panel's content area (after padding).
-    // The screen converts these to screen-space for rendering and hit testing.
 
     /** X position within the panel's content area. */
     int getChildX();
@@ -84,82 +73,44 @@ public interface PanelElement {
 
     /**
      * Stretches this element to fill the given content width (the
-     * {@code CrossAlign.FILL} / column-fill primitive, Pass 3). After this
-     * call the element's {@link #getWidth()} reports the filled width so
-     * panel auto-size, hit-testing, and rendering all agree — fill is NOT
-     * cosmetic.
+     * {@code CrossAlign.FILL} column-fill primitive). After this call the
+     * element's {@link #getWidth()} reports the filled width so panel auto-size,
+     * hit-testing, and rendering all agree.
      *
-     * <p>Default: no-op. Fixed-extent widgets (Button, labeled Toggle, Slider,
-     * Dropdown, DropdownMulti, TextField, ProgressBar, ScrollContainer,
-     * horizontal Divider) override this to set their width. Auto-content-sized
-     * widgets (TextLabel, Checkbox, Radio, ItemDisplay, Icon, and a bare/sprite
-     * Toggle switch) keep the default no-op — they remain intrinsic-width under
-     * FILL, by design: a stretched icon/switch would distort, and text reflow is
-     * owned by the panel-level screen-edge wrap, not by column fill.
-     *
-     * <p>This is the deliberate capability-method answer to §0047's declined
-     * {@code .size()} hoist on {@link AbstractPanelElement}: it is not a
-     * hoisted field (per-widget storage differs), it is an optional stretch
-     * capability that each widget honors as fits its own storage.
+     * <p>Default: no-op. {@link AbstractPanelElement} re-authors its width
+     * here; intrinsic widgets (an icon, a checkbox square, a sprite switch) keep
+     * their size.
      *
      * @param width the column's widest-child extent to stretch to, in pixels
      */
     default void fillWidth(int width) {}
 
-    // ── Reactive sizing — width flows DOWN from the panel ──────────────
-    //
-    // The Verification-4 sizing hierarchy: an element LIVES IN a panel and is
-    // reactive to that panel's width. The panel resolves ONE content width
-    // (its widest element's natural extent, clamped to the available screen-
-    // edge room) and hands each element its horizontal budget via
-    // {@link #layoutWithin}. This is the single, unified reactive-width
-    // contract — it supersedes the partial split between {@link #fillWidth}
-    // (column-stretch only) and TextLabel's text-only wrap. Every element that
-    // can shrink/wrap now reacts the same way: text wraps, a Button shrinks
-    // and wraps its label, fill widgets cap — all to the SAME width.
+    // ── Reactive sizing: width flows DOWN from the panel ───────────────
 
     /**
      * The element's NATURAL (authored / intrinsic) width before any panel
-     * width-constraint — what it wants when the panel has room. The owning
-     * {@link Panel} maxes this across its elements to compute its hug-width
-     * ({@code contentWidth = min(maxNaturalWidth, screenEdgeCeiling)}), then
-     * feeds each element a budget derived from it via {@link #layoutWithin}.
-     *
-     * <p>Distinct from {@link #getWidth()}, which reports the <em>resolved</em>
-     * (post-constraint) width: after a narrow {@code layoutWithin} a Button's
-     * {@code getWidth()} shrinks while its {@code naturalWidth()} stays the
-     * authored value, so a later wider pass can restore it. Default returns
-     * {@link #getWidth()} — correct for intrinsic-extent elements whose width
-     * never changes under constraint.
+     * width-constraint: what it wants when the panel has room. The owning
+     * {@link Panel} maxes this across its elements to compute its hug-width,
+     * then feeds each element a budget via {@link #layoutWithin}. Distinct from
+     * {@link #getWidth()}, which reports the resolved width. Default returns
+     * {@link #getWidth()}.
      */
     default int naturalWidth() { return getWidth(); }
 
     /**
-     * Width flows DOWN: the owning {@link Panel} calls this every layout pass
-     * with the horizontal pixel budget available to this element (the panel's
-     * resolved content width minus this element's {@code childX}). The element
-     * resolves its presentation width — and, when it wraps a label, its height
-     * — REVERSIBLY from its immutable authored intent: a later call with a
-     * larger budget restores the natural extent (this is what fixes the
-     * historical {@code fillWidth} "ratchet", where an absolute shrink could
-     * never be undone).
+     * Width flows DOWN: the owning {@link Panel} (or container) calls this every
+     * layout pass with the horizontal pixel budget available to this element.
+     * The element resolves its presentation width, and when it wraps a label its
+     * height, REVERSIBLY from its authored intent: a later call with a larger
+     * budget restores the natural extent.
      *
-     * <p>Behavioral contract by element kind:
      * <ul>
-     *   <li>Text-bearing — {@code TextLabel}, {@code InfoBox}, {@code Button},
-     *       {@code Checkbox}, {@code Radio}, a labeled {@code Toggle}, and a
-     *       {@code Dropdown}'s trigger label — wrap their text/label to the budget
-     *       across multiple lines, growing taller to fit (and reporting the extra
-     *       via {@link #extraLayoutHeight} so the panel reflows siblings below).</li>
-     *   <li>Fill widgets (Slider, TextField, ProgressBar, Divider,
-     *       {@code DropdownMulti}, a {@code Dropdown}'s popover rows) — cap their
-     *       width to the budget so they never bleed past the panel; an over-long
-     *       label scrolls/clips within bounds. These are fixed-geometry controls
-     *       or live editable inputs where growing taller would distort the
-     *       mechanism, so they cap rather than wrap (by design, not a gap).</li>
-     *   <li>Intrinsic widgets (Icon, ItemDisplay, a bare/sprite Toggle switch,
-     *       square/sprite controls) — ignore the budget (default no-op); they keep
-     *       their authored size.</li>
+     *   <li>Text-bearing elements wrap their text to the budget, growing taller
+     *       (reported through {@link #extraLayoutHeight}).</li>
+     *   <li>Fixed controls (Slider, TextField, ProgressBar, a Dropdown's
+     *       trigger) cap their width to the budget.</li>
+     *   <li>A filling {@link Divider} takes the whole budget.</li>
+     *   <li>Intrinsic widgets ignore it.</li>
      * </ul>
      *
      * <p>Default: no-op.
@@ -170,103 +121,60 @@ public interface PanelElement {
     default void layoutWithin(int budget) {}
 
     /**
-     * Extra vertical pixels this element occupies BEYOND its single-line /
-     * authored baseline because a label wrapped under {@link #layoutWithin}.
-     * The owning {@link Panel} reflows the elements below a grown element
-     * downward by exactly this amount, so growth pushes — never paints over —
-     * what's beneath it (Verification-4 item 4: a panel re-stacks all its
-     * elements when one changes height). Default {@code 0} (no growth).
+     * Extra vertical pixels this element occupies beyond its single-line /
+     * authored baseline because it wrapped or opened. The owning {@link Panel}
+     * pushes the elements below it down by exactly this amount. Default
+     * {@code 0}.
      */
     default int extraLayoutHeight() { return 0; }
 
-    // ── Reactive sizing — height flows DOWN to filling elements ─────────
-    //
-    // The vertical twin of the width budget. Most elements have a height of their
-    // own (a label's line, a button's 20px) and never take one from the panel. An
-    // element that is an AREA rather than a control, a tab strip with its bodies,
-    // wants whatever height the panel has. It says so with fillsHeight(), and the
-    // owning Panel hands it the room from its top edge to the bottom of the
-    // panel's viewport on every configuration pass. Opt-in only: an element that
-    // does not declare it is never touched, so no existing element changes size.
+    // ── Reactive sizing: height flows DOWN to filling elements ─────────
 
-    /**
-     * Whether this element takes its height from the panel ({@link #fillHeight}).
-     * Default {@code false}.
-     */
+    /** Whether this element takes its height from the panel ({@link #fillHeight}). Default {@code false}. */
     default boolean fillsHeight() { return false; }
 
     /**
-     * The height this element should occupy: the owning panel's viewport (its
-     * pinned height, or the screen-edge height budget) from this element's top
-     * edge down. {@code -1} when the panel has no viewport, meaning "use your
-     * natural height". Called only on elements whose {@link #fillsHeight()} is
-     * {@code true}. Default: no-op.
-     *
-     * @param height pixels from this element's top to the viewport bottom, or -1
+     * The height this element should occupy: the owning panel's viewport from
+     * this element's top edge down, or {@code -1} when the panel has no viewport.
+     * Called only when {@link #fillsHeight()} is {@code true}. Default: no-op.
      */
     default void fillHeight(int height) {}
 
     // ── Visibility ─────────────────────────────────────────────────────
-    // Elements can be conditionally shown. The screen checks this before
-    // rendering or routing clicks — invisible elements are fully inert.
-    // Panel-level visibility is checked separately (hidden panels skip
-    // all element processing, like they skip slot rendering).
 
     /**
-     * Returns whether this element is currently visible. Invisible elements
-     * are not rendered and don't receive clicks. Default: always visible.
-     *
-     * <p>Override to gate visibility on runtime state (e.g., "show this
-     * button only when the extras panel is visible").
+     * Returns whether this element is currently visible. Invisible elements are
+     * not rendered and receive no input. Default: always visible. MenuKit's
+     * elements read their builder's {@code visibleWhen} here.
      */
     default boolean isVisible() { return true; }
 
     // ── Hover Convenience ──────────────────────────────────────────────
 
     /**
-     * Returns whether the mouse is currently over this element, using the
-     * element's own bounds. Returns {@code false} in contexts without input
-     * dispatch (HUDs).
-     *
-     * <p>Convenience wrapper around {@link RenderContext#isHovered}; equivalent
-     * to {@code ctx.isHovered(getChildX(), getChildY(), getWidth(), getHeight())}.
+     * Returns whether the mouse is over this element in this render pass, using
+     * the element's own bounds. {@code false} in contexts without input (HUDs).
      */
     default boolean isHovered(RenderContext ctx) {
         return ctx.isHovered(getChildX(), getChildY(), getWidth(), getHeight());
     }
 
     // ── Tooltip (universal hover-float contract) ───────────────────────
-    //
-    // Tooltip support is a contract of EVERY element, declared here on the
-    // interface rather than only on AbstractPanelElement, so a type that
-    // implements PanelElement directly (SlotElement, future custom elements)
-    // is a first-class tooltip citizen instead of silently falling outside
-    // the contract. The chainable {@code .tooltip(...)} SETTER lives on
-    // AbstractPanelElement (an interface can't hold the field); a direct
-    // implementor stores its own supplier and overrides tooltipSupplier().
 
     /**
      * The element's hover-tooltip text supplier, or {@code null} if none.
-     * Default {@code null}. {@link AbstractPanelElement} overrides this to
-     * return its {@code .tooltip(...)}-set field; a direct implementor
-     * (e.g. a slot) overrides it to return its own.
+     * {@link AbstractPanelElement} returns its builder's {@code tooltip}; a
+     * direct implementor overrides this to return its own.
      */
     default @Nullable Supplier<Component> tooltipSupplier() {
         return null;
     }
 
     /**
-     * Queues this element's hover tooltip for the current frame when the
-     * cursor is over it. The per-element {@link #render(RenderContext)}
-     * decides WHEN to call this (hover/suppression logic varies per widget),
-     * but the width-cap + wrap policy is centralized: it routes through
-     * {@link MKTooltip}, so every element's tooltip inherits the
-     * library-default max width automatically — never patched per call site.
-     * No-op without a tooltip, without mouse input, or when not hovered.
-     *
-     * <p>Direct {@link PanelElement} implementors enable tooltips by
-     * overriding {@link #tooltipSupplier()} (return their field) and calling
-     * this once at the end of {@link #render(RenderContext)}.
+     * Queues this element's hover tooltip for the current frame when the cursor
+     * is over it. Routes through {@link MKTooltip}, so every element's tooltip
+     * has the library's width cap and wrap. No-op without a tooltip, without
+     * mouse input, or when not hovered.
      */
     default void queueTooltip(RenderContext ctx) {
         if (!ctx.hasMouseInput()) return;
@@ -281,399 +189,128 @@ public interface PanelElement {
     // ── Rendering ──────────────────────────────────────────────────────
 
     /**
-     * Renders this element. Called during the panel background pass
-     * (screen space), after slot backgrounds.
-     *
-     * <p>Position the element using the context's content origin plus this
-     * element's {@code childX}/{@code childY}:
-     * <pre>{@code
-     * int sx = ctx.originX() + getChildX();
-     * int sy = ctx.originY() + getChildY();
-     * }</pre>
-     *
-     * @param ctx per-frame render context
+     * Renders this element at {@code (ctx.originX() + getChildX(),
+     * ctx.originY() + getChildY())}. When {@code ctx.disabled()} is true, an
+     * element draws its disabled look.
      */
     void render(RenderContext ctx);
 
     /**
-     * Phase 18s follow-up — second-pass render hook for ELEMENTS that
-     * draw transient overlays extending outside their layout bounds
-     * (Dropdown popovers, future tooltip-like floats, expand-on-click
-     * editors). Called by the dispatcher AFTER every element's
-     * {@link #render(RenderContext)} has run, so overlays always paint
-     * on top regardless of element declaration order.
-     *
-     * <p>Default: no-op. Most elements render entirely inside their
-     * layout bounds and don't need this. Override when an element has
-     * a draws-outside-bounds region that must win z-order against
-     * sibling elements (e.g., an open Dropdown's popover that should
-     * obscure a later-declared button below it).
-     *
-     * <p><b>Sibling to {@link #getActiveOverlayBounds}</b> — that
-     * method is the INPUT-side primitive for exclusive overlay claim;
-     * this is the RENDER-side primitive for the same conceptual
-     * overlay. An element with an active overlay typically implements
-     * both: getActiveOverlayBounds returns the overlay's bounds (input
-     * claim), renderOverlay paints it. Together they make overlays
-     * inert-on-top regardless of consumer element ordering.
-     *
-     * @param ctx per-frame render context, same instance passed to
-     *            {@link #render(RenderContext)} on the base pass
+     * Second-pass render for transient overlays that draw outside the element's
+     * layout bounds (a Dropdown's popover). Runs after every element's
+     * {@link #render}, so an overlay is always on top regardless of declaration
+     * order. Pairs with {@link #getActiveOverlayBounds}, the input side. Default:
+     * no-op.
      */
     default void renderOverlay(RenderContext ctx) {}
 
     // ── Input ──────────────────────────────────────────────────────────
 
     /**
-     * Phase 14d-5 — active overlay bounds for exclusive-claim dispatch.
-     * Called by the screen dispatchers BEFORE {@link #hitTest} as the
-     * first dispatch pass: any element returning a non-null rect from
-     * this method gets <b>exclusive</b> ownership of clicks (and scrolls)
-     * that fall inside the returned region. The dispatcher routes the
-     * input solely to this element regardless of {@link #mouseClicked}'s
-     * return value, then short-circuits — no other element (including
-     * vanilla widgets behind) sees the click.
+     * The screen-space bounds {@code [x, y, width, height]} of this element's
+     * active overlay (an open popover), or {@code null} when none is open. The
+     * dispatcher gives an element whose overlay contains the event exclusive
+     * ownership of that click or scroll, before any hit test, and the claim rule
+     * treats the overlay as claimed whatever the panel's opacity.
      *
-     * <p>This is the element-level parallel to M9's panel-level modal
-     * click-eat ({@code Panel.tracksAsModal}). The use case is the same:
-     * an element that draws a transient interactive overlay outside its
-     * layout bounds (e.g., {@link com.trevlar.menukit.core.Dropdown}'s
-     * popover when open) needs the overlay region to be inherently inert
-     * to anything behind it. Without this primitive, a click on a
-     * popover item would also fire whichever element's layout bounds
-     * happened to overlap the popover's screen region (e.g., a button
-     * paint-occluded by the popover but still hit-testable).
-     *
-     * <p>Default returns {@code null} — no active overlay. Existing
-     * elements (Button, TextField, Slider, ScrollContainer, etc.) inherit
-     * unchanged. Override only when you need a transient region that's
-     * exclusively yours.
-     *
-     * <p><b>Coordinate space:</b> screen-space (same as the dispatchers
-     * read mouse positions). The returned rect is consumed as
-     * {@code [x, y, width, height]}.
-     *
-     * <p><b>When to use overlay vs hitTest:</b>
-     * <ul>
-     *   <li><b>Overlay</b> — the element claims an exclusive region; the
-     *       region "eats" all clicks/scrolls inside it (modal-like). Use
-     *       when nothing behind the region should see the input
-     *       (popovers, transient action menus).</li>
-     *   <li><b>hitTest</b> — the element wants to be considered for
-     *       dispatch when cursor is at a non-default position; if it
-     *       doesn't consume, dispatch falls through to other elements.
-     *       Use when the element extends its interactive surface but
-     *       isn't claiming exclusivity (extended trigger zones).</li>
-     * </ul>
-     *
-     * @return {@code [x, y, width, height]} of the active overlay region,
-     *         or {@code null} if no overlay is active
+     * @param in the element's input context (its origin, so it can place the overlay)
      */
-    default int @org.jspecify.annotations.Nullable [] getActiveOverlayBounds() {
+    default int @Nullable [] getActiveOverlayBounds(InputContext in) {
         return null;
     }
 
     /**
-     * Dismiss-side twin of {@link #getActiveOverlayBounds} — notifies an
-     * element with transient open state (a popover, an inline editor, a
-     * transient action menu) that a click landed somewhere NOT claimed by it,
-     * so it can close that state.
-     *
-     * <p>The screen dispatchers call this on every visible element when a click
-     * was claimed by neither the active-overlay pass nor the hit-test pass —
-     * i.e. an "outside click." It is the element-level parallel to
-     * {@link com.trevlar.menukit.core.MKFocus#blurOnOutsideBounds}, which
-     * already clears a focused {@link TextField}'s focus on an outside click;
-     * this generalizes that "reset transient UI state on outside click" janitor
-     * to any popover-like element via one shared primitive (rather than each
-     * element hooking the dispatcher itself). Wired identically into every
-     * dispatcher (MKScreen, the vanilla-screen adapter, the MKC container
-     * screen) so an element behaves the same in every render context.
-     *
-     * <p>Default is a no-op — elements with no transient open state inherit it
-     * unchanged. {@link com.trevlar.menukit.core.Dropdown} /
-     * {@link com.trevlar.menukit.core.DropdownMulti} override it to close
-     * their open popover.
-     *
-     * <p><b>Coordinate space:</b> screen-space, same as the dispatchers read
-     * mouse positions (the coordinates of the outside click).
-     *
-     * @param mouseX screen-space x of the click that fell outside all claims
-     * @param mouseY screen-space y of the click that fell outside all claims
+     * Tells an element with transient open state (a popover) that a click landed
+     * somewhere it did not claim, so it can close. The dispatchers call it on
+     * every shown element for every click, even one another element consumed;
+     * each element decides for itself whether the click was outside. Default:
+     * no-op.
      */
-    default void notifyClickOutsideOverlay(double mouseX, double mouseY) {}
+    default void notifyClickOutsideOverlay(InputContext in) {}
 
     /**
-     * Phase 14d-5 — interaction-bounds hit test. Called by the screen
-     * dispatchers (MKScreen, MKCHandledScreen, ScreenPanelAdapter)
-     * before {@link #mouseClicked} and {@link #mouseScrolled} to decide
-     * whether this element should receive the input event.
-     *
-     * <p>Default implementation tests against the element's layout bounds —
-     * exactly equivalent to the inline screen-space bounds-check the
-     * dispatchers performed pre-14d-5. Existing elements (Button, TextField,
-     * Slider, ScrollContainer, etc.) inherit unchanged.
-     *
-     * <p><b>Override for elements whose interaction surface differs from
-     * their layout bounds.</b> Phase 14d-5's {@code Dropdown} is the
-     * canonical case: its popover renders OUTSIDE the trigger's layout
-     * bounds when open, and clicks on the popover area need to reach the
-     * Dropdown so it can route them internally (select-or-dismiss). Other
-     * future cases: tooltips with embedded action buttons, expandable inline
-     * editors, hover-with-click-targets.
-     *
-     * <p>The split between layout bounds and interaction bounds is
-     * deliberate: panel auto-size logic uses {@code getWidth} / {@code getHeight}
-     * for layout, while the dispatcher uses {@code hitTest} for input
-     * routing. An element can claim a larger interaction surface (popover)
-     * without disturbing layout (which would cause panel reflow).
-     *
-     * <p>Coordinate space: same as {@link #mouseClicked} — screen-space
-     * mouse coordinates. {@code contentX} / {@code contentY} are the panel
-     * content origin (panel position + padding); the element's screen-space
-     * top-left is {@code contentX + getChildX(), contentY + getChildY()}.
-     * The dispatcher passes its own pre-computed contentX/contentY so the
-     * element doesn't need to re-derive layout state.
-     *
-     * @param mouseX   screen-space mouse X
-     * @param mouseY   screen-space mouse Y
-     * @param contentX panel content origin X (panel.x + padding)
-     * @param contentY panel content origin Y (panel.y + padding)
-     * @return true if this element wants to receive the input event
+     * Whether this element wants the input event at the context's mouse
+     * position. Default: the element's layout bounds. Override when the
+     * interaction surface differs from the layout bounds (a container that only
+     * claims where it has children).
      */
-    default boolean hitTest(double mouseX, double mouseY, int contentX, int contentY) {
-        int sx = contentX + getChildX();
-        int sy = contentY + getChildY();
-        return mouseX >= sx && mouseX < sx + getWidth()
-            && mouseY >= sy && mouseY < sy + getHeight();
+    default boolean hitTest(InputContext in) {
+        return in.isOver(this);
     }
 
     /**
-     * Called when the mouse is clicked on this element. The dispatcher
-     * hit-tests against the element's bounds before calling this method, so
-     * implementations know the click is within bounds.
-     *
-     * <p>Returns true if this element consumed the click (preventing further
-     * dispatch to slots or vanilla). The default returns {@code false}, so
-     * render-only elements (TextLabel, Icon, ItemDisplay) don't need to
-     * override it.
-     *
-     * <p>The {@code button} parameter is the mouse button: 0=left, 1=right,
-     * 2=middle. Core {@link Button} only consumes left-click; custom
-     * elements can handle any button.
-     *
-     * @param mouseX  screen-space mouse X
-     * @param mouseY  screen-space mouse Y
-     * @param button  mouse button (0=left, 1=right, 2=middle)
-     * @return true if consumed, false to let the click fall through
+     * A mouse click on this element (the dispatcher hit-tested first). Returns
+     * true if consumed, stopping dispatch to other elements, slots and vanilla.
+     * {@code button} is GLFW's (0 left, 1 right, 2 middle). Default: false.
      */
-    default boolean mouseClicked(double mouseX, double mouseY, int button) {
+    default boolean mouseClicked(InputContext in, int button) {
         return false;
     }
 
     /**
-     * Called when the user scrolls the mouse wheel with the cursor over this
-     * element's bounds. The container hit-tests before calling — implementations
-     * know the cursor is within bounds.
-     *
-     * <p>Returns true if this element consumed the scroll (preventing further
-     * dispatch). Default returns {@code false}, so non-scrollable elements
-     * (Button, TextLabel, etc.) don't need to override it.
-     *
-     * <p>{@code scrollX} / {@code scrollY} are the wheel deltas — typically
-     * scrollY is non-zero (vertical wheel) and scrollX is zero (horizontal
-     * wheel, less common).
-     *
-     * <p>Added in Phase 14d-2 alongside {@code ScrollContainer}, the first
-     * element that consumes scroll input. Existing elements default false
-     * and continue to work unchanged.
-     *
-     * @param mouseX  screen-space mouse X
-     * @param mouseY  screen-space mouse Y
-     * @param scrollX horizontal wheel delta (typically 0)
-     * @param scrollY vertical wheel delta (positive = up, negative = down)
-     * @return true if consumed, false to let the scroll fall through
+     * A wheel scroll over this element (hit-tested first). Returns true if
+     * consumed. {@code scrollY} positive is up. Default: false.
      */
-    default boolean mouseScrolled(double mouseX, double mouseY,
-                                  double scrollX, double scrollY) {
+    default boolean mouseScrolled(InputContext in, double scrollX, double scrollY) {
         return false;
     }
 
     /**
-     * Called when the user releases a mouse button anywhere on the screen
-     * (not hit-tested against this element's bounds — the release fires
-     * regardless of cursor position, so drag-end detection works even when
-     * the user drags off the element). Default returns {@code false} for
-     * elements that don't track press/release state.
-     *
-     * <p>Added in Phase 14d-2 alongside ScrollContainer to support
-     * scrollbar drag — drag is initiated in {@link #mouseClicked}, and
-     * ends when {@code mouseReleased} fires (typically off-element since
-     * the cursor moved during drag). Existing elements default false and
-     * continue to work unchanged.
-     *
-     * <p>Coordinate space: screen-space, same as {@link #mouseClicked}.
-     *
-     * @param mouseX  screen-space mouse X at release
-     * @param mouseY  screen-space mouse Y at release
-     * @param button  mouse button (0=left, 1=right, 2=middle)
-     * @return true if consumed (rare for release events)
+     * A mouse release anywhere on the screen, not hit-tested, so a drag that
+     * started on the element ends wherever the cursor now is. Arrives even in a
+     * disabled context. Default: false.
      */
-    default boolean mouseReleased(double mouseX, double mouseY, int button) {
+    default boolean mouseReleased(InputContext in, int button) {
         return false;
     }
 
     /**
-     * Keyboard input dispatch — completes the element input model alongside
-     * {@link #mouseClicked} / {@link #mouseScrolled}. Called by the screen
-     * dispatchers on a key press while the element's panel is active. Unlike
-     * the mouse methods this is NOT hit-tested: keyboard events aren't
-     * localized to a cursor position, so every visible element on an active
-     * panel is offered the key until one consumes it.
-     *
-     * <p>Returns true if this element consumed the keystroke (stopping further
-     * dispatch and suppressing vanilla's own handling of it). Default returns
-     * {@code false}, so non-keyboard elements (Button, TextLabel, …) are
-     * unaffected.
-     *
-     * <p>{@code keyCode} / {@code scanCode} / {@code modifiers} are GLFW codes,
-     * matching vanilla's {@code GuiEventListener.keyPressed}. The canonical
-     * consumer is {@link Dropdown} — arrow keys move the highlighted option,
-     * Enter selects it, Escape dismisses the popover.
-     *
-     * @param keyCode   GLFW key code
-     * @param scanCode  platform-specific scan code
-     * @param modifiers GLFW modifier bitfield (shift/ctrl/alt)
-     * @return true if consumed, false to let the key fall through
+     * A key press, offered to every shown element of an active panel until one
+     * consumes it (keys are not pointer-localised). GLFW codes, as vanilla's
+     * {@code GuiEventListener.keyPressed}. Default: false.
      */
-    default boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    default boolean keyPressed(InputContext in, int keyCode, int scanCode, int modifiers) {
         return false;
     }
 
     /**
-     * Returns whether this element is solid (M9 per-element opacity), which matters
-     * on a <em>transparent</em> panel: there a panel claims only its solid elements
-     * (shown, opaque and {@linkplain #isInteractive interactive}), so a
-     * non-opaque element lets clicks, hover and tooltips reach what is behind it.
-     *
-     * <p>On an opaque panel this flag no longer punches a hole: since 6.0.0 (§0065)
-     * an opaque panel claims its whole rectangle. A panel's own slots stay live
-     * through {@link #presentsSlotAt}, not through opacity.
+     * Whether this element is solid, which matters on a <em>transparent</em>
+     * panel: there a panel claims only its solid elements (shown, opaque and
+     * {@linkplain #isInteractive interactive}). On an opaque panel the panel
+     * claims its whole rectangle (§0065). Builders set it with {@code opaque}.
      */
     default boolean isElementOpaque() { return true; }
 
     /**
-     * Returns whether this element actually handles pointer input — i.e.
-     * whether a click landing on it should be treated as a solid claim that
-     * blocks the vanilla content behind it. Interactive elements (Button,
-     * TextField, Slider, Dropdown, Toggle, Checkbox, Radio, ScrollContainer)
-     * return {@code true}; render-only decorations (TextLabel, Icon, Divider,
-     * ItemDisplay, ProgressBar, InfoBox) inherit the {@code false} default.
-     *
-     * <p><b>Why this exists (the dead-click guard).</b> On a NON-opaque panel,
-     * the inertness contract only lets a point be claimed where a <em>solid</em>
-     * element sits ({@code PanelHost.claimsPoint}). Without this flag an
-     * opaque-but-render-only decoration would claim — and thus EAT — a click it
-     * does nothing with, contradicting the {@code opaque(false)} "clicks pass
-     * through" promise. Gating branch (b) on {@code isElementOpaque() &&
-     * isInteractive()} means only elements that would actually consume the input
-     * block it; decorations stay transparent to clicks. On an OPAQUE panel the
-     * background already blocks the whole bounds, so this flag is moot there.
-     *
-     * <p>Orthogonal to {@link #isElementOpaque}: opacity is "does my visual
-     * footprint occlude" (a solid Icon is opaque), interactivity is "do I
-     * consume input" (the same Icon is not interactive). Both must hold for an
-     * element to claim a point on a non-opaque panel.
-     *
-     * <p>Default {@code false} — the safe direction. A custom consumer element
-     * that wants to block clicks on a transparent panel declares itself
-     * interactive; the default never produces a dead-click.
+     * Whether this element handles pointer input, so a point on it is a solid
+     * claim on a transparent panel. Controls return {@code true}; render-only
+     * decorations keep the {@code false} default, so they never eat a click they
+     * do nothing with.
      */
     default boolean isInteractive() { return false; }
 
     /**
-     * Whether this element presents a live menu slot under the screen point.
-     *
-     * <p>An opaque panel claims its whole rectangle (§0065: no holes), so whatever
-     * lies beneath it is inert. A slot the panel itself presents is not beneath it:
-     * it is the panel's own content, and its input belongs to vanilla's slot
-     * machinery. When the claimant answers {@code true} here, the host routes the
-     * point to that slot (hover, click and tooltip reach it) instead of eating it.
-     * Anything a different panel put there stays inert.
-     *
-     * <p>Default {@code false}. MenuKit: Containers' {@code SlotElement} and the flow
-     * that hosts them answer for their slots.
-     *
-     * @param mouseX screen-space X
-     * @param mouseY screen-space Y
+     * Whether this element presents a live menu slot under the event's point.
+     * An opaque panel claims its whole rectangle; a slot the panel itself
+     * presents stays live under that claim (§0065). Default {@code false}.
      */
-    default boolean presentsSlotAt(double mouseX, double mouseY) { return false; }
+    default boolean presentsSlotAt(InputContext in) { return false; }
 
     /**
      * The element's explicit, stable declaration id within its panel, or
-     * {@code null} to use the default identity (its registration position in
-     * the panel's element list).
-     *
-     * <p><b>The panel-element identity contract (THE ONE WINDOW, Address
-     * keystone).</b> Every addressable thing needs a deterministic,
-     * reopen-stable identity so the window can resolve it by address across
-     * a screen reopen (Minecraft rebuilds the menu and all elements each
-     * open). For a panel element that identity is, by default, its
-     * <em>registration position</em> in the panel's immutable, consumer-built
-     * element list — the same deterministic registration-order basis a created
-     * slot uses for its {@code localIndex}. Position-as-identity is stable as
-     * long as the consumer builds the element list in the same order each open
-     * (the normal case).
-     *
-     * <p>This accessor is the explicit <em>override</em> for when list order is
-     * not a reliable identity (e.g. a consumer who conditionally includes some
-     * elements and wants a fixed handle regardless of order): supply a stable
-     * string and the window keys on it instead of position. Mirrors the
-     * consumer-supplied-string precedent a created slot has via its panel id.
-     *
-     * <p>Default {@code null} (custom consumer elements implementing this
-     * interface directly inherit position-based identity). Library elements
-     * extending {@code AbstractPanelElement} can set an explicit id via
-     * {@code declId(String)}.
+     * {@code null} to use its registration position in the panel's element list
+     * (the window's address for the element). Builders set it with
+     * {@code declId}.
      */
-    default @org.jspecify.annotations.Nullable String getElementDeclId() { return null; }
+    default @Nullable String getElementDeclId() { return null; }
 
     /**
-     * Phase 14d-3 — screen-attach lifecycle hook. Called when the
-     * containing screen reaches its {@code init()} boundary. Default
-     * no-op for elements that don't need lifecycle hooks.
-     *
-     * <p>Use case: elements that wrap vanilla widgets (e.g., {@code TextField}
-     * wraps {@link net.minecraft.client.gui.components.EditBox}) need to
-     * register the wrapped widget via {@code screen.addRenderableWidget(...)}
-     * so vanilla's screen widget pipeline routes charTyped/keyPressed to
-     * it when focused. Without onAttach, the wrapped widget never enters
-     * vanilla's input dispatch and IME / focus / tab navigation don't work.
-     *
-     * <p>v1 fires once per screen lifetime (at init); does NOT fire on
-     * panel visibility changes mid-screen-life. Visibility-driven
-     * attach/detach is deferred — see {@code DEFERRED.md} 14d-3 follow-ons.
-     *
-     * <p>Coordinate space note: at onAttach time the screen has been
-     * laid out (super.init() ran before MenuKit's lifecycle hooks fire),
-     * so panel bounds + leftPos/topPos are available. Elements that
-     * register vanilla widgets typically need to update widget coords
-     * per-frame in {@link #render} regardless of attach-time positions.
-     *
-     * @param screen the vanilla Screen the panel is attached to
+     * Screen-attach lifecycle hook, called when the containing screen reaches
+     * its {@code init()}. Elements that wrap vanilla widgets register them here
+     * so vanilla's focus, keyboard and narration reach them. Default: no-op.
      */
     default void onAttach(net.minecraft.client.gui.screens.Screen screen) {}
 
-    /**
-     * Phase 14d-3 — screen-detach lifecycle hook. Called when the
-     * containing screen reaches its {@code removed()} boundary. Default no-op.
-     *
-     * <p>Mirrors {@link #onAttach}: elements that registered vanilla
-     * widgets via {@code screen.addRenderableWidget} should remove them
-     * via {@code screen.removeWidget(...)} so vanilla's pipeline cleans
-     * up references.
-     *
-     * @param screen the vanilla Screen the panel was attached to
-     */
+    /** Screen-detach lifecycle hook, the mirror of {@link #onAttach}. Default: no-op. */
     default void onDetach(net.minecraft.client.gui.screens.Screen screen) {}
 }

@@ -1,9 +1,10 @@
 package com.trevlar.menukit.inject;
 
+import com.trevlar.menukit.core.ChildDispatch;
+import com.trevlar.menukit.core.InputContext;
 import com.trevlar.menukit.core.InsideRegion;
 import com.trevlar.menukit.core.OutsideRegion;
 import com.trevlar.menukit.core.Panel;
-import com.trevlar.menukit.core.PanelDispatch;
 import com.trevlar.menukit.core.PanelElement;
 import com.trevlar.menukit.core.PanelPosition;
 import com.trevlar.menukit.core.PanelRendering;
@@ -385,27 +386,15 @@ public final class PanelHost {
      */
     public static boolean claimsPoint(Placed placed, double mouseX, double mouseY) {
         Panel panel = placed.panel();
-        if (activeOverlayAt(panel, mouseX, mouseY)) return true;
+        InputContext in = input(placed, mouseX, mouseY);
+        List<PanelElement> shown = shownElements(panel);
+        if (ChildDispatch.overlayOwner(shown, in) != null) return true;
         if (ClientWindowVisibility.panelOpaque(panel)) {
             return placed.contains(mouseX, mouseY);
         }
-        for (PanelElement el : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, el)) continue;
+        for (PanelElement el : shown) {
             if (!el.isElementOpaque() || !el.isInteractive()) continue;
-            if (el.hitTest(mouseX, mouseY, placed.contentX(), placed.contentY())) return true;
-        }
-        return false;
-    }
-
-    /** Whether a shown element of {@code panel} has an active overlay (open popover) over the point. */
-    public static boolean activeOverlayAt(Panel panel, double mouseX, double mouseY) {
-        for (PanelElement el : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, el)) continue;
-            int[] o = el.getActiveOverlayBounds();
-            if (o != null && mouseX >= o[0] && mouseX < o[0] + o[2]
-                    && mouseY >= o[1] && mouseY < o[1] + o[3]) {
-                return true;
-            }
+            if (el.hitTest(in)) return true;
         }
         return false;
     }
@@ -421,12 +410,29 @@ public final class PanelHost {
         if (slotOwnership != null && slotOwnership.ownsSlotAt(placed.panel(), mouseX, mouseY)) {
             return true;
         }
-        Panel panel = placed.panel();
-        for (PanelElement el : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, el)) continue;
-            if (el.presentsSlotAt(mouseX, mouseY)) return true;
+        InputContext in = input(placed, mouseX, mouseY);
+        for (PanelElement el : shownElements(placed.panel())) {
+            if (el.presentsSlotAt(in)) return true;
         }
         return false;
+    }
+
+    /**
+     * The input context for a placed panel's elements (§0066): its content origin,
+     * the event's point, and whether the panel is disabled (the cascade).
+     */
+    public static InputContext input(Placed placed, double mouseX, double mouseY) {
+        return new InputContext(placed.contentX(), placed.contentY(), mouseX, mouseY, placed.panel().isDisabled());
+    }
+
+    /** The panel's elements the window engine shows (the one isShown for elements). */
+    private static List<PanelElement> shownElements(Panel panel) {
+        List<PanelElement> all = panel.getElements();
+        List<PanelElement> out = new ArrayList<>(all.size());
+        for (PanelElement el : all) {
+            if (ClientWindowVisibility.elementShown(panel, el)) out.add(el);
+        }
+        return out;
     }
 
     /** The topmost placed panel in {@code layer} that claims the point, or {@code null}. */
@@ -694,10 +700,14 @@ public final class PanelHost {
                 PanelRendering.renderPanel(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
             }
             if (decoration != null) decoration.draw(graphics, p);
-            RenderContext ctx = new RenderContext(graphics, p.contentX(), p.contentY(), mx, my);
+            RenderContext ctx = new RenderContext(graphics, p.contentX(), p.contentY(), mx, my, panel.isDisabled());
             if (live) liveRenderDepth++;
             try {
-                PanelDispatch.renderElements(panel, ctx);
+                // Base pass, then the overlay pass (an open popover on top of every
+                // sibling), through the one child dispatch.
+                List<PanelElement> shown = shownElements(panel);
+                ChildDispatch.render(shown, ctx);
+                ChildDispatch.renderOverlay(shown, ctx);
                 panel.maybeQueueTooltip(graphics, p.x(), p.y(), p.w(), p.h(), mx, my, ctx.hasMouseInput());
             } finally {
                 if (live) liveRenderDepth--;
@@ -708,24 +718,26 @@ public final class PanelHost {
     // ── Input ──────────────────────────────────────────────────────────
 
     /**
-     * Routes a click to this host's panels, topmost first: an element's active
+     * Routes a click to this host's panels, topmost first: an element's open
      * overlay takes it exclusively, then the first element whose hit test contains
-     * the point and consumes it. With a modal up only modal panels are eligible.
+     * the point and consumes it (both through {@link ChildDispatch}, with each
+     * panel's own input context). With a modal up only modal panels are eligible.
      *
      * @return whether an element consumed the click
      */
     public boolean mouseClicked(double mouseX, double mouseY, int button, boolean modalUp) {
         if (kind == Kind.HUD) return false;
         List<Placed> placed = placed();
+        // Every panel's open overlays first: a popover is on top of every panel.
         for (int i = placed.size() - 1; i >= 0; i--) {
             Placed p = placed.get(i);
             if (modalUp && !p.panel().tracksAsModal()) continue;
-            if (clickOverlay(p.panel(), mouseX, mouseY, button)) return true;
+            if (clickOverlay(p, mouseX, mouseY, button)) return true;
         }
         for (int i = placed.size() - 1; i >= 0; i--) {
             Placed p = placed.get(i);
             if (modalUp && !p.panel().tracksAsModal()) continue;
-            if (clickElements(p, mouseX, mouseY, button)) return true;
+            if (ChildDispatch.mouseClicked(shownElements(p.panel()), input(p, mouseX, mouseY), button)) return true;
         }
         return false;
     }
@@ -733,31 +745,16 @@ public final class PanelHost {
     /** Routes a click to one claimed panel. @return whether an element consumed it */
     public boolean mouseClicked(Placed target, double mouseX, double mouseY, int button) {
         if (kind == Kind.HUD) return false;
-        return clickOverlay(target.panel(), mouseX, mouseY, button)
-                || clickElements(target, mouseX, mouseY, button);
+        return ChildDispatch.mouseClicked(shownElements(target.panel()), input(target, mouseX, mouseY), button);
     }
 
-    private static boolean clickOverlay(Panel panel, double mouseX, double mouseY, int button) {
-        for (PanelElement el : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, el)) continue;
-            int[] o = el.getActiveOverlayBounds();
-            if (o != null && mouseX >= o[0] && mouseX < o[0] + o[2]
-                    && mouseY >= o[1] && mouseY < o[1] + o[3]) {
-                el.mouseClicked(mouseX, mouseY, button);
-                return true; // exclusive: the popover owns its area
-            }
-        }
-        return false;
-    }
-
-    private static boolean clickElements(Placed p, double mouseX, double mouseY, int button) {
-        Panel panel = p.panel();
-        for (PanelElement el : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, el)) continue;
-            if (!el.hitTest(mouseX, mouseY, p.contentX(), p.contentY())) continue;
-            if (el.mouseClicked(mouseX, mouseY, button)) return true;
-        }
-        return false;
+    /** An open overlay of one of the panel's elements under the point takes the click, exclusively. */
+    private static boolean clickOverlay(Placed p, double mouseX, double mouseY, int button) {
+        List<PanelElement> shown = shownElements(p.panel());
+        InputContext in = input(p, mouseX, mouseY);
+        if (ChildDispatch.overlayOwner(shown, in) == null) return false;
+        ChildDispatch.mouseClicked(shown, in, button);
+        return true;
     }
 
     /** Routes a scroll, like {@link #mouseClicked(double, double, int, boolean)}. */
@@ -777,56 +774,37 @@ public final class PanelHost {
     public boolean mouseScrolled(Placed target, double mouseX, double mouseY,
                                  double scrollX, double scrollY) {
         if (kind == Kind.HUD) return false;
-        Panel panel = target.panel();
-        for (PanelElement el : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, el)) continue;
-            int[] o = el.getActiveOverlayBounds();
-            if (o != null && mouseX >= o[0] && mouseX < o[0] + o[2]
-                    && mouseY >= o[1] && mouseY < o[1] + o[3]) {
-                el.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
-                return true;
-            }
-        }
-        for (PanelElement el : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, el)) continue;
-            if (!el.hitTest(mouseX, mouseY, target.contentX(), target.contentY())) continue;
-            if (el.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
-        }
-        return false;
+        return ChildDispatch.mouseScrolled(shownElements(target.panel()), input(target, mouseX, mouseY),
+                scrollX, scrollY);
     }
 
     /**
      * Offers a release to every shown element, not hit-tested: a drag that started
-     * on an element ends there wherever the cursor now is. Not modal-filtered, so a
-     * drag begun before a modal opened still finishes.
+     * on an element ends there wherever the cursor now is. Not modal-filtered, and
+     * not gated by disabled, so a drag begun before a modal opened (or before the
+     * panel was disabled) still finishes.
      */
     public void mouseReleased(double mouseX, double mouseY, int button) {
         if (kind == Kind.HUD) return;
-        for (Entry e : entries) {
-            Panel panel = e.panel();
-            if (!isShown(panel)) continue;
-            for (PanelElement el : panel.getElements()) {
-                if (!ClientWindowVisibility.elementShown(panel, el)) continue;
-                el.mouseReleased(mouseX, mouseY, button);
-            }
+        for (Placed p : placed()) {
+            ChildDispatch.mouseReleased(shownElements(p.panel()), input(p, mouseX, mouseY), button);
         }
     }
 
     /**
      * Offers a key to the shown elements, topmost panel first, until one consumes it.
      * Not hit-tested (keys are not pointer-localised). With a modal up only modal
-     * panels are eligible.
+     * panels are eligible; a disabled panel's elements take none.
      */
     public boolean keyPressed(int keyCode, int scanCode, int modifiers, boolean modalUp) {
         if (kind == Kind.HUD) return false;
-        List<Entry> es = entries;
-        for (int i = es.size() - 1; i >= 0; i--) {
-            Panel panel = es.get(i).panel();
-            if (!isShown(panel)) continue;
-            if (modalUp && !panel.tracksAsModal()) continue;
-            for (PanelElement el : panel.getElements()) {
-                if (!ClientWindowVisibility.elementShown(panel, el)) continue;
-                if (el.keyPressed(keyCode, scanCode, modifiers)) return true;
+        List<Placed> placed = placed();
+        double mx = currentMouseX(), my = currentMouseY();
+        for (int i = placed.size() - 1; i >= 0; i--) {
+            Placed p = placed.get(i);
+            if (modalUp && !p.panel().tracksAsModal()) continue;
+            if (ChildDispatch.keyPressed(shownElements(p.panel()), input(p, mx, my), keyCode, scanCode, modifiers)) {
+                return true;
             }
         }
         return false;
@@ -839,37 +817,41 @@ public final class PanelHost {
      */
     public void notifyOutsideClick(double mouseX, double mouseY) {
         if (kind == Kind.HUD) return;
-        for (Entry e : entries) {
-            Panel panel = e.panel();
-            if (!isShown(panel)) continue;
-            for (PanelElement el : panel.getElements()) {
-                if (!ClientWindowVisibility.elementShown(panel, el)) continue;
-                el.notifyClickOutsideOverlay(mouseX, mouseY);
-            }
+        for (Placed p : placed()) {
+            ChildDispatch.notifyClickOutside(shownElements(p.panel()), input(p, mouseX, mouseY));
         }
+    }
+
+    /** The mouse position in GUI coordinates, for a key event (which carries none). */
+    private static double currentMouseX() {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc == null || mc.getWindow() == null) return -1;
+        return mc.mouseHandler.getScaledXPos(mc.getWindow());
+    }
+
+    private static double currentMouseY() {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc == null || mc.getWindow() == null) return -1;
+        return mc.mouseHandler.getScaledYPos(mc.getWindow());
     }
 
     /**
      * Element lifecycle on (re)init: detach then attach every element of every entry,
-     * so a widget-wrapping element (TextField, Slider) re-registers its vanilla widget
-     * after a resize, which clears widgets without calling {@code removed()}.
+     * so a widget-wrapping element (TextField, Slider, and the vanilla stand-in every
+     * button, toggle, checkbox and radio registers) re-registers after a resize,
+     * which clears widgets without calling {@code removed()}.
      */
     public void attach(Screen screen) {
         for (Entry e : entries) {
-            for (PanelElement el : e.panel().getElements()) {
-                el.onDetach(screen);
-                el.onAttach(screen);
-            }
+            List<PanelElement> elements = e.panel().getElements();
+            ChildDispatch.detach(elements, screen);
+            ChildDispatch.attach(elements, screen);
         }
     }
 
     /** Element lifecycle on close. */
     public void detach(Screen screen) {
-        for (Entry e : entries) {
-            for (PanelElement el : e.panel().getElements()) {
-                el.onDetach(screen);
-            }
-        }
+        for (Entry e : entries) ChildDispatch.detach(e.panel().getElements(), screen);
     }
 
     // ── Registering mod (the tie-break after priority) ─────────────────

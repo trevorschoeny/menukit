@@ -7,899 +7,346 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
 
-import com.trevlar.menukit.core.layout.ElementSpec;
-
 /**
- * A clipped viewport hosting pre-positioned {@link PanelElement}s with
- * vertical scroll input. The single-responsibility primitive for "show
- * content larger than its bounds with scroll input."
+ * A clipped viewport over pre-positioned elements, scrolled vertically: the
+ * single primitive for "show content larger than its bounds".
  *
- * <h3>Single-responsibility design</h3>
+ * <pre>{@code
+ * ScrollContainer.builder().size(140, 80)
+ *         .content(rows)                      // positioned from the viewport's top-left
+ *         .build();
+ * }</pre>
  *
- * ScrollContainer owns clipping + scroll offset + scrollbar UI + minimal
- * background. It does NOT compute layout, auto-size its bounds, or apply
- * padding — those are the consumer's job (compose layout via M8 helpers,
- * declare viewport dimensions explicitly, wrap in a styled Panel for
- * richer chrome).
+ * <h3>Single responsibility</h3>
  *
- * <p>Children are pre-positioned PanelElements with their {@code childX} /
- * {@code childY} relative to the viewport's content origin (top-left of
- * the scrollable area). ScrollContainer translates rendering by the
- * current scroll offset; children's positions are still "fixed at
- * construction" per Principle 4 — the translation is render-time only.
+ * It owns clipping, the scroll position, the scrollbar and routing input to its
+ * children. It does not lay out: children are placed from the viewport's
+ * top-left (compose them with {@code Row}/{@code Column} or give positions), and
+ * the viewport's size is declared. Width reserved for the scrollbar lane is
+ * {@link #viewportWidthFor}.
  *
- * <h3>The thesis reframe (M8 + scroll)</h3>
+ * <h3>Scroll position: view state, or the consumer's</h3>
  *
- * Scroll requires runtime clipping; build-time positioned-element emission
- * (M8's helper-not-container test) can't deliver. The narrowed thesis:
- * <i>"Panel is the ceiling of layout composition. PanelElements may have
- * internal render dispatch over their own visuals OR over a viewport
- * showing externally-positioned children. The M8 helper-not-container
- * test applies to LAYOUT (build-time positioning); other runtime concerns
- * (clipping, viewport scrolling) are honest sub-passes within an Element."</i>
- * See {@code Design Docs/Elements/SCROLL_CONTAINER.md} §4.2 for the full
- * reframe.
+ * By default the scroll is the container's own view state, as a {@link Tabs}
+ * body's is. {@code state(get, set)} hands it to the consumer instead, in pixels
+ * from the top: {@code get} is read every frame, {@code set} receives each change.
+ * Pixels, not a fraction: when the content changes height while shown (a section
+ * opening), what is on screen stays where it is and only the range changes. A
+ * position past the new end is clamped, and the clamp written back.
  *
- * <h3>Scroll position state — Principle 8 lens pattern</h3>
+ * <h3>Input</h3>
  *
- * Scroll position is consumer state. The library reads via
- * {@link DoubleSupplier} and notifies via {@link DoubleConsumer} on scroll
- * events. Consumer mutates their own state in the callback; library reads
- * supplier next frame. Out-of-range supplier values are silently clamped
- * (matches ProgressBar convention).
+ * The wheel over the viewport scrolls it (after any child that scrolls itself, a
+ * nested container, had the wheel); dragging the handle scrolls it; clicks inside
+ * the viewport reach the children at their scrolled positions; the scrollbar lane
+ * eats its own clicks. An open popover of a child (a {@link Dropdown}) claims its
+ * whole area, even the part hanging below the viewport, and draws unclipped on
+ * the overlay pass. Disabled (its own {@code disabledWhen} or its panel's), it and
+ * everything in it are greyed and inert.
  *
- * <p>Two units. {@link Builder#scrollOffset} is a fraction, 0.0 at the top and
- * 1.0 at the end. {@link Builder#scrollPixels} is pixels from the top. The
- * difference shows when the content changes height: a fraction keeps the
- * <em>proportion</em>, so everything on screen moves; pixels keep what is at
- * the top of the viewport, so a section opening in view stays where it is and
- * the scroll range just gets longer. Anything whose content grows or shrinks
- * while shown should hold pixels. A pixel position past the new end is
- * clamped, and the clamp is written back, so a later growth does not jump to
- * the old, larger value.
- *
- * <h3>Scroll input — v1 sources</h3>
- *
- * <ul>
- *   <li><b>Mouse wheel</b> within the viewport bounds. Updates offset by
- *       a fixed pixel amount per "tick" of wheel input.</li>
- *   <li><b>Click-and-drag on the scrollbar handle.</b> Click starts drag;
- *       drag updates offset proportionally to mouse Y delta. Drag end
- *       is detected by polling the mouse-button state per frame
- *       (avoids requiring {@code mouseDragged}/{@code mouseReleased}
- *       additions to {@link PanelElement} for v1).</li>
- * </ul>
- *
- * Click on items inside the viewport dispatches to those items normally.
- * Click on the scrollbar handle starts drag instead of dispatching.
- *
- * <h3>Modal-aware</h3>
- *
- * When a modal dialog is up and the cursor is inside the modal, scroll
- * inside the modal reaches the modal's elements (so a ScrollContainer
- * inside a modal works). When the cursor is outside the modal, scroll is
- * eaten by the modal mechanism. See
- * {@code Design Docs/Elements/SCROLL_CONTAINER.md} §4.9 for the dispatch
- * details.
- *
- * @see PanelElement The interface this implements
+ * <p>Every child is dispatched through {@link ChildDispatch}, with the context
+ * moved to the scrolled content origin: the same order a panel uses.
  */
-public class ScrollContainer extends AbstractPanelElement<ScrollContainer> {
+public class ScrollContainer extends AbstractPanelElement {
 
-    @Override protected ScrollContainer self() { return this; }
-
-    /** Width of the scrollbar handle sprite, in pixels. Matches vanilla
-     *  {@code CreativeModeInventoryScreen.SCROLLER_WIDTH}. */
+    /** Width of the handle sprite: vanilla's creative-inventory scroller. */
     public static final int SCROLLER_WIDTH = 12;
-
-    /** Height of the scrollbar handle sprite, in pixels. Matches vanilla
-     *  {@code CreativeModeInventoryScreen.SCROLLER_HEIGHT} — vanilla uses
-     *  a FIXED-size handle (not proportional to content), positioned along
-     *  the track based on scroll offset. We adopt the same convention for
-     *  visual parity with creative inventory's scrollbar. */
+    /** Height of the handle: a fixed-size handle, as vanilla's creative inventory. */
     public static final int SCROLLER_HEIGHT = 15;
-
-    /** Vanilla scroller-enabled sprite — same identifier
-     *  {@code CreativeModeInventoryScreen.SCROLLER_SPRITE} uses. */
+    /** Vanilla's scroller sprite. */
     public static final Identifier SCROLLER_SPRITE =
             Identifier.withDefaultNamespace("container/creative_inventory/scroller");
-
-    /** Vanilla scroller-disabled sprite (used when content fits viewport). */
+    /** Vanilla's disabled scroller sprite (content fits, or disabled). */
     public static final Identifier SCROLLER_DISABLED_SPRITE =
             Identifier.withDefaultNamespace("container/creative_inventory/scroller_disabled");
-
-    /** Pixels of gutter between viewport content and the scrollbar
-     *  track. Visual spacing so the track doesn't butt directly against
-     *  content. Library-defined; consumers who use {@link #viewportWidthFor(int)}
-     *  get correctly-sized content automatically. */
+    /** Space between the content and the scrollbar track. */
     public static final int SCROLLER_GUTTER = 4;
-
-    /** Pixels of padding inside the track around the handle. The track
-     *  is wider/taller than the handle by this amount on each side, so
-     *  the handle sits inside a slightly larger recessed area —
-     *  matches vanilla creative inventory's scrollbar appearance. */
+    /** Padding inside the track around the handle. */
     public static final int SCROLLER_TRACK_PADDING = 1;
-
-    /** Total scrollbar track width = handle width + 2× track padding. */
+    /** Scrollbar track width: the handle plus its padding. */
     public static final int TRACK_WIDTH = SCROLLER_WIDTH + 2 * SCROLLER_TRACK_PADDING;
-
-    /** Pixels scrolled per mouse-wheel tick. Tuned for typical content. */
+    /** Pixels scrolled per wheel notch. */
     public static final int SCROLL_PIXELS_PER_TICK = 10;
 
-    // Non-final since Pass 3 column-fill (fillWidth); viewportWidth()/scrollbar
-    // X all derive from this field live each frame.
-    private int width;
-    private final int height;
     private final List<PanelElement> content;
     private final int contentHeight;
-    private final DoubleSupplier scrollOffsetSupplier;
-    private final @Nullable DoubleConsumer onScrollOffsetChanged;
-    /** Whether the supplier and callback speak pixels ({@link Builder#scrollPixels}) rather than a fraction. */
-    private final boolean pixelState;
+    private final DoubleSupplier scrollGet;
+    private final DoubleConsumer scrollSet;
 
-    /**
-     * Optional disabled predicate (Phase 3b — Item 8). When it returns true,
-     * the scrollbar handle renders with the disabled sprite and ALL input
-     * (wheel scroll, scrollbar drag, child-click dispatch) is ignored — the
-     * viewport becomes a static, inert pane. Per-frame predicate shape,
-     * matching the simple widgets' {@code disabledWhen}. Null = always enabled.
-     */
-    private final @Nullable BooleanSupplier disabledWhen;
+    /** The scroll, in pixels, when the consumer does not own it (view state). */
+    private double ownScroll = 0;
 
-    /** Drag state — internal, mutable. {@code true} while user is dragging the
-     *  scrollbar handle. Polled per-frame in render to detect drag end. */
-    private boolean draggingHandle = false;
-    /** Mouse Y at drag start, screen-space. */
+    // The handle drag: interaction state from press to release, not a frame cache.
+    private boolean dragging = false;
     private double dragStartMouseY = 0;
-    /** Scroll offset (normalized) at drag start. */
-    private double dragStartScrollOffset = 0;
+    private double dragStartFraction = 0;
 
-    /** Begins a builder. */
+    protected ScrollContainer(Builder b) {
+        super(b);
+        this.content = List.copyOf(b.content);
+        this.contentHeight = b.contentHeight >= 0 ? b.contentHeight : autoContentHeight(content);
+        if (b.scrollGet != null) {
+            this.scrollGet = b.scrollGet;
+            this.scrollSet = b.scrollSet;
+        } else {
+            this.scrollGet = () -> ownScroll;
+            this.scrollSet = v -> ownScroll = v;
+        }
+    }
+
     public static Builder builder() {
         return new Builder();
     }
 
-    /**
-     * Returns the viewport width (the area children render into) for a
-     * ScrollContainer of the given outer width. Consumers use this when
-     * sizing content elements to fit inside the viewport without being
-     * clipped by the scissor — typical pattern:
-     *
-     * <pre>{@code
-     * int viewport = ScrollContainer.viewportWidthFor(panelWidth);
-     * var col = Column.at(0, 0).spacing(2);
-     * for (var item : items) {
-     *     col = col.add(Button.spec(viewport, 20, item.label(), item.onClick()));
-     * }
-     * }</pre>
-     *
-     * Avoids consumers having to remember the {@code TRACK_WIDTH +
-     * SCROLLER_GUTTER} subtraction themselves.
-     */
+    /** The content width that fits a container {@code outerWidth} wide: its width minus the scrollbar lane. */
     public static int viewportWidthFor(int outerWidth) {
         return outerWidth - TRACK_WIDTH - SCROLLER_GUTTER;
     }
 
-    private ScrollContainer(int childX, int childY, int width, int height,
-                             List<PanelElement> content, int contentHeight,
-                             DoubleSupplier scrollOffsetSupplier,
-                             @Nullable DoubleConsumer onScrollOffsetChanged,
-                             boolean pixelState,
-                             @Nullable BooleanSupplier disabledWhen) {
-        this.childX = childX;
-        this.childY = childY;
-        this.width = width;
-        this.height = height;
-        this.content = List.copyOf(content);
-        this.contentHeight = contentHeight;
-        this.scrollOffsetSupplier = scrollOffsetSupplier;
-        this.onScrollOffsetChanged = onScrollOffsetChanged;
-        this.pixelState = pixelState;
-        this.disabledWhen = disabledWhen;
+    private static int autoContentHeight(List<PanelElement> content) {
+        int max = 0;
+        for (PanelElement e : content) max = Math.max(max, e.getChildY() + e.getHeight());
+        return max;
     }
 
-    /** Returns whether the container is currently disabled (Phase 3b — Item 8). */
-    public boolean isDisabled() {
-        return disabledWhen != null && disabledWhen.getAsBoolean();
-    }
+    // ── Geometry ───────────────────────────────────────────────────────
 
-    // ── Geometry helpers ─────────────────────────────────────────────────
-
-    /** Viewport width — element width minus the scrollbar lane (gutter +
-     *  track). The track is wider than the handle by 2× track padding.
-     *  Viewport right edge is at {@code sx + viewportWidth()}; the gutter
-     *  occupies {@code [viewportWidth, viewportWidth + GUTTER)}; the
-     *  track occupies the rightmost {@code TRACK_WIDTH} pixels. */
     private int viewportWidth() {
         return width - TRACK_WIDTH - SCROLLER_GUTTER;
     }
 
-    /** Viewport height — full height (scrollbar runs full vertical). */
-    private int viewportHeight() {
-        return height;
-    }
-
-    /** Whether content overflows the viewport (i.e., scrolling is meaningful). */
     private boolean canScroll() {
-        return contentHeight > viewportHeight();
+        return contentHeight > height;
     }
 
-    /** Maximum scroll distance in pixels. Zero when content fits. */
-    private int maxScrollPixels() {
-        return Math.max(0, contentHeight - viewportHeight());
+    private int maxScroll() {
+        return Math.max(0, contentHeight - height);
     }
 
-    /** Current scroll position in pixels, unrounded, clamped to [0, max], whichever unit the state is in. */
-    private double scrollPixelsExact() {
-        double raw = scrollOffsetSupplier.getAsDouble();
-        int max = maxScrollPixels();
-        if (pixelState) return Math.max(0.0, Math.min(max, raw));
-        return Math.max(0.0, Math.min(1.0, raw)) * max;
+    /** The scroll in pixels, clamped to the current range. */
+    private double scroll() {
+        return Math.max(0.0, Math.min(maxScroll(), scrollGet.getAsDouble()));
     }
 
-    /** Current scroll position in whole pixels. */
-    private int scrollPixels() {
-        return (int) scrollPixelsExact();
+    private double fraction() {
+        int max = maxScroll();
+        return max == 0 ? 0.0 : scroll() / max;
     }
 
-    /** Current scroll position as a fraction of the range, for the scrollbar handle. */
-    private double scrollOffset() {
-        int max = maxScrollPixels();
-        return max == 0 ? 0.0 : scrollPixelsExact() / max;
+    private void setScroll(double pixels) {
+        scrollSet.accept(Math.max(0.0, Math.min(maxScroll(), pixels)));
     }
 
-    /** Scrollbar handle height — fixed-size matching vanilla's
-     *  {@code SCROLLER_HEIGHT} convention. */
-    private int handleHeight() {
-        return SCROLLER_HEIGHT;
+    private int handleTravel() {
+        return height - SCROLLER_HEIGHT - 2 * SCROLLER_TRACK_PADDING;
     }
 
-    /** Scrollbar handle Y offset (relative to scrollbar top), in pixels.
-     *  Track height = element height; usable handle range = element height
-     *  minus handle height minus 2× track padding (1px from track top,
-     *  1px from track bottom). Offset is scrolled fraction of that range. */
-    private int handleYOffset() {
-        if (!canScroll()) return SCROLLER_TRACK_PADDING;
-        int handleRange = height - SCROLLER_HEIGHT - 2 * SCROLLER_TRACK_PADDING;
-        if (handleRange <= 0) return SCROLLER_TRACK_PADDING;
-        return SCROLLER_TRACK_PADDING + (int) (scrollOffset() * handleRange);
+    private int handleOffset() {
+        if (!canScroll() || handleTravel() <= 0) return SCROLLER_TRACK_PADDING;
+        return SCROLLER_TRACK_PADDING + (int) (fraction() * handleTravel());
     }
 
-    /** Notifies the consumer of a new scroll position given as a fraction of the range. */
-    private void notifyOffset(double newOffset) {
-        notifyPixels(newOffset * maxScrollPixels());
+    /** Where the children's origin is: the viewport's top-left, moved up by the scroll. */
+    private InputContext childInput(InputContext in) {
+        return in.at(in.originX() + childX, in.originY() + childY - (int) scroll()).disabledIf(ownDisabled());
     }
 
-    /** Notifies the consumer of a new scroll position in pixels (clamped), in the state's own unit. */
-    private void notifyPixels(double newPixels) {
-        if (onScrollOffsetChanged == null) return;
-        int max = maxScrollPixels();
-        double clamped = Math.max(0.0, Math.min(max, newPixels));
-        onScrollOffsetChanged.accept(pixelState ? clamped : (max == 0 ? 0.0 : clamped / max));
+    private RenderContext childRender(RenderContext ctx) {
+        return ctx.at(ctx.originX() + childX, ctx.originY() + childY - (int) scroll()).disabledIf(ownDisabled());
     }
 
-    // ── PanelElement Implementation ───────────────────────────────────────
+    // ── PanelElement ───────────────────────────────────────────────────
 
-    @Override public int getWidth()  { return width; }
-    @Override public int getHeight() { return height; }
-
-    /** Column-fill (Pass 3): stretch the viewport to the column's widest extent.
-     *  viewportWidth()/scrollbar geometry derive from width live, so this takes
-     *  effect next frame; children keep their own x (left-aligned in the wider
-     *  viewport). Floored so the scrollbar lane always fits. */
+    /** Column fill widens the viewport; floored so the scrollbar lane always fits. */
     @Override
     public void fillWidth(int width) {
-        this.width = Math.max(width, TRACK_WIDTH + SCROLLER_GUTTER + 1);
+        super.fillWidth(Math.max(width, TRACK_WIDTH + SCROLLER_GUTTER + 1));
     }
 
-    /** Interactive — handles scroll/scrollbar-drag, so it claims (blocks vanilla behind) on a non-opaque panel. */
+    /** A fixed viewport: the panel does not narrow it. */
+    @Override
+    public void layoutWithin(int budget) {}
+
     @Override public boolean isInteractive() { return true; }
 
     @Override
     public void render(RenderContext ctx) {
-        var graphics = ctx.graphics();
+        var g = ctx.graphics();
         int sx = ctx.originX() + childX;
         int sy = ctx.originY() + childY;
+        boolean disabled = disabled(ctx);
+        if (disabled) dragging = false;
 
-        // Cache the screen-space origin so mouseClicked can compute
-        // element-relative coords (mouseClicked doesn't get RenderContext).
-        cacheRenderOrigin(sx, sy);
-
-        // Disabled-state gate (Phase 3b — Item 8). When disabled, the
-        // container is inert: cancel any in-progress drag and skip the
-        // drag-offset update. The scrollbar still paints (below) but with
-        // the disabled sprite, and all input methods early-return.
-        boolean disabled = isDisabled();
-        if (disabled) {
-            draggingHandle = false;
-        }
-
-        // Container-level hover tooltip — inherited from AbstractPanelElement but
-        // historically never fired (a present-but-dead setter). Queued HERE, before
-        // the child-render loop below, so a hovered child's own tooltip is queued
-        // later and wins by vanilla's last-call-wins semantics; the container
-        // tooltip shows when the cursor is over the container's empty area/chrome.
+        // The container's own tooltip first, so a hovered child's wins.
         queueTooltip(ctx);
 
-        // A pixel position past the end (the content got shorter) is clamped when
-        // read; write the clamp back, so the content growing again later does not
-        // jump the view to the old, larger position.
-        if (pixelState && onScrollOffsetChanged != null) {
-            double raw = scrollOffsetSupplier.getAsDouble();
-            if (raw != scrollPixelsExact()) onScrollOffsetChanged.accept(scrollPixelsExact());
+        // A consumer-owned position past the end (the content got shorter) is
+        // clamped when read; write the clamp back, so a later growth does not jump.
+        double raw = scrollGet.getAsDouble();
+        if (raw != scroll()) scrollSet.accept(scroll());
+
+        // Follow a held handle with the mouse.
+        if (dragging && canScroll() && handleTravel() > 0 && ctx.hasMouseInput()) {
+            double f = dragStartFraction + (ctx.mouseY() - dragStartMouseY) / handleTravel();
+            setScroll(f * maxScroll());
         }
 
-        // Per-frame drag offset update. While draggingHandle is true,
-        // sample the current mouse Y from the RenderContext and update
-        // scroll offset proportional to drag distance. Drag end is
-        // signaled by mouseReleased() — set draggingHandle=false there.
-        // Drag range matches the handleYOffset math: full handle range
-        // is the track height minus handle height minus 2× track padding.
-        if (draggingHandle && canScroll()) {
-            int handleRange = height - SCROLLER_HEIGHT - 2 * SCROLLER_TRACK_PADDING;
-            if (handleRange > 0) {
-                double deltaY = ctx.mouseY() - dragStartMouseY;
-                double newOffset = dragStartScrollOffset + (deltaY / handleRange);
-                notifyOffset(newOffset);
-            }
+        // The children, clipped to the viewport, at their scrolled positions. A
+        // child entirely outside the window is skipped, unless its popover is open
+        // (the popover draws on the overlay pass from the same origin).
+        g.enableScissor(sx, sy, sx + viewportWidth(), sy + height);
+        RenderContext inner = childRender(ctx);
+        int top = (int) scroll();
+        InputContext probe = inner.input();
+        for (PanelElement e : content) {
+            if (!e.isVisible()) continue;
+            boolean open = e.getActiveOverlayBounds(probe) != null;
+            if (!open && (e.getChildY() + e.getHeight() < top || e.getChildY() >= top + height)) continue;
+            e.render(inner);
         }
+        g.disableScissor();
 
-        // 1. Render minimal background — a 1px frame around the viewport.
-        // Consumer who wants richer chrome wraps the ScrollContainer in a
-        // styled Panel. The frame here is observational ("here's where
-        // the scroll region is"), not stylistic.
-        // (Skipped in v1: just render content directly. Frame can fold
-        // post-evidence if smoke shows the viewport boundary is unclear.)
-
-        // 2. Enable scissor — clip subsequent draws to the viewport.
-        // Vanilla pattern: enableScissor takes (x1, y1, x2, y2) inclusive
-        // top-left and exclusive bottom-right.
-        graphics.enableScissor(sx, sy, sx + viewportWidth(), sy + viewportHeight());
-
-        // 3. Render each child with translation by current scroll offset.
-        // The child's childX/childY remain "fixed at construction"
-        // (Principle 4); we translate the rendering origin instead.
-        int scrollY = scrollPixels();
-        RenderContext childCtx = new RenderContext(
-                graphics, sx, sy - scrollY, ctx.mouseX(), ctx.mouseY());
-        for (PanelElement element : content) {
-            if (!element.isVisible()) continue;
-            // Skip elements entirely outside the visible scroll window for
-            // a small render-cost saving on large content lists. Element
-            // is visible if its Y range intersects [scrollY, scrollY+viewportHeight].
-            // Don't cull a child with an OPEN overlay (Dropdown popover): its
-            // renderOverlay/getActiveOverlayBounds read a trigger-position cache
-            // refreshed only here, so culling it while open would freeze the
-            // popover at a stale screen position. Keep rendering it.
-            boolean hasOpenOverlay = element.getActiveOverlayBounds() != null;
-            int top = element.getChildY();
-            int bottom = top + element.getHeight();
-            if (!hasOpenOverlay) {
-                if (bottom < scrollY) continue;
-                if (top >= scrollY + viewportHeight()) continue;
-            }
-            element.render(childCtx);
-        }
-
-        // 4. Disable scissor before drawing the scrollbar.
-        graphics.disableScissor();
-
-        // 5. Render scrollbar — inset track + handle. Track is the
-        // rightmost TRACK_WIDTH pixels, full element height. Handle is
-        // SCROLLER_WIDTH × SCROLLER_HEIGHT, positioned 1px inside the
-        // track on each side (so the inset shows around the handle).
-        // Slot-style inset (subtle 1px shadow/highlight + gray fill)
-        // matches vanilla's scrollbar track exactly — heavier
-        // PanelStyle.INSET would frame too aggressively.
+        // The scrollbar: an inset track and vanilla's handle.
         int trackX = sx + width - TRACK_WIDTH;
-        PanelRendering.renderInsetRect(graphics, trackX, sy,
-                TRACK_WIDTH, height);
-
-        // Handle on top of the inset track, padded inside.
-        int handleX = trackX + SCROLLER_TRACK_PADDING;
-        int handleY = sy + handleYOffset();
-        int hHeight = handleHeight();
-        // Disabled forces the disabled sprite regardless of scrollability,
-        // signaling the inert state (Phase 3b — Item 8).
-        Identifier sprite = (!disabled && canScroll())
-                ? SCROLLER_SPRITE : SCROLLER_DISABLED_SPRITE;
-        graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
-                sprite, handleX, handleY, SCROLLER_WIDTH, hHeight);
-
-        // Child OVERLAYS (Dropdown popovers) are NOT drawn here — they live in
-        // each child's renderOverlay, which runs in the host's unclipped Pass-2.
-        // ScrollContainer.renderOverlay (below) forwards that pass to children
-        // at scroll-translated coords, so popovers paint unclipped by the
-        // viewport scissor.
+        PanelRendering.renderInsetRect(g, trackX, sy, TRACK_WIDTH, height);
+        Identifier sprite = !disabled && canScroll() ? SCROLLER_SPRITE : SCROLLER_DISABLED_SPRITE;
+        g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, trackX + SCROLLER_TRACK_PADDING,
+                sy + handleOffset(), SCROLLER_WIDTH, SCROLLER_HEIGHT);
     }
 
-    /**
-     * An outside click reaches every child, so an open popover in the content (a
-     * Dropdown) closes like one anywhere else. Each child decides for itself, by its
-     * own bounds, whether the click was outside it.
-     */
-    @Override
-    public void notifyClickOutsideOverlay(double mouseX, double mouseY) {
-        for (PanelElement c : content) {
-            if (c.isVisible()) c.notifyClickOutsideOverlay(mouseX, mouseY);
-        }
-    }
-
-    /**
-     * Forwards the host's unclipped overlay pass to children at scroll-translated
-     * coords (Pass 3). A child Dropdown paints its popover in renderOverlay (not
-     * render), so without this an open dropdown inside the scroll shows its
-     * flipped chevron but no popover. Runs after all scissored content render
-     * (PanelDispatch Pass-2), so the popover is not clipped by the viewport.
-     */
+    /** The children's overlays, unclipped, at their scrolled positions. */
     @Override
     public void renderOverlay(RenderContext ctx) {
-        int sx = ctx.originX() + childX;
-        int sy = ctx.originY() + childY;
-        int scrollY = scrollPixels();
-        RenderContext childCtx = new RenderContext(
-                ctx.graphics(), sx, sy - scrollY, ctx.mouseX(), ctx.mouseY());
-        for (PanelElement element : content) {
-            if (element.isVisible()) element.renderOverlay(childCtx);
-        }
+        ChildDispatch.renderOverlay(content, childRender(ctx));
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button != 0) return false; // Left-click only for v1.
-        if (isDisabled()) return false; // Inert when disabled (Phase 3b — Item 8).
-
-        // Pass 0 (Pass 3) — an OPEN child overlay (Dropdown popover) claims the
-        // click anywhere in its bounds, including the part hanging below the
-        // viewport. The child's overlay bounds are screen-space (from its
-        // scroll-translated render), so forward the screen coords directly.
-        for (PanelElement element : content) {
-            if (!element.isVisible()) continue;
-            int[] ov = element.getActiveOverlayBounds();
-            if (ov != null && mouseX >= ov[0] && mouseX < ov[0] + ov[2]
-                    && mouseY >= ov[1] && mouseY < ov[1] + ov[3]) {
-                return element.mouseClicked(mouseX, mouseY, button);
-            }
-        }
-
-        // Compute screen-space bounds of the viewport (no offset translation
-        // here — render context isn't available at click time, so we rely
-        // on the adapter's hit-test having already determined cursor is
-        // inside our element bounds).
-
-        // Note: PanelElement.mouseClicked is dispatched by the adapter
-        // after hit-testing the element's getChildX/Y/Width/Height. So
-        // (mouseX, mouseY) is guaranteed inside our element bounds. We
-        // re-test for sub-region (scrollbar vs viewport) using the
-        // element's known position, but we don't have RenderContext
-        // available here for screen-space coords. Use mouseX/mouseY
-        // directly — they're already in screen-space per
-        // PanelElement.mouseClicked's coord-space contract.
-
-        // Hit-test the scrollbar gutter via screen-space comparison.
-        // We need to know our element's screen-space top-left, but we
-        // only have childX/childY (panel-local). The adapter's hit-test
-        // already verified mouseX/Y is inside [contentX + childX,
-        // contentX + childX + width] etc. — we just don't know
-        // contentX/Y here. Instead, hit-test using the screen-space
-        // mouseX/Y against a bounding box that covers the scrollbar
-        // sub-region. Computed as: mouseX is in the rightmost
-        // SCROLLER_WIDTH pixels of our element (regardless of where in
-        // screen space we are).
-        //
-        // Trick: the adapter's hit-test ensured mouseX is inside
-        // [contentX+childX, contentX+childX+width). The scrollbar gutter
-        // is the rightmost SCROLLER_WIDTH of that. So mouseX is in the
-        // scrollbar gutter iff (mouseX - elementLeftEdgeScreenSpace) >=
-        // viewportWidth. We don't have elementLeftEdgeScreenSpace
-        // directly, but mouseX - mouseX_within_element = elementLeftEdge.
-        // The simpler approach: track (mouseX, mouseY) relative to our
-        // element, given the adapter passed real screen coords. Compute
-        // from element's internal-relative position, where the adapter
-        // has guaranteed mouse is inside [0, width) × [0, height).
-        //
-        // Simpler still: ask the question "is the cursor in the scrollbar
-        // region of our element?" via the cursor position relative to our
-        // screen-space top-left. We don't know our screen-space top-left
-        // at click time; we compute it from the parent screen via
-        // Minecraft.getInstance().gui.screen(). Hmm, that's also complex.
-        //
-        // PRAGMATIC v1 ANSWER: store the most-recent screen-space top-left
-        // computed in render(). render runs every frame; click happens
-        // shortly after. The cached origin is fresh.
-
-        // (Track most-recent screen-space origin from render; defer logic
-        //  via the cached field below.)
-        if (cachedRenderOriginValid) {
-            double localX = mouseX - cachedRenderOriginX;
-            double localY = mouseY - cachedRenderOriginY;
-            // Scrollbar track region: rightmost TRACK_WIDTH pixels.
-            // The gutter pixels between viewport and track are inert
-            // (consumed silently — clicks there don't fall through).
-            int trackLeftEdge = width - TRACK_WIDTH;
-            if (localX >= trackLeftEdge && localX < width
-                    && localY >= 0 && localY < height) {
-                // Click in track region. If on the handle (which is padded
-                // inside the track), start drag. Otherwise consume silently.
-                int handleTop = handleYOffset();
-                int handleBot = handleTop + SCROLLER_HEIGHT;
-                if (canScroll() && localY >= handleTop && localY < handleBot) {
-                    draggingHandle = true;
-                    dragStartMouseY = mouseY;
-                    dragStartScrollOffset = scrollOffset();
-                    return true;
-                }
-                // Click in scrollbar track (above or below handle, or
-                // inside track padding) — defer jump-scroll for now;
-                // consume the click.
-                return true;
-            }
-            // Click in gutter — inert. Consume silently so it doesn't fall
-            // through to vanilla.
-            if (localX >= viewportWidth() && localX < trackLeftEdge
-                    && localY >= 0 && localY < height) {
-                return true;
-            }
-            // Click in viewport — dispatch to children at scroll-translated coords.
-            if (localX >= 0 && localX < viewportWidth()
-                    && localY >= 0 && localY < viewportHeight()) {
-                // Translate mouseY back to content-space: virtual content Y
-                // is the actual mouseY plus the scrolled amount.
-                double contentMouseX = mouseX;
-                double contentMouseY = mouseY + scrollPixels();
-                for (PanelElement element : content) {
-                    if (!element.isVisible()) continue;
-                    int childAbsX = (int) cachedRenderOriginX + element.getChildX();
-                    int childAbsY = (int) cachedRenderOriginY + element.getChildY();
-                    if (contentMouseX < childAbsX
-                            || contentMouseX >= childAbsX + element.getWidth()) continue;
-                    if (contentMouseY < childAbsY
-                            || contentMouseY >= childAbsY + element.getHeight()) continue;
-                    // Hit-test in CONTENT space (childAbsY is unscrolled) but DISPATCH
-                    // raw screen coords — a nested child re-derives its own localY from
-                    // a scroll-translated cached origin, so content-space would
-                    // double-count the outer scroll. Leaf widgets ignore the coords
-                    // (they gate on hover set during render), so raw is safe for them.
-                    if (element.mouseClicked(mouseX, mouseY, button)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+    public int @Nullable [] getActiveOverlayBounds(InputContext in) {
+        return ChildDispatch.activeOverlay(content, childInput(in));
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY,
-                                 double scrollX, double scrollY) {
-        if (isDisabled()) return false; // Inert when disabled (Phase 3b — Item 8).
+    public void notifyClickOutsideOverlay(InputContext in) {
+        ChildDispatch.notifyClickOutside(content, childInput(in));
+    }
 
-        // Pass 0 (Pass 3) — an OPEN child overlay (Dropdown popover) claims the
-        // wheel anywhere in its bounds, including the part hanging below the
-        // viewport. Symmetric with mouseClicked Pass-0 so a popover's own item
-        // list scrolls even where it overflows the scroll viewport.
-        for (PanelElement element : content) {
-            if (!element.isVisible()) continue;
-            int[] ov = element.getActiveOverlayBounds();
-            if (ov != null && mouseX >= ov[0] && mouseX < ov[0] + ov[2]
-                    && mouseY >= ov[1] && mouseY < ov[1] + ov[3]) {
-                return element.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    @Override
+    public boolean mouseClicked(InputContext in, int button) {
+        if (disabled(in)) return false;
+        InputContext inner = childInput(in);
+        // A child's open popover claims its whole area, even below the viewport.
+        if (ChildDispatch.overlayOwner(content, inner) != null) return ChildDispatch.mouseClicked(content, inner, button);
+
+        double lx = in.mouseX() - (in.originX() + childX);
+        double ly = in.mouseY() - (in.originY() + childY);
+        int trackLeft = width - TRACK_WIDTH;
+        if (lx >= viewportWidth()) {
+            // The gutter and the track eat their own clicks; a left press on the
+            // handle starts a drag.
+            if (button == Click.LEFT && lx >= trackLeft && canScroll()
+                    && ly >= handleOffset() && ly < handleOffset() + SCROLLER_HEIGHT) {
+                dragging = true;
+                dragStartMouseY = in.mouseY();
+                dragStartFraction = fraction();
             }
+            return true;
         }
+        return ChildDispatch.mouseClicked(content, inner, button);
+    }
 
-        // Nested scroll (Pass 3) — if the cursor is over a child inside the
-        // viewport that consumes the wheel (an inner ScrollContainer), let it
-        // scroll FIRST. Runs before the canScroll() check so a non-scrolling
-        // outer still forwards the wheel to a scrolling child.
-        if (cachedRenderOriginValid) {
-            double localX = mouseX - cachedRenderOriginX;
-            double localY = mouseY - cachedRenderOriginY;
-            if (localX >= 0 && localX < viewportWidth()
-                    && localY >= 0 && localY < viewportHeight()) {
-                double contentMouseY = mouseY + scrollPixels();
-                for (PanelElement el : content) {
-                    if (!el.isVisible()) continue;
-                    int cax = (int) cachedRenderOriginX + el.getChildX();
-                    int cay = (int) cachedRenderOriginY + el.getChildY();
-                    if (mouseX < cax || mouseX >= cax + el.getWidth()) continue;
-                    if (contentMouseY < cay || contentMouseY >= cay + el.getHeight()) continue;
-                    // Hit-test in CONTENT space (cay is unscrolled) but DISPATCH raw
-                    // screen coords: a nested child (inner ScrollContainer) caches its
-                    // origin in scroll-translated SCREEN space and re-derives localY
-                    // from it, so passing contentMouseY would double-count the outer
-                    // scroll. Raw mouseY is correct for the child's own math.
-                    if (el.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
-                }
-            }
+    @Override
+    public boolean mouseScrolled(InputContext in, double scrollX, double scrollY) {
+        if (disabled(in)) return false;
+        InputContext inner = childInput(in);
+        if (ChildDispatch.overlayOwner(content, inner) != null) {
+            return ChildDispatch.mouseScrolled(content, inner, scrollX, scrollY);
         }
-
+        // A child that scrolls itself (a nested container) goes first, if the
+        // mouse is inside the viewport.
+        double lx = in.mouseX() - (in.originX() + childX);
+        if (lx < viewportWidth() && ChildDispatch.mouseScrolled(content, inner, scrollX, scrollY)) return true;
         if (!canScroll()) return false;
-        // Wheel up (scrollY > 0) scrolls content up (offset decreases).
-        // Wheel down (scrollY < 0) scrolls content down (offset increases).
-        int max = maxScrollPixels();
-        if (max == 0) return false;
-        notifyPixels(scrollPixelsExact() - scrollY * SCROLL_PIXELS_PER_TICK);
+        setScroll(scroll() - scrollY * SCROLL_PIXELS_PER_TICK);
         return true;
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        // End scrollbar drag on any mouse release. Adapter dispatches
-        // release to all elements regardless of cursor position, so this
-        // fires even when the user dragged the cursor off the element.
-        if (draggingHandle && button == 0) {
-            draggingHandle = false;
-        }
-        // Forward release to children so a child that began a drag (a slider,
-        // a nested scrollbar) gets its drag-end. Not hit-tested — mirrors the
-        // adapter's un-hit-tested release dispatch.
-        for (PanelElement element : content) {
-            if (element.isVisible()) element.mouseReleased(mouseX, mouseY, button);
-        }
-        return false; // Don't claim consumption — release is observational.
+    public boolean mouseReleased(InputContext in, int button) {
+        if (button == Click.LEFT) dragging = false;
+        ChildDispatch.mouseReleased(content, childInput(in), button);
+        return false;
     }
 
-    // ── Interactive-host propagation (Pass 3) ──────────────────────────────
-    //
-    // ScrollContainer hosts arbitrary PanelElements, including interactive ones
-    // (Slider, TextField, Dropdown) that register vanilla widgets in onAttach
-    // and route keyboard in keyPressed. Pre-Pass-3 these hooks stopped at the
-    // ScrollContainer, so a Slider inside a scrolling panel never registered
-    // (drag/keyboard dead) and a Dropdown inside it couldn't take arrow keys.
-    // Forward all three so a scrolling viewport is a first-class host.
+    @Override
+    public boolean keyPressed(InputContext in, int keyCode, int scanCode, int modifiers) {
+        return ChildDispatch.keyPressed(content, childInput(in), keyCode, scanCode, modifiers);
+    }
 
     @Override
     public void onAttach(net.minecraft.client.gui.screens.Screen screen) {
-        for (PanelElement element : content) element.onAttach(screen);
+        ChildDispatch.attach(content, screen);
     }
 
     @Override
     public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
-        for (PanelElement element : content) element.onDetach(screen);
+        ChildDispatch.detach(content, screen);
     }
 
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        for (PanelElement element : content) {
-            if (!element.isVisible()) continue;
-            if (element.keyPressed(keyCode, scanCode, modifiers)) return true;
-        }
-        return false;
-    }
+    // ── Builder ────────────────────────────────────────────────────────
 
-    /**
-     * Surfaces an open child's active overlay (e.g. a Dropdown popover) so the
-     * host adapter routes clicks anywhere in that overlay to this container —
-     * even the part of the popover that hangs below the scroll viewport. The
-     * child computes its overlay bounds in screen space from its
-     * last-rendered (scroll-translated) origin, which the unclipped second
-     * render pass keeps current.
-     */
-    @Override
-    public int @Nullable [] getActiveOverlayBounds() {
-        for (PanelElement element : content) {
-            if (!element.isVisible()) continue;
-            int[] ov = element.getActiveOverlayBounds();
-            if (ov != null) return ov;
-        }
-        return null;
-    }
+    public static class Builder extends AbstractPanelElement.Builder<ScrollContainer, Builder> {
+        private List<PanelElement> content = List.of();
+        private int contentHeight = -1;
+        private @Nullable DoubleSupplier scrollGet;
+        private @Nullable DoubleConsumer scrollSet;
 
-    // ── Render-origin cache (used for click hit-testing) ──────────────────
-    //
-    // The mouseClicked hook receives screen-space coords but doesn't have a
-    // RenderContext (no graphics + origin). render() does. We cache the
-    // screen-space top-left from the most-recent render frame, so click
-    // dispatch can compute element-relative coords without recomputing
-    // adapter origin. Slightly hacky but bounded — render runs each frame
-    // before any click; cache is at most one frame stale.
+        protected Builder() {}
 
-    private double cachedRenderOriginX = 0;
-    private double cachedRenderOriginY = 0;
-    private boolean cachedRenderOriginValid = false;
+        @Override protected Builder self() { return this; }
 
-    /** Updates the render-origin cache. Called from render(); only valid
-     *  after the first frame this element renders. */
-    private void cacheRenderOrigin(int sx, int sy) {
-        cachedRenderOriginX = sx;
-        cachedRenderOriginY = sy;
-        cachedRenderOriginValid = true;
-    }
-
-    // ── Builder ───────────────────────────────────────────────────────────
-
-    /** Builder for ScrollContainer. */
-    public static final class Builder {
-        private int childX = 0;
-        private int childY = 0;
-        private int width = -1;
-        private int height = -1;
-        private @Nullable List<PanelElement> content = null;
-        private int contentHeightOverride = -1;
-        private @Nullable DoubleSupplier scrollOffsetSupplier = null;
-        private @Nullable DoubleConsumer onScrollOffsetChanged = null;
-        private boolean pixelState = false;
-        private @Nullable BooleanSupplier disabledWhen = null;
-
-        Builder() {}
-
-        /** Sets the panel-local origin for this ScrollContainer. */
-        public Builder at(int childX, int childY) {
-            this.childX = childX;
-            this.childY = childY;
-            return this;
-        }
-
-        /** Sets the viewport dimensions (full width includes scrollbar gutter). */
+        /** Required: the outer size, scrollbar lane included. */
+        @Override
         public Builder size(int width, int height) {
-            int minWidth = TRACK_WIDTH + SCROLLER_GUTTER + 1; // gutter + track + 1px viewport
-            if (width <= minWidth) {
-                throw new IllegalArgumentException(
-                        "ScrollContainer width must be > " + minWidth +
-                        " (track + gutter + at least 1px viewport)");
+            int min = TRACK_WIDTH + SCROLLER_GUTTER + 1;
+            if (width <= min) {
+                throw new IllegalArgumentException("ScrollContainer width must be > " + min
+                        + " (track + gutter + at least 1px of viewport)");
             }
-            if (height <= 0) {
-                throw new IllegalArgumentException("ScrollContainer height must be > 0");
-            }
-            this.width = width;
-            this.height = height;
+            if (height <= 0) throw new IllegalArgumentException("ScrollContainer height must be > 0");
+            return super.size(width, height);
+        }
+
+        /** Required: the children, positioned from the viewport's top-left. */
+        public Builder content(List<? extends PanelElement> content) {
+            this.content = List.copyOf(Objects.requireNonNull(content, "content"));
+            return this;
+        }
+
+        /** The scrollable height, when not the children's extent (room past the end, say). */
+        public Builder contentHeight(int pixels) {
+            if (pixels < 0) throw new IllegalArgumentException("contentHeight must be >= 0, got " + pixels);
+            this.contentHeight = pixels;
             return this;
         }
 
         /**
-         * Sets the pre-positioned content list. Children's
-         * {@code childX} / {@code childY} are relative to the viewport's
-         * top-left (the scrollable area's content origin). Required.
-         *
-         * <p>Default {@link #contentHeight(int)} is auto-computed from
-         * {@code max(child.childY + child.height)} unless explicitly
-         * overridden.
+         * The consumer owns the scroll, in pixels from the top: {@code get} is read
+         * every frame, {@code set} receives each change. Without it the scroll is
+         * the container's own view state.
          */
-        public Builder content(List<PanelElement> content) {
-            this.content = Objects.requireNonNull(content, "content must not be null");
+        public Builder state(DoubleSupplier get, DoubleConsumer set) {
+            this.scrollGet = Objects.requireNonNull(get, "get");
+            this.scrollSet = Objects.requireNonNull(set, "set");
             return this;
         }
 
-        /**
-         * Explicit override for the total content height. By default,
-         * ScrollContainer auto-computes content height from the children
-         * passed to {@link #content}. Override when you want a different
-         * value — typically: trailing padding for comfortable scroll-past-end,
-         * capped scroll extent smaller than children would give, or
-         * supplier-driven content where auto-compute can't see the real
-         * size.
-         */
-        public Builder contentHeight(int contentHeight) {
-            if (contentHeight < 0) {
-                throw new IllegalArgumentException(
-                        "contentHeight must be >= 0, got " + contentHeight);
-            }
-            this.contentHeightOverride = contentHeight;
-            return this;
-        }
-
-        /**
-         * Sets the scroll position state via a supplier (read each frame)
-         * and an optional callback (fired on scroll events). Required.
-         *
-         * <p>Per Principle 8 (lens not store): consumer holds the state,
-         * library reads via the supplier and notifies via the callback.
-         * Pass {@code null} for the callback if you want a read-only
-         * scroll display (no scroll input is consumed).
-         */
-        public Builder scrollOffset(DoubleSupplier supplier,
-                                     @Nullable DoubleConsumer callback) {
-            this.scrollOffsetSupplier = Objects.requireNonNull(supplier,
-                    "scrollOffset supplier must not be null");
-            this.onScrollOffsetChanged = callback;
-            this.pixelState = false;
-            return this;
-        }
-
-        /**
-         * Like {@link #scrollOffset}, but the state is pixels from the top
-         * instead of a fraction. Use it when the content can change height while
-         * shown (a section opening, a list growing): what is on screen stays put
-         * and the range gets longer or shorter. Replaces {@link #scrollOffset};
-         * set one or the other.
-         */
-        public Builder scrollPixels(DoubleSupplier supplier, @Nullable DoubleConsumer callback) {
-            scrollOffset(supplier, callback);
-            this.pixelState = true;
-            return this;
-        }
-
-        /**
-         * Optional disabled predicate (Phase 3b — Item 8). When it returns
-         * true, the scrollbar renders with the disabled sprite and all input
-         * (wheel, drag, child-click dispatch) is ignored — the viewport
-         * becomes a static, inert pane. Per-frame predicate shape, matching
-         * the simple widgets' {@code disabledWhen}. Default: always enabled.
-         */
-        public Builder disabledWhen(BooleanSupplier disabledWhen) {
-            this.disabledWhen = Objects.requireNonNull(disabledWhen, "disabledWhen must not be null");
-            return this;
-        }
-
-        /** Builds the configured ScrollContainer. */
+        @Override
         public ScrollContainer build() {
-            if (width < 0 || height < 0) {
-                throw new IllegalStateException(
-                        "ScrollContainer.Builder: size(width, height) must be set before build()");
-            }
-            if (content == null) {
-                throw new IllegalStateException(
-                        "ScrollContainer.Builder: content(...) must be set before build()");
-            }
-            if (scrollOffsetSupplier == null) {
-                throw new IllegalStateException(
-                        "ScrollContainer.Builder: scrollOffset(supplier, callback) must be set before build()");
-            }
-            int finalContentHeight = (contentHeightOverride >= 0)
-                    ? contentHeightOverride
-                    : autoComputeContentHeight(content);
-            return new ScrollContainer(childX, childY, width, height,
-                    content, finalContentHeight,
-                    scrollOffsetSupplier, onScrollOffsetChanged, pixelState, disabledWhen);
-        }
-
-        /**
-         * Layout terminal (Phase 3b — Item 6). Returns an {@link ElementSpec}
-         * for use in {@link com.trevlar.menukit.core.layout.Row} /
-         * {@link com.trevlar.menukit.core.layout.Column}. The spec's
-         * reported dimensions are the configured {@code .size(w, h)}; the
-         * layout helper calls {@link ElementSpec#at(int, int)}, which re-runs
-         * this builder's configuration positioned at the computed coordinates.
-         */
-        public ElementSpec spec() {
-            if (width < 0 || height < 0) {
-                throw new IllegalStateException(
-                        "ScrollContainer.Builder.spec(): size(width, height) must be set before spec()");
-            }
-            if (content == null) {
-                throw new IllegalStateException(
-                        "ScrollContainer.Builder.spec(): content(...) must be set before spec()");
-            }
-            if (scrollOffsetSupplier == null) {
-                throw new IllegalStateException(
-                        "ScrollContainer.Builder.spec(): scrollOffset(supplier, callback) must be set before spec()");
-            }
-            // Snapshot config; each at(x,y) builds a fresh, correctly-positioned
-            // container (childX/childY fixed at construction per THESIS
-            // Principle 4 — ElementSpec is the deferred-construction path).
-            final int w = width, h = height;
-            final List<PanelElement> ct = content;
-            final int cho = contentHeightOverride;
-            final DoubleSupplier so = scrollOffsetSupplier;
-            final DoubleConsumer cb = onScrollOffsetChanged;
-            final boolean px = pixelState;
-            final BooleanSupplier dw = disabledWhen;
-            return new ElementSpec() {
-                @Override public int width()  { return w; }
-                @Override public int height() { return h; }
-                @Override public PanelElement at(int x, int y) {
-                    Builder b = ScrollContainer.builder().at(x, y).size(w, h)
-                            .content(ct);
-                    if (px) b.scrollPixels(so, cb); else b.scrollOffset(so, cb);
-                    if (cho >= 0) b.contentHeight(cho);
-                    if (dw != null) b.disabledWhen(dw);
-                    return b.build();
-                }
-            };
-        }
-
-        /** Auto-computes content height from max(childY + height) over children. */
-        private static int autoComputeContentHeight(List<PanelElement> content) {
-            int max = 0;
-            for (PanelElement el : content) {
-                int bottom = el.getChildY() + el.getHeight();
-                if (bottom > max) max = bottom;
-            }
-            return max;
+            require(width > 0 && height > 0, "size(w, h) is required");
+            return new ScrollContainer(this);
         }
     }
 }

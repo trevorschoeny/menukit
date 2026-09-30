@@ -1,194 +1,77 @@
 package com.trevlar.menukit.core;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
-
-import java.util.function.Supplier;
-
 /**
- * A horizontal or vertical line separating content sections within a panel.
- * Pure visual, no interaction, no state.
+ * A line between sections of a panel: a solid fill, no texture, no input.
  *
- * <p>Works in all three rendering contexts. Render-only element — no input
- * consequence, no variable content.
+ * <pre>{@code
+ * Divider.horizontal().at(0, y).build();                 // fills the panel's width
+ * Divider.horizontal().at(0, y).size(160, 1).build();    // 160 px long
+ * Divider.vertical().at(x, 0).size(1, 40).build();       // 40 px tall
+ * }</pre>
  *
- * <p>Rendered as a solid-color fill via {@code GuiGraphicsExtractor.fill()}, not as
- * a sprite. A divider doesn't need a texture: a colored rectangle is both
- * simpler and correct. Consumers who want textured separators implement
- * {@link PanelElement} directly.
+ * <h3>Filling (§0066)</h3>
  *
- * <p>Constructed via factories rather than a public constructor —
- * horizontal and vertical are orthogonal enough that a direction enum
- * would be a meaningless discriminator at every call site.
+ * A horizontal divider given no {@code size} fills whatever width its panel or
+ * container gives it, every layout pass, and asks for none itself, so it never
+ * widens the panel: the section rule of a settings body, as wide as the body
+ * whatever the window's size. A vertical divider needs a size.
  *
- * <h3>Default visual</h3>
- * <ul>
- *   <li>Color: {@link #DEFAULT_COLOR} — vanilla inventory-label dark gray.</li>
- *   <li>Thickness: {@link #DEFAULT_THICKNESS} — 1 pixel.</li>
- * </ul>
- *
- * <h3>Scope</h3>
- * <ul>
- *   <li>Solid color only — no gradient, pattern, or textured rendering.</li>
- *   <li>No automatic length — divider length is explicit; consumers compute
- *   their desired length from panel dimensions themselves.</li>
- *   <li>Rectangle only — no rounded ends or caps.</li>
- * </ul>
- *
- * @see PanelElement  The interface this implements
+ * <p>With a {@code size}, a horizontal divider is {@code (length, thickness)} and
+ * is capped to its panel's width; a vertical one is {@code (thickness, length)}.
  */
-public class Divider extends AbstractPanelElement<Divider> {
+public class Divider extends AbstractPanelElement {
 
-    @Override protected Divider self() { return this; }
-
-    /** Default separator color — vanilla inventory-label dark gray. */
-    public static final int DEFAULT_COLOR = 0xFF404040;
+    /** Default colour: vanilla's container-label grey. */
+    public static final int DEFAULT_COLOR = ElementConstants.TEXT_DARK;
 
     /** Default thickness in pixels. */
     public static final int DEFAULT_THICKNESS = 1;
 
-    private int width;
-    private int height;
     private final int color;
+    private final boolean horizontal;
+    private final boolean fills;
 
-    // tooltipSupplier hoisted to AbstractPanelElement (Phase 18r-2).
-
-    private Divider(int childX, int childY, int width, int height, int color) {
-        this.childX = childX;
-        this.childY = childY;
-        this.width = width;
-        this.height = height;
-        this.color = color;
-    }
-
-    // ── Factories ─────────────────────────────────────────────────────
-
-    /**
-     * A horizontal divider with the default color and thickness.
-     *
-     * @param childX X position within panel content area
-     * @param childY Y position within panel content area
-     * @param length horizontal extent in pixels
-     */
-    public static Divider horizontal(int childX, int childY, int length) {
-        return horizontal(childX, childY, length, DEFAULT_COLOR, DEFAULT_THICKNESS);
-    }
-
-    /**
-     * A horizontal divider with explicit color and thickness.
-     *
-     * @param childX    X position within panel content area
-     * @param childY    Y position within panel content area
-     * @param length    horizontal extent in pixels
-     * @param color     ARGB color (must include alpha byte, e.g. 0xFF404040)
-     * @param thickness vertical extent in pixels
-     */
-    public static Divider horizontal(int childX, int childY, int length,
-                                     int color, int thickness) {
-        return new Divider(childX, childY, length, thickness, color);
-    }
-
-    /**
-     * A vertical divider with the default color and thickness.
-     *
-     * @param childX X position within panel content area
-     * @param childY Y position within panel content area
-     * @param length vertical extent in pixels
-     */
-    public static Divider vertical(int childX, int childY, int length) {
-        return vertical(childX, childY, length, DEFAULT_COLOR, DEFAULT_THICKNESS);
-    }
-
-    /**
-     * A vertical divider with explicit color and thickness.
-     *
-     * @param childX    X position within panel content area
-     * @param childY    Y position within panel content area
-     * @param length    vertical extent in pixels
-     * @param color     ARGB color (must include alpha byte, e.g. 0xFF404040)
-     * @param thickness horizontal extent in pixels
-     */
-    public static Divider vertical(int childX, int childY, int length,
-                                   int color, int thickness) {
-        return new Divider(childX, childY, thickness, length, color);
-    }
-
-    // ── M8 Layout Specs ────────────────────────────────────────────────
-
-    /** Layout spec for a horizontal divider with default color + thickness. */
-    public static com.trevlar.menukit.core.layout.ElementSpec horizontalSpec(int length) {
-        return horizontalSpec(length, DEFAULT_COLOR, DEFAULT_THICKNESS);
-    }
-
-    /** Layout spec for a horizontal divider with explicit color + thickness. */
-    public static com.trevlar.menukit.core.layout.ElementSpec horizontalSpec(
-            int length, int color, int thickness) {
-        return new com.trevlar.menukit.core.layout.ElementSpec() {
-            @Override public int width()  { return length; }
-            @Override public int height() { return thickness; }
-            @Override public PanelElement at(int x, int y) {
-                return Divider.horizontal(x, y, length, color, thickness);
-            }
-        };
-    }
-
-    /** Layout spec for a vertical divider with default color + thickness. */
-    public static com.trevlar.menukit.core.layout.ElementSpec verticalSpec(int length) {
-        return verticalSpec(length, DEFAULT_COLOR, DEFAULT_THICKNESS);
-    }
-
-    /** Layout spec for a vertical divider with explicit color + thickness. */
-    public static com.trevlar.menukit.core.layout.ElementSpec verticalSpec(
-            int length, int color, int thickness) {
-        return new com.trevlar.menukit.core.layout.ElementSpec() {
-            @Override public int width()  { return thickness; }
-            @Override public int height() { return length; }
-            @Override public PanelElement at(int x, int y) {
-                return Divider.vertical(x, y, length, color, thickness);
-            }
-        };
-    }
-
-    // ── PanelElement Implementation ────────────────────────────────────
-
-    @Override public int getWidth() { return width; }
-    @Override public int getHeight() { return height; }
-
-    // Authored width for the reactive cap (Verification-4) — see Button.
-    private int authoredWidth = Integer.MIN_VALUE;
-    private int authoredW() {
-        if (authoredWidth == Integer.MIN_VALUE) authoredWidth = width;
-        return authoredWidth;
-    }
-
-    /**
-     * Column-fill (Pass 3): stretch a HORIZONTAL divider to the column's
-     * widest extent — the canonical "section separator spans the column"
-     * use. A vertical divider (taller than it is wide) is left untouched:
-     * filling its width would thicken the line, not lengthen it.
-     */
-    @Override
-    public void fillWidth(int width) {
-        if (authoredW() >= height) { // horizontal orientation (by authored dims —
-                                     // same test layoutWithin uses, so fill + cap agree)
-            this.authoredWidth = width;
-            this.width = width;
+    protected Divider(Builder b) {
+        super(b);
+        this.color = b.color;
+        this.horizontal = b.horizontal;
+        // A horizontal divider built without a size fills: it starts with no width
+        // (the layout pass hands it the width it fills) and the builder's thickness.
+        this.fills = horizontal && b.width < 0;
+        if (fills) {
+            this.width = 0;
+            this.authoredWidth = 0;
+            this.height = b.thickness;
         }
     }
 
-    /** Natural (authored) length before any panel constraint. */
-    @Override public int naturalWidth() { return authoredW(); }
+    /** A horizontal divider. Without a {@code size} it fills its panel's width. */
+    public static Builder horizontal() {
+        return new Builder(true);
+    }
 
-    /**
-     * Cap a HORIZONTAL divider to the panel's budget so it never bleeds past
-     * the edge; reversible. A vertical divider (taller than wide) is left
-     * alone — capping its width would thin the line, not shorten it.
-     */
+    /** A vertical divider. Give it {@code size(thickness, length)}. */
+    public static Builder vertical() {
+        return new Builder(false);
+    }
+
+    /** A filling divider asks for no width, so it never widens its panel. */
+    @Override
+    public int naturalWidth() {
+        return fills ? 0 : authoredWidth;
+    }
+
+    /** A filling divider takes the whole budget; a sized horizontal one caps to it; a vertical one keeps its size. */
     @Override
     public void layoutWithin(int budget) {
-        if (authoredW() >= height) {
-            this.width = Math.min(authoredW(), budget);
-        }
+        if (fills) width = budget;
+        else if (horizontal) width = Math.min(authoredWidth, budget);
+    }
+
+    /** Column fill lengthens a horizontal divider; a vertical one would only thicken. */
+    @Override
+    public void fillWidth(int width) {
+        if (horizontal) super.fillWidth(width);
     }
 
     @Override
@@ -196,43 +79,51 @@ public class Divider extends AbstractPanelElement<Divider> {
         int x = ctx.originX() + childX;
         int y = ctx.originY() + childY;
         ctx.graphics().fill(x, y, x + width, y + height, color);
+        queueTooltip(ctx);
+    }
 
-        // Tooltip — fires over the divider bounds. Useful even on a 1px
-        // line: hover area is the declared width × height, which can be
-        // padded by the consumer if needed.
-        Supplier<Component> tooltipSupplier = getTooltipSupplier();
-        if (tooltipSupplier != null && ctx.hasMouseInput() && isHovered(ctx)) {
-            Component ttText = tooltipSupplier.get();
-            if (ttText != null) {
-                MKTooltip.queue(ctx.graphics(), ttText,
-                        ctx.mouseX(), ctx.mouseY());
-            }
+    /** The divider's ARGB colour. */
+    public int getColor() { return color; }
+
+    // ── Builder ────────────────────────────────────────────────────────
+
+    public static class Builder extends AbstractPanelElement.Builder<Divider, Builder> {
+        private final boolean horizontal;
+        private int color = DEFAULT_COLOR;
+        private int thickness = DEFAULT_THICKNESS;
+
+        Builder(boolean horizontal) {
+            this.horizontal = horizontal;
+        }
+
+        @Override protected Builder self() { return this; }
+
+        /**
+         * The raw extent: {@code (length, thickness)} for a horizontal divider,
+         * {@code (thickness, length)} for a vertical one. A horizontal divider
+         * without it fills.
+         */
+        @Override
+        public Builder size(int width, int height) {
+            return super.size(width, height);
+        }
+
+        /** The thickness of a filling divider, in pixels. Default 1. */
+        public Builder thickness(int pixels) {
+            this.thickness = Math.max(1, pixels);
+            return this;
+        }
+
+        /** ARGB colour, alpha byte included. Default {@link #DEFAULT_COLOR}. */
+        public Builder color(int argb) {
+            this.color = argb;
+            return this;
+        }
+
+        @Override
+        public Divider build() {
+            require(horizontal || (width > 0 && height > 0), "a vertical divider needs size(thickness, length)");
+            return new Divider(this);
         }
     }
-
-    // mouseClicked, isHovered inherit defaults from PanelElement. isVisible
-    // + setVisible inherit from AbstractPanelElement (Phase 18r-2).
-
-    // ── Chainable configuration ────────────────────────────────────────
-    //
-    // showWhen + tooltip + at return Divider for free via the SELF self-type.
-
-    /**
-     * Fluent resize sugar — sets the divider's raw pixel extent (width ×
-     * height) and returns this divider for chaining. Note the divider's
-     * orientation is fixed by the {@code horizontal(...)} / {@code vertical(...)}
-     * factory it was created from; {@code .size()} overrides the raw bounds
-     * directly, so callers should pass the extent in the same axis convention
-     * (a horizontal divider is {@code (length, thickness)}, a vertical one is
-     * {@code (thickness, length)}).
-     */
-    public Divider size(int width, int height) {
-        this.authoredWidth = width;   // re-author the cap intent (matches Button.size)
-        this.width = width;
-        this.height = height;
-        return this;
-    }
-
-    /** Returns the divider's ARGB color. */
-    public int getColor() { return color; }
 }
