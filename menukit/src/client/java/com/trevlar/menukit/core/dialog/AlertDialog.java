@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *     .build()
  *     .showWhen(() -> noAllaysAlertOpen);
  *
- * new ScreenPanelAdapter(alert, OutsideRegion.CENTER).on(MyMenuScreen.class);
+ * new ScreenPanelAdapter(alert).on(MyMenuScreen.class);
  * }</pre>
  *
  * <p>See {@link ConfirmDialog} for cross-context applicability and the
@@ -168,7 +168,7 @@ public final class AlertDialog {
                     .elements(elements)
                     .visible(false)
                     .style(PanelStyle.RAISED)
-                    .position(PanelPosition.BODY)
+                    .position(PanelPosition.center())
                     .build()
                     .modal()
                     .onEscape(ackRun);

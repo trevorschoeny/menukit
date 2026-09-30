@@ -25,7 +25,6 @@
     "MKHasClickedOutsideMixin",
     "MKListHoverSuppressMixin",
     "MKLocalDropMixin",
-    "MKModalHoverMixin",
     "MKModalKeyboardHandlerMixin",
     "MKModalMouseHandlerMixin",
     "MKRecipeBookAccessor",

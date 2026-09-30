@@ -1,209 +1,129 @@
 package com.trevlar.menukit.inject;
 
-import com.trevlar.menukit.core.MKFocus;
 import com.trevlar.menukit.core.Panel;
-import com.trevlar.menukit.core.PanelDispatch;
-import com.trevlar.menukit.core.PanelElement;
-import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.core.PanelStyle;
-import com.trevlar.menukit.core.RegionAnchor;
-import com.trevlar.menukit.core.RenderContext;
-import com.trevlar.menukit.core.InsideRegion;
-import com.trevlar.menukit.window.ClientWindowVisibility;
+import com.trevlar.menukit.window.Declarations;
 
-import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
- * Phase 18s — sibling to {@link ScreenPanelAdapter} that anchors MK
- * panels onto vanilla NON-container screens — the Options screen, Controls,
- * KeyBinds, world-select, server-list, anywhere {@link Screen} is the
- * superclass rather than {@code AbstractContainerScreen}.
+ * Puts a {@link Panel} on vanilla <em>non-container</em> screens: Options,
+ * Controls, KeyBinds, world select, the title screen, and any other
+ * {@link Screen} that is not a container screen. The sibling of
+ * {@link ScreenPanelAdapter}; both declare into {@link ScreenPanelRegistry}, which
+ * builds one host per open screen.
  *
- * <h2>Why a sibling, not an extension</h2>
+ * <pre>{@code
+ * Panel panel = Panel.builder("mymod:options-help")
+ *         .add(...)
+ *         .position(PanelPosition.screenAnchor(InsideRegion.TOP_RIGHT))
+ *         .build();
+ * new VanillaScreenPanelAdapter(panel, 0).on(OptionsScreen.class);
+ * }</pre>
  *
- * {@link ScreenPanelAdapter} is built around the inventory-chrome model —
- * {@link com.trevlar.menukit.core.OutsideRegion} anchors against {@code leftPos}/{@code topPos}/
- * {@code imageWidth}/{@code imageHeight}; {@link MenuChrome} extends
- * those bounds by the screen's chrome extents; its origin resolution
- * takes an {@code AbstractContainerScreen<?>}. None of that applies to
- * non-container screens (which have no inventory chrome — they fill the
- * whole screen). Trying to unify the two would bifurcate the API per
- * call site; sibling-with-its-own-vocabulary keeps each call site
- * type-correct.
+ * <h3>Placement is the panel's</h3>
+ * A non-container screen has no frame, so the panel declares
+ * {@code screenAnchor(InsideRegion)} (4px in from the edges it touches; siblings on
+ * one spot stack 4px apart), {@code center()}, or {@code pixel(...)}. A
+ * {@code region(...)}, {@code main()} or unplaced panel is rejected at construction.
  *
- * <h2>Same registry, separate dispatch path</h2>
+ * <h3>Targeting is required</h3>
+ * Call {@link #on} or {@link #onAny} exactly once. An adapter with no targeting fails
+ * loudly at the first screen open: an everywhere-default makes no sense across the
+ * title screen, Options and world select.
  *
- * {@link ScreenPanelRegistry}'s {@code AFTER_INIT} listener already fires
- * for every opened screen — the container-screen filter happens at the
- * dispatch layer. Phase 18s extends that listener to branch on screen
- * type: container screens still go through {@link ScreenPanelRegistry}'s
- * existing logic; non-container screens route to
- * {@link VanillaScreenPanelRegistry} for the parallel dispatch path
- * (render via {@code addRenderableOnly}, input via Fabric's
- * {@code ScreenMouseEvents}).
+ * <h3>Input</h3>
+ * The panel claims input by the one rule ({@link PanelHost#claimsPoint}): an opaque
+ * panel its whole rectangle, a transparent one its solid elements. Vanilla widgets
+ * under a claim neither hover nor click.
  *
- * <h2>Lifecycle parallels {@link ScreenPanelAdapter}</h2>
- *
- * <ol>
- *   <li>Construct with a {@link Panel}, a {@link InsideRegion}, and
- *       a padding (and optionally a {@link RegionAnchor} for explicit
- *       priority). Constructor registers the panel with the
- *       {@link RegionRegistry} and tracks the adapter in
- *       {@link VanillaScreenPanelRegistry}'s pending set.</li>
- *   <li>Call {@code .on(Class...)} or {@code .onAny()} to declare
- *       targeting. Targeting moves the adapter from pending to registered.
- *       Targeting must be declared exactly once.</li>
- *   <li>When a matching screen opens, the registry dispatches render +
- *       input to the adapter.</li>
- * </ol>
- *
- * <h2>Input contract</h2>
- *
- * MK panels EAT clicks within their bounds — vanilla widgets behind the
- * panel are NOT dispatched to when the click lands inside the panel.
- * Mirrors the default {@code Panel.opaque(true)} contract of the
- * container-screen path. Clicks outside the panel bounds fall through
- * to vanilla's widget dispatch unchanged.
- *
- * <h2>v1 scope</h2>
- *
- * Region-based only (no lambda-origin escape hatch — consumers who need
- * bespoke positioning on a vanilla screen can either write their own
- * Screen mixin or use the {@link InsideRegion} anchors).
- * No modal / dim-behind / hover-suppression machinery (no consumer has
- * surfaced the need for modals on vanilla screens yet). Fold-on-evidence
- * for both.
+ * <h3>Frozen after init</h3>
+ * Construction, targeting and {@link #unregister()} throw once MenuKit's
+ * declarations freeze at client start. Gate a panel at runtime with
+ * {@link Panel#showWhen}.
  */
 public final class VanillaScreenPanelAdapter {
 
-    /** Default content padding — matches {@link ScreenPanelAdapter#DEFAULT_PADDING}. */
-    public static final int DEFAULT_PADDING = 7;
+    /** Default content padding for styled panels ({@link ScreenPanelAdapter#DEFAULT_PADDING}). */
+    public static final int DEFAULT_PADDING = ScreenPanelAdapter.DEFAULT_PADDING;
 
     private final Panel panel;
     private final int padding;
-    private final InsideRegion region;
+    private final String modId;
+    private final int seq;
 
-    /** Declared targets when {@link #targetedAny} is false. Null until {@code .on()}. */
     private @Nullable List<Class<? extends Screen>> targets = null;
-
-    /** True when {@link #onAny()} has been called. Mutually exclusive with {@link #targets}. */
     private boolean targetedAny = false;
 
-    // ── Constructors ────────────────────────────────────────────────────
-
     /**
-     * Region-aware constructor with explicit padding. Registers the panel
-     * into the given {@link InsideRegion} via {@link RegionRegistry}
-     * with the declared padding so stacking math and overflow checks both
-     * account for it. Uses {@link RegionAnchor#DEFAULT_PRIORITY} for
-     * sibling ordering.
-     */
-    public VanillaScreenPanelAdapter(Panel panel, InsideRegion region, int padding) {
-        this(panel, region, padding, RegionAnchor.DEFAULT_PRIORITY);
-    }
-
-    /**
-     * Region-aware constructor accepting a {@link RegionAnchor} — region
-     * paired with an explicit stacking priority. Padding defers to
-     * {@link Panel#interiorPadding()} (0 for NONE, 7 otherwise — same
-     * style-conditional default as {@link ScreenPanelAdapter}).
-     */
-    public VanillaScreenPanelAdapter(Panel panel, RegionAnchor<InsideRegion> anchor) {
-        this(panel, anchor.region(), panel.interiorPadding(), anchor.priority());
-    }
-
-    /** Region-aware constructor with both explicit padding and priority. */
-    public VanillaScreenPanelAdapter(Panel panel, RegionAnchor<InsideRegion> anchor,
-                                      int padding) {
-        this(panel, anchor.region(), padding, anchor.priority());
-    }
-
-    /** Internal canonical constructor. */
-    private VanillaScreenPanelAdapter(Panel panel, InsideRegion region,
-                                       int padding, int priority) {
-        this.panel = Objects.requireNonNull(panel, "panel must not be null");
-        this.padding = padding;
-        this.region = region;
-        RegionRegistry.registerVanillaScreen(panel, region, padding, priority);
-        VanillaScreenPanelRegistry.trackPending(this);
-    }
-
-    // ── Targeting API ───────────────────────────────────────────────────
-
-    /**
-     * Declares the screen classes this adapter applies to. Resolution is
-     * class-ancestry — the adapter fires on any opened {@link Screen}
-     * that is an instance of one or more of {@code screenClasses}.
+     * Declares the panel with its own interior padding ({@code 0} for
+     * {@link PanelStyle#NONE}, {@link #DEFAULT_PADDING} otherwise).
      *
-     * <p>Multi-target semantics are OR — any matching target fires the
-     * adapter. Call exactly once. Duplicate declarations throw.
+     * @throws IllegalArgumentException if a vanilla screen cannot place the panel's position
+     * @throws IllegalStateException    after MenuKit's declarations froze
+     */
+    public VanillaScreenPanelAdapter(Panel panel) {
+        this(panel, Objects.requireNonNull(panel, "panel must not be null").interiorPadding());
+    }
+
+    /**
+     * Declares the panel with explicit content padding.
+     *
+     * @throws IllegalArgumentException if a vanilla screen cannot place the panel's position
+     * @throws IllegalStateException    after MenuKit's declarations froze
+     */
+    public VanillaScreenPanelAdapter(Panel panel, int padding) {
+        Objects.requireNonNull(panel, "panel must not be null");
+        Declarations.requireOpen("VanillaScreenPanelAdapter(" + panel.getId() + ")");
+        PanelHost.requireSupported(PanelHost.Kind.VANILLA_SCREEN, panel, panel.getPosition());
+        this.panel = panel;
+        this.padding = padding;
+        this.modId = PanelHost.captureCallerModId();
+        this.seq = PanelHost.nextSeq();
+        ScreenPanelRegistry.declare(this);
+    }
+
+    // ── Targeting ───────────────────────────────────────────────────────
+
+    /**
+     * The screens this panel appears on, by class ancestry (OR across classes). Call
+     * exactly once.
      */
     @SafeVarargs
     public final VanillaScreenPanelAdapter on(Class<? extends Screen>... screenClasses) {
         requireUndeclared();
         if (screenClasses.length == 0) {
-            throw new IllegalArgumentException(
-                    "VanillaScreenPanelAdapter for panel '" + panel.getId() +
-                    "': .on() requires at least one screen class. Use .onAny() for " +
-                    "every-screen targeting (rare; usually you want a specific class).");
+            throw new IllegalArgumentException("VanillaScreenPanelAdapter for panel '" + panel.getId()
+                    + "': .on() requires at least one screen class.");
         }
         this.targets = List.of(screenClasses);
-        VanillaScreenPanelRegistry.markTargetingDeclared(this);
         return this;
     }
 
     /**
-     * Declares this adapter fires on every opened non-container {@link Screen}.
-     * Rare for vanilla screens (the panel would appear on every menu screen
-     * the user navigates — title, options, world-select, etc.); typically
-     * consumers want a specific class. {@code .on(Class...)} is preferred.
+     * Every non-container screen. Rare (the panel would show on the title screen,
+     * Options, world select...); {@link #on} is usually what you mean.
      */
     public VanillaScreenPanelAdapter onAny() {
         requireUndeclared();
         this.targetedAny = true;
-        VanillaScreenPanelRegistry.markTargetingDeclared(this);
         return this;
     }
 
     private void requireUndeclared() {
+        Declarations.requireOpen("VanillaScreenPanelAdapter(" + panel.getId() + ") targeting");
         if (targets != null || targetedAny) {
-            throw new IllegalStateException(
-                    "VanillaScreenPanelAdapter for panel '" + panel.getId() +
-                    "' already declared targeting. Call .on(...) or .onAny() exactly once.");
+            throw new IllegalStateException("VanillaScreenPanelAdapter for panel '" + panel.getId()
+                    + "' already declared targeting. Call .on(...) or .onAny() exactly once.");
         }
     }
 
-    // ── Teardown ────────────────────────────────────────────────────────
-
-    /**
-     * Removes this adapter from every internal registry collection. Idempotent.
-     * After {@code unregister()} the adapter contributes nothing to layout,
-     * dispatch, or rendering.
-     */
-    public void unregister() {
-        RegionRegistry.unregisterVanillaScreen(panel);
-        VanillaScreenPanelRegistry.untrack(this);
-    }
-
-    // ── Accessors ──────────────────────────────────────────────────────
-
-    public Panel getPanel() { return panel; }
-    public int getPadding() { return padding; }
-    public @Nullable List<Class<? extends Screen>> getTargets() { return targets; }
-    public boolean isTargetedAny() { return targetedAny; }
-    public boolean isTargetingDeclared() { return targets != null || targetedAny; }
-
-    /**
-     * Returns true if this adapter's declared targets match the given
-     * screen via class-ancestry (or if {@code .onAny()} was called).
-     */
+    /** Whether this adapter's panel appears on {@code screen}. */
     public boolean matches(Screen screen) {
         if (targetedAny) return true;
         if (targets == null) return false;
@@ -213,228 +133,35 @@ public final class VanillaScreenPanelAdapter {
         return false;
     }
 
-    // ── Render + input ─────────────────────────────────────────────────
+    /** Whether {@link #on} or {@link #onAny} was called. */
+    public boolean isTargetingDeclared() { return targets != null || targetedAny; }
+
+    // ── Teardown ────────────────────────────────────────────────────────
 
     /**
-     * Returns the panel's screen-space origin given the current screen
-     * dimensions, or empty when the panel is hidden / out-of-region.
-     * Used by {@link VanillaScreenPanelRegistry} for hit-test math.
+     * Withdraws this adapter from screens opened from now on. Idempotent. Throws after
+     * MenuKit's declarations froze; gate at runtime with {@link Panel#showWhen}.
      */
-    public Optional<ScreenOrigin> getOriginForScreen(int sw, int sh, Screen screen) {
-        if (!ClientWindowVisibility.panelShown(panel)) return Optional.empty();
-        ScreenOrigin origin = RegionRegistry.resolveVanillaScreenOrigin(panel, region, sw, sh, screen);
-        if (origin == ScreenOrigin.OUT_OF_REGION) return Optional.empty();
-        return Optional.of(origin);
+    public void unregister() {
+        Declarations.requireOpen("VanillaScreenPanelAdapter(" + panel.getId() + ").unregister()");
+        ScreenPanelRegistry.withdraw(this);
     }
 
-    /**
-     * Renders the panel background (when style is not {@link PanelStyle#NONE})
-     * and the panel's visible elements at the origin computed from the screen
-     * dimensions.
-     */
-    public void render(GuiGraphicsExtractor graphics, int sw, int sh,
-                       int mouseX, int mouseY, Screen screen) {
-        if (!ClientWindowVisibility.panelShown(panel)) return;
+    // ── Accessors ──────────────────────────────────────────────────────
 
-        ScreenOrigin origin = RegionRegistry.resolveVanillaScreenOrigin(panel, region, sw, sh, screen);
-        if (origin == ScreenOrigin.OUT_OF_REGION) return;
+    /** The panel this adapter declares. */
+    public Panel getPanel() { return panel; }
 
-        int panelWidth = panel.getWidth() + 2 * padding;
-        int panelHeight = panel.getHeight() + 2 * padding;
+    /** The content padding inside the panel's edge. */
+    public int getPadding() { return padding; }
 
-        if (panel.getStyle() != PanelStyle.NONE) {
-            PanelRendering.renderPanel(graphics,
-                    origin.x(), origin.y(),
-                    panelWidth, panelHeight,
-                    panel.getStyle());
-        }
+    /** The declared target classes, or {@code null} (none, or {@link #onAny}). */
+    public @Nullable List<Class<? extends Screen>> getTargets() { return targets; }
 
-        RenderContext ctx = new RenderContext(
-                graphics, origin.x() + padding, origin.y() + padding,
-                mouseX, mouseY);
-        PanelDispatch.renderElements(panel, ctx);
+    /** Whether {@link #onAny} was called. */
+    public boolean isTargetedAny() { return targetedAny; }
 
-        panel.maybeQueueTooltip(graphics,
-                origin.x(), origin.y(), panelWidth, panelHeight,
-                mouseX, mouseY, ctx.hasMouseInput());
-    }
+    String modId() { return modId; }
 
-    /**
-     * Dispatches a mouse click to any visible element under the cursor.
-     * Returns true if any element consumed the click — OR if the click
-     * landed inside the panel's outer bounds but no element claimed it
-     * (eats the click per the input-contract — panels are opaque to
-     * vanilla-widget dispatch within their bounds).
-     *
-     * <p><b>Pass ordering matters.</b> The active-overlay pass runs FIRST,
-     * unconditionally — overlay extents ({@link PanelElement#getActiveOverlayBounds})
-     * can reach OUTSIDE the panel's outer layout bounds (Dropdown popovers,
-     * etc.), so gating the overlay loop on an {@code inPanel} check would
-     * swallow popover clicks. Bug surfaced by Imp@Keybindery on 2026-05-19
-     * (controls-screen Sort/Filter dropdowns lost their selection clicks);
-     * fix landed in {@code menukit/(this commit)}.
-     */
-    public boolean mouseClicked(int sw, int sh, double mouseX, double mouseY,
-                                 int button, Screen screen) {
-        if (!ClientWindowVisibility.panelShown(panel)) return false;
-
-        ScreenOrigin origin = RegionRegistry.resolveVanillaScreenOrigin(panel, region, sw, sh, screen);
-        if (origin == ScreenOrigin.OUT_OF_REGION) return false;
-
-        // ── Pass 1: active-overlay exclusive claims ────────────────────
-        // Runs unconditionally — overlay extents may reach outside the
-        // panel's outer bounds (Dropdown popover etc.). The overlay
-        // bounds ARE the source of truth for these elements, not layout
-        // bounds.
-        for (PanelElement element : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
-            int[] overlay = element.getActiveOverlayBounds();
-            if (overlay != null
-                    && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
-                    && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
-                element.mouseClicked(mouseX, mouseY, button);
-                MKFocus.blurOnOutsideBounds(screen, mouseX, mouseY);
-                return true;
-            }
-        }
-
-        // ── Pass 2: in-panel hit-test + opacity eat ────────────────────
-        int panelWidth = panel.getWidth() + 2 * padding;
-        int panelHeight = panel.getHeight() + 2 * padding;
-
-        boolean inPanel = mouseX >= origin.x() && mouseX < origin.x() + panelWidth
-                       && mouseY >= origin.y() && mouseY < origin.y() + panelHeight;
-        if (!inPanel) return false;  // outside both overlay AND panel → vanilla handles
-
-        // M9 per-element opacity: a non-opaque element under the cursor is a
-        // click-through hole — pass the click through to vanilla instead of
-        // eating it (and don't dispatch to the panel's own elements here).
-        if (ScreenPanelRegistry.panelHoleAt(panel, origin, padding, mouseX, mouseY)) {
-            return false;
-        }
-
-        int contentX = origin.x() + padding;
-        int contentY = origin.y() + padding;
-
-        for (PanelElement element : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
-            if (!element.hitTest(mouseX, mouseY, contentX, contentY)) continue;
-            if (element.mouseClicked(mouseX, mouseY, button)) {
-                // Element claimed. Apply unified focus-janitor rule —
-                // if a focused MK widget exists and the click was
-                // outside its bounds, blur. This mirrors vanilla's
-                // "claimant gets focus, others lose it" semantics for
-                // non-focus-taking MK elements (buttons, dropdowns).
-                // Elements that DO take focus (e.g., TextField → EditBox)
-                // are protected by the inside-bounds check.
-                MKFocus.blurOnOutsideBounds(screen, mouseX, mouseY);
-                return true;
-            }
-        }
-
-        // In-panel, not a hole, no element consumed. Eat iff the unified claim
-        // says this panel covers the point — the SAME predicate the container/
-        // lambda paths and every hover/tooltip suppressor use
-        // ({@code ScreenPanelRegistry.panelClaimsPoint}): opaque background, an
-        // active overlay, or a solid interactive element. For the default
-        // opaque vanilla panel this is always true within bounds (behavior
-        // unchanged); a non-opaque vanilla panel with no solid element here now
-        // correctly passes the click through to vanilla instead of eating it.
-        if (ScreenPanelRegistry.panelClaimsPoint(panel, origin, padding, mouseX, mouseY)) {
-            // Vanilla never sees this click (we eat) — the eating layer owns
-            // restoring sensible focus state: blur a focused MK widget the
-            // click landed outside of.
-            MKFocus.blurOnOutsideBounds(screen, mouseX, mouseY);
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Notifies this adapter's visible elements of an outside click so popover-
-     * like elements (Dropdown/DropdownMulti) can dismiss. Each element
-     * self-guards via {@link PanelElement#notifyClickOutsideOverlay} (it closes
-     * only if the click fell outside its own overlay/trigger), so the registry
-     * can call this on every adapter for every click regardless of which adapter
-     * consumed it. The vanilla-screen twin of {@code MKScreen}'s dismiss
-     * janitor. Coordinates are screen-space (elements cache their own screen
-     * positions at render, so no origin is needed here).
-     */
-    public void notifyOutsideClick(double mouseX, double mouseY) {
-        if (!ClientWindowVisibility.panelShown(panel)) return;
-        for (PanelElement element : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
-            element.notifyClickOutsideOverlay(mouseX, mouseY);
-        }
-    }
-
-    /**
-     * Dispatches a mouse-wheel scroll to any visible element under the cursor.
-     * Returns true if any element consumed the scroll.
-     */
-    public boolean mouseScrolled(int sw, int sh, double mouseX, double mouseY,
-                                  double scrollX, double scrollY, Screen screen) {
-        if (!ClientWindowVisibility.panelShown(panel)) return false;
-
-        ScreenOrigin origin = RegionRegistry.resolveVanillaScreenOrigin(panel, region, sw, sh, screen);
-        if (origin == ScreenOrigin.OUT_OF_REGION) return false;
-
-        int contentX = origin.x() + padding;
-        int contentY = origin.y() + padding;
-
-        for (PanelElement element : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
-            int[] overlay = element.getActiveOverlayBounds();
-            if (overlay != null
-                    && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
-                    && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
-                element.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
-                return true;
-            }
-        }
-
-        for (PanelElement element : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
-            if (!element.hitTest(mouseX, mouseY, contentX, contentY)) continue;
-            if (element.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Dispatches a mouse-release event to all visible elements. NOT
-     * hit-tested (release fires for every visible element so drag-end
-     * detection works when the cursor has moved off during drag).
-     */
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (!ClientWindowVisibility.panelShown(panel)) return false;
-        boolean consumed = false;
-        for (PanelElement element : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
-            if (element.mouseReleased(mouseX, mouseY, button)) {
-                consumed = true;
-            }
-        }
-        return consumed;
-    }
-
-    /**
-     * Dispatches a key press to this adapter's visible elements (keyboard-nav
-     * completion — keyboard parallel to {@link #mouseClicked}). NOT hit-tested;
-     * every visible element is offered the key until one consumes it. Returns
-     * true once consumed so the caller eats the key from vanilla. Canonical
-     * consumer: an open {@link com.trevlar.menukit.core.Dropdown}.
-     */
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (!ClientWindowVisibility.panelShown(panel)) return false;
-        for (PanelElement element : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, element)) continue;
-            if (element.keyPressed(keyCode, scanCode, modifiers)) {
-                return true;
-            }
-        }
-        return false;
-    }
+    int seq() { return seq; }
 }

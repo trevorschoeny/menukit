@@ -14,9 +14,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * §0051 Fix 3 — creative tab-hover suppression under a modal. The cosmetic
- * companion to {@link MKModalHoverMixin}.
+ * companion to the slot-hover claim in {@link MKSlotInputMixin}.
  *
- * <p>That mixin suppresses <em>slot</em> hover by returning {@code null} from
+ * <p>That hook suppresses <em>slot</em> hover by returning {@code null} from
  * {@code getHoveredSlot}; but a creative <b>tab</b> still glows through a modal,
  * because {@code CreativeModeInventoryScreen.checkTabHovering} tests
  * {@code mouseX}/{@code mouseY} directly rather than going through

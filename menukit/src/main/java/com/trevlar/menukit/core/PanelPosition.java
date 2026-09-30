@@ -7,193 +7,229 @@ import org.jspecify.annotations.Nullable;
 import java.util.function.Supplier;
 
 /**
- * Describes how a panel is positioned within a screen's layout.
+ * Where a panel sits: the one placement declaration every host reads (§0065).
  *
- * <p><b>Movement ③ — the main-panel + region model.</b> A custom screen names
- * ONE panel as its {@link Mode#MAIN main} = its frame (centred on the screen,
- * exactly like a vanilla container's menu frame). Every other panel anchors to
- * that frame with a {@link Mode#REGION region} — the SAME {@link OutsideRegion}
- * vocabulary and the SAME {@link RegionMath} resolver vanilla-injected panels
- * use against the menu frame — so siblings inherit overlay-centring (①) and
- * vertical edge-awareness + auto-scroll (②) for free. This retired the old
- * relative verbs (rightOf / leftOf / above / below), which were a second,
- * edge-unaware placement system bolted onto this enum.
+ * <p>Placement is declared once, on the panel. A host (a container screen, a
+ * vanilla screen, a slot group, the HUD, a standalone {@code MKScreen}) reads
+ * this record and resolves it against its own reference: the menu frame, the
+ * screen, the slot group's box, the game window, or the screen's own
+ * {@link Mode#MAIN main} panel. Adapters no longer take a region; the panel says
+ * where it goes, and the adapter only says which screens it appears on.
  *
  * <p>Modes:
  * <ul>
- *   <li>{@link Mode#BODY} — stacks vertically in a single centred column
- *       (default; the legacy regime for simple standalone screens with no
- *       designated main panel).</li>
- *   <li>{@link Mode#MAIN} — the screen's frame: one per screen, centred, the
- *       anchor every {@code REGION} sibling resolves against.</li>
- *   <li>{@link Mode#REGION} — anchored to the main panel via a {@link OutsideRegion}
- *       (RIGHT_ALIGN_TOP, BOTTOM_CENTER, …), resolved by {@link RegionMath}
- *       against the main panel's bounds.</li>
- *   <li>{@link Mode#SCREEN_ANCHOR} — pinned to a fixed screen corner (chrome).</li>
- *   <li>{@link Mode#CENTER} — a screen-centred overlay, drawn on top.</li>
- *   <li>{@link Mode#PIXEL} — pixel-precision override: the outer origin comes
- *       from a per-frame consumer supplier, in absolute screen pixels. The
- *       precision escape for positions regions can't express (§0057 Revision);
- *       see {@link #pixel}.</li>
+ *   <li>{@link Mode#UNPLACED}: no placement declared (the default). A host rejects
+ *       an unplaced panel loudly, except the standalone-screen builders
+ *       ({@code MKScreen}, {@code MKCScreenHandler}), which normalise it: the first
+ *       unplaced panel becomes {@link #main()}, each later one
+ *       {@code region(BOTTOM_CENTER)}.</li>
+ *   <li>{@link Mode#MAIN}: a standalone screen's frame: one per screen, centred,
+ *       the reference its {@code REGION} siblings resolve against.</li>
+ *   <li>{@link Mode#REGION}: outside a reference rectangle via an
+ *       {@link OutsideRegion} (RIGHT_ALIGN_TOP, BOTTOM_CENTER, ...). The rectangle is
+ *       the host's: the menu frame on a container screen, the slot group's box for
+ *       a slot-group adapter, the main panel on a standalone screen.</li>
+ *   <li>{@link Mode#SCREEN_ANCHOR}: on one of the nine {@link InsideRegion} spots of
+ *       the screen (or the game window, for the HUD), inset from the edges it
+ *       touches.</li>
+ *   <li>{@link Mode#CENTER}: a screen-centred overlay, drawn on top.</li>
+ *   <li>{@link Mode#PIXEL}: the outer origin comes from a per-frame supplier, in
+ *       absolute screen pixels (§0057 Revision): the precision escape.</li>
  * </ul>
  *
- * <p>This is declarative metadata. The screen reads it during layout
- * computation to determine where each panel goes.
+ * <p>Two modifiers ride every mode:
+ * <ul>
+ *   <li>{@link #priority(int)}: stacking order among siblings sharing a region, and
+ *       z-order within a host. Lower goes first (closer to the region's anchor
+ *       edge, and underneath in z). Default {@link #DEFAULT_PRIORITY}. Ties break by
+ *       the registering mod's id, then by registration order, so ordering never
+ *       depends on which mod loaded first. (Replaces {@code RegionAnchor} and the
+ *       enums' {@code priority(int)} methods.)</li>
+ *   <li>{@link #offset(int, int)}: a pixel nudge applied after the panel is placed.
+ *       It moves only this panel; siblings stack as if it were not nudged. (Replaces
+ *       the HUD's {@code MKHudAnchor} offsets.)</li>
+ * </ul>
+ *
+ * <p>Immutable: {@code priority} and {@code offset} return a new record.
  */
 public record PanelPosition(Mode mode,
-                            @Nullable String anchorPanelId,
                             @Nullable InsideRegion screenAnchor,
-                            @Nullable OutsideRegion menuRegion,
-                            @Nullable Supplier<ScreenOrigin> pixelOrigin) {
+                            @Nullable OutsideRegion region,
+                            @Nullable Supplier<ScreenOrigin> pixelOrigin,
+                            int dx,
+                            int dy,
+                            int priority) {
+
+    /**
+     * Default stacking priority. A middle value, so a consumer can move up (lower
+     * number) or down (higher number) without renumbering anyone else.
+     */
+    public static final int DEFAULT_PRIORITY = 100;
 
     /** How a panel is positioned. */
     public enum Mode {
-        /** Stacks vertically in a single centred column. Default. */
-        BODY,
         /**
-         * The screen's frame (Movement ③) — centred on the screen window, the
-         * anchor every {@link #REGION} sibling resolves against. Exactly one
-         * panel per screen should be {@code MAIN}; it is the custom-screen
-         * analogue of a vanilla container's menu frame.
+         * No placement declared. Hosts refuse it (a panel with nowhere to go is a
+         * declaration bug, and failing at registration beats an invisible panel);
+         * the standalone-screen builders normalise it instead (see the class doc).
+         */
+        UNPLACED,
+        /**
+         * A standalone screen's frame, centred on the screen window: the reference
+         * every {@link #REGION} sibling resolves against. One per screen; the
+         * custom-screen analogue of a vanilla container's menu frame.
          */
         MAIN,
-        /**
-         * Anchored to the {@link #MAIN} panel via a {@link OutsideRegion} (Movement
-         * ③). Resolved by {@link RegionMath} against the main panel's bounds —
-         * the same path vanilla-injected panels take against the menu frame, so
-         * the panel is edge-aware on both axes and auto-scrolls on overflow.
-         */
+        /** Outside the host's reference rectangle, via an {@link OutsideRegion}. */
         REGION,
-        /**
-         * Pinned to a fixed {@link InsideRegion screen-edge spot} (Pass 3), inset
-         * by {@link RegionConstants#SCREEN_EDGE_MARGIN}. Excluded from the layout's
-         * extent — chrome like a "Back" button (TOP_LEFT) or a title (TOP_CENTER)
-         * stays put regardless of content size. See {@link #screenAnchor}.
-         */
+        /** On one of the nine {@link InsideRegion} spots of the screen or window. */
         SCREEN_ANCHOR,
         /**
-         * Centred on the screen as an overlay — excluded from the body stack's
-         * layout + extent, auto-centred on the screen window, and drawn on top
-         * of the body in the overlay pass. The placement for dialogs, popovers,
-         * and any panel that floats <em>over</em> the screen rather than flowing
-         * in its column. This is purely a POSITION; it is independent of the
-         * {@code dimsBehind}/{@code opaque}/{@code tracksAsModal} visual+input
-         * flags (M9 doctrine — those compose freely with this). See
-         * {@link #center}.
+         * Centred on the screen as an overlay and drawn on top. Position only: it
+         * composes freely with {@code dimsBehind}, {@code opaque} and
+         * {@code tracksAsModal} (M9: those flags stay independent).
          */
         CENTER,
         /**
-         * Pixel-precision override (§0057 Revision, Trev's call) — the panel's
-         * outer origin comes from a consumer supplier, re-evaluated <b>every
-         * frame</b>, in absolute screen pixels. The precision escape for the
-         * positions regions cannot express: a point <em>inside</em> the frame
-         * (e.g. directly above the offhand slot) or an origin that moves per
-         * frame (e.g. a row centred over the hovered hotbar column). Declarative
-         * regions remain the default; reach for this only when a region can't
-         * say it. See {@link #pixel}.
+         * Pixel-precision override (§0057 Revision): the outer origin comes from a
+         * consumer supplier, re-evaluated every frame, in absolute screen pixels.
+         * The escape for positions a region cannot say.
          */
         PIXEL
     }
 
-    /** Default position: body panel, stacks vertically. */
-    public static final PanelPosition BODY =
-            new PanelPosition(Mode.BODY, null, null, null, null);
+    /** No placement. The default on {@code Panel.builder}; see {@link Mode#UNPLACED}. */
+    public static final PanelPosition UNPLACED =
+            new PanelPosition(Mode.UNPLACED, null, null, null, 0, 0, DEFAULT_PRIORITY);
 
     /**
-     * The screen's main panel = its frame (Movement ③). Centred on the screen
-     * window; every {@link #region} sibling anchors to its bounds. Exactly one
-     * panel per screen should be {@code main()}.
+     * A standalone screen's main panel, its frame: centred on the screen window;
+     * every {@link #region} sibling anchors to its bounds. One per screen.
      */
     public static PanelPosition main() {
-        return new PanelPosition(Mode.MAIN, null, null, null, null);
+        return new PanelPosition(Mode.MAIN, null, null, null, 0, 0, DEFAULT_PRIORITY);
     }
 
     /**
-     * Anchors the panel to the main panel via {@code region} (Movement ③) — the
-     * same {@link OutsideRegion} vocabulary vanilla-injected panels use against the
-     * menu frame. RIGHT_ALIGN_TOP sits it to the right of the main panel, top-
-     * aligned; BOTTOM_CENTER below it, centred; and so on. Resolved by
-     * {@link RegionMath} against the main panel's bounds, so it is edge-aware on
-     * both axes and auto-scrolls when it would overflow the screen.
+     * Outside the host's reference rectangle via {@code region}: to the right of the
+     * menu frame, below a slot group, above a standalone screen's main panel, and so
+     * on. Resolved by {@link RegionMath#resolveMenu}, so it is edge-aware on both
+     * axes and auto-scrolls when it would overflow the screen. Siblings sharing a
+     * region stack away from the anchor edge in {@link #priority} order.
      */
     public static PanelPosition region(OutsideRegion region) {
-        return new PanelPosition(Mode.REGION, null, null, region, null);
+        return new PanelPosition(Mode.REGION, null, region, null, 0, 0, DEFAULT_PRIORITY);
     }
 
     /**
-     * Pins the panel to a fixed {@link InsideRegion screen-edge spot} (Pass 3) —
-     * inset by {@link RegionConstants#SCREEN_EDGE_MARGIN} from the edges that spot
-     * touches. The canonical screen-chrome placement: a "&lt; Back" button at
-     * {@code TOP_LEFT}, a title at {@code TOP_CENTER}, a status line at
-     * {@code BOTTOM_CENTER}. Positioned independently of the layout (contributes
-     * nothing to its extent), so it stays put no matter how content sizes,
-     * wraps, or scrolls.
-     *
-     * <p>Honored by both {@link com.trevlar.menukit.screen.MKScreen} (the
-     * standalone screen) and {@link MainRegionLayout} (a custom container screen),
-     * via {@link RegionMath#resolveScreenRegion} — the SAME screen-edge placement
-     * in either context.
+     * On a screen-edge spot: a {@code TOP_LEFT} back button, a {@code TOP_CENTER}
+     * title, a HUD panel at {@code BOTTOM_RIGHT}. Inset from the edges it touches by
+     * the host's inset (the HUD and vanilla screens use
+     * {@link RegionConstants#EDGE_INSET}, a standalone screen's chrome
+     * {@link RegionConstants#SCREEN_EDGE_MARGIN}); siblings on one spot stack.
+     * Resolved by {@link RegionMath#resolveInside}.
      */
     public static PanelPosition screenAnchor(InsideRegion region) {
-        return new PanelPosition(Mode.SCREEN_ANCHOR, null, region, null, null);
+        return new PanelPosition(Mode.SCREEN_ANCHOR, region, null, null, 0, 0, DEFAULT_PRIORITY);
     }
 
     /**
-     * Centres the panel on the screen as an overlay — excluded from the layout,
-     * auto-centred on the screen window, and drawn on top. The canonical
-     * placement for dialogs, popovers, and any panel that floats <em>over</em>
-     * the screen instead of flowing in its column.
-     *
-     * <p>Position only: it composes freely with the {@code dimsBehind} (visual
-     * dim), {@code opaque} (click-eat), and {@code tracksAsModal} (input-block)
-     * flags per the M9 doctrine — a panel can be a centred overlay with any,
-     * all, or none of them. Honored by
-     * {@link com.trevlar.menukit.screen.MKScreen}.
+     * Centred on the screen as an overlay, drawn on top: the placement for dialogs
+     * and popovers. Composes freely with {@code dimsBehind}, {@code opaque} and
+     * {@code tracksAsModal}.
      */
     public static PanelPosition center() {
-        return new PanelPosition(Mode.CENTER, null, null, null, null);
+        return new PanelPosition(Mode.CENTER, null, null, null, 0, 0, DEFAULT_PRIORITY);
     }
 
     /**
-     * Pixel-precision position override (§0057 Revision — Trev's call,
-     * 2026-07-01): places the panel's <b>outer</b> top-left (the background
-     * origin; elements render inside at origin + padding) at exactly the
-     * coordinates {@code origin} supplies, in <b>absolute screen pixels</b>.
+     * Pixel-precision placement (§0057 Revision): the panel's <b>outer</b> top-left
+     * (the background origin; elements render inside at origin + padding) is exactly
+     * what {@code origin} supplies, in absolute screen pixels, re-evaluated every
+     * frame. Returning {@code null} skips the panel that frame: not drawn, claims
+     * nothing. No reactive budgets are fed: pixel placement means the consumer owns
+     * the exact geometry, on-screen included.
      *
-     * <p><b>Re-evaluated every frame.</b> The supplier runs on each layout/render
-     * pass, so an origin computed from live state — a resolved vanilla slot rect
-     * ({@link com.trevlar.menukit.inject.VanillaSlotResolver#resolve}), a
-     * hovered hotbar column, a user-mutable count — tracks that state with no
-     * consumer re-registration. Returning {@code null} skips the panel this frame
-     * (not rendered, not hit-testable) — the natural "this screen doesn't surface
-     * my anchor" escape, e.g. when a slot resolver comes back empty.
-     *
-     * <p><b>The precision escape, not the default.</b> Declarative regions remain
-     * the placement model (§0057); {@code pixel(...)} exists for the positions
-     * regions cannot express — a point <em>inside</em> the content frame, or an
-     * origin that is genuinely dynamic per frame. Unlike the deleted lambda-anchor
-     * escape hatch (a parallel placement system at the adapter layer), this is a
-     * position KIND inside the one model: resolved by the same drivers, riding the
-     * same render/input/opacity machinery as every other panel.
-     *
-     * <p><b>No reactive budgets.</b> A pixel panel measures at its natural size —
-     * the engine feeds it no screen-edge wrap/scroll ceiling, because pixel
-     * placement means the consumer owns the exact geometry (§0057's reactive
-     * default would fight the precision). Keeping it on-screen is the supplier's
-     * contract.
-     *
-     * <p>Honored by the vanilla-screen injection path
-     * ({@link com.trevlar.menukit.inject.ScreenPanelAdapter} — including
-     * {@code MKCContainerPanel} parity panels), {@link MainRegionLayout} (custom
-     * screens with a {@code main()} frame), and
-     * {@link com.trevlar.menukit.screen.MKScreen}'s legacy path. (The legacy
-     * BODY-stack path on a custom <em>container</em> screen predates every
-     * non-BODY mode and does not resolve them — use {@code main()} there.)
-     *
-     * @param origin per-frame supplier of the panel's outer top-left in absolute
-     *               screen pixels; {@code null} return = skip this frame
+     * @param origin per-frame supplier of the panel's outer top-left; {@code null}
+     *               return = skip this frame
      */
     public static PanelPosition pixel(Supplier<ScreenOrigin> origin) {
-        return new PanelPosition(Mode.PIXEL, null, null, null, origin);
+        return new PanelPosition(Mode.PIXEL, null, null, origin, 0, 0, DEFAULT_PRIORITY);
+    }
+
+    /**
+     * This position nudged by {@code (dx, dy)} pixels after placement (positive x
+     * right, positive y down). Replaces any earlier offset. Only this panel moves;
+     * siblings in the same region stack as if it had not.
+     */
+    public PanelPosition offset(int dx, int dy) {
+        return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority);
+    }
+
+    /**
+     * This position with stacking and z-order {@code priority} (lower goes first:
+     * nearer the anchor edge, and underneath). Default {@link #DEFAULT_PRIORITY}.
+     */
+    public PanelPosition priority(int priority) {
+        return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority);
+    }
+
+    /**
+     * The gap between panels a standalone screen stacks by default (the old BODY
+     * column's 14px, which leaves room for a container's "Inventory" label).
+     */
+    public static final int STANDALONE_STACK_GAP = 14;
+
+    /**
+     * The standalone-screen default for unplaced panels, keeping the look of the old
+     * BODY column: the first unplaced panel becomes {@link #main()} (unless one is
+     * declared), and each later one {@code region(BOTTOM_CENTER)}, offset so it sits
+     * {@link #STANDALONE_STACK_GAP} below the one before. Declared positions pass
+     * through untouched. Used by {@code MKScreen} and {@code MKCScreenHandler}, the
+     * only hosts that accept an unplaced panel.
+     *
+     * <p>ponytail: the offset assumes every earlier stacked panel is shown; with a
+     * middle one hidden, later ones sit 12px lower than the old column did.
+     * Upgrade path: a per-region stacking gap on the host, if anyone notices.
+     *
+     * @param declared each panel's declared position, in declaration order
+     * @return the position each panel takes, same order
+     */
+    public static java.util.List<PanelPosition> standaloneDefaults(java.util.List<PanelPosition> declared) {
+        boolean hasMain = false;
+        for (PanelPosition p : declared) {
+            if (p.mode() == Mode.MAIN) hasMain = true;
+        }
+        java.util.List<PanelPosition> out = new java.util.ArrayList<>(declared.size());
+        int stacked = 0;
+        for (PanelPosition p : declared) {
+            if (p.isPlaced()) {
+                out.add(p);
+            } else if (!hasMain) {
+                out.add(main());
+                hasMain = true;
+            } else {
+                stacked++;
+                // resolveMenu already puts MENU_STACK_GAP between siblings; make up
+                // the rest of the old column's gap, once per panel above this one.
+                int extra = STANDALONE_STACK_GAP - RegionConstants.MENU_STACK_GAP;
+                out.add(region(OutsideRegion.BOTTOM_CENTER).offset(0, stacked * extra));
+            }
+        }
+        return out;
+    }
+
+    /** Whether a placement was declared (anything but {@link Mode#UNPLACED}). */
+    public boolean isPlaced() {
+        return mode != Mode.UNPLACED;
+    }
+
+    /** A short human form for error messages: {@code REGION(RIGHT_ALIGN_TOP)} and so on. */
+    public String describe() {
+        return switch (mode) {
+            case REGION -> "REGION(" + region + ")";
+            case SCREEN_ANCHOR -> "SCREEN_ANCHOR(" + screenAnchor + ")";
+            default -> mode.name();
+        };
     }
 }

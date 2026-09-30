@@ -16,13 +16,13 @@ import org.jetbrains.annotations.ApiStatus;
  * <p><b>Pure by design.</b> No registry state, no Panel references, no
  * per-frame side effects. Enables {@code /mkverify all} to exercise the math
  * with synthetic inputs without spinning up a screen or touching the
- * {@code RegionRegistry}. See M5 design doc §9.1.
+ * panel registries. See M5 design doc §9.1.
  *
- * <p><b>Public entry points map to a sentinel at the boundary.</b> This class
- * returns {@code Optional<ScreenOrigin>} for compositional clarity. The
- * adapter pipeline ({@link com.trevlar.menukit.inject.RegionRegistry})
- * maps {@code Optional.empty()} to {@link ScreenOrigin#OUT_OF_REGION} so the
- * region origin resolvers return a stable sentinel. See §6.5.
+ * <p>Two resolvers cover every placement: {@link #resolveMenu} for an
+ * {@link OutsideRegion} around a reference rectangle, and {@link #resolveInside}
+ * for an {@link InsideRegion} spot on the screen. The panel hosts
+ * ({@code com.trevlar.menukit.inject.PanelHost}) supply the inputs and treat
+ * {@link Optional#empty()} as "not placed this frame".
  */
 @ApiStatus.Internal
 public final class RegionMath {
@@ -164,46 +164,90 @@ public final class RegionMath {
     }
 
     /**
-     * OUTER available width for a screen-edge-anchored panel (HUD /
-     * VanillaScreen contexts). All such regions are inset {@link
-     * RegionConstants#EDGE_INSET} from one edge and should keep the same inset
-     * from the opposite edge, so the budget is the screen width minus the inset
-     * on both sides.
+     * OUTER available width for a screen-edge-anchored panel (an
+     * {@link InsideRegion} spot in any context). Every spot is inset from one edge
+     * and should keep the same inset from the opposite edge, so the budget is the
+     * screen width minus the inset on both sides.
      */
     public static int availableScreenEdgeWidth(int sw, int inset) {
         return sw - 2 * inset;
     }
 
-    // ── Screen-edge chrome anchoring (InsideRegion) ─────────────────────
+    // ── InsideRegion: the one resolver, parameterised by the context's insets ──
 
     /**
-     * Places a {@code pw × ph} chrome panel at one of the nine
-     * {@link InsideRegion} screen-edge spots, inset by {@code margin} from the
-     * edges it touches. Pure: the panel anchors to the SCREEN (not the content
-     * frame), so unlike {@link #resolveMenu} it always resolves — a screen-edge
-     * spot is on-screen by construction (a panel wider/taller than the screen
-     * minus margins simply overhangs the far edge, the degenerate case).
+     * How a context places {@link InsideRegion} spots: the one thing that differs
+     * between the HUD, a vanilla screen and a standalone screen's chrome (§0065:
+     * "one InsideRegion resolver parameterised by the context's insets").
      *
-     * <p>The X axis: LEFT spots pin to {@code margin}; CENTER spots centre on the
-     * screen width; RIGHT spots pin to the right margin. The Y axis mirrors it
-     * (TOP / middle / BOTTOM). Used by both the standalone-screen
-     * ({@link com.trevlar.menukit.screen.MKScreen}) and custom-container
-     * ({@link MainRegionLayout}) chrome paths, so a Back button / title anchors to
-     * the screen identically in both.
+     * @param edge         inset from each screen edge a spot touches
+     * @param gap          stacking gap between siblings on one spot
+     * @param belowCenter  when positive, {@link InsideRegion#CENTER} flows down from
+     *                     this far below the screen centre (the HUD clears the
+     *                     crosshair); when zero, CENTER is centred like the other
+     *                     middle-row spots
+     * @param hideOverflow when true, a panel that does not fit its spot's axis is not
+     *                     placed ({@link Optional#empty()}); when false it always
+     *                     resolves and a too-big panel overhangs the far edge
      */
-    public static ScreenOrigin resolveScreenRegion(InsideRegion region,
-            int sw, int sh, int pw, int ph, int margin) {
+    public record Insets(int edge, int gap, int belowCenter, boolean hideOverflow) {
+        /** The HUD: 4px in, 2px stacking, CENTER below the crosshair, hide on overflow. */
+        public static final Insets HUD = new Insets(RegionConstants.EDGE_INSET,
+                RegionConstants.MENU_STACK_GAP, RegionConstants.CENTER_CROSSHAIR_CLEARANCE, true);
+        /** A vanilla non-container screen: 4px in, 4px stacking, no crosshair, hide on overflow. */
+        public static final Insets SCREEN = new Insets(RegionConstants.EDGE_INSET,
+                RegionConstants.SCREEN_STACK_GAP, 0, true);
+        /** Screen chrome on a standalone or container screen: the safe-area margin, always placed. */
+        public static final Insets CHROME = new Insets(RegionConstants.SCREEN_EDGE_MARGIN,
+                RegionConstants.MENU_STACK_GAP, 0, false);
+        /** A notification: HUD geometry, but always shown (a toast never silently vanishes). */
+        public static final Insets NOTIFICATION = new Insets(RegionConstants.EDGE_INSET,
+                RegionConstants.MENU_STACK_GAP, RegionConstants.CENTER_CROSSHAIR_CLEARANCE, false);
+    }
+
+    /**
+     * Places a {@code pw x ph} panel (padding-inclusive) on an {@link InsideRegion}
+     * spot of an {@code sw x sh} screen, {@code prefix} pixels along the spot's
+     * stacking axis from its anchor edge. Every spot stacks vertically: the top row
+     * grows down, the bottom row grows up, the middle row grows down from its
+     * centred start.
+     *
+     * <p>The X axis: LEFT spots pin to the inset, CENTER spots centre, RIGHT spots
+     * pin to the right inset. The Y axis mirrors it; the middle row is centred on the
+     * screen, except {@link InsideRegion#CENTER} with {@code insets.belowCenter() > 0}
+     * (the HUD), which starts that far below the centre so it clears the crosshair.
+     *
+     * <p>Returns empty only when {@code insets.hideOverflow()} and the stack would run
+     * past the spot's available height (screen height minus both insets, halved for
+     * the middle row).
+     */
+    public static Optional<ScreenOrigin> resolveInside(InsideRegion region,
+            int sw, int sh, int pw, int ph, int prefix, Insets insets) {
+        int e = insets.edge();
+        boolean hudCenter = region == InsideRegion.CENTER && insets.belowCenter() > 0;
+        if (insets.hideOverflow()) {
+            int available = switch (region) {
+                case TOP_LEFT, TOP_CENTER, TOP_RIGHT,
+                     BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT -> sh - 2 * e;
+                case LEFT_CENTER, RIGHT_CENTER -> sh / 2 - e;
+                case CENTER -> hudCenter ? sh / 2 - insets.belowCenter() - e : sh / 2 - e;
+            };
+            if (prefix + ph > available) return Optional.empty();
+        }
         int x = switch (region) {
-            case TOP_LEFT, LEFT_CENTER, BOTTOM_LEFT -> margin;
+            case TOP_LEFT, LEFT_CENTER, BOTTOM_LEFT -> e;
             case TOP_CENTER, CENTER, BOTTOM_CENTER -> (sw - pw) / 2;
-            case TOP_RIGHT, RIGHT_CENTER, BOTTOM_RIGHT -> sw - pw - margin;
+            case TOP_RIGHT, RIGHT_CENTER, BOTTOM_RIGHT -> sw - pw - e;
         };
         int y = switch (region) {
-            case TOP_LEFT, TOP_CENTER, TOP_RIGHT -> margin;
-            case LEFT_CENTER, CENTER, RIGHT_CENTER -> (sh - ph) / 2;
-            case BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT -> sh - ph - margin;
+            case TOP_LEFT, TOP_CENTER, TOP_RIGHT -> e + prefix;
+            case BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT -> sh - ph - e - prefix;
+            case LEFT_CENTER, RIGHT_CENTER -> (sh - ph) / 2 + prefix;
+            case CENTER -> hudCenter
+                    ? sh / 2 + insets.belowCenter() + prefix
+                    : (sh - ph) / 2 + prefix;
         };
-        return new ScreenOrigin(x, y);
+        return Optional.of(new ScreenOrigin(x, y));
     }
 
     // ── Shared constants ────────────────────────────────────────────────
@@ -311,145 +355,6 @@ public final class RegionMath {
             int cy = Math.max(m, Math.min(origin.y(), sh - m - ph));
             origin = new ScreenOrigin(cx, cy);
         }
-        return Optional.of(origin);
-    }
-
-    // Post-§0042 split: resolveSlotGroup moved to menukit-containers'
-    // SlotGroupRegionMath in core/. Slot-group region resolution references
-    // OutsideRegion (slot-group enum) and Reference (containers
-    // type), so the math lives where its inputs live.
-
-    // ── HUD context ─────────────────────────────────────────────────────
-
-    /**
-     * Resolves a HUD-region panel's origin. All HUD regions flow vertically;
-     * overflow is measured against the region's axial capacity (screen height
-     * minus edge insets, halved for center-anchored regions).
-     *
-     * @param region  the HUD region
-     * @param sw      GUI-scaled screen width
-     * @param sh      GUI-scaled screen height
-     * @param pw      the panel's width
-     * @param ph      the panel's height
-     * @param prefix  total height of visible preceding panels in the same
-     *                region, plus one {@link RegionConstants#MENU_STACK_GAP} per preceding panel
-     */
-    public static Optional<ScreenOrigin> resolveHud(
-            InsideRegion region, int sw, int sh,
-            int pw, int ph, int prefix) {
-
-        int inset = RegionConstants.EDGE_INSET;
-        int crosshairClear = RegionConstants.CENTER_CROSSHAIR_CLEARANCE;
-
-        // Available vertical space along the flow axis — used for overflow.
-        int available = switch (region) {
-            case TOP_LEFT, TOP_CENTER, TOP_RIGHT,
-                 BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT -> sh - inset * 2;
-            case LEFT_CENTER, RIGHT_CENTER -> sh / 2 - inset;
-            case CENTER -> sh / 2 - crosshairClear - inset;
-        };
-        if (prefix + ph > available) return Optional.empty();
-
-        ScreenOrigin origin = switch (region) {
-            case TOP_LEFT -> new ScreenOrigin(
-                    inset,
-                    inset + prefix);
-            case TOP_CENTER -> new ScreenOrigin(
-                    (sw - pw) / 2,
-                    inset + prefix);
-            case TOP_RIGHT -> new ScreenOrigin(
-                    sw - pw - inset,
-                    inset + prefix);
-            case LEFT_CENTER -> new ScreenOrigin(
-                    inset,
-                    sh / 2 + prefix);
-            case RIGHT_CENTER -> new ScreenOrigin(
-                    sw - pw - inset,
-                    sh / 2 + prefix);
-            case BOTTOM_LEFT -> new ScreenOrigin(
-                    inset,
-                    sh - ph - inset - prefix);
-            case BOTTOM_CENTER -> new ScreenOrigin(
-                    (sw - pw) / 2,
-                    sh - ph - inset - prefix);
-            case BOTTOM_RIGHT -> new ScreenOrigin(
-                    sw - pw - inset,
-                    sh - ph - inset - prefix);
-            case CENTER -> new ScreenOrigin(
-                    (sw - pw) / 2,
-                    sh / 2 + crosshairClear + prefix);
-        };
-        return Optional.of(origin);
-    }
-
-    /**
-     * Region-relative placement for {@link InsideRegion}s on a vanilla
-     * non-container screen (Options, Controls, KeyBinds, etc.).
-     *
-     * <p>Parallel to {@link #resolveHud}: anchored to the screen's
-     * GUI-scaled w × h, with {@link RegionConstants#EDGE_INSET} from
-     * each edge. The only semantic difference vs HUD positioning is that
-     * vanilla screens have NO crosshair behind them — the {@link
-     * InsideRegion#CENTER} region anchors to the true screen
-     * center, no crosshair clearance offset.
-     *
-     * <p>Returns {@link Optional#empty()} when {@code prefix + ph} exceeds
-     * the available axis extent — caller treats as "this panel doesn't fit
-     * in its region this frame" and skips render. {@link
-     * com.trevlar.menukit.inject.ScreenOrigin#OUT_OF_REGION} is the
-     * adapter-side sentinel for the same condition.
-     *
-     * @param region  the destination region
-     * @param sw      GUI-scaled screen width
-     * @param sh      GUI-scaled screen height
-     * @param pw      the panel's width (padding-inclusive)
-     * @param ph      the panel's height (padding-inclusive)
-     * @param prefix  total height of visible preceding panels in the same
-     *                region, plus one {@link RegionConstants#MENU_STACK_GAP} per preceding panel
-     */
-    public static Optional<ScreenOrigin> resolveVanillaScreen(
-            InsideRegion region, int sw, int sh,
-            int pw, int ph, int prefix) {
-
-        int inset = RegionConstants.EDGE_INSET;
-
-        int available = switch (region) {
-            case TOP_LEFT, TOP_CENTER, TOP_RIGHT,
-                 BOTTOM_LEFT, BOTTOM_CENTER, BOTTOM_RIGHT -> sh - inset * 2;
-            case LEFT_CENTER, RIGHT_CENTER -> sh / 2 - inset;
-            case CENTER -> sh / 2 - inset;
-        };
-        if (prefix + ph > available) return Optional.empty();
-
-        ScreenOrigin origin = switch (region) {
-            case TOP_LEFT -> new ScreenOrigin(
-                    inset,
-                    inset + prefix);
-            case TOP_CENTER -> new ScreenOrigin(
-                    (sw - pw) / 2,
-                    inset + prefix);
-            case TOP_RIGHT -> new ScreenOrigin(
-                    sw - pw - inset,
-                    inset + prefix);
-            case LEFT_CENTER -> new ScreenOrigin(
-                    inset,
-                    sh / 2 + prefix);
-            case RIGHT_CENTER -> new ScreenOrigin(
-                    sw - pw - inset,
-                    sh / 2 + prefix);
-            case BOTTOM_LEFT -> new ScreenOrigin(
-                    inset,
-                    sh - ph - inset - prefix);
-            case BOTTOM_CENTER -> new ScreenOrigin(
-                    (sw - pw) / 2,
-                    sh - ph - inset - prefix);
-            case BOTTOM_RIGHT -> new ScreenOrigin(
-                    sw - pw - inset,
-                    sh - ph - inset - prefix);
-            case CENTER -> new ScreenOrigin(
-                    (sw - pw) / 2,
-                    (sh - ph) / 2 + prefix);
-        };
         return Optional.of(origin);
     }
 }

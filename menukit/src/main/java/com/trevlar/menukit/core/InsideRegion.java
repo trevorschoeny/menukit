@@ -9,13 +9,16 @@ package com.trevlar.menukit.core;
  * is a standalone screen's chrome. One enum serves both. (Before 5.0.0 this was
  * two identical enums, {@code HudRegion} and {@code ScreenRegion}.)
  *
- * <p><b>Same vocabulary, different resolution.</b> Collapsing the enum does not
- * collapse the resolvers, and that is the point. The HUD path offsets
- * {@link #CENTER} below the crosshair by
- * {@link RegionConstants#CENTER_CROSSHAIR_CLEARANCE} and returns empty when a
- * panel overflows; the screen-chrome path always resolves and lets a too-big panel
- * overhang. Reference and vocabulary together still do not determine the math —
- * the context does.
+ * <p><b>One resolver, the context's insets.</b> Every host resolves these spots
+ * through {@link RegionMath#resolveInside}; what differs per context is only its
+ * {@link RegionMath.Insets}: the HUD sits {@link RegionConstants#EDGE_INSET} in and
+ * drops {@link #CENTER} below the crosshair by
+ * {@link RegionConstants#CENTER_CROSSHAIR_CLEARANCE}, a vanilla screen uses the same
+ * inset without the crosshair, and a standalone screen's chrome sits
+ * {@link RegionConstants#SCREEN_EDGE_MARGIN} in and never hides for overflow.
+ *
+ * <p>Stacking order among siblings on one spot is the panel's
+ * {@link PanelPosition#priority(int)}.
  *
  * <p>Its counterpart is {@link OutsideRegion}, the eleven placements
  * <em>outside</em> a rectangle. The two are shaped differently and do not merge.
@@ -30,20 +33,5 @@ public enum InsideRegion {
     RIGHT_CENTER,
     BOTTOM_LEFT,
     BOTTOM_CENTER,
-    BOTTOM_RIGHT;
-
-    /**
-     * Returns a {@link RegionAnchor} pairing this region with an explicit stacking
-     * priority. Lower priority renders first (closer to the region's anchor edge);
-     * default is {@link RegionAnchor#DEFAULT_PRIORITY}.
-     *
-     * <p>Consumed only by the vanilla-screen INJECTION path (which stacks several
-     * panels in one region); the single-panel chrome path
-     * ({@code screenAnchor}/{@code resolveScreenRegion}) ignores priority. Mirrors
-     * {@link HudRegion#priority(int)} / {@link MenuRegion#priority(int)}, so all
-     * stacking-family region enums present an identical surface.
-     */
-    public RegionAnchor<InsideRegion> priority(int priority) {
-        return new RegionAnchor<>(this, priority);
-    }
+    BOTTOM_RIGHT
 }

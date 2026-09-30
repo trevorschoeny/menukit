@@ -14,15 +14,15 @@ It ships as two artifacts from this repository:
 Components: buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, tooltips, icons, item displays, progress bars, dividers, and scroll containers. Containers adds slots.
 
 What it does:
-- Places UI in four contexts with one set of components: the HUD, vanilla menu screens, named slot groups, and standalone screens.
+- Places UI in five contexts with one set of components: the HUD, container screens, other vanilla screens, named slot groups, and standalone screens. Each context is one host that places, draws and routes its panels the same way.
 - Groups components into panels, each a bounded region that renders, takes input, and shows or hides as a unit.
-- Positions panels by screen region and resizes them to fit automatically, wrapping and scrolling as needed, at any GUI scale.
-- Lets more than one mod add UI to the same screen without conflict: panels sharing a region stack in order instead of overlapping.
+- Positions panels by a placement declared once on the panel, and resizes them to fit automatically, wrapping and scrolling as needed, at any GUI scale.
+- Lets more than one mod add UI to the same screen without conflict: panels sharing a region stack in priority order instead of overlapping, the same order on every launch.
 - Creates real, server-synced slots as UI components and shows them on every container screen without per-screen setup.
 - Publishes every slot group, vanilla or created, under a category any mod can read, with or without a menu open.
 - Names each thing that can be done to a slot as an operation. Vanilla's actions become eleven, one per gesture, plain clicks included, and a mod can add its own. Each has a display name and a description. A slot answers for itself first, then its group, then its category, and a locking mod can veto any of them. Every operation checks `SlotOperations.allows` before it acts, and a click a mod sends counts as the operation it was sent for.
 - Attaches per-slot state to any slot, private per player or shared across viewers, stored on the slot's owner and readable with `/data get`.
-- Handles modal overlays, click-through prohibition, recipe-book awareness, and cursor stability across screen changes.
+- Handles modal overlays, recipe-book awareness, and cursor stability across screen changes. What a panel covers is inert: an opaque panel takes every point of its rectangle, a see-through one only its buttons and controls, so a slot or widget under a panel neither highlights, clicks nor shows a tooltip.
 
 Its types are vanilla types (a MenuKit slot is a real `Slot`). Requires Fabric.
 
@@ -55,9 +55,9 @@ A HUD readout, registered once from the client entry point:
 
 ```java
 MKHudPanel.builder("mymod:readout")
-        .anchor(MKHudAnchor.CENTER, 0, 20)
-        .autoSize().padding(4)
-        .hideInScreen()
+        .region(InsideRegion.CENTER)            // just below the crosshair
+        .padding(4)
+        .showWhen(() -> Minecraft.getInstance().gui.screen() == null)
         .text(0, 0, () -> "Hello from MenuKit")
         .build();
 ```
@@ -79,7 +79,7 @@ MKCContainerPanel.define("mymod:pockets")
 ## Docs
 
 - [Getting started](https://github.com/trevorschoeny/menukit/blob/main/docs/getting-started.md): dependency, one HUD panel, one inventory-screen panel.
-- [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md): panels, elements, regions, the four contexts, slots, addresses.
+- [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md): panels, elements, placement, the five contexts, claims, slots, addresses.
 - [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md): the common tasks, with samples from shipping mods.
 - [Limits](https://github.com/trevorschoeny/menukit/blob/main/docs/limits.md): what MenuKit does not do and the open gaps.
 - [Reference](https://trevorschoeny.github.io/menukit/): the generated javadoc for both artifacts.
@@ -95,6 +95,10 @@ The `validator-mk` and `validator-mkc` mods in the same workspace are the refere
 Both artifacts build from the workspace root: `./gradlew :menukit:build :menukit-containers:build`.
 
 ## Upgrading
+
+### To 6.0.0 (in development)
+
+6.0.0 removes and renames; it is built in phases, and the 6.0.0 migration guide lists every change. The placement change touches most mods: a panel declares where it sits once, with `.position(PanelPosition.region(...).priority(n).offset(dx, dy))`, and the adapters take only `(panel)` or `(panel, padding)`. A HUD panel uses `.region(InsideRegion.X).offset(dx, dy)` where it used `.anchor(MKHudAnchor.X, dx, dy)`. Adapters and HUD panels are declared at init; hide one at runtime with `showWhen`.
 
 ### To 5.1.0
 

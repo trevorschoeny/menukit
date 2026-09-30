@@ -29,9 +29,10 @@ import org.jetbrains.annotations.ApiStatus;
  *       networking handlers.</li>
  * </ul>
  *
- * <p>Post-§0043: {@code VanillaSlotGroupResolvers.registerAll()} and
- * {@code SlotGroupPanelRegistry.init()} moved to {@code MKClient} —
- * those are observation idioms, complete on MK's side.
+ * <p>Post-§0043: {@code VanillaSlotGroupResolvers.registerAll()} and the
+ * slot-group panel dispatch (now the slot-group hosts of MenuKit's
+ * {@code ScreenPanelRegistry}) live on MenuKit's side: observation idioms,
+ * complete there.
  */
 @ApiStatus.Internal
 public class MKCClient implements ClientModInitializer {

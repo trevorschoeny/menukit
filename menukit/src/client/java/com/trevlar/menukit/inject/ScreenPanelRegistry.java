@@ -2,17 +2,20 @@ package com.trevlar.menukit.inject;
 
 import com.trevlar.menukit.core.MKFocus;
 import com.trevlar.menukit.core.Panel;
-import com.trevlar.menukit.core.PanelElement;
-import com.trevlar.menukit.window.ClientWindowVisibility;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
+import com.trevlar.menukit.mixin.ScreenAccessor;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.world.inventory.Slot;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
@@ -20,51 +23,45 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.WeakHashMap;
-import org.jetbrains.annotations.ApiStatus;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Library-owned registry of MenuContext {@link ScreenPanelAdapter}s that
- * declare targeting via {@code .on(...)} or {@code .onAny()}. Listens once
- * on {@link ScreenEvents#AFTER_INIT} and dispatches render/input to the
- * adapters whose targeting matches each opened {@link AbstractContainerScreen}.
- * Consumers stop writing per-screen {@code ScreenEvents.AFTER_INIT}
- * boilerplate — the library owns the hook.
+ * The one registry of panel placement (§0065): which panels are declared, which
+ * {@link PanelHost}s exist on each open screen, and every global question about
+ * them.
  *
- * <p>See {@code menukit/Design Docs/Phase 12.5/M8_FOUR_CONTEXT_MODEL.md} §8
- * for the design and §7.3 for orphan-adapter enforcement.
+ * <h2>Declarations</h2>
+ * The three adapters ({@link ScreenPanelAdapter}, {@link VanillaScreenPanelAdapter},
+ * {@link SlotGroupPanelAdapter}) declare here. Declaring, targeting and unregistering
+ * all freeze with the rest of MenuKit's declarations ({@code Declarations.requireOpen}):
+ * after client start they throw. Order is never registration order: each host sorts
+ * its entries by {@code (priority, modId, sequence)}.
  *
- * <h3>Adapter lifecycle</h3>
- *
+ * <h2>Hosts per screen</h2>
+ * When a screen opens, it gets up to three kinds of host, bottom to top:
  * <ol>
- *   <li><b>Construction.</b> {@code new ScreenPanelAdapter(panel, region)}
- *       calls {@link #trackPending} — the adapter joins {@link #PENDING}
- *       until it declares targeting.</li>
- *   <li><b>Targeting declaration.</b> {@code .on(Class...)} or
- *       {@code .onAny()} calls {@link #markTargetingDeclared} — the adapter
- *       moves from {@link #PENDING} to {@link #REGISTERED}.</li>
- *   <li><b>Default checkpoint.</b> On the first screen-open event after init,
- *       {@link #applyEverywhereDefault} runs. Any adapter still in
- *       {@link #PENDING} declared no targeting, so it defaults to <b>every</b>
- *       container screen — the uniform "default-on, opt-out" model shared with
- *       {@code MKCContainerPanel}. Narrow it
- *       deliberately with {@code .on(...)} / {@code .onPlayerInventory()} /
- *       {@code .onMatching(allExcept(...))}.</li>
- *   <li><b>Dispatch.</b> For each opened {@link AbstractContainerScreen},
- *       walk {@link #REGISTERED} and for adapters whose targeting matches
- *       the screen class, cache the match list in {@link #SCREEN_DATA}
- *       and register a {@code ScreenMouseEvents.allowMouseClick} hook.
- *       Render dispatch is {@link ContainerScreenLayers}' — one mixin on
- *       {@code AbstractContainerScreen.extractContents} calls
- *       {@link #renderFlowPanels} below the slot pass and
- *       {@link #renderOverlayPanels} above it, reading the cached match
- *       list. Fabric handles per-screen click-hook lifetime cleanup when
- *       the screen closes.</li>
+ *   <li><b>own</b>: a standalone screen's own panels ({@code MKScreen},
+ *       {@code MKCHandledScreen}), attached by the screen itself
+ *       ({@link #attachOwnHost});</li>
+ *   <li><b>context</b>: the adapters targeting this screen (container adapters on a
+ *       container screen, vanilla-screen adapters on any other);</li>
+ *   <li><b>slot groups</b> (container screens): one host per targeted slot group.</li>
  * </ol>
+ *
+ * <h2>Global questions, one answer each</h2>
+ * {@link #claimAt} is the one "who takes this point" answer every suppressor and
+ * dispatcher asks: a shown modal claims everything; otherwise the topmost claiming
+ * panel, OVERLAY layer before FLOW, upper host before lower, by
+ * {@link PanelHost#claimsPoint}. Slot hover, widget hover, list and tab hover,
+ * tooltips and the MouseHandler-level input eat all reduce to it, so a new host (the
+ * slot-group host and the standalone hosts are new to it in 6.0.0) cannot fall
+ * through a per-site gap.
+ *
+ * <p>Internal: consumers use the adapters; the mixins call in here.
  */
 @ApiStatus.Internal
 public final class ScreenPanelRegistry {
@@ -73,978 +70,462 @@ public final class ScreenPanelRegistry {
 
     private ScreenPanelRegistry() {}
 
-    // ── Adapter tracking ────────────────────────────────────────────────
-    //
-    // Region-based adapters move from PENDING → REGISTERED when they
-    // declare targeting. Strong references (not WeakHashMap): consumers
-    // typically hold adapters as static final fields, so they're
-    // process-lifetime anyway.
+    // ── Declarations ───────────────────────────────────────────────────
 
-    private static final Set<ScreenPanelAdapter> PENDING =
-            Collections.synchronizedSet(new HashSet<>());
+    private static final List<ScreenPanelAdapter> CONTAINER = new CopyOnWriteArrayList<>();
+    private static final List<VanillaScreenPanelAdapter> VANILLA = new CopyOnWriteArrayList<>();
+    private static final List<SlotGroupPanelAdapter> SLOT_GROUP = new CopyOnWriteArrayList<>();
 
-    private static final List<ScreenPanelAdapter> REGISTERED =
-            Collections.synchronizedList(new ArrayList<>());
+    static void declare(ScreenPanelAdapter adapter) { CONTAINER.add(adapter); }
+    static void declare(VanillaScreenPanelAdapter adapter) { VANILLA.add(adapter); }
+    static void declare(SlotGroupPanelAdapter adapter) { SLOT_GROUP.add(adapter); }
 
-    // Post-§0042 split: SlotGroupContext adapter tracking + dispatch lives in
-    // menukit-containers' SlotGroupPanelRegistry. This registry handles only
-    // MenuContext opacity dispatch on container screens.
+    static void withdraw(ScreenPanelAdapter adapter) { CONTAINER.remove(adapter); }
+    static void withdraw(VanillaScreenPanelAdapter adapter) { VANILLA.remove(adapter); }
+    static void withdraw(SlotGroupPanelAdapter adapter) { SLOT_GROUP.remove(adapter); }
+
+    // ── Hosts per screen ───────────────────────────────────────────────
+
+    /** The hosts on one open screen. */
+    private static final class ScreenHosts {
+        @Nullable PanelHost own;
+        @Nullable PanelHost context;
+        final Map<SlotGroupId, PanelHost> slotGroups = new LinkedHashMap<>();
+
+        /** Every host, bottom to top. */
+        List<PanelHost> all() {
+            List<PanelHost> out = new ArrayList<>(2 + slotGroups.size());
+            if (own != null) out.add(own);
+            if (context != null) out.add(context);
+            out.addAll(slotGroups.values());
+            return out;
+        }
+
+        /** The hosts the registry routes input to (not own: the screen routes its own). */
+        List<PanelHost> routed() {
+            List<PanelHost> out = new ArrayList<>(1 + slotGroups.size());
+            if (context != null) out.add(context);
+            out.addAll(slotGroups.values());
+            return out;
+        }
+    }
+
+    /** Weak on the screen: a closed screen's hosts go with it. */
+    private static final Map<Screen, ScreenHosts> HOSTS =
+            Collections.synchronizedMap(new WeakHashMap<>());
+
+    /**
+     * Attaches a standalone screen's own host, so global questions (claims, modals)
+     * see its panels. Called by {@code MKScreen} and {@code MKCHandledScreen} from
+     * their {@code init}; idempotent.
+     */
+    public static void attachOwnHost(Screen screen, PanelHost host) {
+        HOSTS.computeIfAbsent(screen, s -> new ScreenHosts()).own = host;
+    }
+
+    /** The screen's own host, or {@code null}. */
+    public static @Nullable PanelHost ownHost(@Nullable Screen screen) {
+        if (screen == null) return null;
+        ScreenHosts h = HOSTS.get(screen);
+        return h == null ? null : h.own;
+    }
+
+    /** Every host on {@code screen}, bottom to top (empty for none). */
+    public static List<PanelHost> hostsOn(@Nullable Screen screen) {
+        if (screen == null) return List.of();
+        ScreenHosts h = HOSTS.get(screen);
+        return h == null ? List.of() : h.all();
+    }
+
+    /** The hosts the registry routes input to on {@code screen}, bottom to top. */
+    private static List<PanelHost> routedOn(@Nullable Screen screen) {
+        if (screen == null) return List.of();
+        ScreenHosts h = HOSTS.get(screen);
+        return h == null ? List.of() : h.routed();
+    }
+
+    /** The context host on {@code screen} (the adapters targeting it), or {@code null}. */
+    public static @Nullable PanelHost contextHost(@Nullable Screen screen) {
+        if (screen == null) return null;
+        ScreenHosts h = HOSTS.get(screen);
+        return h == null ? null : h.context;
+    }
+
+    private static @Nullable Screen currentScreen() {
+        Minecraft mc = Minecraft.getInstance();
+        return mc == null ? null : mc.gui.screen();
+    }
+
+    // ── Screen open ────────────────────────────────────────────────────
 
     private static volatile boolean checkpointRun = false;
 
-    // Per-screen cache of MenuContext matches populated at screen-open.
-    // Only the menu-context match list is static per-screen (targeting is
-    // class-ancestry against screen.getClass(), which doesn't change once
-    // the screen opens). SlotGroupContext matches re-resolve per frame
-    // because menu.slots can mutate mid-session (creative tab switches;
-    // future modded dynamic menus). See M8 §5.4 + §8.2 for the rationale.
-    //
-    // WeakHashMap keyed on Screen so entries GC when the screen is
-    // unreferenced — no manual cleanup on screen close.
-    // menuMatches is a CopyOnWriteArrayList so that {@link #untrack} (called
-    // from a consumer's element-click callback when it toggles a feature off
-    // mid-dispatch) can remove an adapter WHILE a render/input loop is
-    // iterating this same list. A plain ArrayList would throw
-    // ConcurrentModificationException inside the screen's input loop and wedge
-    // the entire screen's input. COW makes removal iteration-safe: the
-    // in-flight iterator sees the pre-removal snapshot, and the removal takes
-    // effect on the next dispatch. The list is small (a few adapters) and
-    // mutated only on register/unregister, so the copy cost is negligible.
-    private record ScreenRenderData(List<ScreenPanelAdapter> menuMatches) {}
-
-    private static final Map<AbstractContainerScreen<?>, ScreenRenderData> SCREEN_DATA =
-            Collections.synchronizedMap(new WeakHashMap<>());
-
-    // ── API called by ScreenPanelAdapter ────────────────────────────────
-
-    /**
-     * Called from {@link ScreenPanelAdapter}'s region-based constructor —
-     * marks the adapter as pending (awaiting targeting declaration).
-     */
-    static void trackPending(ScreenPanelAdapter adapter) {
-        PENDING.add(adapter);
-    }
-
-    /**
-     * Called from {@link ScreenPanelAdapter#on} / {@link ScreenPanelAdapter#onAny}.
-     * Moves the adapter from pending to registered.
-     */
-    static void markTargetingDeclared(ScreenPanelAdapter adapter) {
-        PENDING.remove(adapter);
-        REGISTERED.add(adapter);
-    }
-
-    /**
-     * Phase 16j R5 — removes an adapter from every internal tracking
-     * collection. Called from {@link ScreenPanelAdapter#unregister()};
-     * pairs the constructor-time {@link #trackPending}/
-     * {@link #markTargetingDeclared} flow with a symmetric teardown.
-     *
-     * <p>Removes from: PENDING set, REGISTERED list, and every cached
-     * per-screen match list in {@code SCREEN_DATA}. Idempotent. After
-     * untrack the adapter cannot be re-registered without constructing a
-     * new one.
-     */
-    static void untrack(ScreenPanelAdapter adapter) {
-        PENDING.remove(adapter);
-        REGISTERED.remove(adapter);
-        for (ScreenRenderData data : SCREEN_DATA.values()) {
-            data.menuMatches().remove(adapter);
-        }
-    }
-
-    // Post-§0042 split: SlotGroupPanelAdapter pending/registered tracking +
-    // its corresponding API surface lives in menukit-containers' parallel
-    // SlotGroupPanelRegistry.
-
-    // ── Observable state ────────────────────────────────────────────────
-
-    /** Returns an unmodifiable snapshot of orphan (untargeted) adapters. */
-    public static Set<ScreenPanelAdapter> pendingSnapshot() {
-        synchronized (PENDING) {
-            return Set.copyOf(PENDING);
-        }
-    }
-
-    /** Returns an unmodifiable snapshot of registered adapters. */
-    public static List<ScreenPanelAdapter> registeredSnapshot() {
-        synchronized (REGISTERED) {
-            return List.copyOf(REGISTERED);
-        }
-    }
-
-    // Post-§0042 split: SlotGroupContext snapshots live on
-    // menukit-containers' SlotGroupPanelRegistry.
-
-    // ── Initialization ──────────────────────────────────────────────────
-
-    /**
-     * Registers the library-owned {@link ScreenEvents#AFTER_INIT} listener.
-     * Called once from {@code MKClient.onInitializeClient}. After this,
-     * any region-based adapter that declared targeting will render on
-     * matching screens without the consumer writing per-screen boilerplate.
-     */
+    /** Registers the one {@code AFTER_INIT} listener. Called once from {@code MKClient}. */
     public static void init() {
         ScreenEvents.AFTER_INIT.register(ScreenPanelRegistry::onScreenInit);
     }
 
-    // ── Screen-open dispatch ────────────────────────────────────────────
-
     /**
-     * Called on every screen-open after {@link #init}. Runs the orphan
-     * checkpoint once, then wires per-screen render + input hooks for the
-     * adapters whose targeting matches this screen.
+     * Builds the screen's context and slot-group hosts from the declared adapters,
+     * attaches their elements, and wires render (non-container screens; container
+     * screens render through {@link ContainerScreenLayers}) and input.
      */
-    private static void onScreenInit(Minecraft client, Screen screen,
-                                      int scaledWidth, int scaledHeight) {
-        // Promote any untargeted region adapters to the everywhere-default.
-        // This runs on EVERY screen-open, not just the first. Init-time adapters
-        // complete their fluent targeting chain before the first screen opens,
-        // but an adapter constructed MID-SESSION (e.g. a consumer toggles a
-        // feature on after the initial screen-open) also joins PENDING and must
-        // be promoted, or it silently never matches any screen. Idempotent and
-        // cheap — applyEverywhereDefault early-returns when PENDING is empty
-        // (the steady state), so the per-open cost is one set snapshot.
-        applyEverywhereDefault();
+    private static void onScreenInit(Minecraft client, Screen screen, int w, int h) {
         if (!checkpointRun) {
             checkpointRun = true;
-            // Phase 18s — non-container vanilla adapters keep the explicit-
-            // targeting requirement (an everywhere-default makes no sense on
-            // Options/title/etc.); their orphan-validation warn stays one-shot
-            // to avoid per-open log spam.
-            VanillaScreenPanelRegistry.validateTargetingDeclared();
+            requireTargeting();
         }
 
-        // Phase 18s — branch on screen type:
-        //   - Container screens (inventory, chest, furnace, etc.) → existing
-        //     MenuContext + SlotGroupContext dispatch below.
-        //   - Non-container screens (Options, Controls, KeyBinds, world-
-        //     select, server-list, title, etc.) → VanillaScreenPanelRegistry
-        //     parallel dispatch path. Same AFTER_INIT event, two paths.
-        if (!(screen instanceof AbstractContainerScreen<?> acs)) {
-            VanillaScreenPanelRegistry.onScreenInit(screen);
-            return;
-        }
-
-        // ── MenuContext matching ────────────────────────────────────────
-        Class<? extends AbstractContainerScreen<?>> screenClass =
-                asConcreteScreenClass(acs.getClass());
-        // CopyOnWriteArrayList — see ScreenRenderData: lets untrack() remove an
-        // adapter mid-dispatch (consumer toggles a feature off from a click
-        // callback) without a ConcurrentModificationException wedging input.
-        List<ScreenPanelAdapter> menuMatches = new java.util.concurrent.CopyOnWriteArrayList<>();
-        for (ScreenPanelAdapter adapter : registeredSnapshot()) {
-            if (adapter.matches(screenClass)) {
-                menuMatches.add(adapter);
+        ScreenHosts hosts = HOSTS.computeIfAbsent(screen, s -> new ScreenHosts());
+        hosts.slotGroups.clear();
+        if (screen instanceof AbstractContainerScreen<?> acs) {
+            PanelHost context = PanelHost.container(() -> containerFrame(acs));
+            for (ScreenPanelAdapter a : CONTAINER) {
+                if (a.matches(acs)) context.add(a.getPanel(), a.getPanel().getPosition(), a.getPadding(), a.modId(), a.seq());
             }
-        }
-
-        // Cache the menu-context match list. SlotGroupContext matches
-        // resolve per-frame inside SlotGroupPanelRegistry / its click hook
-        // because menu.slots can mutate mid-session.
-        SCREEN_DATA.put(acs, new ScreenRenderData(menuMatches));
-
-        // Render dispatch is NOT registered per screen. ContainerScreenLayers
-        // (one mixin on AbstractContainerScreen.extractContents) calls
-        // renderFlowPanels / renderOverlayPanels every frame and reads the
-        // match list cached in SCREEN_DATA above. See that class for the layer
-        // order and why the per-screen renderable was retired.
-
-        // Phase 14d-3 — fire onAttach lifecycle hook on each matched
-        // adapter's panel elements so widget-wrapping elements (TextField
-        // etc.) can register vanilla widgets via screen.addRenderableWidget.
-        // Mirrored by onDetach fired from ScreenEvents.remove below.
-        for (ScreenPanelAdapter adapter : menuMatches) {
-            for (var element : adapter.getPanel().getElements()) {
-                element.onAttach(screen);
+            hosts.context = context.isEmpty() ? null : context;
+            for (SlotGroupPanelAdapter a : SLOT_GROUP) {
+                if (a.getTargets() == null) continue;
+                for (SlotGroupId id : a.getTargets()) {
+                    PanelHost group = hosts.slotGroups.computeIfAbsent(id,
+                            gid -> PanelHost.slotGroup(() -> slotGroupFrame(acs, gid)));
+                    group.add(a.getPanel(), a.getPanel().getPosition(), a.getPadding(), a.modId(), a.seq());
+                }
             }
+        } else {
+            PanelHost context = PanelHost.vanillaScreen(() -> new PanelHost.Frame(screen.width, screen.height, null));
+            for (VanillaScreenPanelAdapter a : VANILLA) {
+                if (a.matches(screen)) context.add(a.getPanel(), a.getPanel().getPosition(), a.getPadding(), a.modId(), a.seq());
+            }
+            hosts.context = context.isEmpty() ? null : context;
         }
 
-        // ScreenEvents.remove fires when the screen is being removed.
-        // Fire onDetach so widget-wrapping elements can unregister via
-        // screen.removeWidget. Mirrors the onAttach above.
+        List<PanelHost> routed = hosts.routed();
+        if (routed.isEmpty() && hosts.own == null) return;
+
+        // Element lifecycle for the hosts the registry owns (the own host attaches in
+        // its screen's init). Widget-wrapping elements register their vanilla widget.
+        for (PanelHost host : routed) host.attach(screen);
         ScreenEvents.remove(screen).register(removed -> {
-            for (ScreenPanelAdapter adapter : menuMatches) {
-                for (var element : adapter.getPanel().getElements()) {
-                    element.onDetach(removed);
-                }
-            }
+            for (PanelHost host : routed) host.detach(removed);
         });
 
-        // Click dispatch via Fabric's hook — input doesn't have a render-
-        // ordering constraint so no mixin is needed here. Render dispatch is
-        // ContainerScreenLayers' (see above).
+        // Render: container screens compose through ContainerScreenLayers (the slot
+        // pass sits between FLOW and OVERLAY). Every other screen composes here, in
+        // one renderable, so its own panels and injected ones share one LayerPlan.
+        if (!(screen instanceof AbstractContainerScreen<?>)) {
+            Renderable composite = (graphics, mouseX, mouseY, partialTick) ->
+                    renderAll(screen, graphics, mouseX, mouseY);
+            ((ScreenAccessor) screen).mk$addRenderableOnly(composite);
+        }
+
+        if (routed.isEmpty()) return;
+
+        // Input the MouseHandler-level claim did not take: element dispatch for points
+        // no panel claims (a transparent panel's click-through elements), plus the
+        // popover janitor. A consumed click is eaten from vanilla.
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
-            Reference frame = frameBounds(acs);
-            // Dispatch the click to every adapter's element layer (per-element
-            // handling routes it to the right element if any; we don't need the
-            // consumed bit here — the eat decision is coverage-based).
-            for (ScreenPanelAdapter adapter : menuMatches) {
-                adapter.mouseClicked(frame, event.x(), event.y(), event.button(), acs);
-            }
-            // Click-through prohibition: eat from vanilla when the cursor is
-            // over any panel that CLAIMS the point — an opaque background
-            // (minus per-element holes) OR a solid opaque element. The SAME
-            // claim test the MouseHandler-level eat and every hover/tooltip
-            // suppressor use (findCoveringPanelAt → one predicate, no drift).
-            // In practice the MouseHandler HEAD eat fires first for claimed
-            // points and cancels this hook; this stays as a consistent backstop.
-            boolean covered = findCoveringPanelAt(acs, event.x(), event.y()) != null;
-            // Post-§0042 split: SlotGroupContext click dispatch lives on
-            // menukit-containers' SlotGroupPanelRegistry, which registers its
-            // own ScreenMouseEvents.allowMouseClick listener via its own
-            // ScreenEvents.AFTER_INIT hookup. Behavior change: when a
-            // MenuContext modal eats a click, the slot-group dispatch no
-            // longer fires (Fabric's allowMouseClick stops at first false
-            // return). Modal blocks all interaction — this is the correct
-            // UX. See 16a REPORT for the rationale.
-
-            // M9 opaque-dispatch decision — extracted to a pure static
-            // method so /mkverify probes can exercise the logic without
-            // spinning up a real screen.
-            return !shouldEatCovered(covered);
-        });
-
-        // Keyboard dispatch via Fabric's allowKeyPress hook — the keyboard
-        // parallel to the allowMouseClick hook above. Routes key presses to
-        // the panel element layer so elements like Dropdown can do keyboard
-        // navigation (arrows/Enter/Escape). Returns false (eat from vanilla)
-        // when an element consumes, so vanilla doesn't also act on the key
-        // (e.g., hotbar number keys, creative search focus). Not hit-tested —
-        // keyboard isn't pointer-localized; each visible adapter is offered
-        // the key until one consumes.
-        ScreenKeyboardEvents.allowKeyPress(screen).register((s, keyEvent) -> {
-            for (ScreenPanelAdapter adapter : menuMatches) {
-                if (adapter.keyPressed(keyEvent.key(), keyEvent.scancode(),
-                        keyEvent.modifiers())) {
-                    return false;  // eat from vanilla
-                }
-            }
-            // B3 modal-Escape fix (container-screen path): when a tracksAsModal
-            // panel is up — the documented dialog-over-container pattern, where
-            // ConfirmDialog/AlertDialog is hosted by a ScreenPanelAdapter at
-            // OutsideRegion.CENTER — treat Escape as "dismiss the topmost modal"
-            // rather than letting vanilla close the whole container screen out
-            // from under the dialog. Fire the modal panel's onEscape action
-            // (the dialog builders wire onCancel/onAcknowledge there) and eat
-            // the key. With no escape action set we still eat Escape so it
-            // can't close the host screen while a modal is open. Mirrors
-            // MKScreen.keyPressed.
-            if (keyEvent.key() == GLFW.GLFW_KEY_ESCAPE) {
-                Panel modal = topmostVisibleModalAmong(menuMatches);
-                if (modal != null) {
-                    Runnable escape = modal.getEscapeAction();
-                    if (escape != null) escape.run();
-                    return false;  // eat from vanilla — don't close the screen
-                }
-            }
-            return true;
-        });
-
-        // Phase 14d-2 — scroll dispatch via Fabric's allowMouseScroll hook.
-        // Mirrors the click hook above: dispatches scroll events to matching
-        // adapters' element layer (so ScrollContainer receives scroll
-        // input). Modal-aware path is handled at the MouseHandler-level
-        // mixin BEFORE this hook fires (the mixin cancels for outside-
-        // modal scrolls and dispatches inside-modal scrolls directly).
-        // This hook serves the non-modal case: regular scroll dispatch to
-        // any adapter whose elements include a ScrollContainer.
-        ScreenMouseEvents.allowMouseScroll(screen).register((s, mouseX, mouseY, hAmount, vAmount) -> {
-            Reference frame = frameBounds(acs);
-            for (ScreenPanelAdapter adapter : menuMatches) {
-                if (adapter.mouseScrolled(frame, mouseX, mouseY, hAmount, vAmount, acs)) {
-                    // Element consumed — eat from vanilla so screen.mouseScrolled
-                    // doesn't double-dispatch (e.g., to creative-tab scroll).
+            for (PanelHost host : routed) host.notifyOutsideClick(event.x(), event.y());
+            boolean modal = modalUpOn(s);
+            for (int i = routed.size() - 1; i >= 0; i--) {
+                if (routed.get(i).mouseClicked(event.x(), event.y(), event.button(), modal)) {
+                    MKFocus.blurOnOutsideBounds(s, event.x(), event.y());
                     return false;
                 }
             }
             return true;
         });
-
-        // Phase 14d-2 — release dispatch via Fabric's allowMouseRelease hook.
-        // Used by ScrollContainer (and future draggable elements) to detect
-        // drag end. Unlike click dispatch, release fires for every visible
-        // element regardless of cursor position — drag-end is detected
-        // even when the user has dragged the cursor off the element.
+        ScreenMouseEvents.allowMouseScroll(screen).register((s, mouseX, mouseY, hAmount, vAmount) -> {
+            boolean modal = modalUpOn(s);
+            for (int i = routed.size() - 1; i >= 0; i--) {
+                if (routed.get(i).mouseScrolled(mouseX, mouseY, hAmount, vAmount, modal)) return false;
+            }
+            return true;
+        });
         ScreenMouseEvents.allowMouseRelease(screen).register((s, event) -> {
-            Reference frame = frameBounds(acs);
-            for (ScreenPanelAdapter adapter : menuMatches) {
-                adapter.mouseReleased(frame, event.x(), event.y(), event.button(), acs);
+            for (PanelHost host : routed) host.mouseReleased(event.x(), event.y(), event.button());
+            return true;
+        });
+        ScreenKeyboardEvents.allowKeyPress(screen).register((s, keyEvent) -> {
+            boolean modal = modalUpOn(s);
+            for (int i = routed.size() - 1; i >= 0; i--) {
+                if (routed.get(i).keyPressed(keyEvent.key(), keyEvent.scancode(), keyEvent.modifiers(), modal)) {
+                    return false;
+                }
+            }
+            // Escape with an injected modal up dismisses the topmost modal (its
+            // onEscape; ConfirmDialog/AlertDialog wire theirs) instead of closing the
+            // screen out from under it. Eaten either way while the modal is up.
+            if (keyEvent.key() == GLFW.GLFW_KEY_ESCAPE) {
+                Panel topModal = topmostModal(routed);
+                if (topModal != null) {
+                    Runnable escape = topModal.getEscapeAction();
+                    if (escape != null) escape.run();
+                    return false;
+                }
             }
             return true;
         });
     }
 
-    // Post-§0042 split: dispatchSlotGroupClicks moved to
-    // menukit-containers' SlotGroupPanelRegistry along with the slot-group
-    // adapter tracking and the AFTER_INIT listener that registers it.
+    /**
+     * Vanilla-screen and slot-group adapters must name their targets (an everywhere
+     * default makes no sense on the title screen, and "any slot group" is not a
+     * target). Checked once, at the first screen open, and loud.
+     */
+    private static void requireTargeting() {
+        List<String> missing = new ArrayList<>();
+        for (VanillaScreenPanelAdapter a : VANILLA) {
+            if (!a.isTargetingDeclared()) missing.add("VanillaScreenPanelAdapter " + a.getPanel().getId());
+        }
+        for (SlotGroupPanelAdapter a : SLOT_GROUP) {
+            if (!a.isTargetingDeclared()) missing.add("SlotGroupPanelAdapter " + a.getPanel().getId());
+        }
+        if (missing.isEmpty()) return;
+        String message = "MenuKit: adapters constructed but never targeted (.on(...)): "
+                + String.join(", ", missing) + ". Add the missing .on(...) call(s).";
+        LOGGER.error("[ScreenPanelRegistry] {}", message);
+        throw new IllegalStateException(message);
+    }
+
+    // ── Frames ─────────────────────────────────────────────────────────
 
     /**
-     * Layer 2 of {@link ContainerScreenLayers}: every flow-positioned
-     * (non-overlay) menu-context adapter for {@code screen}, in registration
-     * order. Fired after vanilla has drawn the vanilla slots and before it draws
-     * the created ones, so a created slot presented by one of these panels
-     * writes its {@code Slot.x/y} in time for vanilla to draw it this frame. No-op for screens with no matches, or for screens
-     * opened before {@link #onScreenInit} populated the cache (shouldn't happen —
-     * AFTER_INIT fires before the first render).
+     * A container screen's frame: the menu frame, extended by the screen's chrome
+     * (creative tab rows, an open recipe book), so "the top of the menu" means the
+     * top of what the player sees. Read per frame: leftPos/topPos move on resize and
+     * recipe-book toggle.
      */
-    public static void renderFlowPanels(AbstractContainerScreen<?> screen,
-                                        net.minecraft.client.gui.GuiGraphicsExtractor graphics,
-                                        int mouseX, int mouseY) {
-        ScreenRenderData data = SCREEN_DATA.get(screen);
-        if (data == null) return;
-        Reference frame = frameBounds(screen);
-        for (ScreenPanelAdapter adapter : data.menuMatches) {
-            if (adapter.getPanel().isOverlayPositioned()) continue;
-            adapter.render(graphics, frame, mouseX, mouseY, screen);
-        }
+    private static PanelHost.Frame containerFrame(AbstractContainerScreen<?> screen) {
+        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
+        MenuChrome.ChromeExtents chrome = MenuChrome.of(screen);
+        Reference frame = new Reference(
+                acc.mk$getLeftPos() - chrome.left(),
+                acc.mk$getTopPos() - chrome.top(),
+                acc.mk$getImageWidth() + chrome.left() + chrome.right(),
+                acc.mk$getImageHeight() + chrome.top() + chrome.bottom());
+        return new PanelHost.Frame(screen.width, screen.height, frame);
     }
 
     /**
-     * Layer 4 of {@link ContainerScreenLayers}: the modal dim, then every
-     * overlay-positioned adapter on top of it. Fired AFTER vanilla's slot pass,
-     * so an overlay covers vanilla content, every slot, and every flow panel.
-     *
-     * <p>The "render on top" gate is {@code isOverlayPositioned()} — the single
-     * overlay authority (§0057) — so EVERY overlay (PanelPosition.center(), a
-     * dimsBehind panel, OR a tracksAsModal panel) draws on top, exactly as
-     * MKScreen's overlay pass does. The dim FILL stays gated on dimsBehind()
-     * alone (M9 — an overlay can float on top without dimming).
-     * resolveMenuOrigin independently re-centers these panels on the screen
-     * window, so an overlay registered at ANY region floats centered + on top
-     * identically. Single-pass per-adapter dim (14d-1 round-3 v1) was
-     * order-fragile — only worked when the dim panel iterated last; the pass
-     * split enforces visual order architecturally regardless of registration
-     * order.
+     * One slot group's frame: the box around its slots this frame (re-resolved every
+     * time, since creative tab switches and dynamic menus change {@code menu.slots}),
+     * or {@code null} when the group is not on this menu right now. Each group gets
+     * its own box: a created group declaring a vanilla category never stretches that
+     * category's box.
      */
-    public static void renderOverlayPanels(AbstractContainerScreen<?> screen,
-                                           net.minecraft.client.gui.GuiGraphicsExtractor graphics,
-                                           int mouseX, int mouseY) {
-        ScreenRenderData data = SCREEN_DATA.get(screen);
-        if (data == null) return;
-        Reference frame = frameBounds(screen);
-
-        // Dim overlay if any dimsBehind panel visible. ~75% black, covers full
-        // screen window. Tuned to match vanilla's confirm-screen darkening
-        // (§4.10 smoke verdict).
-        if (hasVisibleDimsBehindOnScreen(screen)) {
-            graphics.fill(0, 0, screen.width, screen.height, 0xC0000000);
-        }
-
-        for (ScreenPanelAdapter adapter : data.menuMatches) {
-            if (!adapter.getPanel().isOverlayPositioned()) continue;
-            adapter.render(graphics, frame, mouseX, mouseY, screen);
-        }
-
-        // Tooltip suppression is handled by MKTooltipSuppressMixin
-        // (HEAD-cancellable on GuiGraphicsExtractor.setTooltipForNextFrameInternal),
-        // gated on anyPanelCoversCursor — pointer-driven, bounds-localized.
-    }
-
-    /**
-     * M9 pure decision used by the {@code allowMouseClick} hook to
-     * determine whether a click should be eaten from vanilla.
-     *
-     * <p>Returns {@code true} when the cursor is inside any visible opaque
-     * panel's bounds — vanilla shouldn't see the click since the panel is
-     * sitting opaquely over the coords. Returns {@code false} otherwise.
-     *
-     * <p>Extracted from the click-hook closure so {@code /mkverify} probes
-     * can test the decision without instantiating a screen.
-     */
-    public static boolean shouldEatCovered(boolean covered) {
-        return covered;
-    }
-
-    /**
-     * M9 opaque click dispatch — combined dispatch + eat decision called
-     * from {@code MKModalMouseHandlerMixin} at the HEAD of
-     * {@code MouseHandler.onButton}. Fires before any per-Screen routing
-     * so subclass-specific click handling (creative-mode tabs, etc.)
-     * doesn't pre-empt the opacity decision.
-     *
-     * <p>Decision tree:
-     * <ul>
-     *   <li><b>Click inside any visible opaque panel</b> — dispatches to
-     *       that panel's adapter (so its element layer gets the click),
-     *       returns {@code true} to signal eat. Vanilla never sees the
-     *       click.</li>
-     *   <li><b>Click outside all opaque panels + a tracksAsModal panel
-     *       visible</b> — returns {@code true} (eat) without dispatching.
-     *       Modal-tracking blocks underlying interaction outside its
-     *       bounds (preserves 14d-1 modal semantics).</li>
-     *   <li><b>Click outside all opaque panels + no tracksAsModal panel</b>
-     *       — returns {@code false}; vanilla dispatch proceeds and the
-     *       Fabric {@code allowMouseClick} hook handles non-modal
-     *       region-based click dispatch normally.</li>
-     * </ul>
-     *
-     * <p>Successor to 14d-1's {@code dispatchModalClick}, generalized for
-     * non-modal opaque panels. Same atomic-dispatch-and-eat shape.
-     */
-    public static boolean dispatchCoveredClick(Screen screen,
-                                               double mouseX, double mouseY,
-                                               int button) {
-        ScreenPanelAdapter target = findCoveringPanelAt(screen, mouseX, mouseY);
-
-        if (target != null) {
-            // Cursor inside an opaque panel — dispatch to its element
-            // layer so buttons/elements get the click. Then eat;
-            // vanilla chain doesn't see this click.
-            Reference bounds = boundsForAdapter(screen, target);
-            if (bounds != null) {
-                target.mouseClicked(bounds, mouseX, mouseY, button,
-                        screen instanceof AbstractContainerScreen<?> acs ? acs : null);
+    private static PanelHost.@Nullable Frame slotGroupFrame(AbstractContainerScreen<?> screen, SlotGroupId id) {
+        for (ResolvedSlotGroup group : SlotGroupCategories.groups(screen.getMenu())) {
+            if (!group.id().equals(id) || group.slots().isEmpty()) continue;
+            int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
+            int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+            for (Slot slot : group.slots()) {
+                minX = Math.min(minX, slot.x);
+                minY = Math.min(minY, slot.y);
+                maxX = Math.max(maxX, slot.x + 16);
+                maxY = Math.max(maxY, slot.y + 16);
             }
-            // Apply unified focus-janitor rule. Vanilla never sees this
-            // click (we're about to eat), so the natural setFocused-on-
-            // claim flow can't fire. Whether or not an MK element
-            // claimed, if a focused MK widget exists and the click was
-            // outside its bounds, blur. Clicks INSIDE the focused
-            // widget's bounds (e.g., clicking an already-focused
-            // TextField) are protected by the bounds check inside the
-            // helper.
-            MKFocus.blurOnOutsideBounds(screen, mouseX, mouseY);
-            return true;
+            AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
+            Reference box = new Reference(acc.mk$getLeftPos() + minX, acc.mk$getTopPos() + minY,
+                    maxX - minX, maxY - minY);
+            return new PanelHost.Frame(screen.width, screen.height, box);
         }
+        return null;
+    }
 
-        // No opaque panel under cursor. If a tracksAsModal panel is
-        // visible, eat anyway (modal blocks outside-bounds interaction).
-        if (hasAnyVisibleModalTracking()) {
-            // Intentionally do NOT clearFocus here. The user clicked
-            // outside the modal's bounds entirely; widgets focused
-            // INSIDE the modal should retain focus (the modal-eat is
-            // about blocking the underlying interaction, not about
-            // tearing down the modal's own input state). Empty-panel-
-            // space-clear semantics apply to in-panel clicks only.
-            return true;
-        }
+    // ── Rendering ──────────────────────────────────────────────────────
 
-        // No opaque + no modal-tracking — vanilla proceeds normally.
-        return false;
+    /** A non-container screen's whole LayerPlan: FLOW, dim, OVERLAY for every host. */
+    private static void renderAll(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
+        LayerPlan.compose(hostsOn(screen), graphics, mouseX, mouseY, screen.width, screen.height,
+                pointerPolicy(screen, mouseX, mouseY));
     }
 
     /**
-     * M9 opaque release dispatch — symmetric counterpart to {@link
-     * #dispatchCoveredClick}. Called from
-     * {@code MKModalMouseHandlerMixin.onButton} when {@code action == 0}
-     * (GLFW_RELEASE).
-     *
-     * <p><b>Why this exists (smoke fold-inline finding):</b>
-     * Initial M9 implementation passed releases through unconditionally
-     * (let Fabric {@code allowMouseRelease} handle drag-end for
-     * ScrollContainer). That broke modal blocking for vanilla
-     * release-driven UIs: {@code CreativeModeInventoryScreen.mouseReleased}
-     * is what selects creative tabs (not {@code mouseClicked}), so
-     * passed-through releases switched tabs while a modal was visible.
-     *
-     * <p>Symmetric handling: when the press would have been eaten (opaque
-     * at cursor OR modal-tracking visible), eat the release too. Since
-     * eating cancels the entire {@code MouseHandler.onButton} chain,
-     * Fabric's {@code allowMouseRelease} hook can't fire — so this method
-     * also manually dispatches {@code adapter.mouseReleased} to all
-     * visible opaque adapters' elements (drag-end semantic preserved).
-     *
-     * <p>Decision tree:
-     * <ul>
-     *   <li><b>Cursor inside any visible opaque panel</b> — eat at
-     *       mixin level; manually dispatch {@code mouseReleased} to all
-     *       visible opaque adapters so any in-progress drag (on a
-     *       ScrollContainer or future draggable element) ends.</li>
-     *   <li><b>Cursor outside opaque + tracksAsModal panel visible</b> —
-     *       eat at mixin level (modal blocks tab selection on release).
-     *       Still dispatch {@code mouseReleased} to opaque adapters in
-     *       case a drag started inside an opaque panel and cursor moved
-     *       outside before release.</li>
-     *   <li><b>No opaque + no modal-tracking</b> — return false (don't
-     *       eat); release passes through to vanilla → Fabric
-     *       {@code allowMouseRelease} → adapter.mouseReleased dispatch
-     *       (existing 14d-2 plumbing).</li>
-     * </ul>
+     * Layer 2 of {@link ContainerScreenLayers}: the FLOW layer of the registry's
+     * hosts (context, then slot groups). The screen's own FLOW (an
+     * {@code MKCHandledScreen}'s panels) drew earlier, under vanilla's slots.
      */
-    public static boolean dispatchCoveredRelease(Screen screen,
-                                                 double mouseX, double mouseY,
-                                                 int button) {
-        if (screen == null) return false;
+    public static void renderFlow(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
+                                  int mouseX, int mouseY) {
+        PanelHost.PointerPolicy pointer = pointerPolicy(screen, mouseX, mouseY);
+        for (PanelHost host : routedOn(screen)) {
+            host.render(graphics, mouseX, mouseY, LayerPlan.Layer.FLOW, pointer);
+        }
+    }
 
-        ScreenPanelAdapter covered = findCoveringPanelAt(screen, mouseX, mouseY);
-        boolean modalTracking = hasAnyVisibleModalTracking();
+    /** Layer 4 of {@link ContainerScreenLayers}: the dim, then OVERLAY for every host on the screen. */
+    public static void renderOverlay(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
+                                     int mouseX, int mouseY) {
+        LayerPlan.dimAndOverlay(hostsOn(screen), graphics, mouseX, mouseY, screen.width, screen.height,
+                pointerPolicy(screen, mouseX, mouseY));
+    }
 
-        if (covered == null && !modalTracking) {
-            // No opaque + no modal-tracking — vanilla path (Fabric
-            // allowMouseRelease) handles non-opaque drag-end normally.
-            return false;
+    /**
+     * Who owns the pointer this frame: a panel renders live (hover, tooltips) when
+     * no modal it does not belong to is up and nothing above it claims the cursor.
+     * Everything else renders with the inert {@code -1} sentinel.
+     */
+    public static PanelHost.PointerPolicy pointerPolicy(@Nullable Screen screen, double mouseX, double mouseY) {
+        Claim claim = claimAt(screen, mouseX, mouseY);
+        boolean modal = modalUpOn(screen);
+        return (host, placed) -> {
+            if (modal && !placed.panel().tracksAsModal()) return false;
+            if (claim == null || claim.placed() == null) return true;
+            return claim.host() == host && claim.placed().entry() == placed.entry();
+        };
+    }
+
+    // ── The one claim answer ───────────────────────────────────────────
+
+    /**
+     * What takes a screen point.
+     *
+     * @param host          the host of the claiming panel
+     * @param placed        the claiming panel's placement, or {@code null} when a shown
+     *                      modal claims the point without being over it (the point is
+     *                      inert and goes to nobody)
+     * @param yieldsToSlot  the claimant's own live slot is under the point, so the
+     *                      point goes to vanilla's slot machinery for that slot
+     */
+    public record Claim(PanelHost host, PanelHost.@Nullable Placed placed, boolean yieldsToSlot) {}
+
+    /**
+     * The one claim answer for a point on {@code screen}. A shown modal (the topmost
+     * {@code tracksAsModal} panel) claims every point: its own where it is placed and
+     * claims, otherwise an inert claim. Without a modal: the topmost claiming panel,
+     * the OVERLAY layer above FLOW, an upper host above a lower one, a later entry
+     * above an earlier one.
+     */
+    public static @Nullable Claim claimAt(@Nullable Screen screen, double mouseX, double mouseY) {
+        List<PanelHost> hosts = hostsOn(screen);
+        if (hosts.isEmpty()) return null;
+
+        for (int i = hosts.size() - 1; i >= 0; i--) {
+            PanelHost host = hosts.get(i);
+            Panel modal = host.topmostModal();
+            if (modal == null) continue;
+            PanelHost.Placed placed = host.placedOf(modal);
+            if (placed != null && PanelHost.claimsPoint(placed, mouseX, mouseY)) {
+                return new Claim(host, placed, host.yieldsToSlot(placed, mouseX, mouseY));
+            }
+            return new Claim(host, null, false);
         }
 
-        // Eat at mixin level + manually dispatch mouseReleased to every
-        // visible adapter's elements. Fabric's allowMouseRelease hook won't
-        // fire since onButton is canceled, so we dispatch here directly —
-        // matching the non-eaten Fabric path (which dispatches to ALL
-        // adapters, not just opaque ones), so a covering element on a
-        // non-opaque panel still gets its drag-end. Release is not hit-tested
-        // (fires for every visible element regardless of cursor position).
-        if (screen instanceof AbstractContainerScreen<?> acs) {
-            ScreenRenderData data = SCREEN_DATA.get(acs);
-            if (data != null) {
-                Reference frame = frameBounds(acs);
-                for (ScreenPanelAdapter adapter : data.menuMatches) {
-                    Panel panel = adapter.getPanel();
-                    if (!ClientWindowVisibility.panelShown(panel)) continue;
-                    adapter.mouseReleased(frame, mouseX, mouseY, button, acs);
+        for (LayerPlan.Layer layer : new LayerPlan.Layer[]{LayerPlan.Layer.OVERLAY, LayerPlan.Layer.FLOW}) {
+            for (int i = hosts.size() - 1; i >= 0; i--) {
+                PanelHost host = hosts.get(i);
+                PanelHost.Placed placed = host.claimAt(mouseX, mouseY, layer);
+                if (placed != null) {
+                    return new Claim(host, placed, host.yieldsToSlot(placed, mouseX, mouseY));
                 }
             }
         }
+        return null;
+    }
 
+    /**
+     * Whether a slot under the point is inert: something claims the point, and the
+     * claimant's own slot is not what is there. Asked by the {@code getHoveredSlot}
+     * hook before any slot resolution runs, so a panel over a slot blocks its hover,
+     * its click (vanilla routes the click to the hovered slot) and its tooltip.
+     */
+    public static boolean slotInertAt(@Nullable Screen screen, double mouseX, double mouseY) {
+        Claim claim = claimAt(screen, mouseX, mouseY);
+        return claim != null && !claim.yieldsToSlot();
+    }
+
+    /**
+     * Whether vanilla content at the point that belongs to the screen itself (its
+     * widgets, list rows, creative tabs, tooltips) is inert. Same claim, one
+     * exception: a standalone screen's own panels do not make that screen's own
+     * widgets inert. They are one author's layout; the screen routes its own input.
+     * A modal still claims everything.
+     */
+    public static boolean screenContentInertAt(@Nullable Screen screen, double mouseX, double mouseY) {
+        Claim claim = claimAt(screen, mouseX, mouseY);
+        if (claim == null || claim.yieldsToSlot()) return false;
+        if (claim.placed() != null && claim.host() == ownHost(screen)) return false;
+        return true;
+    }
+
+    // ── Modal and dim ──────────────────────────────────────────────────
+
+    private static @Nullable Panel topmostModal(List<PanelHost> hosts) {
+        for (int i = hosts.size() - 1; i >= 0; i--) {
+            Panel modal = hosts.get(i).topmostModal();
+            if (modal != null) return modal;
+        }
+        return null;
+    }
+
+    /** Whether a shown {@code tracksAsModal} panel is on {@code screen}, in any host. */
+    public static boolean modalUpOn(@Nullable Screen screen) {
+        return topmostModal(hostsOn(screen)) != null;
+    }
+
+    /** {@link #modalUpOn} for the current screen. */
+    public static boolean hasAnyVisibleModalTracking() {
+        return modalUpOn(currentScreen());
+    }
+
+    /**
+     * Whether an injected modal gates window-level input on the current screen (the
+     * keyboard gate and the cursor lock). A standalone screen's own modal is left to
+     * that screen, which routes keys to the modal itself (a dialog's text field must
+     * still type).
+     */
+    public static boolean modalGatesInput() {
+        return topmostModal(routedOn(currentScreen())) != null;
+    }
+
+    // ── MouseHandler-level dispatch (claimed input) ────────────────────
+
+    /**
+     * Press at the MouseHandler, before any screen sees it. When a panel from the
+     * registry's hosts claims the point, the click goes to that panel's elements and
+     * vanilla never sees it. Returns {@code false} (vanilla proceeds) when nothing
+     * claims, when the claimant is the screen's own host (the screen routes its own
+     * panels, and its vanilla widgets need the click), or when the claimant's own
+     * slot is under the point.
+     *
+     * @return whether to eat the press
+     */
+    public static boolean dispatchCoveredClick(Screen screen, double mouseX, double mouseY, int button) {
+        Claim claim = claimAt(screen, mouseX, mouseY);
+        if (claim == null || claim.host() == ownHost(screen) || claim.yieldsToSlot()) return false;
+        for (PanelHost host : routedOn(screen)) host.notifyOutsideClick(mouseX, mouseY);
+        if (claim.placed() != null) {
+            claim.host().mouseClicked(claim.placed(), mouseX, mouseY, button);
+            // Vanilla never sees this click, so the natural focus hand-over can't
+            // run: blur a focused MK widget the click landed outside of. (Outside a
+            // modal, placed is null and the modal's own widgets keep focus.)
+            MKFocus.blurOnOutsideBounds(screen, mouseX, mouseY);
+        }
         return true;
     }
 
     /**
-     * M9 opaque scroll dispatch — parallels {@link #dispatchCoveredClick}.
-     * Called from {@code MKModalMouseHandlerMixin.onScroll} at the
-     * HEAD of {@code MouseHandler.onScroll}.
-     *
-     * <p>Cursor inside an opaque panel: dispatch scroll to its elements;
-     * return true. Cursor outside + tracksAsModal visible: eat without
-     * dispatch. Cursor outside + no modal-tracking: pass through.
+     * Release, symmetric with the press: eaten exactly when the press would have
+     * been, and then offered to every routed element (not hit-tested) so a drag
+     * ends wherever the cursor is. Vanilla's creative screen picks tabs on release,
+     * which is why a modal must eat releases too.
      */
-    public static boolean dispatchCoveredScroll(Screen screen,
-                                                double mouseX, double mouseY,
+    public static boolean dispatchCoveredRelease(Screen screen, double mouseX, double mouseY, int button) {
+        Claim claim = claimAt(screen, mouseX, mouseY);
+        if (claim == null || claim.host() == ownHost(screen) || claim.yieldsToSlot()) return false;
+        for (PanelHost host : routedOn(screen)) host.mouseReleased(mouseX, mouseY, button);
+        return true;
+    }
+
+    /** Scroll: routed to the claiming panel and eaten, under the same rule as a press. */
+    public static boolean dispatchCoveredScroll(Screen screen, double mouseX, double mouseY,
                                                 double scrollX, double scrollY) {
-        ScreenPanelAdapter target = findCoveringPanelAt(screen, mouseX, mouseY);
-
-        if (target != null) {
-            Reference bounds = boundsForAdapter(screen, target);
-            if (bounds != null) {
-                target.mouseScrolled(bounds, mouseX, mouseY, scrollX, scrollY,
-                        screen instanceof AbstractContainerScreen<?> acs ? acs : null);
-            }
-            return true;
+        Claim claim = claimAt(screen, mouseX, mouseY);
+        if (claim == null || claim.host() == ownHost(screen) || claim.yieldsToSlot()) return false;
+        if (claim.placed() != null) {
+            claim.host().mouseScrolled(claim.placed(), mouseX, mouseY, scrollX, scrollY);
         }
-
-        if (hasAnyVisibleModalTracking()) {
-            return true;
-        }
-
-        return false;
+        return true;
     }
-
-    /**
-     * Unified coverage query — finds the topmost (last-registered) visible
-     * panel that <em>claims</em> the cursor point ({@link #panelClaimsPoint}:
-     * an opaque background minus holes, OR a solid opaque element). Iterates
-     * region adapters (via {@code SCREEN_DATA}) so they participate in the
-     * click-through prohibition.
-     *
-     * <p>Iteration order: registration order. Highest-z = last-registered
-     * wins; iterate forward and overwrite.
-     *
-     * <p>This is the dispatch-returning half of the inertness contract (it
-     * returns the panel so the caller can route the input to its elements);
-     * the boolean half consumers/suppressors call is
-     * {@link com.trevlar.menukit.core.MKFocus#isInertUnderPanel}.
-     *
-     * @return the topmost claiming adapter at coords, or {@code null} if none
-     *         visible OR the cursor is over no panel's opaque background/element
-     */
-    public static @Nullable ScreenPanelAdapter findCoveringPanelAt(Screen screen,
-                                                                  double mouseX, double mouseY) {
-        if (screen == null) return null;
-
-        ScreenPanelAdapter result = null;
-
-        // Region-based adapters on AbstractContainerScreen.
-        if (screen instanceof AbstractContainerScreen<?> acs) {
-            ScreenRenderData data = SCREEN_DATA.get(acs);
-            if (data != null) {
-                Reference frame = frameBounds(acs);
-                for (ScreenPanelAdapter adapter : data.menuMatches) {
-                    Panel panel = adapter.getPanel();
-                    if (!ClientWindowVisibility.panelShown(panel)) continue;
-                    var origin = adapter.getOrigin(frame, acs);
-                    if (origin.isEmpty()) continue;
-                    if (panelClaimsPoint(panel, origin.get(), adapter.getPadding(),
-                            mouseX, mouseY)) {
-                        result = adapter; // overwrite — last-z wins
-                    }
-                }
-            }
-        }
-
-        return result;
-    }
-
-    /** Helper: tests whether (mouseX, mouseY) is within the panel's bounding box. */
-    private static boolean containsPoint(ScreenOrigin origin, int padding,
-                                          int panelWidth, int panelHeight,
-                                          double mouseX, double mouseY) {
-        int pw = panelWidth + 2 * padding;
-        int ph = panelHeight + 2 * padding;
-        int x = origin.x();
-        int y = origin.y();
-        return mouseX >= x && mouseX < x + pw
-                && mouseY >= y && mouseY < y + ph;
-    }
-
-    /**
-     * M9 per-element opacity — true if a visible, non-opaque element of this
-     * panel covers the cursor, punching a click-through "hole" so the opaque
-     * panel does NOT claim input at this point (it falls through to lower
-     * panels / the slots behind it). Element screen bounds are composed exactly
-     * as the dispatchers compose them: content origin (panel origin + padding)
-     * plus the element's childX/childY (see {@link PanelElement#hitTest}).
-     *
-     * <p>Per-element opacity completes M9's panel-level opacity: panel opacity
-     * is bounding-box click-eating (input, not visual alpha); a non-opaque
-     * element opts its own bounds out of that eating. Default-opaque elements
-     * are unaffected, so existing panels behave exactly as before.
-     */
-    static boolean panelHoleAt(Panel panel, ScreenOrigin origin, int padding,
-                                        double mouseX, double mouseY) {
-        int contentX = origin.x() + padding;
-        int contentY = origin.y() + padding;
-        for (PanelElement el : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, el) || el.isElementOpaque()) continue;
-            int ex = contentX + el.getChildX();
-            int ey = contentY + el.getChildY();
-            if (mouseX >= ex && mouseX < ex + el.getWidth()
-                    && mouseY >= ey && mouseY < ey + el.getHeight()) {
-                return true; // cursor is over a click-through hole
-            }
-        }
-        return false;
-    }
-
-    /**
-     * The unified "does this panel claim this screen point?" test — the core of
-     * the inertness contract, shared across container AND vanilla-screen
-     * adapters so every path agrees on ONE claim definition (no per-screen-type
-     * fork). A panel claims P, in strict priority order:
-     *
-     * <ol>
-     *   <li><b>Active overlay (any visible element):</b> an open transient
-     *       overlay — a Dropdown popover, say — is an <em>exclusive</em> claim:
-     *       top z, honored regardless of panel/element opacity
-     *       ({@link #panelHasActiveOverlayAt}). Checked first so a popover always
-     *       eats input behind it.</li>
-     *   <li><b>Click-through hole:</b> a non-opaque element ({@link #panelHoleAt})
-     *       is an unconditional pass-through — authoritative over BOTH the opaque
-     *       background and any solid element, so an element overlapping a hole
-     *       can't re-claim the point.</li>
-     *   <li><b>(a) opaque background:</b> the panel is opaque and its padded
-     *       bounds contain P (holes already excluded by step 2).</li>
-     *   <li><b>(b) solid element:</b> a visible, opaque, <em>interactive</em>
-     *       element covers P ({@link #panelHasSolidElementAt}) — so a solid
-     *       button blocks the vanilla content behind it even when the panel
-     *       background itself is non-opaque. Gated on interactivity so a
-     *       render-only decoration never eats a click it does nothing with (the
-     *       dead-click guard).</li>
-     * </ol>
-     *
-     * <p>Steps 2 and 4 are duals of the per-element opacity flag: a non-opaque
-     * element punches a hole in the background; a solid element forms a claim on
-     * a transparent panel. Together they make "a solid element is here" ⟺ "the
-     * vanilla behind it is inert" — what every suppression site must agree on.
-     *
-     * <p>Package-private (not {@code private}) so the vanilla-screen path
-     * ({@link VanillaScreenPanelRegistry#hasOpaqueRegionAt},
-     * {@link VanillaScreenPanelAdapter#mouseClicked}) consults the exact same
-     * test — collapsing the per-screen-type claim fork the unification removes.
-     */
-    static boolean panelClaimsPoint(Panel panel, ScreenOrigin origin, int padding,
-                                    double mouseX, double mouseY) {
-        // (1) Active overlay = exclusive claim, top z, opacity-independent.
-        if (panelHasActiveOverlayAt(panel, origin, padding, mouseX, mouseY)) {
-            return true;
-        }
-        // (2) A hole is an unconditional pass-through — authoritative over the
-        //     opaque background AND any solid element below it.
-        if (panelHoleAt(panel, origin, padding, mouseX, mouseY)) {
-            return false;
-        }
-        // (3) (a) opaque background — panel.isOpaque() AND the engine OPACITY key.
-        if (ClientWindowVisibility.panelOpaque(panel)
-                && containsPoint(origin, padding, panel.getWidth(), panel.getHeight(),
-                        mouseX, mouseY)) {
-            return true;
-        }
-        // (4) (b) solid (opaque + interactive) element.
-        return panelHasSolidElementAt(panel, origin, padding, mouseX, mouseY);
-    }
-
-    /**
-     * True if a visible element of the panel has an active overlay region
-     * ({@link PanelElement#getActiveOverlayBounds} — e.g. an open Dropdown
-     * popover) covering (mouseX, mouseY). An active overlay is an exclusive,
-     * transient claim: honored for EVERY visible element regardless of opacity
-     * (matching the dispatchers' overlay pass, which doesn't gate on opacity),
-     * because the overlay region must be inert to anything behind it.
-     */
-    private static boolean panelHasActiveOverlayAt(Panel panel, ScreenOrigin origin, int padding,
-                                                   double mouseX, double mouseY) {
-        for (PanelElement el : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, el)) continue;
-            int[] overlay = el.getActiveOverlayBounds();
-            if (overlay != null
-                    && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
-                    && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * True if a visible, SOLID (opaque + interactive) element of the panel covers
-     * (mouseX, mouseY) via its interaction surface ({@link PanelElement#hitTest}).
-     * The exact counterpart to {@link #panelHoleAt}: holes are non-opaque elements
-     * that do NOT claim; this finds the solid elements that DO. Gated on
-     * {@link PanelElement#isInteractive} as well as opacity, so a render-only
-     * decoration (opaque by default but consuming nothing) can't eat a click on a
-     * non-opaque panel — the dead-click guard. This is what lets a solid button
-     * block the vanilla behind it on a non-opaque panel — the gap that let
-     * creative-tab clicks/highlight leak through the pockets controls.
-     */
-    private static boolean panelHasSolidElementAt(Panel panel, ScreenOrigin origin, int padding,
-                                                  double mouseX, double mouseY) {
-        int contentX = origin.x() + padding;
-        int contentY = origin.y() + padding;
-        for (PanelElement el : panel.getElements()) {
-            if (!ClientWindowVisibility.elementShown(panel, el) || !el.isElementOpaque() || !el.isInteractive()) continue;
-            if (el.hitTest(mouseX, mouseY, contentX, contentY)) return true;
-        }
-        return false;
-    }
-
-    /**
-     * Helper: returns the {@link Reference} for an adapter on the given
-     * screen — frame bounds for the adapter's container screen. Returns null
-     * if no bounds available (the screen isn't an
-     * {@link AbstractContainerScreen} — shouldn't happen for a covering
-     * region adapter).
-     */
-    private static @Nullable Reference boundsForAdapter(Screen screen,
-                                                            ScreenPanelAdapter adapter) {
-        if (screen instanceof AbstractContainerScreen<?> acs) {
-            return frameBounds(acs);
-        }
-        return null;
-    }
-
-    /**
-     * B3 modal-Escape helper: returns the topmost (last-registered, highest
-     * z-order) visible {@code tracksAsModal} panel among the given adapters,
-     * or {@code null} if none is up. Iterates in reverse so the most-recently
-     * registered modal (paint-order-last) wins, matching the click-dispatch z
-     * precedence. The container-screen {@code allowKeyPress} hook uses this to
-     * route Escape to the topmost modal's {@code onEscape} action.
-     */
-    private static @Nullable Panel topmostVisibleModalAmong(List<ScreenPanelAdapter> adapters) {
-        for (int i = adapters.size() - 1; i >= 0; i--) {
-            Panel panel = adapters.get(i).getPanel();
-            if (ClientWindowVisibility.panelShown(panel) && panel.tracksAsModal()) {
-                return panel;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * M9 query: is any visible panel with {@code tracksAsModal(true)} on
-     * the current screen? Gates global suppressions (cursor lock, keyboard
-     * eating, outside-bounds click eating).
-     *
-     * <p>Used by {@code MKModalKeyboardHandlerMixin}, the per-tick
-     * cursor-lock callback in {@code MKClient}, and {@link
-     * #dispatchCoveredClick} / {@link #dispatchCoveredScroll}.
-     */
-    public static boolean hasVisibleModalTrackingOnScreen(AbstractContainerScreen<?> screen) {
-        ScreenRenderData data = SCREEN_DATA.get(screen);
-        if (data == null) return false;
-        for (ScreenPanelAdapter adapter : data.menuMatches) {
-            Panel panel = adapter.getPanel();
-            if (ClientWindowVisibility.panelShown(panel) && panel.tracksAsModal()) return true;
-        }
-        return false;
-    }
-
-    /**
-     * M9 query: is any visible panel with {@code tracksAsModal(true)} on
-     * the currently-active screen? Same as {@link
-     * #hasVisibleModalTrackingOnScreen} but reads
-     * {@code Minecraft.getInstance().gui.screen()} for callers without a
-     * screen reference (tooltip suppression mixin, cursor-lock callback).
-     */
-    public static boolean hasAnyVisibleModalTracking() {
-        var mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc == null) return false;
-        var screen = mc.gui.screen();
-        if (screen == null) return false;
-        if (screen instanceof AbstractContainerScreen<?> acs) {
-            if (hasVisibleModalTrackingOnScreen(acs)) return true;
-        }
-        return false;
-    }
-
-    /**
-     * M9 query: is any visible panel with {@code dimsBehind(true)} on
-     * the given screen? Gates the dim-overlay render pass in {@link
-     * #renderOverlayPanels}.
-     */
-    public static boolean hasVisibleDimsBehindOnScreen(AbstractContainerScreen<?> screen) {
-        ScreenRenderData data = SCREEN_DATA.get(screen);
-        if (data == null) return false;
-        for (ScreenPanelAdapter adapter : data.menuMatches) {
-            Panel panel = adapter.getPanel();
-            if (ClientWindowVisibility.panelShown(panel) && panel.dimsBehind()) return true;
-        }
-        return false;
-    }
-
-    /**
-     * M9 query: is the cursor currently inside any visible opaque panel
-     * on the active screen? Convenience boolean wrapper around {@link
-     * #findCoveringPanelAt} for callers that don't need the adapter and
-     * have the mouse coords already (e.g., the slot-hover mixin which
-     * receives mouseX/mouseY as method parameters).
-     *
-     * <p>Used by slot-hover suppression mixin (pointer-driven suppression
-     * per M9 §4.7).
-     */
-    public static boolean anyPanelCoversPoint(double mouseX, double mouseY) {
-        var mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc == null) return false;
-        return findCoveringPanelAt(mc.gui.screen(), mouseX, mouseY) != null;
-    }
-
-    /**
-     * M9 query: is the cursor currently inside any visible opaque panel
-     * on the active screen? Reads cursor position from {@code MouseHandler}
-     * directly — for callers without mouse coords as parameters (e.g.,
-     * the tooltip-suppression mixin which fires from inside
-     * {@code GuiGraphicsExtractor.setTooltipForNextFrameInternal} without mouse
-     * coords passed in).
-     *
-     * <p>Same coordinate-conversion formula as
-     * {@code MKModalMouseHandlerMixin} — uses
-     * {@code Window.getScreenWidth/Height} (logical pixels) for HiDPI
-     * correctness, NOT {@code getWidth/Height} (framebuffer pixels).
-     */
-    /**
-     * Post-Phase 18r-5: complement to {@link #anyPanelCoversPoint}
-     * for ELEMENT-LEVEL active overlays — Dropdown popovers and any other
-     * element whose {@code getActiveOverlayBounds()} extends beyond its
-     * owning panel's bounds. The panel-bounds query misses these; this
-     * query catches them.
-     *
-     * <p>Used by the widget-hover-suppression mixin so vanilla widgets
-     * (buttons, list rows) covered by an open dropdown popover stop
-     * highlighting on hover. The opacity-eat input path already routes
-     * the CLICK away from them; this closes the visual loop.
-     */
-    public static boolean hasActiveOverlayAt(double mouseX, double mouseY) {
-        var mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc == null) return false;
-        Screen screen = mc.gui.screen();
-        if (screen == null) return false;
-
-        // Container-screen region adapters.
-        if (screen instanceof AbstractContainerScreen<?> acs) {
-            ScreenRenderData data = SCREEN_DATA.get(acs);
-            if (data != null) {
-                for (ScreenPanelAdapter adapter : data.menuMatches) {
-                    Panel panel = adapter.getPanel();
-                    if (!ClientWindowVisibility.panelShown(panel)) continue;
-                    for (var element : panel.getElements()) {
-                        if (!ClientWindowVisibility.elementShown(panel, element)) continue;
-                        int[] overlay = element.getActiveOverlayBounds();
-                        if (overlay != null
-                                && mouseX >= overlay[0] && mouseX < overlay[0] + overlay[2]
-                                && mouseY >= overlay[1] && mouseY < overlay[1] + overlay[3]) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
-    public static boolean anyPanelCoversCursor() {
-        var mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc == null) return false;
-        var window = mc.getWindow();
-        var mouseHandler = mc.mouseHandler;
-        if (window == null || mouseHandler == null) return false;
-        // Convert raw cursor coords to GUI-scaled coords.
-        double rawX = mouseHandler.xpos();
-        double rawY = mouseHandler.ypos();
-        double scaledX = rawX * window.getGuiScaledWidth() / window.getScreenWidth();
-        double scaledY = rawY * window.getGuiScaledHeight() / window.getScreenHeight();
-        return findCoveringPanelAt(mc.gui.screen(), scaledX, scaledY) != null;
-    }
-
-    // Post-§0042 split: computeSlotGroupBounds moved to menukit-containers'
-    // SlotGroupPanelRegistry — references vanilla Slot + Reference
-    // (containers).
-
-    /**
-     * Reads the screen's frame bounds via
-     * {@link AbstractContainerScreenAccessor}. Computed per-frame because
-     * {@code leftPos}/{@code topPos} shift on resize and recipe-book toggle.
-     */
-    private static Reference frameBounds(AbstractContainerScreen<?> screen) {
-        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
-        return new Reference(
-                acc.mk$getLeftPos(),
-                acc.mk$getTopPos(),
-                acc.mk$getImageWidth(),
-                acc.mk$getImageHeight());
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Class<? extends AbstractContainerScreen<?>> asConcreteScreenClass(
-            Class<?> raw) {
-        return (Class<? extends AbstractContainerScreen<?>>) raw;
-    }
-
-    // ── Default targeting for undeclared adapters ───────────────────────
-
-    /**
-     * Applies the everywhere-default to region-based adapters that reached the
-     * first screen-open without declaring targeting. An undeclared region-based
-     * {@link ScreenPanelAdapter} defaults to <b>every</b> container screen — the
-     * uniform "default-on, opt-out" model shared with
-     * {@code MKCContainerPanel}. A consumer narrows it deliberately with
-     * {@code .on(...)} / {@code .onPlayerInventory()} /
-     * {@code .onMatching(ScreenMatcher.allExcept(...))}.
-     *
-     * <p>Runs on every screen-open after init (not just the first). Anything
-     * still in {@link #PENDING} declared no targeting — whether it was built at
-     * init or constructed mid-session by a runtime toggle. Each is promoted via
-     * {@link ScreenPanelAdapter#onAny()} (sets the every-screen target and moves
-     * it {@code PENDING → REGISTERED} so dispatch picks it up). Idempotent: the
-     * method early-returns when {@link #PENDING} is empty.
-     *
-     * <p>Container screens only — non-container vanilla screens (Options, title,
-     * …) keep the explicit-targeting requirement in
-     * {@link VanillaScreenPanelRegistry#validateTargetingDeclared}; an
-     * everywhere-default makes no sense there.
-     */
-    public static void applyEverywhereDefault() {
-        Set<ScreenPanelAdapter> pendingMenu = pendingSnapshot();
-        if (pendingMenu.isEmpty()) return;
-        for (ScreenPanelAdapter adapter : pendingMenu) {
-            // Promote to the every-container default (PENDING → REGISTERED).
-            adapter.onAny();
-            LOGGER.debug("[ScreenPanelRegistry] panel '{}' declared no targeting "
-                    + "— defaulting to every container screen.",
-                    adapter.getPanel().getId());
-        }
-    }
-
-    // Post-§0042 split: SlotGroupPanelAdapter orphan validation runs
-    // independently in menukit-containers' SlotGroupPanelRegistry's own
-    // checkpoint. Both checkpoints fire on first screen-open and throw
-    // independently if their respective pending sets are non-empty.
 }

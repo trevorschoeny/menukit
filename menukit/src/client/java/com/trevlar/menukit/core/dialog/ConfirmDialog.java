@@ -39,8 +39,9 @@ import java.util.concurrent.atomic.AtomicLong;
  *     .build()
  *     .showWhen(() -> confirmDeleteOpen);
  *
- * // Register the dialog with the host screen via ScreenPanelAdapter.
- * new ScreenPanelAdapter(deleteDialog, OutsideRegion.CENTER)
+ * // Register the dialog with the host screen via ScreenPanelAdapter. The dialog
+ * // is already placed (PanelPosition.center(), an overlay), so no region.
+ * new ScreenPanelAdapter(deleteDialog)
  *     .on(MyMenuScreen.class);
  *
  * // Trigger from another button:
@@ -222,7 +223,7 @@ public final class ConfirmDialog {
                     .elements(elements)
                     .visible(false)
                     .style(PanelStyle.RAISED)
-                    .position(PanelPosition.BODY)
+                    .position(PanelPosition.center())
                     .build()
                     .modal()
                     .onEscape(cancelRun);

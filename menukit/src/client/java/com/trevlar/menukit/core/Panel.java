@@ -107,7 +107,7 @@ public class Panel {
 
     // ── Pass 3 adaptive screen-edge wrap ───────────────────────────────
     // effectiveContentWidth is the screen-edge-derived content-width ceiling
-    // set per-frame by the placement layer (RegionRegistry.resolveMenuOrigin,
+    // set per-frame by the placement layer (PanelHost's budget feed,
     // MKScreen/MKCHandledScreen.computePanelSize, the HUD + vanilla-screen +
     // slot-group origin paths) via setAvailableContentWidth. -1 = unset (no
     // ceiling; panel grows to content as before). Distinct from pinnedWidth on
@@ -127,7 +127,7 @@ public class Panel {
 
     // ── Movement ②: adaptive screen-edge auto-scroll (vertical twin) ────
     // effectiveContentHeight is the screen-edge-derived content-HEIGHT ceiling
-    // set per-frame by the placement layer (RegionRegistry.resolveMenuOrigin)
+    // set per-frame by the placement layer (PanelHost's budget feed)
     // via setAvailableContentHeight. -1 = unset. The height analog of
     // effectiveContentWidth: when the panel is UNPINNED (no pinnedHeight) and its
     // natural content height exceeds this ceiling, the panel auto-scrolls into the
@@ -192,7 +192,7 @@ public class Panel {
     //   transparent overlays opt out via `opaque(false)`.
     //
     // - `dimsBehind` (default FALSE): visual dim layer. When this panel is
-    //   visible, ScreenPanelRegistry's render path inserts a translucent-
+    //   visible, the host's LayerPlan inserts a translucent-
     //   black quad over the underlying screen before drawing this panel.
     //   Real modals set this true; non-modal opaque panels (decoration,
     //   popups) leave it false.
@@ -213,7 +213,7 @@ public class Panel {
 
     // Optional Escape action (B3 modal-Escape fix). When this panel is a
     // visible tracksAsModal panel and the user presses Escape, the host
-    // (MKScreen / the container-screen ScreenPanelRegistry key path) invokes
+    // (MKScreen / the ScreenPanelRegistry key path for injected panels) invokes
     // this action to dismiss the topmost modal — instead of letting Escape
     // close the whole host screen out from under an open dialog. The dialog
     // builders (ConfirmDialog / AlertDialog) register their onCancel /
@@ -259,14 +259,14 @@ public class Panel {
     }
 
     /**
-     * Convenience constructor — default style (RAISED), position (BODY), no
-     * toggle key. Use {@link #builder(String)} in consumer code; this
+     * Convenience constructor — default style (RAISED), no position
+     * ({@link PanelPosition#UNPLACED}), no toggle key. Use {@link #builder(String)} in consumer code; this
      * positional form is {@link ApiStatus.Internal} so fresh consumers are
      * steered to the builder.
      */
     @ApiStatus.Internal
     public Panel(String id, List<PanelElement> elements, boolean visible) {
-        this(id, elements, visible, PanelStyle.RAISED, PanelPosition.BODY, -1);
+        this(id, elements, visible, PanelStyle.RAISED, PanelPosition.UNPLACED, -1);
     }
 
     /**
@@ -301,7 +301,7 @@ public class Panel {
      *     .add(new Button(...))
      *     .add(new Toggle(...))
      *     .style(PanelStyle.RAISED)
-     *     .position(PanelPosition.BODY)
+     *     .position(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP))
      *     .build();
      * }</pre>
      *
@@ -315,7 +315,7 @@ public class Panel {
     /**
      * Fluent builder for {@link Panel}. Mirrors the full positional
      * constructor's parameters as named, optional setters with sensible
-     * defaults (visible, {@link PanelStyle#RAISED}, {@link PanelPosition#BODY},
+     * defaults (visible, {@link PanelStyle#RAISED}, {@link PanelPosition#UNPLACED},
      * no toggle key). The {@code -1} no-toggle-key sentinel is hidden behind
      * {@link #toggleKey(int)} — leaving it unset means "no key."
      */
@@ -324,7 +324,7 @@ public class Panel {
         private final List<PanelElement> elements = new java.util.ArrayList<>();
         private boolean visible = true;
         private PanelStyle style = PanelStyle.RAISED;
-        private PanelPosition position = PanelPosition.BODY;
+        private PanelPosition position = PanelPosition.UNPLACED;
         private int toggleKey = NO_TOGGLE_KEY;
 
         private Builder(String id) {
@@ -387,7 +387,12 @@ public class Panel {
             return this;
         }
 
-        /** Sets how the panel is positioned in the layout. Default {@link PanelPosition#BODY}. */
+        /**
+         * Sets where the panel sits: the one placement every host reads (§0065).
+         * Default {@link PanelPosition#UNPLACED}: adapters and the HUD reject an
+         * unplaced panel; {@code MKScreen} and {@code MKCScreenHandler} make the first
+         * unplaced panel their {@code main()} and stack later ones below it.
+         */
         public Builder position(PanelPosition position) {
             this.position = position;
             return this;
@@ -1136,14 +1141,15 @@ public class Panel {
      * makes opacity the path-of-least-friction; consumers wanting
      * transparent overlays opt out explicitly.
      *
-     * <p>The interaction footprint is the panel's bounding box, regardless
-     * of {@link PanelStyle}. {@code PanelStyle.NONE + opaque(true)} is the
-     * "click blocker" pattern (invisible but blocks input). {@code
-     * PanelStyle.NONE + opaque(false)} is the rare transparent-overlay
-     * escape hatch.
+     * <p>The claim rule (§0065, §0058 as reworded): an opaque panel claims its
+     * whole bounding box, regardless of {@link PanelStyle}, with no holes; a
+     * transparent panel ({@code opaque(false)}) claims only its solid elements
+     * (shown, opaque, interactive). {@code PanelStyle.NONE + opaque(true)} is the
+     * "click blocker" pattern (invisible but blocks input). A panel's own slots
+     * stay live under its own claim.
      *
-     * <p><b>Dispatcher coverage:</b> {@code ScreenPanelAdapter} panels
-     * participate automatically via the unified registry. See M9 §4.4.
+     * <p><b>Every host:</b> panels on container and vanilla screens, slot-group
+     * panels, and a standalone screen's own panels all claim by this one rule.
      *
      * <p>Default: {@code true} (M9 default-flip from the 14d-1
      * {@code cancelsUnhandledClicks} default of {@code false}).

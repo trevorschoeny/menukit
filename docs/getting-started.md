@@ -38,23 +38,23 @@ Call this once from the client entry point. The panel renders every frame while 
 
 ```java
 // Source: hive-sight, hud/HiveLook.java (trimmed to the panel call)
+import com.trevlar.menukit.core.InsideRegion;
 import com.trevlar.menukit.core.PanelStyle;
-import com.trevlar.menukit.hud.MKHudAnchor;
 import com.trevlar.menukit.hud.MKHudPanel;
+import net.minecraft.client.Minecraft;
 
 MKHudPanel.builder("mymod:readout")
-        .anchor(MKHudAnchor.CENTER, 0, 20)
-        .autoSize().padding(4)
+        .region(InsideRegion.CENTER)
+        .padding(4)
         .style(PanelStyle.NONE)
-        .hideInScreen()
-        .showWhen(() -> true)
+        .showWhen(() -> Minecraft.getInstance().gui.screen() == null)
         .text(0, 0, () -> "Hello from MenuKit")
         .build();
 ```
 
-Result: the text renders 20 pixels below the crosshair during gameplay and disappears while any screen is open.
+Result: the text renders just below the crosshair during gameplay and disappears while any screen is open.
 
-`build()` registers the panel. HUD panels have no unregister call. Gate a panel with `showWhen` instead.
+A HUD panel sits on one of nine `InsideRegion` spots of the game window, 4 pixels in from the edges it touches; `.offset(dx, dy)` nudges it and `.priority(n)` orders it among other panels on the same spot. `build()` registers the panel and returns it. Register from your client initializer: registration closes when the client finishes starting. There is no unregister; gate a panel with `showWhen` instead.
 
 ## 3. Register a panel on the inventory screen
 
@@ -65,21 +65,22 @@ Call this once from the client entry point. The adapter registers itself in its 
 import com.trevlar.menukit.core.Button;
 import com.trevlar.menukit.core.OutsideRegion;
 import com.trevlar.menukit.core.Panel;
+import com.trevlar.menukit.core.PanelPosition;
 import com.trevlar.menukit.inject.ScreenPanelAdapter;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
 
 Panel panel = Panel.builder("mymod:controls")
         .add(new Button(0, 0, 90, 16, Component.literal("Press"), b -> {}))
+        .position(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP).priority(10))
         .build();
 
-new ScreenPanelAdapter(panel, OutsideRegion.RIGHT_ALIGN_TOP.priority(10))
-        .on(InventoryScreen.class);
+new ScreenPanelAdapter(panel).on(InventoryScreen.class);
 ```
 
 Result: a 90 by 16 button renders in the top right gutter of the survival inventory screen.
 
-Without `.on(...)` the panel renders on every container screen. Call `unregister()` on the adapter to remove it.
+The panel says where it sits (`position`); the adapter says which screens it appears on. Without `.on(...)` the panel renders on every container screen. Declare adapters from your client initializer; to show a panel only some of the time, give it a `showWhen` rather than removing its adapter.
 
 ## 4. Run
 
@@ -87,7 +88,7 @@ Start the client with the mod's `runClient` task. Open the inventory to see the 
 
 ## Next
 
-- [concepts.md](concepts.md) defines Panel, element, region, and the four contexts.
+- [concepts.md](concepts.md) defines Panel, element, placement, and the five contexts.
 - [recipes.md](recipes.md) covers the five common tasks, including slots.
 - [limits.md](limits.md) lists what MenuKit does not do.
 - [Reference](https://trevorschoeny.github.io/menukit/) is the generated javadoc for every public type in both artifacts.

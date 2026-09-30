@@ -56,9 +56,8 @@ public enum OutsideRegion {
      *         topPos - panelHeight - STACK_GAP - prefix)}, so stacking grows
      * UP (away from the menu), each sibling staying horizontally centered.
      *
-     * <p>Parity counterpart to {@link HudRegion#TOP_CENTER} /
-     * {@link ScreenRegion#TOP_CENTER}, anchored to the menu frame
-     * rather than the screen edge.
+     * <p>Parity counterpart to {@link InsideRegion#TOP_CENTER}, anchored to
+     * the reference rectangle rather than the screen edge.
      */
     TOP_CENTER,
 
@@ -69,8 +68,7 @@ public enum OutsideRegion {
      *         topPos + imageHeight + STACK_GAP + prefix)}, so stacking grows
      * DOWN (away from the menu), each sibling staying horizontally centered.
      *
-     * <p>Parity counterpart to {@link HudRegion#BOTTOM_CENTER} /
-     * {@link ScreenRegion#BOTTOM_CENTER}.
+     * <p>Parity counterpart to {@link InsideRegion#BOTTOM_CENTER}.
      */
     BOTTOM_CENTER,
 
@@ -87,8 +85,8 @@ public enum OutsideRegion {
      *
      * <p>Centers within the menu's container frame, not the screen window.
      * For most vanilla menus the frame is roughly mid-screen so the result
-     * looks visually centered; consumers wanting strict screen-window
-     * centering use a lambda-anchor adapter as the escape hatch.
+     * looks visually centered; for strict screen-window centering declare
+     * {@link PanelPosition#center()} instead.
      */
     CENTER;
 
@@ -110,22 +108,5 @@ public enum OutsideRegion {
             case TOP_CENTER, BOTTOM_CENTER -> false;
             case CENTER -> false;
         };
-    }
-
-    /**
-     * Returns a {@link RegionAnchor} pairing this region with an explicit
-     * stacking priority. Use when sibling panels in the same region need
-     * deterministic ordering relative to each other — pass the result
-     * anywhere a {@link OutsideRegion} is accepted.
-     *
-     * <p>Lower priority renders first (closer to the region's anchor edge).
-     * Default priority (when {@code priority(int)} is not called) is
-     * {@link RegionAnchor#DEFAULT_PRIORITY} (100); the registering mod's
-     * modId serves as the tiebreaker for siblings sharing a priority.
-     *
-     * @see RegionAnchor
-     */
-    public RegionAnchor<OutsideRegion> priority(int priority) {
-        return new RegionAnchor<>(this, priority);
     }
 }

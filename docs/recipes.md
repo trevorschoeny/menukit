@@ -9,11 +9,11 @@ Needs: MenuKit. Call from the client entry point.
 ```java
 // Source: offshore, hud/BoatHealth.java
 MKHudPanel.builder("offshore:boat-health")
-        .anchor(MKHudAnchor.BOTTOM_CENTER, 0, -50)
-        .autoSize().padding(0)
+        .region(InsideRegion.BOTTOM_CENTER)
+        .offset(0, -46)
+        .padding(0)
         .style(PanelStyle.NONE)
-        .hideInScreen()
-        .showWhen(BoatHealth::isActive)
+        .showWhen(() -> Minecraft.getInstance().gui.screen() == null && BoatHealth.isActive())
         .bar(0, 0, WIDTH, 7)
             .value(BoatHealth::health)
             .color(0xFFC08040)
@@ -22,9 +22,9 @@ MKHudPanel.builder("offshore:boat-health")
         .build();
 ```
 
-Result: a 7 pixel tall bar renders 50 pixels above the bottom center of the window while `isActive()` returns true. `value` is a `Supplier<Float>` in the range 0 to 1.
+Result: a 7 pixel tall bar renders 50 pixels above the bottom center of the window while `isActive()` returns true and no screen is open. `value` is a `DoubleSupplier` in the range 0 to 1.
 
-Sub-builders (`text`, `item`, `slot`, `bar`) end with `.done()`. `.element(PanelElement)` adds any element. `.region(InsideRegion)` replaces `.anchor(...)` and stacks the panel with other panels in that region.
+`.region(InsideRegion)` puts the panel on one of nine spots of the window, 4 pixels in from the edges it touches, stacked with the other panels on that spot in `.priority(n)` order. `.offset(dx, dy)` nudges this panel alone. Sub-builders (`text`, `item`, `slot`, `bar`) end with `.done()`. `.element(PanelElement)` adds any element, and `.custom(x, y, w, h, ctx -> ...)` draws freely inside the panel.
 
 ## Put a button on every container screen
 
@@ -37,11 +37,14 @@ Panel p = Panel.builder("mkv:region-everywhere")
         .add(new TextLabel(0, 0, Component.literal("Region panel"), TextLabel.COLOR_LIGHT, true))
         .add(((Button) Button.spec(70, 14, Component.literal("Click me"), b -> {}).at(0, 14))
                 .tooltip(Component.literal("A button inside a region panel.")))
+        .position(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP).priority(20))
         .build();
-ScreenPanelAdapter adapter = new ScreenPanelAdapter(p, OutsideRegion.LEFT_ALIGN_TOP.priority(20));
+new ScreenPanelAdapter(p);
 ```
 
-Result: the panel renders in the top left gutter of the inventory, every chest, and the creative inventory. Add `.on(InventoryScreen.class)` to limit it to the survival inventory. Call `adapter.unregister()` to remove it.
+Result: the panel renders in the top left gutter of the inventory, every chest, and the creative inventory. Add `.on(InventoryScreen.class)` to limit it to the survival inventory. To show it only some of the time, give the panel a `showWhen(...)`: adapters are declared at init and cannot be added or removed during play.
+
+The panel is opaque by default, so everything under it is inert: a slot it covers does not highlight, click or show a tooltip. `.opaque(false)` makes it see-through, and then only its buttons and other controls block what is behind them.
 
 ## Put a panel next to the player inventory on every screen
 
@@ -52,9 +55,10 @@ Needs: MenuKit. Call from the client entry point.
 Panel panel = Panel.builder("inventoryplus:toolbar.inventory")
         .style(PanelStyle.NONE)
         .elements(buildInventoryChildren())
+        .position(PanelPosition.region(OutsideRegion.TOP_ALIGN_RIGHT))
         .build();
 panel.showWhen(Toolbar::isToolbarScope);
-new SlotGroupPanelAdapter(panel, OutsideRegion.TOP_ALIGN_RIGHT)
+new SlotGroupPanelAdapter(panel)
         .on(SlotGroupCategory.PLAYER_INVENTORY);
 ```
 
@@ -62,7 +66,7 @@ Result: the panel renders above the right edge of the player inventory grid on e
 
 ```java
 // Source: inventory-plus, toolbar/Toolbar.java
-new SlotGroupPanelAdapter(panel, OutsideRegion.TOP_ALIGN_RIGHT)
+new SlotGroupPanelAdapter(panel)
         .on(SlotGroupCategory.CHEST_STORAGE,
             SlotGroupCategory.SHULKER_STORAGE,
             SlotGroupCategory.DISPENSER_STORAGE,
@@ -164,7 +168,7 @@ public static final PlayerStorageAttachment<NonNullList<ItemStack>> POCKETS =
         StorageAttachment.playerAttached("mymod", "pockets", 9);
 
 MKCContainerPanel.define("mymod:pockets")
-        .at(OutsideRegion.LEFT_ALIGN_TOP, 7)
+        .at(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP).priority(20), 7)
         .style(PanelStyle.RAISED)
         .parity(ScreenMatcher.all())
         .chrome(() -> List.of(new Button(0, 0, 60, 14, Component.literal("Sort"), b -> {})))
@@ -235,7 +239,7 @@ CUSTOM.open(serverPlayer);
 
 Result: `requestOpen()` sends one payload; the server opens the menu; the client shows a screen with one nine-slot group. The handler factory runs on both sides and must build the same storages in the same order. Pass the `type` argument straight to `MKCScreenHandler.builder(type)`.
 
-`p.group(id, storage, priority, columns)` sets shift-click priority and column count. `p.button(...)`, `p.text(...)`, and `p.element(...)` add elements to the panel. `p.region(OutsideRegion)` anchors a second panel to the main one.
+`p.group(id, storage, priority, columns)` sets shift-click priority and column count. `p.button(...)`, `p.text(...)`, and `p.element(...)` add elements to the panel. `p.region(OutsideRegion)` anchors a second panel to the main one, and `p.position(...)` takes any placement. A panel that declares none takes the standalone default: the first is the main panel, and later ones stack below it.
 
 ## Attach behavior to a slot by address
 

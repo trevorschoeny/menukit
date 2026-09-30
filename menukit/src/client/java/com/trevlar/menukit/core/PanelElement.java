@@ -551,15 +551,14 @@ public interface PanelElement {
     }
 
     /**
-     * Returns whether this element is interaction-opaque (M9 per-element
-     * opacity). When {@code false}, clicks/hover/tooltip over this element's
-     * bounds pass through an opaque panel to the slots/screen behind it (a
-     * click-through "hole"); when {@code true} (default) the element inherits
-     * the panel's opaque click-eating behavior.
+     * Returns whether this element is solid (M9 per-element opacity), which matters
+     * on a <em>transparent</em> panel: there a panel claims only its solid elements
+     * (shown, opaque and {@linkplain #isInteractive interactive}), so a
+     * non-opaque element lets clicks, hover and tooltips reach what is behind it.
      *
-     * <p>Input-layer only — mirrors M9's panel opacity (bounding-box, not
-     * visual alpha). The panel's click-consumption ({@code ScreenPanelRegistry})
-     * consults this before eating a click that lands on this element's bounds.
+     * <p>On an opaque panel this flag no longer punches a hole: since 6.0.0 (§0065)
+     * an opaque panel claims its whole rectangle. A panel's own slots stay live
+     * through {@link #presentsSlotAt}, not through opacity.
      */
     default boolean isElementOpaque() { return true; }
 
@@ -573,7 +572,7 @@ public interface PanelElement {
      *
      * <p><b>Why this exists (the dead-click guard).</b> On a NON-opaque panel,
      * the inertness contract only lets a point be claimed where a <em>solid</em>
-     * element sits ({@code panelClaimsPoint} branch (b)). Without this flag an
+     * element sits ({@code PanelHost.claimsPoint}). Without this flag an
      * opaque-but-render-only decoration would claim — and thus EAT — a click it
      * does nothing with, contradicting the {@code opaque(false)} "clicks pass
      * through" promise. Gating branch (b) on {@code isElementOpaque() &&
@@ -591,6 +590,24 @@ public interface PanelElement {
      * interactive; the default never produces a dead-click.
      */
     default boolean isInteractive() { return false; }
+
+    /**
+     * Whether this element presents a live menu slot under the screen point.
+     *
+     * <p>An opaque panel claims its whole rectangle (§0065: no holes), so whatever
+     * lies beneath it is inert. A slot the panel itself presents is not beneath it:
+     * it is the panel's own content, and its input belongs to vanilla's slot
+     * machinery. When the claimant answers {@code true} here, the host routes the
+     * point to that slot (hover, click and tooltip reach it) instead of eating it.
+     * Anything a different panel put there stays inert.
+     *
+     * <p>Default {@code false}. MenuKit: Containers' {@code SlotElement} and the flow
+     * that hosts them answer for their slots.
+     *
+     * @param mouseX screen-space X
+     * @param mouseY screen-space Y
+     */
+    default boolean presentsSlotAt(double mouseX, double mouseY) { return false; }
 
     /**
      * The element's explicit, stable declaration id within its panel, or

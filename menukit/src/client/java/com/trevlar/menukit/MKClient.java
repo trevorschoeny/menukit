@@ -3,7 +3,6 @@ package com.trevlar.menukit;
 import com.trevlar.menukit.core.MKFocus;
 import com.trevlar.menukit.inject.MenuChrome;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
-import com.trevlar.menukit.inject.SlotGroupPanelRegistry;
 import com.trevlar.menukit.inject.VanillaSlotGroupResolvers;
 import com.trevlar.menukit.input.CursorContinuity;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
@@ -93,16 +92,6 @@ public class MKClient implements ClientModInitializer {
         // M8_FOUR_CONTEXT_MODEL.md §8 for design.
         ScreenPanelRegistry.init();
 
-        // M8 — parallel ScreenEvents.AFTER_INIT dispatch for SlotGroupContext
-        // adapters. Per §0043: SlotGroupPanelRegistry is MK-complete; MKC,
-        // when loaded, contributes additional owned-SlotGroup dispatch through
-        // its own facade rather than completing this feature.
-        //
-        // Ordering: VanillaSlotGroupResolvers.registerAll() (MK.init, which Fabric
-        // runs before any client entrypoint) must run first so the first
-        // screen-open can resolve categories correctly.
-        SlotGroupPanelRegistry.init();
-
         // Phase 18r-5 follow-up — MK-managed focus janitor. Wires
         // ScreenMouseEvents.afterMouseClick on every opened screen so a
         // focused MK-managed widget (e.g. TextField, Keybindery's SearchBox)
@@ -147,7 +136,7 @@ public class MKClient implements ClientModInitializer {
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.getWindow() != null) {
                 client.getWindow().setAllowCursorChanges(
-                        !com.trevlar.menukit.inject.ScreenPanelRegistry.hasAnyVisibleModalTracking());
+                        !com.trevlar.menukit.inject.ScreenPanelRegistry.modalGatesInput());
             }
             // Client-observed reactive verbs (ON_*_OBSERVED) — diff the open
             // container menu's synced contents and fire UI-feedback reactions.

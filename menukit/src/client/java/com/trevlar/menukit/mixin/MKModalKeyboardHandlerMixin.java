@@ -58,7 +58,7 @@ public abstract class MKModalKeyboardHandlerMixin {
         // localize to bounds; eating keys whenever any opaque panel is
         // visible would suppress every keystroke whenever any non-modal
         // MK decoration is visible (overly aggressive).
-        if (ScreenPanelRegistry.hasAnyVisibleModalTracking()) {
+        if (ScreenPanelRegistry.modalGatesInput()) {
             ci.cancel();
         }
     }

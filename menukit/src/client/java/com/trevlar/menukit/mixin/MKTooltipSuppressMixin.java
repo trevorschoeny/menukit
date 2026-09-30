@@ -99,6 +99,10 @@ public abstract class MKTooltipSuppressMixin {
         // through the single inertness predicate (modal-global OR covered by an
         // opaque panel/element/overlay) — the same question slot hover, tab
         // hover, widget hover, list hover, and the click-eat all ask.
+        // A tooltip queued while the pointer's owner renders is that panel's own
+        // content (an element tooltip, the panel tooltip): it passes, even over the
+        // panel's own claim. Everything else under a claim is suppressed.
+        if (com.trevlar.menukit.inject.PanelHost.renderingLivePanel()) return;
         if (MKFocus.isInertUnderPanelAtCursor()) {
             ci.cancel();
         }

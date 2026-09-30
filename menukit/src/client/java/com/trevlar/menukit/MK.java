@@ -1,11 +1,10 @@
 package com.trevlar.menukit;
 
-import com.trevlar.menukit.core.PanelDispatch;
-import com.trevlar.menukit.core.PanelRendering;
-import com.trevlar.menukit.core.PanelStyle;
-import com.trevlar.menukit.core.RenderContext;
+import com.trevlar.menukit.core.Panel;
 import com.trevlar.menukit.hud.MKHudNotification;
-import com.trevlar.menukit.hud.MKHudPanelDef;
+import com.trevlar.menukit.inject.LayerPlan;
+import com.trevlar.menukit.inject.PanelHost;
+import com.trevlar.menukit.window.Declarations;
 
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -19,10 +18,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import com.trevlar.menukit.core.SlotGroupCategory;
-import com.trevlar.menukit.inject.SlotGroupCategories;
-import com.trevlar.menukit.window.BehaviorKeys;
-import com.trevlar.menukit.window.SlotOperations;
 
 import org.jetbrains.annotations.ApiStatus;
 
@@ -49,16 +44,23 @@ import org.jetbrains.annotations.ApiStatus;
  *
  * <p>Supported static methods on this class: {@link #registerHud},
  * {@link #registerNotification}, {@link #notify}, {@link #isRecipeBookOpen},
- * {@link #setRecipeBookOpen}, {@link #init}. {@link #onInitialize()} is the
- * Fabric entry point and is internal.
+ * {@link #setRecipeBookOpen}. HUD panels and notifications register from a client
+ * initializer; registration freezes at client start.
  */
 public class MK {
 
     /** MenuKit's own logger — independent of any consuming mod's logger. */
     public static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
-    // ── HUD panel registry (registered at mod init, client-only) ──────────
-    private static final Map<String, MKHudPanelDef> hudPanels = new LinkedHashMap<>();
+    // ── HUD panels: one host (§0065), placing each panel on its InsideRegion spot
+    //    of the game window with the HUD's insets. Registered at init, frozen at
+    //    client start, rendered in sorted (priority, modId, sequence) order.
+    private static final PanelHost HUD = PanelHost.hud(() -> {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null || mc.getWindow() == null) return null;
+        return new PanelHost.Frame(mc.getWindow().getGuiScaledWidth(),
+                mc.getWindow().getGuiScaledHeight(), null);
+    });
 
     // ── Notification definitions (registered at mod init) ─────────────────
     private static final Map<String, MKHudNotification> notificationDefs = new LinkedHashMap<>();
@@ -81,10 +83,7 @@ public class MK {
 
 
     /** Client-side initialization for the MenuKit artifact. Invoked from
-     *  {@link MKClient#onInitializeClient()}. Post-§0042 split: M1
-     *  client-state init + verification client init moved to
-     *  {@code MKCClient}. Retained as a no-op log for symmetry
-     *  with {@link #init()}. */
+     *  {@link MKClient#onInitializeClient()}; logs only. */
     public static void initClient() {
         LOGGER.info("[MenuKit] Client initialized");
     }
@@ -93,28 +92,45 @@ public class MK {
     // HUD — registration, rendering, notifications
     // ══════════════════════════════════════════════════════════════════════
 
-    /** Registers a HUD panel definition. Called by
-     *  {@link com.trevlar.menukit.hud.MKHudPanel.Builder#build()}. */
-    public static void registerHud(MKHudPanelDef def) {
-        hudPanels.put(def.name(), def);
-        LOGGER.info("[MenuKit] Registered HUD panel '{}'", def.name());
+    /**
+     * Registers a HUD panel into the HUD's host. Called by
+     * {@link com.trevlar.menukit.hud.MKHudPanel.Builder#build()}.
+     *
+     * @param panel   a panel positioned {@code screenAnchor(region)} (or {@code pixel})
+     * @param padding content padding inside the panel's edge
+     * @throws IllegalStateException    after MenuKit's declarations froze
+     * @throws IllegalArgumentException if the HUD cannot place the panel's position
+     */
+    public static void registerHud(Panel panel, int padding) {
+        Declarations.requireOpen("MK.registerHud(" + panel.getId() + ")");
+        for (PanelHost.Entry e : HUD.entries()) {
+            if (e.panel().getId().equals(panel.getId())) {
+                throw new IllegalStateException("MenuKit: a HUD panel '" + panel.getId() + "' is already registered.");
+            }
+        }
+        HUD.add(panel, panel.getPosition(), padding, PanelHost.captureCallerModId(), PanelHost.nextSeq());
+        LOGGER.info("[MenuKit] Registered HUD panel '{}'", panel.getId());
     }
 
-    /** Registers a notification definition. Called by
-     *  {@link MKHudNotification.Builder#build()}. */
+    /**
+     * Registers a notification definition. Called by
+     * {@link MKHudNotification.Builder#build()}.
+     *
+     * @throws IllegalStateException after MenuKit's declarations froze, or for a
+     *         second notification with the same key
+     */
     public static void registerNotification(MKHudNotification def) {
-        notificationDefs.put(def.getKey(), def);
+        Declarations.requireOpen("MK.registerNotification(" + def.getKey() + ")");
+        if (notificationDefs.putIfAbsent(def.getKey(), def) != null) {
+            throw new IllegalStateException("MenuKit: a notification '" + def.getKey() + "' is already registered.");
+        }
         LOGGER.info("[MenuKit] Registered notification '{}'", def.getKey());
     }
 
     /**
-     * Renders all registered HUD panels. Called at RETURN of
-     * {@code Gui.render()} by {@code MKGuiMixin}. Evaluates visibility
-     * conditions, resolves anchor positions, and delegates to each panel's
-     * element tree.
-     *
-     * <p>Uses vanilla's {@link GuiGraphicsExtractor} and coordinate system directly —
-     * working WITH vanilla, not against it.
+     * Renders the HUD panels, then the active notifications. Called at RETURN of the
+     * HUD's render by {@code MKGuiMixin}. The HUD host follows the one
+     * {@link LayerPlan} with no pointer: HUD panels never take input.
      */
     public static void renderHud(GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
         var mc = Minecraft.getInstance();
@@ -122,68 +138,9 @@ public class MK {
 
         int screenW = mc.getWindow().getGuiScaledWidth();
         int screenH = mc.getWindow().getGuiScaledHeight();
-        boolean hasScreen = mc.gui.screen() != null;
 
-        // ── HUD panels ─────────────────────────────────────────────────────
-        for (MKHudPanelDef def : hudPanels.values()) {
-            // Visibility gates
-            if (def.hideInScreen() && hasScreen) continue;
-            if (!def.showWhen().getAsBoolean()) continue;
+        LayerPlan.compose(List.of(HUD), graphics, -1, -1, screenW, screenH, (host, placed) -> false);
 
-            // Compute panel size (auto or explicit)
-            int[] size = def.computeSize();
-
-            // Resolve to absolute screen position — region-based if the
-            // consumer called .region() at build time, otherwise fall back
-            // to anchor + offset. The two are mutually exclusive at build.
-            int[] pos;
-            if (def.region() != null) {
-                int prefix = com.trevlar.menukit.inject.RegionRegistry
-                        .axialPrefix(def, def.region());
-                // Stale reference (unregistered def still in the render map this
-                // frame) — skip rather than throw. See RegionRegistry.NOT_REGISTERED.
-                if (prefix == com.trevlar.menukit.inject.RegionRegistry.NOT_REGISTERED) {
-                    continue;
-                }
-                var origin = com.trevlar.menukit.core.RegionMath
-                        .resolveHud(def.region(), screenW, screenH,
-                                size[0], size[1], prefix);
-                if (origin.isEmpty()) {
-                    // Overflow — skip this frame. Log once per (panel, region)
-                    // pair so consumers see a diagnostic instead of silent
-                    // no-render. Phase 12.5 V4 finding.
-                    com.trevlar.menukit.inject.RegionRegistry
-                            .warnHudOverflowOnce(def, def.region(),
-                                    size[0], size[1], prefix, screenW, screenH);
-                    continue;
-                }
-                pos = new int[]{origin.get().x(), origin.get().y()};
-            } else {
-                pos = def.anchor().resolve(screenW, screenH,
-                        size[0], size[1], def.offsetX(), def.offsetY());
-            }
-
-            // Background
-            if (def.style() != PanelStyle.NONE) {
-                PanelRendering.renderPanel(graphics, pos[0], pos[1],
-                        size[0], size[1], def.style());
-            }
-
-            // Optional onRender callback (consumer-supplied arbitrary draw)
-            if (def.onRender() != null) {
-                def.onRender().render(graphics, pos[0], pos[1],
-                        size[0], size[1], deltaTracker);
-            }
-
-            // Child elements, offset by padding. RenderContext uses -1 for
-            // mouse coordinates because HUDs don't dispatch input.
-            int contentX = pos[0] + def.padding();
-            int contentY = pos[1] + def.padding();
-            RenderContext ctx = new RenderContext(graphics, contentX, contentY, -1, -1);
-            PanelDispatch.renderElements(def.elements(), ctx);
-        }
-
-        // ── Active notifications ──────────────────────────────────────────
         renderActiveNotifications(graphics, deltaTracker, screenW, screenH);
     }
 

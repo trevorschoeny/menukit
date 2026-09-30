@@ -6,7 +6,7 @@ Definitions of the terms MenuKit coins and the rules that bind consumer code. Ev
 
 | Artifact | Environment | Contents |
 |---|---|---|
-| MenuKit (`menukit`) | Client only | Elements, panels, layout helpers, HUD panels, placement on vanilla screens, standalone screens |
+| MenuKit (`menukit`) | Client and server (UI on the client) | Elements, panels, layout helpers, HUD panels, placement on vanilla screens, standalone screens |
 | MenuKit: Containers (`menukit-containers`) | Client and server | Created slots, custom container menus, per-slot state, storage attachments |
 
 Containers depends on MenuKit. MenuKit does not depend on Containers. A client-only mod that depends on MenuKit alone cannot import a Containers type. The build fails.
@@ -86,15 +86,27 @@ Position the row after a section as if the section were closed. When it opens, t
 
 `Row.width(px)` declares the row's overall pixel budget and `.addSpacer()` adds a flexible gap that expands to fill whatever the other children and spacing leave over, so one thing pins to the row's left edge and another to its right (`Back .... Reset`). Several spacers split the leftover evenly, the odd pixel to the last one. `addSpacer()` without `width(px)` throws, since a spacer with nothing to expand into is a mistake in the layout.
 
+## Placement
+
+Where a panel sits is declared once, on the panel: `Panel.builder(id).position(PanelPosition...)`. Every host reads it. An adapter only says which screens the panel appears on.
+
+| Placement | Where |
+|---|---|
+| `PanelPosition.main()` | A standalone screen's frame, centred. One per screen. |
+| `PanelPosition.region(OutsideRegion)` | Outside the host's reference rectangle, along one of its edges. |
+| `PanelPosition.screenAnchor(InsideRegion)` | On one of nine spots of the screen or game window, inset from the edges it touches. |
+| `PanelPosition.center()` | Centred on the screen as an overlay, drawn on top. |
+| `PanelPosition.pixel(Supplier<ScreenOrigin>)` | At an absolute origin re-evaluated each frame. Returning `null` skips the frame. It does not stack and does not wrap. |
+
+Two modifiers ride any placement. `.priority(n)` orders panels that share a region (lower sits nearer the anchor edge) and is the z-order within a host (lower draws underneath). The default is 100; ties go by the registering mod's id, then by registration order, so the order is the same on every launch. `.offset(dx, dy)` nudges one panel after it is placed; its siblings stack as if it had not moved.
+
+A panel with no placement is unplaced. An adapter or the HUD rejects it at registration, naming the panel. `MKScreen` and `MKCScreenHandler` give it a default instead: the first unplaced panel becomes `main()`, and each later one stacks below it.
+
+A panel wraps its width to the space its placement leaves and scrolls its height when taller than its room. `Panel.size(w, h)`, `pinnedWidth(w)`, and `pinnedHeight(h)` override this.
+
 ## Reference
 
-A reference is the rectangle a panel is measured against. It is not the panel and has no relation to the panel's size. Three kinds exist: a container screen's frame, one slot group's bounding box, and the game window. `Reference` is the record that carries all three.
-
-The call site picks the reference. `ScreenPanelAdapter` measures from the menu frame. `SlotGroupPanelAdapter` measures from the slot group it targets. `MKHudPanel.builder(...).region(...)` measures from the window. A region never names its reference.
-
-## Panel on a vanilla screen
-
-`VanillaScreenPanelAdapter` anchors a panel onto any screen that is not a container screen: Options, Controls, KeyBinds, world select, the server list, the title screen, the pause menu, anything whose superclass is `Screen` rather than `AbstractContainerScreen`. `.on(ScreenClass...)` or `.onAny()` declares targeting; `InsideRegion` anchors it, the same enum a HUD panel uses. Render and click both gate on the panel's visibility, so `showWhen(...)` holds here exactly as it does on a container screen: a hidden panel draws nothing and eats no clicks. It places by region only. There is no modal and no dimming behind a panel on these screens yet.
+A reference is the rectangle a `region(...)` placement is measured against. It is not the panel and has no relation to the panel's size. The host decides it: a container screen's frame (extended by its chrome, such as creative's tab rows or an open recipe book), one slot group's bounding box, or a standalone screen's main panel. `Reference` is the record that carries it. A region never names its reference.
 
 ## Region
 
@@ -103,38 +115,48 @@ A region names where a panel sits relative to its reference. Two enums exist, on
 | Type | Placement | Values |
 |---|---|---|
 | `OutsideRegion` | Outside the reference, along one of its edges | `LEFT_ALIGN_TOP`, `LEFT_ALIGN_BOTTOM`, `RIGHT_ALIGN_TOP`, `RIGHT_ALIGN_BOTTOM`, `TOP_ALIGN_LEFT`, `TOP_ALIGN_RIGHT`, `BOTTOM_ALIGN_LEFT`, `BOTTOM_ALIGN_RIGHT`, `TOP_CENTER`, `BOTTOM_CENTER`, `CENTER` |
-| `InsideRegion` | On the reference, at one of nine spots | `TOP_LEFT`, `TOP_CENTER`, `TOP_RIGHT`, `LEFT_CENTER`, `RIGHT_CENTER`, `BOTTOM_LEFT`, `BOTTOM_CENTER`, `BOTTOM_RIGHT`, `CENTER` |
+| `InsideRegion` | On the screen, at one of nine spots | `TOP_LEFT`, `TOP_CENTER`, `TOP_RIGHT`, `LEFT_CENTER`, `RIGHT_CENTER`, `BOTTOM_LEFT`, `BOTTOM_CENTER`, `BOTTOM_RIGHT`, `CENTER` |
 
-Panels in the same region stack in priority order. `region.priority(int)` returns a `RegionAnchor` with an explicit priority. Lower values stack first.
+Panels in the same region stack in priority order. `InsideRegion` spots resolve through one resolver with the context's insets: 4 pixels on the HUD and on vanilla screens, where `CENTER` on the HUD starts just below the crosshair; the safe-area margin for a standalone screen's chrome, which always places even when oversized.
 
-A panel wraps its width to the space its region leaves and scrolls its height when taller than its room. `Panel.size(w, h)`, `pinnedWidth(w)`, and `pinnedHeight(h)` override this.
+## Five contexts, one host each
 
-`PanelPosition.pixel(Supplier<ScreenOrigin>)` places a panel at an absolute origin re-evaluated each frame. A pixel-positioned panel does not stack and does not wrap.
+A context is the answer to one question: what is this panel placed against? Each is one `PanelHost`, which sorts its panels, places them, draws them in layers and routes their input the same way.
 
-## The four contexts
-
-A context is the answer to one question: what is this panel anchored to?
-
-| Context | Anchor | Entry type | Artifact | Input |
+| Context | Placed against | Entry type | Placements | Input |
 |---|---|---|---|---|
-| Menu | A container screen's frame | `ScreenPanelAdapter` | MenuKit | Yes |
-| Slot group | A named slot group's bounds | `SlotGroupPanelAdapter` | MenuKit | Yes |
-| HUD | The game window during play | `MKHudPanel` | MenuKit | No |
-| Standalone | A screen the consumer opens | `MKScreen` (subclass) | MenuKit | Yes |
+| Container screen | The menu frame | `ScreenPanelAdapter` | region, screenAnchor, center, pixel | Yes |
+| Other vanilla screen | The screen | `VanillaScreenPanelAdapter` | screenAnchor, center, pixel | Yes |
+| Slot group | One slot group's box | `SlotGroupPanelAdapter` | region, center, pixel | Yes |
+| HUD | The game window during play | `MKHudPanel` | screenAnchor (`.region(...)`), pixel | No |
+| Standalone | A screen the consumer opens | `MKScreen` (subclass), `MKCHandledScreen` | main, region, screenAnchor, center, pixel | Yes |
 
-HUD panels do not receive input. For a clickable HUD control, open a standalone screen from a key binding.
+A placement a context cannot resolve is rejected at registration. HUD panels do not receive input; for a clickable HUD control, open a standalone screen from a key binding.
 
-An element renders the same in every context. The context owns the machinery around it.
+Every host draws in the same order: FLOW panels, then a dim when any shown panel dims behind it, then OVERLAY panels (those that `center()`, dim behind, or track as modal) on top. An element renders the same in every context.
+
+## Claims
+
+What a panel covers is inert. A point on the screen is claimed by the topmost panel that takes it:
+
+- An opaque panel (the default) takes every point of its rectangle. Nothing inside it lets a point through to what is behind the panel.
+- A see-through panel, `opaque(false)`, takes only its solid elements: shown, opaque and interactive ones, like a button. A label on it takes nothing.
+- An open popover, such as a `Dropdown` list, takes its area whatever its panel's opacity.
+- A shown modal (`tracksAsModal`) takes every point on its screen.
+
+Under a claim, vanilla gets nothing: no slot highlight, click or tooltip, no widget or list hover, no creative tab. The claim routes the point to the claiming panel instead. A panel's own slots stay live under its own claim (a created slot it presents, or a standalone screen's own slot group), and so do a standalone screen's own widgets under its own panels. Every surface asks the same question, so a slot-group panel and a standalone screen's panels block what they cover exactly as an adapter's panel does.
 
 ## Targeting
 
-A `ScreenPanelAdapter` with no target renders on every container screen. `.on(Class...)` limits it to those screen classes and their subclasses. `.onAny()` states the default explicitly. `.onPlayerInventory()` limits it to the player inventory screen.
+A `ScreenPanelAdapter` with no target renders on every container screen. `.on(Class...)` limits it to those screen classes and their subclasses. `.onAny()` states the default explicitly. `.onPlayerInventory()` limits it to the player inventory screen in both game modes.
+
+A `VanillaScreenPanelAdapter` requires `.on(Class...)` or `.onAny()`.
 
 A `SlotGroupPanelAdapter` requires a target. `.on(SlotGroupCategory...)` renders once per category that resolves in the open menu. `.onGroup(SlotGroupId...)` renders once per named created group. `MKCContainerPanel.groupId(panelId, groupId)` and `MKCSlots.groupId(panelId, groupId)` return the id. Categories cover every vanilla menu. A mod with its own menu registers a `SlotGroupResolver` for it.
 
 A panel anchored to a slot group is measured from that one group, not from every slot sharing its category.
 
-Both adapters register in their constructor. `unregister()` removes them.
+Adapters and HUD panels are declarations. Declare them from your initializer: constructing, targeting or unregistering one after the client starts throws, the same as every other MenuKit declaration. A panel that comes and goes at runtime keeps its adapter and gates itself with `showWhen(...)`; a hidden panel is not measured, takes no room in its region and claims nothing.
 
 ## Slot group category
 

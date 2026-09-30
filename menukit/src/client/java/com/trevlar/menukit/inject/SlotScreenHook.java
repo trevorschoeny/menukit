@@ -44,8 +44,8 @@ import net.minecraft.world.inventory.Slot;
  * inventory screen" missed it). Inventory-screen parity reframes that as a broken
  * library promise: a consumer registers a slot once and the library guarantees
  * it manifests + behaves the same on every inventory-bearing screen it could show
- * on. Panels already work this way (their {@code ScreenPanelRegistry} /
- * {@code SlotGroupPanelRegistry} are library-owned, consumers register adapters);
+ * on. Panels already work this way ({@code ScreenPanelRegistry} is library-owned,
+ * consumers register adapters);
  * this gives slots the same.
  */
 public interface SlotScreenHook {

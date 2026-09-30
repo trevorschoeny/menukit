@@ -1,8 +1,11 @@
 package com.trevlar.menukit.hud;
 
 import com.trevlar.menukit.MK;
+import com.trevlar.menukit.core.InsideRegion;
 import com.trevlar.menukit.core.ItemDisplay;
+import com.trevlar.menukit.core.Panel;
 import com.trevlar.menukit.core.PanelElement;
+import com.trevlar.menukit.core.PanelPosition;
 import com.trevlar.menukit.core.PanelStyle;
 import com.trevlar.menukit.core.ProgressBar;
 import com.trevlar.menukit.core.RenderContext;
@@ -24,9 +27,11 @@ import java.util.function.Supplier;
  * Builder entry point for HUD panels — visual elements rendered on the
  * game's heads-up display.
  *
- * <p>HUD panels are render-only (no input dispatch). They anchor to screen
- * edges, update dynamically via {@code Supplier<T>}, and auto-size to fit
- * their content. Build once at mod init — MenuKit handles rendering.
+ * <p>A HUD panel is a {@link Panel} in the HUD's host (§0065): render-only (no
+ * input), placed on an {@link InsideRegion} spot of the game window, stacked with
+ * the other panels on that spot in priority order, sized to its content. Build once
+ * from your client initializer (registration freezes at client start); MenuKit
+ * renders it every frame the HUD draws.
  *
  * <p>Holds {@link PanelElement}s — the same abstraction used in inventory
  * menus and standalone screens. Elements are context-neutral; the HUD panel
@@ -36,8 +41,8 @@ import java.util.function.Supplier;
  * <p>Usage:
  * <pre>{@code
  * MKHudPanel.builder("coords")
- *     .anchor(MKHudAnchor.TOP_LEFT, 4, 4)
- *     .padding(4).autoSize()
+ *     .region(InsideRegion.TOP_LEFT)
+ *     .padding(4)
  *     .style(PanelStyle.RAISED)
  *     .text(0, 0, () -> "X: " + (int) player.getX())
  *     .text(0, 12, () -> "Y: " + (int) player.getY())
@@ -66,83 +71,66 @@ public class MKHudPanel {
 
     public static class Builder {
         private final String name;
-        private MKHudAnchor anchor = MKHudAnchor.TOP_LEFT;  // default retained for backwards-compat
+        private @Nullable InsideRegion region;      // required: where on the window
         private int offsetX = 0, offsetY = 0;
+        private int priority = PanelPosition.DEFAULT_PRIORITY;
         private int padding = 0;
-        private boolean autoSize = false;
-        private int width = 0, height = 0;
+        private int width = -1, height = -1;        // outer size; -1 = size to content
         private PanelStyle style = PanelStyle.NONE;
         private BooleanSupplier showWhen = () -> true;
-        private boolean hideInScreen = false; // default: stay visible like vanilla HUD
-        private MKHudPanelDef.HudRenderCallback onRender; // nullable
         private final List<PanelElement> elements = new ArrayList<>();
-
-        // ── M5 region support (mutually exclusive with anchor) ────────
-        // Track explicit calls separately so we can distinguish
-        // "consumer called .anchor()" from "anchor left at its TOP_LEFT default"
-        // (the field can't tell us which — it's never null).
-        private com.trevlar.menukit.core.InsideRegion region;  // null unless .region() called
-        private int regionPriority = com.trevlar.menukit.core.RegionAnchor.DEFAULT_PRIORITY;
-        private boolean anchorSet = false;
-        private boolean regionSet = false;
 
         Builder(String name) {
             this.name = name;
         }
 
-        // ── Panel configuration ──────────────────────────────────────
+        // ── Placement ────────────────────────────────────────────────
 
         /**
-         * Sets the screen-edge anchor and offset.
-         *
-         * <p>Mutually exclusive with {@link #region(com.trevlar.menukit.core.InsideRegion)} —
-         * calling both throws {@link IllegalStateException}. Migration is a
-         * single commit per consumer (delete {@code .anchor()}, add
-         * {@code .region()}); there is no intentional transitional state.
+         * Where on the game window the panel sits: one of the nine
+         * {@link InsideRegion} spots, 4px in from the edges it touches. Panels on
+         * one spot stack (2px apart) in {@link #priority} order; {@code CENTER}
+         * starts just below the crosshair. Required.
          */
-        public Builder anchor(MKHudAnchor anchor, int offsetX, int offsetY) {
-            if (regionSet) {
-                throw new IllegalStateException(
-                        "Cannot combine .anchor() with .region(). Pick one.");
-            }
-            this.anchor = anchor;
-            this.offsetX = offsetX;
-            this.offsetY = offsetY;
-            this.anchorSet = true;
-            return this;
-        }
-
-        /**
-         * Positions this HUD panel via a named {@link com.trevlar.menukit.core.InsideRegion}.
-         * The dispatch computes per-frame coordinates from the region's anchor
-         * and the panel's stacking position relative to other panels in the
-         * same region. See M5 design doc §3.5 for the region catalog.
-         *
-         * <p>Mutually exclusive with {@link #anchor(MKHudAnchor, int, int)} —
-         * calling both throws {@link IllegalStateException}.
-         */
-        public Builder region(com.trevlar.menukit.core.InsideRegion region) {
-            if (anchorSet) {
-                throw new IllegalStateException(
-                        "Cannot combine .region() with .anchor(). Pick one.");
-            }
+        public Builder region(InsideRegion region) {
             this.region = region;
-            this.regionSet = true;
             return this;
         }
 
         /**
-         * Region overload accepting a {@link com.trevlar.menukit.core.RegionAnchor}
-         * — region paired with an explicit stacking priority. Phase 16i.
-         * Equivalent to {@code .region(anchor.region())} but passes the
-         * priority through to the registry so this panel sorts deterministically
-         * relative to other panels in the same region.
+         * A pixel nudge after placement (positive x right, positive y down). Only this
+         * panel moves; its siblings on the spot stack as if it had not.
+         *
+         * <p>Migrating from {@code .anchor(MKHudAnchor.X, dx, dy)}: the anchor sat on
+         * the window edge, a region sits 4px in. Keep the old pixel position with
+         * {@code .region(InsideRegion.X).offset(dx', dy')} where each axis that
+         * touched an edge gives back the inset: {@code dx' = dx + 4} on a right
+         * spot, {@code dx - 4} on a left one; the same for {@code dy} on bottom and
+         * top spots. A centred axis keeps its offset. The one exception is
+         * {@code CENTER}: the old anchor centred the panel on the window, while
+         * {@code InsideRegion.CENTER} on the HUD starts 16px below the centre (clear
+         * of the crosshair), so the old {@code CENTER, dx, dy} is
+         * {@code offset(dx, dy - 16 - panelHeight / 2)}; for "just below the
+         * crosshair", {@code .region(InsideRegion.CENTER)} alone says it.
          */
-        public Builder region(com.trevlar.menukit.core.RegionAnchor<com.trevlar.menukit.core.InsideRegion> anchor) {
-            region(anchor.region());
-            this.regionPriority = anchor.priority();
+        public Builder offset(int dx, int dy) {
+            this.offsetX = dx;
+            this.offsetY = dy;
             return this;
         }
+
+        /**
+         * Stacking order among panels on the same spot (lower is nearer the spot's
+         * edge), and render order (lower draws first). Default
+         * {@link PanelPosition#DEFAULT_PRIORITY}. Ties break by mod id, then by
+         * registration order.
+         */
+        public Builder priority(int priority) {
+            this.priority = priority;
+            return this;
+        }
+
+        // ── Panel configuration ──────────────────────────────────────
 
         /** Sets inner padding (space between panel edge and content). */
         public Builder padding(int padding) {
@@ -150,53 +138,39 @@ public class MKHudPanel {
             return this;
         }
 
-        /** Enables auto-sizing — panel grows to fit its children. */
+        /**
+         * Sizes the panel to its content. This is the default (a HUD panel is a
+         * {@link Panel}, which measures its elements); kept so existing builders
+         * read the same.
+         */
         public Builder autoSize() {
-            this.autoSize = true;
+            this.width = -1;
+            this.height = -1;
             return this;
         }
 
-        /** Sets explicit panel size (ignored if autoSize is enabled). */
+        /** Sets an explicit outer panel size, padding included. */
         public Builder size(int width, int height) {
             this.width = width;
             this.height = height;
             return this;
         }
 
-        /** Sets the panel background style (RAISED, DARK, INSET, NONE). */
+        /** Sets the panel background style (RAISED, DARK, INSET, NONE). Default NONE. */
         public Builder style(PanelStyle style) {
             this.style = style;
             return this;
         }
 
         /**
-         * Sets a visibility condition — panel only renders when true. Uses
-         * {@link BooleanSupplier} (no boxing), unified with
-         * {@link com.trevlar.menukit.core.Panel#showWhen} and the
-         * element-level {@code showWhen}/{@code disabledWhen}/{@code revealWhen}
-         * predicate type. Method references (e.g. {@code HUD::isOn}) and
-         * {@code () -> ...} lambdas satisfy both, so call sites are unaffected.
+         * The panel shows only while this is true (the panel's own
+         * {@link Panel#showWhen}). A hidden panel is not measured and takes no room
+         * in its spot's stack. To hide while a screen is open (the old
+         * {@code hideInScreen()}), include it:
+         * {@code .showWhen(() -> Minecraft.getInstance().gui.screen() == null && ...)}.
          */
         public Builder showWhen(BooleanSupplier condition) {
             this.showWhen = condition;
-            return this;
-        }
-
-        /** Panel hides when a screen is open (default). */
-        public Builder hideInScreen() {
-            this.hideInScreen = true;
-            return this;
-        }
-
-        /** Panel stays visible even when a screen is open. */
-        public Builder showInScreen() {
-            this.hideInScreen = false;
-            return this;
-        }
-
-        /** Adds a custom render callback that fires each frame. */
-        public Builder onRender(MKHudPanelDef.HudRenderCallback callback) {
-            this.onRender = callback;
             return this;
         }
 
@@ -312,27 +286,33 @@ public class MKHudPanel {
         // ── Build ─────────────────────────────────────────────────────
 
         /**
-         * Builds the HUD panel definition and registers it with MenuKit.
-         * After this call, the panel renders automatically each frame.
+         * Builds the HUD panel and registers it; from then on it renders every frame
+         * the in-game HUD draws (never with input: the HUD routes none). A HUD panel
+         * is an ordinary {@link Panel} positioned
+         * {@code screenAnchor(region).offset(dx, dy).priority(p)} in the HUD's host.
          *
-         * <p>If {@link #region(com.trevlar.menukit.core.InsideRegion)} was
-         * called, the def is also registered with
-         * {@link com.trevlar.menukit.inject.RegionRegistry} so its
-         * stacked position resolves against other panels in the same region.
-         * Registration order is {@code build()} call order.
+         * @return the panel (for its id, or to toggle its visibility)
+         * @throws IllegalStateException if no {@link #region} was set, or after
+         *         MenuKit's declarations froze at client start
          */
-        public void build() {
-            MKHudPanelDef def = new MKHudPanelDef(
-                    name, anchor, offsetX, offsetY,
-                    padding, autoSize, width, height, style,
-                    List.copyOf(elements),
-                    showWhen, hideInScreen, onRender,
-                    region  // null unless .region() was called
-            );
-            MK.registerHud(def);
-            if (regionSet) {
-                com.trevlar.menukit.inject.RegionRegistry.registerHud(def, region, regionPriority);
+        public Panel build() {
+            if (region == null) {
+                throw new IllegalStateException("MenuKit: HUD panel '" + name
+                        + "' has no region. Call .region(InsideRegion.X) (and .offset(dx, dy) to nudge).");
             }
+            Panel panel = Panel.builder(name)
+                    .elements(elements)
+                    .style(style)
+                    .position(PanelPosition.screenAnchor(region)
+                            .offset(offsetX, offsetY)
+                            .priority(priority))
+                    .build();
+            panel.showWhen(showWhen);
+            if (width >= 0 && height >= 0) {
+                panel.size(Math.max(0, width - 2 * padding), Math.max(0, height - 2 * padding));
+            }
+            MK.registerHud(panel, padding);
+            return panel;
         }
     }
 

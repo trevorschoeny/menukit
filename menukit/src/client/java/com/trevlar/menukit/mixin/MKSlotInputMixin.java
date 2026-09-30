@@ -1,5 +1,6 @@
 package com.trevlar.menukit.mixin;
 
+import com.trevlar.menukit.inject.ScreenPanelRegistry;
 import com.trevlar.menukit.inject.SlotHoverResult;
 import com.trevlar.menukit.inject.SlotScreenDispatcher;
 
@@ -22,6 +23,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * {@code AbstractContainerScreen} machinery — see the parity build notes).
  *
  * <h3>Hover ({@code getHoveredSlot})</h3>
+ *
+ * First the claim: when a panel claims the point and the claimant's own slot is
+ * not what is there ({@code ScreenPanelRegistry.slotInertAt}), no slot is hovered.
+ * This replaces the separate modal-hover mixin, so one hook decides slot hover.
  *
  * Registered slots are appended <em>last</em> to {@code menu.slots}, so where a
  * registered slot sits over a vanilla slot, vanilla's first-hit
@@ -48,6 +53,15 @@ public abstract class MKSlotInputMixin {
     @Inject(method = "getHoveredSlot", at = @At("HEAD"), cancellable = true)
     private void mk$slotHover(double mouseX, double mouseY,
                                     CallbackInfoReturnable<Slot> cir) {
+        // A panel claims the point (§0065): a modal anywhere, an opaque panel's whole
+        // rectangle, a transparent panel's solid elements. Unless the claimant's own
+        // slot is what sits there, no slot is hovered, so vanilla draws no highlight,
+        // routes no click and queues no tooltip for whatever the panel covers. Asked
+        // first, in this one hook, so no second getHoveredSlot injector can race it.
+        if (ScreenPanelRegistry.slotInertAt((AbstractContainerScreen<?>) (Object) this, mouseX, mouseY)) {
+            cir.setReturnValue(null);
+            return;
+        }
         SlotHoverResult result = SlotScreenDispatcher.fireResolveHover(
                 (AbstractContainerScreen<?>) (Object) this, mouseX, mouseY);
         if (result.handled()) {

@@ -21,7 +21,9 @@ package com.trevlar.menukit.core;
  * had to be applied four ways.
  *
  * <p>Per §0027: the rendering contract is uniform. R2 makes the
- * iteration uniform as well.
+ * iteration uniform as well. Since 6.0.0 (§0065) the surrounding wrapping is
+ * uniform too: every context renders through {@code PanelHost.render}, this
+ * primitive's one caller.
  */
 public final class PanelDispatch {
 
@@ -53,44 +55,6 @@ public final class PanelDispatch {
         }
         for (PanelElement element : elements) {
             if (!com.trevlar.menukit.window.ClientWindowVisibility.elementShown(panel, element)) continue;
-            element.renderOverlay(ctx);
-        }
-    }
-
-    /**
-     * Iterates {@code elements} in declaration order, skipping any whose
-     * {@link PanelElement#isVisible()} returns {@code false}, and
-     * dispatches each visible element's {@code render(ctx)}. Used by the
-     * HUD render path, which holds elements on {@code MKHudPanelDef}
-     * (a record) rather than {@code Panel}.
-     */
-    public static void renderElements(java.util.List<PanelElement> elements, RenderContext ctx) {
-        // Phase 18s follow-up — two-pass render so elements with
-        // transient overlays (Dropdown popovers, etc.) always draw on
-        // top regardless of declaration order.
-        //
-        // Pass 1: every visible element's base render. Layout-bounds
-        // content paints in declaration order (later elements draw over
-        // earlier ones, as before).
-        //
-        // Pass 2: every visible element's renderOverlay (default no-op).
-        // The element with an active overlay paints its overlay AFTER
-        // every sibling's base render — so an open Dropdown popover
-        // visually obscures any sibling element underneath it, no
-        // matter where in the elements list the Dropdown was declared.
-        //
-        // Sibling to the input-side fix: getActiveOverlayBounds + the
-        // panel-adapter active-overlay dispatch Pass 1 (see
-        // VanillaScreenPanelAdapter.mouseClicked) make clicks under an
-        // overlay route exclusively to the overlay's owner. Together
-        // they make overlays inert-on-top in both render AND input
-        // dimensions.
-        for (PanelElement element : elements) {
-            if (!element.isVisible()) continue;
-            element.render(ctx);
-        }
-        for (PanelElement element : elements) {
-            if (!element.isVisible()) continue;
             element.renderOverlay(ctx);
         }
     }

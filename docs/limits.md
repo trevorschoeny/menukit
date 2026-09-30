@@ -25,6 +25,8 @@ Behavior that is incomplete in the current release.
 | Area | Current behavior |
 |---|---|
 | Shift-click into a created slot | Not routed. Direct click works. The consumer overrides `quickMoveStack` in its own mixin, or accepts the gap. |
+| Unplaced panels on a standalone screen | The default stacks later panels below the main one with a 14 pixel gap, assuming every earlier stacked panel is shown. With one hidden, those after it sit 12 pixels lower than the old column did. Declare `region(BOTTOM_CENTER)` with your own `.offset` for exact spacing. |
+| Offsets and stacking | `.offset(dx, dy)` moves one panel after placement; siblings stack on its un-nudged size. An offset that pushes a panel over its sibling overlaps it. |
 | Created slot in an overlay panel | Not supported. Overlay panels draw after vanilla's slot pass, so a slot they host is placed one frame late and drawn under the panel. Put created slots in flow panels. |
 | Server-fired reactions | Client-observed reactions fire. Server-authoritative firing resolves to a no-op. |
 | Window scope | Every address resolves in the primary scope. Per-tab and per-sub-window scopes are not active. |
@@ -54,7 +56,9 @@ Behavior that is incomplete in the current release.
 ## Runtime constraints
 
 - `build()` freezes a panel's element list. Build a new panel to change it.
-- A `ScreenPanelAdapter` with no target renders on every container screen. A `SlotGroupPanelAdapter` with no `.on(...)` fails at client boot with the panel id in the message.
+- A `ScreenPanelAdapter` with no target renders on every container screen. A `SlotGroupPanelAdapter` or `VanillaScreenPanelAdapter` with no `.on(...)` fails at the first screen open with the panel id in the message.
+- Adapters, HUD panels and notifications are declarations: constructing, targeting or unregistering one after the client starts throws. Gate a panel at runtime with `showWhen`.
+- A panel with no placement is rejected by adapters and the HUD. Only `MKScreen` and `MKCScreenHandler` place an unplaced panel for you.
 - Panel ids are global across mods. Prefix them with the mod id.
 - `MKCMenu` handler factories run on both sides and must produce identical storages.
 - The dev runtime assigns a new offline player UUID per launch. Test player-scoped persistence across quit-to-title and re-enter within one launch.

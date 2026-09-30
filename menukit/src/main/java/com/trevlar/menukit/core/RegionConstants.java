@@ -2,10 +2,10 @@ package com.trevlar.menukit.core;
 
 /**
  * Single source of truth for the region-positioning layout constants —
- * stacking gaps and edge insets — shared across all four region contexts
- * ({@link OutsideRegion}, {@link OutsideRegion}, {@link InsideRegion},
- * {@link InsideRegion}) and both pure math helpers
- * ({@link RegionMath}, {@link SlotGroupRegionMath}).
+ * stacking gaps and edge insets — shared by both region vocabularies
+ * ({@link OutsideRegion}, {@link InsideRegion}) and the one pure resolver,
+ * {@link RegionMath} (whose {@link RegionMath.Insets} name which of these
+ * values each placement context uses).
  *
  * <h2>Why a shared home (Phase 3b — Item 4c centralize)</h2>
  *

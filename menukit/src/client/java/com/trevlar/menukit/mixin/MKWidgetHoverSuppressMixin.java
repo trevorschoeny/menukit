@@ -51,7 +51,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *
  * <h3>Sibling to slot hover suppression</h3>
  *
- * {@code MKModalHoverMixin} suppresses SLOT hover via
+ * {@code MKSlotInputMixin} suppresses SLOT hover via
  * {@code AbstractContainerScreen.getHoveredSlot}. This mixin extends
  * the same conceptual rule (suppress visual feedback when cursor over
  * MK opaque content) to non-slot widgets. The hover-suppression query

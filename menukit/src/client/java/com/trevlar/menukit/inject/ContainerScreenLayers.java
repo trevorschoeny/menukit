@@ -9,7 +9,8 @@ import net.minecraft.world.inventory.Slot;
 import org.jetbrains.annotations.ApiStatus;
 
 /**
- * The one owner of <b>frame composition order</b> on a container screen — what
+ * The container-screen instance of the one {@link LayerPlan} (FLOW, dim, OVERLAY):
+ * the one owner of <b>frame composition order</b> on a container screen — what
  * MenuKit draws, and where in vanilla's frame it lands. Every MenuKit draw on an
  * {@code AbstractContainerScreen} goes through one of the entry points here;
  * nothing else in the library registers a render hook on a container screen.
@@ -20,9 +21,9 @@ import org.jetbrains.annotations.ApiStatus;
  *   <tr><th>#</th><th>Layer</th><th>Drawn by</th></tr>
  *   <tr><td>0</td><td>screen background, container texture</td><td>vanilla ({@code extractBackground}, an earlier stratum)</td></tr>
  *   <tr><td>1</td><td><b>vanilla slots</b>: highlight, item, count, durability</td><td>vanilla ({@code extractSlots}, up to the first created slot)</td></tr>
- *   <tr><td>2</td><td><b>flow panels</b>: chrome + non-slot elements + created-slot frames</td><td>MenuKit — {@link #beforeSlot} / {@link #aboveSlots}</td></tr>
+ *   <tr><td>2</td><td><b>flow panels</b>: chrome + non-slot elements + created-slot frames</td><td>MenuKit — {@link #beforeSlot} / {@link #aboveSlots} (a standalone screen's own panels draw earlier, at its {@code extractContents} head, below every slot)</td></tr>
  *   <tr><td>3</td><td><b>created slots</b>: the same {@code extractSlot} call as layer 1</td><td>vanilla ({@code extractSlots}, the rest of the list)</td></tr>
- *   <tr><td>4</td><td>modal dim, <b>overlay panels</b></td><td>MenuKit — {@link #aboveSlots}</td></tr>
+ *   <tr><td>4</td><td>modal dim, <b>overlay panels</b> of every host on the screen</td><td>MenuKit — {@link #aboveSlots}</td></tr>
  *   <tr><td>5</td><td>carried item, cursor</td><td>vanilla ({@code extractCarriedItem}, next stratum)</td></tr>
  *   <tr><td>6</td><td>tooltips</td><td>vanilla ({@code extractTooltip})</td></tr>
  * </table>
@@ -75,8 +76,8 @@ import org.jetbrains.annotations.ApiStatus;
  * {@code nextStratum()} and before {@code extractTooltip}, so cursor and tooltip
  * layering, and same-frame tooltip flushing, are unchanged.
  *
- * <p>Non-container screens ({@link VanillaScreenPanelRegistry}) have no slot pass
- * and keep their renderable; they are a different surface with no layer question.
+ * <p>Non-container screens have no slot pass: {@link ScreenPanelRegistry} composes
+ * the whole plan in one renderable there.
  *
  * <p>Internal — the mixin calls in; consumers never do.
  */
@@ -128,15 +129,14 @@ public final class ContainerScreenLayers {
     public static void aboveSlots(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
                                   int mouseX, int mouseY) {
         if (!flowDrawn) renderFlow(screen, graphics, mouseX, mouseY);
-        ScreenPanelRegistry.renderOverlayPanels(screen, graphics, mouseX, mouseY);
+        ScreenPanelRegistry.renderOverlay(screen, graphics, mouseX, mouseY);
         SlotScreenDispatcher.fireEndFrame(screen);
     }
 
-    /** Layer 2: menu-context flow panels, then slot-group panels on top of them. */
+    /** Layer 2: the FLOW layer of the screen's registry hosts (container adapters, then slot groups). */
     private static void renderFlow(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
                                    int mouseX, int mouseY) {
         flowDrawn = true;
-        ScreenPanelRegistry.renderFlowPanels(screen, graphics, mouseX, mouseY);
-        SlotGroupPanelRegistry.renderMatchingPanels(screen, graphics, mouseX, mouseY);
+        ScreenPanelRegistry.renderFlow(screen, graphics, mouseX, mouseY);
     }
 }

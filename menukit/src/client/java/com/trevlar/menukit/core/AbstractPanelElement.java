@@ -345,28 +345,24 @@ public abstract class AbstractPanelElement<SELF extends AbstractPanelElement<SEL
         return tooltipSupplier;
     }
 
-    // ── Per-element opacity (M9 completion — input click-through hole) ──
+    // ── Per-element opacity (M9; the claim rule of §0065) ──
     //
-    // M9 panel opacity is an INPUT-layer property: an opaque panel eats clicks
-    // over its bounds so they don't fall through to the slots/screen behind it
-    // (bounding-box opacity, not visual alpha — M9 §4.1). Per-element opacity
-    // completes that capability at element granularity: an element marked
-    // non-opaque punches a click-through "hole" in an otherwise-opaque panel,
-    // so clicks (and hover/tooltip) over that element reach whatever is behind
-    // the panel. Default true — every element inherits the panel's opaque
-    // behavior unless it opts out.
+    // M9 panel opacity is an INPUT-layer property. Since 6.0.0 the claim rule is
+    // simple: an opaque panel claims its whole rectangle, with no holes; a
+    // transparent panel claims only its solid elements (shown, opaque,
+    // interactive). This flag is what "opaque" means for an element on a
+    // transparent panel. Default true.
 
     private boolean elementOpaque = true;
 
     /**
-     * Sets whether this element is interaction-opaque (M9). When {@code false},
-     * clicks/hover/tooltip over this element's bounds are NOT eaten by an
-     * opaque panel — they pass through to the slots or screen behind it (a
-     * "hole"). Default {@code true} (inherit the panel's opaque behavior).
+     * Sets whether this element is solid (M9). On a transparent panel
+     * ({@code Panel.opaque(false)}) only solid, interactive elements claim input,
+     * so a non-opaque element there lets clicks, hover and tooltips reach what is
+     * behind it. On an opaque panel it makes no difference: the panel claims its
+     * whole rectangle (§0065, no holes). Default {@code true}.
      *
-     * <p>Input-layer only, matching M9's panel opacity (bounding-box, not
-     * visual alpha). Rendering is unaffected — a transparent hole that should
-     * also look empty simply has no element drawn over it.
+     * <p>Input-layer only; rendering is unaffected.
      *
      * @return this element, for chaining
      */
