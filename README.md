@@ -7,9 +7,9 @@ It ships as two artifacts from this repository:
 | Artifact | Runs on | Adds |
 |---|---|---|
 | `menukit` | Client only | Panels, elements, HUD panels, placement on vanilla screens, standalone screens |
-| `menukit-containers` | Client and server | Created slots, custom container menus, per-slot state, storage attachments |
+| `menukit-containers` | Client and server, required on both | Created slots, custom container menus, per-slot state, storage attachments |
 
-`menukit-containers` depends on `menukit`. A mod that needs no slots depends on `menukit` alone and stays client-only.
+`menukit-containers` depends on `menukit`. A mod that needs no slots depends on `menukit` alone and stays client-only. A server running Containers requires it on every player's game, checks before the world loads, and tells a player without it which two mods to install.
 
 Components: buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, tooltips, icons, item displays (with a coloured outline), progress bars, dividers, scroll containers, runtime rows (`Flow`), collapsible sections and tabs. Containers adds slots. Every component is built by a builder with the same vocabulary (`at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state`, `onClick`, `style`), and every control that shows a value is a lens onto your own field.
 
@@ -21,7 +21,7 @@ What it does:
 - Creates real, server-synced slots as UI components and shows them on every container screen without per-screen setup.
 - Publishes every slot group, vanilla or created, under a category any mod can read, with or without a menu open.
 - Names each thing that can be done to a slot as an operation. Vanilla's actions become eleven, one per gesture, plain clicks included, and a mod can add its own. Each has a display name and a description. A slot answers for itself first, then its group, then its category, and a locking mod can veto any of them. Every operation checks `SlotOperations.allows` before it acts, and a click a mod sends counts as the operation it was sent for.
-- Attaches per-slot state to any slot, private per player or shared across viewers, stored on the slot's owner and readable with `/data get`.
+- Attaches per-slot state to any slot, private per player or shared across viewers, stored on the slot's owner and readable with `/data get`. The server judges every write a client sends (the channel, the value, the menu, who may write, how often), so a server operator can run it without trusting players.
 - Gives its controls vanilla's click sound, narration and keyboard focus, and greys a whole panel or group at once with one `disabledWhen`.
 - Handles modal overlays, recipe-book awareness, and cursor stability across screen changes. What a panel covers is inert: an opaque panel takes every point of its rectangle, a see-through one only its buttons and controls, so a slot or widget under a panel neither highlights, clicks nor shows a tooltip.
 

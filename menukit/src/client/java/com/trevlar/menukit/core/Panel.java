@@ -27,18 +27,17 @@ import java.util.function.Supplier;
  * slot groups, HUD anchoring, standalone-screen lifecycle — lives on the
  * context-specific container holding the panel, not on the panel itself.
  *
- * <p>For inventory menus specifically, slot groups are associated with a
- * panel by id through the owning {@code MKCScreenHandler}'s group map.
- * The panel itself does not hold them.
+ * <p>A Panel is client-only: how a panel looks. On a Containers custom menu the
+ * server's half of a panel (its id, its slot groups, whether it is shown) is the
+ * menu's own; the screen builds a Panel for each and shows it while the server
+ * says so (§0067).
  *
  * <h3>Visibility: imperative or supplier-driven</h3>
  *
  * Panel visibility can be controlled two ways:
  * <ul>
  *   <li><b>Imperative</b> via {@link #setVisible(boolean)}. The Panel holds
- *       the boolean; the owner (if any) is notified on changes to trigger a
- *       sync pass over affected slots. Canonical for MenuKit-native inventory
- *       menus where visibility must propagate server→client.</li>
+ *       the boolean.</li>
  *   <li><b>Supplier-driven</b> via {@link #showWhen(java.util.function.BooleanSupplier)}. Consumer holds
  *       the state; Panel reads via the supplier on each {@code isVisible()}
  *       call. Canonical for Phase 10 injected panels, HUDs, and standalone
@@ -227,10 +226,6 @@ public class Panel {
     // fires on Escape. Null = no escape action declared (the host still EATS
     // Escape while a modal is up so it can't close the host screen).
     private @Nullable Runnable escapeAction;
-
-    // Set during handler construction — typed via PanelOwner interface
-    // so Panel doesn't depend on the screen package.
-    private @Nullable PanelOwner owner;
 
     /**
      * Full constructor with all metadata.
@@ -1048,13 +1043,7 @@ public class Panel {
     }
 
     /**
-     * Sets this panel's visibility and notifies the owner to trigger
-     * a sync pass over the affected slots.
-     *
-     * <p>When hidden, all slots become inert (getItem returns EMPTY,
-     * canInsert returns false, quick-move skips them). When visible
-     * again, slots resume normal behavior and the sync pass pushes
-     * real stacks to the client.
+     * Sets this panel's visibility.
      *
      * <p><b>No-op when a visibility supplier is active.</b> If
      * {@link #showWhen(java.util.function.BooleanSupplier)} has been called with a non-null supplier,
@@ -1067,9 +1056,6 @@ public class Panel {
         if (visibilitySupplier != null) return; // silent no-op when supplier is active
         if (this.visible == visible) return;    // no-op if unchanged
         this.visible = visible;
-        if (owner != null) {
-            owner.onPanelVisibilityChanged(this);
-        }
     }
 
     /**
@@ -1095,12 +1081,9 @@ public class Panel {
      *
      * <h4>Sync-safety caveat</h4>
      *
-     * Intended for panels whose visibility is a client-side rendering decision —
-     * Phase 10 injected panels, HUD panels, standalone-screen panels. For
-     * MenuKit-native inventory-menu panels with slot groups (where visibility
-     * must drive slot-inertness and server→client sync), continue to use
-     * {@link #setVisible(boolean)} — it notifies the owner to trigger the sync
-     * pass. {@code showWhen} does not.
+     * A panel's visibility is a client-side rendering decision. Where it must
+     * drive slot inertness and sync (a Containers custom menu), the menu holds
+     * it on the server and the screen reads it through this supplier.
      *
      * @param supplier the visibility predicate, or {@code null} to revert to
      *                 imperative control.
@@ -1393,12 +1376,4 @@ public class Panel {
         if (text == null) return;
         MKTooltip.queue(graphics, text, mouseX, mouseY);
     }
-
-    // ── Owner Reference ─────────────────────────────────────────────────
-
-    /** Sets the owning handler. Called during handler construction. */
-    public void setOwner(PanelOwner owner) { this.owner = owner; }
-
-    /** Returns the owning handler, or null if not yet attached. */
-    public @Nullable PanelOwner getOwner() { return owner; }
 }

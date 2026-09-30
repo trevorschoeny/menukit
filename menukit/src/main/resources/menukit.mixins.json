@@ -7,6 +7,7 @@
     "CompoundContainerAccessor",
     "MKClickContextMixin",
     "MKDispenserGateMixin",
+    "MKEnderChestOwnerMixin",
     "MKHopperGateMixin",
     "MKInventoryInsertMixin",
     "MKOperationsMixin",

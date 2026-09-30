@@ -264,6 +264,10 @@ A created slot is a real `Slot` that a mod adds to a menu through Containers. It
 
 `MKCContainerPanel` creates slots on the player's inventory menu and projects them onto every container screen. `MKCScreenHandler` creates slots on a custom menu.
 
+Containers has the same two halves as MenuKit, and the compiler holds the line between them. What builds slots, stores state and judges writes is common: it runs on the server and the client alike. What draws is client-only: `SlotElement`, `MKCHandledScreen`, and the client halves `ClientMenu`, `ClientContainerPanel` and `ClientSlots`. A custom menu's handler knows each panel's id, its slot groups and whether it is shown; how a panel looks is a MenuKit `Panel`, built by the client screen from `ClientMenu.of(menu).panel(id, ...)`. Whether it is shown is the server's, synced to the client. A player may toggle only a panel declared `toggleable()`, and a client may open a menu only when its `validWhen` holds, which is also how long it stays open.
+
+A server with Containers requires it on every client. Before the world loads, it checks that a joining client has Containers and disconnects one that does not, with a message naming MenuKit and MenuKit: Containers and linking their pages. A client with Containers on a server without it builds no created slots and sends nothing Containers-only, instead of desyncing.
+
 ## Slot rendering
 
 Vanilla draws every slot. MenuKit runs no slot pass of its own on container screens. A created slot's panel writes the position into vanilla's `Slot.x` and `Slot.y` before vanilla's slot pass. Vanilla then draws the item, count, hover highlight, and ghost icon for created and vanilla slots alike.
@@ -276,11 +280,13 @@ A panel hides exactly what it covers. Flow panels composite between the vanilla 
 
 ## Address
 
-An `Address` names one slot without holding a reference to it. The same address resolves after a menu reopens and on both client and server. `CreatedSlotAdapter.addressOf(panelId, groupId, index)`, `MKCContainerPanel.address(...)`, and `MKCScreenHandler.address(...)` produce addresses for created slots. `Window.slot(address).set(key, value)` attaches behavior by address.
+An `Address` names one slot without holding a reference to it. The same address resolves after a menu reopens and on both client and server. `Address.createdSlot(group, index)` names a created slot, with the group from `MKCSlots.groupId(panelId, groupId)` or `MKCContainerPanel.groupId(...)`. `Window.slot(address).set(key, value)` attaches behavior by address.
 
 ## Slot state channel
 
-A `SlotStateChannel<T>` stores one typed value per slot, separate from the slot's item. `MKSlotState.register(id, codec, streamCodec, defaultValue, visibility)` creates one at common init. `PRIVATE` stores one value per viewer. `SHARED` stores one value per slot for all viewers. Values persist as NBT on the slot's owner and are readable with `/data get`.
+A `SlotStateChannel<T>` stores one typed value per slot, separate from the slot's item. `MKSlotState.register(id, codec, streamCodec, defaultValue, visibility, canWrite)` creates one at common init. `PRIVATE` stores one value per viewer. `SHARED` stores one value per slot for all viewers. Values persist as NBT on the slot's owner and are readable with `/data get`. A value equal to the default is no entry at all, and reading never creates one.
+
+The server trusts nothing a client sends about slot state. It judges every write, in order: the channel exists; the value parses with the channel's `StreamCodec`, and what is stored is the channel's own re-encoding of it; the write names the player's open menu and an active slot on it; the channel's `canWrite(player, slot)` allows it; the player is within a write rate. A `SHARED` channel's rule defaults to refusing every client, so a shared channel names who may write it. A refused write changes nothing, and the writer's client gets the server's value back. Values travel as the channel's `StreamCodec` bytes, and a client that cannot decode one skips it.
 
 ## Storage
 

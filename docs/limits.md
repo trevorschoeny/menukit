@@ -65,4 +65,10 @@ Behavior that is incomplete in the current release.
 - A panel with no placement is rejected by adapters and the HUD. Only `MKScreen` and `MKCScreenHandler` place an unplaced panel for you.
 - Panel ids are global across mods. Prefix them with the mod id.
 - `MKCMenu` handler factories run on both sides and must produce identical storages.
+- A server running Containers cannot be joined by a client without it; the client is told what to install before the world loads. A Containers client on a server without it has no created slots there.
+- A `SHARED` slot-state channel with no `canWrite` rule cannot be written from a client, only by server code.
+- Slot-state writes from one player are limited to a burst of 64, then 32 a second. Past that the server refuses them until the allowance refills.
+- A custom menu with no `validWhen` cannot be opened by a client's request, only by the server.
+- The slot state a shulker box carries as an item is not sent to clients. A creative player who moves such an item sends the game's copy back without it, so its slot state is lost; survival is unaffected.
+- Hoppers and dispensers ask a slot's gate, not the vetoes. A lock that should stop automation needs its own seam until MenuKit names an automation operation.
 - The dev runtime assigns a new offline player UUID per launch. Test player-scoped persistence across quit-to-title and re-enter within one launch.

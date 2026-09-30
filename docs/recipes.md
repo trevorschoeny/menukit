@@ -223,14 +223,17 @@ public static final PlayerStorageAttachment<NonNullList<ItemStack>> POCKETS =
 MKCContainerPanel.define("mymod:pockets")
         .at(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP).priority(20), 7)
         .style(PanelStyle.RAISED)
-        .parity(ScreenMatcher.all())
-        .chrome(() -> List.of(Button.builder().label(Component.literal("Sort")).size(60, 14).build()))
         .addSlot(SlotSpec.at("pockets", SlotGroupCategory.PLAYER_INVENTORY).count(9)
                 .storage(player -> POCKETS.bind(player)))
         .register();
+
+// Client initializer, only for chrome or a narrower set of screens:
+ClientContainerPanel.of("mymod:pockets")
+        .chrome(() -> List.of(Button.builder().label(Component.literal("Sort")).size(60, 14).build()))
+        .parity(ScreenMatcher.all());
 ```
 
-Result: nine real slots render in the top left gutter of the survival inventory, the creative inventory, and every container screen. Their contents persist on the player and sync through vanilla's slot protocol. `ScreenMatcher.allExcept(Class...)` removes the panel from named screens. The slots still exist on those menus; they are not drawn there.
+Result: nine real slots render in the top left gutter of the survival inventory, the creative inventory, and every container screen. Their contents persist on the player and sync through vanilla's slot protocol. The chrome and the screen scope name client types, so they are declared from the client initializer; the rest is one common registration. `ScreenMatcher.allExcept(Class...)` removes the panel from named screens. The slots still exist on those menus; they are not drawn there.
 
 The category is required. It says what the group is to other mods: `SlotGroupCategories.of(menu)` lists the group under it next to the vanilla categories, on every menu it sits on, so a search that walks the player's inventory menu can treat pockets as inventory and leave an elytra slot alone. Use a vanilla category when the group is one of those things; declare your own (`new SlotGroupCategory("mymod", "equipment")`) when it is not. The name is a contract once another mod depends on it.
 
@@ -256,11 +259,14 @@ public static void register() {
                     (buf, v) -> buf.writeBoolean(v),
                     buf -> buf.readBoolean()),
             false,
-            SlotStateChannel.Visibility.SHARED);
+            SlotStateChannel.Visibility.SHARED,
+            (player, slot) -> ContainerLocks.handles(slot.container()));   // who may write it
 }
 ```
 
-Result: every slot in every menu has a boolean that defaults to false. `CHANNEL.get(slot)` and `CHANNEL.set(slot, true)` read and write it for the viewer's open menu. `SHARED` stores one value per slot for all viewers. Omit the last argument for `PRIVATE`, one value per viewer. The value persists as NBT on the slot's owner.
+Result: every slot in every menu has a boolean that defaults to false. `CHANNEL.get(address)` and `CHANNEL.set(address, true)` read and write it for the viewer's open menu. `SHARED` stores one value per slot for all viewers. Omit the visibility for `PRIVATE`, one value per viewer. The value persists as NBT on the slot's owner; writing the default removes it.
+
+The last argument is the channel's writer rule. The server judges every write a client sends: the channel exists, the value parses with the channel's `StreamCodec`, the write names the player's open menu and a live slot on it, the rule allows this player at this slot, and the player is within a write rate. A refused write changes nothing, and the server sends the writer its own value back. A `SHARED` channel with no rule refuses every client write, since one player's write is another player's state. A `PRIVATE` one lets a player write their own value. Server code writing a channel is not judged.
 
 With no open menu, use `CHANNEL.get(player, key, index)` with a `PersistentContainerKey`, or `CHANNEL.get(container, index)` for a shared value at a placed container.
 
@@ -273,26 +279,36 @@ Needs: MenuKit: Containers. Define at common init.
 public static final MKCMenu CUSTOM = MKCMenu
         .define(Identifier.fromNamespaceAndPath(MOD_ID, "custom_menu"), MyMenu::buildHandler)
         .title(Component.literal("My Custom Menu"))
+        .validWhen(player -> player.isAlive())   // who may open it, and for how long
         .register();
 
 public static MKCScreenHandler buildHandler(
         MenuType<MKCScreenHandler> type, int syncId, Inventory inv) {
     return MKCScreenHandler.builder(type)
-            .panel("mymod:menu:main", p -> p
-                    .main()
-                    .group("items", EphemeralStorage.of(9)))
+            .panel("mymod:menu:main", p -> p.group("items", MY_CATEGORY, EphemeralStorage.of(9)))
+            .panel("mymod:menu:extra", p -> p.group("extra", MY_CATEGORY, EphemeralStorage.of(3))
+                    .hidden().toggleable())
             .build(syncId);
 }
 
+// Client initializer: how each panel looks, on MenuKit's Panel.Builder.
+ClientMenu.of(CUSTOM)
+        .panel("mymod:menu:main", p -> p.position(PanelPosition.main())
+                .add(TextLabel.builder().text(Component.literal("Items")).at(0, -12).build()))
+        .panel("mymod:menu:extra", p -> p.position(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP))
+                .toggleKey(GLFW.GLFW_KEY_E));
+
 // Client:
-CUSTOM.requestOpen();
+ClientMenu.of(CUSTOM).requestOpen();
 // Server:
 CUSTOM.open(serverPlayer);
 ```
 
-Result: `requestOpen()` sends one payload; the server opens the menu; the client shows a screen with one nine-slot group. The handler factory runs on both sides and must build the same storages in the same order. Pass the `type` argument straight to `MKCScreenHandler.builder(type)`.
+Result: `requestOpen()` sends one payload; the server opens the menu because `validWhen` holds for the player; the client shows a screen with a nine-slot panel, and E shows and hides the extra panel. The handler factory runs on both sides and must build the same storages in the same order. Pass the `type` argument straight to `MKCScreenHandler.builder(type)`.
 
-`p.group(id, storage, priority, columns)` sets shift-click priority and column count. `p.button(...)`, `p.text(...)`, and `p.element(...)` add elements to the panel. `p.region(OutsideRegion)` anchors a second panel to the main one, and `p.position(...)` takes any placement. A panel that declares none takes the standalone default: the first is the main panel, and later ones stack below it.
+The handler is structure only: panels, their groups, `hidden()`, `toggleable()`, `pairsWith`, `rightClick`. `p.group(id, category, storage, priority, columns)` sets shift-click priority and column count. How a panel looks is the client's: `ClientMenu.of(menu).panel(id, p -> ...)` takes MenuKit's `Panel.Builder` (elements, style, placement, toggle key), and `.screen(MyScreen::new)` sets a screen subclass. A panel with no look is a raised panel of its slots. One that declares no placement takes the standalone default: the first is the main panel, and later ones stack below it.
+
+Whether a panel is shown is the server's: `setPanelVisible(id, visible)` on the server, synced to the client. A player's toggle key asks the server, which honours it only for a panel declared `toggleable()`. Without `validWhen` a client cannot open the menu at all; the server can, and the menu stays open while the player is alive.
 
 ## Attach behavior to a slot by address
 

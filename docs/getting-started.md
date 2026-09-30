@@ -1,6 +1,6 @@
 # Getting started
 
-This page takes a Fabric mod from no UI to two visible panels: one on the HUD and one on the inventory screen. It uses MenuKit alone. Slots and custom menus need MenuKit: Containers, covered in [recipes.md](recipes.md).
+This page takes a Fabric mod from no UI to two visible panels: one on the HUD and one on the inventory screen. It uses MenuKit alone. Slots and custom menus need MenuKit: Containers, covered in [recipes.md](recipes.md). Containers runs on both sides and is required on both: its common code builds slots and state, and what draws them is declared from the client initializer.
 
 Prerequisites: a Fabric mod project on Minecraft 26.2 with a client entry point.
 

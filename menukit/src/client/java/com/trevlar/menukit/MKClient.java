@@ -54,9 +54,14 @@ public class MKClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        // Declarations freeze once every client entrypoint has run (§0063).
-        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED.register(
-                client -> com.trevlar.menukit.window.Declarations.freeze("client started"));
+        // Declarations freeze once every client entrypoint has run (§0063), in a phase
+        // after the default one, so anything a library wires at client start (Containers'
+        // container panels) declares before the freeze, whichever mod's entrypoint ran first.
+        net.minecraft.resources.Identifier freeze =
+                net.minecraft.resources.Identifier.fromNamespaceAndPath("menukit", "freeze");
+        var started = net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED;
+        started.addPhaseOrdering(net.fabricmc.fabric.api.event.Event.DEFAULT_PHASE, freeze);
+        started.register(freeze, client -> com.trevlar.menukit.window.Declarations.freeze("client started"));
 
         MK.initClient();
 
