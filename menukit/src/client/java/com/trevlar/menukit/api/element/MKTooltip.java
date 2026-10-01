@@ -5,7 +5,10 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTextTooltip;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.gui.screens.inventory.tooltip.TooltipRenderUtil;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
+import net.minecraft.network.chat.Style;
 import net.minecraft.util.FormattedCharSequence;
 
 import com.trevlar.menukit.api.window.Declarations;
@@ -82,10 +85,152 @@ public final class MKTooltip {
     /** True when any registered {@link #hideWhen} predicate holds this frame. */
     @org.jetbrains.annotations.ApiStatus.Internal
     public static boolean hidden() {
-        for (BooleanSupplier c : HIDE_WHEN) {
+        return anyHolds(HIDE_WHEN);
+    }
+
+    /** Any one registered predicate holding switches the behaviour on (hide, wrap, clamp). */
+    private static boolean anyHolds(Set<BooleanSupplier> conditions) {
+        for (BooleanSupplier c : conditions) {
             if (c.getAsBoolean()) return true;
         }
         return false;
+    }
+
+    // ── Keeping a tooltip on screen ──────────────────────────────────────
+    // Vanilla 26.2's positioner only moves a tooltip's corner: a line wider than the
+    // screen runs off the right, a tooltip taller than the screen runs off the top.
+    // Two switches, same split as hideWhen (MenuKit places, the mod decides when;
+    // Inventory Plus: "keep tooltips on screen"), both off unless a mod registers.
+
+    /** Registered "wrap while" and "clamp while" predicates. Written only during init, read every frame. */
+    private static final Set<BooleanSupplier> WRAP_WHEN = new LinkedHashSet<>();
+    private static final Set<BooleanSupplier> CLAMP_WHEN = new LinkedHashSet<>();
+
+    /**
+     * Wraps every tooltip to the screen's width on every frame {@code condition} is
+     * true: a text line wider than {@link #wrapWidth} breaks onto more lines (vanilla's
+     * splitter, breaking at spaces) and the tooltip is kept inside the screen's sides.
+     * Images (a bundle's grid, a map) are left as they are. A wrapped first line stays
+     * one title: the gap under it and the scroll pin take all of its lines. Several mods
+     * may register; any one returning true wraps. Call from client init.
+     *
+     * @throws IllegalStateException after MenuKit's declarations froze
+     */
+    public static void wrapWhen(BooleanSupplier condition) {
+        Declarations.requireOpen("MKTooltip.wrapWhen");
+        WRAP_WHEN.add(condition);
+    }
+
+    /**
+     * Keeps every tooltip's top at least {@link #EDGE} below the top of the screen on
+     * every frame {@code condition} is true. A tooltip taller than the screen then
+     * starts at the top, title first, and runs off the bottom; {@link #scrollBy} with a
+     * negative y brings up the rest, as far as its last line. Several mods may register;
+     * any one returning true clamps. Call from client init.
+     *
+     * @throws IllegalStateException after MenuKit's declarations froze
+     */
+    public static void clampWhen(BooleanSupplier condition) {
+        Declarations.requireOpen("MKTooltip.clampWhen");
+        CLAMP_WHEN.add(condition);
+    }
+
+    /** True when any registered {@link #wrapWhen} predicate holds this frame. */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static boolean wraps() {
+        return anyHolds(WRAP_WHEN);
+    }
+
+    /**
+     * The widest a tooltip's text may be on a screen {@code screenWidth} wide: the screen
+     * less {@link #EDGE} on each side and the background's padding around the text.
+     */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static int wrapWidth(int screenWidth) {
+        return screenWidth - 2 * EDGE - TooltipRenderUtil.PADDING_LEFT - TooltipRenderUtil.PADDING_RIGHT;
+    }
+
+    /**
+     * Where a tooltip's text starts so its background stays {@link #EDGE} inside both
+     * sides of the screen. Vanilla flips a wide tooltip to the cursor's left but lets one
+     * just under the screen's width hang off the right; this pulls it in. One wider than
+     * {@link #wrapWidth} (an image) goes to the left edge, as vanilla puts it.
+     */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static int fitX(int x, int width, int screenWidth) {
+        int left = EDGE + TooltipRenderUtil.PADDING_LEFT;
+        return Math.max(left, Math.min(x, screenWidth - EDGE - TooltipRenderUtil.PADDING_RIGHT - width));
+    }
+
+    /**
+     * {@code lines} with every text line wider than {@link #wrapWidth} split by vanilla's
+     * {@code Font.split}. A split line stays one component holding vanilla's text line per
+     * piece, so a wrapped title is still the first line. Returns {@code lines} itself when
+     * nothing is too wide.
+     */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static List<ClientTooltipComponent> wrapped(Font font, List<ClientTooltipComponent> lines, int screenWidth) {
+        int max = wrapWidth(screenWidth);
+        List<ClientTooltipComponent> out = null;  // made on the first line that needs it
+        for (int i = 0; i < lines.size(); i++) {
+            ClientTooltipComponent line = lines.get(i);
+            ClientTooltipComponent kept = line;
+            if (line instanceof ClientTextTooltip text && line.getWidth(font) > max) {
+                List<ClientTooltipComponent> pieces = new ArrayList<>();
+                for (FormattedCharSequence piece : font.split(asText(((ClientTextTooltipAccessor) text).mk$text()), max)) {
+                    pieces.add(ClientTooltipComponent.create(piece));
+                }
+                kept = new WrappedLine(List.copyOf(pieces));
+            }
+            if (kept != line && out == null) out = new ArrayList<>(lines.subList(0, i));
+            if (out != null) out.add(kept);
+        }
+        return out == null ? lines : out;
+    }
+
+    /**
+     * A tooltip line back as splittable text: each run of one style becomes a styled
+     * piece. ponytail: Font.split reorders right-to-left text for display, and the line
+     * already was, so an Arabic or Hebrew line wider than the screen may wrap reversed.
+     * Keep the source Component per line if that ever shows.
+     */
+    private static FormattedText asText(FormattedCharSequence line) {
+        List<FormattedText> runs = new ArrayList<>();
+        StringBuilder run = new StringBuilder();
+        Style[] style = {Style.EMPTY};
+        line.accept((index, s, codePoint) -> {
+            if (!s.equals(style[0]) && !run.isEmpty()) {
+                runs.add(FormattedText.of(run.toString(), style[0]));
+                run.setLength(0);
+            }
+            style[0] = s;
+            run.appendCodePoint(codePoint);
+            return true;
+        });
+        if (!run.isEmpty()) runs.add(FormattedText.of(run.toString(), style[0]));
+        return FormattedText.composite(runs);
+    }
+
+    /** One line wrapped onto several, drawn as vanilla's text lines stacked: vanilla sees one line. */
+    private record WrappedLine(List<ClientTooltipComponent> pieces) implements ClientTooltipComponent {
+        @Override public int getHeight(Font font) {
+            int h = 0;
+            for (ClientTooltipComponent p : pieces) h += p.getHeight(font);
+            return h;
+        }
+
+        @Override public int getWidth(Font font) {
+            int w = 0;
+            for (ClientTooltipComponent p : pieces) w = Math.max(w, p.getWidth(font));
+            return w;
+        }
+
+        @Override public void extractText(GuiGraphicsExtractor graphics, Font font, int x, int y) {
+            for (ClientTooltipComponent p : pieces) {
+                p.extractText(graphics, font, x, y);
+                y += p.getHeight(font);
+            }
+        }
     }
 
     // ── Scrolling a tooltip ──────────────────────────────────────────────
@@ -174,12 +319,18 @@ public final class MKTooltip {
         shown = true;
     }
 
-    /** Where the tooltip draws: vanilla's placement plus the offset, clamped (and stored clamped) by {@link #clampScroll}. */
+    /**
+     * Where the tooltip draws: vanilla's placement, pulled inside the sides while
+     * {@link #wrapWhen} holds and below the top edge while {@link #clampWhen} holds, plus
+     * the offset, clamped (and stored clamped) by {@link #clampScroll} around that spot.
+     */
     @org.jetbrains.annotations.ApiStatus.Internal
     public static Vector2ic scrolled(Vector2ic vanilla, int width, int height, int screenWidth, int screenHeight) {
-        scrollX = clampScroll(vanilla.x(), width, screenWidth, scrollX);
-        scrollY = clampScroll(vanilla.y(), height, screenHeight, scrollY);
-        return new Vector2i(vanilla.x() + scrollX, vanilla.y() + scrollY);
+        int x = wraps() ? fitX(vanilla.x(), width, screenWidth) : vanilla.x();
+        int y = anyHolds(CLAMP_WHEN) ? Math.max(vanilla.y(), EDGE) : vanilla.y();
+        scrollX = clampScroll(x, width, screenWidth, scrollX);
+        scrollY = clampScroll(y, height, screenHeight, scrollY);
+        return new Vector2i(x + scrollX, y + scrollY);
     }
 
     /** The title draws pinned at the top edge: scrolled vertically, and the tooltip's top is above the screen. */

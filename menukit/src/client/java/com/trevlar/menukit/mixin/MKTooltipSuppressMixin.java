@@ -55,7 +55,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *
  * This class is MenuKit's one mixin on vanilla's tooltip pipeline (§0064), so the
  * scroll seam lives here too: {@code tooltip} (the method that places and draws every
- * queued tooltip) is wrapped to add {@link MKTooltip#scrollBy}'s offset and pin the
+ * queued tooltip) is wrapped to keep it on screen ({@link MKTooltip#wrapWhen},
+ * {@link MKTooltip#clampWhen}), add {@link MKTooltip#scrollBy}'s offset and pin the
  * title, and {@code extractDeferredElements} (where a screen frame draws its
  * tooltip) marks the frame boundary MKTooltip uses to tell a new hover from the same one.
  *
@@ -149,7 +150,9 @@ public abstract class MKTooltipSuppressMixin {
     }
 
     /**
-     * Places the tooltip where vanilla's positioner says, plus the scroll offset, by
+     * Wraps the tooltip's text to the screen ({@link MKTooltip#wrapWhen}), then places it
+     * where vanilla's positioner says, kept on screen ({@link MKTooltip#wrapWhen},
+     * {@link MKTooltip#clampWhen}), plus the scroll offset, by
      * handing vanilla a positioner that adds it; vanilla then draws the background,
      * text and images there as always. When scrolled with its top above the screen,
      * the first line is drawn again on a background of its own at the top edge, one
@@ -166,7 +169,12 @@ public abstract class MKTooltipSuppressMixin {
         }
         mk$drawingTooltip = true;
         try {
+            // Keyed on what the tooltip says, before wrapping: a resize re-wraps the same tooltip.
             MKTooltip.tooltipStarts(MKTooltip.contentKey(font, lines));
+            GuiGraphicsExtractor self = (GuiGraphicsExtractor) (Object) this;
+            // MKTooltip.wrapWhen: lines wider than the screen re-split before vanilla measures
+            // and places them; a wrapped line stays one component, so the title is still lines[0].
+            java.util.List<ClientTooltipComponent> shown = MKTooltip.wraps() ? MKTooltip.wrapped(font, lines, self.guiWidth()) : lines;
             int[] drawn = new int[3];  // x, y, width, as vanilla placed them after the offset
             ClientTooltipPositioner scrolled = (screenW, screenH, x, y, w, h) -> {
                 Vector2ic at = MKTooltip.scrolled(positioner.positionTooltip(screenW, screenH, x, y, w, h), w, h, screenW, screenH);
@@ -175,10 +183,9 @@ public abstract class MKTooltipSuppressMixin {
                 drawn[2] = w;
                 return at;
             };
-            original.call(font, lines, mouseX, mouseY, scrolled, sprite);
-            if (lines.size() > 1 && MKTooltip.pinsTitle(drawn[1])) {
-                GuiGraphicsExtractor self = (GuiGraphicsExtractor) (Object) this;
-                ClientTooltipComponent title = lines.get(0);
+            original.call(font, shown, mouseX, mouseY, scrolled, sprite);
+            if (shown.size() > 1 && MKTooltip.pinsTitle(drawn[1])) {
+                ClientTooltipComponent title = shown.get(0);
                 self.nextStratum();  // above the body's text, which draws over anything in its own stratum
                 TooltipRenderUtil.extractTooltipBackground(self, drawn[0], MKTooltip.EDGE, drawn[2], title.getHeight(font), sprite);
                 title.extractText(self, font, drawn[0], MKTooltip.EDGE);
