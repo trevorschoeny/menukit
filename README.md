@@ -1,6 +1,6 @@
 # MenuKit
 
-MenuKit is a UI library for Fabric mods. It gives you the parts of a Minecraft interface (buttons, sliders, tabs, panels, HUD readouts, slots) and places them on screen for you, so a mod builds its menus and overlays without writing vanilla screen code from scratch.
+MenuKit is a UI library for Fabric mods. It provides the parts of a Minecraft interface (buttons, sliders, tabs, panels, HUD readouts, slots) and places them on screen, so a mod builds its menus and overlays without writing vanilla screen code from scratch.
 
 It ships as two artifacts from this repository:
 
@@ -9,16 +9,16 @@ It ships as two artifacts from this repository:
 | `menukit` | Client and server (the UI draws on the client) | Panels, elements, HUD panels, placement on vanilla screens, standalone screens, slot groups and slot operations |
 | `menukit-containers` | Client and server, required on both | Created slots, custom container menus, per-slot state, storage attachments |
 
-`menukit-containers` depends on `menukit`. A mod that adds no slots depends on `menukit` alone and can stay client-only. A server running Containers requires it on every player's game: it checks before the world loads and tells a player without it which two mods to install.
+`menukit-containers` depends on `menukit`. A mod that adds no slots depends on `menukit` alone and can stay client-only. A server running Containers requires it on every player's game. It checks before the world loads, and a player without it is told which two mods to install.
 
-Components: buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, tooltips, icons, item displays (with an optional coloured outline), progress bars, dividers, scroll containers, runtime rows (`Flow`), collapsible sections and tabs. Containers adds slots. Every component is built by a builder with the same vocabulary (`at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state`, `onClick`, `style`), and every control that shows a value reads and writes your own field.
+Components: buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, tooltips, icons, item displays (with an optional coloured outline), progress bars, dividers, scroll containers, runtime rows (`Flow`), collapsible sections and tabs. Containers adds slots. Every component has a builder with the same vocabulary (`at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state`, `onClick`, `style`), and every control that shows a value reads and writes a field the mod owns.
 
 What it does:
 - Places UI in five contexts with one set of components: the HUD, container screens, other vanilla screens, named slot groups, and standalone screens.
 - Groups components into panels. A panel renders, takes input, and shows or hides as a unit.
-- Places a panel from one declaration on the panel, and sizes it to fit, wrapping and scrolling as needed, at any GUI scale.
+- Takes a panel's placement from one declaration on the panel, and sizes the panel to fit, wrapping and scrolling as needed, at any GUI scale.
 - Lets several mods add UI to the same screen. Panels sharing a region stack in priority order instead of overlapping, in the same order on every launch.
-- Makes what a panel covers inert. An opaque panel takes every point of its rectangle, a see-through one only its controls, so a slot or widget under a panel does not highlight, click or show a tooltip.
+- Makes what a panel covers inert. An opaque panel takes every point of its rectangle and a see-through one only its controls, so a slot or widget under a panel does not highlight, click or show a tooltip.
 - Publishes every slot group, vanilla or created, under a category any mod can read, with or without a menu open.
 - Names each thing that can be done to a slot as an operation. Vanilla's actions are eleven, one per gesture, and a mod can add its own. A slot answers for itself first, then its group, then its category, and a locking mod can veto any operation.
 - Creates real, server-synced slots as UI components and shows them on every container screen without per-screen setup (Containers).
@@ -37,7 +37,7 @@ repositories {
 }
 dependencies {
     implementation 'maven.modrinth:menukit:6.0.0+26.2'
-    // Only if the mod creates slots or custom menus. Pulls in menukit.
+    // Only if the mod creates slots or custom menus.
     implementation 'maven.modrinth:menukit-containers:6.0.0+26.2'
 }
 ```
@@ -84,10 +84,11 @@ ContainerPanel.define("mymod:pockets")
 
 ## The public API
 
-The API is every type in a package named `api`: `com.trevlar.menukit.api.*` and `com.trevlar.menukit.containers.api.*`. The version contract covers those. Every other package is internal, marked `@ApiStatus.Internal`, and can change in any release. If a task seems to need an internal type, [open an issue](https://github.com/trevorschoeny/menukit/issues), since that is a gap in the API.
+The API is every type in a package named `api`: `com.trevlar.menukit.api.*` and `com.trevlar.menukit.containers.api.*`. The version contract covers those. Every other package is internal, marked `@ApiStatus.Internal`, and can change in any release. A task that seems to need an internal type is a gap in the API. [Open an issue](https://github.com/trevorschoeny/menukit/issues) for it.
 
 | Package | Holds |
 |---|---|
+| `api` | `MK`, the HUD facade. It registers HUD panels and notifications, sends a notification, and reads or sets the recipe book. |
 | `api.element` | Every element, and the contexts they render and take input in |
 | `api.layout`, `api.dialog` | Build-time rows and columns; confirm and alert dialogs |
 | `api.panel` | `Panel`, placement (`PanelPosition` and the regions), the adapters that put panels on vanilla screens, `MKScreen` |
@@ -108,7 +109,7 @@ The API is every type in a package named `api`: `com.trevlar.menukit.api.*` and 
 - [Versioning](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md): what a version number promises.
 - [Reference](https://trevorschoeny.github.io/menukit/): the generated javadoc for the `api` packages.
 
-The build compiles every Java sample in this README and in `docs/`. The `validator-mk` and `validator-mkc` mods in the same workspace are the reference consumers and use every primitive.
+Every Java sample in this README and in `docs/` is compiled against the release before it ships.
 
 ## Repository layout
 
@@ -116,7 +117,7 @@ The build compiles every Java sample in this README and in `docs/`. The `validat
 - `menukit-containers/`: the `menukit-containers` artifact.
 - `docs/`: the guides above.
 
-Both artifacts build from the workspace root: `./gradlew :menukit:build :menukit-containers:build`.
+These sources build as two projects of a parent Gradle workspace that is not in this repository. They do not build on their own yet.
 
 ## Upgrading
 
@@ -125,16 +126,16 @@ Both artifacts build from the workspace root: `./gradlew :menukit:build :menukit
 6.0.0 is a consolidation release. It adds little, and renames and removes a lot at once, so every mod migrates one time. The [changelog](https://github.com/trevorschoeny/menukit/blob/main/menukit/changelog.md) has the full list. The changes most mods meet:
 
 - Public types moved into `api` packages, and Containers has its own root, `com.trevlar.menukit.containers`. Every import changes. The classes in the table below were renamed as well.
-- Placement is declared on the panel. Use `Panel.builder(id).position(PanelPosition.region(OutsideRegion.X).priority(n).offset(dx, dy))`, and the adapters take only `(panel)` or `(panel, padding)`. A HUD panel uses `.region(InsideRegion.X).offset(dx, dy)` where it used `.anchor(MKHudAnchor.X, dx, dy)`.
-- Elements are built by builders. For example `Button.builder().label(text).size(w, h).onClick(run).build()`. A control that shows a value takes `state(get, set)` over your field.
+- Placement is declared on the panel, as `Panel.builder(id).position(PanelPosition.region(OutsideRegion.X).priority(n).offset(dx, dy))`. The adapters take only `(panel)` or `(panel, padding)`. A HUD panel uses `.region(InsideRegion.X).offset(dx, dy)` where it used `.anchor(MKHudAnchor.X, dx, dy)`.
+- Elements are built by builders, for example `Button.builder().label(text).size(w, h).onClick(run).build()`. A control that shows a value takes `state(get, set)` over a field the mod owns.
 - Declarations happen at init. Adapters, HUD panels, operations, slot groups, channels and menus declared after startup throw.
 - Custom menus split by side. A menu's slots are common code. How its panels look, and its screen class, are declared on the client with `ClientMenu.of(menu)`.
 - A shared slot-state channel names its writers. Without a `canWrite` rule the server refuses every client write to it.
-- Item Tips left MenuKit. Durability and food lines on tooltips are now a feature of Inventory Plus.
+- Item Tips left MenuKit. Durability and food lines on tooltips are a feature of Inventory Plus.
 
 | 5.x | 6.0.0 |
 |---|---|
-| `MKHudPanel`, `MKHudNotification` | `HudPanel`, `HudNotification` |
+| `MKHudPanel`, `MKHudNotification`, `MKHudIcon`, `MKHudSlot` | `HudPanel`, `HudNotification`, `HudIcon`, `HudSlot` |
 | `MKFocus`, `MKText` | `Focus`, `Text` |
 | `MKCContainerPanel` | `ContainerPanel` |
 | `MKCSlot`, `MKCSlots` | `CreatedSlot`, `CreatedSlots` |
@@ -143,6 +144,11 @@ Both artifacts build from the workspace root: `./gradlew :menukit:build :menukit
 | `MKCHandledScreen` | `CustomContainerScreen` |
 | `MKCBehaviorKeys` | `ContainerKeys` |
 | `MKSlotState` | `SlotState` |
+| `MKCSlots.renderGroup` | `ClientSlots.renderGroup` |
+| `MKCContainerPanel.Builder.chrome(...)`, `.parity(...)` | `ClientContainerPanel.of(id).chrome(...).parity(...)`, on the client |
+| `CreatedSlotAdapter.addressOf(panelId, groupId, index)` | `Address.createdSlot(CreatedSlots.groupId(panelId, groupId), index)` |
+| `SlotSpec.quickMove(...)`, `MKCBehaviorKeys.QUICK_MOVE` | `SlotSpec.shiftClickOut(false)`, `shiftClickIn(false)`; `BehaviorKeys.SHIFT_CLICK_OUT`, `SHIFT_CLICK_IN` |
+| `WORLD_PICKUP` | `INVENTORY_INSERT` |
 | `showWhen(...)` on a panel, a HUD panel or a container panel | `visibleWhen(...)` |
 | `getId()` | `id()` |
 

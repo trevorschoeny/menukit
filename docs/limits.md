@@ -26,15 +26,15 @@ Behavior that is incomplete in the current release.
 | Area | Current behavior |
 |---|---|
 | Shift-click into a created slot | Not routed. Direct click works. The consumer overrides `quickMoveStack` in its own mixin, or accepts the gap. |
-| Unplaced panels on a standalone screen | The default stacks later panels below the main one with a 14 pixel gap, assuming every earlier stacked panel is shown. With one hidden, those after it sit 12 pixels lower than the old column did. Declare `region(BOTTOM_CENTER)` with your own `.offset` for exact spacing. |
+| Unplaced panels on a standalone screen | The default stacks later panels below the main one with a 14 pixel gap, computed for the case where every earlier stacked panel is shown. With one hidden, the panels after it sit 12 pixels lower than the gap alone places them. Declaring `region(BOTTOM_CENTER)` with an explicit `.offset` gives exact spacing. |
 | Offsets and stacking | `.offset(dx, dy)` moves one panel after placement; siblings stack on its un-nudged size. An offset that pushes a panel over its sibling overlaps it. |
 | Created slot in an overlay panel | Not supported. Overlay panels draw after vanilla's slot pass, so a slot they host is placed one frame late and drawn under the panel. Put created slots in flow panels. |
-| Reactions | `ON_INSERT_OBSERVED` and `ON_TAKE_OBSERVED` fire on the client when a slot's synced contents change. They are UI feedback. There is no server-side reaction key; server code that must act on a change hooks the slot or menu method that makes it. |
+| Reactions | `ON_INSERT_OBSERVED` and `ON_TAKE_OBSERVED` fire on the client when a slot's synced contents change. They are UI feedback. No server-side reaction key exists. Server code that must act on a change hooks the slot or menu method that makes it. |
 | Window scope | Every address resolves in the primary scope. Per-tab and per-sub-window scopes are not active. |
 | Panel and element addressing | `Window.panel(id)` and `Window.element(...)` carry visibility and opacity. Gates, operations and reactions apply to slots only. |
 | A slot group built with a menu, before any menu | `CreatedSlots.onto(menu, player)` registers a group when that menu is built, so `SlotGroups` lists it only after the first one. Declare the group at init with `SlotGroups.declare` to list it from the title screen. |
 | Operations on a slot reached with no menu open | An inventory insert (`Inventory.getFreeSlot`) has no menu, so a vanilla slot's category is unknown there. `INVENTORY_INSERT` on such a slot resolves from the slot's own declaration or the key's default, then the vetoes; the group and category rungs need a menu. |
-| Operations the server works out for itself, on a server without MenuKit | The client refuses to send a click whose own slot refuses it: plain click, shift-click out, drop, swap, a slot joining a drag. Where a shift-click lands, what double-click collect sweeps, and where a picked-up item goes are decided by the server. Those hold in singleplayer and on a LAN host, where MenuKit runs the server side, and not on a server that does not run it. The same goes for a Q action a mod sends to the connection itself instead of through `LocalPlayer.drop`. |
+| Operations the server works out for itself, on a server without MenuKit | The client does not send a click that its own slot does not allow: plain click, shift-click out, drop, swap, a slot joining a drag. Where a shift-click lands, what double-click collect sweeps, and where a picked-up item goes are decided by the server. Those hold in singleplayer and on a LAN host, where MenuKit runs the server side, and not on a server that does not run it. The same goes for a Q action a mod sends to the connection itself instead of through `LocalPlayer.drop`. |
 | Drop rule key | `dropsOnDeath(DropRule)` on a player storage attachment covers death. No window key covers drop rules. |
 | Advancements | Created slots use a separate container and do not fire vanilla's inventory-change trigger. The consumer fires it. |
 | Item-attached storage | Uses vanilla's container component only. |
@@ -61,7 +61,7 @@ Behavior that is incomplete in the current release.
 - `build()` freezes a panel's element list, and every element is immutable after its own `build()`. Build a new panel to change the list.
 - A `ScreenPanelAdapter` with no target renders on every container screen. A `SlotGroupPanelAdapter` or `VanillaScreenPanelAdapter` with no `.on(...)` fails at the first screen open with the panel id in the message.
 - Adapters, HUD panels and notifications are declarations: constructing, targeting or unregistering one after the client starts throws. Gate a panel at runtime with `visibleWhen`.
-- A panel with no placement is rejected by adapters and the HUD. Only `MKScreen` and a custom menu's screen place an unplaced panel for you.
+- A panel with no placement is rejected by adapters and the HUD. Only `MKScreen` and a custom menu's screen place an unplaced panel.
 - Panel ids are global across mods. Prefix them with the mod id.
 - `CustomMenu` handler factories run on both sides and must produce identical storages.
 - A server running Containers cannot be joined by a client without it; the client is told what to install before the world loads. A Containers client on a server without it has no created slots there.
@@ -69,6 +69,6 @@ Behavior that is incomplete in the current release.
 - Slot-state writes from one player are limited to a burst of 64, then 32 a second. Past that the server refuses them until the allowance refills.
 - A custom menu with no `validWhen` cannot be opened by a client's request, only by the server.
 - The slot state a shulker box carries as an item is not sent to clients. A creative player who moves such an item sends the game's copy back without it, so its slot state is lost; survival is unaffected.
-- Hoppers and dispensers ask a slot's gate, not the vetoes. A lock that should stop automation needs its own seam until MenuKit names an automation operation.
+- Hoppers and dispensers ask a slot's gate, not the vetoes. No automation operation exists, so a lock meant to stop automation needs its own seam.
 - Only the `api` packages are public. Everything else is internal and may change in any release.
 - The dev runtime assigns a new offline player UUID per launch. Test player-scoped persistence across quit-to-title and re-enter within one launch.

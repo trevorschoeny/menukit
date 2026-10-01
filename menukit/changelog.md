@@ -1,47 +1,81 @@
-6.0.0: one of everything. MenuKit had grown two engines, two slot-group identities, five copies of panel placement and two ways to build every element. This release keeps one of each and names them once. It adds little and breaks a lot, a single time: every mod that uses MenuKit migrates. The README's "To 6.0.0" section lists the changes most mods meet.
+## 6.0.0
 
-The public API is declared. It is the `api` packages: `com.trevlar.menukit.api.element`, `.layout`, `.dialog`, `.panel`, `.hud`, `.slot` and `.window`. Every other package is internal and outside the version contract, which `versioning.md` now says. Every import changes. Renamed: `MKHudPanel`, `MKHudNotification`, `MKHudIcon` and `MKHudSlot` are `HudPanel`, `HudNotification`, `HudIcon` and `HudSlot`; `MKFocus` is `Focus` and `MKText` is `Text`. `MKScreen` and `MKTooltip` keep the prefix because the plain names are vanilla's. A panel shows while `visibleWhen(...)` holds (it was `showWhen`), the same word as on every element, and `Panel.Builder` takes it too. Identifiers are `id()`: `Panel.id()`, `HudNotification.id()`, and an element's `declId()`.
+One of everything. MenuKit had grown two engines, two slot-group identities, five copies of panel placement and two ways to build every element. This release keeps one of each and names it once. It adds little and breaks a lot, one time: every mod that uses MenuKit migrates. The README's "To 6.0.0" section lists the changes most mods meet.
 
-MenuKit runs on servers. Code that runs on a server and code that touches a screen are in separate source sets, so a server class that reaches a client class does not compile. The common entry point is `com.trevlar.menukit.MenuKit`, and `MK` is only the HUD facade. The window's server tier is always present, container identity is MenuKit's, and vanilla menus' slot groups resolve on both sides, so a server answers operations, `AppliesTo` and `SlotGroups.of` the way singleplayer does.
+### Breaking: the public API is the `api` packages
 
-One engine, one identity. One store answers every key, and clearing a declaration removes it, so nothing piles up per player or block. An `Address` saves as text with `asString()`, `parse` and `CODEC`, with one public minter per kind (`Address.createdSlot(group, index)`, `Address.panel(id)`, `Address.panelElement(id, declId)`). `GroupKey.of(SlotGroupId)` makes a slot group and its cascade group one identity, and a vanilla slot gets a group rung as well as its category's. `SlotGroupId.Vanilla` is `SlotGroupId.Category`, with `isVanilla()`.
+The public API is `com.trevlar.menukit.api.element`, `.layout`, `.dialog`, `.panel`, `.hud`, `.slot` and `.window`. Every other package is internal and outside the version contract, which `versioning.md` now states. Every import changes.
 
-Declarations freeze, and nothing depends on load order. Once every mod has initialised, a late `define`, `veto`, `declare`, `register`, `addTo`, adapter or HUD panel throws, naming the call. Changing a slot at runtime is still fine. Two mods declaring the same thing is an error at the second, and where several coexist their order is sorted: operations by namespace, panels by priority then mod id, never registration order.
+### Breaking: renames
 
-One seam per vanilla method. `SlotGate`, `GatingContext`, `BehaviorKeys.GATING` and `BINDING` are MenuKit's, so a MenuKit-only mod gates a vanilla slot the same way Containers gates a created one, with `Window.slot(address).gate(...)`. Each vanilla method asks the gate once, and a click is judged once on the client and once on the server. A lock is a veto. `WORLD_PICKUP` is `INVENTORY_INSERT`, named for what it gates, with its id kept. A `SlotRef` carries its slot's `Address`, and a veto can ask for the slot's group with `SlotOperations.GroupVeto`. `OperationProbe` is the probe a test mod checks click tags through.
+| 5.x | 6.0.0 |
+|---|---|
+| `MKHudPanel`, `MKHudNotification`, `MKHudIcon`, `MKHudSlot` | `HudPanel`, `HudNotification`, `HudIcon`, `HudSlot` |
+| `MKFocus`, `MKText` | `Focus`, `Text` |
+| `showWhen(...)` on a panel, a HUD panel or a container panel | `visibleWhen(...)`, the same word as on every element. `Panel.Builder` takes it too. |
+| `getId()` | `id()`: `Panel.id()`, `HudNotification.id()`, and an element's `declId()` |
+| `WORLD_PICKUP` | `INVENTORY_INSERT`, named for what it gates. Its id is kept. |
+| `SlotGroupId.Vanilla` | `SlotGroupId.Category`, with `isVanilla()` |
 
-One host per context, one placement, one claim. Where a panel sits is declared once, on the panel, with `position(PanelPosition...)`, `.priority(n)` and `.offset(dx, dy)`; the adapters take only `(panel)` or `(panel, padding)`. A HUD panel is an ordinary `Panel` placed with `.region(InsideRegion.X)`. Each context (container screen, other vanilla screen, slot group, HUD, standalone screen) is one host that sorts, places, draws and routes its panels. The claim rule is the same everywhere: an opaque panel takes its whole rectangle and a see-through one only its controls, so a slot-group panel and a standalone screen's own panels now block what they cover. A vanilla screen gets dialogs and dimming.
+`MKScreen` and `MKTooltip` keep the prefix because the plain names are vanilla's.
 
-Elements are lenses, built once, with one vocabulary. Every element has a builder and does not change after `build()`, with the same names on every builder: `at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state(get, set)`, `onClick`, `style`, `opaque`, `declId`. A control that shows a value reads your field every frame and stores nothing. Input methods take an `InputContext`, and one `ChildDispatch` routes input in every container. `Button`, `Toggle`, `Checkbox` and `Radio` play vanilla's click sound, take keyboard focus and read to the narrator; `Slider` and `TextField` are vanilla's own widgets. For settings screens: `Tabs` (wrapping, scrolling or sidebar, extendable by other mods with `Tabs.addTo`), `Flow.spacer()` to pin a control to the right edge, `Panel.disabledWhen` to grey a whole panel, a filling `Divider`, and whole-number and enum lenses for `Slider` and `Dropdown`. `SlotRendering.drawItemOutline` and `ItemDisplay`'s `outline` draw an item with a coloured line around its own shape.
+### Breaking: declarations freeze
 
-A modal panel on a vanilla screen hands a key to its elements, then to the focused widget MenuKit placed, before dropping it. F11, the F3 combinations, the narrator hotkey and screenshots work while a modal is up; they were eaten.
+Once every mod has initialised, a late `define`, `veto`, `declare`, `register`, `addTo`, adapter or HUD panel throws, naming the call. Changing a slot at runtime is still fine. Nothing depends on load order. Two mods declaring the same thing is an error at the second. Where several coexist, their order is sorted: operations by namespace, panels by priority, then mod id, then registration order within a mod.
 
-On a standalone screen the `main()` panel makes room for the panels placed around it with `region(...)`: its height leaves out the panels above and below, its width the panels beside it. A panel above a full-height menu used to have nowhere to go and was not shown.
+### Breaking: one placement, declared on the panel
 
-`MKTooltip.hideWhen(condition)` hides every tooltip in the game, vanilla's, MenuKit's and other mods', on every frame the condition holds. A mod that offers "hold a key to hide tooltips" registers its condition there instead of adding its own mixin on vanilla's tooltip method.
+Where a panel sits is declared once, on the panel, with `position(PanelPosition...)`, `.priority(n)` and `.offset(dx, dy)`. The adapters take only `(panel)` or `(panel, padding)`. A HUD panel is an ordinary `Panel` placed with `.region(InsideRegion.X)`. Each context (container screen, other vanilla screen, slot group, HUD, standalone screen) is one host that sorts, places, draws and routes its panels.
 
-`MKTooltip.scrollBy(dx, dy)` and `MKTooltip.onWheel(listener)` let a mod scroll a tooltip taller than the screen with the mouse wheel: the listener hears every wheel turn over a shown tooltip, consumed or not, and MenuKit keeps the scroll in range, pins the title line while scrolled, and resets it on the next tooltip. `MKTooltip.resetScroll()` puts it back by hand.
+The claim rule is the same everywhere. An opaque panel takes its whole rectangle and a see-through one only its controls, so a slot-group panel and a standalone screen's own panels now block what they cover. A vanilla screen gets dialogs and dimming.
 
-`MKTooltip.wrapWhen(condition)` and `MKTooltip.clampWhen(condition)` keep a tooltip on screen while their condition holds: wrap breaks text lines wider than the screen onto more lines and keeps the tooltip inside the sides, clamp keeps its top on screen so a tooltip taller than the screen starts at its title and scrolls to its last line. Both are off unless a mod registers them.
+### Breaking: elements are built by builders
 
-`Tabs.Builder.header(elements...)` puts a row across the whole `Tabs`, above the tab strip or the sidebar and above the body, in every mode, so a menu can have its own title bar. Everything else starts under it, and `sidebarHeader` still sits at the top of the sidebar, now under the header. A `Flow` with a spacer at each end now centres what is between them; before, a spacer at either end of a row took no room.
+Every element has a builder and does not change after `build()`. The names are the same on every builder: `at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state(get, set)`, `onClick`, `style`, `opaque`, `declId`. A control that shows a value reads the mod's field every frame and stores nothing. The positional constructors and `spec(...)` factories are gone. Input methods take an `InputContext`, and one `ChildDispatch` routes input in every container.
 
-Removed: Item Tips, the durability and food lines MenuKit added to every tooltip: it is a feature, and moved to Inventory Plus. The older slot-recognition classes (`HandlerRecognizerRegistry`, `VirtualSlotGroup`, `SlotGroupLike`, `ReadOnlyStorage`), `SlotIdentity`, `SlotWindowResolver` and `CreatedSlotResolver`: nothing read them, and `SlotGroups` is the one slot-group identity. `PanelOwner`, `MKHudAnchor`, `MKHudPanelDef`, `RegionAnchor`, `PanelPosition.BODY`, the elements' positional constructors and `spec(...)` factories, and `SlotGroups.entryKey`. API that did nothing: `BehaviorKeys.ON_INSERT` and `ON_TAKE` with `SlotHandle.onInsert` and `onTake`, and the causes `ReactCause.CLICK`, `SHIFT_CLICK`, `HOPPER` and `DISPENSER` (nothing fired them; the observed reactions stay); `BehaviorKeys.INERTNESS` and `PanelHandle.inertness` (nothing read them; an opaque panel is what makes its cover inert); `GatingContext.actingPlayerCapable` (always true, since a server with Containers requires it on every client). The pressed look on vanilla and YACL buttons stays: it is MenuKit's one styling change to vanilla, now recorded as such.
+### Breaking: removed
 
-Fixed: a panel anchored to a slot group, and a standalone screen's own panels, let the slots under them be hovered and clicked. A `Button` built with width 0 drew no box. A `Dropdown` inside a tab body or a `ScrollContainer` never closed on an outside click. `ItemDisplay` could not show the count without the durability bar. `TextField` reported its starting text as a change. A notification sent from a server thread could break the HUD. A YACL release that renamed a method could stop the game at load. A click inside another click lost the acting player. A `Checkbox` or `Radio` whose label wrapped reported its one-line width. A player's ender chest never resolved to its owner, and a registered block-entity resolver was never consulted.
+- Item Tips, the durability and food lines MenuKit added to every tooltip. It is a feature, and moved to Inventory Plus.
+- The older slot-recognition classes (`HandlerRecognizerRegistry`, `VirtualSlotGroup`, `SlotGroupLike`, `ReadOnlyStorage`), `SlotIdentity`, `SlotWindowResolver` and `CreatedSlotResolver`. Nothing read them, and `SlotGroups` is the one slot-group identity.
+- `PanelOwner`, `MKHudAnchor`, `MKHudPanelDef`, `RegionAnchor`, `PanelPosition.BODY` and `SlotGroups.entryKey`.
+- API that did nothing. `BehaviorKeys.ON_INSERT` and `ON_TAKE` with `SlotHandle.onInsert` and `onTake`, and the causes `ReactCause.CLICK`, `SHIFT_CLICK`, `HOPPER` and `DISPENSER`: nothing fired them, and the observed reactions stay. `BehaviorKeys.INERTNESS` and `PanelHandle.inertness`: nothing read them, and an opaque panel is what makes its cover inert. `GatingContext.actingPlayerCapable`: always true, since a server with Containers requires it on every client.
 
-5.1.0: An inventory mod can now list every slot operation in the game, show each one to the player by name, and block the ones they pick on the slots they pick. This release adds API and breaks nothing.
+The pressed look on vanilla and YACL buttons stays. It is MenuKit's one styling change to vanilla, now recorded as such.
 
-Vanilla's slot actions are split into one operation per gesture: click to take, click to place, shift-click out, shift-click in, double-click collect, drag fill, hotbar swap, offhand swap, drop one, drop stack, and item pickup. All of them are on by default. MenuKit enforces them itself, so a mod that depends on MenuKit alone gets them without Containers. Q, Ctrl-Q and F count as the same operations when no screen is open.
+### MenuKit runs on servers
 
-Every operation has a display name and a one-line description, read from lang keys (`slot_operation.<namespace>.<path>`), so a settings screen can list them. `SlotOperations.all()` returns vanilla's operations and every operation other mods have defined.
+Code that runs on a server and code that touches a screen are in separate source sets, so a server class that reaches a client class does not compile. The common entry point is `com.trevlar.menukit.MenuKit`, and `MK` is only the HUD facade. The window's server tier is always present, container identity is MenuKit's, and vanilla menus' slot groups resolve on both sides, so a server answers operations, `AppliesTo` and `SlotGroups.of` the way singleplayer does.
 
-A lock is a veto. `SlotOperations.veto(rule)` refuses an operation on a slot and never overrides what the slot's own mod declared. `SlotOperations.allows(...)` is the single check that vanilla's seams use and that your own operations should use too. A veto knows which player is acting, so a per-player lock can tell a LAN guest's click from the host's.
+### One engine, one identity
 
-Clicks your mod sends count as your operation when you wrap them in `SlotOperations.as(...)`. A lock that blocks shift-click then leaves alone the restock that happens to use one. A click sent without the wrapper counts as the gesture it looks like.
+One store answers every key, and clearing a declaration removes it, so nothing piles up per player or block. An `Address` saves as text with `asString()`, `parse` and `CODEC`, with one public minter per kind: `Address.createdSlot(group, index)`, `Address.panel(id)` and `Address.panelElement(id, declId)`. `GroupKey.of(SlotGroupId)` makes a slot group and its cascade group one identity, and a vanilla slot gets a group rung as well as its category's.
 
-When a slot refuses a click, the client does not send it, so the refusal also holds on a server that does not run MenuKit.
+### One seam per vanilla method
 
-Rules set for a slot category now reach vanilla slots. `SlotOperations.inherent(PLAYER_HOTBAR, SHIFT_CLICK_IN, FALSE)` keeps shift-clicked items out of the hotbar and still lets them into the main inventory.
+`SlotGate`, `GatingContext`, `BehaviorKeys.GATING` and `BINDING` are MenuKit's, so a MenuKit-only mod gates a vanilla slot the same way Containers gates a created one, with `Window.slot(address).gate(...)`. Each vanilla method asks the gate once, and a click is judged once on the client and once on the server. A lock is a veto. A `SlotRef` carries its slot's `Address`, and a veto can ask for the slot's group with `SlotOperations.GroupVeto`. `OperationProbe` is the probe a test mod checks click tags through.
 
-Slot groups can be listed from the title screen with `SlotGroups.all()`. Each group has a player-facing name and a stable id you can save. `SlotGroupSet` shows several groups as one row, which suits a mod that adds many small groups of the same kind.
+### Added
+
+- `Button`, `Toggle`, `Checkbox` and `Radio` play vanilla's click sound, take keyboard focus and read to the narrator. `Slider` and `TextField` are vanilla's own widgets.
+- For settings screens: `Tabs` (wrapping, scrolling or sidebar, extendable by other mods with `Tabs.addTo`), `Flow.spacer()` to pin a control to the right edge, `Panel.disabledWhen` to grey a whole panel, a filling `Divider`, and whole-number and enum lenses for `Slider` and `Dropdown`.
+- `SlotRendering.drawItemOutline` and `ItemDisplay`'s `outline` draw an item with a coloured line around its own shape.
+- A modal panel on a vanilla screen hands a key to its elements, then to the focused widget MenuKit placed, before dropping it. F11, the F3 combinations, the narrator hotkey and screenshots work while a modal is up. They were eaten.
+- On a standalone screen the `main()` panel makes room for the panels placed around it with `region(...)`. Its height leaves out the panels above and below, and its width the panels beside it. A panel above a full-height menu used to have nowhere to go and was not shown.
+- `MKTooltip.hideWhen(condition)` hides every tooltip in the game, vanilla's, MenuKit's and other mods', on every frame the condition holds. A mod that offers "hold a key to hide tooltips" registers its condition there instead of adding its own mixin on vanilla's tooltip method.
+- `MKTooltip.scrollBy(dx, dy)` and `MKTooltip.onWheel(listener)` let a mod scroll a tooltip taller than the screen with the mouse wheel. The listener hears every wheel turn over a shown tooltip, consumed or not. MenuKit keeps the scroll in range, pins the title line while scrolled, and resets it on the next tooltip. `MKTooltip.resetScroll()` puts it back by hand.
+- `MKTooltip.wrapWhen(condition)` and `MKTooltip.clampWhen(condition)` keep a tooltip on screen while their condition holds. Wrap breaks text lines wider than the screen onto more lines and keeps the tooltip inside the sides. Clamp keeps its top on screen, so a tooltip taller than the screen starts at its title and scrolls to its last line. Both are off unless a mod registers them.
+- `Tabs.Builder.header(elements...)` puts a row across the whole `Tabs`, above the tab strip or the sidebar and above the body, in every mode, so a menu can have its own title bar. Everything else starts under it, and `sidebarHeader` still sits at the top of the sidebar, now under the header.
+- A `Flow` with a spacer at each end centres what is between them. Before, a spacer at either end of a row took no room.
+
+### Fixed
+
+- A panel anchored to a slot group, and a standalone screen's own panels, let the slots under them be hovered and clicked.
+- A `Button` built with width 0 drew no box.
+- A `Dropdown` inside a tab body or a `ScrollContainer` never closed on an outside click.
+- `ItemDisplay` could not show the count without the durability bar.
+- `TextField` reported its starting text as a change.
+- A notification sent from a server thread could break the HUD.
+- A YACL release that renamed a method could stop the game at load.
+- A click inside another click lost the acting player.
+- A `Checkbox` or `Radio` whose label wrapped reported its one-line width.
+- A player's ender chest never resolved to its owner, and a registered block-entity resolver was never consulted.

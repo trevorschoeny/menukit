@@ -25,7 +25,7 @@ Declare the dependency in `fabric.mod.json`:
 
 Declare both bounds. The lower bound guarantees the API you call exists. The upper bound stops the next breaking MenuKit from loading against a jar built before it existed, which would fail at a class load in the middle of a play session instead of at launch.
 
-Separate the bounds with a space. Fabric accepts a comma here, and the predicate then matches no version at all, which disables your mod without an error message.
+Separate the bounds with a space. Fabric splits on spaces, so a comma leaves one malformed bound and the mod does not load.
 
 [Versioning](versioning.md) has the full contract. Import only from the `api` packages (`com.trevlar.menukit.api.*`); the rest is internal and may change in any release.
 
@@ -48,7 +48,7 @@ HudPanel.builder("mymod:readout")
         .build();
 ```
 
-Result: the text renders just below the crosshair during play and disappears while any screen is open.
+Result: the text renders directly below the crosshair during play and disappears while any screen is open.
 
 A HUD panel sits on one of nine `InsideRegion` spots of the game window, 4 pixels in from the edges it touches. `.offset(dx, dy)` nudges it and `.priority(n)` orders it among other panels on the same spot. `build()` registers the panel and returns it. Register from your client initializer, since registration closes when the client finishes starting. There is no unregister; gate a panel with `visibleWhen` instead.
 
