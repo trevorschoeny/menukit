@@ -152,6 +152,14 @@ public abstract class MKModalMouseHandlerMixin {
         // dispatch via ScreenPanelRegistry.onScreenInit).
         var mc = Minecraft.getInstance();
         if (mc == null || mc.gui.screen() == null) return;
+        // The wheel moved on a screen: tell MKTooltip.onWheel listeners first, so a
+        // mod scrolling a tooltip hears every turn, consumed below or not. Scaled the
+        // way vanilla scales it for screens (discrete scrolling, wheel sensitivity).
+        boolean discrete = mc.options.discreteMouseScroll().get();
+        double sensitivity = mc.options.mouseWheelSensitivity().get();
+        com.trevlar.menukit.api.element.MKTooltip.wheelMoved(
+                (discrete ? Math.signum(xOffset) : xOffset) * sensitivity,
+                (discrete ? Math.signum(yOffset) : yOffset) * sensitivity);
         var mcWindow = mc.getWindow();
         if (mcWindow == null) return;
         // Compute scaled coords from current mouse position — getScreenWidth

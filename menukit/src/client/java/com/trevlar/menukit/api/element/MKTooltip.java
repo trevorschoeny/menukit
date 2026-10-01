@@ -3,11 +3,18 @@ package com.trevlar.menukit.api.element;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTextTooltip;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
 import com.trevlar.menukit.api.window.Declarations;
+import com.trevlar.menukit.mixin.ClientTextTooltipAccessor;
 
+import org.joml.Vector2i;
+import org.joml.Vector2ic;
+
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -79,6 +86,142 @@ public final class MKTooltip {
             if (c.getAsBoolean()) return true;
         }
         return false;
+    }
+
+    // ── Scrolling a tooltip ──────────────────────────────────────────────
+    // Same split as hideWhen: MenuKit owns where a tooltip lands (MKTooltipSuppressMixin
+    // wraps vanilla's GuiGraphicsExtractor.tooltip, the one method that positions and
+    // draws every tooltip), the mod owns when and how far to move it (Inventory Plus:
+    // "scroll long tooltips", the wheel scrolls a tooltip taller than the screen).
+    //
+    // The state is one offset for "the tooltip on screen now". MenuKit clears it
+    // whenever that tooltip changes: different text (another stack, a line added) or
+    // a frame with no tooltip in between. Render thread only, like everything that draws.
+
+    /** Gap kept between a scrolled tooltip and the screen edge, in GUI pixels (vanilla's own minimum). */
+    public static final int EDGE = 4;
+
+    /** Listener for {@link #onWheel}. Amounts are what screens get: after the wheel sensitivity and discrete-scroll options. */
+    @FunctionalInterface
+    public interface Wheel {
+        void moved(double horizontal, double vertical);
+    }
+
+    /** Registered wheel listeners. Written only during init. */
+    private static final List<Wheel> WHEEL = new ArrayList<>();
+    /** The offset of the tooltip on screen now, in GUI pixels, already clamped by the last draw. */
+    private static int scrollX, scrollY;
+    /** {@link #contentKey} of the last tooltip drawn. */
+    private static int lastKey;
+    /** A tooltip drew in the frame being built ({@code shown}) and in the one before ({@code shownBefore}). */
+    private static boolean shown, shownBefore;
+
+    /**
+     * Moves the tooltip on screen now by {@code dx, dy} GUI pixels (positive y moves
+     * it down, bringing lines above the screen into view). MenuKit keeps it inside
+     * its own extent: a tooltip that fits on screen does not move, and one taller or
+     * wider than the screen moves only until its far edge is in view. While a tooltip
+     * is scrolled vertically with its top above the screen, its first line (the
+     * title) stays pinned at the top edge and the rest scrolls under it. The offset
+     * resets by itself when the tooltip changes or goes away.
+     */
+    public static void scrollBy(int dx, int dy) {
+        scrollX += dx;
+        scrollY += dy;
+    }
+
+    /** Puts the tooltip on screen now back where vanilla placed it. */
+    public static void resetScroll() {
+        scrollX = 0;
+        scrollY = 0;
+    }
+
+    /**
+     * Calls {@code listener} when the mouse wheel moves on a screen while a tooltip is
+     * shown. It runs before anything else sees the scroll, and whether or not
+     * something then consumes it (a list under the cursor still scrolls). Pair it with
+     * {@link #scrollBy}. Call from client init.
+     *
+     * @throws IllegalStateException after MenuKit's declarations froze
+     */
+    public static void onWheel(Wheel listener) {
+        Declarations.requireOpen("MKTooltip.onWheel");
+        WHEEL.add(listener);
+    }
+
+    /** The wheel moved (MouseHandler.onScroll HEAD). Fires the listeners when the last frame drew a tooltip. */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static void wheelMoved(double horizontal, double vertical) {
+        if (!shown) return;
+        for (Wheel w : WHEEL) w.moved(horizontal, vertical);
+    }
+
+    /** A screen frame is about to draw its tooltip, if any (GuiGraphicsExtractor.extractDeferredElements HEAD). */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static void frameStarts() {
+        shownBefore = shown;
+        shown = false;
+    }
+
+    /**
+     * The frame's tooltip is about to be placed. Its scroll carries over only when the
+     * previous frame drew a tooltip with the same text; anything else is a new hover.
+     */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static void tooltipStarts(int contentKey) {
+        if (!shownBefore || contentKey != lastKey) resetScroll();
+        lastKey = contentKey;
+        shown = true;
+    }
+
+    /** Where the tooltip draws: vanilla's placement plus the offset, clamped (and stored clamped) by {@link #clampScroll}. */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static Vector2ic scrolled(Vector2ic vanilla, int width, int height, int screenWidth, int screenHeight) {
+        scrollX = clampScroll(vanilla.x(), width, screenWidth, scrollX);
+        scrollY = clampScroll(vanilla.y(), height, screenHeight, scrollY);
+        return new Vector2i(vanilla.x() + scrollX, vanilla.y() + scrollY);
+    }
+
+    /** The title draws pinned at the top edge: scrolled vertically, and the tooltip's top is above the screen. */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static boolean pinsTitle(int drawnY) {
+        return scrollY != 0 && drawnY < EDGE;
+    }
+
+    /**
+     * One axis of a scroll. Vanilla put a tooltip of {@code size} at {@code origin} on a
+     * screen {@code screen} long; returns {@code offset} clamped so the tooltip moves at
+     * most until its far edge sits {@link #EDGE} inside the screen, and back no further
+     * than until its near edge does (or vanilla's spot, if that is further). A tooltip
+     * that fits gets 0; one that runs off an end can only scroll toward the hidden part.
+     */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static int clampScroll(int origin, int size, int screen, int offset) {
+        int lowest = Math.min(origin, screen - size - EDGE);  // far (bottom/right) edge in view
+        int highest = Math.max(origin, EDGE);                 // near (top/left) edge in view
+        return Math.clamp((long) origin + offset, lowest, highest) - origin;
+    }
+
+    /**
+     * A hash of what a tooltip says, line by line, so "the hovered stack changed"
+     * reads as "the text changed" for any tooltip, item or not. Text lines hash their
+     * characters; other lines (a bundle's item grid) their kind and size.
+     * ponytail: 32-bit hash; a collision between two consecutive tooltips would keep
+     * the old scroll for one hover. Compare the strings if that ever shows.
+     */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static int contentKey(Font font, List<ClientTooltipComponent> lines) {
+        int[] h = {1};
+        for (ClientTooltipComponent line : lines) {
+            if (line instanceof ClientTextTooltip text) {
+                ((ClientTextTooltipAccessor) text).mk$text()
+                        .accept((index, style, codePoint) -> { h[0] = 31 * h[0] + codePoint; return true; });
+            } else {
+                h[0] = 31 * (31 * (31 * h[0] + line.getClass().hashCode()) + line.getWidth(font)) + line.getHeight(font);
+            }
+            h[0] = 31 * h[0] + '\n';
+        }
+        return h[0];
     }
 
     /**

@@ -3,10 +3,23 @@ package com.trevlar.menukit.mixin;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 import com.trevlar.menukit.api.panel.Focus;
 
+import com.trevlar.menukit.api.element.MKTooltip;
+
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
+import net.minecraft.client.gui.screens.inventory.tooltip.TooltipRenderUtil;
+import net.minecraft.resources.Identifier;
 
 import org.jetbrains.annotations.ApiStatus;
+import org.jspecify.annotations.Nullable;
+import org.joml.Vector2ic;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -37,6 +50,14 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * {@code setTooltipForNextFrameInternal} method that all public
  * {@code setTooltipForNextFrame} overloads delegate to — is the robust
  * mechanism. Single mixin point catches every tooltip queue call.
+ *
+ * <h3>The other tooltip seams on this class</h3>
+ *
+ * This class is MenuKit's one mixin on vanilla's tooltip pipeline (§0064), so the
+ * scroll seam lives here too: {@code tooltip} (the method that places and draws every
+ * queued tooltip) is wrapped to add {@link MKTooltip#scrollBy}'s offset and pin the
+ * title, and {@code extractDeferredElements} (where a screen frame draws its
+ * tooltip) marks the frame boundary MKTooltip uses to tell a new hover from the same one.
  *
  * <h3>Library-not-platform check</h3>
  *
@@ -113,6 +134,57 @@ public abstract class MKTooltipSuppressMixin {
         if (com.trevlar.menukit.inject.PanelHost.renderingLivePanel()) return;
         if (Focus.isInertUnderPanelAtCursor()) {
             ci.cancel();
+        }
+    }
+
+    // ── Scrolling (MKTooltip.scrollBy / onWheel) ─────────────────────────
+
+    /** Inside a tooltip's draw: a bundle draws its hovered item's tooltip from inside its own. */
+    @Unique private static boolean mk$drawingTooltip;
+
+    /** Each screen frame draws its tooltip here, once: the boundary between one frame's tooltip and the next. */
+    @Inject(method = "extractDeferredElements", at = @At("HEAD"))
+    private void mk$tooltipFrame(int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
+        MKTooltip.frameStarts();
+    }
+
+    /**
+     * Places the tooltip where vanilla's positioner says, plus the scroll offset, by
+     * handing vanilla a positioner that adds it; vanilla then draws the background,
+     * text and images there as always. When scrolled with its top above the screen,
+     * the first line is drawn again on a background of its own at the top edge, one
+     * stratum up, so the body scrolls under a fixed title. A tooltip drawn inside
+     * another (a bundle's item) moves with its parent and is otherwise left alone.
+     */
+    @WrapMethod(method = "tooltip")
+    private void mk$scrollTooltip(Font font, java.util.List<ClientTooltipComponent> lines, int mouseX, int mouseY,
+                                  ClientTooltipPositioner positioner, @Nullable Identifier sprite,
+                                  Operation<Void> original) {
+        if (mk$drawingTooltip || lines.isEmpty()) {
+            original.call(font, lines, mouseX, mouseY, positioner, sprite);
+            return;
+        }
+        mk$drawingTooltip = true;
+        try {
+            MKTooltip.tooltipStarts(MKTooltip.contentKey(font, lines));
+            int[] drawn = new int[3];  // x, y, width, as vanilla placed them after the offset
+            ClientTooltipPositioner scrolled = (screenW, screenH, x, y, w, h) -> {
+                Vector2ic at = MKTooltip.scrolled(positioner.positionTooltip(screenW, screenH, x, y, w, h), w, h, screenW, screenH);
+                drawn[0] = at.x();
+                drawn[1] = at.y();
+                drawn[2] = w;
+                return at;
+            };
+            original.call(font, lines, mouseX, mouseY, scrolled, sprite);
+            if (lines.size() > 1 && MKTooltip.pinsTitle(drawn[1])) {
+                GuiGraphicsExtractor self = (GuiGraphicsExtractor) (Object) this;
+                ClientTooltipComponent title = lines.get(0);
+                self.nextStratum();  // above the body's text, which draws over anything in its own stratum
+                TooltipRenderUtil.extractTooltipBackground(self, drawn[0], MKTooltip.EDGE, drawn[2], title.getHeight(font), sprite);
+                title.extractText(self, font, drawn[0], MKTooltip.EDGE);
+            }
+        } finally {
+            mk$drawingTooltip = false;
         }
     }
 }

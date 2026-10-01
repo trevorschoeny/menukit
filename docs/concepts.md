@@ -191,6 +191,8 @@ Under a claim, vanilla gets nothing: no slot highlight, click or tooltip, no wid
 
 Tooltips go through one MenuKit check before vanilla queues them. To hide every tooltip in the game for a while, register a condition once from client init with `MKTooltip.hideWhen(() -> ...)`. While any registered condition is true, no tooltip draws, a panel's own element tooltips included. Inventory Plus uses it for "hold Ctrl to hide tooltips".
 
+The same check places every tooltip, so a mod can scroll one too. `MKTooltip.onWheel((horizontal, vertical) -> ...)` hears the mouse wheel whenever it turns over a shown tooltip, before anything else sees it and whether or not something then uses it; `MKTooltip.scrollBy(dx, dy)` moves the tooltip on screen by that many pixels (positive y moves it down). MenuKit keeps a scrolled tooltip inside its own extent, so one that fits on screen never moves, and resets the offset when the tooltip's text changes or it goes away (`MKTooltip.resetScroll()` does it by hand). While a tooltip is scrolled with its top above the screen, its first line stays pinned at the top edge and the rest scrolls under it. Inventory Plus uses it for "scroll long tooltips".
+
 ## Targeting
 
 A `ScreenPanelAdapter` with no target renders on every container screen. `.on(Class...)` limits it to those screen classes and their subclasses. `.onAny()` states the default explicitly. `.onPlayerInventory()` limits it to the player inventory screen in both game modes.
