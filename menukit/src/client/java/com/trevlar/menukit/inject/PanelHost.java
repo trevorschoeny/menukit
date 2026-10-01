@@ -608,15 +608,22 @@ public final class PanelHost {
      * reserved per {@link TitleBand}. The main panel gets the centred width budget and
      * (when {@link #autoFitMain} allows) a height budget, so it wraps and
      * auto-scrolls rather than running off the screen.
+     *
+     * <p>The main panel makes room for the panels placed outside it: both budgets
+     * leave out the bands its shown {@link OutsideRegion} panels need (see
+     * {@link #outsideBands}), and the frame is pushed off a screen edge only as far
+     * as a band needs. So a panel above a full-height main panel always fits; the
+     * main panel shrinks instead. A main panel with room to spare stays centred.
      */
     private MainFrame resolveMain(Entry main, int sw, int sh) {
         Panel panel = main.panel();
         int pad = main.padding();
         int m = RegionConstants.SCREEN_EDGE_MARGIN;
-        feedWidth(panel, RegionMath.availableScreenEdgeWidth(sw, m), pad);
+        int[] band = outsideBands(sw, sh); // top, bottom, left, right
+        feedWidth(panel, RegionMath.availableScreenEdgeWidth(sw, m) - band[2] - band[3], pad);
+        int title = titleBand == TitleBand.NONE ? 0 : TITLE_STRIP;
         if (autoFitMain.test(panel)) {
-            int title = titleBand == TitleBand.NONE ? 0 : TITLE_STRIP;
-            panel.setAvailableContentHeight(sh - 2 * m - title - 2 * pad);
+            panel.setAvailableContentHeight(sh - 2 * m - title - band[0] - band[1] - 2 * pad);
         }
         int[] size = measure(panel, pad);
         int strip = titleBand == TitleBand.IN_FRAME ? TITLE_STRIP : 0;
@@ -624,14 +631,69 @@ public final class PanelHost {
         int frameH = size[1] + strip;
         int left = (sw - frameW) / 2;
         int top = (sh - frameH) / 2;
+        // An outside band pushes the frame off that screen edge only as far as the
+        // band needs. Far edges first, so when nothing fits the top/left band wins.
+        if (band[1] > 0) top = Math.min(top, sh - m - band[1] - frameH);
+        if (band[3] > 0) left = Math.min(left, sw - m - band[3] - frameW);
+        if (band[2] > 0) left = Math.max(left, m + band[2]);
         // A standalone title draws at the screen top, outside the frame: keep a tall
         // frame below it. With no title the frame only keeps the safe-area margin.
-        if (titleBand == TitleBand.SCREEN_TOP) top = Math.max(top, m + TITLE_STRIP);
-        else if (titleBand == TitleBand.NONE) top = Math.max(top, m);
+        if (titleBand == TitleBand.SCREEN_TOP) top = Math.max(top, m + TITLE_STRIP + band[0]);
+        else if (titleBand == TitleBand.NONE) top = Math.max(top, m + band[0]);
+        else if (band[0] > 0) top = Math.max(top, m + band[0]);
         Reference frame = new Reference(left, top, frameW, frameH);
         Placed placed = new Placed(main, left + main.position().dx(),
                 top + strip + main.position().dy(), size[0], size[1]);
         return new MainFrame(frame, placed);
+    }
+
+    /**
+     * The room the shown {@link OutsideRegion} panels need beside the main frame, as
+     * {top, bottom, left, right} including the frame gap. A region that flows along
+     * the frame edge (TOP_ALIGN_*, LEFT_ALIGN_*, ...) needs its tallest (or widest)
+     * panel; TOP_CENTER and BOTTOM_CENTER stack away from the frame and need their
+     * sum plus gaps. Each side takes its largest region. Overlays and in-frame CENTER
+     * panels need no band.
+     *
+     * <p>ponytail: panels are measured against the screen-wide budget here, before the
+     * frame exists; {@link #place} re-feeds the anchor budget. A top or bottom panel that
+     * wraps taller under the narrower anchor budget can still miss its band. Measure
+     * twice (frame, then bands) if that ever shows up.
+     */
+    private int[] outsideBands(int sw, int sh) {
+        int m = RegionConstants.SCREEN_EDGE_MARGIN;
+        int gap = RegionConstants.MENU_STACK_GAP;
+        Map<OutsideRegion, Integer> need = new HashMap<>();
+        for (Entry e : entries) {
+            Panel p = e.panel();
+            if (e.position().mode() != PanelPosition.Mode.REGION || !isShown(p) || p.isOverlayPositioned()) continue;
+            OutsideRegion r = Objects.requireNonNull(e.position().region());
+            if (r == OutsideRegion.CENTER) continue;
+            boolean sideways = switch (r) {
+                case LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM, RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM -> true;
+                default -> false;
+            };
+            feedWidth(p, RegionMath.availableScreenEdgeWidth(sw, m), e.padding());
+            int[] size = measure(p, e.padding());
+            int across = sideways ? size[0] : size[1];
+            if (r == OutsideRegion.TOP_CENTER || r == OutsideRegion.BOTTOM_CENTER) {
+                need.merge(r, across + gap, Integer::sum);
+            } else {
+                need.merge(r, across + gap, Math::max);
+            }
+        }
+        int top = 0, bottom = 0, left = 0, right = 0;
+        for (var n : need.entrySet()) {
+            int v = n.getValue();
+            switch (n.getKey()) {
+                case TOP_ALIGN_LEFT, TOP_ALIGN_RIGHT, TOP_CENTER -> top = Math.max(top, v);
+                case BOTTOM_ALIGN_LEFT, BOTTOM_ALIGN_RIGHT, BOTTOM_CENTER -> bottom = Math.max(bottom, v);
+                case LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM -> left = Math.max(left, v);
+                case RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM -> right = Math.max(right, v);
+                default -> { }
+            }
+        }
+        return new int[]{top, bottom, left, right};
     }
 
     /** Outer size: content (the panel's own, or the host's {@link #contentSize}) plus padding. */

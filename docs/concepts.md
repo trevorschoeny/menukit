@@ -145,6 +145,8 @@ A panel with no placement is unplaced. An adapter or the HUD rejects it at regis
 
 A panel wraps its width to the space its placement leaves and scrolls its height when taller than its room. `Panel.size(w, h)`, `pinnedWidth(w)`, and `pinnedHeight(h)` override this.
 
+On a standalone screen, the `main()` panel makes room for the `region(...)` panels around it. Its room leaves out the height of the panels above and below it and the width of the panels beside it, gap included, so a panel above a full-height menu still fits and the menu gets a little shorter. A main panel with room to spare stays centred.
+
 ## Reference
 
 A reference is the rectangle a `region(...)` placement is measured against. It is not the panel and has no relation to the panel's size. The host decides it: a container screen's frame (extended by its chrome, such as creative's tab rows or an open recipe book), one slot group's bounding box, or a standalone screen's main panel. `Reference` is the record that carries it. A region never names its reference.
