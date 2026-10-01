@@ -6,7 +6,12 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
+import com.trevlar.menukit.api.window.Declarations;
+
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 /**
  * The single library entry point for queuing a hover-float tooltip, the one
@@ -42,6 +47,39 @@ import java.util.List;
 public final class MKTooltip {
 
     private MKTooltip() {}
+
+    // ── Hiding every tooltip ─────────────────────────────────────────────
+    // MenuKit owns the one seam every tooltip in the game is queued through
+    // (MKTooltipSuppressMixin, on vanilla's setTooltipForNextFrameInternal), and
+    // §0064 allows one seam per vanilla method, so a mod that wants tooltips gone
+    // registers a predicate here instead of adding a second mixin. MenuKit supplies
+    // the mechanism; the mod supplies the policy (Inventory Plus: "a setting is on
+    // and Ctrl is held").
+
+    /** Registered "hide while" predicates. Written only during init, read every frame. */
+    private static final Set<BooleanSupplier> HIDE_WHEN = new LinkedHashSet<>();
+
+    /**
+     * Hides every tooltip in the game, on any screen and from any source (vanilla,
+     * MenuKit elements, other mods), on every frame {@code condition} is true.
+     * Several mods may register; any one returning true hides. Registering the
+     * same supplier instance twice is a no-op. Call from client init.
+     *
+     * @throws IllegalStateException after MenuKit's declarations froze
+     */
+    public static void hideWhen(BooleanSupplier condition) {
+        Declarations.requireOpen("MKTooltip.hideWhen");
+        HIDE_WHEN.add(condition);
+    }
+
+    /** True when any registered {@link #hideWhen} predicate holds this frame. */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static boolean hidden() {
+        for (BooleanSupplier c : HIDE_WHEN) {
+            if (c.getAsBoolean()) return true;
+        }
+        return false;
+    }
 
     /**
      * Library-default maximum hover-tooltip width, in GUI pixels. Sized to

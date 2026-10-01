@@ -103,6 +103,13 @@ public abstract class MKTooltipSuppressMixin {
         // A tooltip queued while the pointer's owner renders is that panel's own
         // content (an element tooltip, the panel tooltip): it passes, even over the
         // panel's own claim. Everything else under a claim is suppressed.
+        // A mod asked for no tooltips at all right now (MKTooltip.hideWhen, e.g.
+        // Inventory Plus while Ctrl is held). Asked first, so a live panel's own
+        // element tooltips hide too: the player asked for none.
+        if (com.trevlar.menukit.api.element.MKTooltip.hidden()) {
+            ci.cancel();
+            return;
+        }
         if (com.trevlar.menukit.inject.PanelHost.renderingLivePanel()) return;
         if (Focus.isInertUnderPanelAtCursor()) {
             ci.cancel();

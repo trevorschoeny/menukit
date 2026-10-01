@@ -187,6 +187,8 @@ What a panel covers is inert. A point on the screen is claimed by the topmost pa
 
 Under a claim, vanilla gets nothing: no slot highlight, click or tooltip, no widget or list hover, no creative tab. The claim routes the point to the claiming panel instead. A panel's own slots stay live under its own claim (a created slot it presents, or a standalone screen's own slot group), and so do a standalone screen's own widgets under its own panels. Every surface asks the same question, so a slot-group panel and a standalone screen's panels block what they cover exactly as an adapter's panel does.
 
+Tooltips go through one MenuKit check before vanilla queues them. To hide every tooltip in the game for a while, register a condition once from client init with `MKTooltip.hideWhen(() -> ...)`. While any registered condition is true, no tooltip draws, a panel's own element tooltips included. Inventory Plus uses it for "hold Ctrl to hide tooltips".
+
 ## Targeting
 
 A `ScreenPanelAdapter` with no target renders on every container screen. `.on(Class...)` limits it to those screen classes and their subclasses. `.onAny()` states the default explicitly. `.onPlayerInventory()` limits it to the player inventory screen in both game modes.
