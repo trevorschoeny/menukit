@@ -29,7 +29,8 @@ import java.util.Objects;
  * pixel to the last). A row with a spacer therefore fills the Flow's width: a
  * label, a spacer and a control is a settings row with the control pinned to the
  * right edge, at whatever width the panel has, with no width handed to whoever
- * built it (a {@link Tabs} body factory never knows its width). When the row is
+ * built it (a {@link Tabs} body factory never knows its width). A spacer at
+ * each end of a one-row Flow centres what is between them. When the row is
  * too narrow and wraps, a spacer that ends up at the start or end of a row takes
  * nothing, and the control sits under its label.
  *
@@ -165,7 +166,7 @@ public final class Flow extends AbstractPanelElement {
 
         int widest = 0, bottom = 0;
         for (RowOf r : rows) {
-            int w = place(r, cap);
+            int w = place(r, cap, rows.size() > 1);
             widest = Math.max(widest, w);
             int h = 0;
             for (PanelElement c : r.members()) h = Math.max(h, c.getHeight());
@@ -182,9 +183,11 @@ public final class Flow extends AbstractPanelElement {
      * spacer taking its share of the leftover (a spacer at either end of a row
      * that wrapped takes nothing). Returns the row's width.
      */
-    private int place(RowOf r, int cap) {
+    private int place(RowOf r, int cap, boolean wrapped) {
         List<PanelElement> m = r.members();
-        // Spacers between content count; one leading or trailing does not.
+        // Spacers between content count. One leading or trailing counts only while
+        // the Flow is one row, so spacer, label, spacer centres the label; once it
+        // wraps, the ends take nothing and a wrapped control sits at the left.
         int firstContent = -1, lastContent = -1;
         for (int i = 0; i < m.size(); i++) {
             if (!(m.get(i) instanceof Spacer)) {
@@ -197,7 +200,7 @@ public final class Flow extends AbstractPanelElement {
             PanelElement c = m.get(i);
             if (i > 0) fixed += gapX;
             if (c instanceof Spacer) {
-                if (live(i, firstContent, lastContent)) spacers++;
+                if (live(i, firstContent, lastContent, wrapped)) spacers++;
             } else {
                 fixed += c.getWidth();
             }
@@ -210,7 +213,7 @@ public final class Flow extends AbstractPanelElement {
             PanelElement c = m.get(i);
             if (i > 0) x += gapX;
             if (c instanceof Spacer s) {
-                boolean live = live(i, firstContent, lastContent);
+                boolean live = live(i, firstContent, lastContent, wrapped);
                 if (live) seen++;
                 s.w = live ? share + (seen == spacers ? odd : 0) : 0;
                 s.x = childX + x;
@@ -225,12 +228,13 @@ public final class Flow extends AbstractPanelElement {
     }
 
     /**
-     * Whether a spacer takes room: only between two children of its row. A
-     * spacer left at the end of a row (its control wrapped to the next row) or at
-     * the start of one takes nothing, so the wrapped control sits at the left.
+     * Whether a spacer takes room: in a row with content, anywhere while the Flow
+     * is one row, else only between two children of its row. A spacer left at the
+     * end of a row (its control wrapped to the next row) or at the start of one
+     * takes nothing, so the wrapped control sits at the left.
      */
-    private static boolean live(int i, int firstContent, int lastContent) {
-        return firstContent >= 0 && i > firstContent && i < lastContent;
+    private static boolean live(int i, int firstContent, int lastContent, boolean wrapped) {
+        return firstContent >= 0 && (!wrapped || (i > firstContent && i < lastContent));
     }
 
     private int signature() {
