@@ -91,7 +91,7 @@ The API is every type in a package named `api`: `com.trevlar.menukit.api.*` and 
 |---|---|
 | `api` | `MK`, the HUD facade. It registers HUD panels and notifications, sends a notification, and reads or sets the recipe book. |
 | `api.element` | Every element, and the contexts they render and take input in |
-| `api.layout`, `api.dialog` | Build-time rows and columns; confirm and alert dialogs |
+| `api.layout`, `api.dialog` | Rows and columns placed once; confirm and alert dialogs |
 | `api.panel` | `Panel`, placement (`PanelPosition` and the regions), the adapters that put panels on vanilla screens, `MKScreen` |
 | `api.hud` | HUD panels and notifications |
 | `api.slot` | Slot groups, categories, sets, and `Storage` |

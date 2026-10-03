@@ -144,8 +144,35 @@ public abstract class AbstractPanelElement implements PanelElement {
 
     // ── Position ───────────────────────────────────────────────────────
 
-    @Override public int getChildX() { return childX; }
-    @Override public int getChildY() { return childY; }
+    @Override public int getChildX() { settle(); return childX; }
+    @Override public int getChildY() { settle(); return childY; }
+
+    // ── A placement measured on first use ──────────────────────────────
+    // A Row or Column places its elements from their sizes, and a text-bearing
+    // element's size needs the game's font, which does not exist yet at mod init,
+    // where panels and dialogs are declared (§0063). So a Row or Column hands each
+    // element it places the one layout of the whole row, run on the first read of
+    // any member's position: in practice the panel's first layout pass, when the
+    // font is loaded. Render reads the fields only after that pass.
+    private @Nullable Runnable pendingPlacement;
+
+    /**
+     * Places this element on the first read of its position instead of now: the
+     * layout shared by every element of one {@code Row}/{@code Column}, run once.
+     * For the layout helpers.
+     */
+    @ApiStatus.Internal
+    public void placeOnFirstRead(Runnable placement) {
+        this.pendingPlacement = Objects.requireNonNull(placement, "placement");
+    }
+
+    /** Runs a pending placement, once. */
+    private void settle() {
+        Runnable placement = pendingPlacement;
+        if (placement == null) return;
+        pendingPlacement = null;
+        placement.run();
+    }
 
     /**
      * Moves this element (the container protocol): a {@link Flow} places its
@@ -155,6 +182,7 @@ public abstract class AbstractPanelElement implements PanelElement {
      * element's identity is unchanged.
      */
     public void setChildPosition(int x, int y) {
+        this.pendingPlacement = null;   // a move is the placement
         this.childX = x;
         this.childY = y;
         this.baselineY = y;
@@ -164,6 +192,7 @@ public abstract class AbstractPanelElement implements PanelElement {
     /** The baseline Y the panel's reflow stacks from. Package-private: {@code Panel}'s reflow reads it. */
     @ApiStatus.Internal
     public int reflowBaselineY() {
+        settle();
         if (!baselineCaptured) {
             baselineY = childY;
             baselineCaptured = true;

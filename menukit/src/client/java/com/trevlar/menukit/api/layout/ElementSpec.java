@@ -12,7 +12,9 @@ import com.trevlar.menukit.api.element.PanelElement;
  * the element to {@code Row.add}/{@code Column.add}, which wraps it through
  * {@link #of} and moves it with {@code setChildPosition} (§0066: the {@code spec()}
  * factories folded into the builders). Implement this interface for a custom
- * element that can only be constructed once its position is known.
+ * element that can only be constructed once its position is known; a Row or
+ * Column holding one is laid out in {@code build()}, so build it where every
+ * element in it can be measured (a screen's {@code init}, not mod init).
  *
  * @see Row
  * @see Column

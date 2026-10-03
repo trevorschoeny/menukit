@@ -13,6 +13,10 @@ import java.util.function.Consumer;
  * alignment policy. Emits a flat list of positioned
  * {@link PanelElement}s.
  *
+ * <p>Measured on first use, as {@link Row} is: the positions are computed on
+ * the first read of any emitted element's position, so a Column builds at mod
+ * init, before the game's font exists.
+ *
  * <p>Same helper-not-container discipline as Row, Column does not
  * implement {@link PanelElement}, has no {@code render(...)} method, and
  * does not exist at runtime.
@@ -58,7 +62,7 @@ public final class Column {
         private final int originY;
         private int spacing = 0;
         private CrossAlign crossAlign = CrossAlign.START;
-        private final List<LayoutEntry> entries = new ArrayList<>();
+        final List<LayoutEntry> entries = new ArrayList<>();   // package-private: a nesting helper reads its members
 
         Builder(int originX, int originY) {
             this.originX = originX;
@@ -104,7 +108,7 @@ public final class Column {
          * {@link ElementSpec#of(PanelElement)}.
          */
         public Builder add(PanelElement element) {
-            entries.add(LayoutEntry.fromSpec(ElementSpec.of(element)));
+            entries.add(LayoutEntry.fromElement(element));
             return this;
         }
 
@@ -112,9 +116,8 @@ public final class Column {
         public Builder addColumn(Consumer<Column.Builder> config) {
             Column.Builder nested = new Column.Builder(0, 0);
             config.accept(nested);
-            int w = nested.computeCrossAxisExtent();
-            int h = nested.computeMainAxisExtent();
-            entries.add(LayoutEntry.fromNested(w, h, nested::buildAt));
+            entries.add(LayoutEntry.fromNested(nested::computeCrossAxisExtent, nested::computeMainAxisExtent,
+                    nested::buildAt, LayoutEntry.members(nested.entries)));
             return this;
         }
 
@@ -122,9 +125,9 @@ public final class Column {
         public Builder addRow(Consumer<Row.Builder> config) {
             Row.Builder nested = new Row.Builder(0, 0);
             config.accept(nested);
-            int w = nested.computeMainAxisExtent();
-            int h = nested.computeCrossAxisExtent();
-            entries.add(LayoutEntry.fromNested(w, h, nested::buildAt));
+            nested.requireSpacerWidth();
+            entries.add(LayoutEntry.fromNested(nested::computeMainAxisExtent, nested::computeCrossAxisExtent,
+                    nested::buildAt, LayoutEntry.members(nested.entries)));
             return this;
         }
 
@@ -134,7 +137,7 @@ public final class Column {
          * computed for each child.
          */
         public List<PanelElement> build() {
-            return buildAt(originX, originY);
+            return LayoutEntry.placeOnFirstRead(entries, () -> buildAt(originX, originY));
         }
 
         // ── Internal, used by nesting and by build() ─────────────────

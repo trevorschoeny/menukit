@@ -11,3 +11,7 @@ The pause-menu look. A menu can now look like the screens reached from the pause
 - `Tabs` in `WRAP` and `SIDE_SCROLL` in the vanilla look is the tab bar of Create World: white labels, the selected one underlined and open into a page of the list background, the separator on either side. `SIDEBAR` keeps MenuKit's look.
 
 The look changes how an element draws, never its size or behaviour, so a screen switches without its layout moving. `Slider` and `TextField` are vanilla's own widgets and look the same in both. Where vanilla has no twin (radio buttons, info boxes, progress bars, colour swatches, consumer sprites) MenuKit's drawing stays.
+
+### Fixed
+
+- A dialog or a panel laid out with `Row` or `Column` can be built at mod init, where adapters are declared. `Row` and `Column` measured their elements in `build()`, and a label's or button's size needs the game's font, which does not exist yet at init, so `ConfirmDialog` and `AlertDialog` could only be built after the declaration freeze had closed. They now place their elements on the first read of any element's position, in practice the panel's first layout pass. A `Row` or `Column` holding a custom `ElementSpec` still lays out in `build()`, and a spacer without `width(px)` still throws there.

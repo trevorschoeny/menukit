@@ -15,9 +15,16 @@ import java.util.function.Consumer;
  * <p>Row exists only during the {@code .build()} call chain. After
  * {@code build()} returns, the Row builder discharges its job and is
  * dead; no Row reference should be retained for "relayout." The emitted
- * elements have their positions baked in (per {@link PanelElement}'s
- * "fixed at construction; never mutated" contract) and are added to a
- * {@link com.trevlar.menukit.api.panel.Panel} like any other elements.
+ * elements are added to a {@link com.trevlar.menukit.api.panel.Panel} like
+ * any other elements.
+ *
+ * <p><b>Measured on first use.</b> The positions are computed once, on the
+ * first read of any emitted element's position (in practice the panel's first
+ * layout pass), not in {@code build()}: a label's or button's size needs the
+ * game's font, which does not exist yet at mod init, where panels and dialogs
+ * are declared. So a Row builds anywhere. A Row holding a custom
+ * {@link ElementSpec}, whose element exists only once placed, is laid out in
+ * {@code build()} instead, measuring then.
  *
  * <p><b>Helper, not container.</b> Row does NOT implement
  * {@link PanelElement}, does NOT have a {@code render(...)} method, and
@@ -98,7 +105,7 @@ public final class Row {
         private int spacing = 0;
         private int width = -1;
         private CrossAlign crossAlign = CrossAlign.START;
-        private final List<LayoutEntry> entries = new ArrayList<>();
+        final List<LayoutEntry> entries = new ArrayList<>();   // package-private: a nesting helper reads its members
 
         Builder(int originX, int originY) {
             this.originX = originX;
@@ -166,7 +173,7 @@ public final class Row {
          * {@link ElementSpec#of(PanelElement)}.
          */
         public Builder add(PanelElement element) {
-            entries.add(LayoutEntry.fromSpec(ElementSpec.of(element)));
+            entries.add(LayoutEntry.fromElement(element));
             return this;
         }
 
@@ -180,9 +187,9 @@ public final class Row {
         public Builder addRow(Consumer<Row.Builder> config) {
             Row.Builder nested = new Row.Builder(0, 0);
             config.accept(nested);
-            int w = nested.computeMainAxisExtent();
-            int h = nested.computeCrossAxisExtent();
-            entries.add(LayoutEntry.fromNested(w, h, nested::buildAt));
+            nested.requireSpacerWidth();
+            entries.add(LayoutEntry.fromNested(nested::computeMainAxisExtent, nested::computeCrossAxisExtent,
+                    nested::buildAt, LayoutEntry.members(nested.entries)));
             return this;
         }
 
@@ -190,9 +197,8 @@ public final class Row {
         public Builder addColumn(Consumer<Column.Builder> config) {
             Column.Builder nested = new Column.Builder(0, 0);
             config.accept(nested);
-            int w = nested.computeCrossAxisExtent();
-            int h = nested.computeMainAxisExtent();
-            entries.add(LayoutEntry.fromNested(w, h, nested::buildAt));
+            entries.add(LayoutEntry.fromNested(nested::computeCrossAxisExtent, nested::computeMainAxisExtent,
+                    nested::buildAt, LayoutEntry.members(nested.entries)));
             return this;
         }
 
@@ -208,7 +214,19 @@ public final class Row {
          * not a supported use case).
          */
         public List<PanelElement> build() {
-            return buildAt(originX, originY);
+            requireSpacerWidth();
+            return LayoutEntry.placeOnFirstRead(entries, () -> buildAt(originX, originY));
+        }
+
+        /** A spacer needs {@link #width(int)}: checked when the row is built or nested, not when it is measured. */
+        void requireSpacerWidth() {
+            if (width > 0) return;
+            for (LayoutEntry e : entries) {
+                if (e.isSpacer()) {
+                    throw new IllegalStateException(
+                            "Row: addSpacer() needs width(px) set, to know how much room it has to fill");
+                }
+            }
         }
 
         // ── Internal, used by nesting and by build() ─────────────────
@@ -283,11 +301,7 @@ public final class Row {
                 advance[i] = entries.get(i).width();
                 if (entries.get(i).isSpacer()) spacerCount++;
             }
-            if (spacerCount == 0) return advance;
-            if (width <= 0) {
-                throw new IllegalStateException(
-                        "Row: addSpacer() needs width(px) set, to know how much room it has to fill");
-            }
+            if (spacerCount == 0) return advance;   // a spacer has a width: requireSpacerWidth
             int fixedExtent = 0;
             for (int i = 0; i < n; i++) {
                 fixedExtent += advance[i];

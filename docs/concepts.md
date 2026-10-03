@@ -116,7 +116,7 @@ Every input method receives an `InputContext`, as `render` receives a `RenderCon
 
 `build()` freezes the panel's element list. No method adds an element to a built panel. Visibility, position, and supplier-driven content change at runtime. To change the element list, build a new panel.
 
-A hidden element or panel is inert on every surface. It does not render, receive clicks or show a tooltip. It takes no room in a panel's layout or a `Flow`; `Row` and `Column` place at build time, so a hidden element there keeps its gap.
+A hidden element or panel is inert on every surface. It does not render, receive clicks or show a tooltip. It takes no room in a panel's layout or a `Flow`; `Row` and `Column` place once, so a hidden element there keeps its gap.
 
 ## Size
 
@@ -148,7 +148,7 @@ Position the row after a section where it sits while the section is closed. When
 
 ## Layout helpers
 
-`Row` and `Column` compute positions at build time and return a `List<PanelElement>`. They do not exist at runtime. An element enters a layout built: `.add(Button.builder()...build())`, and the helper moves it into place. A custom element that can only be constructed once its position is known implements `ElementSpec`. `.build()` returns positioned elements that go into a panel with `.add(...)` or `.elements(...)`.
+`Row` and `Column` compute positions once and return a `List<PanelElement>`. They do not exist at runtime. The positions are computed on the panel's first layout pass, when the game's font can measure text, so a panel or dialog laid out with them can be built at mod init. An element enters a layout built: `.add(Button.builder()...build())`, and the helper moves it into place. A custom element that can only be constructed once its position is known implements `ElementSpec`. `.build()` returns positioned elements that go into a panel with `.add(...)` or `.elements(...)`.
 
 `Flow` is the runtime row: its children flow left to right at the panel's width and wrap to new rows. `Flow.spacer()` takes whatever a row's other children leave of that width, so a label, a spacer and a control make a settings row with the control pinned to the right edge at any window width, and no width is written anywhere. A spacer at each end of a row centres what is between them. When the row wraps, the control drops under its label.
 

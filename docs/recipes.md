@@ -137,7 +137,7 @@ List<PanelElement> buttonRow = Row.at(20, 30).spacing(4)
 Panel p = Panel.builder("mymod:confirm").elements(buttonRow).position(PanelPosition.center()).build();
 ```
 
-Result: two 60 by 20 buttons at y 30, starting at x 20, with a 4 pixel gap. `Column` has the same shape on the vertical axis. `.crossAlign(CrossAlign.CENTER)` centres children on the cross axis. A hidden element keeps its space. `Row` places at build time; for a row that follows the panel's width, use a `Flow` (next recipe).
+Result: two 60 by 20 buttons at y 30, starting at x 20, with a 4 pixel gap. `Column` has the same shape on the vertical axis. `.crossAlign(CrossAlign.CENTER)` centres children on the cross axis. A hidden element keeps its space. `Row` places once, on the panel's first layout, and does not follow the panel after; for a row that follows the panel's width, use a `Flow` (next recipe).
 
 ## Build a settings body: label left, control right, greyed while off
 
