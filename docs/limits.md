@@ -9,7 +9,7 @@ These are not planned. Use vanilla or another library.
 - A config framework: option types, save files, a generated screen. MenuKit gives the controls, tabs and settings rows; where a value lives and how it saves is the mod's. For a generated config screen, use YACL or Cloth Config.
 - Chat and the F3 overlay. Both render outside the `Screen` system `VanillaScreenPanelAdapter` targets.
 - Nested panels. A panel holds elements only.
-- Themes and skins. `PanelStyle` and `ControlStyle` are the full set. MenuKit restyles nothing of vanilla's except the pressed look of buttons ([concepts](concepts.md#one-styling-change)).
+- Themes and skins. `PanelStyle` and the two screen kinds (`ScreenKind`) are the full set; an element's look follows its screen's kind and cannot be picked per element, panel or screen. MenuKit restyles nothing of vanilla's except the pressed look of buttons ([concepts](concepts.md#one-styling-change)).
 - Tooltip content. Item Tips (durability and food lines) left MenuKit in 6.0.0 and is a feature of Inventory Plus.
 - Animation beyond HUD notifications.
 - A cross-mod event bus.
@@ -38,6 +38,8 @@ Behavior that is incomplete in the current release.
 | Drop rule key | `dropsOnDeath(DropRule)` on a player storage attachment covers death. No window key covers drop rules. |
 | Advancements | Created slots use a separate container and do not fire vanilla's inventory-change trigger. The consumer fires it. |
 | Item-attached storage | Uses vanilla's container component only. |
+| Item picker | Holds one kind of item (an `Item`: no count, no enchantments or other components); a list of items is a row of pickers. Its chooser lists every registered item in registry order, searched by name and id, not by creative tab. Clearing from the keyboard is not supported; a right click or the chooser's Clear empties it. |
+| A look per element | None since 6.1.0: `ControlStyle` and `style(ControlStyle)` are deprecated and do nothing. A control that should differ from its screen's kind (a MenuKit-grey button on an options screen) has no switch; draw it with a consumer sprite (`Button.sprite`). |
 | Block-portable content | Metadata travels with a carried shulker. General content travel for other blocks does not. |
 
 ## Element gaps

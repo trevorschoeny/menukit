@@ -1,5 +1,6 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.core.TabRows;
 import com.trevlar.menukit.core.VanillaLook;
@@ -93,17 +94,17 @@ import java.util.function.Supplier;
  *       {@link Builder#sidebarHeader} puts elements above the column (a Back
  *       button, say), in the column's width; the body still starts at the top.</li>
  * </ul>
- * <h3>Vanilla look</h3>
+ * <h3>On an options screen</h3>
  *
  * The strip ({@link Mode#WRAP}, {@link Mode#SIDE_SCROLL}) always draws vanilla's
- * tab sprites. In the vanilla look ({@link ControlStyle#VANILLA}, its own or its
- * screen's or panel's) it is the tab bar of vanilla's Create World screen: every
+ * tab sprites. On an options screen ({@link ScreenKind#OPTIONS}) it is the tab
+ * bar of vanilla's Create World screen: every
  * label white with a shadow, the selected one underlined, vanilla's separator
  * along the strip's bottom on either side of the tabs, and the selected tab open
  * into the page below it, which is vanilla's darker list background down to a
  * separator at the bottom. Behaviour, sizes and the arrows (vanilla's page
- * arrows) are the same in both looks. {@link Mode#SIDEBAR} keeps MenuKit's look;
- * its body and header follow the look like any content.
+ * arrows) are the same on both kinds. {@link Mode#SIDEBAR} keeps MenuKit's
+ * drawing on both; its body and header draw for the kind like any content.
  *
  * {@link Builder#header} puts a row across the whole element, above the strip
  * (or the sidebar column) and the body, in every mode: the menu's own title bar.
@@ -673,7 +674,7 @@ public final class Tabs extends AbstractPanelElement {
             Panel.reflowForWrap(tab.body);
             contentH = Panel.contentHeightOf(tab.body);
             String id = tab.id;
-            // Bandless: in the vanilla look the Tabs draws the page band itself, behind
+            // Bandless: on an options screen the Tabs draws the page band itself, behind
             // the whole body, whether or not it scrolls.
             scroll = ScrollContainer.builder()
                     .bandless()
@@ -831,14 +832,14 @@ public final class Tabs extends AbstractPanelElement {
 
         // ── Header, then the strip under it ── (a disabled one draws as if nothing were hovered)
         RenderContext stripCtx = disabled
-                ? new RenderContext(g, ctx.originX(), ctx.originY(), -1, -1, true, ctx.style()) : ctx;
+                ? new RenderContext(g, ctx.originX(), ctx.originY(), -1, -1, true, ctx.kind()) : ctx;
         ChildDispatch.render(header, childContext(stripCtx.at(sx, sy)));
         if (sidebar()) {
             renderSidebar(stripCtx, s, shown, sx, sy + s.top);
         } else {
-            // The vanilla look's page: the list band from the strip's bottom down,
+            // An options screen's page: the list band from the strip's bottom down,
             // with the footer separator under it (the strip's own line is its top).
-            if (style(ctx) == ControlStyle.VANILLA) {
+            if (ctx.kind() == ScreenKind.OPTIONS) {
                 int pageTop = sy + s.top + s.height;
                 int bottom = sy + getHeight();
                 VanillaLook.listBackground(g, sx, pageTop, getWidth(), bottom - pageTop, sx, pageTop);
@@ -889,7 +890,7 @@ public final class Tabs extends AbstractPanelElement {
         int viewLeft = sx + stripViewportStart(s);
         int viewRight = viewLeft + stripViewportLength(s);
         int shift = s.overflow ? stripScroll : 0;
-        boolean vanilla = style(ctx) == ControlStyle.VANILLA;
+        boolean vanilla = ctx.kind() == ScreenKind.OPTIONS;
         if (vanilla) stripSeparators(g, s, sx, sy, viewLeft, viewRight, shift);
         if (s.overflow) g.enableScissor(viewLeft, sy, viewRight, sy + s.height);
         Placed hoveredTruncated = null;
@@ -946,7 +947,7 @@ public final class Tabs extends AbstractPanelElement {
     }
 
     /**
-     * The vanilla look's line along the strip's bottom, either side of the last
+     * An options screen's line along the strip's bottom, either side of the last
      * row's tabs (MenuTabBar draws {@code Screen.HEADER_SEPARATOR} left of the first
      * tab and right of the last): with the selected tab open above the page, the
      * line and the page read as one surface. Under an overflowing row's arrows only,

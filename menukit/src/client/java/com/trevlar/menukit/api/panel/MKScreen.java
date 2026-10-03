@@ -1,6 +1,5 @@
 package com.trevlar.menukit.api.panel;
 
-import com.trevlar.menukit.api.element.ControlStyle;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.PanelStyle;
@@ -49,14 +48,16 @@ import java.util.List;
  * panels (topmost first, modal-aware), then vanilla widgets, then eats a click its
  * panels claim.
  *
- * <h3>The look</h3>
- * {@link #elementStyle(ControlStyle)} sets the look of every element on the screen
- * at once: {@link ControlStyle#VANILLA} for a screen that should read like the ones
- * reached from the pause menu. It reaches every panel with no background of its own
- * ({@link PanelStyle#NONE}), which shows vanilla's backdrop (the blurred world, or
- * the panorama); a panel that draws MenuKit's grey keeps MenuKit's look. A panel's
- * own {@code elementStyle} wins for that panel, and an element's own
- * {@code style(...)} for that element.
+ * <h3>Its kind (6.1.0)</h3>
+ * A standalone screen declares what kind of screen it is once, when it is created
+ * ({@link ScreenKind}): {@code super(title, ScreenKind.OPTIONS, panels)} for a
+ * settings screen that should read like the ones reached from the pause menu.
+ * Every element on it draws for that kind, its panels' backgrounds too, and so
+ * does anything injected onto it or opened from it (a dialog, an item picker's
+ * chooser). Without a kind it is {@link ScreenKind#CONTAINER}, MenuKit's grey
+ * look, which is how every standalone screen looked before 6.1.0. On an options
+ * screen a panel usually has no background ({@link PanelStyle#NONE}), so
+ * vanilla's backdrop (the blurred world, or the panorama) shows behind it.
  *
  * @see com.trevlar.menukit.api.panel.ScreenPanelAdapter for panels on vanilla screens
  */
@@ -70,6 +71,9 @@ public class MKScreen extends Screen {
     protected static final int PANEL_PADDING = 7;
 
     private final List<Panel> panels;
+
+    /** The kind of screen this is, declared at creation; never changes. */
+    private final ScreenKind screenKind;
 
     /** This screen's panels, placed and routed. */
     private final PanelHost host;
@@ -88,15 +92,33 @@ public class MKScreen extends Screen {
     private @Nullable Runnable returnAction;
 
     /**
+     * A container-kind screen ({@link ScreenKind#CONTAINER}): MenuKit's grey look,
+     * the look every standalone screen had before 6.1.0.
+     *
      * @param title  the screen title (drawn at the top unless {@link #hideTitle()}; always narrated)
      * @param panels the screen's panels, bottom to top
      * @throws IllegalArgumentException if a panel's position cannot be placed here
      *         (a second {@code main()}, or a {@code region(...)} with no main)
      */
     protected MKScreen(Component title, List<Panel> panels) {
+        this(title, ScreenKind.CONTAINER, panels);
+    }
+
+    /**
+     * A screen of the given kind: {@link ScreenKind#OPTIONS} for a settings screen
+     * in the pause-menu look, {@link ScreenKind#CONTAINER} for MenuKit's own.
+     *
+     * @param title  the screen title (drawn at the top unless {@link #hideTitle()}; always narrated)
+     * @param kind   what kind of screen this is, which decides how everything on it draws
+     * @param panels the screen's panels, bottom to top
+     * @throws IllegalArgumentException if a panel's position cannot be placed here
+     *         (a second {@code main()}, or a {@code region(...)} with no main)
+     */
+    protected MKScreen(Component title, ScreenKind kind, List<Panel> panels) {
         super(title);
+        this.screenKind = java.util.Objects.requireNonNull(kind, "kind");
         this.panels = List.copyOf(panels);
-        this.host = PanelHost.standalone(
+        this.host = PanelHost.standalone(kind,
                 () -> new PanelHost.Frame(this.width, this.height, null),
                 PanelHost.TitleBand.SCREEN_TOP);
         // An element-only main is always safe to auto-fit its height (it scrolls
@@ -126,16 +148,9 @@ public class MKScreen extends Screen {
         host.titleBand(PanelHost.TitleBand.NONE);
     }
 
-    /**
-     * The look every element on this screen follows, unless its panel sets its own
-     * ({@code Panel.Builder.elementStyle}) or the element its own {@code style(...)}.
-     * It reaches the panels with no background of their own ({@link PanelStyle#NONE}),
-     * where vanilla's backdrop shows: a panel that draws MenuKit's grey (a dialog,
-     * say) keeps MenuKit's look, so its text stays dark on grey. Default
-     * {@link ControlStyle#MK}. Call from the subclass constructor.
-     */
-    protected final void elementStyle(ControlStyle style) {
-        host.elementStyle(style);
+    /** The kind of screen this is, as declared when it was created. */
+    public final ScreenKind screenKind() {
+        return screenKind;
     }
 
     /** Whether the title band shows (false after {@link #hideTitle()}). */

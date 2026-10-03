@@ -4,6 +4,8 @@ import com.trevlar.menukit.core.MKRenderPipelines;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.api.panel.PanelStyle;
+import com.trevlar.menukit.api.panel.ScreenKind;
+import com.trevlar.menukit.core.VanillaLook;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
@@ -194,8 +196,8 @@ public class Button extends AbstractPanelElement {
 
     /**
      * Paints the background: raised, inset while pressed, dark while disabled,
-     * with the hover highlight; or vanilla's button sprite in the vanilla look
-     * (its own {@code style}, or its screen's or panel's). Covers the grown height
+     * with the hover highlight, on a container screen; vanilla's button sprite
+     * on an options screen ({@link ScreenKind#OPTIONS}). Covers the grown height
      * when the label wraps.
      *
      * <p><b>Stable extension point.</b> {@code sx}/{@code sy} are the button's
@@ -204,10 +206,9 @@ public class Button extends AbstractPanelElement {
      */
     protected void renderBackground(RenderContext ctx, int sx, int sy, Look look) {
         int w = getWidth(), h = getHeight();
-        if (style(ctx) == ControlStyle.VANILLA) {
-            ControlStyle.renderVanillaButton(ctx.graphics(), sx, sy, w, h, !look.disabled(),
-                    look.hovered() || look.pressed());
-            if (look.pressed()) ControlStyle.renderVanillaPressedOverlay(ctx.graphics(), sx, sy, w, h);
+        if (ctx.kind() == ScreenKind.OPTIONS) {
+            VanillaLook.button(ctx.graphics(), sx, sy, w, h, !look.disabled(), look.hovered() || look.pressed());
+            if (look.pressed()) VanillaLook.pressedOverlay(ctx.graphics(), sx, sy, w, h);
             return;
         }
         if (look.disabled()) {
@@ -232,7 +233,7 @@ public class Button extends AbstractPanelElement {
      * the button.
      */
     protected void renderContent(RenderContext ctx, int sx, int sy, Look look) {
-        int color = look.disabled() ? style(ctx).textColor(TextRole.DISABLED) : ElementConstants.TEXT_LIGHT;
+        int color = look.disabled() ? ctx.kind().textColor(TextRole.DISABLED) : ElementConstants.TEXT_LIGHT;
         if (wrapWidth > 0) {
             int lines = Text.lineCount(label, wrapWidth);
             Text.drawWrapped(ctx.graphics(), label, wrapWidth, sx, Text.centeredBlockY(sy, sy + getHeight(), lines),
@@ -338,12 +339,16 @@ public class Button extends AbstractPanelElement {
         }
 
         /**
-         * {@link ControlStyle#MK} or {@link ControlStyle#VANILLA}'s button sprite,
-         * whatever the screen or panel uses. Without it the button follows them.
+         * 6.0.0's per-button look. Does nothing since 6.1.0: the button draws for the
+         * kind of screen it is on ({@link com.trevlar.menukit.api.panel.ScreenKind}).
+         * Kept so a mod built against 6.0.0 still loads; removed in 7.0.0.
+         *
+         * @deprecated delete the call
          */
-        @Override
-        public Builder style(ControlStyle style) {
-            return super.style(style);
+        @Deprecated(since = "6.1.0", forRemoval = true)
+        @SuppressWarnings("removal")
+        public Builder style(ControlStyle ignored) {
+            return this;
         }
 
         /** An icon button: {@code sprite} centred, inset 2px. Square: size it {@code (n, n)}. */

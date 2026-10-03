@@ -172,35 +172,84 @@ body.add(Flow.builder().at(0, 50).disabledWhen(off)
 
 Result: the switch sits at the left and Reset at the right edge of the tab body, and each setting's control sits at the right edge beside its label, whatever the window's width. When the window is too narrow the control drops under its label. The divider spans the body. While the feature is off, every setting row is grey and ignores the mouse and keys. `Panel.disabledWhen(...)` greys a whole panel the same way.
 
-## Give a screen the pause-menu look
+## A settings screen in the pause-menu look
 
-Needs: MenuKit 6.1.0. For a menu that should read like Options, Video Settings or Controls instead of an inventory.
+Needs: MenuKit 6.1.0. The shape of Inventory Plus's settings: the mod's name at the top, tabs across, sections of settings, items the player picks, and Done at the bottom, drawn like Options, Video Settings and Controls instead of an inventory. The screen says once that it is an options screen; every element on it draws for that.
 
 ```java
-public final class SettingsScreen extends MKScreen {
-    public SettingsScreen(List<Panel> panels) {
-        super(Component.literal("My Mod"), panels);
-        elementStyle(ControlStyle.VANILLA);
+public final class ModSettingsScreen extends MKScreen {
+    private static String tab = "general";
+
+    public ModSettingsScreen(Screen parent) {
+        super(Component.literal("My Mod"), ScreenKind.OPTIONS, List.of(menu(), done(parent)));
+        setReturnAction(() -> Minecraft.getInstance().gui.setScreen(parent));
+    }
+
+    // The tabs across the top and their pages. No box, so the blurred world shows.
+    private static Panel menu() {
+        Tabs tabs = Tabs.builder()
+                .mode(Tabs.Mode.SIDE_SCROLL)
+                .state(() -> tab, id -> tab = id)
+                .tab(Tabs.tab("general").label(Component.literal("General")).body(() -> general()))
+                .tab(Tabs.tab("locks").label(Component.literal("Locked items")).body(() -> lockedItems()))
+                .build();
+        return Panel.builder("mymod:settings")
+                .style(PanelStyle.NONE)
+                .position(PanelPosition.main())
+                .add(tabs)
+                .build();
+    }
+
+    // Done at the bottom centre, the way every Options screen ends.
+    private static Panel done(Screen parent) {
+        return Panel.builder("mymod:settings-done")
+                .style(PanelStyle.NONE)
+                .position(PanelPosition.region(OutsideRegion.BOTTOM_CENTER))
+                .add(Button.builder().label(CommonComponents.GUI_DONE).size(200, 20)
+                        .onClick(() -> Minecraft.getInstance().gui.setScreen(parent)).build())
+                .build();
+    }
+
+    // A section of settings: each its name at the left and its control at the right edge.
+    private static List<PanelElement> general() {
+        return List.of(Section.builder(Component.literal("Sorting")).open(true)
+                .summary(() -> Component.literal(config.rows() + " rows"))
+                .add(setting(0, "Sort button", Toggle.builder().size(60, 20)
+                        .state(config::enabled, config::setEnabled).build()))
+                .add(setting(24, "Rows", Slider.ofInts(1, 6).size(120, 20)
+                        .state(config::rows, config::setRows).build()))
+                .add(setting(48, "Speed", Dropdown.ofEnum(Speed.class).size(120, 20)
+                        .state(config::speed, config::setSpeed).build()))
+                .build());
+    }
+
+    // Items as setting values: a picker per place in the list. Click chooses, right-click empties.
+    private static List<PanelElement> lockedItems() {
+        Flow.Builder slots = Flow.builder().at(0, 14).gap(2, 2);
+        for (int i = 0; i < 9; i++) {
+            int place = i;
+            slots.add(ItemPicker.builder()
+                    .state(() -> config.lockedItem(place), item -> config.setLockedItem(place, item))
+                    .build());
+        }
+        return List.of(
+                TextLabel.builder().text(Component.literal("Items sorting leaves alone")).role(TextRole.MUTED).build(),
+                slots.build());
+    }
+
+    private static PanelElement setting(int y, String name, PanelElement control) {
+        return Flow.builder().at(0, y)
+                .add(TextLabel.builder().text(Component.literal(name)).build())
+                .add(Flow.spacer())
+                .add(control)
+                .build();
     }
 }
 ```
 
-Result: every panel on the screen without a background of its own (`PanelStyle.NONE`) draws its elements in vanilla's look over vanilla's blurred backdrop: stone buttons, vanilla's checkbox, on/off buttons for toggles, white text, centred section headers, vanilla's separators, and the darker band behind a `ScrollContainer` or a tab page. A panel that draws MenuKit's grey (a dialog, a side panel) keeps MenuKit's look, so its text stays dark on grey. Nothing changes size, so the layout does not move.
+Open it with `Minecraft.getInstance().gui.setScreen(new ModSettingsScreen(Minecraft.getInstance().gui.screen()))`. Result: "My Mod" in white at the top centre, over the blurred world (the panorama on the title screen). Under it, Create World's tab bar across the whole width; with more tabs than fit, it scrolls with arrows. The page is the darker list band between two thin lines. The section header is centred like a category on Controls, its rows white text; the toggle is a stone button reading ON or OFF, the slider and dropdown vanilla's own. On Locked items, nine slots in vanilla's slot sprite: a click opens a chooser of every item with a search field, a pick fills the slot, a right click empties it. The items are setting values: nothing is taken from the inventory or sent to the server. Done at the bottom and Escape both return to the screen it opened from. Nothing on it picks a look.
 
-The same switch on one panel, on any screen, and one element that keeps MenuKit's look whatever its panel uses:
-
-```java
-Panel menu = Panel.builder("mymod:settings")
-        .style(PanelStyle.NONE)
-        .elementStyle(ControlStyle.VANILLA)
-        .position(PanelPosition.main())
-        .add(tabs)
-        .build();
-
-Button.builder().label(Component.literal("Sort")).size(60, 20).style(ControlStyle.MK).build();
-```
-
-An element's own `style(...)` wins over its panel's and its screen's; on a container (`Section`, `ScrollContainer`, `Tabs`, `Flow`) it is also what everything inside follows. Elements built from other elements, such as Keybindery's key button, follow the look with no change of their own. A toggle reads its state in the vanilla look: give it a label that says it (`"On"` / `"Off"`), or no label for vanilla's `ON` / `OFF`.
+A dialog on this screen (a `ConfirmDialog` for Reset to Defaults, say) is the same kind: a `RAISED` panel draws vanilla's popup frame, with white text. Keep labels on roles (next recipe) rather than `TextLabel.COLOR_DARK`, which reads only on a container screen's grey. A screen that declares no kind (`super(title, panels)`) stays a container screen, in MenuKit's grey look. Panels injected into vanilla's own screens need nothing: a panel on Options or Controls is already on an options screen.
 
 ## Colour text by role
 
@@ -214,7 +263,7 @@ body.add(TextLabel.builder().at(0, 26).text(Component.literal("Applies to chests
         .role(TextRole.MUTED).build());
 ```
 
-Result: the heading and "Rows" are dark grey on MenuKit's panel and white on vanilla's backdrop; the note is mid grey on the panel and vanilla's grey on the backdrop. A label without a role is `BODY`. Disabled text takes the look's disabled grey whatever its role. `color(argb)` and `shadow(b)` fix a value in every look instead, for text over the world on the HUD; `TextLabel.COLOR_DARK` is right only on MenuKit's grey.
+Result: the heading and "Rows" are dark grey on a container screen and white on an options screen; the note is mid grey on the one and vanilla's grey on the other. A label without a role is `BODY`. Disabled text takes the kind's disabled grey whatever its role. `color(argb)` and `shadow(b)` fix a value on every kind instead, for text over the world on the HUD; `TextLabel.COLOR_DARK` is right only on a container screen's grey.
 
 ## Outline an item in its group's colour
 

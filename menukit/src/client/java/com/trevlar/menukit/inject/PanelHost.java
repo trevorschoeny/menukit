@@ -3,7 +3,6 @@ package com.trevlar.menukit.inject;
 import com.trevlar.menukit.api.panel.Reference;
 import com.trevlar.menukit.api.panel.ScreenOrigin;
 import com.trevlar.menukit.api.element.ChildDispatch;
-import com.trevlar.menukit.api.element.ControlStyle;
 import com.trevlar.menukit.api.element.InputContext;
 import com.trevlar.menukit.api.panel.InsideRegion;
 import com.trevlar.menukit.api.panel.OutsideRegion;
@@ -13,7 +12,9 @@ import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.RegionConstants;
+import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.RegionMath;
+import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.api.element.RenderContext;
 import com.trevlar.menukit.window.ClientWindowVisibility;
 
@@ -63,7 +64,8 @@ import java.util.function.Supplier;
  *       is measured; one stacking prefix per region; one resolver per reference kind
  *       ({@link RegionMath#resolveMenu}, {@link RegionMath#resolveInside}).</li>
  *   <li><b>Render in layers</b> ({@link #render}): FLOW then OVERLAY, per
- *       {@link LayerPlan}.</li>
+ *       {@link LayerPlan}, every panel drawn for the host's {@link ScreenKind}
+ *       (its background, and every element through {@link RenderContext#kind()}).</li>
  *   <li><b>Claims</b> ({@link #claimAt}): which placed panel, if any, takes a screen
  *       point, by the one rule in {@link #claimsPoint}.</li>
  *   <li><b>Modal and dim queries</b> ({@link #topmostModal}, {@link #anyShown}).</li>
@@ -198,6 +200,12 @@ public final class PanelHost {
     // ── State ──────────────────────────────────────────────────────────
 
     private final Kind kind;
+    /**
+     * The kind of screen this host's panels are on (6.1.0): fixed when the host is
+     * made, from the screen it serves ({@link ScreenKind#of}), so every panel on a
+     * screen, its own and injected ones alike, draws for the same kind.
+     */
+    private final ScreenKind screenKind;
     private final Supplier<@Nullable Frame> frames;
     private final RegionMath.Insets insets;
     /**
@@ -214,41 +222,49 @@ public final class PanelHost {
     private @Nullable SlotOwnership slotOwnership;
     private @Nullable Decoration decoration;
 
-    /** The look every panel here hands its elements unless the panel sets its own (a standalone screen's switch). */
-    private ControlStyle elementStyle = ControlStyle.MK;
-
     /** Entries already warned about an overflow; one warning each. */
     private final Set<Entry> warned = Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
 
-    private PanelHost(Kind kind, Supplier<@Nullable Frame> frames, RegionMath.Insets insets) {
+    private PanelHost(Kind kind, ScreenKind screenKind, Supplier<@Nullable Frame> frames, RegionMath.Insets insets) {
         this.kind = kind;
+        this.screenKind = Objects.requireNonNull(screenKind, "screenKind");
         this.frames = frames;
         this.insets = insets;
     }
 
+    // Each factory fixes the kind of screen (ScreenKind) by the one rule: a container
+    // screen and its slot groups are CONTAINER; the HUD keeps the look it always had
+    // (CONTAINER); any other screen is what ScreenKind.of says for it (OPTIONS for a
+    // vanilla screen, the declared kind for an MKScreen); a standalone screen passes
+    // the kind it declared.
+
     /** A container screen's host: REGION around the (chrome-extended) menu frame. */
     public static PanelHost container(Supplier<@Nullable Frame> frames) {
-        return new PanelHost(Kind.CONTAINER, frames, RegionMath.Insets.CHROME);
+        return new PanelHost(Kind.CONTAINER, ScreenKind.CONTAINER, frames, RegionMath.Insets.CHROME);
     }
 
-    /** A non-container vanilla screen's host: screen spots, 4px in. */
-    public static PanelHost vanillaScreen(Supplier<@Nullable Frame> frames) {
-        return new PanelHost(Kind.VANILLA_SCREEN, frames, RegionMath.Insets.SCREEN);
+    /**
+     * A non-container screen's host: screen spots, 4px in. {@code screenKind} is the
+     * screen's ({@link ScreenKind#of}): an options screen for any vanilla screen, an
+     * {@code MKScreen}'s declared kind for a panel injected into one.
+     */
+    public static PanelHost vanillaScreen(ScreenKind screenKind, Supplier<@Nullable Frame> frames) {
+        return new PanelHost(Kind.VANILLA_SCREEN, screenKind, frames, RegionMath.Insets.SCREEN);
     }
 
-    /** One slot group's host: REGION around the group's box. */
+    /** One slot group's host: REGION around the group's box. Always a container screen. */
     public static PanelHost slotGroup(Supplier<@Nullable Frame> frames) {
-        return new PanelHost(Kind.SLOT_GROUP, frames, RegionMath.Insets.CHROME);
+        return new PanelHost(Kind.SLOT_GROUP, ScreenKind.CONTAINER, frames, RegionMath.Insets.CHROME);
     }
 
-    /** The HUD's host: screen spots on the game window; render only. */
+    /** The HUD's host: screen spots on the game window; render only. Draws as it always has (container). */
     public static PanelHost hud(Supplier<@Nullable Frame> frames) {
-        return new PanelHost(Kind.HUD, frames, RegionMath.Insets.HUD);
+        return new PanelHost(Kind.HUD, ScreenKind.CONTAINER, frames, RegionMath.Insets.HUD);
     }
 
-    /** A standalone screen's host: its main panel is the frame. */
-    public static PanelHost standalone(Supplier<@Nullable Frame> frames, TitleBand titleBand) {
-        PanelHost host = new PanelHost(Kind.STANDALONE, frames, RegionMath.Insets.CHROME);
+    /** A standalone screen's host: its main panel is the frame; {@code screenKind} is what the screen declared. */
+    public static PanelHost standalone(ScreenKind screenKind, Supplier<@Nullable Frame> frames, TitleBand titleBand) {
+        PanelHost host = new PanelHost(Kind.STANDALONE, screenKind, frames, RegionMath.Insets.CHROME);
         host.titleBand = titleBand;
         return host;
     }
@@ -256,27 +272,8 @@ public final class PanelHost {
     /** Which context this host is. */
     public Kind kind() { return kind; }
 
-    /**
-     * The look this host's panels hand their elements, unless a panel sets its own
-     * ({@code Panel.elementStyle}): a standalone screen's one switch. Default
-     * {@link ControlStyle#MK}.
-     */
-    public PanelHost elementStyle(ControlStyle style) {
-        this.elementStyle = Objects.requireNonNull(style, "style");
-        return this;
-    }
-
-    /**
-     * The look {@code panel}'s elements inherit here: the panel's own; else, for a
-     * panel with no background of its own ({@link PanelStyle#NONE}), this host's;
-     * else MenuKit's. The look belongs to the surface the elements sit on, so a
-     * panel that draws MenuKit's grey (a dialog, a side panel) keeps MenuKit's look
-     * on a screen switched to vanilla's, and its text stays readable.
-     */
-    public ControlStyle elementStyleOf(Panel panel) {
-        ControlStyle screen = panel.getStyle() == PanelStyle.NONE ? elementStyle : ControlStyle.MK;
-        return ControlStyle.resolve(panel.getElementStyle(), screen);
-    }
+    /** The kind of screen this host's panels are on, which decides how they and their elements draw. */
+    public ScreenKind screenKind() { return screenKind; }
 
     /** Standalone: where the title sits (and the room kept for it). */
     public PanelHost titleBand(TitleBand band) { this.titleBand = band; return this; }
@@ -786,12 +783,19 @@ public final class PanelHost {
             boolean live = kind != Kind.HUD && pointer.live(this, p);
             int mx = live ? mouseX : -1;
             int my = live ? mouseY : -1;
+            // The panel's background for the kind of screen: MenuKit's sprites on a
+            // container screen, vanilla's popup frame (and friends) on an options
+            // screen, so a dialog on an options screen reads as vanilla's own.
             if (panel.getStyle() != PanelStyle.NONE) {
-                PanelRendering.renderPanel(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
+                if (screenKind == ScreenKind.OPTIONS) {
+                    VanillaLook.panelBackground(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
+                } else {
+                    PanelRendering.renderPanel(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
+                }
             }
             if (decoration != null) decoration.draw(graphics, p);
             RenderContext ctx = new RenderContext(graphics, p.contentX(), p.contentY(), mx, my, panel.isDisabled(),
-                    elementStyleOf(panel));
+                    screenKind);
             if (live) liveRenderDepth++;
             try {
                 // Base pass, then the overlay pass (an open popover on top of every

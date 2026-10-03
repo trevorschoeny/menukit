@@ -21,7 +21,7 @@ public final class ElementConstants {
     /** White text, drawn with a shadow: on a dark panel, a button, a HUD. */
     public static final int TEXT_LIGHT = 0xFFFFFFFF;
 
-    /** Secondary text on a light panel (a section's summary): {@link TextRole#MUTED} in MenuKit's look. */
+    /** Secondary text on a light panel (a section's summary): {@link TextRole#MUTED} on a container screen. */
     public static final int TEXT_MUTED = 0xFF8B8B8B;
 
     /**

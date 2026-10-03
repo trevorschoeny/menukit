@@ -1,10 +1,11 @@
 package com.trevlar.menukit.api.element;
 
 /**
- * What a piece of text is for, so the look decides its colour (6.1.0). A label
- * names its role; {@link ControlStyle#textColor} turns the role into a colour for
- * the surface the look draws on: dark on MenuKit's grey panel, white and greys on
- * vanilla's dark menu backdrop.
+ * What a piece of text is for, so the kind of screen decides its colour (6.1.0).
+ * A label names its role; {@link com.trevlar.menukit.api.panel.ScreenKind#textColor}
+ * turns the role into a colour for the surface that kind draws on: dark on a
+ * container screen's grey panel, white and greys on an options screen's dark
+ * backdrop.
  *
  * <pre>{@code
  * TextLabel.builder().text(Component.literal("Sorting")).role(TextRole.HEADING).build();

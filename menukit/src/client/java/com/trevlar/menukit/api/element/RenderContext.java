@@ -1,5 +1,7 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.panel.ScreenKind;
+
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 import java.util.Objects;
@@ -34,13 +36,13 @@ import java.util.Objects;
  * a context that re-enables them. The input twin is {@link InputContext}, which
  * carries the same flag, so what looks disabled is also inert.
  *
- * <h3>The look (6.1.0)</h3>
+ * <h3>The kind of screen (6.1.0)</h3>
  *
- * {@code style} is the look the element inherits: its screen's or panel's
- * ({@code elementStyle}), or a container's own {@code style(...)}. It flows down
- * the same way, kept by {@link #at} and {@link #disabledIf}, so an element built
- * from other elements hands it on without knowing it is there. An element reads
- * {@code ControlStyle.resolve(itsOwn, ctx.style())}.
+ * {@code kind} is the kind of screen the element is on ({@link ScreenKind}): the
+ * host that renders the panel sets it, from the screen it is on, and nothing
+ * below changes it. It is kept by {@link #at} and {@link #disabledIf}, so an
+ * element built from other elements hands it on without knowing it is there. An
+ * element draws for {@code ctx.kind()}.
  *
  * @param graphics  the graphics handle
  * @param originX   screen-space X of the element's containing content origin
@@ -50,8 +52,8 @@ import java.util.Objects;
  * @param mouseX    screen-space mouse X, or {@code -1} if no input dispatch
  * @param mouseY    screen-space mouse Y, or {@code -1} if no input dispatch
  * @param disabled  whether the element's panel or container is disabled
- * @param style     the look the element inherits ({@link ControlStyle#MK} unless its
- *                  screen, panel or a container around it says otherwise)
+ * @param kind      the kind of screen the element is on ({@link ScreenKind#CONTAINER}
+ *                  on the HUD and in a context built without one)
  */
 public record RenderContext(
         GuiGraphicsExtractor graphics,
@@ -60,20 +62,20 @@ public record RenderContext(
         int mouseX,
         int mouseY,
         boolean disabled,
-        ControlStyle style
+        ScreenKind kind
 ) {
 
     public RenderContext {
-        Objects.requireNonNull(style, "style");
+        Objects.requireNonNull(kind, "kind");
     }
 
-    /** A context in MenuKit's look: the 6.0.0 shape. */
+    /** A context on a container screen: the 6.0.0 shape. */
     public RenderContext(GuiGraphicsExtractor graphics, int originX, int originY, int mouseX, int mouseY,
                          boolean disabled) {
-        this(graphics, originX, originY, mouseX, mouseY, disabled, ControlStyle.MK);
+        this(graphics, originX, originY, mouseX, mouseY, disabled, ScreenKind.CONTAINER);
     }
 
-    /** A context with nothing around it disabled, in MenuKit's look: the common case, and the 5.x shape. */
+    /** A context with nothing around it disabled, on a container screen: the common case, and the 5.x shape. */
     public RenderContext(GuiGraphicsExtractor graphics, int originX, int originY, int mouseX, int mouseY) {
         this(graphics, originX, originY, mouseX, mouseY, false);
     }
@@ -109,16 +111,7 @@ public record RenderContext(
      * what a container hands the children it positions from its own top-left.
      */
     public RenderContext at(int originX, int originY) {
-        return new RenderContext(graphics, originX, originY, mouseX, mouseY, disabled, style);
-    }
-
-    /**
-     * The same frame in another look: what a container with its own
-     * {@code style(...)} hands its children, so they inherit it.
-     */
-    public RenderContext withStyle(ControlStyle style) {
-        return style == this.style ? this
-                : new RenderContext(graphics, originX, originY, mouseX, mouseY, disabled, style);
+        return new RenderContext(graphics, originX, originY, mouseX, mouseY, disabled, kind);
     }
 
     /**
@@ -128,7 +121,7 @@ public record RenderContext(
      */
     public RenderContext disabledIf(boolean alsoDisabled) {
         return alsoDisabled && !disabled
-                ? new RenderContext(graphics, originX, originY, mouseX, mouseY, true, style)
+                ? new RenderContext(graphics, originX, originY, mouseX, mouseY, true, kind)
                 : this;
     }
 

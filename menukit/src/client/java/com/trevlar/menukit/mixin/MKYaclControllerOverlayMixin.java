@@ -1,6 +1,6 @@
 package com.trevlar.menukit.mixin;
 
-import com.trevlar.menukit.api.element.ControlStyle;
+import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.core.PressedTracker;
 
 import dev.isxander.yacl3.api.utils.Dimension;
@@ -58,7 +58,7 @@ public abstract class MKYaclControllerOverlayMixin {
         if (!self.isHovered()) return;
 
         Dimension<Integer> dim = self.getDimension();
-        ControlStyle.renderVanillaPressedOverlay(graphics,
+        VanillaLook.pressedOverlay(graphics,
                 dim.x(), dim.y(), dim.width(), dim.height());
     }
 }

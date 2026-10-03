@@ -1,5 +1,6 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.api.panel.Panel;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -32,10 +33,9 @@ import java.util.function.Supplier;
  * title, and a grey summary read every frame, cut with "..." when it runs out of
  * room. A click anywhere on the header row toggles the section.
  *
- * <p>In the vanilla look ({@link ControlStyle#VANILLA}, its own or its screen's
- * or panel's) the header is the category header of vanilla's Controls screen: the
- * row centred, the title in white with a shadow, the summary in vanilla's grey.
- * It still opens and closes. Its content follows the section's look.
+ * <p>On an options screen ({@link ScreenKind#OPTIONS}) the header is the
+ * category header of vanilla's Controls screen: the row centred, the title in
+ * white with a shadow, the summary in vanilla's grey. It still opens and closes.
  *
  * <h3>Content</h3>
  *
@@ -73,9 +73,9 @@ public final class Section extends AbstractPanelElement {
     public static final int HEADER_HEIGHT = 12;
     /** Space between the header and the content when open. */
     public static final int CONTENT_GAP = 2;
-    /** The title's colour in MenuKit's look ({@link TextRole#HEADING}): dark, for a raised panel. */
+    /** The title's colour on a container screen ({@link TextRole#HEADING}): dark, for a raised panel. */
     public static final int DEFAULT_TITLE_COLOR = ElementConstants.TEXT_DARK;
-    /** The summary's colour in MenuKit's look ({@link TextRole#MUTED}). */
+    /** The summary's colour on a container screen ({@link TextRole#MUTED}). */
     public static final int DEFAULT_SUMMARY_COLOR = ElementConstants.TEXT_MUTED;
 
     private static final String ARROW_CLOSED = "▶ ";
@@ -92,7 +92,7 @@ public final class Section extends AbstractPanelElement {
     private final Component title;
     private final @Nullable Integer swatch;
     private final @Nullable Supplier<Component> summary;
-    /** Fixed colours from {@code colors(...)}, or null to take the look's heading and muted colours. */
+    /** Fixed colours from {@code colors(...)}, or null to take the kind's heading and muted colours. */
     private final @Nullable Integer titleColor;
     private final @Nullable Integer summaryColor;
     private final List<PanelElement> children;
@@ -223,9 +223,9 @@ public final class Section extends AbstractPanelElement {
         boolean disabled = disabled(ctx);
         int w = getWidth();
         int hx = ctx.originX() + childX, hy = ctx.originY() + childY;
-        ControlStyle style = style(ctx);
-        boolean vanilla = style == ControlStyle.VANILLA;
-        boolean shadow = style.textShadow();
+        ScreenKind kind = ctx.kind();
+        boolean vanilla = kind == ScreenKind.OPTIONS;
+        boolean shadow = kind.textShadow();
         int titleCol = disabled || titleColor == null ? textColor(ctx, TextRole.HEADING) : titleColor;
         int summaryCol = disabled || summaryColor == null ? textColor(ctx, TextRole.MUTED) : summaryColor;
 
@@ -386,8 +386,8 @@ public final class Section extends AbstractPanelElement {
         }
 
         /**
-         * Fixed title and summary colours (ARGB), in every look. Without them the
-         * look decides ({@link TextRole#HEADING} and {@link TextRole#MUTED}). A
+         * Fixed title and summary colours (ARGB), on every kind of screen. Without them the
+         * kind decides ({@link TextRole#HEADING} and {@link TextRole#MUTED}). A
          * disabled section draws both in the disabled colour on its own.
          */
         public Builder colors(int title, int summary) {

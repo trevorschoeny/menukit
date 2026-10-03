@@ -24,7 +24,8 @@ What it does:
 - Creates real, server-synced slots as UI components and shows them on every container screen without per-screen setup (Containers).
 - Attaches per-slot state to any slot, private per player or shared, stored on the slot's owner. The server judges every write a client sends (Containers).
 - Gives its controls vanilla's click sound, narration and keyboard focus, and greys a whole panel at once with one `disabledWhen`.
-- Draws in MenuKit's look or in vanilla's pause-menu look (Options, Controls), switched once for a whole screen or panel, with text coloured by role (heading, body, muted, disabled) so it reads on either.
+- Draws each element for the kind of screen it is on: MenuKit's grey look on inventories and chests, vanilla's pause-menu look on Options, Controls and the like. A standalone screen says which kind it is once, when it is made; text is coloured by role (heading, body, muted, disabled) so it reads on either.
+- Lets a settings page pick items: an item picker is a slot whose item is a setting value, chosen from a searchable list, never taken from the inventory.
 
 Its types are vanilla types. A created slot is a real `Slot`, and a custom menu is a real `AbstractContainerMenu`. Requires Fabric and Fabric API.
 
@@ -124,7 +125,11 @@ These sources build as two projects of a parent Gradle workspace that is not in 
 
 ### To 6.1.0
 
-Nothing breaks, and nothing changes look unless a mod asks. A mod that uses the vanilla look or text roles declares `"menukit": ">=6.1.0 <7.0.0"`. To move a menu to the pause-menu look: give its panel `PanelStyle.NONE` and call `elementStyle(ControlStyle.VANILLA)` on the screen (or `elementStyle` on the panel), and replace hand-set label colours (`TextLabel.COLOR_DARK`, `Section.colors`) with roles, which read on both looks. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) has both.
+Elements draw for the kind of screen they are on (`ScreenKind`), and nothing else picks a look. A mod that uses screen kinds, text roles or the item picker declares `"menukit": ">=6.1.0 <7.0.0"`.
+
+- `ControlStyle` and `style(ControlStyle)` on `Button`, `Dropdown` and `DropdownMulti` are deprecated and do nothing; they go in 7.0.0. A mod built against 6.0.0 still loads. Delete the call: on Options, Controls and every other vanilla screen that is not a container, an element already draws in vanilla's look; on a container screen, in MenuKit's.
+- Panels injected into a vanilla screen that is not a container (the pause screen, Options, Controls, a config screen) now draw in vanilla's look there, where they drew MenuKit's grey before. Panels on inventories, chests and the HUD are unchanged.
+- To move a standalone screen to the pause-menu look, declare it when it is made: `super(title, ScreenKind.OPTIONS, panels)`, give its panels `PanelStyle.NONE`, and replace hand-set label colours (`TextLabel.COLOR_DARK`, `Section.colors`) with roles, which read on both kinds. A screen that declares nothing stays as it was. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) builds a whole settings screen this way.
 
 ### To 6.0.0
 

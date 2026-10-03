@@ -1,5 +1,6 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.api.panel.Panel;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -21,11 +22,11 @@ import java.util.function.Supplier;
  * <h3>Colour: a role, or a value</h3>
  *
  * A label's colour comes from its {@link TextRole} ({@link TextRole#BODY} unless
- * {@code role(...)} says otherwise), resolved by its look (6.1.0): dark grey
- * without a shadow on MenuKit's panel, vanilla's white and greys with a shadow on
- * vanilla's backdrop ({@link ControlStyle#textColor}). So a label follows its
- * screen's or panel's look with nothing hand-coloured. {@code color(argb)} and
- * {@code shadow(b)} fix a value instead, in every look: a HUD label over the world,
+ * {@code role(...)} says otherwise), resolved by the kind of screen it is on
+ * (6.1.0): dark grey without a shadow on a container screen, vanilla's white and
+ * greys with a shadow on an options screen ({@link ScreenKind#textColor}). So a
+ * label reads on either kind with nothing hand-coloured. {@code color(argb)} and
+ * {@code shadow(b)} fix a value instead, on every kind: a HUD label over the world,
  * say.
  *
  * <h3>Wrap</h3>
@@ -38,7 +39,7 @@ import java.util.function.Supplier;
  * <h3>Disabled look</h3>
  *
  * While its own {@code disabledWhen} holds, or its panel or container is
- * disabled, the label draws in its look's {@link TextRole#DISABLED} colour
+ * disabled, the label draws in its kind's {@link TextRole#DISABLED} colour
  * (§0066): the text of a greyed settings group greys with its controls, with no
  * colour swapping by hand.
  *
@@ -63,9 +64,9 @@ public class TextLabel extends AbstractPanelElement {
 
     private final Supplier<Component> text;
     private final TextRole role;
-    /** A fixed colour, or null to take the role's colour in the look. */
+    /** A fixed colour, or null to take the role's colour on the kind of screen. */
     private final @Nullable Integer color;
-    /** A fixed shadow, or null to take the look's. */
+    /** A fixed shadow, or null to take the kind's. */
     private final @Nullable Boolean shadow;
     private final float scale;
     private final boolean backdrop;
@@ -149,10 +150,10 @@ public class TextLabel extends AbstractPanelElement {
         int x = ctx.originX() + childX;
         int y = ctx.originY() + childY;
         // The role's colour in this frame's look, unless a colour was fixed; disabled
-        // text takes the look's disabled colour either way.
-        ControlStyle style = style(ctx);
+        // text takes the kind's disabled colour either way.
+        ScreenKind kind = ctx.kind();
         int drawColor = disabled(ctx) || color == null ? textColor(ctx, role) : color;
-        boolean drawShadow = shadow != null ? shadow : style.textShadow();
+        boolean drawShadow = shadow != null ? shadow : kind.textShadow();
 
         // A scale draws through the pose matrix, in font space from (0, 0); at 1 the
         // matrix is left alone.
@@ -203,25 +204,25 @@ public class TextLabel extends AbstractPanelElement {
         }
 
         /**
-         * What the text is for: its colour comes from the role in the label's look
-         * ({@link ControlStyle#textColor}). Default {@link TextRole#BODY}, which in
-         * MenuKit's look is {@link #COLOR_DARK}, the 6.0.0 default.
+         * What the text is for: its colour comes from the role on the kind of screen
+         * the label is on ({@link ScreenKind#textColor}). Default {@link TextRole#BODY},
+         * which on a container screen is {@link #COLOR_DARK}, the 6.0.0 default.
          */
         public Builder role(TextRole role) {
             this.role = Objects.requireNonNull(role, "role");
             return this;
         }
 
-        /** A fixed ARGB colour, alpha byte included, in every look: wins over the role. */
+        /** A fixed ARGB colour, alpha byte included, on every kind of screen: wins over the role. */
         public Builder color(int argb) {
             this.color = argb;
             return this;
         }
 
         /**
-         * A fixed drop shadow, in every look. Without it the look decides: none on
-         * MenuKit's panel (vanilla's container-label style), a shadow on vanilla's
-         * backdrop.
+         * A fixed drop shadow, on every kind of screen. Without it the kind decides:
+         * none on a container screen (vanilla's container-label style), a shadow on
+         * an options screen.
          */
         public Builder shadow(boolean shadow) {
             this.shadow = shadow;

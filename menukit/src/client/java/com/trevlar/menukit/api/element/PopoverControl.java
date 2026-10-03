@@ -1,5 +1,7 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.panel.ScreenKind;
+import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import net.minecraft.client.Minecraft;
@@ -201,10 +203,10 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
 
         // Background: vanilla's button sprite, or MenuKit's raised panel; pressed
         // while open (the popover is the live surface then, so no hover highlight).
-        ControlStyle style = style(ctx);
-        if (style == ControlStyle.VANILLA) {
-            ControlStyle.renderVanillaButton(g, tx, ty, width, h, !disabled, hovered && !open);
-            if (open) ControlStyle.renderVanillaPressedOverlay(g, tx, ty, width, h);
+        ScreenKind kind = ctx.kind();
+        if (kind == ScreenKind.OPTIONS) {
+            VanillaLook.button(g, tx, ty, width, h, !disabled, hovered && !open);
+            if (open) VanillaLook.pressedOverlay(g, tx, ty, width, h);
         } else {
             PanelRendering.renderPanel(g, tx, ty, width, h, disabled ? PanelStyle.DARK : PanelStyle.RAISED);
             if (hovered && !open) g.fill(tx + 1, ty + 1, tx + width - 1, ty + h - 1, ElementConstants.HOVER_OVERLAY);
@@ -213,7 +215,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         // Label: left, wrapping onto more lines when too long (the trigger grows);
         // the chevron stays beside the first line.
         Font font = Minecraft.getInstance().font;
-        int color = disabled ? style.textColor(TextRole.DISABLED) : ElementConstants.TEXT_LIGHT;
+        int color = disabled ? kind.textColor(TextRole.DISABLED) : ElementConstants.TEXT_LIGHT;
         Component text = triggerText();
         int textX = tx + TRIGGER_TEXT_PAD_X;
         int firstLineY = Text.centeredTextY(ty, ty + height);
@@ -238,8 +240,8 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         var g = ctx.graphics();
         int[] p = popoverBounds(ctx.originX() + childX, ctx.originY() + childY);
         int px = p[0], py = p[1], pw = p[2], ph = p[3];
-        if (style(ctx) == ControlStyle.VANILLA) {
-            ControlStyle.renderVanillaPopoverBackground(g, px, py, pw, ph);
+        if (ctx.kind() == ScreenKind.OPTIONS) {
+            VanillaLook.popoverBackground(g, px, py, pw, ph);
         } else {
             PanelRendering.renderPanel(g, px, py, pw, ph, PanelStyle.RAISED);
         }
@@ -414,7 +416,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     /**
      * What both dropdowns' builders share: {@code size} (the trigger; the
      * popover is as wide), the items, their row label, the visible-row cap, a
-     * per-row tooltip, and the style.
+     * per-row tooltip.
      */
     public abstract static class Builder<T, E extends PopoverControl<T>, B extends Builder<T, E, B>>
             extends AbstractPanelElement.Builder<E, B> {
@@ -458,14 +460,16 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         }
 
         /**
-         * The look of the trigger and its popover, whatever the screen or panel
-         * uses: {@link ControlStyle#MK} (a raised panel) or {@link ControlStyle#VANILLA}
-         * (vanilla's button, and its darker disabled sprite under the rows).
-         * Without it the dropdown follows them.
+         * 6.0.0's per-dropdown look. Does nothing since 6.1.0: the dropdown draws for
+         * the kind of screen it is on ({@link com.trevlar.menukit.api.panel.ScreenKind}).
+         * Kept so a mod built against 6.0.0 still loads; removed in 7.0.0.
+         *
+         * @deprecated delete the call
          */
-        @Override
-        public B style(ControlStyle style) {
-            return super.style(style);
+        @Deprecated(since = "6.1.0", forRemoval = true)
+        @SuppressWarnings("removal")
+        public B style(ControlStyle ignored) {
+            return self();
         }
 
         /** Validation both share. */

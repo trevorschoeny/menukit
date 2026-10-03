@@ -29,12 +29,14 @@ import java.util.function.Supplier;
  *       element that shows one (§0026). An element never stores the value: it
  *       reads {@code get} every frame and hands a change to {@code set}.</li>
  *   <li>{@code onClick(Runnable)}: what a press does.</li>
- *   <li>{@code style(ControlStyle)}: MenuKit's look or vanilla's, for this
- *       element (and, on a container, everything in it). Without it the element
- *       follows its screen's or panel's look ({@link #style(RenderContext)}).</li>
  *   <li>{@code opaque(boolean)}: whether it is solid on a transparent panel.</li>
  *   <li>{@code declId(id)}: a stable id for the window's address.</li>
  * </ul>
+ *
+ * <p>No builder picks a look. An element draws for the kind of screen it is on
+ * ({@link com.trevlar.menukit.api.panel.ScreenKind}, read from
+ * {@link RenderContext#kind()}), so the same element is MenuKit's grey on an
+ * inventory and vanilla's stone on an options screen (6.1.0).
  *
  * <h2>What an instance keeps</h2>
  *
@@ -98,8 +100,6 @@ public abstract class AbstractPanelElement implements PanelElement {
     private final @Nullable Supplier<Component> tooltip;
     private final boolean opaque;
     private final @Nullable String declId;
-    /** The element's own look, or null to follow the one around it. */
-    private final @Nullable ControlStyle style;
 
     // ── Wrap-reflow baseline ───────────────────────────────────────────
     // The panel's reflow pushes elements down when an element above wraps. To stay
@@ -123,7 +123,6 @@ public abstract class AbstractPanelElement implements PanelElement {
         this.tooltip = b.tooltip;
         this.opaque = b.opaque;
         this.declId = b.declId;
-        this.style = b.style;
         this.baselineY = b.y;
         this.baselineCaptured = true;
     }
@@ -139,7 +138,6 @@ public abstract class AbstractPanelElement implements PanelElement {
         this.tooltip = null;
         this.opaque = true;
         this.declId = null;
-        this.style = null;
     }
 
     // ── Position ───────────────────────────────────────────────────────
@@ -260,30 +258,23 @@ public abstract class AbstractPanelElement implements PanelElement {
         return in.disabled() || ownDisabled();
     }
 
-    // ── The look ───────────────────────────────────────────────────────
+    // ── The kind of screen ─────────────────────────────────────────────
 
     /**
-     * The look this element draws in this frame: its own {@code style(...)}, else
-     * the one its screen, panel or container hands down ({@link RenderContext#style()}).
-     */
-    protected final ControlStyle style(RenderContext ctx) {
-        return ControlStyle.resolve(style, ctx.style());
-    }
-
-    /**
-     * The context a container hands its children: its own disabled state and its
-     * own look added to what it was given (the two cascades). Never re-enables.
+     * The context a container hands its children: its own disabled state added to
+     * what it was given (the cascade). Never re-enables. The kind of screen passes
+     * through unchanged: nothing inside a screen changes what kind it is.
      */
     protected final RenderContext childContext(RenderContext ctx) {
-        return ctx.disabledIf(ownDisabled()).withStyle(style(ctx));
+        return ctx.disabledIf(ownDisabled());
     }
 
     /**
-     * The colour of text in {@code role} in this element's look this frame, the
-     * {@link TextRole#DISABLED} colour while it is disabled.
+     * The colour of text in {@code role} on the kind of screen this element is on
+     * this frame, the {@link TextRole#DISABLED} colour while it is disabled.
      */
     protected final int textColor(RenderContext ctx, TextRole role) {
-        return style(ctx).textColor(disabled(ctx) ? TextRole.DISABLED : role);
+        return ctx.kind().textColor(disabled(ctx) ? TextRole.DISABLED : role);
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -310,8 +301,6 @@ public abstract class AbstractPanelElement implements PanelElement {
         protected @Nullable Supplier<Component> tooltip;
         protected boolean opaque = true;
         protected @Nullable String declId;
-        /** The element's own look; {@code null} follows its screen's, panel's or container's. */
-        protected @Nullable ControlStyle style;
 
         protected Builder() {}
 
@@ -394,16 +383,6 @@ public abstract class AbstractPanelElement implements PanelElement {
             return self();
         }
 
-        /**
-         * This element's look, whatever its screen or panel uses: {@link ControlStyle#MK}
-         * or {@link ControlStyle#VANILLA}. On a container ({@link Section},
-         * {@link ScrollContainer}, {@link Tabs}, {@link Flow}) everything inside
-         * follows it too. Without it the element follows the look around it.
-         */
-        public B style(ControlStyle style) {
-            this.style = Objects.requireNonNull(style, "style");
-            return self();
-        }
 
         /** Throws {@link IllegalStateException} naming the builder when {@code ok} is false. */
         protected final void require(boolean ok, String message) {

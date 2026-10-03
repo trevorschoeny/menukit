@@ -9,6 +9,7 @@ import com.trevlar.menukit.api.slot.ResolvedSlotGroup;
 import com.trevlar.menukit.api.slot.SlotGroupCategories;
 import com.trevlar.menukit.api.panel.Focus;
 import com.trevlar.menukit.api.panel.Panel;
+import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevlar.menukit.mixin.ScreenAccessor;
 
@@ -200,7 +201,10 @@ public final class ScreenPanelRegistry {
                 }
             }
         } else {
-            PanelHost context = PanelHost.vanillaScreen(() -> new PanelHost.Frame(screen.width, screen.height, null));
+            // Any other screen: an options screen when it is vanilla's, the declared
+            // kind when it is an MKScreen (ScreenKind.of, the one rule).
+            PanelHost context = PanelHost.vanillaScreen(ScreenKind.of(screen),
+                    () -> new PanelHost.Frame(screen.width, screen.height, null));
             for (VanillaScreenPanelAdapter a : VANILLA) {
                 if (a.matches(screen)) context.add(a.getPanel(), a.getPanel().getPosition(), a.getPadding(), a.modId(), a.seq());
             }

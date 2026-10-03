@@ -1,5 +1,6 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.core.VanillaLook;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -52,16 +53,16 @@ import java.util.function.DoubleSupplier;
  * <p>Every child is dispatched through {@link ChildDispatch}, with the context
  * moved to the scrolled content origin: the same order a panel uses.
  *
- * <h3>Vanilla look</h3>
+ * <h3>On an options screen</h3>
  *
- * In the vanilla look ({@link ControlStyle#VANILLA}, its own or its screen's or
- * panel's) it is the band every Options screen has: vanilla's darker list
+ * On an options screen ({@link ScreenKind#OPTIONS}) it is the band every Options
+ * screen has: vanilla's darker list
  * background behind the content, scrolling with it, vanilla's separator along
  * the top and the bottom, drawn in the 2 px just outside the container as vanilla
  * draws them, and vanilla's thin list scroller ({@code widget/scroller} on
  * {@code widget/scroller_background}) at the right of the lane, hidden while
- * everything fits. The lane, the handle's travel and the input are the same in
- * both looks.
+ * everything fits. The lane, the handle's travel and the input are the same on
+ * both kinds of screen.
  */
 public class ScrollContainer extends AbstractPanelElement {
 
@@ -90,10 +91,11 @@ public class ScrollContainer extends AbstractPanelElement {
     private static final int VANILLA_SCROLLER_WIDTH = 6;
 
     private final List<PanelElement> content;
-    private final int contentHeight;
+    /** The scrollable height given to the builder, or -1 to follow the children's extent every frame. */
+    private final int fixedContentHeight;
     private final DoubleSupplier scrollGet;
     private final DoubleConsumer scrollSet;
-    /** Whether the vanilla look draws the list band; off where a host draws it (a Tabs body). */
+    /** Whether an options screen draws the list band; off where a host draws it (a Tabs body). */
     private final boolean band;
 
     /** The scroll, in pixels, when the consumer does not own it (view state). */
@@ -107,7 +109,7 @@ public class ScrollContainer extends AbstractPanelElement {
     protected ScrollContainer(Builder b) {
         super(b);
         this.content = List.copyOf(b.content);
-        this.contentHeight = b.contentHeight >= 0 ? b.contentHeight : autoContentHeight(content);
+        this.fixedContentHeight = b.contentHeight;
         this.band = b.band;
         if (b.scrollGet != null) {
             this.scrollGet = b.scrollGet;
@@ -139,12 +141,21 @@ public class ScrollContainer extends AbstractPanelElement {
         return width - TRACK_WIDTH - SCROLLER_GUTTER;
     }
 
+    /**
+     * The scrollable height: the builder's {@code contentHeight}, else the children's
+     * extent, read live, so a child that grows or shrinks while shown (a section
+     * opening, an item chooser's grid narrowing to a search) changes the range.
+     */
+    private int contentHeight() {
+        return fixedContentHeight >= 0 ? fixedContentHeight : autoContentHeight(content);
+    }
+
     private boolean canScroll() {
-        return contentHeight > height;
+        return contentHeight() > height;
     }
 
     private int maxScroll() {
-        return Math.max(0, contentHeight - height);
+        return Math.max(0, contentHeight() - height);
     }
 
     /** The scroll in pixels, clamped to the current range. */
@@ -215,9 +226,9 @@ public class ScrollContainer extends AbstractPanelElement {
             setScroll(f * maxScroll());
         }
 
-        // The vanilla look: the list band behind the children, scrolling with them as
+        // On an options screen: the list band behind the children, scrolling with them as
         // vanilla's does, and its separators just outside the top and bottom edges.
-        boolean vanilla = style(ctx) == ControlStyle.VANILLA;
+        boolean vanilla = ctx.kind() == ScreenKind.OPTIONS;
         if (vanilla && band) {
             VanillaLook.listBackground(g, sx, sy, width, height, sx, sy + (int) scroll());
             VanillaLook.headerSeparator(g, sx, sy - VanillaLook.SEPARATOR_HEIGHT, width);
@@ -347,7 +358,7 @@ public class ScrollContainer extends AbstractPanelElement {
 
         protected Builder() {}
 
-        /** No list band in the vanilla look: for a host that draws one around it (a Tabs body). */
+        /** No list band on an options screen: for a host that draws one around it (a Tabs body). */
         Builder bandless() {
             this.band = false;
             return this;

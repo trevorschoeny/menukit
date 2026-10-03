@@ -1,5 +1,6 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import net.minecraft.client.Minecraft;
@@ -40,10 +41,10 @@ import java.util.function.Supplier;
  *
  * <p>The check mark is vanilla's {@code icon/checkmark} sprite and the box
  * MenuKit's {@link PanelStyle#INSET}, so a resource pack that retextures vanilla's
- * GUI sprites restyles checkboxes too. In the vanilla look the box is vanilla's
+ * GUI sprites restyles checkboxes too. On an options screen the box is vanilla's
  * own checkbox ({@code widget/checkbox}, {@code _selected}, {@code _highlighted}),
  * drawn at MenuKit's box size ({@value #BOX_SIZE} px; vanilla's is 17), so the
- * layout does not move when the look changes; the label takes the look's text
+ * layout is the same on both kinds of screen; the label takes the kind's text
  * colour.
  */
 public class Checkbox extends AbstractPanelElement {
@@ -145,8 +146,8 @@ public class Checkbox extends AbstractPanelElement {
         var g = ctx.graphics();
 
         boolean highlighted = !disabled && (hovered || (widget != null && widget.focused()));
-        ControlStyle style = style(ctx);
-        if (style == ControlStyle.VANILLA) {
+        ScreenKind kind = ctx.kind();
+        if (kind == ScreenKind.OPTIONS) {
             // Vanilla's checkbox: one sprite per (checked, highlighted), the check drawn in it.
             Identifier box = checked
                     ? (highlighted ? VANILLA_CHECKED_HIGHLIGHTED : VANILLA_CHECKED)
@@ -168,7 +169,7 @@ public class Checkbox extends AbstractPanelElement {
             // One line centres on the box; a wrapped block starts level with the box
             // top (centred against a 10px box it would float off it).
             int textY = wrapWidth > 0 ? sy : Text.centeredTextY(sy, sy + BOX_SIZE);
-            Text.drawWrapped(g, text, wrapWidth, textX, textY, 0, textColor(ctx, TextRole.BODY), style.textShadow());
+            Text.drawWrapped(g, text, wrapWidth, textX, textY, 0, textColor(ctx, TextRole.BODY), kind.textShadow());
         }
         if (hovered) queueTooltip(ctx);
     }
