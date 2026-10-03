@@ -281,12 +281,12 @@ public final class Flow extends AbstractPanelElement {
     @Override
     public void render(RenderContext ctx) {
         relayout();
-        ChildDispatch.render(children, ctx.disabledIf(ownDisabled()));
+        ChildDispatch.render(children, childContext(ctx));
     }
 
     @Override
     public void renderOverlay(RenderContext ctx) {
-        ChildDispatch.renderOverlay(children, ctx.disabledIf(ownDisabled()));
+        ChildDispatch.renderOverlay(children, childContext(ctx));
     }
 
     /** Interactive where a child is, so on a transparent panel it claims only its children. */

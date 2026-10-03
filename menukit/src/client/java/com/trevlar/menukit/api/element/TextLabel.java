@@ -14,8 +14,19 @@ import java.util.function.Supplier;
  *
  * <pre>{@code
  * TextLabel.builder().text(Component.literal("Restock")).at(0, 0).build();
+ * TextLabel.builder().text(Component.literal("Sorting")).role(TextRole.HEADING).build();
  * TextLabel.builder().text(() -> Component.literal("Bees: " + bees())).color(TextLabel.COLOR_LIGHT).shadow(true).build();
  * }</pre>
+ *
+ * <h3>Colour: a role, or a value</h3>
+ *
+ * A label's colour comes from its {@link TextRole} ({@link TextRole#BODY} unless
+ * {@code role(...)} says otherwise), resolved by its look (6.1.0): dark grey
+ * without a shadow on MenuKit's panel, vanilla's white and greys with a shadow on
+ * vanilla's backdrop ({@link ControlStyle#textColor}). So a label follows its
+ * screen's or panel's look with nothing hand-coloured. {@code color(argb)} and
+ * {@code shadow(b)} fix a value instead, in every look: a HUD label over the world,
+ * say.
  *
  * <h3>Wrap</h3>
  *
@@ -27,8 +38,9 @@ import java.util.function.Supplier;
  * <h3>Disabled look</h3>
  *
  * While its own {@code disabledWhen} holds, or its panel or container is
- * disabled, the label draws in the disabled grey (§0066): the text of a greyed
- * settings group greys with its controls, with no colour swapping by hand.
+ * disabled, the label draws in its look's {@link TextRole#DISABLED} colour
+ * (§0066): the text of a greyed settings group greys with its controls, with no
+ * colour swapping by hand.
  *
  * <h3>ARGB (26.2)</h3>
  *
@@ -50,8 +62,11 @@ public class TextLabel extends AbstractPanelElement {
     public static final int COLOR_LIGHT = ElementConstants.TEXT_LIGHT;
 
     private final Supplier<Component> text;
-    private final int color;
-    private final boolean shadow;
+    private final TextRole role;
+    /** A fixed colour, or null to take the role's colour in the look. */
+    private final @Nullable Integer color;
+    /** A fixed shadow, or null to take the look's. */
+    private final @Nullable Boolean shadow;
     private final float scale;
     private final boolean backdrop;
     private final @Nullable Runnable onRender;
@@ -65,6 +80,7 @@ public class TextLabel extends AbstractPanelElement {
     protected TextLabel(Builder b) {
         super(b);
         this.text = b.text;
+        this.role = b.role;
         this.color = b.color;
         this.shadow = b.shadow;
         this.scale = b.scale;
@@ -132,7 +148,11 @@ public class TextLabel extends AbstractPanelElement {
         var g = ctx.graphics();
         int x = ctx.originX() + childX;
         int y = ctx.originY() + childY;
-        int drawColor = disabled(ctx) ? ElementConstants.TEXT_DISABLED : color;
+        // The role's colour in this frame's look, unless a colour was fixed; disabled
+        // text takes the look's disabled colour either way.
+        ControlStyle style = style(ctx);
+        int drawColor = disabled(ctx) || color == null ? textColor(ctx, role) : color;
+        boolean drawShadow = shadow != null ? shadow : style.textShadow();
 
         // A scale draws through the pose matrix, in font space from (0, 0); at 1 the
         // matrix is left alone.
@@ -149,7 +169,7 @@ public class TextLabel extends AbstractPanelElement {
             int th = Text.lineCount(t, wrapWidth) * font.lineHeight;
             g.fill(x - 1, y - 1, x + tw + 1, y + th + 1, 0xBB000000);
         }
-        Text.drawWrapped(g, t, wrapWidth, x, y, 0, drawColor, shadow);
+        Text.drawWrapped(g, t, wrapWidth, x, y, 0, drawColor, drawShadow);
         if (scaled) g.pose().popMatrix();
         queueTooltip(ctx);
     }
@@ -158,8 +178,9 @@ public class TextLabel extends AbstractPanelElement {
 
     public static class Builder extends AbstractPanelElement.Builder<TextLabel, Builder> {
         private @Nullable Supplier<Component> text;
-        private int color = COLOR_DARK;
-        private boolean shadow = false;
+        private TextRole role = TextRole.BODY;
+        private @Nullable Integer color;
+        private @Nullable Boolean shadow;
         private float scale = 1.0f;
         private boolean backdrop = false;
         private @Nullable Runnable onRender;
@@ -181,13 +202,27 @@ public class TextLabel extends AbstractPanelElement {
             return this;
         }
 
-        /** ARGB colour, alpha byte included. Default {@link #COLOR_DARK}. */
+        /**
+         * What the text is for: its colour comes from the role in the label's look
+         * ({@link ControlStyle#textColor}). Default {@link TextRole#BODY}, which in
+         * MenuKit's look is {@link #COLOR_DARK}, the 6.0.0 default.
+         */
+        public Builder role(TextRole role) {
+            this.role = Objects.requireNonNull(role, "role");
+            return this;
+        }
+
+        /** A fixed ARGB colour, alpha byte included, in every look: wins over the role. */
         public Builder color(int argb) {
             this.color = argb;
             return this;
         }
 
-        /** Whether to draw a drop shadow. Default false (vanilla's label style). */
+        /**
+         * A fixed drop shadow, in every look. Without it the look decides: none on
+         * MenuKit's panel (vanilla's container-label style), a shadow on vanilla's
+         * backdrop.
+         */
         public Builder shadow(boolean shadow) {
             this.shadow = shadow;
             return this;

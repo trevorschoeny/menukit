@@ -40,7 +40,11 @@ import java.util.function.Supplier;
  *
  * <p>The check mark is vanilla's {@code icon/checkmark} sprite and the box
  * MenuKit's {@link PanelStyle#INSET}, so a resource pack that retextures vanilla's
- * GUI sprites restyles checkboxes too.
+ * GUI sprites restyles checkboxes too. In the vanilla look the box is vanilla's
+ * own checkbox ({@code widget/checkbox}, {@code _selected}, {@code _highlighted}),
+ * drawn at MenuKit's box size ({@value #BOX_SIZE} px; vanilla's is 17), so the
+ * layout does not move when the look changes; the label takes the look's text
+ * colour.
  */
 public class Checkbox extends AbstractPanelElement {
 
@@ -55,6 +59,15 @@ public class Checkbox extends AbstractPanelElement {
 
     private static final int CHECKMARK_WIDTH = 9;
     private static final int CHECKMARK_HEIGHT = 8;
+
+    // Vanilla's checkbox sprites (net.minecraft.client.gui.components.Checkbox, 26.2).
+    private static final Identifier VANILLA_BOX = Identifier.withDefaultNamespace("widget/checkbox");
+    private static final Identifier VANILLA_BOX_HIGHLIGHTED = Identifier.withDefaultNamespace("widget/checkbox_highlighted");
+    private static final Identifier VANILLA_CHECKED = Identifier.withDefaultNamespace("widget/checkbox_selected");
+    private static final Identifier VANILLA_CHECKED_HIGHLIGHTED =
+            Identifier.withDefaultNamespace("widget/checkbox_selected_highlighted");
+    /** A disabled vanilla checkbox draws half transparent: vanilla has no disabled sprite, it fades the widget. */
+    private static final int VANILLA_DISABLED_TINT = 0x80FFFFFF;
 
     private final Supplier<Component> label;
     private final BooleanSupplier stateGet;
@@ -131,21 +144,31 @@ public class Checkbox extends AbstractPanelElement {
                 text != null ? text : Component.empty(), CommonComponents.optionStatus(checked)));
         var g = ctx.graphics();
 
-        PanelRendering.renderPanel(g, sx, sy, BOX_SIZE, BOX_SIZE, disabled ? PanelStyle.DARK : PanelStyle.INSET);
-        if (!disabled && (hovered || (widget != null && widget.focused()))) {
-            g.fill(sx + 1, sy + 1, sx + BOX_SIZE - 1, sy + BOX_SIZE - 1, ElementConstants.HOVER_OVERLAY);
-        }
-        if (checked) {
-            g.blitSprite(RenderPipelines.GUI_TEXTURED, CHECKMARK_SPRITE,
-                    sx, sy + (BOX_SIZE - CHECKMARK_HEIGHT) / 2, CHECKMARK_WIDTH, CHECKMARK_HEIGHT);
+        boolean highlighted = !disabled && (hovered || (widget != null && widget.focused()));
+        ControlStyle style = style(ctx);
+        if (style == ControlStyle.VANILLA) {
+            // Vanilla's checkbox: one sprite per (checked, highlighted), the check drawn in it.
+            Identifier box = checked
+                    ? (highlighted ? VANILLA_CHECKED_HIGHLIGHTED : VANILLA_CHECKED)
+                    : (highlighted ? VANILLA_BOX_HIGHLIGHTED : VANILLA_BOX);
+            g.blitSprite(RenderPipelines.GUI_TEXTURED, box, sx, sy, BOX_SIZE, BOX_SIZE,
+                    disabled ? VANILLA_DISABLED_TINT : 0xFFFFFFFF);
+        } else {
+            PanelRendering.renderPanel(g, sx, sy, BOX_SIZE, BOX_SIZE, disabled ? PanelStyle.DARK : PanelStyle.INSET);
+            if (highlighted) {
+                g.fill(sx + 1, sy + 1, sx + BOX_SIZE - 1, sy + BOX_SIZE - 1, ElementConstants.HOVER_OVERLAY);
+            }
+            if (checked) {
+                g.blitSprite(RenderPipelines.GUI_TEXTURED, CHECKMARK_SPRITE,
+                        sx, sy + (BOX_SIZE - CHECKMARK_HEIGHT) / 2, CHECKMARK_WIDTH, CHECKMARK_HEIGHT);
+            }
         }
         if (text != null) {
-            int color = disabled ? ElementConstants.TEXT_DISABLED : ElementConstants.TEXT_DARK;
             int textX = sx + BOX_SIZE + LABEL_GAP;
             // One line centres on the box; a wrapped block starts level with the box
             // top (centred against a 10px box it would float off it).
             int textY = wrapWidth > 0 ? sy : Text.centeredTextY(sy, sy + BOX_SIZE);
-            Text.drawWrapped(g, text, wrapWidth, textX, textY, 0, color, false);
+            Text.drawWrapped(g, text, wrapWidth, textX, textY, 0, textColor(ctx, TextRole.BODY), style.textShadow());
         }
         if (hovered) queueTooltip(ctx);
     }

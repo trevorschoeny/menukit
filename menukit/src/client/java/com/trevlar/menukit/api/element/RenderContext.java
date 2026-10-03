@@ -2,6 +2,8 @@ package com.trevlar.menukit.api.element;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
+import java.util.Objects;
+
 /**
  * Render-time context passed to every {@link PanelElement#render}. Bundles the
  * graphics handle, the element's containing content origin, the current mouse
@@ -32,6 +34,14 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * a context that re-enables them. The input twin is {@link InputContext}, which
  * carries the same flag, so what looks disabled is also inert.
  *
+ * <h3>The look (6.1.0)</h3>
+ *
+ * {@code style} is the look the element inherits: its screen's or panel's
+ * ({@code elementStyle}), or a container's own {@code style(...)}. It flows down
+ * the same way, kept by {@link #at} and {@link #disabledIf}, so an element built
+ * from other elements hands it on without knowing it is there. An element reads
+ * {@code ControlStyle.resolve(itsOwn, ctx.style())}.
+ *
  * @param graphics  the graphics handle
  * @param originX   screen-space X of the element's containing content origin
  *                  (the panel's content area after padding). The element adds
@@ -40,6 +50,8 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * @param mouseX    screen-space mouse X, or {@code -1} if no input dispatch
  * @param mouseY    screen-space mouse Y, or {@code -1} if no input dispatch
  * @param disabled  whether the element's panel or container is disabled
+ * @param style     the look the element inherits ({@link ControlStyle#MK} unless its
+ *                  screen, panel or a container around it says otherwise)
  */
 public record RenderContext(
         GuiGraphicsExtractor graphics,
@@ -47,10 +59,21 @@ public record RenderContext(
         int originY,
         int mouseX,
         int mouseY,
-        boolean disabled
+        boolean disabled,
+        ControlStyle style
 ) {
 
-    /** A context with nothing around it disabled: the common case, and the 5.x shape. */
+    public RenderContext {
+        Objects.requireNonNull(style, "style");
+    }
+
+    /** A context in MenuKit's look: the 6.0.0 shape. */
+    public RenderContext(GuiGraphicsExtractor graphics, int originX, int originY, int mouseX, int mouseY,
+                         boolean disabled) {
+        this(graphics, originX, originY, mouseX, mouseY, disabled, ControlStyle.MK);
+    }
+
+    /** A context with nothing around it disabled, in MenuKit's look: the common case, and the 5.x shape. */
     public RenderContext(GuiGraphicsExtractor graphics, int originX, int originY, int mouseX, int mouseY) {
         this(graphics, originX, originY, mouseX, mouseY, false);
     }
@@ -86,7 +109,16 @@ public record RenderContext(
      * what a container hands the children it positions from its own top-left.
      */
     public RenderContext at(int originX, int originY) {
-        return new RenderContext(graphics, originX, originY, mouseX, mouseY, disabled);
+        return new RenderContext(graphics, originX, originY, mouseX, mouseY, disabled, style);
+    }
+
+    /**
+     * The same frame in another look: what a container with its own
+     * {@code style(...)} hands its children, so they inherit it.
+     */
+    public RenderContext withStyle(ControlStyle style) {
+        return style == this.style ? this
+                : new RenderContext(graphics, originX, originY, mouseX, mouseY, disabled, style);
     }
 
     /**
@@ -96,7 +128,7 @@ public record RenderContext(
      */
     public RenderContext disabledIf(boolean alsoDisabled) {
         return alsoDisabled && !disabled
-                ? new RenderContext(graphics, originX, originY, mouseX, mouseY, true)
+                ? new RenderContext(graphics, originX, originY, mouseX, mouseY, true, style)
                 : this;
     }
 

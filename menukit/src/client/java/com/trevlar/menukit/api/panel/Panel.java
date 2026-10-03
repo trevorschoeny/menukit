@@ -1,6 +1,7 @@
 package com.trevlar.menukit.api.panel;
 
 import com.trevlar.menukit.api.element.PanelElement;
+import com.trevlar.menukit.api.element.ControlStyle;
 import com.trevlar.menukit.api.element.AbstractPanelElement;
 import com.trevlar.menukit.api.element.MKTooltip;
 import com.trevlar.menukit.core.RegionMath;
@@ -189,6 +190,9 @@ public class Panel {
     // present (it claims its area, §0065); only what is inside is inert.
     private @Nullable BooleanSupplier disabledSupplier;
 
+    // The look every element inside follows (6.1.0), or null to follow the screen's.
+    private @Nullable ControlStyle elementStyle;
+
     // Opacity / dim / modal-tracking flags (Phase 14d-2.5 M9 mechanism).
     //
     // Three independent flags compose the "modal" semantic. The 14d-1 single-
@@ -336,6 +340,7 @@ public class Panel {
         private int toggleKey = NO_TOGGLE_KEY;
         private @Nullable BooleanSupplier disabledWhen;
         private @Nullable BooleanSupplier visibleWhen;
+        private @Nullable ControlStyle elementStyle;
 
         private Builder(String id) {
             this.id = id;
@@ -411,10 +416,26 @@ public class Panel {
             return this;
         }
 
+        /**
+         * The look every element in the panel follows: {@link ControlStyle#VANILLA}
+         * for the screens reached from the pause menu, {@link ControlStyle#MK} for
+         * MenuKit's own. Elements inside sections, scroll areas, tabs and rows follow
+         * it too; an element's own {@code style(...)} still wins. Without it a panel
+         * with no background ({@link PanelStyle#NONE}) follows its screen's
+         * ({@code MKScreen.elementStyle}) and any other keeps MenuKit's.
+         * The panel's own background is {@link #style(PanelStyle)}: for the vanilla
+         * look, usually {@link PanelStyle#NONE}, so vanilla's backdrop shows.
+         */
+        public Builder elementStyle(ControlStyle style) {
+            this.elementStyle = java.util.Objects.requireNonNull(style, "style");
+            return this;
+        }
+
         /** Builds the configured Panel. */
         public Panel build() {
             Panel panel = new Panel(id, elements, visible, style, position, toggleKey);
             panel.disabledSupplier = disabledWhen;
+            panel.elementStyle = elementStyle;
             if (visibleWhen != null) panel.visibleWhen(visibleWhen);
             return panel;
         }
@@ -1119,6 +1140,19 @@ public class Panel {
             this.visible = true;
         }
         return this;
+    }
+
+    // ── The look (6.1.0) ────────────────────────────────────────────────
+
+    /** The look every element inside follows; {@code null} follows the screen's. See {@link Builder#elementStyle}. Chainable. */
+    public Panel elementStyle(@Nullable ControlStyle style) {
+        this.elementStyle = style;
+        return this;
+    }
+
+    /** The panel's own element look, or {@code null} when it follows its screen's. */
+    public @Nullable ControlStyle getElementStyle() {
+        return elementStyle;
     }
 
     // ── Disabled (the panel-wide cascade, §0066) ───────────────────────

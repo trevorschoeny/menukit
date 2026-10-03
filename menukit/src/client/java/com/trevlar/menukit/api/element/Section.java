@@ -32,6 +32,11 @@ import java.util.function.Supplier;
  * title, and a grey summary read every frame, cut with "..." when it runs out of
  * room. A click anywhere on the header row toggles the section.
  *
+ * <p>In the vanilla look ({@link ControlStyle#VANILLA}, its own or its screen's
+ * or panel's) the header is the category header of vanilla's Controls screen: the
+ * row centred, the title in white with a shadow, the summary in vanilla's grey.
+ * It still opens and closes. Its content follows the section's look.
+ *
  * <h3>Content</h3>
  *
  * Children are positioned from the top-left of the content area, which starts
@@ -68,10 +73,10 @@ public final class Section extends AbstractPanelElement {
     public static final int HEADER_HEIGHT = 12;
     /** Space between the header and the content when open. */
     public static final int CONTENT_GAP = 2;
-    /** Default title colour: dark, for a raised panel. */
+    /** The title's colour in MenuKit's look ({@link TextRole#HEADING}): dark, for a raised panel. */
     public static final int DEFAULT_TITLE_COLOR = ElementConstants.TEXT_DARK;
-    /** Default summary colour. */
-    public static final int DEFAULT_SUMMARY_COLOR = 0xFF8B8B8B;
+    /** The summary's colour in MenuKit's look ({@link TextRole#MUTED}). */
+    public static final int DEFAULT_SUMMARY_COLOR = ElementConstants.TEXT_MUTED;
 
     private static final String ARROW_CLOSED = "▶ ";
     private static final String ARROW_OPEN = "▼ ";
@@ -81,12 +86,15 @@ public final class Section extends AbstractPanelElement {
     private static final int SUMMARY_GAP = 8;
     /** A faint darkening under the header while the mouse is on it. */
     private static final int HOVER_FILL = 0x18000000;
+    /** The same, lightening, on vanilla's dark backdrop. */
+    private static final int HOVER_FILL_VANILLA = 0x18FFFFFF;
 
     private final Component title;
     private final @Nullable Integer swatch;
     private final @Nullable Supplier<Component> summary;
-    private final int titleColor;
-    private final int summaryColor;
+    /** Fixed colours from {@code colors(...)}, or null to take the look's heading and muted colours. */
+    private final @Nullable Integer titleColor;
+    private final @Nullable Integer summaryColor;
     private final List<PanelElement> children;
     private final BooleanSupplier openGet;
     private final Consumer<Boolean> openSet;
@@ -215,23 +223,33 @@ public final class Section extends AbstractPanelElement {
         boolean disabled = disabled(ctx);
         int w = getWidth();
         int hx = ctx.originX() + childX, hy = ctx.originY() + childY;
-        int titleCol = disabled ? ElementConstants.TEXT_DISABLED : titleColor;
-        int summaryCol = disabled ? ElementConstants.TEXT_DISABLED : summaryColor;
+        ControlStyle style = style(ctx);
+        boolean vanilla = style == ControlStyle.VANILLA;
+        boolean shadow = style.textShadow();
+        int titleCol = disabled || titleColor == null ? textColor(ctx, TextRole.HEADING) : titleColor;
+        int summaryCol = disabled || summaryColor == null ? textColor(ctx, TextRole.MUTED) : summaryColor;
 
         if (!disabled && ctx.isHovered(childX, childY, w, HEADER_HEIGHT)) {
-            g.fill(hx, hy, hx + w, hy + HEADER_HEIGHT, HOVER_FILL);
+            g.fill(hx, hy, hx + w, hy + HEADER_HEIGHT, vanilla ? HOVER_FILL_VANILLA : HOVER_FILL);
         }
         int textY = Text.centeredTextY(hy, hy + HEADER_HEIGHT);
-        int x = hx + 1;
         String arrow = open ? ARROW_OPEN : ARROW_CLOSED;
-        g.text(font, arrow, x, textY, titleCol, false);
+        // MenuKit's header reads from the left; vanilla's category header is centred
+        // (KeyBindsList.CategoryEntry). Centred while the whole row fits, else from the left.
+        int x = hx + 1;
+        if (vanilla) {
+            int row = font.width(arrow) + (swatch != null ? SWATCH + SWATCH_GAP : 0) + font.width(title)
+                    + (summary != null ? SUMMARY_GAP + font.width(summary.get()) : 0);
+            if (row < w) x = hx + (w - row) / 2;
+        }
+        g.text(font, arrow, x, textY, titleCol, shadow);
         x += font.width(arrow);
         if (swatch != null) {
             int sy = hy + (HEADER_HEIGHT - SWATCH) / 2;
             g.fill(x, sy, x + SWATCH, sy + SWATCH, swatch);
             x += SWATCH + SWATCH_GAP;
         }
-        g.text(font, title.getString(), x, textY, titleCol, false);
+        g.text(font, title.getString(), x, textY, titleCol, shadow);
         x += font.width(title);
         if (summary != null) {
             x += SUMMARY_GAP;
@@ -240,7 +258,7 @@ public final class Section extends AbstractPanelElement {
             if (room > 0 && font.width(text) > room) {
                 text = font.plainSubstrByWidth(text, Math.max(0, room - font.width(ELLIPSIS))) + ELLIPSIS;
             }
-            if (room > 0) g.text(font, text, x, textY, summaryCol, false);
+            if (room > 0) g.text(font, text, x, textY, summaryCol, shadow);
         }
         queueTooltip(ctx);
 
@@ -256,7 +274,7 @@ public final class Section extends AbstractPanelElement {
 
     /** The children's render context: origin at the content area's top-left, the disabled cascade added. */
     private RenderContext contentRender(RenderContext ctx) {
-        return ctx.at(ctx.originX() + childX, ctx.originY() + contentTop()).disabledIf(ownDisabled());
+        return childContext(ctx.at(ctx.originX() + childX, ctx.originY() + contentTop()));
     }
 
     /** The children's input context, the same way. */
@@ -342,8 +360,8 @@ public final class Section extends AbstractPanelElement {
         private final Component title;
         private @Nullable Integer swatch;
         private @Nullable Supplier<Component> summary;
-        private int titleColor = DEFAULT_TITLE_COLOR;
-        private int summaryColor = DEFAULT_SUMMARY_COLOR;
+        private @Nullable Integer titleColor;
+        private @Nullable Integer summaryColor;
         private final List<PanelElement> children = new ArrayList<>();
         private boolean open = false;
         private @Nullable BooleanSupplier openGet;
@@ -367,7 +385,11 @@ public final class Section extends AbstractPanelElement {
             return this;
         }
 
-        /** Title and summary colours (ARGB), for a dark panel. A disabled section draws both grey on its own. */
+        /**
+         * Fixed title and summary colours (ARGB), in every look. Without them the
+         * look decides ({@link TextRole#HEADING} and {@link TextRole#MUTED}). A
+         * disabled section draws both in the disabled colour on its own.
+         */
         public Builder colors(int title, int summary) {
             this.titleColor = title;
             this.summaryColor = summary;

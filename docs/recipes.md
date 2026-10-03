@@ -172,6 +172,50 @@ body.add(Flow.builder().at(0, 50).disabledWhen(off)
 
 Result: the switch sits at the left and Reset at the right edge of the tab body, and each setting's control sits at the right edge beside its label, whatever the window's width. When the window is too narrow the control drops under its label. The divider spans the body. While the feature is off, every setting row is grey and ignores the mouse and keys. `Panel.disabledWhen(...)` greys a whole panel the same way.
 
+## Give a screen the pause-menu look
+
+Needs: MenuKit 6.1.0. For a menu that should read like Options, Video Settings or Controls instead of an inventory.
+
+```java
+public final class SettingsScreen extends MKScreen {
+    public SettingsScreen(List<Panel> panels) {
+        super(Component.literal("My Mod"), panels);
+        elementStyle(ControlStyle.VANILLA);
+    }
+}
+```
+
+Result: every panel on the screen without a background of its own (`PanelStyle.NONE`) draws its elements in vanilla's look over vanilla's blurred backdrop: stone buttons, vanilla's checkbox, on/off buttons for toggles, white text, centred section headers, vanilla's separators, and the darker band behind a `ScrollContainer` or a tab page. A panel that draws MenuKit's grey (a dialog, a side panel) keeps MenuKit's look, so its text stays dark on grey. Nothing changes size, so the layout does not move.
+
+The same switch on one panel, on any screen, and one element that keeps MenuKit's look whatever its panel uses:
+
+```java
+Panel menu = Panel.builder("mymod:settings")
+        .style(PanelStyle.NONE)
+        .elementStyle(ControlStyle.VANILLA)
+        .position(PanelPosition.main())
+        .add(tabs)
+        .build();
+
+Button.builder().label(Component.literal("Sort")).size(60, 20).style(ControlStyle.MK).build();
+```
+
+An element's own `style(...)` wins over its panel's and its screen's; on a container (`Section`, `ScrollContainer`, `Tabs`, `Flow`) it is also what everything inside follows. Elements built from other elements, such as Keybindery's key button, follow the look with no change of their own. A toggle reads its state in the vanilla look: give it a label that says it (`"On"` / `"Off"`), or no label for vanilla's `ON` / `OFF`.
+
+## Colour text by role
+
+Needs: MenuKit 6.1.0.
+
+```java
+List<PanelElement> body = new ArrayList<>();
+body.add(TextLabel.builder().text(Component.literal("Sorting")).role(TextRole.HEADING).build());
+body.add(TextLabel.builder().at(0, 14).text(Component.literal("Rows")).build());
+body.add(TextLabel.builder().at(0, 26).text(Component.literal("Applies to chests too."))
+        .role(TextRole.MUTED).build());
+```
+
+Result: the heading and "Rows" are dark grey on MenuKit's panel and white on vanilla's backdrop; the note is mid grey on the panel and vanilla's grey on the backdrop. A label without a role is `BODY`. Disabled text takes the look's disabled grey whatever its role. `color(argb)` and `shadow(b)` fix a value in every look instead, for text over the world on the HUD; `TextLabel.COLOR_DARK` is right only on MenuKit's grey.
+
 ## Outline an item in its group's colour
 
 Needs: MenuKit.

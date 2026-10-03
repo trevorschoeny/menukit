@@ -2,6 +2,7 @@ package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.core.TabRows;
+import com.trevlar.menukit.core.VanillaLook;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -92,6 +93,18 @@ import java.util.function.Supplier;
  *       {@link Builder#sidebarHeader} puts elements above the column (a Back
  *       button, say), in the column's width; the body still starts at the top.</li>
  * </ul>
+ * <h3>Vanilla look</h3>
+ *
+ * The strip ({@link Mode#WRAP}, {@link Mode#SIDE_SCROLL}) always draws vanilla's
+ * tab sprites. In the vanilla look ({@link ControlStyle#VANILLA}, its own or its
+ * screen's or panel's) it is the tab bar of vanilla's Create World screen: every
+ * label white with a shadow, the selected one underlined, vanilla's separator
+ * along the strip's bottom on either side of the tabs, and the selected tab open
+ * into the page below it, which is vanilla's darker list background down to a
+ * separator at the bottom. Behaviour, sizes and the arrows (vanilla's page
+ * arrows) are the same in both looks. {@link Mode#SIDEBAR} keeps MenuKit's look;
+ * its body and header follow the look like any content.
+ *
  * {@link Builder#header} puts a row across the whole element, above the strip
  * (or the sidebar column) and the body, in every mode: the menu's own title bar.
  * Its elements get the element's full width, so a {@link Flow} with a spacer at
@@ -660,7 +673,10 @@ public final class Tabs extends AbstractPanelElement {
             Panel.reflowForWrap(tab.body);
             contentH = Panel.contentHeightOf(tab.body);
             String id = tab.id;
+            // Bandless: in the vanilla look the Tabs draws the page band itself, behind
+            // the whole body, whether or not it scrolls.
             scroll = ScrollContainer.builder()
+                    .bandless()
                     .at(0, 0)
                     .size(w, h)
                     .content(tab.body)
@@ -814,11 +830,20 @@ public final class Tabs extends AbstractPanelElement {
         lastShown = shown == null ? null : shown.id;
 
         // ── Header, then the strip under it ── (a disabled one draws as if nothing were hovered)
-        RenderContext stripCtx = disabled ? new RenderContext(g, ctx.originX(), ctx.originY(), -1, -1, true) : ctx;
-        ChildDispatch.render(header, stripCtx.at(sx, sy).disabledIf(ownDisabled()));
+        RenderContext stripCtx = disabled
+                ? new RenderContext(g, ctx.originX(), ctx.originY(), -1, -1, true, ctx.style()) : ctx;
+        ChildDispatch.render(header, childContext(stripCtx.at(sx, sy)));
         if (sidebar()) {
             renderSidebar(stripCtx, s, shown, sx, sy + s.top);
         } else {
+            // The vanilla look's page: the list band from the strip's bottom down,
+            // with the footer separator under it (the strip's own line is its top).
+            if (style(ctx) == ControlStyle.VANILLA) {
+                int pageTop = sy + s.top + s.height;
+                int bottom = sy + getHeight();
+                VanillaLook.listBackground(g, sx, pageTop, getWidth(), bottom - pageTop, sx, pageTop);
+                VanillaLook.footerSeparator(g, sx, bottom, getWidth());
+            }
             renderStrip(stripCtx, s, shown, sx, sy + s.top);
         }
 
@@ -838,8 +863,7 @@ public final class Tabs extends AbstractPanelElement {
 
     /** The body's render context: origin at the body's top-left, the disabled cascade added. */
     private RenderContext bodyRender(RenderContext ctx, StripLayout s) {
-        return ctx.at(ctx.originX() + childX + bodyLeft(s), ctx.originY() + childY + bodyTop(s))
-                .disabledIf(ownDisabled());
+        return childContext(ctx.at(ctx.originX() + childX + bodyLeft(s), ctx.originY() + childY + bodyTop(s)));
     }
 
     /** The body's input context, the same way. */
@@ -865,6 +889,8 @@ public final class Tabs extends AbstractPanelElement {
         int viewLeft = sx + stripViewportStart(s);
         int viewRight = viewLeft + stripViewportLength(s);
         int shift = s.overflow ? stripScroll : 0;
+        boolean vanilla = style(ctx) == ControlStyle.VANILLA;
+        if (vanilla) stripSeparators(g, s, sx, sy, viewLeft, viewRight, shift);
         if (s.overflow) g.enableScissor(viewLeft, sy, viewRight, sy + s.height);
         Placed hoveredTruncated = null;
         for (Placed p : s.placed) {
@@ -879,16 +905,35 @@ public final class Tabs extends AbstractPanelElement {
                     ? (hovered ? SPRITE_SELECTED_HOVER : SPRITE_SELECTED)
                     : (hovered ? SPRITE_TAB_HOVER : SPRITE_TAB);
             g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, tx, ty, p.w, TAB_HEIGHT);
+            // Vanilla's selected tab opens into the page: the page's background inside
+            // its frame (MenuTabButton.renderMenuBackground), here the list band, tiled
+            // from screen coordinates as the band below is, so they meet seamlessly.
+            if (vanilla && isSelected) {
+                VanillaLook.listBackground(g, tx + 2, ty + 2, p.w - 4, TAB_HEIGHT - 2, tx + 2, ty + 2);
+            }
             // Vanilla's rule (MenuTabButton.renderLabel): an unselected tab's sprite
             // starts its visible body 3 px down, so its label centers in the box below
             // that inset, not over the full height. Same arithmetic as vanilla's
             // scrolling-string centering, so both states match vanilla to the pixel.
             int labelTop = ty + (isSelected ? 0 : UNSELECTED_LABEL_INSET);
             int textY = Text.centeredTextY(labelTop, ty + TAB_HEIGHT);
-            int color = p.tab.standIn
-                    ? (isSelected ? COLOR_STAND_IN_SELECTED : COLOR_STAND_IN_UNSELECTED)
-                    : (isSelected ? COLOR_SELECTED : COLOR_UNSELECTED);
+            // Vanilla's labels are white whether selected or not (MenuTabButton: active
+            // white, inactive LIGHT_GRAY) and the selected one is underlined; MenuKit's
+            // dims the unselected ones instead.
+            int color = vanilla
+                    ? (p.tab.standIn ? COLOR_UNSELECTED : COLOR_SELECTED)
+                    : p.tab.standIn
+                            ? (isSelected ? COLOR_STAND_IN_SELECTED : COLOR_STAND_IN_UNSELECTED)
+                            : (isSelected ? COLOR_SELECTED : COLOR_UNSELECTED);
             g.centeredText(font, p.text, tx + p.w / 2, textY, color);
+            if (vanilla && isSelected) {
+                // MenuTabButton.renderFocusUnderline: 1 px, the label's colour, as wide
+                // as the label (at most the tab less 4), 2 px above the tab's bottom.
+                int lineW = Math.min(font.width(p.text), p.w - 4);
+                int lineX = tx + (p.w - lineW) / 2;
+                int lineY = ty + TAB_HEIGHT - 2;
+                g.fill(lineX, lineY, lineX + lineW, lineY + 1, color);
+            }
             if (hovered && p.truncated) hoveredTruncated = p;
         }
         if (s.overflow) {
@@ -900,6 +945,31 @@ public final class Tabs extends AbstractPanelElement {
         }
     }
 
+    /**
+     * The vanilla look's line along the strip's bottom, either side of the last
+     * row's tabs (MenuTabBar draws {@code Screen.HEADER_SEPARATOR} left of the first
+     * tab and right of the last): with the selected tab open above the page, the
+     * line and the page read as one surface. Under an overflowing row's arrows only,
+     * since the tabs fill the viewport there.
+     */
+    private void stripSeparators(net.minecraft.client.gui.GuiGraphicsExtractor g, StripLayout s, int sx, int sy,
+                                 int viewLeft, int viewRight, int shift) {
+        if (s.placed.isEmpty()) return;
+        int lastRowY = s.placed.get(s.placed.size() - 1).y;
+        int first = Integer.MAX_VALUE, last = Integer.MIN_VALUE;
+        for (Placed p : s.placed) {
+            if (p.y != lastRowY) continue;
+            first = Math.min(first, viewLeft + p.x - shift);
+            last = Math.max(last, viewLeft + p.x - shift + p.w);
+        }
+        first = Math.max(first, viewLeft);
+        last = Math.min(last, viewRight);
+        int lineY = sy + s.height - VanillaLook.SEPARATOR_HEIGHT;
+        if (first > sx) VanillaLook.headerSeparator(g, sx, lineY, first - sx);
+        int right = sx + getWidth();
+        if (last < right) VanillaLook.headerSeparator(g, last, lineY, right - last);
+    }
+
     /** The column down the left ({@link Mode#SIDEBAR}): header, tabs, and a scrollbar when they overflow. */
     private void renderSidebar(RenderContext ctx, StripLayout s, @Nullable Tab shown, int sx, int sy) {
         var g = ctx.graphics();
@@ -908,7 +978,7 @@ public final class Tabs extends AbstractPanelElement {
         if (column <= 0) return;
 
         // Header: ordinary elements, positioned from the column's top-left.
-        ChildDispatch.render(sidebarHeader, ctx.at(sx, sy).disabledIf(ownDisabled()));
+        ChildDispatch.render(sidebarHeader, childContext(ctx.at(sx, sy)));
 
         // The tabs, clipped to the column under the header. When they overflow,
         // the scrollbar takes a lane on the column's left (the side away from the
@@ -1089,10 +1159,9 @@ public final class Tabs extends AbstractPanelElement {
     /** The headers' and the shown body's overlays (an open Dropdown popover), unclipped, after all base renders. */
     @Override
     public void renderOverlay(RenderContext ctx) {
-        ChildDispatch.renderOverlay(header,
-                ctx.at(ctx.originX() + childX, ctx.originY() + childY).disabledIf(ownDisabled()));
+        ChildDispatch.renderOverlay(header, childContext(ctx.at(ctx.originX() + childX, ctx.originY() + childY)));
         ChildDispatch.renderOverlay(sidebarHeader,
-                ctx.at(ctx.originX() + childX, ctx.originY() + childY + strip().top).disabledIf(ownDisabled()));
+                childContext(ctx.at(ctx.originX() + childX, ctx.originY() + childY + strip().top)));
         BodyView b = liveBody();
         if (b == null) return;
         RenderContext bodyCtx = bodyRender(ctx, strip());

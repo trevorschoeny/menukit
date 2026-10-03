@@ -129,9 +129,10 @@ public class Radio<T> extends AbstractPanelElement {
             g.fill(ix, iy, ix + INDICATOR_SIZE, iy + INDICATOR_SIZE, INDICATOR_COLOR);
         }
         if (text != null) {
-            int color = disabled ? ElementConstants.TEXT_DISABLED : ElementConstants.TEXT_DARK;
+            // The button keeps MenuKit's drawing (vanilla has no radio); the label takes the look's text.
             int textY = wrapWidth > 0 ? sy : Text.centeredTextY(sy, sy + BOX_SIZE);
-            Text.drawWrapped(g, text, wrapWidth, sx + BOX_SIZE + LABEL_GAP, textY, 0, color, false);
+            Text.drawWrapped(g, text, wrapWidth, sx + BOX_SIZE + LABEL_GAP, textY, 0,
+                    textColor(ctx, TextRole.BODY), style(ctx).textShadow());
         }
         if (hovered) queueTooltip(ctx);
     }

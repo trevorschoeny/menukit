@@ -21,6 +21,9 @@ public final class ElementConstants {
     /** White text, drawn with a shadow: on a dark panel, a button, a HUD. */
     public static final int TEXT_LIGHT = 0xFFFFFFFF;
 
+    /** Secondary text on a light panel (a section's summary): {@link TextRole#MUTED} in MenuKit's look. */
+    public static final int TEXT_MUTED = 0xFF8B8B8B;
+
     /**
      * Text of a disabled element, and all text inside a disabled panel or
      * container (the disabled look, §0066). Mid grey reads as "off" on both light

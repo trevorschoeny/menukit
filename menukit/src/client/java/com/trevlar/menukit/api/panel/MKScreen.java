@@ -1,5 +1,6 @@
 package com.trevlar.menukit.api.panel;
 
+import com.trevlar.menukit.api.element.ControlStyle;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.PanelStyle;
@@ -47,6 +48,15 @@ import java.util.List;
  * registry with any injected hosts on this screen. Input: the screen routes its own
  * panels (topmost first, modal-aware), then vanilla widgets, then eats a click its
  * panels claim.
+ *
+ * <h3>The look</h3>
+ * {@link #elementStyle(ControlStyle)} sets the look of every element on the screen
+ * at once: {@link ControlStyle#VANILLA} for a screen that should read like the ones
+ * reached from the pause menu. It reaches every panel with no background of its own
+ * ({@link PanelStyle#NONE}), which shows vanilla's backdrop (the blurred world, or
+ * the panorama); a panel that draws MenuKit's grey keeps MenuKit's look. A panel's
+ * own {@code elementStyle} wins for that panel, and an element's own
+ * {@code style(...)} for that element.
  *
  * @see com.trevlar.menukit.api.panel.ScreenPanelAdapter for panels on vanilla screens
  */
@@ -114,6 +124,18 @@ public class MKScreen extends Screen {
     protected final void hideTitle() {
         this.titleBand = false;
         host.titleBand(PanelHost.TitleBand.NONE);
+    }
+
+    /**
+     * The look every element on this screen follows, unless its panel sets its own
+     * ({@code Panel.Builder.elementStyle}) or the element its own {@code style(...)}.
+     * It reaches the panels with no background of their own ({@link PanelStyle#NONE}),
+     * where vanilla's backdrop shows: a panel that draws MenuKit's grey (a dialog,
+     * say) keeps MenuKit's look, so its text stays dark on grey. Default
+     * {@link ControlStyle#MK}. Call from the subclass constructor.
+     */
+    protected final void elementStyle(ControlStyle style) {
+        host.elementStyle(style);
     }
 
     /** Whether the title band shows (false after {@link #hideTitle()}). */

@@ -5,47 +5,100 @@ import com.trevlar.menukit.api.panel.PanelStyle;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.CommonColors;
+
+import org.jspecify.annotations.Nullable;
 
 /**
- * Visual style for INTERACTIVE controls, currently {@link Button} and
- * {@link Dropdown}/{@link DropdownMulti}. Distinct from {@link PanelStyle}
- * because panels (containers) and controls (interactive primitives) are
- * different architectural categories, a panel that "looks like a button"
- * miscommunicates that it's clickable, and PanelStyle has no notion of
- * the per-state sprite swaps (hover, disabled) that vanilla button
- * rendering needs.
+ * MenuKit's look or vanilla's, for every element: how controls draw, which
+ * colour text takes, what a list or a divider looks like. The look changes how an
+ * element draws, never its size or behaviour, so a screen can switch without its
+ * layout moving.
  *
  * <h3>Variants</h3>
  *
  * <ul>
- *   <li><b>{@link #MK}</b>, the existing MenuKit look. Buttons use a
- *       {@link PanelStyle#RAISED} background with a translucent hover
- *       overlay, switch to {@link PanelStyle#INSET} when pressed and
- *       {@link PanelStyle#DARK} when disabled. Dropdown triggers use
- *       {@code RAISED}. Default when no style is specified, existing
- *       consumers see no change.</li>
- *   <li><b>{@link #VANILLA}</b>, vanilla Minecraft's button sprite
- *       atlas ({@code widget/button}, {@code widget/button_highlighted},
- *       {@code widget/button_disabled}). Square corners, textured gray
- *       gradient. Matches the look of vanilla menu screens (Options,
- *       Controls, Pause). Hover and pressed both use the highlighted
- *       sprite (vanilla doesn't have a separate pressed visual).</li>
+ *   <li><b>{@link #MK}</b>, MenuKit's own look, the default: raised grey
+ *       controls on a light grey panel, dark text. Buttons switch to
+ *       {@link PanelStyle#INSET} when pressed and {@link PanelStyle#DARK} when
+ *       disabled.</li>
+ *   <li><b>{@link #VANILLA}</b>, the look of the screens reached from the pause
+ *       menu (Options, Controls): vanilla's button, checkbox and tab sprites,
+ *       white text with a shadow, vanilla's separators and darker list
+ *       background. Hover and pressed both use the highlighted button sprite
+ *       (vanilla has no pressed sprite); MenuKit adds its pressed overlay.</li>
  * </ul>
  *
- * <h3>Scope</h3>
+ * <h3>One switch, and the override (6.1.0)</h3>
  *
- * Applied to the interactive control's BACKGROUND only. Text rendering
- * (label color, font, alignment) is unaffected, use {@link Text} for
- * that. For {@link Dropdown} and {@link DropdownMulti}, a single
- * {@code .style(...)} on the builder applies to BOTH the trigger and the
- * popover, VANILLA trigger gets {@code widget/button}; VANILLA popover
- * gets {@code widget/button_disabled} (vanilla's darker uniform gray)
- * so the popover reads as a distinct surface beneath the trigger.
- * Consumers don't separately style the popover.
+ * The look is set once, for a whole screen ({@code MKScreen.elementStyle}) or a
+ * panel ({@code Panel.Builder.elementStyle}), and every element inside follows
+ * it, down through sections, scroll areas, tabs, rows and any element built from
+ * other elements. It travels with the frame in {@link RenderContext#style()}. An
+ * element's own {@code style(...)} wins over what it inherits, and a container's
+ * own style is what its children inherit. {@link #resolve} is the rule.
+ *
+ * <h3>Text by role</h3>
+ *
+ * {@link #textColor(TextRole)} and {@link #textShadow()}: dark grey without a
+ * shadow on MenuKit's panel, vanilla's white and greys with a shadow on its
+ * backdrop. Text drawn on a control (a button's label) stays white in both looks;
+ * only its disabled grey follows the look.
+ *
+ * <h3>Where vanilla has no twin</h3>
+ *
+ * A radio button, an info box, a progress bar, a colour swatch and a consumer's
+ * own sprites keep MenuKit's drawing in both looks. {@link Slider} and
+ * {@link TextField} are vanilla's own widgets and look the same in both.
  */
 public enum ControlStyle {
     MK,
     VANILLA;
+
+    // ── The switch: what an element draws in ───────────────────────────
+
+    /**
+     * The look an element draws in: its own, when it was given one with
+     * {@code style(...)}, else the one it inherits from its screen, panel or
+     * container. The same rule decides a panel's look against its screen's.
+     *
+     * @param own       the element's (or panel's) own style, or {@code null} for none
+     * @param inherited the style around it
+     */
+    public static ControlStyle resolve(@Nullable ControlStyle own, ControlStyle inherited) {
+        return own != null ? own : inherited;
+    }
+
+    // ── Text by role ───────────────────────────────────────────────────
+
+    /**
+     * The colour of text in {@code role} on this look's surface. MenuKit's look:
+     * dark grey ({@link ElementConstants#TEXT_DARK}) for headings and body,
+     * {@link ElementConstants#TEXT_MUTED}, and {@link ElementConstants#TEXT_DISABLED}.
+     * Vanilla's: its own {@code CommonColors}, white for headings and body (the
+     * Options title, a setting's name), {@code GRAY} for secondary lines (the world
+     * list's details) and {@code LIGHT_GRAY} for disabled text (an inactive
+     * button's label).
+     */
+    public int textColor(TextRole role) {
+        return switch (this) {
+            case MK -> switch (role) {
+                case HEADING, BODY -> ElementConstants.TEXT_DARK;
+                case MUTED -> ElementConstants.TEXT_MUTED;
+                case DISABLED -> ElementConstants.TEXT_DISABLED;
+            };
+            case VANILLA -> switch (role) {
+                case HEADING, BODY -> CommonColors.WHITE;
+                case MUTED -> CommonColors.GRAY;
+                case DISABLED -> CommonColors.LIGHT_GRAY;
+            };
+        };
+    }
+
+    /** Whether text on this look's surface has a drop shadow: vanilla's does, MenuKit's container text does not. */
+    public boolean textShadow() {
+        return this == VANILLA;
+    }
 
     // ── Vanilla button sprite atlas ────────────────────────────────────
     //

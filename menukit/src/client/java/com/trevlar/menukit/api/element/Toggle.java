@@ -47,6 +47,15 @@ import java.util.function.Supplier;
  *       off, with its lightness inverted when on, so one texture shows both
  *       states.</li>
  * </ul>
+ *
+ * <h3>Vanilla look</h3>
+ *
+ * In the vanilla look ({@link ControlStyle#VANILLA}, its own or its screen's or
+ * panel's) the switch and the labelled bar are a vanilla button, the way
+ * vanilla's own on/off options are buttons: the text says the state. A labelled
+ * toggle shows its label (give it one that says the state, {@code "On"} /
+ * {@code "Off"}); a switch with no label reads vanilla's own {@code ON} /
+ * {@code OFF}. A sprite face keeps the consumer's sprite.
  * For the conventional box-and-check-mark, use {@link Checkbox}.
  *
  * <h3>Input</h3>
@@ -155,8 +164,14 @@ public class Toggle extends AbstractPanelElement {
             int argb = tint.getAsInt();
             if (argb != 0) ctx.graphics().fill(sx + 1, sy + 1, sx + getWidth() - 1, sy + getHeight() - 1, argb);
         }
+        // Vanilla's on/off option is a button whose text is the state: a switch
+        // with no label of its own reads vanilla's ON / OFF there.
+        ControlStyle style = style(ctx);
+        if (text == null && style == ControlStyle.VANILLA && !(this instanceof SpriteToggle)) {
+            text = on ? CommonComponents.OPTION_ON : CommonComponents.OPTION_OFF;
+        }
         if (text != null) {
-            int color = disabled ? ElementConstants.TEXT_DISABLED : ElementConstants.TEXT_LIGHT;
+            int color = disabled ? style.textColor(TextRole.DISABLED) : ElementConstants.TEXT_LIGHT;
             if (wrapWidth > 0) {
                 int lines = Text.lineCount(text, wrapWidth);
                 Text.drawWrapped(ctx.graphics(), text, wrapWidth, sx,
@@ -178,7 +193,9 @@ public class Toggle extends AbstractPanelElement {
 
     /**
      * Paints the toggle for this frame: raised off, inset on, dark disabled, and
-     * the hover highlight. Covers the grown height when a label wrapped.
+     * the hover highlight; in the vanilla look, vanilla's button (highlighted on
+     * hover, its disabled sprite while disabled), whose text carries the state.
+     * Covers the grown height when a label wrapped.
      *
      * <p><b>Stable extension point.</b> {@code sx}/{@code sy} are the toggle's
      * screen-space top-left; this hook owns all state-dependent painting.
@@ -186,6 +203,10 @@ public class Toggle extends AbstractPanelElement {
     protected void renderBackground(RenderContext ctx, int sx, int sy,
                                     boolean on, boolean disabled, boolean hovered) {
         int w = getWidth(), h = getHeight();
+        if (style(ctx) == ControlStyle.VANILLA) {
+            ControlStyle.renderVanillaButton(ctx.graphics(), sx, sy, w, h, !disabled, hovered);
+            return;
+        }
         PanelStyle bg = disabled ? PanelStyle.DARK : on ? PanelStyle.INSET : PanelStyle.RAISED;
         PanelRendering.renderPanel(ctx.graphics(), sx, sy, w, h, bg);
         if (!disabled && hovered) {

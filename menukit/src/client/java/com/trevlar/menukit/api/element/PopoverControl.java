@@ -64,7 +64,6 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     protected final Function<T, Component> label;
     private final int maxVisibleItems;
     private final @Nullable Function<T, Component> itemTooltip;
-    private final ControlStyle style;
 
     // ── View state ─────────────────────────────────────────────────────
     private boolean open = false;
@@ -80,7 +79,6 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         this.label = b.label;
         this.maxVisibleItems = b.maxVisibleItems;
         this.itemTooltip = b.itemTooltip;
-        this.style = b.style;
     }
 
     // ── What a subclass says ───────────────────────────────────────────
@@ -203,6 +201,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
 
         // Background: vanilla's button sprite, or MenuKit's raised panel; pressed
         // while open (the popover is the live surface then, so no hover highlight).
+        ControlStyle style = style(ctx);
         if (style == ControlStyle.VANILLA) {
             ControlStyle.renderVanillaButton(g, tx, ty, width, h, !disabled, hovered && !open);
             if (open) ControlStyle.renderVanillaPressedOverlay(g, tx, ty, width, h);
@@ -214,7 +213,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         // Label: left, wrapping onto more lines when too long (the trigger grows);
         // the chevron stays beside the first line.
         Font font = Minecraft.getInstance().font;
-        int color = disabled ? ElementConstants.TEXT_DISABLED : ElementConstants.TEXT_LIGHT;
+        int color = disabled ? style.textColor(TextRole.DISABLED) : ElementConstants.TEXT_LIGHT;
         Component text = triggerText();
         int textX = tx + TRIGGER_TEXT_PAD_X;
         int firstLineY = Text.centeredTextY(ty, ty + height);
@@ -239,7 +238,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         var g = ctx.graphics();
         int[] p = popoverBounds(ctx.originX() + childX, ctx.originY() + childY);
         int px = p[0], py = p[1], pw = p[2], ph = p[3];
-        if (style == ControlStyle.VANILLA) {
+        if (style(ctx) == ControlStyle.VANILLA) {
             ControlStyle.renderVanillaPopoverBackground(g, px, py, pw, ph);
         } else {
             PanelRendering.renderPanel(g, px, py, pw, ph, PanelStyle.RAISED);
@@ -424,7 +423,6 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         protected Function<T, Component> label = v -> Component.literal(String.valueOf(v));
         protected int maxVisibleItems = DEFAULT_MAX_VISIBLE;
         protected @Nullable Function<T, Component> itemTooltip;
-        protected ControlStyle style = ControlStyle.MK;
 
         protected Builder() {}
 
@@ -459,10 +457,15 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
             return self();
         }
 
-        /** The trigger's look: {@link ControlStyle#MK} (default) or vanilla's button. The popover is a raised panel either way. */
+        /**
+         * The look of the trigger and its popover, whatever the screen or panel
+         * uses: {@link ControlStyle#MK} (a raised panel) or {@link ControlStyle#VANILLA}
+         * (vanilla's button, and its darker disabled sprite under the rows).
+         * Without it the dropdown follows them.
+         */
+        @Override
         public B style(ControlStyle style) {
-            this.style = Objects.requireNonNull(style, "style");
-            return self();
+            return super.style(style);
         }
 
         /** Validation both share. */

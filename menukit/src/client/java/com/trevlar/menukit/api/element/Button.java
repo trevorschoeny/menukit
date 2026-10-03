@@ -73,7 +73,6 @@ public class Button extends AbstractPanelElement {
     private final Runnable onClick;
     private final @Nullable Consumer<Click> onSecondaryClick;
     private final @Nullable IntSupplier tint;
-    private final ControlStyle style;
     // The vanilla stand-in for sound, focus and narration (ElementWidget), made at
     // the first screen attach, not with the element: a Containers menu builds its
     // panels on the dedicated server too, where no screen class exists.
@@ -98,7 +97,6 @@ public class Button extends AbstractPanelElement {
         this.onClick = b.onClick;
         this.onSecondaryClick = b.onSecondaryClick;
         this.tint = b.tint;
-        this.style = b.style;
     }
 
     /** Starts a button. Give it a {@code label}, an {@code icon} or a {@code sprite}, and an {@code onClick}. */
@@ -196,8 +194,9 @@ public class Button extends AbstractPanelElement {
 
     /**
      * Paints the background: raised, inset while pressed, dark while disabled,
-     * with the hover highlight; or vanilla's button sprite under
-     * {@link ControlStyle#VANILLA}. Covers the grown height when the label wraps.
+     * with the hover highlight; or vanilla's button sprite in the vanilla look
+     * (its own {@code style}, or its screen's or panel's). Covers the grown height
+     * when the label wraps.
      *
      * <p><b>Stable extension point.</b> {@code sx}/{@code sy} are the button's
      * screen-space top-left; runs before {@link #renderContent}; must not mutate
@@ -205,7 +204,7 @@ public class Button extends AbstractPanelElement {
      */
     protected void renderBackground(RenderContext ctx, int sx, int sy, Look look) {
         int w = getWidth(), h = getHeight();
-        if (style == ControlStyle.VANILLA) {
+        if (style(ctx) == ControlStyle.VANILLA) {
             ControlStyle.renderVanillaButton(ctx.graphics(), sx, sy, w, h, !look.disabled(),
                     look.hovered() || look.pressed());
             if (look.pressed()) ControlStyle.renderVanillaPressedOverlay(ctx.graphics(), sx, sy, w, h);
@@ -233,7 +232,7 @@ public class Button extends AbstractPanelElement {
      * the button.
      */
     protected void renderContent(RenderContext ctx, int sx, int sy, Look look) {
-        int color = look.disabled() ? ElementConstants.TEXT_DISABLED : ElementConstants.TEXT_LIGHT;
+        int color = look.disabled() ? style(ctx).textColor(TextRole.DISABLED) : ElementConstants.TEXT_LIGHT;
         if (wrapWidth > 0) {
             int lines = Text.lineCount(label, wrapWidth);
             Text.drawWrapped(ctx.graphics(), label, wrapWidth, sx, Text.centeredBlockY(sy, sy + getHeight(), lines),
@@ -292,7 +291,6 @@ public class Button extends AbstractPanelElement {
         private Runnable onClick = () -> {};
         private @Nullable Consumer<Click> onSecondaryClick;
         private @Nullable IntSupplier tint;
-        private ControlStyle style = ControlStyle.MK;
         private @Nullable Supplier<Identifier> icon;
         private @Nullable Supplier<Identifier> sprite;
 
@@ -339,10 +337,13 @@ public class Button extends AbstractPanelElement {
             return this;
         }
 
-        /** {@link ControlStyle#MK} (default) or {@link ControlStyle#VANILLA}'s button sprite. */
+        /**
+         * {@link ControlStyle#MK} or {@link ControlStyle#VANILLA}'s button sprite,
+         * whatever the screen or panel uses. Without it the button follows them.
+         */
+        @Override
         public Builder style(ControlStyle style) {
-            this.style = Objects.requireNonNull(style, "style");
-            return this;
+            return super.style(style);
         }
 
         /** An icon button: {@code sprite} centred, inset 2px. Square: size it {@code (n, n)}. */

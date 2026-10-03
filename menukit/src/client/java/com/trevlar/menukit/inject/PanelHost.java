@@ -3,6 +3,7 @@ package com.trevlar.menukit.inject;
 import com.trevlar.menukit.api.panel.Reference;
 import com.trevlar.menukit.api.panel.ScreenOrigin;
 import com.trevlar.menukit.api.element.ChildDispatch;
+import com.trevlar.menukit.api.element.ControlStyle;
 import com.trevlar.menukit.api.element.InputContext;
 import com.trevlar.menukit.api.panel.InsideRegion;
 import com.trevlar.menukit.api.panel.OutsideRegion;
@@ -213,6 +214,9 @@ public final class PanelHost {
     private @Nullable SlotOwnership slotOwnership;
     private @Nullable Decoration decoration;
 
+    /** The look every panel here hands its elements unless the panel sets its own (a standalone screen's switch). */
+    private ControlStyle elementStyle = ControlStyle.MK;
+
     /** Entries already warned about an overflow; one warning each. */
     private final Set<Entry> warned = Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
 
@@ -251,6 +255,28 @@ public final class PanelHost {
 
     /** Which context this host is. */
     public Kind kind() { return kind; }
+
+    /**
+     * The look this host's panels hand their elements, unless a panel sets its own
+     * ({@code Panel.elementStyle}): a standalone screen's one switch. Default
+     * {@link ControlStyle#MK}.
+     */
+    public PanelHost elementStyle(ControlStyle style) {
+        this.elementStyle = Objects.requireNonNull(style, "style");
+        return this;
+    }
+
+    /**
+     * The look {@code panel}'s elements inherit here: the panel's own; else, for a
+     * panel with no background of its own ({@link PanelStyle#NONE}), this host's;
+     * else MenuKit's. The look belongs to the surface the elements sit on, so a
+     * panel that draws MenuKit's grey (a dialog, a side panel) keeps MenuKit's look
+     * on a screen switched to vanilla's, and its text stays readable.
+     */
+    public ControlStyle elementStyleOf(Panel panel) {
+        ControlStyle screen = panel.getStyle() == PanelStyle.NONE ? elementStyle : ControlStyle.MK;
+        return ControlStyle.resolve(panel.getElementStyle(), screen);
+    }
 
     /** Standalone: where the title sits (and the room kept for it). */
     public PanelHost titleBand(TitleBand band) { this.titleBand = band; return this; }
@@ -764,7 +790,8 @@ public final class PanelHost {
                 PanelRendering.renderPanel(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
             }
             if (decoration != null) decoration.draw(graphics, p);
-            RenderContext ctx = new RenderContext(graphics, p.contentX(), p.contentY(), mx, my, panel.isDisabled());
+            RenderContext ctx = new RenderContext(graphics, p.contentX(), p.contentY(), mx, my, panel.isDisabled(),
+                    elementStyleOf(panel));
             if (live) liveRenderDepth++;
             try {
                 // Base pass, then the overlay pass (an open popover on top of every

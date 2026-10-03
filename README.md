@@ -24,6 +24,7 @@ What it does:
 - Creates real, server-synced slots as UI components and shows them on every container screen without per-screen setup (Containers).
 - Attaches per-slot state to any slot, private per player or shared, stored on the slot's owner. The server judges every write a client sends (Containers).
 - Gives its controls vanilla's click sound, narration and keyboard focus, and greys a whole panel at once with one `disabledWhen`.
+- Draws in MenuKit's look or in vanilla's pause-menu look (Options, Controls), switched once for a whole screen or panel, with text coloured by role (heading, body, muted, disabled) so it reads on either.
 
 Its types are vanilla types. A created slot is a real `Slot`, and a custom menu is a real `AbstractContainerMenu`. Requires Fabric and Fabric API.
 
@@ -36,9 +37,9 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    implementation 'maven.modrinth:menukit:6.0.0+26.2'
+    implementation 'maven.modrinth:menukit:6.1.0+26.2'
     // Only if the mod creates slots or custom menus.
-    implementation 'maven.modrinth:menukit-containers:6.0.0+26.2'
+    implementation 'maven.modrinth:menukit-containers:6.1.0+26.2'
 }
 ```
 
@@ -120,6 +121,10 @@ Every Java sample in this README and in `docs/` is compiled against the release 
 These sources build as two projects of a parent Gradle workspace that is not in this repository. They do not build on their own yet.
 
 ## Upgrading
+
+### To 6.1.0
+
+Nothing breaks, and nothing changes look unless a mod asks. A mod that uses the vanilla look or text roles declares `"menukit": ">=6.1.0 <7.0.0"`. To move a menu to the pause-menu look: give its panel `PanelStyle.NONE` and call `elementStyle(ControlStyle.VANILLA)` on the screen (or `elementStyle` on the panel), and replace hand-set label colours (`TextLabel.COLOR_DARK`, `Section.colors`) with roles, which read on both looks. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) has both.
 
 ### To 6.0.0
 

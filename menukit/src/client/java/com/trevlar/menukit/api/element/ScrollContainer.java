@@ -1,6 +1,7 @@
 package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.core.PanelRendering;
+import com.trevlar.menukit.core.VanillaLook;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 
@@ -50,6 +51,17 @@ import java.util.function.DoubleSupplier;
  *
  * <p>Every child is dispatched through {@link ChildDispatch}, with the context
  * moved to the scrolled content origin: the same order a panel uses.
+ *
+ * <h3>Vanilla look</h3>
+ *
+ * In the vanilla look ({@link ControlStyle#VANILLA}, its own or its screen's or
+ * panel's) it is the band every Options screen has: vanilla's darker list
+ * background behind the content, scrolling with it, vanilla's separator along
+ * the top and the bottom, drawn in the 2 px just outside the container as vanilla
+ * draws them, and vanilla's thin list scroller ({@code widget/scroller} on
+ * {@code widget/scroller_background}) at the right of the lane, hidden while
+ * everything fits. The lane, the handle's travel and the input are the same in
+ * both looks.
  */
 public class ScrollContainer extends AbstractPanelElement {
 
@@ -72,10 +84,17 @@ public class ScrollContainer extends AbstractPanelElement {
     /** Pixels scrolled per wheel notch. */
     public static final int SCROLL_PIXELS_PER_TICK = 10;
 
+    // Vanilla's list scrollbar (AbstractScrollArea, 26.2): 6 px wide.
+    private static final Identifier VANILLA_SCROLLER = Identifier.withDefaultNamespace("widget/scroller");
+    private static final Identifier VANILLA_SCROLLER_TRACK = Identifier.withDefaultNamespace("widget/scroller_background");
+    private static final int VANILLA_SCROLLER_WIDTH = 6;
+
     private final List<PanelElement> content;
     private final int contentHeight;
     private final DoubleSupplier scrollGet;
     private final DoubleConsumer scrollSet;
+    /** Whether the vanilla look draws the list band; off where a host draws it (a Tabs body). */
+    private final boolean band;
 
     /** The scroll, in pixels, when the consumer does not own it (view state). */
     private double ownScroll = 0;
@@ -89,6 +108,7 @@ public class ScrollContainer extends AbstractPanelElement {
         super(b);
         this.content = List.copyOf(b.content);
         this.contentHeight = b.contentHeight >= 0 ? b.contentHeight : autoContentHeight(content);
+        this.band = b.band;
         if (b.scrollGet != null) {
             this.scrollGet = b.scrollGet;
             this.scrollSet = b.scrollSet;
@@ -156,7 +176,7 @@ public class ScrollContainer extends AbstractPanelElement {
     }
 
     private RenderContext childRender(RenderContext ctx) {
-        return ctx.at(ctx.originX() + childX, ctx.originY() + childY - (int) scroll()).disabledIf(ownDisabled());
+        return childContext(ctx.at(ctx.originX() + childX, ctx.originY() + childY - (int) scroll()));
     }
 
     // ── PanelElement ───────────────────────────────────────────────────
@@ -195,6 +215,15 @@ public class ScrollContainer extends AbstractPanelElement {
             setScroll(f * maxScroll());
         }
 
+        // The vanilla look: the list band behind the children, scrolling with them as
+        // vanilla's does, and its separators just outside the top and bottom edges.
+        boolean vanilla = style(ctx) == ControlStyle.VANILLA;
+        if (vanilla && band) {
+            VanillaLook.listBackground(g, sx, sy, width, height, sx, sy + (int) scroll());
+            VanillaLook.headerSeparator(g, sx, sy - VanillaLook.SEPARATOR_HEIGHT, width);
+            VanillaLook.footerSeparator(g, sx, sy + height, width);
+        }
+
         // The children, clipped to the viewport, at their scrolled positions. A
         // child entirely outside the window is skipped, unless its popover is open
         // (the popover draws on the overlay pass from the same origin).
@@ -209,6 +238,17 @@ public class ScrollContainer extends AbstractPanelElement {
             e.render(inner);
         }
         g.disableScissor();
+
+        if (vanilla) {
+            // Vanilla's thin list scrollbar at the lane's right, the handle where
+            // MenuKit's would be (same travel, same drag); none while everything fits.
+            if (!canScroll()) return;
+            int barX = sx + width - VANILLA_SCROLLER_WIDTH;
+            g.blitSprite(RenderPipelines.GUI_TEXTURED, VANILLA_SCROLLER_TRACK, barX, sy, VANILLA_SCROLLER_WIDTH, height);
+            g.blitSprite(RenderPipelines.GUI_TEXTURED, VANILLA_SCROLLER, barX, sy + handleOffset(),
+                    VANILLA_SCROLLER_WIDTH, SCROLLER_HEIGHT);
+            return;
+        }
 
         // The scrollbar: an inset track and vanilla's handle.
         int trackX = sx + width - TRACK_WIDTH;
@@ -303,8 +343,15 @@ public class ScrollContainer extends AbstractPanelElement {
         private int contentHeight = -1;
         private @Nullable DoubleSupplier scrollGet;
         private @Nullable DoubleConsumer scrollSet;
+        private boolean band = true;
 
         protected Builder() {}
+
+        /** No list band in the vanilla look: for a host that draws one around it (a Tabs body). */
+        Builder bandless() {
+            this.band = false;
+            return this;
+        }
 
         @Override protected Builder self() { return this; }
 

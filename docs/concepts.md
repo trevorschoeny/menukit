@@ -49,7 +49,7 @@ Every element is built by its builder and does not change after `build()`: `Butt
 | `tooltip(text)` | The hover tooltip, fixed or read every frame. |
 | `state(get, set)` | The lens onto the consumer's value (see State). |
 | `onClick(Runnable)` | What a press does. |
-| `style(ControlStyle)` | MenuKit's look or vanilla's. |
+| `style(ControlStyle)` | MenuKit's look or vanilla's, for this element and, on a container, everything inside. Without it the element follows its panel's or screen's look (see Look). |
 | `opaque(boolean)` | Whether the element is solid on a transparent panel. |
 | `declId(id)` | A stable id for the element's window address. |
 
@@ -83,7 +83,30 @@ Some state is the element's own view state, not the consumer's: whether a `Secti
 
 ## Disabled
 
-`disabledWhen` on an element greys it and makes it inert. `Panel.disabledWhen(supplier)` does the same for every element of the panel, and a container's own `disabledWhen` (a `Section`, `Tabs`, `ScrollContainer` or `Flow`) does it for everything inside. Text greys too: `TextLabel`, `InfoBox` and a section's header draw in the disabled grey. A disabled panel still claims its area, so what is behind it stays inert; its elements take no clicks, wheel or keys. Mouse releases still arrive, so a drag can end.
+`disabledWhen` on an element greys it and makes it inert. `Panel.disabledWhen(supplier)` does the same for every element of the panel, and a container's own `disabledWhen` (a `Section`, `Tabs`, `ScrollContainer` or `Flow`) does it for everything inside. Text greys too: `TextLabel`, `InfoBox` and a section's header draw in the disabled grey (the look's `TextRole.DISABLED` colour). A disabled panel still claims its area, so what is behind it stays inert; its elements take no clicks, wheel or keys. Mouse releases still arrive, so a drag can end.
+
+## Look
+
+Every element draws in one of two looks, `ControlStyle.MK` (MenuKit's own, the default) or `ControlStyle.VANILLA` (the screens reached from the pause menu: Options, Video Settings, Controls). The look changes how an element draws, never its size or behaviour, so a screen can switch without its layout moving.
+
+The look is set once. `MKScreen.elementStyle(style)` sets it for a standalone screen and reaches every panel on it with no background of its own (`PanelStyle.NONE`), the panels that show vanilla's backdrop. A panel that draws MenuKit's grey keeps MenuKit's look, so text stays dark on grey. `Panel.Builder.elementStyle(style)` sets it for one panel, on any screen, and wins over the screen's. An element's own `style(...)` wins over both, and a container's own style is what its children follow. The look travels with the frame in `RenderContext.style()`, kept by `at` and `disabledIf`, so an element built from other elements hands it on without knowing it is there. `ControlStyle.resolve(own, inherited)` is the rule.
+
+Text takes its colour from a role: `TextRole.HEADING`, `BODY`, `MUTED` or `DISABLED`. `ControlStyle.textColor(role)` resolves it: dark grey (`TextLabel.COLOR_DARK`) for headings and body, `ElementConstants.TEXT_MUTED` and the disabled grey in MenuKit's look, without a shadow; vanilla's own white, `CommonColors.GRAY` and `CommonColors.LIGHT_GRAY` in vanilla's, with a shadow. A `TextLabel` is `BODY` unless `role(...)` says otherwise, and the labels of a checkbox, a radio button and a section's header follow the same table. `color(argb)` fixes a colour in every look. Text on a control (a button's label) is white in both looks.
+
+What each element draws in the vanilla look, from vanilla's 26.2 sprites:
+
+| Element | Vanilla look |
+|---|---|
+| `Button`, `Dropdown`, `DropdownMulti` | `widget/button`, `button_highlighted` on hover, `button_disabled`; the popover on `button_disabled` |
+| `Toggle` | A vanilla button whose text is the state: its label, or vanilla's `ON` / `OFF` without one |
+| `Checkbox` | `widget/checkbox`, `checkbox_selected` and their `_highlighted` sprites, at MenuKit's 10 px box |
+| `Section` | The Controls screen's category header: the row centred, the title white, the summary grey |
+| `Divider` | Vanilla's separator, `Screen.HEADER_SEPARATOR` (2 px) |
+| `ScrollContainer` | The list band: `menu_list_background` behind the content, a separator above and below just outside it, vanilla's thin list scroller |
+| `Tabs` (`WRAP`, `SIDE_SCROLL`) | Create World's tab bar: white labels, the selected one underlined and open into a page of the list background, the separator either side of the tabs |
+| `Slider`, `TextField` | Vanilla's own widgets in both looks |
+
+Where vanilla has no twin (a radio button, an info box, a progress bar, a colour swatch, the `SIDEBAR` tab column, a consumer's sprite) the element keeps MenuKit's drawing. While a world is open the separators and the list band use vanilla's in-world textures, as vanilla does.
 
 ## Input context
 
@@ -107,6 +130,8 @@ Selection is consumer state. `state(get, set)` reads the selected id every frame
 
 Three modes. `WRAP` breaks the strip into the fewest rows the width allows and splits the tabs so the rows are about equally full. A tab keeps its row and place when another is selected. `SIDE_SCROLL` keeps one row. When it overflows it scrolls from the left, arrows appear at both ends, and a newly selected tab scrolls into view. `SIDEBAR` puts the tabs in a column down the left with the body to its right. The selected tab reaches further left and opens into the body. The column is as wide as its widest label, at most a third of the element. When the tabs are taller than the column, vanilla's thin list scrollbar runs down its left edge. Drag the handle, or click the track to jump there. The wheel moves one tab at a time, and a newly selected tab scrolls into view. The tabs narrow to make room for the bar, so the body does not move. `sidebarHeader(elements...)` puts elements above the column, such as a Back button, in the column's width. The body beside the column still starts at the top. Resource packs that restyle vanilla's tabs change the top strip but not the sidebar, which is drawn in vanilla's tab colors.
 
+In the vanilla look (see Look) the strip of `WRAP` and `SIDE_SCROLL` is Create World's tab bar: every label white, the selected one underlined and open into the page below, which is vanilla's list background down to a separator at the bottom. `SIDEBAR` keeps MenuKit's drawing in both looks. Sizes, arrows and behaviour are the same in both.
+
 `header(elements...)` puts a row across the whole element, above the strip or the sidebar column and above the body, in every mode: a menu's own title bar. Its elements get the element's full width, so a `Flow` with a spacer at each end centres a label across it. The strip, the column (with its `sidebarHeader`) and the body start under it and a 4 pixel gap, and the body is that much shorter. The screen's title is separate: a screen whose header names it can call `hideTitle()` so the name shows once.
 
 `align(...)` is `LEFT`, `CENTER`, `RIGHT`, or `FILL`, applied per row. In `SIDEBAR` it places each label in its tab, with `FILL` the same as `LEFT`, and labels stay put when the selection changes. `FILL` gives every tab in a row its label width plus an equal share of the leftover space, the last row included. In `SIDE_SCROLL`, alignment applies only while the row fits. A label wider than its tab is cut short, ending in three dots, and shows in full on hover.
@@ -119,7 +144,7 @@ Other mods can add tabs to a menu that has a name. The owner names it with `menu
 
 `Section.builder(title)` is a collapsible section: a header row with an arrow, an optional color swatch, the title, and a grey summary read every frame. Clicking the header opens and closes it. Its children are positioned from the top-left of the content area under the header, laid out to the section's width, and get clicks, keys and overlays as they do directly on the panel. A closed section's children are not drawn and get no input except mouse releases.
 
-Position the row after a section where it sits while the section is closed. When it opens, the panel's reflow pushes later rows down by the content's height, and the scroll height follows, the same way a wrapped `Flow` pushes rows. Sections nest. Open state is the element's view state and starts closed; `open(true)` starts it open, and `state(get, set)` hands it to the consumer. A disabled section greys its header and everything in it.
+Position the row after a section where it sits while the section is closed. When it opens, the panel's reflow pushes later rows down by the content's height, and the scroll height follows, the same way a wrapped `Flow` pushes rows. Sections nest. Open state is the element's view state and starts closed; `open(true)` starts it open, and `state(get, set)` hands it to the consumer. A disabled section greys its header and everything in it. In the vanilla look the header is the Controls screen's category header: the row centred, the title in white.
 
 ## Layout helpers
 

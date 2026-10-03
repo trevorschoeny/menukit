@@ -1,7 +1,13 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.core.VanillaLook;
+
 /**
- * A line between sections of a panel: a solid fill, no texture, no input.
+ * A line between sections of a panel: a solid fill, no texture, no input. In
+ * the vanilla look ({@link ControlStyle#VANILLA}, its own or its screen's or
+ * panel's) it is vanilla's separator instead, the line above and below every
+ * Options list: 2 px, a light line over a dark one, drawn from the divider's top
+ * whatever its thickness; a vertical one is the same two lines on their side.
  *
  * <pre>{@code
  * Divider.horizontal().at(0, y).build();                 // fills the panel's width
@@ -78,7 +84,17 @@ public class Divider extends AbstractPanelElement {
     public void render(RenderContext ctx) {
         int x = ctx.originX() + childX;
         int y = ctx.originY() + childY;
-        ctx.graphics().fill(x, y, x + width, y + height, color);
+        var g = ctx.graphics();
+        if (style(ctx) == ControlStyle.VANILLA) {
+            if (horizontal) {
+                VanillaLook.headerSeparator(g, x, y, width);
+            } else {
+                g.fill(x, y, x + 1, y + height, VanillaLook.SEPARATOR_LIGHT);
+                g.fill(x + 1, y, x + 2, y + height, VanillaLook.SEPARATOR_DARK);
+            }
+        } else {
+            g.fill(x, y, x + width, y + height, color);
+        }
         queueTooltip(ctx);
     }
 
@@ -114,7 +130,7 @@ public class Divider extends AbstractPanelElement {
             return this;
         }
 
-        /** ARGB colour, alpha byte included. Default {@link #DEFAULT_COLOR}. */
+        /** ARGB colour, alpha byte included, in MenuKit's look. Default {@link #DEFAULT_COLOR}. */
         public Builder color(int argb) {
             this.color = argb;
             return this;
