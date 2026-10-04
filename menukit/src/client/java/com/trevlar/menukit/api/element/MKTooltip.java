@@ -256,23 +256,26 @@ public final class MKTooltip {
     private static final Set<BooleanSupplier> AVOID_COVER_WHEN = new LinkedHashSet<>();
 
     /**
-     * The narrowest a tooltip's text is wrapped to on one side of the cursor, in GUI
-     * pixels (about twenty characters). A side with less room than this, for a tooltip
-     * that does not already fit there, is ruled out.
+     * The narrowest a tooltip's text is ever wrapped to on one side of the cursor, in GUI
+     * pixels: about ten characters of vanilla's font, two short words a line, below which
+     * a sentence reads one word at a time. A side with less room than this (or than the
+     * tooltip's longest word or image) is ruled out unless the tooltip already fits there.
      */
-    public static final int MIN_SIDE_WIDTH = 120;
+    public static final int MIN_WRAP_WIDTH = 60;
 
     /**
      * Places every tooltip on the side of the cursor where it covers less, on every frame
      * {@code condition} is true. MenuKit tries both sides at vanilla's offsets, wrapping
      * text lines to the room up to that screen edge (vanilla's splitter; the first line
      * stays the title, so {@link #clampWhen} and {@link #scrollBy} work as before). A side
-     * is ruled out when an image (a bundle's grid) is wider than its room, or when the
-     * tooltip would have to wrap narrower than {@link #MIN_SIDE_WIDTH}. Of the sides left,
-     * the one whose frame overlaps fewer pixels of what is on the screen wins: a container
-     * screen's frame (with an open recipe book or creative tab row), every shown MenuKit
-     * panel, and the screen's widgets. A tie, or neither side left, places it as vanilla
-     * does; so does a tooltip vanilla anchors to a widget for the keyboard. The height is
+     * is ruled out only when the tooltip cannot wrap to fit it: its room is narrower than
+     * the longest word of any line, an image (a bundle's grid), or {@link #MIN_WRAP_WIDTH}.
+     * Of the sides left, the one whose frame overlaps fewer pixels of what is on the screen
+     * wins, however narrow: a container screen's frame (with an open recipe book or
+     * creative tab row), every shown MenuKit panel, and the screen's widgets. A tie goes to
+     * vanilla's side (right, unless the tooltip does not fit there whole); neither side left
+     * places it as vanilla does, and so does a tooltip vanilla anchors to a widget for the
+     * keyboard. The height is
      * placed as vanilla does. Several mods may register; any one returning true switches it
      * on. Call from client init.
      *
@@ -347,15 +350,40 @@ public final class MKTooltip {
 
     /**
      * {@code lines} fitted into {@code room} pixels of text width: as they are when they
-     * fit, else wrapped to it; {@code null} (the side is ruled out) when the room is under
-     * {@link #MIN_SIDE_WIDTH} or a line that cannot wrap (an image) is still wider.
+     * fit, else wrapped to it; {@code null} (the side is ruled out) when they cannot wrap to
+     * fit: the room is under {@link #MIN_WRAP_WIDTH} or under {@link #unbreakable} width.
+     * With every word and image fitting, vanilla's splitter (which breaks at spaces) keeps
+     * every wrapped line within the room.
      */
     @org.jetbrains.annotations.ApiStatus.Internal
     public static @Nullable List<ClientTooltipComponent> fitted(Font font, List<ClientTooltipComponent> lines, int room) {
         if (widthOf(font, lines) <= room) return lines;
-        if (room < MIN_SIDE_WIDTH) return null;
-        List<ClientTooltipComponent> out = wrappedTo(font, lines, room);
-        return widthOf(font, out) <= room ? out : null;
+        if (room < Math.max(MIN_WRAP_WIDTH, unbreakable(font, lines))) return null;
+        return wrappedTo(font, lines, room);
+    }
+
+    /**
+     * The widest piece no wrapping can break: the longest word of any text line (split at
+     * spaces, as vanilla's splitter breaks), or the whole width of any other line (an image,
+     * or a line MenuKit cannot read the text of).
+     */
+    private static int unbreakable(Font font, List<ClientTooltipComponent> lines) {
+        int widest = 0;
+        for (ClientTooltipComponent line : lines) {
+            if (!(line instanceof ClientTextTooltipAccessor text)) {
+                widest = Math.max(widest, line.getWidth(font));
+                continue;
+            }
+            // Glyph advances summed per word (vanilla's width is that sum, style included).
+            int[] word = {0, widest};  // the word so far, the widest yet
+            text.mk$text().accept((index, style, codePoint) -> {
+                if (codePoint == ' ') word[0] = 0;
+                else word[1] = Math.max(word[1], word[0] += font.width(FormattedCharSequence.codepoint(codePoint, style)));
+                return true;
+            });
+            widest = word[1];
+        }
+        return widest;
     }
 
     /**
@@ -378,6 +406,9 @@ public final class MKTooltip {
                 left == null ? null : frame(font, left, leftX, mouseX, mouseY, screenWidth, screenHeight, positioner),
                 right == null ? null : frame(font, right, rightX, mouseX, mouseY, screenWidth, screenHeight, positioner),
                 occupied);
+        // A tie (both sides stand, equally covered) goes to vanilla's side: right unless
+        // the tooltip, whole, does not fit there. No side left: vanilla's spot.
+        if (side == Side.VANILLA && left != null && right != null) side = right == lines ? Side.RIGHT : Side.LEFT;
         return switch (side) {
             case LEFT -> new Placement(left, leftX);
             case RIGHT -> new Placement(right, rightX);
