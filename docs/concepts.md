@@ -118,7 +118,7 @@ What each piece draws on an options screen, from vanilla's 26.2 sprites:
 | `ItemPicker` | `container/slot`, the slot the Superflat layer list draws its blocks in |
 | `Section` | The Controls screen's category header: the row centred, the title white, the summary grey |
 | `Divider` | Vanilla's separator, `Screen.HEADER_SEPARATOR` (2 px) |
-| `ScrollContainer` | The list band: `menu_list_background` behind the content, a separator above and below just outside it, vanilla's thin list scroller. The content is inset as in vanilla's lists, `OPTIONS_INSET_X` (10) from the left and `OPTIONS_INSET_Y` (4) above and below, so it is narrower: `viewportWidthFor(width, kind)` |
+| `ScrollContainer` | The list band: `menu_list_background` behind the content, a separator above and below just outside it, vanilla's thin list scroller. The content is inset a little more than in vanilla's lists, `OPTIONS_INSET_X` (14) from the left and `OPTIONS_INSET_Y` (10) above and below, so it is narrower: `viewportWidthFor(width, kind)` |
 | `Tabs` (`WRAP`, `SIDE_SCROLL`) | Create World's tab bar: white labels, the selected one underlined and open into a page of the list background, the separator either side of the tabs. The page insets the body as the list band does, from both sides, and lays it out that much narrower |
 | `Slider`, `TextField` | Vanilla's own widgets on both kinds |
 

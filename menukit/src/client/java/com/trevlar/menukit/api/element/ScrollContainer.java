@@ -101,15 +101,19 @@ public class ScrollContainer extends AbstractPanelElement {
      * {@code getRowRight() + scrollbarWidth() + 2} (6 + 2), and a row's content
      * ends {@code Entry.CONTENT_PADDING} (2) inside the row, so 10; Controls'
      * {@code KeyBindsList.KeyEntry} ends its last button at {@code scrollBarX() - 10}.
+     * MenuKit adds 4 to that: a settings page of labels, headings and wrapped text
+     * read cramped at vanilla's 10, whose lists hold only buttons (Trev, 2026-10-03).
      */
-    public static final int OPTIONS_INSET_X = 10;
+    public static final int OPTIONS_INSET_X = 14;
     /**
      * On an options screen, the room above the band's first child and below its
      * last: vanilla's list padding ({@code AbstractSelectionList.getFirstEntryY()}
      * is the list's top + 2, {@code contentHeight()} the rows + 4) plus a row's
-     * {@code Entry.CONTENT_PADDING} (2). It scrolls with the content, as vanilla's does.
+     * {@code Entry.CONTENT_PADDING} (2), which is 4. MenuKit uses 10: at 4 the first
+     * heading sat on the band's top separator (Trev, 2026-10-03). It scrolls with the
+     * content, as vanilla's does.
      */
-    public static final int OPTIONS_INSET_Y = 4;
+    public static final int OPTIONS_INSET_Y = 10;
 
     // Vanilla's list scrollbar (AbstractScrollArea, 26.2): 6 px wide.
     private static final Identifier VANILLA_SCROLLER = Identifier.withDefaultNamespace("widget/scroller");
