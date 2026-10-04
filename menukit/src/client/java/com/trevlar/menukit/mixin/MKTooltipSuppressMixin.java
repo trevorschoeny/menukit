@@ -55,7 +55,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *
  * This class is MenuKit's one mixin on vanilla's tooltip pipeline (§0064), so the
  * scroll seam lives here too: {@code tooltip} (the method that places and draws every
- * queued tooltip) is wrapped to keep it on screen ({@link MKTooltip#wrapWhen},
+ * queued tooltip) is wrapped to put it on the side that covers less
+ * ({@link MKTooltip#avoidCoverWhen}), keep it on screen ({@link MKTooltip#wrapWhen},
  * {@link MKTooltip#clampWhen}), add {@link MKTooltip#scrollBy}'s offset and pin the
  * title, and {@code extractDeferredElements} (where a screen frame draws its
  * tooltip) marks the frame boundary MKTooltip uses to tell a new hover from the same one.
@@ -172,12 +173,21 @@ public abstract class MKTooltipSuppressMixin {
             // Keyed on what the tooltip says, before wrapping: a resize re-wraps the same tooltip.
             MKTooltip.tooltipStarts(MKTooltip.contentKey(font, lines));
             GuiGraphicsExtractor self = (GuiGraphicsExtractor) (Object) this;
+            // MKTooltip.avoidCoverWhen: the side of the cursor that covers less of the screen,
+            // with the lines wrapped to that side's room; null keeps vanilla's spot.
+            MKTooltip.Placement side = MKTooltip.avoidsCover()
+                    ? MKTooltip.avoidingCover(font, lines, mouseX, mouseY, self.guiWidth(), self.guiHeight(), positioner,
+                            ScreenPanelRegistry.occupiedOn(net.minecraft.client.Minecraft.getInstance().gui.screen()))
+                    : null;
             // MKTooltip.wrapWhen: lines wider than the screen re-split before vanilla measures
             // and places them; a wrapped line stays one component, so the title is still lines[0].
-            java.util.List<ClientTooltipComponent> shown = MKTooltip.wraps() ? MKTooltip.wrapped(font, lines, self.guiWidth()) : lines;
+            java.util.List<ClientTooltipComponent> shown = side != null ? side.lines()
+                    : MKTooltip.wraps() ? MKTooltip.wrapped(font, lines, self.guiWidth()) : lines;
             int[] drawn = new int[3];  // x, y, width, as vanilla placed them after the offset
             ClientTooltipPositioner scrolled = (screenW, screenH, x, y, w, h) -> {
-                Vector2ic at = MKTooltip.scrolled(positioner.positionTooltip(screenW, screenH, x, y, w, h), w, h, screenW, screenH);
+                Vector2ic placed = positioner.positionTooltip(screenW, screenH, x, y, w, h);
+                if (side != null) placed = new org.joml.Vector2i(side.x(), placed.y());  // vanilla's height, the chosen side
+                Vector2ic at = MKTooltip.scrolled(placed, w, h, screenW, screenH);
                 drawn[0] = at.x();
                 drawn[1] = at.y();
                 drawn[2] = w;

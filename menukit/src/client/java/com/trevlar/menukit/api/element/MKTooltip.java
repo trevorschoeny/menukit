@@ -4,7 +4,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTextTooltip;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
+import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
+import net.minecraft.client.gui.screens.inventory.tooltip.MenuTooltipPositioner;
 import net.minecraft.client.gui.screens.inventory.tooltip.TooltipRenderUtil;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
@@ -14,6 +18,7 @@ import net.minecraft.util.FormattedCharSequence;
 import com.trevlar.menukit.api.window.Declarations;
 import com.trevlar.menukit.mixin.ClientTextTooltipAccessor;
 
+import org.jspecify.annotations.Nullable;
 import org.joml.Vector2i;
 import org.joml.Vector2ic;
 
@@ -170,14 +175,22 @@ public final class MKTooltip {
      */
     @org.jetbrains.annotations.ApiStatus.Internal
     public static List<ClientTooltipComponent> wrapped(Font font, List<ClientTooltipComponent> lines, int screenWidth) {
-        int max = wrapWidth(screenWidth);
+        return wrappedTo(font, lines, wrapWidth(screenWidth));
+    }
+
+    /**
+     * {@code lines} with every text line wider than {@code max} split by vanilla's splitter
+     * (see {@link #wrapped}). A text line is one MenuKit can read the text of: every
+     * {@code ClientTextTooltip} in game, through its accessor.
+     */
+    private static List<ClientTooltipComponent> wrappedTo(Font font, List<ClientTooltipComponent> lines, int max) {
         List<ClientTooltipComponent> out = null;  // made on the first line that needs it
         for (int i = 0; i < lines.size(); i++) {
             ClientTooltipComponent line = lines.get(i);
             ClientTooltipComponent kept = line;
-            if (line instanceof ClientTextTooltip text && line.getWidth(font) > max) {
+            if (line instanceof ClientTextTooltipAccessor text && line.getWidth(font) > max) {
                 List<ClientTooltipComponent> pieces = new ArrayList<>();
-                for (FormattedCharSequence piece : font.split(asText(((ClientTextTooltipAccessor) text).mk$text()), max)) {
+                for (FormattedCharSequence piece : font.split(asText(text.mk$text()), max)) {
                     pieces.add(ClientTooltipComponent.create(piece));
                 }
                 kept = new WrappedLine(List.copyOf(pieces));
@@ -231,6 +244,169 @@ public final class MKTooltip {
                 y += p.getHeight(font);
             }
         }
+    }
+
+    // ── Choosing the side that covers less ───────────────────────────────
+    // Vanilla puts a tooltip right of the cursor and flips it left when it does not fit,
+    // never wrapping it, so a wide tooltip on a button near an inventory's right edge
+    // lands over the whole inventory. Same split as hideWhen: MenuKit places, the mod
+    // decides when (Inventory Plus: its wide in-inventory button tooltips).
+
+    /** Registered "avoid covering while" predicates. Written only during init, read every frame. */
+    private static final Set<BooleanSupplier> AVOID_COVER_WHEN = new LinkedHashSet<>();
+
+    /**
+     * The narrowest a tooltip's text is wrapped to on one side of the cursor, in GUI
+     * pixels (about twenty characters). A side with less room than this, for a tooltip
+     * that does not already fit there, is ruled out.
+     */
+    public static final int MIN_SIDE_WIDTH = 120;
+
+    /**
+     * Places every tooltip on the side of the cursor where it covers less, on every frame
+     * {@code condition} is true. MenuKit tries both sides at vanilla's offsets, wrapping
+     * text lines to the room up to that screen edge (vanilla's splitter; the first line
+     * stays the title, so {@link #clampWhen} and {@link #scrollBy} work as before). A side
+     * is ruled out when an image (a bundle's grid) is wider than its room, or when the
+     * tooltip would have to wrap narrower than {@link #MIN_SIDE_WIDTH}. Of the sides left,
+     * the one whose frame overlaps fewer pixels of what is on the screen wins: a container
+     * screen's frame (with an open recipe book or creative tab row), every shown MenuKit
+     * panel, and the screen's widgets. A tie, or neither side left, places it as vanilla
+     * does; so does a tooltip vanilla anchors to a widget for the keyboard. The height is
+     * placed as vanilla does. Several mods may register; any one returning true switches it
+     * on. Call from client init.
+     *
+     * @throws IllegalStateException after MenuKit's declarations froze
+     */
+    public static void avoidCoverWhen(BooleanSupplier condition) {
+        Declarations.requireOpen("MKTooltip.avoidCoverWhen");
+        AVOID_COVER_WHEN.add(condition);
+    }
+
+    /** True when any registered {@link #avoidCoverWhen} predicate holds this frame. */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static boolean avoidsCover() {
+        return anyHolds(AVOID_COVER_WHEN);
+    }
+
+    /** A side of the cursor; {@code VANILLA} is "wherever vanilla puts it". */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public enum Side { LEFT, RIGHT, VANILLA }
+
+    /** Where {@link #avoidCoverWhen} puts a tooltip: the lines it shows (wrapped or not) and the x its text starts at. */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public record Placement(List<ClientTooltipComponent> lines, int x) {}
+
+    /**
+     * The pure choice. {@code left} and {@code right} are the tooltip's frame on each side
+     * ({@code null} when that side is ruled out); the side whose frame has fewer pixels
+     * under {@code occupied} wins. One side left wins by default; a tie, or none left, is
+     * {@link Side#VANILLA}.
+     */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static Side lessCovered(@Nullable ScreenRectangle left, @Nullable ScreenRectangle right,
+                                   List<ScreenRectangle> occupied) {
+        if (left == null) return right == null ? Side.VANILLA : Side.RIGHT;
+        if (right == null) return Side.LEFT;
+        long l = coveredArea(left, occupied), r = coveredArea(right, occupied);
+        return l < r ? Side.LEFT : r < l ? Side.RIGHT : Side.VANILLA;
+    }
+
+    /**
+     * Pixels of {@code area} under at least one of {@code occupied}, each pixel counted once
+     * (a widget inside a frame does not count twice): the clipped rectangles swept in
+     * vertical strips between their left and right edges, each strip's spans merged.
+     */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static long coveredArea(ScreenRectangle area, List<ScreenRectangle> occupied) {
+        List<ScreenRectangle> in = new ArrayList<>();
+        for (ScreenRectangle o : occupied) {
+            ScreenRectangle c = area.intersection(o);
+            if (c != null && c.width() > 0 && c.height() > 0) in.add(c);
+        }
+        int[] xs = in.stream().flatMapToInt(c -> java.util.stream.IntStream.of(c.left(), c.right())).sorted().distinct().toArray();
+        long total = 0;
+        for (int i = 0; i + 1 < xs.length; i++) {
+            List<ScreenRectangle> strip = new ArrayList<>();
+            for (ScreenRectangle c : in) if (c.left() <= xs[i] && c.right() >= xs[i + 1]) strip.add(c);
+            strip.sort(java.util.Comparator.comparingInt(ScreenRectangle::top));
+            int covered = 0, top = Integer.MIN_VALUE, bottom = Integer.MIN_VALUE;  // the open span (empty)
+            for (ScreenRectangle c : strip) {
+                if (c.top() > bottom) {  // a gap: close the span, open a new one
+                    covered += bottom - top;
+                    top = c.top();
+                    bottom = c.bottom();
+                } else {
+                    bottom = Math.max(bottom, c.bottom());
+                }
+            }
+            total += (long) (covered + bottom - top) * (xs[i + 1] - xs[i]);
+        }
+        return total;
+    }
+
+    /**
+     * {@code lines} fitted into {@code room} pixels of text width: as they are when they
+     * fit, else wrapped to it; {@code null} (the side is ruled out) when the room is under
+     * {@link #MIN_SIDE_WIDTH} or a line that cannot wrap (an image) is still wider.
+     */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static @Nullable List<ClientTooltipComponent> fitted(Font font, List<ClientTooltipComponent> lines, int room) {
+        if (widthOf(font, lines) <= room) return lines;
+        if (room < MIN_SIDE_WIDTH) return null;
+        List<ClientTooltipComponent> out = wrappedTo(font, lines, room);
+        return widthOf(font, out) <= room ? out : null;
+    }
+
+    /**
+     * Where {@link #avoidCoverWhen} puts this tooltip, or {@code null} for vanilla's spot.
+     * Only a tooltip placed beside the cursor (vanilla's default and menu positioners) has
+     * sides; each side's frame takes the height {@code positioner} gives it there.
+     */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static @Nullable Placement avoidingCover(Font font, List<ClientTooltipComponent> lines, int mouseX, int mouseY,
+                                                    int screenWidth, int screenHeight, ClientTooltipPositioner positioner,
+                                                    List<ScreenRectangle> occupied) {
+        if (!(positioner instanceof DefaultTooltipPositioner || positioner instanceof MenuTooltipPositioner)) return null;
+        // Vanilla's two spots: text from 12 right of the cursor, or ending 12 left of it.
+        int rightX = mouseX + TooltipRenderUtil.MOUSE_OFFSET;
+        int leftEnd = mouseX - TooltipRenderUtil.MOUSE_OFFSET;
+        List<ClientTooltipComponent> right = fitted(font, lines, screenWidth - EDGE - TooltipRenderUtil.PADDING_RIGHT - rightX);
+        List<ClientTooltipComponent> left = fitted(font, lines, leftEnd - EDGE - TooltipRenderUtil.PADDING_LEFT);
+        int leftX = left == null ? 0 : leftEnd - widthOf(font, left);
+        Side side = lessCovered(
+                left == null ? null : frame(font, left, leftX, mouseX, mouseY, screenWidth, screenHeight, positioner),
+                right == null ? null : frame(font, right, rightX, mouseX, mouseY, screenWidth, screenHeight, positioner),
+                occupied);
+        return switch (side) {
+            case LEFT -> new Placement(left, leftX);
+            case RIGHT -> new Placement(right, rightX);
+            case VANILLA -> null;
+        };
+    }
+
+    /** The tooltip's frame with its text at {@code x} and at the height {@code positioner} gives it. */
+    private static ScreenRectangle frame(Font font, List<ClientTooltipComponent> lines, int x, int mouseX, int mouseY,
+                                         int screenWidth, int screenHeight, ClientTooltipPositioner positioner) {
+        int w = widthOf(font, lines), h = heightOf(font, lines);
+        int y = positioner.positionTooltip(screenWidth, screenHeight, mouseX, mouseY, w, h).y();
+        return new ScreenRectangle(x - TooltipRenderUtil.PADDING_LEFT, y - TooltipRenderUtil.PADDING_TOP,
+                w + TooltipRenderUtil.PADDING_LEFT + TooltipRenderUtil.PADDING_RIGHT,
+                h + TooltipRenderUtil.PADDING_TOP + TooltipRenderUtil.PADDING_BOTTOM);
+    }
+
+    /** The widest line, as vanilla measures a tooltip. */
+    private static int widthOf(Font font, List<ClientTooltipComponent> lines) {
+        int w = 0;
+        for (ClientTooltipComponent line : lines) w = Math.max(w, line.getWidth(font));
+        return w;
+    }
+
+    /** The lines' height as vanilla's tooltip measures it (a lone line 2 shorter: no title gap). */
+    private static int heightOf(Font font, List<ClientTooltipComponent> lines) {
+        int h = lines.size() == 1 ? -2 : 0;
+        for (ClientTooltipComponent line : lines) h += line.getHeight(font);
+        return h;
     }
 
     // ── Scrolling a tooltip ──────────────────────────────────────────────
