@@ -424,7 +424,7 @@ public final class ScreenPanelRegistry {
             Panel modal = host.topmostModal();
             if (modal == null) continue;
             PanelHost.Placed placed = host.placedOf(modal);
-            if (placed != null && PanelHost.claimsPoint(placed, mouseX, mouseY)) {
+            if (placed != null && host.claimsPoint(placed, mouseX, mouseY)) {
                 return new Claim(host, placed, host.yieldsToSlot(placed, mouseX, mouseY));
             }
             return new Claim(host, null, false);

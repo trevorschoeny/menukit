@@ -102,7 +102,11 @@ import java.util.function.Supplier;
  * label white with a shadow, the selected one underlined, vanilla's separator
  * along the strip's bottom on either side of the tabs, and the selected tab open
  * into the page below it, which is vanilla's darker list background down to a
- * separator at the bottom. Behaviour, sizes and the arrows (vanilla's page
+ * separator at the bottom. The page insets the body as {@link ScrollContainer}'s
+ * band does: {@link ScrollContainer#OPTIONS_INSET_X} from each side (the scrollbar
+ * lane is the right margin when the body scrolls) and
+ * {@link ScrollContainer#OPTIONS_INSET_Y} above and below, so the body is laid out
+ * that much narrower. Behaviour, sizes and the arrows (vanilla's page
  * arrows) are the same on both kinds. {@link Mode#SIDEBAR} keeps MenuKit's
  * drawing on both; its body and header draw for the kind like any content.
  *
@@ -260,6 +264,12 @@ public final class Tabs extends AbstractPanelElement {
     private int stripScroll = 0;
     /** The tab shown last frame, to scroll a newly selected tab into view. */
     private @Nullable String lastShown = null;
+    /**
+     * The kind of screen it was last drawn on, for measuring its natural size only
+     * (a measure gets no context; drawing and input use their context's kind). Its
+     * host fixes the kind for life, so after the first frame this is exact.
+     */
+    private ScreenKind measuredKind = ScreenKind.CONTAINER;
 
     private Tabs(Builder b) {
         super(b);
@@ -633,60 +643,87 @@ public final class Tabs extends AbstractPanelElement {
     // Bodies
     // ════════════════════════════════════════════════════════════════════════
 
-    /** The body's top-left, in element-local coordinates: below the header and the strip, or right of the sidebar. */
-    private int bodyTop(StripLayout s) {
-        if (sidebar()) return s.top;
-        return s.top + s.height + (s.height > 0 ? BODY_GAP : 0);
+    /**
+     * Whether the body sits on an options screen's page (the list band), inset as
+     * the band insets its content. The sidebar draws MenuKit's own on both kinds.
+     */
+    private boolean paged(ScreenKind kind) {
+        return kind == ScreenKind.OPTIONS && !sidebar();
     }
 
-    private int bodyLeft(StripLayout s) {
-        if (!sidebar()) return 0;
+    /**
+     * The body's top-left, in element-local coordinates: below the header and the
+     * strip, or right of the sidebar. On a page the gap under the strip is the
+     * band's top inset.
+     */
+    private int bodyTop(StripLayout s, ScreenKind kind) {
+        if (sidebar()) return s.top;
+        int gap = paged(kind) ? ScrollContainer.OPTIONS_INSET_Y : BODY_GAP;
+        return s.top + s.height + (s.height > 0 ? gap : 0);
+    }
+
+    private int bodyLeft(StripLayout s, ScreenKind kind) {
+        if (!sidebar()) return paged(kind) ? ScrollContainer.OPTIONS_INSET_X : 0;
         return s.columnWidth + (s.columnWidth > 0 ? BODY_GAP : 0);
     }
 
-    private int bodyWidth(StripLayout s) {
-        return Math.max(1, getWidth() - bodyLeft(s));
+    /** From the body's left to the element's right edge: the page's right inset included. */
+    private int bodyOuterWidth(StripLayout s, ScreenKind kind) {
+        return Math.max(1, getWidth() - bodyLeft(s, kind));
     }
 
-    /** The shown body, laid out for the current body size, scrolling when it overflows. */
-    private record BodyView(Tab tab, int width, int height, int layoutSig, @Nullable ScrollContainer scroll) {}
+    /** The width the body is laid out to when it does not scroll: inside the page's right inset too. */
+    private int bodyWidth(StripLayout s, ScreenKind kind) {
+        int right = paged(kind) ? ScrollContainer.OPTIONS_INSET_X : 0;
+        return Math.max(1, bodyOuterWidth(s, kind) - right);
+    }
+
+    /** The shown body, laid out for the current body size and kind of screen, scrolling when it overflows. */
+    private record BodyView(Tab tab, ScreenKind kind, int width, int height, int layoutSig,
+                            @Nullable ScrollContainer scroll) {}
 
     private @Nullable BodyView body;
 
-    private @Nullable BodyView bodyView(StripLayout s, @Nullable Tab tab) {
+    private @Nullable BodyView bodyView(StripLayout s, @Nullable Tab tab, ScreenKind kind) {
         if (tab == null) return null;
-        int w = bodyWidth(s);
-        int h = Math.max(0, getHeight() - bodyTop(s));
+        int w = bodyWidth(s, kind);
+        int h = Math.max(0, getHeight() - bodyTop(s, kind));
         int sig = signature(tab.body);
-        if (body != null && body.tab == tab && body.width == w && body.height == h && body.layoutSig == sig) {
+        if (body != null && body.tab == tab && body.kind == kind && body.width == w && body.height == h
+                && body.layoutSig == sig) {
             return body;
         }
         // Lay the body out the way a panel lays out its own elements: width down,
         // reflow, measure; and only when it overflows, again with the scrollbar
         // lane reserved, hosted in a ScrollContainer whose offset is this tab's.
+        // On a page the room under the last element (the band's bottom inset) is
+        // part of the height, and scrolls with it, as in vanilla's lists.
         Panel.layoutElementsWithin(tab.body, w);
         Panel.reflowForWrap(tab.body);
         int contentH = Panel.contentHeightOf(tab.body);
+        int below = paged(kind) ? ScrollContainer.OPTIONS_INSET_Y : 0;
         ScrollContainer scroll = null;
         int reserve = ScrollContainer.TRACK_WIDTH + ScrollContainer.SCROLLER_GUTTER;
-        if (h > 0 && contentH > h && w > reserve + 1) {
-            Panel.layoutElementsWithin(tab.body, w - reserve);
+        // A scrolling body reaches the element's right edge: its lane is the page's right margin.
+        int outer = bodyOuterWidth(s, kind);
+        if (h > 0 && contentH + below > h && outer > reserve + 1) {
+            Panel.layoutElementsWithin(tab.body, outer - reserve);
             Panel.reflowForWrap(tab.body);
             contentH = Panel.contentHeightOf(tab.body);
             String id = tab.id;
             // Bandless: on an options screen the Tabs draws the page band itself, behind
-            // the whole body, whether or not it scrolls.
+            // the whole body, whether or not it scrolls, and insets the body itself.
             scroll = ScrollContainer.builder()
                     .bandless()
                     .at(0, 0)
-                    .size(w, h)
+                    .size(outer, h)
                     .content(tab.body)
-                    .contentHeight(contentH)
+                    .contentHeight(contentH + below)
                     .state(() -> bodyScroll.getOrDefault(id, 0.0), v -> bodyScroll.put(id, v))
                     .build();
         }
         // Signature AFTER layout, so a settled body doesn't re-lay itself out every frame.
-        body = new BodyView(tab, w, h, signature(tab.body), scroll);
+        body = new BodyView(tab, kind, w, h, signature(tab.body), scroll);
         return body;
     }
 
@@ -746,6 +783,7 @@ public final class Tabs extends AbstractPanelElement {
             int column = Math.max(sidebarNaturalWidth(visible), naturalWidthOf(sidebarHeader));
             return Math.max(column + BODY_GAP + widestBody, naturalWidthOf(header));
         }
+        if (paged(measuredKind)) widestBody += 2 * ScrollContainer.OPTIONS_INSET_X;
         return Math.max(Math.max(row, widestBody), naturalWidthOf(header));
     }
 
@@ -761,7 +799,8 @@ public final class Tabs extends AbstractPanelElement {
      */
     private int naturalHeight() {
         StripLayout s = strip();
-        int w = bodyWidth(s);
+        ScreenKind kind = measuredKind;
+        int w = bodyWidth(s, kind);
         int key = naturalKey(w);
         if (naturalHeightCache >= 0 && key == naturalHeightKey) return naturalHeightCache;
         int tallest = 0;
@@ -773,13 +812,14 @@ public final class Tabs extends AbstractPanelElement {
         }
         // Under the header: the sidebar column (its own header, then every tab) beside the body, or the body.
         int column = s.top + stripViewportStart(s) + s.height;
-        naturalHeightCache = sidebar() ? Math.max(column, bodyTop(s) + tallest) : bodyTop(s) + tallest;
+        int below = paged(kind) ? ScrollContainer.OPTIONS_INSET_Y : 0;
+        naturalHeightCache = sidebar() ? Math.max(column, bodyTop(s, kind) + tallest) : bodyTop(s, kind) + tallest + below;
         naturalHeightKey = naturalKey(w); // after layout, so a settled body doesn't re-measure
         return naturalHeightCache;
     }
 
     private int naturalKey(int width) {
-        int key = (width * 31 + visibleMask().hashCode()) * 31 + headersSignature();
+        int key = ((width * 31 + visibleMask().hashCode()) * 31 + headersSignature()) * 31 + measuredKind.ordinal();
         for (Tab t : tabs) {
             if (t.isVisible()) key = key * 31 + signature(t.body);
         }
@@ -819,6 +859,7 @@ public final class Tabs extends AbstractPanelElement {
         int sx = ctx.originX() + childX;
         int sy = ctx.originY() + childY;
         boolean disabled = disabled(ctx);
+        measuredKind = ctx.kind();
 
         queueTooltip(ctx); // element-level tooltip first, so a tab's own wins
 
@@ -849,7 +890,7 @@ public final class Tabs extends AbstractPanelElement {
         }
 
         // ── Body ── (everything in it disabled with the Tabs)
-        BodyView b = bodyView(s, shown);
+        BodyView b = bodyView(s, shown, ctx.kind());
         if (b == null) return;
         RenderContext bodyCtx = bodyRender(ctx, s);
         if (b.scroll != null) {
@@ -864,12 +905,13 @@ public final class Tabs extends AbstractPanelElement {
 
     /** The body's render context: origin at the body's top-left, the disabled cascade added. */
     private RenderContext bodyRender(RenderContext ctx, StripLayout s) {
-        return childContext(ctx.at(ctx.originX() + childX + bodyLeft(s), ctx.originY() + childY + bodyTop(s)));
+        return childContext(ctx.at(ctx.originX() + childX + bodyLeft(s, ctx.kind()),
+                ctx.originY() + childY + bodyTop(s, ctx.kind())));
     }
 
     /** The body's input context, the same way. */
     private InputContext bodyInput(InputContext in, StripLayout s) {
-        return in.at(in.originX() + childX + bodyLeft(s), in.originY() + childY + bodyTop(s))
+        return in.at(in.originX() + childX + bodyLeft(s, in.kind()), in.originY() + childY + bodyTop(s, in.kind()))
                 .disabledIf(ownDisabled());
     }
 

@@ -1,5 +1,9 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.panel.ScreenKind;
+
+import java.util.Objects;
+
 /**
  * Input-time context passed to every {@link PanelElement} input method, the input
  * twin of {@link RenderContext} (§0066): where the element's containing content
@@ -31,13 +35,32 @@ package com.trevlar.menukit.api.element;
  * so a drag or an open popover can end. An element also checks its own
  * {@code disabledWhen}.
  *
+ * <h3>The kind of screen (6.1.0)</h3>
+ *
+ * {@code kind} is the kind of screen the element is on, the same one its
+ * {@link RenderContext} carries: an element whose geometry differs by kind (a
+ * {@link ScrollContainer}'s content inset in the options list band) answers
+ * input with the geometry it drew.
+ *
  * @param originX  screen-space X of the element's containing content origin
  * @param originY  screen-space Y of the element's containing content origin
  * @param mouseX   screen-space mouse X of the event
  * @param mouseY   screen-space mouse Y of the event
  * @param disabled whether the element's panel or container is disabled
+ * @param kind     the kind of screen the element is on ({@link ScreenKind#CONTAINER}
+ *                 in a context built without one)
  */
-public record InputContext(int originX, int originY, double mouseX, double mouseY, boolean disabled) {
+public record InputContext(int originX, int originY, double mouseX, double mouseY, boolean disabled,
+                           ScreenKind kind) {
+
+    public InputContext {
+        Objects.requireNonNull(kind, "kind");
+    }
+
+    /** A context on a container screen: the 6.0.0 shape. */
+    public InputContext(int originX, int originY, double mouseX, double mouseY, boolean disabled) {
+        this(originX, originY, mouseX, mouseY, disabled, ScreenKind.CONTAINER);
+    }
 
     /** Whether the mouse is inside the box at {@code (childX, childY)} of this origin. */
     public boolean isOver(int childX, int childY, int width, int height) {
@@ -59,11 +82,11 @@ public record InputContext(int originX, int originY, double mouseX, double mouse
 
     /** The same event with the content origin moved: what a container hands its children. */
     public InputContext at(int originX, int originY) {
-        return new InputContext(originX, originY, mouseX, mouseY, disabled);
+        return new InputContext(originX, originY, mouseX, mouseY, disabled, kind);
     }
 
     /** This context, disabled as well when {@code alsoDisabled} holds. Never re-enables. */
     public InputContext disabledIf(boolean alsoDisabled) {
-        return alsoDisabled && !disabled ? new InputContext(originX, originY, mouseX, mouseY, true) : this;
+        return alsoDisabled && !disabled ? new InputContext(originX, originY, mouseX, mouseY, true, kind) : this;
     }
 }

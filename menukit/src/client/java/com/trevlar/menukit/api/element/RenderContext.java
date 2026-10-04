@@ -128,9 +128,9 @@ public record RenderContext(
     /**
      * The input context for the same origin, mouse and flag: the bridge for a
      * render-time decision that needs an input question answered (whether an open
-     * popover sits under the mouse, say).
+     * popover sits under the mouse, say). It keeps the kind.
      */
     public InputContext input() {
-        return new InputContext(originX, originY, mouseX, mouseY, disabled);
+        return new InputContext(originX, originY, mouseX, mouseY, disabled, kind);
     }
 }

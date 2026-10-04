@@ -144,6 +144,12 @@ public class Panel {
     private int effectiveContentHeight = -1;
     private int lastFitAvailHeight = Integer.MIN_VALUE;
 
+    // The kind of screen the panel is on, fed by its host before each layout
+    // (setScreenKind). Only the auto-scroll path reads it: on an options screen the
+    // wrapping ScrollContainer is the list band, which insets its content, so the
+    // elements are laid out that much narrower.
+    private ScreenKind screenKind = ScreenKind.CONTAINER;
+
     // ── Phase 16g Auto-Scroll state ────────────────────────────────────
     // Scroll position, in pixels from the top, for the auto-scroll wrap. Pixels,
     // not a fraction: when content changes height while shown, what is on
@@ -636,7 +642,9 @@ public class Panel {
             // to the viewport. Outer width = the panel's content area: pinnedWidth
             // when declared; the ceiling-clamped contentWidth when a screen-edge
             // width ceiling bit; otherwise the natural child extent plus reserve.
-            int reserve = ScrollContainer.TRACK_WIDTH + ScrollContainer.SCROLLER_GUTTER;
+            // The reserve is the scrollbar lane plus, on an options screen, the list
+            // band's left inset (ScrollContainer.viewportWidthFor is the one rule).
+            int reserve = contentWidth - ScrollContainer.viewportWidthFor(contentWidth, screenKind);
             layoutElementsWithin(contentWidth - reserve);
             reflowForWrap();
             int outerWidth;
@@ -987,6 +995,23 @@ public class Panel {
     /** Floor for {@link #setAvailableContentHeight} so a degenerate frame
      *  can't collapse the scroll viewport to nothing. */
     private static final int MIN_FIT_HEIGHT = 16;
+
+    /**
+     * The kind of screen the panel is on, fed by its host before each layout (the
+     * host fixes it from its screen, {@link ScreenKind#of}). An auto-scrolling panel
+     * on an options screen lays its elements out inside the list band's inset
+     * ({@link ScrollContainer#viewportWidthFor(int, ScreenKind)}). Re-lays out only
+     * when it changes, like the size ceilings.
+     *
+     * <p>Library-internal, consumers never call this.
+     */
+    @ApiStatus.Internal
+    public void setScreenKind(ScreenKind kind) {
+        if (kind == screenKind) return;
+        this.screenKind = kind;
+        this.configurationDirty = true;
+        this.cachedScrollContainer = null;
+    }
 
     /**
      * Returns the panel's width for region-stacking math.

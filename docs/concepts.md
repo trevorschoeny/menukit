@@ -118,8 +118,8 @@ What each piece draws on an options screen, from vanilla's 26.2 sprites:
 | `ItemPicker` | `container/slot`, the slot the Superflat layer list draws its blocks in |
 | `Section` | The Controls screen's category header: the row centred, the title white, the summary grey |
 | `Divider` | Vanilla's separator, `Screen.HEADER_SEPARATOR` (2 px) |
-| `ScrollContainer` | The list band: `menu_list_background` behind the content, a separator above and below just outside it, vanilla's thin list scroller |
-| `Tabs` (`WRAP`, `SIDE_SCROLL`) | Create World's tab bar: white labels, the selected one underlined and open into a page of the list background, the separator either side of the tabs |
+| `ScrollContainer` | The list band: `menu_list_background` behind the content, a separator above and below just outside it, vanilla's thin list scroller. The content is inset as in vanilla's lists, `OPTIONS_INSET_X` (10) from the left and `OPTIONS_INSET_Y` (4) above and below, so it is narrower: `viewportWidthFor(width, kind)` |
+| `Tabs` (`WRAP`, `SIDE_SCROLL`) | Create World's tab bar: white labels, the selected one underlined and open into a page of the list background, the separator either side of the tabs. The page insets the body as the list band does, from both sides, and lays it out that much narrower |
 | `Slider`, `TextField` | Vanilla's own widgets on both kinds |
 
 Where vanilla has no twin (a radio button, an info box, a progress bar, a colour swatch, the `SIDEBAR` tab column, a consumer's sprite) the element keeps MenuKit's drawing on both kinds. While a world is open the separators and the list band use vanilla's in-world textures, as vanilla does.
@@ -132,7 +132,7 @@ The value is a setting, never the player's item. The picker and its chooser are 
 
 ## Input context
 
-Every input method receives an `InputContext`, as `render` receives a `RenderContext`: the content origin, the mouse, and whether the element's surroundings are disabled. No element caches its origin or its hover state from the last frame. A container hands its children a context moved to their origin through `ChildDispatch`, the one dispatch every host and container uses: an open popover takes a click first, then the first child whose hit test contains the point.
+Every input method receives an `InputContext`, as `render` receives a `RenderContext`: the content origin, the mouse, whether the element's surroundings are disabled, and the kind of screen. No element caches its origin or its hover state from the last frame. A container hands its children a context moved to their origin through `ChildDispatch`, the one dispatch every host and container uses: an open popover takes a click first, then the first child whose hit test contains the point.
 
 ## Structure does not change after build
 

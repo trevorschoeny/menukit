@@ -409,7 +409,7 @@ public final class PanelHost {
      * decided here: a shown modal claims every point on its surface, which
      * {@link ScreenPanelRegistry} applies before it asks any host.
      */
-    public static boolean claimsPoint(Placed placed, double mouseX, double mouseY) {
+    public boolean claimsPoint(Placed placed, double mouseX, double mouseY) {
         Panel panel = placed.panel();
         InputContext in = input(placed, mouseX, mouseY);
         List<PanelElement> shown = shownElements(panel);
@@ -444,10 +444,12 @@ public final class PanelHost {
 
     /**
      * The input context for a placed panel's elements (§0066): its content origin,
-     * the event's point, and whether the panel is disabled (the cascade).
+     * the event's point, whether the panel is disabled (the cascade), and this
+     * host's kind of screen, as its render context carries.
      */
-    public static InputContext input(Placed placed, double mouseX, double mouseY) {
-        return new InputContext(placed.contentX(), placed.contentY(), mouseX, mouseY, placed.panel().isDisabled());
+    public InputContext input(Placed placed, double mouseX, double mouseY) {
+        return new InputContext(placed.contentX(), placed.contentY(), mouseX, mouseY, placed.panel().isDisabled(),
+                screenKind);
     }
 
     /** The panel's elements the window engine shows (the one isShown for elements). */
@@ -506,14 +508,16 @@ public final class PanelHost {
 
     /**
      * Resolves every shown entry against this frame. Pure apart from feeding each
-     * panel its size budget (a panel measures itself against the room it has) and a
-     * one-time overflow warning.
+     * panel its size budget and this host's kind of screen (a panel measures itself
+     * against the room it has, and an auto-scrolling one on an options screen lays
+     * its content inside the list band's inset) and a one-time overflow warning.
      */
     public Layout layout() {
         Frame frame = frames.get();
         if (frame == null || entries.isEmpty()) return Layout.EMPTY;
         int sw = frame.sw(), sh = frame.sh();
         Reference reference = frame.reference();
+        for (Entry e : entries) e.panel().setScreenKind(screenKind);
 
         List<Placed> out = new ArrayList<>();
         Reference main = null;
@@ -844,7 +848,7 @@ public final class PanelHost {
     }
 
     /** An open overlay of one of the panel's elements under the point takes the click, exclusively. */
-    private static boolean clickOverlay(Placed p, double mouseX, double mouseY, int button) {
+    private boolean clickOverlay(Placed p, double mouseX, double mouseY, int button) {
         List<PanelElement> shown = shownElements(p.panel());
         InputContext in = input(p, mouseX, mouseY);
         if (ChildDispatch.overlayOwner(shown, in) == null) return false;
