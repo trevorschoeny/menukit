@@ -63,7 +63,7 @@ import java.util.function.Supplier;
  *       screen size. One budget function feeds each panel the room it has before it
  *       is measured; one stacking prefix per region; one resolver per reference kind
  *       ({@link RegionMath#resolveMenu}, {@link RegionMath#resolveInside}).</li>
- *   <li><b>Render in layers</b> ({@link #render}): FLOW then OVERLAY, per
+ *   <li><b>Render in layers</b> ({@link #render}): FLOW, POPOVER, OVERLAY, per
  *       {@link LayerPlan}, every panel drawn for the host's {@link ScreenKind}
  *       (its background, and every element through {@link RenderContext#kind()}).</li>
  *   <li><b>Claims</b> ({@link #claimAt}): which placed panel, if any, takes a screen
@@ -152,13 +152,25 @@ public final class PanelHost {
     /**
      * What a host places against this frame.
      *
-     * @param sw        GUI-scaled screen width
-     * @param sh        GUI-scaled screen height
-     * @param reference the rectangle REGION resolves around (menu frame, slot-group
-     *                  box), or {@code null} when the context has none. A standalone
-     *                  host computes its own from its main panel.
+     * @param sw          GUI-scaled screen width
+     * @param sh          GUI-scaled screen height
+     * @param reference   the rectangle REGION resolves around (menu frame, slot-group
+     *                    box), or {@code null} when the context has none. A standalone
+     *                    host computes its own from its main panel.
+     * @param screenFrame the screen's frame, which a side-region panel's frame band
+     *                    runs to ({@link RegionMath#frameBandHeight}): the container
+     *                    screen's {@code leftPos, topPos, imageWidth, imageHeight} for
+     *                    a container or slot-group host, so a slot-group panel wraps
+     *                    where the screen ends rather than where its group does;
+     *                    {@code null} where there is no frame (a standalone host uses
+     *                    its main frame instead).
      */
-    public record Frame(int sw, int sh, @Nullable Reference reference) {}
+    public record Frame(int sw, int sh, @Nullable Reference reference, @Nullable Reference screenFrame) {
+        /** A frame whose reference is also the screen's frame (or a context with neither). */
+        public Frame(int sw, int sh, @Nullable Reference reference) {
+            this(sw, sh, reference, reference);
+        }
+    }
 
     /**
      * One frame's placements, bottom to top, plus the main frame a standalone host
@@ -473,6 +485,18 @@ public final class PanelHost {
         return null;
     }
 
+    /**
+     * The topmost placed panel of any layer that claims the point, or {@code null}:
+     * the layers top down (OVERLAY, POPOVER, FLOW), the one order
+     * {@link LayerPlan#topDown} gives. A standalone screen asks this of its own host.
+     */
+    public @Nullable Placed claimAt(double mouseX, double mouseY) {
+        for (LayerPlan.Drawn d : LayerPlan.topDown(List.of(this))) {
+            if (claimsPoint(d.placed(), mouseX, mouseY)) return d.placed();
+        }
+        return null;
+    }
+
     /** Whether any shown panel matches ({@code Panel::dimsBehind}, {@code Panel::tracksAsModal}). */
     public boolean anyShown(Predicate<Panel> test) {
         for (Entry e : entries) {
@@ -519,6 +543,9 @@ public final class PanelHost {
         Reference reference = frame.reference();
         for (Entry e : entries) e.panel().setScreenKind(screenKind);
 
+        // The frame a side-region panel's band runs to: the screen's frame, or a
+        // standalone host's main frame once it is resolved below.
+        Reference screenFrame = frame.screenFrame();
         List<Placed> out = new ArrayList<>();
         Reference main = null;
         Placed mainPlaced = null;
@@ -528,6 +555,7 @@ public final class PanelHost {
                 MainFrame mf = resolveMain(mainEntry, sw, sh);
                 main = mf.frame();
                 reference = main;
+                screenFrame = main;
                 if (isShown(mainEntry.panel())) mainPlaced = mf.placed();
             }
         }
@@ -541,7 +569,7 @@ public final class PanelHost {
                 out.add(mainPlaced);
                 continue;
             }
-            Placed p = place(e, sw, sh, reference, prefix);
+            Placed p = place(e, sw, sh, reference, screenFrame, prefix);
             if (p != null) out.add(p);
         }
         return new Layout(List.copyOf(out), main);
@@ -549,7 +577,7 @@ public final class PanelHost {
 
     /** Resolves one entry, or {@code null} when it has no place this frame. */
     private @Nullable Placed place(Entry e, int sw, int sh, @Nullable Reference reference,
-                                   Map<Object, Integer> prefix) {
+                                   @Nullable Reference screenFrame, Map<Object, Integer> prefix) {
         Panel panel = e.panel();
         PanelPosition pos = e.position();
         int pad = e.padding();
@@ -561,6 +589,7 @@ public final class PanelHost {
             // center() panel, or any dim or modal panel) floats centred on the screen
             // window and draws on top. It grows to the screen width, not an anchor's.
             feedWidth(panel, RegionMath.availableScreenEdgeWidth(sw, RegionConstants.SCREEN_EDGE_MARGIN), pad);
+            panel.setFrameHeight(-1);
             size = measure(panel, pad);
             x = (sw - size[0]) / 2;
             y = (sh - size[1]) / 2;
@@ -571,6 +600,7 @@ public final class PanelHost {
                     // supplier's point verbatim. Null = no anchor this frame.
                     ScreenOrigin o = Objects.requireNonNull(pos.pixelOrigin()).get();
                     if (o == null) return null;
+                    panel.setFrameHeight(-1);
                     size = measure(panel, pad);
                     x = o.x();
                     y = o.y();
@@ -578,9 +608,10 @@ public final class PanelHost {
                 case REGION -> {
                     if (reference == null) return null;
                     OutsideRegion region = Objects.requireNonNull(pos.region());
-                    feedRegionBudget(panel, region, reference, pad, sw, sh);
-                    size = measure(panel, pad);
                     int before = prefix.getOrDefault(region, 0);
+                    feedRegionBudget(panel, region, reference, pad, sw, sh);
+                    feedFrameBand(panel, region, reference, screenFrame, before, pad);
+                    size = measure(panel, pad);
                     var o = RegionMath.resolveMenu(region, reference, size[0], size[1], before, sw, sh);
                     if (o.isEmpty()) {
                         warnOnce(e, "is larger than the screen's safe area in OutsideRegion." + region);
@@ -594,6 +625,7 @@ public final class PanelHost {
                 case SCREEN_ANCHOR -> {
                     InsideRegion spot = Objects.requireNonNull(pos.screenAnchor());
                     feedWidth(panel, RegionMath.availableScreenEdgeWidth(sw, insets.edge()), pad);
+                    panel.setFrameHeight(-1);
                     size = measure(panel, pad);
                     int before = prefix.getOrDefault(spot, 0);
                     var o = RegionMath.resolveInside(spot, sw, sh, size[0], size[1], before, insets);
@@ -647,6 +679,7 @@ public final class PanelHost {
         int pad = main.padding();
         int m = RegionConstants.SCREEN_EDGE_MARGIN;
         int[] band = outsideBands(sw, sh); // top, bottom, left, right
+        panel.setFrameHeight(-1); // the main panel is the frame; nothing beside it to wrap at
         feedWidth(panel, RegionMath.availableScreenEdgeWidth(sw, m) - band[2] - band[3], pad);
         int title = titleBand == TitleBand.NONE ? 0 : TITLE_STRIP;
         if (autoFitMain.test(panel)) {
@@ -754,6 +787,20 @@ public final class PanelHost {
         panel.setAvailableContentHeight(RegionMath.availableMenuHeight(region, frame, sh, m) - 2 * pad);
     }
 
+    /**
+     * The frame band for a REGION panel: the content height from its top (its
+     * siblings above it counted) down to where the screen's frame ends, for a side
+     * region; {@code -1} for every other region or with no screen frame. One feed for
+     * every host that places regions, so a container-screen panel, a slot-group panel
+     * and a panel beside a standalone screen's main frame all wrap at the frame the
+     * same way. Fed before measuring, like the budgets: the panel's size depends on it.
+     */
+    private static void feedFrameBand(Panel panel, OutsideRegion region, Reference reference,
+                                      @Nullable Reference screenFrame, int before, int pad) {
+        int band = screenFrame == null ? -1 : RegionMath.frameBandHeight(region, reference, screenFrame, before);
+        panel.setFrameHeight(band < 0 ? -1 : Math.max(0, band - 2 * pad));
+    }
+
     private void warnOnce(Entry e, String what) {
         if (!warned.add(e)) return;
         LOGGER.warn("[PanelHost] Panel '{}' on the {} {}; not placed until it fits.",
@@ -774,71 +821,99 @@ public final class PanelHost {
     }
 
     /**
-     * Renders the placed panels of {@code layer}: background, the host's decoration,
-     * elements (base then overlay pass), then the panel-level tooltip. A panel the
-     * pointer policy marks inert renders with the {@code -1} mouse sentinel, so its
-     * elements show no hover and queue no tooltip. The HUD host is never live.
+     * Renders this host's placed panels of {@code layer}, in its sorted order. A
+     * surface with several hosts draws through {@link LayerPlan#render} instead, which
+     * interleaves the hosts in the one draw order.
      */
     public void render(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
                        LayerPlan.Layer layer, PointerPolicy pointer) {
-        for (Placed p : placed()) {
-            Panel panel = p.panel();
-            if (LayerPlan.layerOf(panel) != layer) continue;
-            boolean live = kind != Kind.HUD && pointer.live(this, p);
-            int mx = live ? mouseX : -1;
-            int my = live ? mouseY : -1;
-            // The panel's background for the kind of screen: MenuKit's sprites on a
-            // container screen, vanilla's popup frame (and friends) on an options
-            // screen, so a dialog on an options screen reads as vanilla's own.
-            if (panel.getStyle() != PanelStyle.NONE) {
-                if (screenKind == ScreenKind.OPTIONS) {
-                    VanillaLook.panelBackground(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
-                } else {
-                    PanelRendering.renderPanel(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
-                }
+        for (LayerPlan.Drawn d : LayerPlan.drawOrder(List.of(this), layer)) {
+            render(graphics, mouseX, mouseY, d.placed(), pointer);
+        }
+    }
+
+    /**
+     * Renders one placed panel: background, the host's decoration, elements (base
+     * then overlay pass), then the panel-level tooltip. A panel the pointer policy
+     * marks inert renders with the {@code -1} mouse sentinel, so its elements show no
+     * hover and queue no tooltip. The HUD host is never live.
+     */
+    public void render(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+                       Placed p, PointerPolicy pointer) {
+        Panel panel = p.panel();
+        boolean live = kind != Kind.HUD && pointer.live(this, p);
+        int mx = live ? mouseX : -1;
+        int my = live ? mouseY : -1;
+        // The panel's background for the kind of screen: MenuKit's sprites on a
+        // container screen, vanilla's popup frame (and friends) on an options
+        // screen, so a dialog on an options screen reads as vanilla's own.
+        if (panel.getStyle() != PanelStyle.NONE) {
+            if (screenKind == ScreenKind.OPTIONS) {
+                VanillaLook.panelBackground(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
+            } else {
+                PanelRendering.renderPanel(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
             }
-            if (decoration != null) decoration.draw(graphics, p);
-            RenderContext ctx = new RenderContext(graphics, p.contentX(), p.contentY(), mx, my, panel.isDisabled(),
-                    screenKind);
-            if (live) liveRenderDepth++;
-            try {
-                // Base pass, then the overlay pass (an open popover on top of every
-                // sibling), through the one child dispatch.
-                List<PanelElement> shown = shownElements(panel);
-                ChildDispatch.render(shown, ctx);
-                ChildDispatch.renderOverlay(shown, ctx);
-                panel.maybeQueueTooltip(graphics, p.x(), p.y(), p.w(), p.h(), mx, my, ctx.hasMouseInput());
-            } finally {
-                if (live) liveRenderDepth--;
-            }
+        }
+        if (decoration != null) decoration.draw(graphics, p);
+        RenderContext ctx = new RenderContext(graphics, p.contentX(), p.contentY(), mx, my, panel.isDisabled(),
+                screenKind);
+        if (live) liveRenderDepth++;
+        try {
+            // Base pass, then the overlay pass (an open dropdown on top of every
+            // sibling), through the one child dispatch.
+            List<PanelElement> shown = shownElements(panel);
+            ChildDispatch.render(shown, ctx);
+            ChildDispatch.renderOverlay(shown, ctx);
+            panel.maybeQueueTooltip(graphics, p.x(), p.y(), p.w(), p.h(), mx, my, ctx.hasMouseInput());
+        } finally {
+            if (live) liveRenderDepth--;
         }
     }
 
     // ── Input ──────────────────────────────────────────────────────────
 
+    /** Routes a click to this host's panels alone; see {@link #mouseClicked(List, double, double, int, boolean)}. */
+    public boolean mouseClicked(double mouseX, double mouseY, int button, boolean modalUp) {
+        return mouseClicked(List.of(this), mouseX, mouseY, button, modalUp);
+    }
+
     /**
-     * Routes a click to this host's panels, topmost first: an element's open
-     * overlay takes it exclusively, then the first element whose hit test contains
-     * the point and consumes it (both through {@link ChildDispatch}, with each
-     * panel's own input context). With a modal up only modal panels are eligible.
+     * Routes a click to the panels of {@code hosts} (bottom to top), in the one draw
+     * order read top down ({@link LayerPlan#topDown}: OVERLAY, POPOVER, FLOW, upper
+     * host before lower): an element's open overlay takes it exclusively, then the
+     * first element whose hit test contains the point and consumes it (both through
+     * {@link ChildDispatch}, with each panel's own input context). So a click on a
+     * popover reaches it before any FLOW panel under it, whichever host holds either.
+     * With a modal up only modal panels are eligible. The HUD routes none.
      *
      * @return whether an element consumed the click
      */
-    public boolean mouseClicked(double mouseX, double mouseY, int button, boolean modalUp) {
-        if (kind == Kind.HUD) return false;
-        List<Placed> placed = placed();
-        // Every panel's open overlays first: a popover is on top of every panel.
-        for (int i = placed.size() - 1; i >= 0; i--) {
-            Placed p = placed.get(i);
-            if (modalUp && !p.panel().tracksAsModal()) continue;
-            if (clickOverlay(p, mouseX, mouseY, button)) return true;
+    public static boolean mouseClicked(List<PanelHost> hosts, double mouseX, double mouseY,
+                                       int button, boolean modalUp) {
+        List<LayerPlan.Drawn> order = routable(hosts, modalUp);
+        // Every panel's open overlays first: an open dropdown is on top of every panel.
+        for (LayerPlan.Drawn d : order) {
+            if (d.host().clickOverlay(d.placed(), mouseX, mouseY, button)) return true;
         }
-        for (int i = placed.size() - 1; i >= 0; i--) {
-            Placed p = placed.get(i);
-            if (modalUp && !p.panel().tracksAsModal()) continue;
-            if (ChildDispatch.mouseClicked(shownElements(p.panel()), input(p, mouseX, mouseY), button)) return true;
+        for (LayerPlan.Drawn d : order) {
+            if (d.host().mouseClicked(d.placed(), mouseX, mouseY, button)) return true;
         }
         return false;
+    }
+
+    /**
+     * The panels pointer input may reach, top down: the draw order reversed, without
+     * the HUD (render only) and, with a modal up, without the panels that are not
+     * modal.
+     */
+    private static List<LayerPlan.Drawn> routable(List<PanelHost> hosts, boolean modalUp) {
+        List<LayerPlan.Drawn> out = new ArrayList<>();
+        for (LayerPlan.Drawn d : LayerPlan.topDown(hosts)) {
+            if (d.host().kind == Kind.HUD) continue;
+            if (modalUp && !d.placed().panel().tracksAsModal()) continue;
+            out.add(d);
+        }
+        return out;
     }
 
     /** Routes a click to one claimed panel. @return whether an element consumed it */
@@ -856,15 +931,17 @@ public final class PanelHost {
         return true;
     }
 
-    /** Routes a scroll, like {@link #mouseClicked(double, double, int, boolean)}. */
+    /** Routes a scroll to this host's panels alone; see {@link #mouseScrolled(List, double, double, double, double, boolean)}. */
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY,
                                  boolean modalUp) {
-        if (kind == Kind.HUD) return false;
-        List<Placed> placed = placed();
-        for (int i = placed.size() - 1; i >= 0; i--) {
-            Placed p = placed.get(i);
-            if (modalUp && !p.panel().tracksAsModal()) continue;
-            if (mouseScrolled(p, mouseX, mouseY, scrollX, scrollY)) return true;
+        return mouseScrolled(List.of(this), mouseX, mouseY, scrollX, scrollY, modalUp);
+    }
+
+    /** Routes a scroll in the draw order read top down, like {@link #mouseClicked(List, double, double, int, boolean)}. */
+    public static boolean mouseScrolled(List<PanelHost> hosts, double mouseX, double mouseY,
+                                        double scrollX, double scrollY, boolean modalUp) {
+        for (LayerPlan.Drawn d : routable(hosts, modalUp)) {
+            if (d.host().mouseScrolled(d.placed(), mouseX, mouseY, scrollX, scrollY)) return true;
         }
         return false;
     }

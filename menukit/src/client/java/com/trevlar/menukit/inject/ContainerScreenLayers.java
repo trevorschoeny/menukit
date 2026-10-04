@@ -9,7 +9,7 @@ import net.minecraft.world.inventory.Slot;
 import org.jetbrains.annotations.ApiStatus;
 
 /**
- * The container-screen instance of the one {@link LayerPlan} (FLOW, dim, OVERLAY):
+ * The container-screen instance of the one {@link LayerPlan} (FLOW, POPOVER, dim, OVERLAY):
  * the one owner of <b>frame composition order</b> on a container screen — what
  * MenuKit draws, and where in vanilla's frame it lands. Every MenuKit draw on an
  * {@code AbstractContainerScreen} goes through one of the entry points here;
@@ -21,7 +21,7 @@ import org.jetbrains.annotations.ApiStatus;
  *   <tr><th>#</th><th>Layer</th><th>Drawn by</th></tr>
  *   <tr><td>0</td><td>screen background, container texture</td><td>vanilla ({@code extractBackground}, an earlier stratum)</td></tr>
  *   <tr><td>1</td><td><b>vanilla slots</b>: highlight, item, count, durability</td><td>vanilla ({@code extractSlots}, up to the first created slot)</td></tr>
- *   <tr><td>2</td><td><b>flow panels</b>: chrome + non-slot elements + created-slot frames</td><td>MenuKit — {@link #beforeSlot} / {@link #aboveSlots} (a standalone screen's own panels draw earlier, at its {@code extractContents} head, below every slot)</td></tr>
+ *   <tr><td>2</td><td><b>flow panels</b>, then <b>popover panels</b> of every host: chrome + non-slot elements + created-slot frames</td><td>MenuKit — {@link #beforeSlot} / {@link #aboveSlots} (a standalone screen's own flow panels draw earlier, at its {@code extractContents} head, below every slot)</td></tr>
  *   <tr><td>3</td><td><b>created slots</b>: the same {@code extractSlot} call as layer 1</td><td>vanilla ({@code extractSlots}, the rest of the list)</td></tr>
  *   <tr><td>4</td><td>modal dim, <b>overlay panels</b> of every host on the screen</td><td>MenuKit — {@link #aboveSlots}</td></tr>
  *   <tr><td>5</td><td>carried item, cursor</td><td>vanilla ({@code extractCarriedItem}, next stratum)</td></tr>
@@ -46,6 +46,20 @@ import org.jetbrains.annotations.ApiStatus;
  * "panels above slots" order. Either way a created slot and a vanilla slot go
  * through the identical {@code extractSlot} call, which is what keeps them the
  * same thing to every other mod's slot hook.
+ *
+ * <h2>Popovers in layer 2</h2>
+ *
+ * A popover ({@code Panel.Builder.popover()}) draws after every flow panel and in
+ * the same layer, so it covers them, and before the created slots, so its own
+ * created slots (Inventory Max's pocket row) draw on its background exactly as a
+ * flow panel's do. The one thing layer 2 cannot do is put a popover above another
+ * panel's <em>created slot</em>: vanilla draws every created slot in layer 3, in
+ * {@code menu.slots} order. Vanilla slots under a popover are covered (layer 1), and
+ * a covered slot is inert either way (the claim).
+ *
+ * <p>ponytail: a flow panel's created slot under a popover shows through it. Split
+ * layer 3 by the presenting panel's layer (popover panels' created slots last) if a
+ * screen ever puts one under the other.
  *
  * <p>A hovered created slot gets vanilla's back-highlight re-issued right after
  * the panels (vanilla drew it before the slot pass, under the chrome); the front
@@ -133,7 +147,7 @@ public final class ContainerScreenLayers {
         SlotScreenDispatcher.fireEndFrame(screen);
     }
 
-    /** Layer 2: the FLOW layer of the screen's registry hosts (container adapters, then slot groups). */
+    /** Layer 2: the FLOW layer of the screen's registry hosts (container adapters, then slot groups), then every host's POPOVER layer. */
     private static void renderFlow(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
                                    int mouseX, int mouseY) {
         flowDrawn = true;

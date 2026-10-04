@@ -43,7 +43,7 @@ import java.util.List;
  * ones stack below it. A {@code region(...)} panel with no main to anchor to is
  * rejected at construction.
  *
- * <p>Render follows the one {@link LayerPlan} (FLOW, dim, OVERLAY), composed by the
+ * <p>Render follows the one {@link LayerPlan} (FLOW, POPOVER, dim, OVERLAY), composed by the
  * registry with any injected hosts on this screen. Input: the screen routes its own
  * panels (topmost first, modal-aware), then vanilla widgets, then eats a click its
  * panels claim.
@@ -239,8 +239,7 @@ public class MKScreen extends Screen {
         }
         // Nothing consumed it: a click one of this screen's panels claims (an opaque
         // panel's empty space, a transparent panel's solid element) stops here.
-        return host.claimAt(event.x(), event.y(), LayerPlan.Layer.OVERLAY) != null
-                || host.claimAt(event.x(), event.y(), LayerPlan.Layer.FLOW) != null;
+        return host.claimAt(event.x(), event.y()) != null;
     }
 
     @Override

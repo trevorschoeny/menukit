@@ -43,6 +43,35 @@ import java.util.Objects;
  * full width when a row has a spacer). A wrap reports its extra rows as
  * {@link #extraLayoutHeight()}, so the panel pushes what is below down.
  *
+ * <h3>Vertical: a column that wraps into columns</h3>
+ *
+ * {@link Builder#vertical()} turns the Flow on its side: children fill top to
+ * bottom and, when the next one would pass the wrap height, start a new column to
+ * the right. The wrap height is the room from the Flow's top edge down to where the
+ * frame beside its panel ends ({@link #wrapHeight}): the panel learns it from its
+ * host, the way a filling element learns its height from its panel. So a column of
+ * switches beside the player inventory wraps into a second column at the bottom of
+ * the container screen's frame. With no frame beside the panel (a HUD panel, a
+ * panel above or below the frame, a pixel-placed one) the Flow is one column. The
+ * Flow's width is its columns side by side, so its panel grows with each column
+ * and a {@code RIGHT_*} region still places it beside the frame.
+ *
+ * <pre>{@code
+ * Flow.builder().vertical().gap(1)
+ *         .add(settingsButton)
+ *         .add(lockSwitch)
+ *         .add(restockSwitch)           // ... a second column once the frame ends
+ *         .build();
+ * }</pre>
+ *
+ * In a vertical Flow {@code gap(horizontal, vertical)} is the gap between columns
+ * and the gap between children in a column; a spacer takes no room.
+ *
+ * <h3>Hidden children</h3>
+ *
+ * Either way a hidden child takes no room: the next one moves up into its place, so
+ * the Flow reflows when a child hides or shows.
+ *
  * <h3>An interactive host</h3>
  *
  * The children live inside the Flow, which places them itself (in the panel's
@@ -59,9 +88,17 @@ public final class Flow extends AbstractPanelElement {
     private final List<PanelElement> children;
     private final int gapX;
     private final int gapY;
+    /** Top to bottom, wrapping into columns ({@link Builder#vertical()}), instead of rows. */
+    private final boolean vertical;
 
     /** The width the panel gives the Flow; until the first pass, one row's worth. */
     private int budget = -1;
+
+    /**
+     * Vertical only: the height a column wraps at, from the panel ({@link #wrapHeight});
+     * {@code -1} until the panel has a frame beside it, which means one column.
+     */
+    private int wrapAt = -1;
 
     // The last layout's hug size and the inputs it was computed from, so the
     // several geometry calls a frame makes do not each walk the children.
@@ -75,6 +112,7 @@ public final class Flow extends AbstractPanelElement {
         this.children = List.copyOf(b.children);
         this.gapX = b.gapX;
         this.gapY = b.gapY;
+        this.vertical = b.vertical;
     }
 
     public static Builder builder() {
@@ -108,9 +146,30 @@ public final class Flow extends AbstractPanelElement {
         this.budget = Math.max(1, budget);
     }
 
-    /** Every child side by side (spacers take nothing), whatever is visible: a budget stable across reveals. */
+    /**
+     * The room the panel hands down from this Flow's top edge to where the frame
+     * beside it ends ({@code -1}: no frame). A vertical Flow wraps its columns there;
+     * a row ignores it.
+     */
+    @Override
+    public void wrapHeight(int height) {
+        this.wrapAt = height;
+    }
+
+    /**
+     * Every child side by side (spacers take nothing), whatever is visible: a budget
+     * stable across reveals. A vertical Flow asks for its widest child, one column:
+     * the columns it adds are its own to report through {@link #getWidth()}.
+     */
     @Override
     public int naturalWidth() {
+        if (vertical) {
+            int widest = 0;
+            for (PanelElement c : children) {
+                if (!(c instanceof Spacer)) widest = Math.max(widest, c.naturalWidth());
+            }
+            return Math.max(1, widest);
+        }
         int total = 0, count = 0;
         for (PanelElement c : children) {
             if (c instanceof Spacer) continue;
@@ -140,6 +199,12 @@ public final class Flow extends AbstractPanelElement {
         int cap = cap();
         for (PanelElement c : children) {
             if (c.isVisible() && !(c instanceof Spacer)) c.layoutWithin(cap);
+        }
+        if (vertical) {
+            layoutColumns();
+            laidOut = true;
+            lastSignature = signature();
+            return;
         }
 
         List<RowOf> rows = new ArrayList<>();
@@ -176,6 +241,45 @@ public final class Flow extends AbstractPanelElement {
         lastHeight = bottom;
         laidOut = true;
         lastSignature = signature(); // after layout: a settled layout does not relayout
+    }
+
+    /**
+     * The vertical layout: shown children top to bottom, each column breaking before
+     * a child that would pass the wrap height (a column always takes its first child,
+     * however tall, so nothing is lost and nothing loops), the next column to the
+     * right of the widest child in the last. Hidden children and spacers take no
+     * room. Records the hug of the columns as the Flow's size.
+     */
+    private void layoutColumns() {
+        int limit = wrapAt > 0 ? wrapAt : Integer.MAX_VALUE;
+        int x = 0, y = 0, colW = 0, bottom = 0;
+        boolean columnHasChild = false;
+        for (PanelElement c : children) {
+            if (c instanceof Spacer s) {
+                // No room in a column: parked at the origin with nothing to draw.
+                s.w = 0;
+                s.x = childX;
+                s.y = childY;
+                continue;
+            }
+            if (!c.isVisible()) continue;
+            int h = c.getHeight();
+            if (columnHasChild && y + gapY + h > limit) {
+                // Full: the next column starts right of this one's widest child.
+                x += colW + gapX;
+                y = 0;
+                colW = 0;
+                columnHasChild = false;
+            }
+            if (columnHasChild) y += gapY;
+            if (c instanceof AbstractPanelElement ape) ape.setChildPosition(childX + x, childY + y);
+            y += h;
+            colW = Math.max(colW, c.getWidth());
+            bottom = Math.max(bottom, y);
+            columnHasChild = true;
+        }
+        lastWidth = x + colW;
+        lastHeight = bottom;
     }
 
     /**
@@ -239,6 +343,7 @@ public final class Flow extends AbstractPanelElement {
 
     private int signature() {
         int sig = 31 + cap();
+        sig = sig * 31 + wrapAt;
         sig = sig * 31 + childX;
         sig = sig * 31 + childY;
         for (PanelElement c : children) {
@@ -352,6 +457,7 @@ public final class Flow extends AbstractPanelElement {
         private final List<PanelElement> children = new ArrayList<>();
         private int gapX = DEFAULT_GAP;
         private int gapY = DEFAULT_GAP;
+        private boolean vertical = false;
 
         private Builder() {}
 
@@ -374,10 +480,23 @@ public final class Flow extends AbstractPanelElement {
             return gap(px, px);
         }
 
-        /** The gap between children in a row, and between rows. */
+        /**
+         * The gap between children in a row and between rows; in a vertical Flow,
+         * between columns and between children in a column.
+         */
         public Builder gap(int horizontal, int vertical) {
             this.gapX = Math.max(0, horizontal);
             this.gapY = Math.max(0, vertical);
+            return this;
+        }
+
+        /**
+         * Top to bottom, wrapping into a new column to the right where the frame
+         * beside the panel ends. Default: left to right, wrapping into rows. See the
+         * class notes.
+         */
+        public Builder vertical() {
+            this.vertical = true;
             return this;
         }
 

@@ -144,6 +144,15 @@ public class Panel {
     private int effectiveContentHeight = -1;
     private int lastFitAvailHeight = Integer.MIN_VALUE;
 
+    // The frame band (6.1.0): the content height from the panel's top down to where
+    // the frame beside it ends, fed per frame by the host for a panel in a side
+    // region (setFrameHeight). -1 = no frame beside the panel. Handed down to every
+    // element as its wrap height (PanelElement.wrapHeight), so a vertical Flow
+    // wraps into columns at the frame's bottom. Distinct from the height ceiling
+    // above on purpose: the ceiling is where the panel scrolls (the screen's edge),
+    // the band is where a column wraps (the frame's edge).
+    private int frameHeight = -1;
+
     // The kind of screen the panel is on, fed by its host before each layout
     // (setScreenKind). Only the auto-scroll path reads it: on an options screen the
     // wrapping ScrollContainer is the list band, which insets its content, so the
@@ -228,6 +237,11 @@ public class Panel {
     private boolean opaque = true;
     private boolean dimsBehind = false;
     private boolean tracksAsModal = false;
+
+    // Popover layer (6.1.0), declared once on the builder (Builder.popover()). A
+    // popover panel draws, and claims, above every ordinary panel of every host on
+    // the screen, below the modal overlay: the LayerPlan's POPOVER layer.
+    private boolean popover = false;
 
     // Optional Escape action (B3 modal-Escape fix). When this panel is a
     // visible tracksAsModal panel and the user presses Escape, the host
@@ -342,6 +356,7 @@ public class Panel {
         private int toggleKey = NO_TOGGLE_KEY;
         private @Nullable BooleanSupplier disabledWhen;
         private @Nullable BooleanSupplier visibleWhen;
+        private boolean popover = false;
 
         private Builder(String id) {
             this.id = id;
@@ -417,10 +432,31 @@ public class Panel {
             return this;
         }
 
+        /**
+         * Makes the panel a popover: something that pops up over the screen while it
+         * is shown (a row of pockets over a hovered hotbar slot, a flyout from a
+         * button). It draws above every ordinary panel on the screen, whichever host
+         * holds it or them (a container screen's adapters, a slot group's, a
+         * standalone screen's own) and whichever registered first, and below a modal
+         * and its dim. Input follows the picture: a click, the wheel, hover or a
+         * tooltip over a popover reach it, never a panel drawn under it. Its own slots
+         * stay live under it as any panel's do.
+         *
+         * <p>Where it sits is still its {@link #position}; only its layer changes.
+         * Among popovers, and among ordinary panels, the sorted order (priority, then
+         * mod, then registration) still decides which is on top. Default: an
+         * ordinary panel.
+         */
+        public Builder popover() {
+            this.popover = true;
+            return this;
+        }
+
         /** Builds the configured Panel. */
         public Panel build() {
             Panel panel = new Panel(id, elements, visible, style, position, toggleKey);
             panel.disabledSupplier = disabledWhen;
+            panel.popover = popover;
             if (visibleWhen != null) panel.visibleWhen(visibleWhen);
             return panel;
         }
@@ -631,6 +667,13 @@ public class Panel {
         for (PanelElement e : elements) {
             if (!e.fillsHeight()) continue;
             e.fillHeight(viewportHeight > 0 ? Math.max(1, viewportHeight - e.getChildY()) : -1);
+        }
+        // The frame band flows DOWN the same way, to every element, as the room from
+        // its top edge to the frame's bottom (or -1, no frame beside the panel). Only a
+        // wrapping element (a vertical Flow) reads it; it lays out against it lazily,
+        // before the height is measured just below.
+        for (PanelElement e : elements) {
+            e.wrapHeight(frameHeight >= 0 ? Math.max(1, frameHeight - e.getChildY()) : -1);
         }
         int naturalContentHeight = aggregateRawContentHeight();
 
@@ -1002,6 +1045,32 @@ public class Panel {
     private static final int MIN_FIT_HEIGHT = 16;
 
     /**
+     * Sets the frame band: the content height from the panel's content top down to
+     * where the frame beside it ends, or {@code -1} when no frame is beside it. The
+     * host feeds it every frame, before measuring, for a panel in a side region
+     * ({@code RIGHT_ALIGN_*}, {@code LEFT_ALIGN_*}) on a container screen, on a slot
+     * group (whose frame is still the container screen's) and beside a standalone
+     * screen's main panel; every other placement gets {@code -1}. Each element
+     * receives it as its wrap height ({@link PanelElement#wrapHeight}).
+     *
+     * <p>Not a scroll ceiling: a panel taller than its band does not scroll (that is
+     * {@link #setAvailableContentHeight}, at the screen's edge). Same idempotency
+     * guard as the ceilings: re-lays out only when the value changes.
+     *
+     * <p>Library-internal, consumers never call this.
+     *
+     * @param height content-height room down to the frame's bottom, or {@code -1}
+     */
+    @ApiStatus.Internal
+    public void setFrameHeight(int height) {
+        int value = height < 0 ? -1 : height;
+        if (value == frameHeight) return;
+        this.frameHeight = value;
+        this.configurationDirty = true;
+        this.cachedScrollContainer = null;
+    }
+
+    /**
      * The kind of screen the panel is on, fed by its host before each layout (the
      * host fixes it from its screen, {@link ScreenKind#of}). An auto-scrolling panel
      * on an options screen lays its elements out inside the list band's inset
@@ -1308,6 +1377,14 @@ public class Panel {
         return getPosition().mode() == PanelPosition.Mode.CENTER
                 || dimsBehind()
                 || tracksAsModal();
+    }
+
+    /**
+     * Whether this panel is a popover ({@link Builder#popover()}): it draws and
+     * claims above every ordinary panel on the screen, below the modal overlay.
+     */
+    public boolean isPopover() {
+        return popover;
     }
 
     /**

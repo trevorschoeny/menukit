@@ -71,6 +71,37 @@ new SlotGroupPanelAdapter(panel)
             SlotGroupCategory.HOPPER_STORAGE);
 ```
 
+## Stack switches beside the inventory, wrapping into columns
+
+Needs: MenuKit. Call from the client entry point.
+
+```java
+Panel switches = Panel.builder("mymod:switches")
+        .style(PanelStyle.NONE)
+        .add(Flow.builder().vertical().gap(1).addAll(featureSwitches).build())
+        .position(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP))
+        .build();
+new SlotGroupPanelAdapter(switches)
+        .on(SlotGroupCategory.PLAYER_INVENTORY);
+```
+
+Result: the switches stack down the right of the player inventory grid, 1 pixel apart, from the grid's top to the bottom of the screen's frame (below the hotbar on the survival inventory, not where the grid ends), then continue in a second column to the right, and a third. The panel widens with each column. A switch with a `visibleWhen` that is off takes no room: the ones below it move up. The `Flow` places its children, so their `at(...)` does nothing.
+
+## Pop a panel up over the others
+
+Needs: MenuKit.
+
+```java
+Panel row = Panel.builder("mymod:popup_row")
+        .popover()
+        .elements(rowSlots)
+        .position(PanelPosition.pixel(() -> aboveHoveredSlot()))
+        .build();
+new ScreenPanelAdapter(row).onPlayerInventory();
+```
+
+Result: while `aboveHoveredSlot()` returns a point, the row draws over every other panel on the screen, another mod's slot-group panels included, whichever registered first. The pointer follows the picture: hover, clicks, the wheel and tooltips over the row go to the row, never to a panel under it. Its own slots stay live. A modal dialog still opens above it.
+
 ## Build a full-screen tabbed menu
 
 Needs: MenuKit.

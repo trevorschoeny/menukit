@@ -66,7 +66,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * <h2>Global questions, one answer each</h2>
  * {@link #claimAt} is the one "who takes this point" answer every suppressor and
  * dispatcher asks: a shown modal claims everything; otherwise the topmost claiming
- * panel, OVERLAY layer before FLOW, upper host before lower, by
+ * panel in the one draw order read top down ({@link LayerPlan#topDown}: OVERLAY,
+ * then POPOVER, then FLOW, upper host before lower), by
  * {@link PanelHost#claimsPoint}. Slot hover, widget hover, list and tab hover,
  * tooltips and the MouseHandler-level input eat all reduce to it, so a new host (the
  * slot-group host and the standalone hosts are new to it in 6.0.0) cannot fall
@@ -238,24 +239,18 @@ public final class ScreenPanelRegistry {
         // Input the MouseHandler-level claim did not take: element dispatch for points
         // no panel claims (a transparent panel's click-through elements), plus the
         // popover janitor. A consumed click is eaten from vanilla.
+        // Both walk the panels in the one draw order read top down, across the
+        // routed hosts, so a popover on a lower host is offered the click first.
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
             for (PanelHost host : routed) host.notifyOutsideClick(event.x(), event.y());
-            boolean modal = modalUpOn(s);
-            for (int i = routed.size() - 1; i >= 0; i--) {
-                if (routed.get(i).mouseClicked(event.x(), event.y(), event.button(), modal)) {
-                    Focus.blurOnOutsideBounds(s, event.x(), event.y());
-                    return false;
-                }
+            if (PanelHost.mouseClicked(routed, event.x(), event.y(), event.button(), modalUpOn(s))) {
+                Focus.blurOnOutsideBounds(s, event.x(), event.y());
+                return false;
             }
             return true;
         });
-        ScreenMouseEvents.allowMouseScroll(screen).register((s, mouseX, mouseY, hAmount, vAmount) -> {
-            boolean modal = modalUpOn(s);
-            for (int i = routed.size() - 1; i >= 0; i--) {
-                if (routed.get(i).mouseScrolled(mouseX, mouseY, hAmount, vAmount, modal)) return false;
-            }
-            return true;
-        });
+        ScreenMouseEvents.allowMouseScroll(screen).register((s, mouseX, mouseY, hAmount, vAmount) ->
+                !PanelHost.mouseScrolled(routed, mouseX, mouseY, hAmount, vAmount, modalUpOn(s)));
         ScreenMouseEvents.allowMouseRelease(screen).register((s, event) -> {
             for (PanelHost host : routed) host.mouseReleased(event.x(), event.y(), event.button());
             return true;
@@ -325,7 +320,18 @@ public final class ScreenPanelRegistry {
                 acc.mk$getTopPos() - chrome.top(),
                 acc.mk$getImageWidth() + chrome.left() + chrome.right(),
                 acc.mk$getImageHeight() + chrome.top() + chrome.bottom());
-        return new PanelHost.Frame(screen.width, screen.height, frame);
+        return new PanelHost.Frame(screen.width, screen.height, frame, screenFrame(acc));
+    }
+
+    /**
+     * The container screen's own frame, without chrome: {@code leftPos, topPos,
+     * imageWidth, imageHeight}. A side-region panel's frame band runs to its edge
+     * ({@code topPos + imageHeight} for a top-aligned one), on the container host and
+     * on every slot-group host alike.
+     */
+    private static Reference screenFrame(AbstractContainerScreenAccessor acc) {
+        return new Reference(acc.mk$getLeftPos(), acc.mk$getTopPos(),
+                acc.mk$getImageWidth(), acc.mk$getImageHeight());
     }
 
     /**
@@ -349,7 +355,8 @@ public final class ScreenPanelRegistry {
             AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
             Reference box = new Reference(acc.mk$getLeftPos() + minX, acc.mk$getTopPos() + minY,
                     maxX - minX, maxY - minY);
-            return new PanelHost.Frame(screen.width, screen.height, box);
+            // Placed around the group's box; its band runs to the screen's frame.
+            return new PanelHost.Frame(screen.width, screen.height, box, screenFrame(acc));
         }
         return null;
     }
@@ -387,7 +394,7 @@ public final class ScreenPanelRegistry {
 
     // ── Rendering ──────────────────────────────────────────────────────
 
-    /** A non-container screen's whole LayerPlan: FLOW, dim, OVERLAY for every host. */
+    /** A non-container screen's whole LayerPlan: FLOW, POPOVER, dim, OVERLAY for every host. */
     private static void renderAll(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         LayerPlan.compose(hostsOn(screen), graphics, mouseX, mouseY, screen.width, screen.height,
                 pointerPolicy(screen, mouseX, mouseY));
@@ -395,15 +402,17 @@ public final class ScreenPanelRegistry {
 
     /**
      * Layer 2 of {@link ContainerScreenLayers}: the FLOW layer of the registry's
-     * hosts (context, then slot groups). The screen's own FLOW (an
+     * hosts (context, then slot groups), then the POPOVER layer of every host on the
+     * screen, the screen's own included. The screen's own FLOW (an
      * {@code CustomContainerScreen}'s panels) drew earlier, under vanilla's slots.
+     * Popovers draw here, before the created slots, so a popover's own slots draw on
+     * its background as a FLOW panel's do.
      */
     public static void renderFlow(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
                                   int mouseX, int mouseY) {
         PanelHost.PointerPolicy pointer = pointerPolicy(screen, mouseX, mouseY);
-        for (PanelHost host : routedOn(screen)) {
-            host.render(graphics, mouseX, mouseY, LayerPlan.Layer.FLOW, pointer);
-        }
+        LayerPlan.render(routedOn(screen), LayerPlan.Layer.FLOW, graphics, mouseX, mouseY, pointer);
+        LayerPlan.render(hostsOn(screen), LayerPlan.Layer.POPOVER, graphics, mouseX, mouseY, pointer);
     }
 
     /** Layer 4 of {@link ContainerScreenLayers}: the dim, then OVERLAY for every host on the screen. */
@@ -442,15 +451,21 @@ public final class ScreenPanelRegistry {
      */
     public record Claim(PanelHost host, PanelHost.@Nullable Placed placed, boolean yieldsToSlot) {}
 
-    /**
-     * The one claim answer for a point on {@code screen}. A shown modal (the topmost
-     * {@code tracksAsModal} panel) claims every point: its own where it is placed and
-     * claims, otherwise an inert claim. Without a modal: the topmost claiming panel,
-     * the OVERLAY layer above FLOW, an upper host above a lower one, a later entry
-     * above an earlier one.
-     */
+    /** The one claim answer for a point on {@code screen}: {@link #claimAt(List, double, double)} over its hosts. */
     public static @Nullable Claim claimAt(@Nullable Screen screen, double mouseX, double mouseY) {
-        List<PanelHost> hosts = hostsOn(screen);
+        return claimAt(hostsOn(screen), mouseX, mouseY);
+    }
+
+    /**
+     * The one claim answer for a point over {@code hosts} (bottom to top). A shown
+     * modal (the topmost {@code tracksAsModal} panel) claims every point: its own
+     * where it is placed and claims, otherwise an inert claim. Without a modal: the
+     * topmost claiming panel in the draw order read top down
+     * ({@link LayerPlan#topDown}): OVERLAY above POPOVER above FLOW, and within a
+     * layer an upper host above a lower one and a later entry above an earlier one.
+     * What is drawn on top claims, since both read the same order.
+     */
+    public static @Nullable Claim claimAt(List<PanelHost> hosts, double mouseX, double mouseY) {
         if (hosts.isEmpty()) return null;
 
         for (int i = hosts.size() - 1; i >= 0; i--) {
@@ -464,13 +479,10 @@ public final class ScreenPanelRegistry {
             return new Claim(host, null, false);
         }
 
-        for (LayerPlan.Layer layer : new LayerPlan.Layer[]{LayerPlan.Layer.OVERLAY, LayerPlan.Layer.FLOW}) {
-            for (int i = hosts.size() - 1; i >= 0; i--) {
-                PanelHost host = hosts.get(i);
-                PanelHost.Placed placed = host.claimAt(mouseX, mouseY, layer);
-                if (placed != null) {
-                    return new Claim(host, placed, host.yieldsToSlot(placed, mouseX, mouseY));
-                }
+        for (LayerPlan.Drawn d : LayerPlan.topDown(hosts)) {
+            PanelHost host = d.host();
+            if (host.claimsPoint(d.placed(), mouseX, mouseY)) {
+                return new Claim(host, d.placed(), host.yieldsToSlot(d.placed(), mouseX, mouseY));
             }
         }
         return null;

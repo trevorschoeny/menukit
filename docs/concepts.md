@@ -132,7 +132,7 @@ The value is a setting, never the player's item. The picker and its chooser are 
 
 ## Input context
 
-Every input method receives an `InputContext`, as `render` receives a `RenderContext`: the content origin, the mouse, whether the element's surroundings are disabled, and the kind of screen. No element caches its origin or its hover state from the last frame. A container hands its children a context moved to their origin through `ChildDispatch`, the one dispatch every host and container uses: an open popover takes a click first, then the first child whose hit test contains the point.
+Every input method receives an `InputContext`, as `render` receives a `RenderContext`: the content origin, the mouse, whether the element's surroundings are disabled, and the kind of screen. No element caches its origin or its hover state from the last frame. A container hands its children a context moved to their origin through `ChildDispatch`, the one dispatch every host and container uses: an open overlay (a dropdown's list) takes a click first, then the first child whose hit test contains the point.
 
 ## Structure does not change after build
 
@@ -175,6 +175,8 @@ Position the row after a section where it sits while the section is closed. When
 `Row` and `Column` compute positions once and return a `List<PanelElement>`. They do not exist at runtime. The positions are computed on the panel's first layout pass, when the game's font can measure text, so a panel or dialog laid out with them can be built at mod init. An element enters a layout built: `.add(Button.builder()...build())`, and the helper moves it into place. A custom element that can only be constructed once its position is known implements `ElementSpec`. `.build()` returns positioned elements that go into a panel with `.add(...)` or `.elements(...)`.
 
 `Flow` is the runtime row: its children flow left to right at the panel's width and wrap to new rows. `Flow.spacer()` takes whatever a row's other children leave of that width, so a label, a spacer and a control make a settings row with the control pinned to the right edge at any window width, and no width is written anywhere. A spacer at each end of a row centres what is between them. When the row wraps, the control drops under its label.
+
+`Flow.builder().vertical()` is the runtime column: children flow top to bottom and wrap into a new column to the right. It wraps at the frame band: the room from the Flow's top down to the bottom of the screen's frame beside its panel (a container screen's `topPos + imageHeight`), which the host hands the panel the way it hands it its width, and the panel hands its elements. A panel in a side region (`LEFT_ALIGN_*`, `RIGHT_ALIGN_*`) on a container screen, on a slot group (whose band still runs to the container screen's frame, not the group's box) or beside a standalone screen's main panel has a band; anywhere else the Flow is one column. The band is not where the panel scrolls; that stays the screen's edge. In a column, `gap(horizontal, vertical)` is the gap between columns and the gap between children, and a spacer takes no room. In either direction a hidden child takes no room, so the Flow reflows when one hides.
 
 `Row.width(px)` declares the row's overall pixel budget and `.addSpacer()` adds a flexible gap that expands to fill whatever the other children and spacing leave over, so one thing pins to the row's left edge and another to its right (`Back .... Reset`). Several spacers split the leftover evenly, the odd pixel to the last one. `addSpacer()` without `width(px)` throws, since a spacer with nothing to expand into is a mistake in the layout.
 
@@ -227,15 +229,17 @@ A context is the answer to one question: what is this panel placed against? Each
 
 A placement a context cannot resolve is rejected at registration. HUD panels do not receive input; for a clickable HUD control, open a standalone screen from a key binding.
 
-Every host draws in the same order: FLOW panels, then a dim when any shown panel dims behind it, then OVERLAY panels (those that `center()`, dim behind, or track as modal) on top. An element renders the same in every context.
+Every surface draws in the same order, across all its hosts: FLOW panels, then POPOVER panels, then a dim when any shown panel dims behind it, then OVERLAY panels (those that `center()`, dim behind, or track as modal) on top. Within a layer, a lower host draws before an upper one (a standalone screen's own, then the screen's adapters, then the slot groups), and within a host the sorted order holds. An element renders the same in every context.
+
+A popover, `Panel.builder(id).popover()`, is a panel that pops up over the screen: it draws above every ordinary panel of every host, whichever registered first, and below a modal and its dim. Its placement is still its own `position(...)`. On a container screen popovers draw after the ordinary panels and before created slots, so a popover's own slots draw on it; another panel's created slot under a popover still draws over it.
 
 ## Claims
 
-What a panel covers is inert. A point on the screen is claimed by the topmost panel that takes it:
+What a panel covers is inert. A point on the screen is claimed by the topmost panel that takes it, topmost in the draw order above (OVERLAY, then POPOVER, then FLOW), so what is drawn on top is what takes the point:
 
 - An opaque panel (the default) takes every point of its rectangle. Nothing inside it lets a point through to what is behind the panel.
 - A see-through panel, `opaque(false)`, takes only its solid elements: shown, opaque and interactive ones, such as a button. A label on it takes nothing.
-- An open popover, such as a `Dropdown` list, takes its area whatever its panel's opacity.
+- An element's open overlay, such as a `Dropdown`'s list, takes its area whatever its panel's opacity.
 - A shown modal (`tracksAsModal`) takes every point on its screen.
 
 Under a claim, vanilla gets nothing: no slot highlight, click or tooltip, no widget or list hover, no creative tab. The claim routes the point to the claiming panel instead. A panel's own slots stay live under its own claim (a created slot it presents, or a standalone screen's own slot group), and so do a standalone screen's own widgets under its own panels. Every surface asks the same question, so a slot-group panel and a standalone screen's panels block what they cover exactly as an adapter's panel does.

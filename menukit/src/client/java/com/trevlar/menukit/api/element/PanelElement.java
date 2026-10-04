@@ -141,6 +141,17 @@ public interface PanelElement {
      */
     default void fillHeight(int height) {}
 
+    /**
+     * The height a wrapping element wraps at: the room from this element's top edge
+     * down to where the frame beside its panel ends (a container screen's frame for a
+     * panel in a side region; see {@code Panel.setFrameHeight}), or {@code -1} when
+     * the panel has no frame beside it. A vertical {@link Flow} starts a new column
+     * there. Unlike {@link #fillHeight} it is not the panel's scroll viewport: a panel
+     * beside the frame still scrolls only at the screen's edge. Called on every
+     * element each layout pass. Default: no-op.
+     */
+    default void wrapHeight(int height) {}
+
     // ── Visibility ─────────────────────────────────────────────────────
 
     /**

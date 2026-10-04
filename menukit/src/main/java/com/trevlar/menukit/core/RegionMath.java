@@ -130,6 +130,46 @@ public final class RegionMath {
     }
 
     /**
+     * The frame band (6.1.0): the OUTER height (padding-inclusive) a panel in a side
+     * region has beside the screen's frame, from its anchored edge to the frame's far
+     * edge. A vertical Flow wraps its columns there ({@code Panel.setFrameHeight}).
+     *
+     * <ul>
+     *   <li>{@code RIGHT_ALIGN_TOP}, {@code LEFT_ALIGN_TOP}: the panel's top is the
+     *       reference's top plus the siblings stacked above it; the band runs down to
+     *       the frame's bottom ({@code topPos + imageHeight}).</li>
+     *   <li>{@code RIGHT_ALIGN_BOTTOM}, {@code LEFT_ALIGN_BOTTOM}: the mirror image,
+     *       from the panel's bottom up to the frame's top.</li>
+     *   <li>Every other region is above, below or inside the frame, with no frame
+     *       beside it: {@code -1}.</li>
+     * </ul>
+     *
+     * The reference and the frame differ for a slot-group panel: it is placed against
+     * its group's box but its band runs to the container screen's frame, so a column
+     * beside the player inventory wraps where the screen ends, not where the group
+     * does. On a container screen's own host they are the same frame. Never negative
+     * for a side region (a panel already past the frame's edge has a band of 0, and a
+     * wrapping element then puts one child per column).
+     *
+     * @param region    the panel's region
+     * @param reference what the region resolves around (the frame, or a slot group's box)
+     * @param frame     the screen's frame the band runs to
+     * @param prefix    the extent of the siblings stacked before the panel in the region,
+     *                  gaps included, as {@link #resolveMenu} takes it
+     */
+    public static int frameBandHeight(OutsideRegion region, Reference reference, Reference frame, int prefix) {
+        int frameTop = frame.topPos();
+        int frameBottom = frame.topPos() + frame.imageHeight();
+        return switch (region) {
+            case RIGHT_ALIGN_TOP, LEFT_ALIGN_TOP ->
+                    Math.max(0, frameBottom - (reference.topPos() + prefix));
+            case RIGHT_ALIGN_BOTTOM, LEFT_ALIGN_BOTTOM ->
+                    Math.max(0, reference.topPos() + reference.imageHeight() - prefix - frameTop);
+            default -> -1;
+        };
+    }
+
+    /**
      * OUTER available width (padding-inclusive) for a MenuContext region panel
      * before it crosses the screen-edge margin, given the (chrome-extended)
      * menu frame and the screen width. Mirrors {@link #resolveMenu}'s per-region
