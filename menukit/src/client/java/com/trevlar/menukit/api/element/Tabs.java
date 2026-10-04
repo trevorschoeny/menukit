@@ -7,9 +7,12 @@ import com.trevlar.menukit.core.VanillaLook;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.data.AtlasIds;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
+import org.joml.Matrix3x2f;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -107,8 +110,18 @@ import java.util.function.Supplier;
  * lane is the right margin when the body scrolls) and
  * {@link ScrollContainer#OPTIONS_INSET_Y} above and below, so the body is laid out
  * that much narrower. Behaviour, sizes and the arrows (vanilla's page
- * arrows) are the same on both kinds. {@link Mode#SIDEBAR} keeps MenuKit's
- * drawing on both; its body and header draw for the kind like any content.
+ * arrows) are the same on both kinds.
+ *
+ * <p>{@link Mode#SIDEBAR} on an options screen is that tab bar turned on its
+ * side: vanilla's tab sprites drawn under a pose turned a quarter, open toward
+ * the page on the right, the selected one open into it; vanilla's separator
+ * down the column's edge above and below the tabs; and the page, the same list
+ * background, from the column's edge to the element's right, inset as the top
+ * strip's page is ({@link ScrollContainer#OPTIONS_INSET_X} from the column and
+ * the right edge, {@link ScrollContainer#OPTIONS_INSET_Y} above and below).
+ * Labels stay upright, white, the selected one underlined. Column width,
+ * scrolling and the scrollbar are the same on both kinds. On a container screen
+ * the sidebar draws MenuKit's own tab in vanilla's tab colours.
  *
  * {@link Builder#header} puts a row across the whole element, above the strip
  * (or the sidebar column) and the body, in every mode: the menu's own title bar.
@@ -216,12 +229,13 @@ public final class Tabs extends AbstractPanelElement {
     private static final int ARROW_SPRITE_W = 23;
     private static final int ARROW_SPRITE_H = 13;
 
-    // The sidebar tab, drawn rather than blitted. Vanilla's tab sprite is a
+    // The sidebar tab on a container screen, drawn rather than blitted. Vanilla's tab sprite is a
     // nine-slice that TILES its middle, so drawn thicker than its native 24 px (as
     // a sidebar tab is: the column's whole width) it repeats its outline lines
     // across the tab. These are the sprite's own colours and structure, turned on
     // its side with the middle stretched instead. The cost: a resource pack that
-    // restyles vanilla's tabs restyles the top strip and not the sidebar.
+    // restyles vanilla's tabs restyles the top strip and not this sidebar. (On an
+    // options screen the sidebar blits the sprite itself, turned: drawTurnedTab.)
     /** How much shorter an unselected tab is than the selected one, per the sprite. */
     private static final int SIDE_INSET = 4;
     private static final int TAB_EDGE = 0xBF000000;        // outer line
@@ -645,10 +659,10 @@ public final class Tabs extends AbstractPanelElement {
 
     /**
      * Whether the body sits on an options screen's page (the list band), inset as
-     * the band insets its content. The sidebar draws MenuKit's own on both kinds.
+     * the band insets its content: below the strip, or right of the sidebar column.
      */
     private boolean paged(ScreenKind kind) {
-        return kind == ScreenKind.OPTIONS && !sidebar();
+        return kind == ScreenKind.OPTIONS;
     }
 
     /**
@@ -657,13 +671,15 @@ public final class Tabs extends AbstractPanelElement {
      * band's top inset.
      */
     private int bodyTop(StripLayout s, ScreenKind kind) {
-        if (sidebar()) return s.top;
+        if (sidebar()) return s.top + (paged(kind) ? ScrollContainer.OPTIONS_INSET_Y : 0);
         int gap = paged(kind) ? ScrollContainer.OPTIONS_INSET_Y : BODY_GAP;
         return s.top + s.height + (s.height > 0 ? gap : 0);
     }
 
     private int bodyLeft(StripLayout s, ScreenKind kind) {
         if (!sidebar()) return paged(kind) ? ScrollContainer.OPTIONS_INSET_X : 0;
+        // On a page the column meets the page, and the page insets the body.
+        if (paged(kind)) return s.columnWidth + ScrollContainer.OPTIONS_INSET_X;
         return s.columnWidth + (s.columnWidth > 0 ? BODY_GAP : 0);
     }
 
@@ -779,11 +795,12 @@ public final class Tabs extends AbstractPanelElement {
         }
         // A sidebar sits beside the body; a strip sits above it.
         // The header spans both, so it only ever widens the whole.
+        boolean paged = paged(measuredKind);
+        if (paged) widestBody += 2 * ScrollContainer.OPTIONS_INSET_X;
         if (sidebar()) {
             int column = Math.max(sidebarNaturalWidth(visible), naturalWidthOf(sidebarHeader));
-            return Math.max(column + BODY_GAP + widestBody, naturalWidthOf(header));
+            return Math.max(column + (paged ? 0 : BODY_GAP) + widestBody, naturalWidthOf(header));
         }
-        if (paged(measuredKind)) widestBody += 2 * ScrollContainer.OPTIONS_INSET_X;
         return Math.max(Math.max(row, widestBody), naturalWidthOf(header));
     }
 
@@ -813,7 +830,8 @@ public final class Tabs extends AbstractPanelElement {
         // Under the header: the sidebar column (its own header, then every tab) beside the body, or the body.
         int column = s.top + stripViewportStart(s) + s.height;
         int below = paged(kind) ? ScrollContainer.OPTIONS_INSET_Y : 0;
-        naturalHeightCache = sidebar() ? Math.max(column, bodyTop(s, kind) + tallest) : bodyTop(s, kind) + tallest + below;
+        int bodyBottom = bodyTop(s, kind) + tallest + below;
+        naturalHeightCache = sidebar() ? Math.max(column, bodyBottom) : bodyBottom;
         naturalHeightKey = naturalKey(w); // after layout, so a settled body doesn't re-measure
         return naturalHeightCache;
     }
@@ -875,17 +893,21 @@ public final class Tabs extends AbstractPanelElement {
         RenderContext stripCtx = disabled
                 ? new RenderContext(g, ctx.originX(), ctx.originY(), -1, -1, true, ctx.kind()) : ctx;
         ChildDispatch.render(header, childContext(stripCtx.at(sx, sy)));
+        // An options screen's page: the list band from the strip's bottom down (or
+        // from the sidebar column's right edge across), with the footer separator
+        // under it across the whole element. The strip's or column's own line is
+        // its edge toward the tabs.
+        if (ctx.kind() == ScreenKind.OPTIONS) {
+            int pageLeft = sx + (sidebar() ? s.columnWidth : 0);
+            int pageTop = sy + s.top + (sidebar() ? 0 : s.height);
+            int bottom = sy + getHeight();
+            VanillaLook.listBackground(g, pageLeft, pageTop, sx + getWidth() - pageLeft, bottom - pageTop,
+                    pageLeft, pageTop);
+            VanillaLook.footerSeparator(g, sx, bottom, getWidth());
+        }
         if (sidebar()) {
             renderSidebar(stripCtx, s, shown, sx, sy + s.top);
         } else {
-            // An options screen's page: the list band from the strip's bottom down,
-            // with the footer separator under it (the strip's own line is its top).
-            if (ctx.kind() == ScreenKind.OPTIONS) {
-                int pageTop = sy + s.top + s.height;
-                int bottom = sy + getHeight();
-                VanillaLook.listBackground(g, sx, pageTop, getWidth(), bottom - pageTop, sx, pageTop);
-                VanillaLook.footerSeparator(g, sx, bottom, getWidth());
-            }
             renderStrip(stripCtx, s, shown, sx, sy + s.top);
         }
 
@@ -1038,6 +1060,8 @@ public final class Tabs extends AbstractPanelElement {
         int shift = overflow ? stripScroll : 0;
         int lane = scrollbarLane(s);
         int tabX = sx + lane, tabW = column - lane;
+        boolean vanilla = ctx.kind() == ScreenKind.OPTIONS;
+        if (vanilla) columnSeparators(g, s, sx + column, sy, viewTop, viewBottom, shift);
         g.enableScissor(sx, viewTop, sx + column, viewBottom);
         Placed hoveredTruncated = null;
         for (Placed p : s.placed) {
@@ -1047,7 +1071,19 @@ public final class Tabs extends AbstractPanelElement {
             boolean hovered = ctx.hasMouseInput() && !draggingScroller
                     && ctx.mouseX() >= tabX && ctx.mouseX() < tabX + tabW
                     && ctx.mouseY() >= Math.max(ty, viewTop) && ctx.mouseY() < Math.min(ty + TAB_HEIGHT, viewBottom);
-            drawSideTab(g, tabX, ty, tabW, TAB_HEIGHT, isSelected, hovered);
+            if (vanilla) {
+                Identifier sprite = isSelected
+                        ? (hovered ? SPRITE_SELECTED_HOVER : SPRITE_SELECTED)
+                        : (hovered ? SPRITE_TAB_HOVER : SPRITE_TAB);
+                drawTurnedTab(g, sprite, tabX, ty, tabW, TAB_HEIGHT);
+                // Open into the page, as the top strip's selected tab is: the page's
+                // background inside its frame, out to the column's edge where the page starts.
+                if (isSelected) {
+                    VanillaLook.listBackground(g, tabX + 2, ty + 2, tabW - 2, TAB_HEIGHT - 4, tabX + 2, ty + 2);
+                }
+            } else {
+                drawSideTab(g, tabX, ty, tabW, TAB_HEIGHT, isSelected, hovered);
+            }
             // Cut again for the narrower tab when the lane is taken; laid out without it.
             String text = p.text;
             boolean truncated = p.truncated;
@@ -1069,10 +1105,19 @@ public final class Tabs extends AbstractPanelElement {
                 case RIGHT -> tabX + tabW - LABEL_PAD - textW;
             };
             int textY = Text.centeredTextY(ty, ty + TAB_HEIGHT);
-            int color = p.tab.standIn
-                    ? (isSelected ? COLOR_STAND_IN_SELECTED : COLOR_STAND_IN_UNSELECTED)
-                    : (isSelected ? COLOR_SELECTED : COLOR_UNSELECTED);
+            // On an options screen the labels are vanilla's, as on the top strip: white
+            // (a stand-in's light grey), the selected one underlined.
+            int color = vanilla
+                    ? (p.tab.standIn ? COLOR_UNSELECTED : COLOR_SELECTED)
+                    : p.tab.standIn
+                            ? (isSelected ? COLOR_STAND_IN_SELECTED : COLOR_STAND_IN_UNSELECTED)
+                            : (isSelected ? COLOR_SELECTED : COLOR_UNSELECTED);
             g.text(font, text, textX, textY, color);
+            if (vanilla && isSelected) {
+                // The top strip's underline, the label's colour and width, kept off the
+                // frame's inner line along the tab's bottom (2 px up), so 3 px up here.
+                g.fill(textX, ty + TAB_HEIGHT - 3, textX + textW, ty + TAB_HEIGHT - 2, color);
+            }
             if (hovered && truncated) hoveredTruncated = p;
         }
         g.disableScissor();
@@ -1116,6 +1161,120 @@ public final class Tabs extends AbstractPanelElement {
             if (t > 0) drawSideTabRow(g, cx, y, t, h, rows[i]);
             cx += t;
         }
+    }
+
+    // ── The sidebar on an options screen: vanilla's sprites, turned ─────────
+
+    // Vanilla's tab sprite (widget/tab*.png.mcmeta): 130 x 24, nine-sliced with a
+    // 2 px border left, top and right and none at the bottom, which is the edge
+    // that opens into the page. Its rows, top to bottom: 4 clear rows on an
+    // unselected tab (the inset), the frame's edge and inner lines, the face, and
+    // at the page the hover line (rows 21), then the page edge's light and dark
+    // lines (22, 23), which the selected tab leaves open.
+    private static final int TAB_SPRITE_W = 130;
+    private static final int TAB_SPRITE_H = 24;
+    private static final int TAB_SPRITE_BORDER = 2;
+    /** The rows before the face (inset, edge, inner line) and from the hover line on, drawn 1:1. */
+    private static final int TAB_SPRITE_HEAD = 6;
+    private static final int TAB_SPRITE_TAIL = 3;
+
+    /**
+     * A sidebar tab on an options screen: vanilla's own tab sprite drawn under a
+     * pose turned a quarter, its open edge (the sprite's bottom) facing the page
+     * on the right. {@code w} is the tab's thickness across the column, {@code h}
+     * its length down it.
+     *
+     * <p>In the turned frame the sprite is drawn {@code h} long and {@code w}
+     * thick. Vanilla's nine-slice cannot draw it that way itself: it tiles the
+     * sprite's middle rows, so a tab thicker than 24 px would repeat the inset and
+     * the page-edge lines across its face. So the sprite is sliced here, from its
+     * own texels: along its length exactly as vanilla's nine-slice does (both end
+     * borders 1:1, the first {@code h - 4} middle columns), and across its
+     * thickness the head and tail rows 1:1 with the face rows stretched between
+     * them (they are one colour, so stretched reads the same as tiled). A resource
+     * pack that restyles vanilla's tabs restyles these too.
+     */
+    private static void drawTurnedTab(net.minecraft.client.gui.GuiGraphicsExtractor g, Identifier id,
+                                      int x, int y, int w, int h) {
+        TextureAtlasSprite sprite = Minecraft.getInstance().getAtlasManager()
+                .getAtlasOrThrow(AtlasIds.GUI).getSprite(id);
+        int face = Math.max(0, w - TAB_SPRITE_HEAD - TAB_SPRITE_TAIL);
+        int head = Math.min(TAB_SPRITE_HEAD, w);
+        turned(g, x, y, h, () -> {
+            // Each band across the thickness: sprite rows [v0, v1) drawn from local y0 to y1.
+            spriteBand(g, sprite, 0, head, 0, head, h);
+            spriteBand(g, sprite, TAB_SPRITE_HEAD, TAB_SPRITE_H - TAB_SPRITE_TAIL, head, head + face, h);
+            spriteBand(g, sprite, TAB_SPRITE_H - TAB_SPRITE_TAIL, TAB_SPRITE_H, head + face,
+                    Math.min(w, head + face + TAB_SPRITE_TAIL), h);
+        });
+    }
+
+    /**
+     * Sprite rows {@code [v0, v1)} drawn between local {@code y0} and {@code y1},
+     * {@code length} long: the sprite's end columns 1:1 at each end and its middle
+     * columns from the left between them, as vanilla's nine-slice draws a tab.
+     */
+    private static void spriteBand(net.minecraft.client.gui.GuiGraphicsExtractor g, TextureAtlasSprite sprite,
+                                   int v0, int v1, int y0, int y1, int length) {
+        if (y1 <= y0) return;
+        int b = Math.min(TAB_SPRITE_BORDER, length / 2);
+        int mid = Math.min(length - 2 * b, TAB_SPRITE_W - 2 * TAB_SPRITE_BORDER);
+        spritePart(g, sprite, 0, b, v0, v1, 0, b, y0, y1);
+        spritePart(g, sprite, TAB_SPRITE_BORDER, TAB_SPRITE_BORDER + mid, v0, v1, b, length - b, y0, y1);
+        spritePart(g, sprite, TAB_SPRITE_W - b, TAB_SPRITE_W, v0, v1, length - b, length, y0, y1);
+    }
+
+    /** The sprite's texels {@code [u0, u1) x [v0, v1)} (in its 130 x 24 units) drawn to {@code [x0, x1) x [y0, y1)}. */
+    private static void spritePart(net.minecraft.client.gui.GuiGraphicsExtractor g, TextureAtlasSprite sprite,
+                                   int u0, int u1, int v0, int v1, int x0, int x1, int y0, int y1) {
+        if (x1 <= x0 || y1 <= y0) return;
+        g.blit(sprite.atlasLocation(), x0, y0, x1, y1,
+                sprite.getU((float) u0 / TAB_SPRITE_W), sprite.getU((float) u1 / TAB_SPRITE_W),
+                sprite.getV((float) v0 / TAB_SPRITE_H), sprite.getV((float) v1 / TAB_SPRITE_H));
+    }
+
+    /**
+     * Runs {@code draw} in a frame turned a quarter: local x runs up the screen
+     * from {@code (x, y + length)}, local y to the right from {@code x}. So a
+     * sprite's top edge lands on the left and its bottom edge on the right. An
+     * exact matrix, not a rotation by an angle, so every pixel stays on the grid.
+     * Only blits that take no scissor draw right in it: the scissor stack maps
+     * a rectangle by two corners, which a turned pose flips, so the clip is set
+     * on screen before turning, as the column's is.
+     */
+    private static void turned(net.minecraft.client.gui.GuiGraphicsExtractor g, int x, int y, int length,
+                               Runnable draw) {
+        g.pose().pushMatrix();
+        g.pose().mul(new Matrix3x2f(0, -1, 1, 0, x, y + length));
+        draw.run();
+        g.pose().popMatrix();
+    }
+
+    /**
+     * The options screen's line along the column's edge toward the page, above
+     * and below the tabs in view: the top strip's line either side of its tabs
+     * ({@link #stripSeparators}), turned, so the header separator's light line
+     * faces the column and its dark line the page, as the tabs' own edge lines do.
+     */
+    private void columnSeparators(net.minecraft.client.gui.GuiGraphicsExtractor g, StripLayout s, int right,
+                                  int columnTop, int viewTop, int viewBottom, int shift) {
+        int bottom = columnTop + getHeight() - s.top;
+        int first = viewBottom, last = viewTop;
+        if (!s.placed.isEmpty()) {
+            first = Math.max(viewTop, viewTop + s.placed.get(0).y - shift);
+            last = Math.min(viewBottom, viewTop + s.placed.get(s.placed.size() - 1).y + TAB_HEIGHT - shift);
+        }
+        int lineX = right - VanillaLook.SEPARATOR_HEIGHT;
+        if (s.placed.isEmpty() || first >= last) {
+            verticalSeparator(g, lineX, columnTop, bottom - columnTop);
+            return;
+        }
+        verticalSeparator(g, lineX, columnTop, first - columnTop);
+        verticalSeparator(g, lineX, last, bottom - last);
+    }
+
+    private static void verticalSeparator(net.minecraft.client.gui.GuiGraphicsExtractor g, int x, int y, int length) {
+        if (length > 0) turned(g, x, y, length, () -> VanillaLook.headerSeparator(g, 0, 0, length));
     }
 
     /** One row of the sprite, {@code t} px thick: {edge, inner, face} mirrored across the tab's length. */
