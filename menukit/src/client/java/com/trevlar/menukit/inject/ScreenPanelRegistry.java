@@ -359,6 +359,12 @@ public final class ScreenPanelRegistry {
      * tooltip off: a container screen's frame with its chrome (an open recipe book, the
      * creative tab rows), every shown panel's placed rectangle on every host, and each of
      * the screen's own widgets that is shown and has bounds. Rectangles may overlap.
+     *
+     * <p>Not the widgets MenuKit's own elements register ({@link Focus#addWidget}: a
+     * Button's, Toggle's, TextField's, Slider's stand-in for focus and narration). Every
+     * element of every panel on the screen registers one, shown or not, and it keeps the
+     * rectangle it last drew at (on this screen or another), so a hidden panel's buttons
+     * would occupy empty space. Their panel is counted above while it is shown.
      */
     public static List<ScreenRectangle> occupiedOn(@Nullable Screen screen) {
         List<ScreenRectangle> out = new ArrayList<>();
@@ -372,6 +378,7 @@ public final class ScreenPanelRegistry {
         }
         for (GuiEventListener child : screen.children()) {
             if (child instanceof AbstractWidget w && !w.visible) continue;
+            if (Focus.isManaged(screen, child)) continue;  // an element's stand-in: its panel speaks for it
             ScreenRectangle r = child.getRectangle();
             if (r.width() > 0 && r.height() > 0) out.add(r);
         }
