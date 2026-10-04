@@ -98,7 +98,7 @@ Panel main = Panel.builder("mymod:settings")
         .build();
 ```
 
-Result: a strip across the top of the screen that wraps into rows, with the selected tab's body below it filling the rest of the screen. A body is a `List<PanelElement>`, the same as `ScrollContainer` content. Put the panel in an `MKScreen` subclass. To open the menu on a given tab, set `tab` before `setScreen`. Hiding a tab re-splits the rows and moves the body. For one scrolling row, use `Tabs.Mode.SIDE_SCROLL`.
+Result: a strip across the top of the screen that wraps into rows, with the selected tab's body below it filling the rest of the screen. A body is a `List<PanelElement>`, the same as `ScrollContainer` content. Put the panel in an `MKScreen` subclass. To open the menu on a given tab, set `tab` before `setScreen`. A screen that rebuilds itself when a setting changes can keep each body's scroll too: hold a `Map<String, Double>` beside `tab` and pass `.bodyScroll(scroll::get, scroll::put)`. Hiding a tab re-splits the rows and moves the body. For one scrolling row, use `Tabs.Mode.SIDE_SCROLL`.
 
 ## Add a tab to another mod's menu
 

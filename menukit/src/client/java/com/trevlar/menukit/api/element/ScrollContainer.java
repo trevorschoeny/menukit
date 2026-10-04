@@ -37,7 +37,10 @@ import java.util.function.DoubleSupplier;
  * from the top: {@code get} is read every frame, {@code set} receives each change.
  * Pixels, not a fraction: when the content changes height while shown (a section
  * opening), what is on screen stays where it is and only the range changes. A
- * position past the new end is clamped, and the clamp written back.
+ * position past the new end is clamped, and the clamp written back. Nothing else
+ * moves it: no click on a child scrolls it into view, and it never glides (the
+ * wheel and the handle move it at once), so a content change has no glide target
+ * to fight.
  *
  * <h3>Input</h3>
  *

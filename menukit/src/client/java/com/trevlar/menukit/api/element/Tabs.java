@@ -26,8 +26,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -156,10 +158,23 @@ import java.util.function.Supplier;
  * {@link ScrollContainer} content or a {@link com.trevlar.menukit.api.layout.Column}.
  * It is laid out to the body width exactly as a panel lays out its own elements
  * (text wraps, taller elements push the ones below), and scrolls vertically when
- * taller than the body area. Each tab keeps its own scroll position for the life
- * of this element: switching away and back, hiding tabs, and resizing leave it
- * where the player left it. That is view state, like a panel's own auto-scroll
- * offset, not consumer state.
+ * taller than the body area. Each tab keeps its own scroll position: switching
+ * away and back, hiding tabs, and resizing leave it where the player left it. By
+ * default that is view state, kept for the life of this element, like a panel's
+ * own auto-scroll offset. {@link Builder#bodyScroll} hands it to the consumer
+ * instead, in pixels per tab id, as {@link ScrollContainer}'s {@code state} does:
+ * a consumer that rebuilds its screen (a new {@code Tabs}) keeps the body where
+ * it was, on the first frame, with no slide from the top.
+ *
+ * <h3>Scroll stays put</h3>
+ *
+ * The offset is pixels from the top, so a body that changes height (a section
+ * opening, a label rewrapping) keeps what is on screen where it is; it moves only
+ * when it has to, when the end comes up past it. A body that stops scrolling
+ * (everything fits) is at the top, and its offset says so, so it starts from the
+ * top when it next scrolls rather than jumping back to an old place. Nothing in a
+ * body scrolls it to bring a control into view, and a body never glides: only a
+ * strip does.
  *
  * <h3>Tabs from other mods</h3>
  *
@@ -281,11 +296,13 @@ public final class Tabs extends AbstractPanelElement {
     // ── View state (not consumer state) ────────────────────────────────────
 
     /**
-     * Each tab's body scroll in pixels from the top, kept for the life of this
-     * element. Pixels, not a fraction: a body that grows while shown (a section
+     * Each tab's body scroll in pixels from the top, by tab id: the consumer's
+     * ({@link Builder#bodyScroll}), else this element's own map, kept for its
+     * life. Pixels, not a fraction: a body that grows while shown (a section
      * opening) keeps what is on screen where it is.
      */
-    private final Map<String, Double> bodyScroll = new HashMap<>();
+    private final Function<String, @Nullable Double> bodyScrollGet;
+    private final BiConsumer<String, Double> bodyScrollSet;
     /**
      * The strip's offset in pixels along its axis, when it overflows: the one on
      * screen ({@code stripScroll}) and the one it is gliding to ({@code stripTarget}).
@@ -318,6 +335,14 @@ public final class Tabs extends AbstractPanelElement {
         this.fixedHeight = b.fixedHeight;
         this.sidebarHeader = List.copyOf(b.sidebarHeader);
         this.header = List.copyOf(b.header);
+        if (b.bodyScrollGet != null) {
+            this.bodyScrollGet = b.bodyScrollGet;
+            this.bodyScrollSet = b.bodyScrollSet;
+        } else {
+            Map<String, Double> own = new HashMap<>();
+            this.bodyScrollGet = own::get;
+            this.bodyScrollSet = own::put;
+        }
     }
 
     public static Builder builder() {
@@ -785,12 +810,25 @@ public final class Tabs extends AbstractPanelElement {
                     .size(outer, h)
                     .content(tab.body)
                     .contentHeight(contentH + below)
-                    .state(() -> bodyScroll.getOrDefault(id, 0.0), v -> bodyScroll.put(id, v))
+                    .state(() -> bodyScroll(id), v -> bodyScrollSet.accept(id, v))
                     .build();
+        } else if (h > 0 && (fixedHeight >= 0 || filledHeight >= 0) && bodyScroll(tab.id) != 0) {
+            // It fits, so it is at the top: say so, as a ScrollContainer writes back its
+            // clamp. Kept, an old offset would come back the moment the body scrolled
+            // again (a section closed so all fits, then reopened), a jump from the top
+            // to wherever it once was. Only with a real height: a body measured at its
+            // natural height (no viewport yet) fits by definition and proves nothing.
+            bodyScrollSet.accept(tab.id, 0.0);
         }
         // Signature AFTER layout, so a settled body doesn't re-lay itself out every frame.
         body = new BodyView(tab, kind, w, h, signature(tab.body), scroll);
         return body;
+    }
+
+    /** A tab's body scroll, 0 when nothing is stored (a consumer's map that has no entry yet). */
+    private double bodyScroll(String id) {
+        Double v = bodyScrollGet.apply(id);
+        return v == null ? 0.0 : v;
     }
 
     /** Visibility and live geometry of a body's elements: changes when one resizes or toggles. */
@@ -1390,7 +1428,7 @@ public final class Tabs extends AbstractPanelElement {
     public void notifyClickOutsideOverlay(InputContext in) {
         ChildDispatch.notifyClickOutside(header, headerInput(in));
         ChildDispatch.notifyClickOutside(sidebarHeader, columnInput(in));
-        BodyView b = liveBody();
+        BodyView b = liveBody(in.kind());
         if (b == null) return;
         InputContext inner = bodyInput(in, strip());
         if (b.scroll != null) b.scroll.notifyClickOutsideOverlay(inner);
@@ -1403,7 +1441,7 @@ public final class Tabs extends AbstractPanelElement {
         ChildDispatch.renderOverlay(header, childContext(ctx.at(ctx.originX() + childX, ctx.originY() + childY)));
         ChildDispatch.renderOverlay(sidebarHeader,
                 childContext(ctx.at(ctx.originX() + childX, ctx.originY() + childY + strip().top)));
-        BodyView b = liveBody();
+        BodyView b = liveBody(ctx.kind());
         if (b == null) return;
         RenderContext bodyCtx = bodyRender(ctx, strip());
         if (b.scroll != null) b.scroll.renderOverlay(bodyCtx);
@@ -1414,16 +1452,20 @@ public final class Tabs extends AbstractPanelElement {
     // Input
     // ════════════════════════════════════════════════════════════════════════
 
-    /** The shown body as last laid out, or null. Input goes only to the shown tab. */
-    private @Nullable BodyView liveBody() {
-        Tab shown = shownTab();
-        return (body != null && body.tab == shown) ? body : null;
+    /**
+     * The shown body, laid out for the current size as drawing lays it out, or
+     * null. Input goes only to the shown tab. Laid out here too, not only when
+     * drawn, so input before a first draw (a screen just rebuilt) and input right
+     * after a change (a section a click just opened) meet the body as it now is.
+     */
+    private @Nullable BodyView liveBody(ScreenKind kind) {
+        return bodyView(strip(), shownTab(), kind);
     }
 
     @Override
     public boolean mouseClicked(InputContext in, int button) {
         StripLayout s = strip();
-        BodyView b = liveBody();
+        BodyView b = liveBody(in.kind());
         InputContext inner = b == null ? null : bodyInput(in, s);
 
         // An open popover in a header claims the click anywhere in its bounds, over
@@ -1514,7 +1556,7 @@ public final class Tabs extends AbstractPanelElement {
             setStripScroll(s, Scroller.wheel(stripScroll, delta, scrollLength(s), stripViewportLength(s)));
             return true;
         }
-        BodyView b = liveBody();
+        BodyView b = liveBody(in.kind());
         if (b == null) return false;
         InputContext inner = bodyInput(in, s);
         if (b.scroll != null) return b.scroll.mouseScrolled(inner, scrollX, scrollY);
@@ -1527,7 +1569,7 @@ public final class Tabs extends AbstractPanelElement {
         ChildDispatch.mouseReleased(header, headerInput(in), button);
         ChildDispatch.mouseReleased(sidebarHeader, columnInput(in), button);
         if (button == Click.LEFT) draggingScroller = false;
-        BodyView b = liveBody();
+        BodyView b = liveBody(in.kind());
         if (b == null) return false;
         InputContext inner = bodyInput(in, strip());
         if (b.scroll != null) return b.scroll.mouseReleased(inner, button);
@@ -1540,7 +1582,7 @@ public final class Tabs extends AbstractPanelElement {
         // No shortcuts of its own (Trev, 2026-09-26): keys go to the headers, then the shown body.
         if (ChildDispatch.keyPressed(header, headerInput(in), keyCode, scanCode, modifiers)) return true;
         if (ChildDispatch.keyPressed(sidebarHeader, columnInput(in), keyCode, scanCode, modifiers)) return true;
-        BodyView b = liveBody();
+        BodyView b = liveBody(in.kind());
         if (b == null) return false;
         InputContext inner = bodyInput(in, strip());
         if (b.scroll != null) return b.scroll.keyPressed(inner, keyCode, scanCode, modifiers);
@@ -1553,7 +1595,7 @@ public final class Tabs extends AbstractPanelElement {
         if (top != null) return top;
         int[] column = ChildDispatch.activeOverlay(sidebarHeader, columnInput(in));
         if (column != null) return column;
-        BodyView b = liveBody();
+        BodyView b = liveBody(in.kind());
         if (b == null) return null;
         InputContext inner = bodyInput(in, strip());
         return b.scroll != null ? b.scroll.getActiveOverlayBounds(inner) : ChildDispatch.activeOverlay(b.tab.body, inner);
@@ -1715,6 +1757,8 @@ public final class Tabs extends AbstractPanelElement {
         private int fixedWidth = -1, fixedHeight = -1;
         private final List<PanelElement> sidebarHeader = new ArrayList<>();
         private final List<PanelElement> header = new ArrayList<>();
+        private @Nullable Function<String, @Nullable Double> bodyScrollGet;
+        private @Nullable BiConsumer<String, Double> bodyScrollSet;
 
         private Builder() {}
 
@@ -1740,6 +1784,22 @@ public final class Tabs extends AbstractPanelElement {
         public Builder state(Supplier<@Nullable String> get, Consumer<String> set) {
             this.selected = Objects.requireNonNull(get, "get");
             this.onSelect = Objects.requireNonNull(set, "set");
+            return this;
+        }
+
+        /**
+         * The consumer owns each tab's body scroll, in pixels from the top, keyed by
+         * tab id, as {@link ScrollContainer.Builder#state} owns a container's:
+         * {@code get} is read every frame (null, or a missing entry, is the top) and
+         * {@code set} receives each change. A screen rebuilt with the same lens opens
+         * each body where it was, on the first frame, without sliding from the top;
+         * a value past the body's end is clamped and the clamp written back. Without
+         * it the scroll is this element's own view state and a rebuild starts at the
+         * top. The selected tab is already the consumer's ({@link #state}).
+         */
+        public Builder bodyScroll(Function<String, @Nullable Double> get, BiConsumer<String, Double> set) {
+            this.bodyScrollGet = Objects.requireNonNull(get, "get");
+            this.bodyScrollSet = Objects.requireNonNull(set, "set");
             return this;
         }
 

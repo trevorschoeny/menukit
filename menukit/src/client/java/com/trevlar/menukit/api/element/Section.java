@@ -33,9 +33,11 @@ import java.util.function.Supplier;
  * title, and a grey summary read every frame, cut with "..." when it runs out of
  * room. A click anywhere on the header row toggles the section.
  *
- * <p>On an options screen ({@link ScreenKind#OPTIONS}) the header is the
- * category header of vanilla's Controls screen: the row centred, the title in
- * white with a shadow, the summary in vanilla's grey. It still opens and closes.
+ * <p>On an options screen ({@link ScreenKind#OPTIONS}) the header takes the
+ * category header's colours from vanilla's Controls screen: the title in white
+ * with a shadow, the summary in vanilla's grey. It reads from the left as on a
+ * container screen, not centred as vanilla's is, so it lines up with the content
+ * under it.
  *
  * <h3>Content</h3>
  *
@@ -84,6 +86,8 @@ public final class Section extends AbstractPanelElement {
     private static final int SWATCH = 8;
     private static final int SWATCH_GAP = 4;
     private static final int SUMMARY_GAP = 8;
+    /** The arrow's distance from the header's left edge, on both kinds of screen. */
+    private static final int HEADER_INSET = 1;
     /** A faint darkening under the header while the mouse is on it. */
     private static final int HOVER_FILL = 0x18000000;
     /** The same, lightening, on vanilla's dark backdrop. */
@@ -234,14 +238,11 @@ public final class Section extends AbstractPanelElement {
         }
         int textY = Text.centeredTextY(hy, hy + HEADER_HEIGHT);
         String arrow = open ? ARROW_OPEN : ARROW_CLOSED;
-        // MenuKit's header reads from the left; vanilla's category header is centred
-        // (KeyBindsList.CategoryEntry). Centred while the whole row fits, else from the left.
-        int x = hx + 1;
-        if (vanilla) {
-            int row = font.width(arrow) + (swatch != null ? SWATCH + SWATCH_GAP : 0) + font.width(title)
-                    + (summary != null ? SUMMARY_GAP + font.width(summary.get()) : 0);
-            if (row < w) x = hx + (w - row) / 2;
-        }
+        // The header reads from the left on both kinds, where the section's content
+        // starts. Vanilla's category header is centred (KeyBindsList.CategoryEntry), but
+        // over a settings page of labels and controls a centred heading floats away
+        // from what it heads (Trev, 2026-10-03: "section headers align left").
+        int x = hx + HEADER_INSET;
         g.text(font, arrow, x, textY, titleCol, shadow);
         x += font.width(arrow);
         if (swatch != null) {

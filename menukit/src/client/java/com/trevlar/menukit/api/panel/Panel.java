@@ -636,6 +636,11 @@ public class Panel {
 
         cachedScrollContainer = null;
         boolean overflow = viewportHeight > 0 && naturalContentHeight > viewportHeight;
+        // Everything fits in a real viewport, so it is at the top: say so, as the
+        // container writes back its clamp. Kept, the old offset would come back the
+        // moment the panel overflowed again (a section closed so all fits, then
+        // reopened), a jump from the top to wherever it once was. Tabs' bodies do the same.
+        if (!overflow && viewportHeight > 0) scrollOffset = 0;
         if (overflow) {
             // Re-lay out with the scrollbar reserve so wrapped content clears the
             // track, reflow again, then wrap everything in a ScrollContainer sized
