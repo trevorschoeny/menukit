@@ -2,6 +2,7 @@ package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.api.panel.Panel;
+import com.trevlar.menukit.core.Scroller;
 import com.trevlar.menukit.core.TabRows;
 import com.trevlar.menukit.core.VanillaLook;
 import net.minecraft.client.Minecraft;
@@ -79,9 +80,10 @@ import java.util.function.Supplier;
  *   <li><b>{@link Mode#SIDE_SCROLL}</b>: one row. While it fits, {@link Align}
  *       applies as for one wrap row. Once it overflows it scrolls from the left
  *       edge, alignment has no effect, and arrows appear at both ends (each hidden,
- *       its space kept, once its end is reached). The wheel over the strip and the
- *       arrows move one tab at a time, and a newly selected tab, including one
- *       selected from outside, scrolls into view with the least movement.</li>
+ *       its space kept, once its end is reached). The wheel over the strip scrolls
+ *       it by pixels, as a {@link ScrollContainer} scrolls its body; an arrow
+ *       glides it one tab along, and a newly selected tab, including one selected
+ *       from outside, glides into view with the least movement.</li>
  *   <li><b>{@link Mode#SIDEBAR}</b>: a column of tabs down the left, the body to
  *       its right. The top tab turned on its side: the selected tab reaches 4 px
  *       further left and opens into the page, the others close against it with the
@@ -89,14 +91,20 @@ import java.util.function.Supplier;
  *       the element, and every tab in it is that wide. {@link Align} places the
  *       label in the tab ({@link Align#FILL} as {@link Align#LEFT}), and labels
  *       stay put on selection so the column reads as a list. When the tabs are
- *       taller than the column, vanilla's thin list scrollbar runs down its left
- *       edge: drag the handle, or click the track to jump there. The wheel over
- *       the column moves one tab at a time, and a newly selected tab scrolls into
- *       view. The tabs give the bar its lane rather than the column widening, so
- *       the body never moves.
+ *       taller than the column, a {@link ScrollContainer}'s scrollbar runs down its
+ *       left edge, the same track and handle at the same size: drag the handle, or
+ *       press the track to jump there. The wheel over the column scrolls it by
+ *       pixels, and a newly selected tab glides into view. The tabs give the bar
+ *       its lane rather than the column widening, so the body never moves.
  *       {@link Builder#sidebarHeader} puts elements above the column (a Back
  *       button, say), in the column's width; the body still starts at the top.</li>
  * </ul>
+ * <p>Both strips scroll by MenuKit's one scroller, {@code core.Scroller}, the
+ * model and scrollbar a {@link ScrollContainer} uses: an offset in pixels, the
+ * wheel's step, clamping, the drag, the handle's fixed size, and its look per
+ * kind of screen. Only a jump the player did not drag (an arrow, a selection)
+ * glides; the wheel and the handle move it at once, as in a body.
+ *
  * <h3>On an options screen</h3>
  *
  * The strip ({@link Mode#WRAP}, {@link Mode#SIDE_SCROLL}) always draws vanilla's
@@ -119,8 +127,9 @@ import java.util.function.Supplier;
  * background, from the column's edge to the element's right, inset as the top
  * strip's page is ({@link ScrollContainer#OPTIONS_INSET_X} from the column and
  * the right edge, {@link ScrollContainer#OPTIONS_INSET_Y} above and below).
- * Labels stay upright, white, the selected one underlined. Column width,
- * scrolling and the scrollbar are the same on both kinds. On a container screen
+ * Labels stay upright, white, the selected one underlined. Column width and
+ * scrolling are the same on both kinds; the scrollbar is a ScrollContainer's,
+ * vanilla's thin list scroller here. On a container screen
  * the sidebar draws MenuKit's own tab in vanilla's tab colours.
  *
  * {@link Builder#header} puts a row across the whole element, above the strip
@@ -199,15 +208,18 @@ public final class Tabs extends AbstractPanelElement {
     public static final int SIDEBAR_HEADER_GAP = 4;
     /** Space between the full-width header and everything under it: the same gap as the sidebar header's. */
     public static final int HEADER_GAP = SIDEBAR_HEADER_GAP;
-    /** Width of the sidebar's scrollbar: vanilla's list scrollbar ({@code AbstractScrollArea.SCROLLBAR_WIDTH}). */
+    /**
+     * Width of the sidebar's scrollbar on an options screen: vanilla's list
+     * scrollbar ({@code AbstractScrollArea.SCROLLBAR_WIDTH}).
+     *
+     * @deprecated The sidebar's scrollbar is a {@link ScrollContainer}'s now, as
+     *     wide as the kind of screen draws it: {@link ScrollContainer#TRACK_WIDTH}
+     *     on a container screen, 6 on an options screen. Goes in 7.0.0.
+     */
+    @Deprecated(since = "6.1.0", forRemoval = true)
     public static final int SIDEBAR_SCROLLBAR_WIDTH = 6;
     /** Space between the sidebar's scrollbar and its tabs. */
     private static final int SIDEBAR_SCROLLBAR_GAP = 2;
-    /** Shortest the handle gets, and how far short of the track it stops, per vanilla's list. */
-    private static final int SCROLLER_MIN_HEIGHT = 32;
-    private static final int SCROLLER_TRACK_MARGIN = 8;
-    private static final Identifier SPRITE_SCROLLER = Identifier.withDefaultNamespace("widget/scroller");
-    private static final Identifier SPRITE_SCROLLER_TRACK = Identifier.withDefaultNamespace("widget/scroller_background");
 
     private static final String ELLIPSIS = "...";
     private static final int COLOR_SELECTED = 0xFFFFFFFF;
@@ -274,8 +286,18 @@ public final class Tabs extends AbstractPanelElement {
      * opening) keeps what is on screen where it is.
      */
     private final Map<String, Double> bodyScroll = new HashMap<>();
-    /** Side-scroll strip offset in pixels, when the row overflows. */
-    private int stripScroll = 0;
+    /**
+     * The strip's offset in pixels along its axis, when it overflows: the one on
+     * screen ({@code stripScroll}) and the one it is gliding to ({@code stripTarget}).
+     * The wheel and the handle set both, so they move at once; an arrow or a newly
+     * selected tab sets only the target, and each frame glides the shown offset
+     * toward it ({@link Scroller#glide}). {@code glideNanos} is the last frame's
+     * time, 0 before the first draw, which lands the glide at once so a menu
+     * opens with its selected tab already in view rather than sliding to it.
+     */
+    private double stripScroll = 0;
+    private double stripTarget = 0;
+    private long glideNanos = 0;
     /** The tab shown last frame, to scroll a newly selected tab into view. */
     private @Nullable String lastShown = null;
     /**
@@ -607,41 +629,69 @@ public final class Tabs extends AbstractPanelElement {
         return s.overflow ? Math.max(1, getWidth() - 2 * ARROW_WIDTH) : getWidth();
     }
 
+    /**
+     * The length the strip scrolls over: its content, or, while it fits, the
+     * viewport's own length, so the one scroller's range is 0 and every offset
+     * clamps to the start.
+     */
+    private int scrollLength(StripLayout s) {
+        return overflows(s) ? contentLength(s) : stripViewportLength(s);
+    }
+
     private int maxStripScroll(StripLayout s) {
-        return overflows(s) ? Math.max(0, contentLength(s) - stripViewportLength(s)) : 0;
+        return Scroller.maxScroll(scrollLength(s), stripViewportLength(s));
     }
 
+    private double clampStrip(StripLayout s, double offset) {
+        return Scroller.clamp(offset, scrollLength(s), stripViewportLength(s));
+    }
+
+    /** Both offsets back inside the range: the layout or the element's size changed. */
     private void clampStripScroll(StripLayout s) {
-        stripScroll = Math.max(0, Math.min(stripScroll, maxStripScroll(s)));
+        stripScroll = clampStrip(s, stripScroll);
+        stripTarget = clampStrip(s, stripTarget);
     }
 
-    /** Scrolls the least distance that brings {@code tab} fully into view. */
+    /** The wheel or the handle: straight there, the glide dropped. */
+    private void setStripScroll(StripLayout s, double offset) {
+        stripScroll = stripTarget = clampStrip(s, offset);
+    }
+
+    /** Glides the least distance that brings {@code tab} fully into view. */
     private void scrollIntoView(StripLayout s, Tab tab) {
         if (!overflows(s)) return;
         for (Placed p : s.placed) {
             if (p.tab != tab) continue;
-            int view = stripViewportLength(s);
-            if (posOf(p) < stripScroll) stripScroll = posOf(p);
-            else if (posOf(p) + lengthOf(p) > stripScroll + view) stripScroll = posOf(p) + lengthOf(p) - view;
+            stripTarget = Scroller.intoView(stripTarget, posOf(p), lengthOf(p), contentLength(s),
+                    stripViewportLength(s));
         }
-        clampStripScroll(s);
     }
 
-    /** One tab back (-1) or forward (+1): snaps to the next tab edge in that direction. */
+    /**
+     * An arrow: one tab back (-1) or forward (+1), to the next tab edge that way
+     * from where the strip is gliding to, so presses in a row add up. Glides.
+     */
     private void stepStrip(StripLayout s, int dir) {
         if (!overflows(s)) return;
+        double from = stripTarget;
+        double to = dir > 0 ? maxStripScroll(s) : 0;
         if (dir > 0) {
             for (Placed p : s.placed) {
-                if (posOf(p) > stripScroll) { stripScroll = posOf(p); break; }
+                if (posOf(p) > from) { to = posOf(p); break; }
             }
         } else {
-            int target = 0;
             for (Placed p : s.placed) {
-                if (posOf(p) < stripScroll) target = posOf(p);
+                if (posOf(p) < from) to = posOf(p);
             }
-            stripScroll = target;
         }
-        clampStripScroll(s);
+        stripTarget = clampStrip(s, to);
+    }
+
+    /** One frame of the glide toward the target, timed by the clock so it runs the same at any frame rate. */
+    private void glideStrip() {
+        long now = System.nanoTime();
+        stripScroll = glideNanos == 0 ? stripTarget : Scroller.glide(stripScroll, stripTarget, (now - glideNanos) / 1e6);
+        glideNanos = now;
     }
 
     /**
@@ -888,6 +938,7 @@ public final class Tabs extends AbstractPanelElement {
             scrollIntoView(s, shown);     // clicked, or selected from outside
         }
         lastShown = shown == null ? null : shown.id;
+        glideStrip();                     // toward an arrow's or a selection's target
 
         // ── Header, then the strip under it ── (a disabled one draws as if nothing were hovered)
         RenderContext stripCtx = disabled
@@ -953,7 +1004,7 @@ public final class Tabs extends AbstractPanelElement {
         Font font = Minecraft.getInstance().font;
         int viewLeft = sx + stripViewportStart(s);
         int viewRight = viewLeft + stripViewportLength(s);
-        int shift = s.overflow ? stripScroll : 0;
+        int shift = s.overflow ? (int) stripScroll : 0;
         boolean vanilla = ctx.kind() == ScreenKind.OPTIONS;
         if (vanilla) stripSeparators(g, s, sx, sy, viewLeft, viewRight, shift);
         if (s.overflow) g.enableScissor(viewLeft, sy, viewRight, sy + s.height);
@@ -1052,15 +1103,15 @@ public final class Tabs extends AbstractPanelElement {
         int viewTop = sy + stripViewportStart(s);
         int viewLength = stripViewportLength(s);
         int viewBottom = viewTop + viewLength;
+        boolean vanilla = ctx.kind() == ScreenKind.OPTIONS;
         if (overflow) {
-            followScrollerDrag(s, ctx.mouseY() - viewTop);
+            if (ctx.hasMouseInput()) followScrollerDrag(s, ctx.mouseY() - viewTop);
         } else {
             draggingScroller = false;
         }
-        int shift = overflow ? stripScroll : 0;
-        int lane = scrollbarLane(s);
+        int shift = overflow ? (int) stripScroll : 0;
+        int lane = scrollbarLane(s, ctx.kind());
         int tabX = sx + lane, tabW = column - lane;
-        boolean vanilla = ctx.kind() == ScreenKind.OPTIONS;
         if (vanilla) columnSeparators(g, s, sx + column, sy, viewTop, viewBottom, shift);
         g.enableScissor(sx, viewTop, sx + column, viewBottom);
         Placed hoveredTruncated = null;
@@ -1122,14 +1173,11 @@ public final class Tabs extends AbstractPanelElement {
         }
         g.disableScissor();
         if (overflow) {
-            // Vanilla's list scrollbar: its track, and a handle sized to the share of
-            // the column in view.
-            int handleH = scrollerHeight(s);
-            int handleY = viewTop + scrollerOffset(s, handleH);
-            g.blitSprite(RenderPipelines.GUI_TEXTURED, SPRITE_SCROLLER_TRACK, sx, viewTop,
-                    SIDEBAR_SCROLLBAR_WIDTH, viewLength);
-            g.blitSprite(RenderPipelines.GUI_TEXTURED, SPRITE_SCROLLER, sx, handleY,
-                    SIDEBAR_SCROLLBAR_WIDTH, handleH);
+            // A ScrollContainer's scrollbar, from the one scroller: the track the
+            // column's length under the header, the same fixed-size handle as a body's
+            // (not one sized to the share in view, which on a column a tab or two too
+            // tall was nearly the track's length), in the kind of screen's look.
+            Scroller.draw(g, ctx.kind(), sx, viewTop, viewLength, scrollerTop(s), true, false);
         }
         if (hoveredTruncated != null) {
             MKTooltip.queue(g, hoveredTruncated.tab.label, ctx.mouseX(), ctx.mouseY());
@@ -1294,35 +1342,25 @@ public final class Tabs extends AbstractPanelElement {
 
     // ── Sidebar scrollbar ──────────────────────────────────────────────────
 
-    /** The lane the scrollbar takes on the column's left: its width and gap while the tabs overflow, else 0. */
-    private int scrollbarLane(StripLayout s) {
-        return sidebar() && overflows(s) ? SIDEBAR_SCROLLBAR_WIDTH + SIDEBAR_SCROLLBAR_GAP : 0;
+    /**
+     * The lane the scrollbar takes on the column's left while the tabs overflow,
+     * else 0: the track as wide as the kind of screen draws it, and a gap.
+     */
+    private int scrollbarLane(StripLayout s, ScreenKind kind) {
+        return sidebar() && overflows(s) ? Scroller.trackWidth(kind) + SIDEBAR_SCROLLBAR_GAP : 0;
     }
 
-    /** The handle's height: the share of the column in view, clamped as vanilla's list clamps it. */
-    private int scrollerHeight(StripLayout s) {
+    /** The handle's top from the column's view top: the track is the view's length. */
+    private double scrollerTop(StripLayout s) {
         int view = stripViewportLength(s);
-        int content = Math.max(1, contentLength(s));
-        int h = (int) ((float) view * view / content);
-        return Math.max(1, Math.min(Math.max(h, SCROLLER_MIN_HEIGHT), Math.max(1, view - SCROLLER_TRACK_MARGIN)));
-    }
-
-    /** The handle's top, from the viewport's top, for the current scroll. */
-    private int scrollerOffset(StripLayout s, int handleH) {
-        int max = maxStripScroll(s);
-        int travel = stripViewportLength(s) - handleH;
-        return max <= 0 || travel <= 0 ? 0 : (int) ((long) stripScroll * travel / max);
+        return Scroller.thumbTop(stripScroll, scrollLength(s), view, view);
     }
 
     /** While the handle is held, scroll so it stays under the mouse where it was grabbed. */
     private void followScrollerDrag(StripLayout s, double mouseFromViewTop) {
         if (!draggingScroller) return;
-        int handleH = scrollerHeight(s);
-        int travel = stripViewportLength(s) - handleH;
-        if (travel <= 0) return;
-        double top = Math.max(0, Math.min(travel, mouseFromViewTop - dragGrabOffset));
-        stripScroll = (int) Math.round(top * maxStripScroll(s) / travel);
-        clampStripScroll(s);
+        int view = stripViewportLength(s);
+        setStripScroll(s, Scroller.dragTo(mouseFromViewTop, dragGrabOffset, scrollLength(s), view, view));
     }
 
     private void renderArrows(RenderContext ctx, StripLayout s, int sx, int sy) {
@@ -1330,13 +1368,14 @@ public final class Tabs extends AbstractPanelElement {
         int ay = sy + (TAB_HEIGHT - ARROW_SPRITE_H) / 2;
         int backX = sx + (ARROW_WIDTH - ARROW_SPRITE_W) / 2;
         int fwdX = sx + getWidth() - ARROW_WIDTH + (ARROW_WIDTH - ARROW_SPRITE_W) / 2;
-        // An arrow is hidden once its end is reached; its space stays, so tabs don't shift.
-        if (stripScroll > 0) {
+        // An arrow is hidden once the strip is at (or gliding to) its end; its space
+        // stays, so tabs don't shift.
+        if (stripTarget > 0) {
             boolean hover = ctx.isHovered(childX, childY + s.top, ARROW_WIDTH, TAB_HEIGHT);
             g.blitSprite(RenderPipelines.GUI_TEXTURED, hover ? SPRITE_BACK_HOVER : SPRITE_BACK,
                     backX, ay, ARROW_SPRITE_W, ARROW_SPRITE_H);
         }
-        if (stripScroll < maxStripScroll(s)) {
+        if (stripTarget < maxStripScroll(s)) {
             boolean hover = ctx.isHovered(childX + getWidth() - ARROW_WIDTH, childY + s.top, ARROW_WIDTH, TAB_HEIGHT);
             g.blitSprite(RenderPipelines.GUI_TEXTURED, hover ? SPRITE_FORWARD_HOVER : SPRITE_FORWARD,
                     fwdX, ay, ARROW_SPRITE_W, ARROW_SPRITE_H);
@@ -1415,7 +1454,7 @@ public final class Tabs extends AbstractPanelElement {
             if (button != Click.LEFT) return true;        // the strip eats its own clicks
             if (s.overflow && lx < ARROW_WIDTH) { stepStrip(s, -1); return true; }
             if (s.overflow && lx >= getWidth() - ARROW_WIDTH) { stepStrip(s, +1); return true; }
-            double contentX = lx - stripViewportStart(s) + (s.overflow ? stripScroll : 0);
+            double contentX = lx - stripViewportStart(s) + (s.overflow ? (int) stripScroll : 0);  // where it is drawn
             for (Placed p : s.placed) {
                 if (contentX >= p.x && contentX < p.x + p.w && ly >= p.y && ly < p.y + TAB_HEIGHT) {
                     select(p.tab);
@@ -1441,19 +1480,16 @@ public final class Tabs extends AbstractPanelElement {
         if (button != Click.LEFT) return true;            // the column eats its own clicks
         int viewStart = stripViewportStart(s);
         if (ly < viewStart || ly >= viewStart + stripViewportLength(s)) return true;
-        if (lx < scrollbarLane(s)) {
+        if (lx < scrollbarLane(s, in.kind())) {
             // On the handle: grab it where it was pressed. On the track: jump so the
-            // handle centres on the click, and keep holding it, as vanilla's list does.
-            int handleH = scrollerHeight(s);
-            int handleTop = scrollerOffset(s, handleH);
+            // handle centres on the click, and keep holding it, as a body's does.
             double fromTop = ly - viewStart;
-            boolean onHandle = fromTop >= handleTop && fromTop < handleTop + handleH;
-            dragGrabOffset = onHandle ? fromTop - handleTop : handleH / 2.0;
+            dragGrabOffset = Scroller.grab(fromTop, scrollerTop(s));
             draggingScroller = true;
             followScrollerDrag(s, fromTop);
             return true;
         }
-        double contentY = ly - viewStart + (overflows(s) ? stripScroll : 0);
+        double contentY = ly - viewStart + (overflows(s) ? (int) stripScroll : 0);
         for (Placed p : s.placed) {
             if (contentY >= p.y && contentY < p.y + TAB_HEIGHT) {
                 select(p.tab);
@@ -1471,9 +1507,11 @@ public final class Tabs extends AbstractPanelElement {
         ly -= s.top;
         if (onStrip(s, lx, ly)) {
             if (!overflows(s) || disabled(in)) return false;
+            // By pixels, as a body scrolls: wheel up = back, down = forward. A
+            // sideways wheel scrolls the row too.
             double delta = scrollY != 0 ? scrollY : scrollX;
             if (delta == 0) return false;
-            stepStrip(s, delta > 0 ? -1 : +1);             // wheel up = back, down = forward
+            setStripScroll(s, Scroller.wheel(stripScroll, delta, scrollLength(s), stripViewportLength(s)));
             return true;
         }
         BodyView b = liveBody();

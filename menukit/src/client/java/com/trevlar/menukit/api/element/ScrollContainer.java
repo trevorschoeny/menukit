@@ -1,9 +1,8 @@
 package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.api.panel.ScreenKind;
-import com.trevlar.menukit.core.PanelRendering;
+import com.trevlar.menukit.core.Scroller;
 import com.trevlar.menukit.core.VanillaLook;
-import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 
 import org.jspecify.annotations.Nullable;
@@ -42,8 +41,10 @@ import java.util.function.DoubleSupplier;
  *
  * <h3>Input</h3>
  *
- * The wheel over the viewport scrolls it (after any child that scrolls itself, a
- * nested container, had the wheel); dragging the handle scrolls it; clicks inside
+ * The wheel over the viewport scrolls it, {@link #SCROLL_PIXELS_PER_TICK} pixels
+ * a notch (after any child that scrolls itself, a nested container, had the
+ * wheel); dragging the handle scrolls it, and a press on the track jumps the
+ * handle there and holds it, as vanilla's lists do; clicks inside
  * the viewport reach the children at their scrolled positions; the scrollbar lane
  * eats its own clicks. An open popover of a child (a {@link Dropdown}) claims its
  * whole area, even the part hanging below the viewport, and draws unclipped on
@@ -61,8 +62,15 @@ import java.util.function.DoubleSupplier;
  * the top and the bottom, drawn in the 2 px just outside the container as vanilla
  * draws them, and vanilla's thin list scroller ({@code widget/scroller} on
  * {@code widget/scroller_background}) at the right of the lane, hidden while
- * everything fits. The lane, the handle's travel and the input are the same on
- * both kinds of screen.
+ * everything fits. The lane, the handle's size and travel and the input are the
+ * same on both kinds of screen.
+ *
+ * <h3>One scroller</h3>
+ *
+ * The scroll model (pixels, clamping, the wheel's step, the drag) and the
+ * scrollbar's drawing are MenuKit's one scroller, {@code core.Scroller}, which a
+ * {@link Tabs} strip scrolls by too: its sidebar's scrollbar is this one, the
+ * same handle and track at the same size.
  *
  * <p>The band also insets its content as vanilla's lists do: the children's
  * origin is {@link #OPTIONS_INSET_X} in from the left and {@link #OPTIONS_INSET_Y}
@@ -74,10 +82,11 @@ import java.util.function.DoubleSupplier;
  */
 public class ScrollContainer extends AbstractPanelElement {
 
+    // The scroller's sizes are MenuKit's one scroller's (core.Scroller), named here as before.
     /** Width of the handle sprite: vanilla's creative-inventory scroller. */
-    public static final int SCROLLER_WIDTH = 12;
+    public static final int SCROLLER_WIDTH = Scroller.THUMB_WIDTH;
     /** Height of the handle: a fixed-size handle, as vanilla's creative inventory. */
-    public static final int SCROLLER_HEIGHT = 15;
+    public static final int SCROLLER_HEIGHT = Scroller.THUMB_LENGTH;
     /** Vanilla's scroller sprite. */
     public static final Identifier SCROLLER_SPRITE =
             Identifier.withDefaultNamespace("container/creative_inventory/scroller");
@@ -87,11 +96,11 @@ public class ScrollContainer extends AbstractPanelElement {
     /** Space between the content and the scrollbar track. */
     public static final int SCROLLER_GUTTER = 4;
     /** Padding inside the track around the handle. */
-    public static final int SCROLLER_TRACK_PADDING = 1;
+    public static final int SCROLLER_TRACK_PADDING = Scroller.TRACK_PADDING;
     /** Scrollbar track width: the handle plus its padding. */
-    public static final int TRACK_WIDTH = SCROLLER_WIDTH + 2 * SCROLLER_TRACK_PADDING;
+    public static final int TRACK_WIDTH = Scroller.TRACK_WIDTH;
     /** Pixels scrolled per wheel notch. */
-    public static final int SCROLL_PIXELS_PER_TICK = 10;
+    public static final int SCROLL_PIXELS_PER_TICK = Scroller.PIXELS_PER_NOTCH;
 
     /**
      * On an options screen, how far in from the list band's left edge its content
@@ -115,11 +124,6 @@ public class ScrollContainer extends AbstractPanelElement {
      */
     public static final int OPTIONS_INSET_Y = 10;
 
-    // Vanilla's list scrollbar (AbstractScrollArea, 26.2): 6 px wide.
-    private static final Identifier VANILLA_SCROLLER = Identifier.withDefaultNamespace("widget/scroller");
-    private static final Identifier VANILLA_SCROLLER_TRACK = Identifier.withDefaultNamespace("widget/scroller_background");
-    private static final int VANILLA_SCROLLER_WIDTH = 6;
-
     private final List<PanelElement> content;
     /** The scrollable height given to the builder, or -1 to follow the children's extent every frame. */
     private final int fixedContentHeight;
@@ -132,9 +136,9 @@ public class ScrollContainer extends AbstractPanelElement {
     private double ownScroll = 0;
 
     // The handle drag: interaction state from press to release, not a frame cache.
+    // While held, how far below the handle's top it is held (Scroller.grab).
     private boolean dragging = false;
-    private double dragStartMouseY = 0;
-    private double dragStartFraction = 0;
+    private double dragGrab = 0;
 
     protected ScrollContainer(Builder b) {
         super(b);
@@ -209,31 +213,23 @@ public class ScrollContainer extends AbstractPanelElement {
         return contentHeight(kind) > height;
     }
 
-    private int maxScroll(ScreenKind kind) {
-        return Math.max(0, contentHeight(kind) - height);
-    }
-
     /** The scroll in pixels, clamped to the current range. */
     private double scroll(ScreenKind kind) {
-        return Math.max(0.0, Math.min(maxScroll(kind), scrollGet.getAsDouble()));
-    }
-
-    private double fraction(ScreenKind kind) {
-        int max = maxScroll(kind);
-        return max == 0 ? 0.0 : scroll(kind) / max;
+        return Scroller.clamp(scrollGet.getAsDouble(), contentHeight(kind), height);
     }
 
     private void setScroll(ScreenKind kind, double pixels) {
-        scrollSet.accept(Math.max(0.0, Math.min(maxScroll(kind), pixels)));
+        scrollSet.accept(Scroller.clamp(pixels, contentHeight(kind), height));
     }
 
-    private int handleTravel() {
-        return height - SCROLLER_HEIGHT - 2 * SCROLLER_TRACK_PADDING;
+    /** The handle's top from the viewport's top: the track is the viewport's height. */
+    private double handleTop(ScreenKind kind) {
+        return Scroller.thumbTop(scroll(kind), contentHeight(kind), height, height);
     }
 
-    private int handleOffset(ScreenKind kind) {
-        if (!canScroll(kind) || handleTravel() <= 0) return SCROLLER_TRACK_PADDING;
-        return SCROLLER_TRACK_PADDING + (int) (fraction(kind) * handleTravel());
+    /** While the handle is held, the scroll that keeps it under the mouse where it was grabbed. */
+    private void followDrag(ScreenKind kind, double mouseFromTop) {
+        setScroll(kind, Scroller.dragTo(mouseFromTop, dragGrab, contentHeight(kind), height, height));
     }
 
     /** Where the children's origin is: the viewport's top-left (inset in the band), moved up by the scroll. */
@@ -280,10 +276,7 @@ public class ScrollContainer extends AbstractPanelElement {
         if (raw != scroll(kind)) scrollSet.accept(scroll(kind));
 
         // Follow a held handle with the mouse.
-        if (dragging && canScroll(kind) && handleTravel() > 0 && ctx.hasMouseInput()) {
-            double f = dragStartFraction + (ctx.mouseY() - dragStartMouseY) / handleTravel();
-            setScroll(kind, f * maxScroll(kind));
-        }
+        if (dragging && canScroll(kind) && ctx.hasMouseInput()) followDrag(kind, ctx.mouseY() - sy);
 
         // On an options screen: the list band behind the children, scrolling with them as
         // vanilla's does, and its separators just outside the top and bottom edges.
@@ -309,23 +302,12 @@ public class ScrollContainer extends AbstractPanelElement {
         }
         g.disableScissor();
 
-        if (vanilla) {
-            // Vanilla's thin list scrollbar at the lane's right, the handle where
-            // MenuKit's would be (same travel, same drag); none while everything fits.
-            if (!canScroll(kind)) return;
-            int barX = sx + width - VANILLA_SCROLLER_WIDTH;
-            g.blitSprite(RenderPipelines.GUI_TEXTURED, VANILLA_SCROLLER_TRACK, barX, sy, VANILLA_SCROLLER_WIDTH, height);
-            g.blitSprite(RenderPipelines.GUI_TEXTURED, VANILLA_SCROLLER, barX, sy + handleOffset(kind),
-                    VANILLA_SCROLLER_WIDTH, SCROLLER_HEIGHT);
-            return;
-        }
-
-        // The scrollbar: an inset track and vanilla's handle.
-        int trackX = sx + width - TRACK_WIDTH;
-        PanelRendering.renderInsetRect(g, trackX, sy, TRACK_WIDTH, height);
-        Identifier sprite = !disabled && canScroll(kind) ? SCROLLER_SPRITE : SCROLLER_DISABLED_SPRITE;
-        g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, trackX + SCROLLER_TRACK_PADDING,
-                sy + handleOffset(kind), SCROLLER_WIDTH, SCROLLER_HEIGHT);
+        // The scrollbar at the lane's right, drawn for the kind of screen by the one
+        // scroller: MenuKit's inset track and vanilla's creative handle on a container
+        // screen, vanilla's thin list scroller on an options screen (none while
+        // everything fits). The handle's size, travel and drag are the same on both.
+        Scroller.draw(g, kind, sx + width - Scroller.trackWidth(kind), sy, height, handleTop(kind),
+                canScroll(kind), disabled);
     }
 
     /** The children's overlays, unclipped, at their scrolled positions. */
@@ -355,14 +337,15 @@ public class ScrollContainer extends AbstractPanelElement {
         double ly = in.mouseY() - (in.originY() + childY);
         int trackLeft = width - TRACK_WIDTH;
         if (lx >= viewportWidth()) {
-            // The gutter and the track eat their own clicks; a left press on the
-            // handle starts a drag.
+            // The gutter and the track eat their own clicks. A left press on the
+            // track holds the handle: where it was pressed, on the handle; else by its
+            // middle, so it jumps to centre on the press (vanilla's lists and creative
+            // inventory do the same), and the drag carries on from there.
             ScreenKind kind = in.kind();
-            if (button == Click.LEFT && lx >= trackLeft && canScroll(kind)
-                    && ly >= handleOffset(kind) && ly < handleOffset(kind) + SCROLLER_HEIGHT) {
+            if (button == Click.LEFT && lx >= trackLeft && canScroll(kind)) {
                 dragging = true;
-                dragStartMouseY = in.mouseY();
-                dragStartFraction = fraction(kind);
+                dragGrab = Scroller.grab(ly, handleTop(kind));
+                followDrag(kind, ly);
             }
             return true;
         }
@@ -382,7 +365,7 @@ public class ScrollContainer extends AbstractPanelElement {
         if (lx < viewportWidth() && ChildDispatch.mouseScrolled(content, inner, scrollX, scrollY)) return true;
         ScreenKind kind = in.kind();
         if (!canScroll(kind)) return false;
-        setScroll(kind, scroll(kind) - scrollY * SCROLL_PIXELS_PER_TICK);
+        setScroll(kind, Scroller.wheel(scroll(kind), scrollY, contentHeight(kind), height));
         return true;
     }
 

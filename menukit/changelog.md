@@ -17,10 +17,14 @@ The kind changes how an element draws, never its size or behaviour, except that 
 ### Changed
 
 - Panels injected into a vanilla screen that is not a container (the pause screen, Options, Controls, a mod's config screen) draw in vanilla's look there, where they drew MenuKit's grey.
+- `Tabs` strips scroll the way a `ScrollContainer` does, both on one scroller: by pixels, 10 a wheel notch, where the wheel used to move the sidebar and the side-scroll row a whole tab. An arrow, or a selected tab partly off the strip, slides it there instead of jumping.
+- The `SIDEBAR`'s scrollbar is a `ScrollContainer`'s: the same fixed 15 px handle and track, in the same look per kind of screen (MenuKit's inset track on a container screen, vanilla's thin list scroller on an options screen). Its handle was sized to the share of the column in view, with a 32 px floor, so a column a tab or two too tall had a handle nearly the track's length. On a container screen its lane is the wider track's.
+- Pressing a `ScrollContainer`'s track, off the handle, jumps the handle there and holds it, as the sidebar's track did and vanilla's lists and creative inventory do. It used to do nothing.
 - `ScrollContainer` with no `contentHeight` reads its children's extent every frame, so the range follows a child that grows or shrinks while shown.
 
 ### Deprecated
 
+- `Tabs.SIDEBAR_SCROLLBAR_WIDTH`. The sidebar's scrollbar is as wide as a `ScrollContainer`'s on that kind of screen (`ScrollContainer.TRACK_WIDTH` on a container screen, 6 on an options screen). It goes in 7.0.0.
 - `ControlStyle`, and `style(ControlStyle)` on `Button`, `Dropdown` and `DropdownMulti`. They do nothing now, since nothing picks a look but the kind of screen, and they go in 7.0.0. A mod built against 6.0.0 still loads. Delete the call; on an options screen the element already draws in vanilla's look.
 
 ### Fixed
