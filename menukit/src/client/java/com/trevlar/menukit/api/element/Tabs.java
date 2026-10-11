@@ -51,11 +51,11 @@ import java.util.function.Supplier;
  *         .build();
  * }</pre>
  *
- * <h3>Selection is a lens (§0026)</h3>
+ * <h3>Selection is a lens</h3>
  *
  * The consumer owns which tab is selected: a supplier reads it every frame and
- * a callback writes it when the player clicks a tab.
- * Selecting a tab from outside is writing your own field; the strip shows it on
+ * a callback writes it when the player clicks a tab. Selecting a tab from
+ * outside is writing your own field; the strip shows it on
  * the next frame. When the selected tab is hidden, the nearest visible tab is
  * <em>shown</em> (the next one, else the previous) and <b>nothing is written</b>,
  * so a tab that reappears while the field still names it takes the selection
@@ -111,8 +111,8 @@ import java.util.function.Supplier;
  *
  * The strip ({@link Mode#WRAP}, {@link Mode#SIDE_SCROLL}) always draws vanilla's
  * tab sprites. On an options screen ({@link ScreenKind#OPTIONS}) it is the tab
- * bar of vanilla's Create World screen: every
- * label white with a shadow, the selected one underlined, vanilla's separator
+ * bar of vanilla's Create World screen: every label white with a shadow, the
+ * selected one underlined, vanilla's separator
  * along the strip's bottom on either side of the tabs, and the selected tab open
  * into the page below it, which is vanilla's darker list background down to a
  * separator at the bottom. The page insets the body as {@link ScrollContainer}'s
@@ -134,12 +134,13 @@ import java.util.function.Supplier;
  * vanilla's thin list scroller here. On a container screen
  * the sidebar draws MenuKit's own tab in vanilla's tab colours.
  *
- * {@link Builder#header} puts a row across the whole element, above the strip
+ * <p>{@link Builder#header} puts a row across the whole element, above the strip
  * (or the sidebar column) and the body, in every mode: the menu's own title bar.
  * Its elements get the element's full width, so a {@link Flow} with a spacer at
  * each end centres a label across it. Everything else starts under it and its
  * {@link #HEADER_GAP}, and the body is that much shorter.
- * {@link Align#FILL} gives every tab in a row its label width plus an equal
+ *
+ * <p>{@link Align#FILL} gives every tab in a row its label width plus an equal
  * share of the row's leftover space: every label always fits, and short labels
  * are not squeezed next to long ones.
  *
@@ -271,7 +272,7 @@ public final class Tabs extends AbstractPanelElement {
     private static final int TAB_FILL = 0xDB000000;        // an unselected tab's face
     private static final int TAB_CLEAR = 0;                // the selected tab shows the page through it
 
-    // ── Declared structure (fixed at construction, §0022) ──────────────────
+    // Declared structure, fixed at construction.
 
     private final Mode mode;
     private final Align align;
@@ -288,12 +289,12 @@ public final class Tabs extends AbstractPanelElement {
     private boolean draggingScroller = false;
     private double dragGrabOffset = 0;
 
-    // ── Resolved geometry ──────────────────────────────────────────────────
+    // Resolved geometry
 
     private int resolvedWidth = -1;   // from layoutWithin; -1 until the first pass
     private int filledHeight = -1;    // from fillHeight; -1 = no viewport
 
-    // ── View state (not consumer state) ────────────────────────────────────
+    // View state, not consumer state.
 
     /**
      * Each tab's body scroll in pixels from the top, by tab id: the consumer's
@@ -402,9 +403,7 @@ public final class Tabs extends AbstractPanelElement {
         return false;
     }
 
-    // ════════════════════════════════════════════════════════════════════════
     // Strip layout
-    // ════════════════════════════════════════════════════════════════════════
 
     /** One tab placed on the strip, in strip-local coordinates (side-scroll: content space). */
     private record Placed(Tab tab, int x, int y, int w, String text, boolean truncated) {}
@@ -583,9 +582,7 @@ public final class Tabs extends AbstractPanelElement {
         return s;
     }
 
-    // ════════════════════════════════════════════════════════════════════════
     // Selection (lens, no write-back)
-    // ════════════════════════════════════════════════════════════════════════
 
     /** The tab to show: the selected one if visible, else the nearest visible, else none. */
     private @Nullable Tab shownTab() {
@@ -608,9 +605,7 @@ public final class Tabs extends AbstractPanelElement {
         onSelect.accept(tab.id);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
     // Scroll geometry: along the strip's own axis (x for side-scroll, y for the sidebar)
-    // ════════════════════════════════════════════════════════════════════════
 
     private boolean sidebar() {
         return mode == Mode.SIDEBAR;
@@ -728,9 +723,7 @@ public final class Tabs extends AbstractPanelElement {
         return ly >= 0 && ly < s.height;
     }
 
-    // ════════════════════════════════════════════════════════════════════════
     // Bodies
-    // ════════════════════════════════════════════════════════════════════════
 
     /**
      * Whether the body sits on an options screen's page (the list band), inset as
@@ -820,7 +813,7 @@ public final class Tabs extends AbstractPanelElement {
             // natural height (no viewport yet) fits by definition and proves nothing.
             bodyScrollSet.accept(tab.id, 0.0);
         }
-        // Signature AFTER layout, so a settled body doesn't re-lay itself out every frame.
+        // Signature after layout, so a settled body doesn't lay itself out again every frame.
         body = new BodyView(tab, kind, w, h, signature(tab.body), scroll);
         return body;
     }
@@ -845,9 +838,7 @@ public final class Tabs extends AbstractPanelElement {
         return sig;
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // Size (PanelElement reactive sizing)
-    // ════════════════════════════════════════════════════════════════════════
+    // Size
 
     @Override
     public int getWidth() {
@@ -955,9 +946,7 @@ public final class Tabs extends AbstractPanelElement {
 
     @Override public boolean isInteractive() { return true; }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // Render
-    // ════════════════════════════════════════════════════════════════════════
+    // Rendering
 
     @Override
     public void render(RenderContext ctx) {
@@ -978,7 +967,7 @@ public final class Tabs extends AbstractPanelElement {
         lastShown = shown == null ? null : shown.id;
         glideStrip();                     // toward an arrow's or a selection's target
 
-        // ── Header, then the strip under it ── (a disabled one draws as if nothing were hovered)
+        // The header, then the strip under it. A disabled one draws as if nothing were hovered.
         RenderContext stripCtx = disabled
                 ? new RenderContext(g, ctx.originX(), ctx.originY(), -1, -1, true, ctx.kind()) : ctx;
         ChildDispatch.render(header, childContext(stripCtx.at(sx, sy)));
@@ -1000,7 +989,7 @@ public final class Tabs extends AbstractPanelElement {
             renderStrip(stripCtx, s, shown, sx, sy + s.top);
         }
 
-        // ── Body ── (everything in it disabled with the Tabs)
+        // The body, everything in it disabled with the Tabs.
         BodyView b = bodyView(s, shown, ctx.kind());
         if (b == null) return;
         RenderContext bodyCtx = bodyRender(ctx, s);
@@ -1061,7 +1050,7 @@ public final class Tabs extends AbstractPanelElement {
             g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, tx, ty, p.w, TAB_HEIGHT);
             // Vanilla's selected tab opens into the page: the page's background inside
             // its frame (MenuTabButton.renderMenuBackground), here the list band, tiled
-            // from screen coordinates as the band below is, so they meet seamlessly.
+            // from screen coordinates as the band below is, so they meet with no seam.
             if (vanilla && isSelected) {
                 VanillaLook.listBackground(g, tx + 2, ty + 2, p.w - 4, TAB_HEIGHT - 2, tx + 2, ty + 2);
             }
@@ -1249,7 +1238,7 @@ public final class Tabs extends AbstractPanelElement {
         }
     }
 
-    // ── The sidebar on an options screen: vanilla's sprites, turned ─────────
+    // The sidebar on an options screen: vanilla's sprites, turned.
 
     // Vanilla's tab sprite (widget/tab*.png.mcmeta): 130 x 24, nine-sliced with a
     // 2 px border left, top and right and none at the bottom, which is the edge
@@ -1378,7 +1367,7 @@ public final class Tabs extends AbstractPanelElement {
         if ((color >>> 24) != 0 && x1 > x0 && y1 > y0) g.fill(x0, y0, x1, y1, color);
     }
 
-    // ── Sidebar scrollbar ──────────────────────────────────────────────────
+    // Sidebar scrollbar
 
     /**
      * The lane the scrollbar takes on the column's left while the tabs overflow,
@@ -1448,9 +1437,7 @@ public final class Tabs extends AbstractPanelElement {
         else ChildDispatch.renderOverlay(b.tab.body, bodyCtx);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
     // Input
-    // ════════════════════════════════════════════════════════════════════════
 
     /**
      * The shown body, laid out for the current size as drawing lays it out, or
@@ -1549,7 +1536,7 @@ public final class Tabs extends AbstractPanelElement {
         ly -= s.top;
         if (onStrip(s, lx, ly)) {
             if (!overflows(s) || disabled(in)) return false;
-            // By pixels, as a body scrolls: wheel up = back, down = forward. A
+            // By pixels, as a body scrolls: wheel up goes back, down goes forward. A
             // sideways wheel scrolls the row too.
             double delta = scrollY != 0 ? scrollY : scrollX;
             if (delta == 0) return false;
@@ -1579,7 +1566,7 @@ public final class Tabs extends AbstractPanelElement {
 
     @Override
     public boolean keyPressed(InputContext in, int keyCode, int scanCode, int modifiers) {
-        // No shortcuts of its own (Trev, 2026-09-26): keys go to the headers, then the shown body.
+        // No shortcuts of its own: keys go to the headers, then the shown body.
         if (ChildDispatch.keyPressed(header, headerInput(in), keyCode, scanCode, modifiers)) return true;
         if (ChildDispatch.keyPressed(sidebarHeader, columnInput(in), keyCode, scanCode, modifiers)) return true;
         BodyView b = liveBody(in.kind());
@@ -1616,9 +1603,7 @@ public final class Tabs extends AbstractPanelElement {
         ChildDispatch.detach(header, screen);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
     // Tabs and builders
-    // ════════════════════════════════════════════════════════════════════════
 
     /** One tab: an id, a label, a body, and whether it shows. Built with {@link Tabs#tab(String)}. */
     public static final class Tab {

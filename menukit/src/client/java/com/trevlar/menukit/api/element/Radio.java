@@ -69,8 +69,6 @@ public class Radio<T> extends AbstractPanelElement {
     /** This Radio's value. */
     public T getValue() { return value; }
 
-    // ── Size: from the label ───────────────────────────────────────────
-
     @Override
     public int naturalWidth() {
         Component text = label.get();
@@ -105,8 +103,6 @@ public class Radio<T> extends AbstractPanelElement {
 
     @Override public boolean isInteractive() { return true; }
 
-    // ── Rendering ──────────────────────────────────────────────────────
-
     @Override
     public void render(RenderContext ctx) {
         int sx = ctx.originX() + childX;
@@ -137,8 +133,6 @@ public class Radio<T> extends AbstractPanelElement {
         if (hovered) queueTooltip(ctx);
     }
 
-    // ── Input ──────────────────────────────────────────────────────────
-
     @Override
     public boolean mouseClicked(InputContext in, int button) {
         if (button != Click.LEFT || disabled(in)) return false;
@@ -161,8 +155,6 @@ public class Radio<T> extends AbstractPanelElement {
     public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
         if (widget != null) widget.detach(screen);
     }
-
-    // ── Builder ────────────────────────────────────────────────────────
 
     public static class Builder<T> extends AbstractPanelElement.Builder<Radio<T>, Builder<T>> {
         private final RadioGroup<T> group;

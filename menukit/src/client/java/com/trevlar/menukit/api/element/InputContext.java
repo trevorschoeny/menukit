@@ -6,7 +6,7 @@ import java.util.Objects;
 
 /**
  * Input-time context passed to every {@link PanelElement} input method, the input
- * twin of {@link RenderContext} (§0066): where the element's containing content
+ * twin of {@link RenderContext}: where the element's containing content
  * origin is on screen, where the mouse is, and whether the element's
  * surroundings are disabled.
  *

@@ -81,8 +81,6 @@ final class ItemChooser extends MKScreen {
         if (search.widget() != null) setFocused(search.widget());
     }
 
-    // ── The view state ─────────────────────────────────────────────────
-
     /**
      * The chooser's own view state: what the player typed, how far the grid
      * scrolled, and the search's result, kept while the query stays the same.
@@ -131,8 +129,6 @@ final class ItemChooser extends MKScreen {
         return out;
     }
 
-    // ── The panel ──────────────────────────────────────────────────────
-
     /**
      * Search field, grid, then Clear and Cancel, in one column. On an options screen
      * the panel has no box (vanilla's backdrop shows, as on Options); on a container
@@ -176,8 +172,6 @@ final class ItemChooser extends MKScreen {
                 .add(state.field).add(grid).add(clear).add(cancel)
                 .build();
     }
-
-    // ── The grid ───────────────────────────────────────────────────────
 
     /**
      * The matching items, nine to a row, as slots in the kind of screen. As tall as

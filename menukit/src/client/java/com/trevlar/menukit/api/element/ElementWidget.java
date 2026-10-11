@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The one shared helper that gives MenuKit's own controls vanilla's click sound,
- * narration and keyboard focus (§0066.4, §0020): a vanilla {@link AbstractButton}
+ * narration and keyboard focus: a vanilla {@link AbstractButton}
  * standing in for the element in the screen's widget list. Used by
  * {@link Button}, {@link Toggle}, {@link Checkbox} and {@link Radio}.
  *
@@ -52,10 +52,10 @@ final class ElementWidget extends AbstractButton {
 
     /**
      * How long after its element last rendered the widget stays focusable.
-     * ponytail: a time window, not a frame count, because the host has no
-     * per-frame hook that sees every element; it only has to outlast one frame at
-     * the slowest frame rate a screen runs at. Tighten it to a frame stamp if a
-     * hidden element ever keeps focus visibly.
+     * A time window, not a frame count, because the host has no per-frame hook
+     * that sees every element; it only has to outlast one frame at the slowest
+     * frame rate a screen runs at. Tighten it to a frame stamp if a hidden
+     * element ever keeps focus visibly.
      */
     static final long LIVE_MS = 250;
 
@@ -89,8 +89,6 @@ final class ElementWidget extends AbstractButton {
         return isFocused() && isActive();
     }
 
-    // ── Screen membership ──────────────────────────────────────────────
-
     /** Joins {@code screen}'s widgets (and MenuKit's focus janitor). Idempotent. */
     void attach(Screen screen) {
         if (this.screen == screen) return;
@@ -105,8 +103,6 @@ final class ElementWidget extends AbstractButton {
         Focus.removeWidget(screen, this);
         this.screen = null;
     }
-
-    // ── Vanilla's widget contract ──────────────────────────────────────
 
     @Override
     public boolean isActive() {

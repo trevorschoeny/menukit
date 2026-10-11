@@ -106,7 +106,7 @@ public class Button extends AbstractPanelElement {
         return new Builder();
     }
 
-    // ── Size ───────────────────────────────────────────────────────────
+    // Size
 
     /** The label's single-line width plus padding: a width-0 button's natural size. */
     private int labelWidth() {
@@ -149,7 +149,7 @@ public class Button extends AbstractPanelElement {
     /** The button's label. */
     public Component getLabel() { return label; }
 
-    // ── Rendering ──────────────────────────────────────────────────────
+    // Rendering
 
     /**
      * Resolves this frame's look (hovered, pressed, disabled), paints background,
@@ -243,7 +243,7 @@ public class Button extends AbstractPanelElement {
         Text.renderCentered(ctx.graphics(), label, sx, sy, getWidth(), height, color, true);
     }
 
-    // ── Input ──────────────────────────────────────────────────────────
+    // Input
 
     /** Left click presses (sound, then {@code onClick}); another button reaches {@code onSecondaryClick}, if set. */
     @Override
@@ -284,8 +284,6 @@ public class Button extends AbstractPanelElement {
     public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
         if (widget != null) widget.detach(screen);
     }
-
-    // ── Builder ────────────────────────────────────────────────────────
 
     public static class Builder extends AbstractPanelElement.Builder<Button, Builder> {
         private Component label = Component.empty();
@@ -390,8 +388,6 @@ public class Button extends AbstractPanelElement {
         }
     }
 
-    // ── Icon face ──────────────────────────────────────────────────────
-
     /** A square button with a centred sprite. Intrinsic: never stretched or shrunk. */
     static final class IconButton extends Button {
         private static final int INSET = 2;
@@ -415,8 +411,6 @@ public class Button extends AbstractPanelElement {
                     look.disabled() ? DISABLED_ALPHA : 1.0f);
         }
     }
-
-    // ── Sprite face ────────────────────────────────────────────────────
 
     /** A button whose whole face is a consumer sprite. Intrinsic: never stretched or shrunk. */
     static final class SpriteButton extends Button {

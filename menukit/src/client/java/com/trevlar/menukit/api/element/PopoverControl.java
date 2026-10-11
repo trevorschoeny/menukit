@@ -20,11 +20,10 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * What {@link Dropdown} and {@link DropdownMulti} share (6.0.0 plan, decision 5):
- * a trigger that opens a popover list of items. Before 6.0.0 the two carried
- * the same thousand lines twice; the base holds the trigger, the popover's
- * geometry and drawing, its open, scroll and keyboard-highlight state, and the
- * routing of clicks, wheel and keys, so a fix lands in both. A subclass says
+ * What {@link Dropdown} and {@link DropdownMulti} share: a trigger that opens a
+ * popover list of items. The base holds the trigger, the popover's geometry and
+ * drawing, its open, scroll and keyboard-highlight state, and the routing of
+ * clicks, wheel and keys, so a fix lands in both. A subclass says
  * only what differs: what the trigger reads, which rows are selected, what
  * picking a row does, and (the multi-select) pinned action rows above the list
  * and a check-mark column.
@@ -36,7 +35,7 @@ import java.util.function.Function;
  * scroll: nothing a consumer would want to own. The selection is always the
  * consumer's, through the subclass's lens.
  *
- * <h3>Input receives its context (§0066)</h3>
+ * <h3>Input receives its context</h3>
  *
  * The popover's place is computed from the {@link InputContext} or
  * {@link RenderContext} it is asked with (the trigger's origin), not from a
@@ -67,7 +66,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     private final int maxVisibleItems;
     private final @Nullable Function<T, Component> itemTooltip;
 
-    // ── View state ─────────────────────────────────────────────────────
+    // View state
     private boolean open = false;
     private int scrollOffset = 0;
     /** The arrow keys' row, -1 until the first arrow press after opening. */
@@ -83,7 +82,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         this.itemTooltip = b.itemTooltip;
     }
 
-    // ── What a subclass says ───────────────────────────────────────────
+    // What a subclass says
 
     /** The trigger's text this frame. */
     protected abstract Component triggerText();
@@ -114,7 +113,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         open = false;
     }
 
-    // ── Size: the trigger; its label wraps (the one wrap helper) ───────
+    // Size: the trigger's, grown when its label wraps.
 
     private int triggerTextWidth() {
         return Math.max(1, width - CHEVRON_RESERVED_W - 2 * TRIGGER_TEXT_PAD_X);
@@ -144,7 +143,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
 
     @Override public boolean isInteractive() { return true; }
 
-    // ── Popover geometry ───────────────────────────────────────────────
+    // Popover geometry
 
     private int visibleRowCount() {
         return Math.min(items.size(), maxVisibleItems);
@@ -189,7 +188,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         return open ? popoverBounds(in.originX() + childX, in.originY() + childY) : null;
     }
 
-    // ── Render ─────────────────────────────────────────────────────────
+    // Rendering
 
     @Override
     public void render(RenderContext ctx) {
@@ -305,7 +304,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
                 && ctx.mouseY() >= rowY && ctx.mouseY() < rowY + ROW_HEIGHT;
     }
 
-    // ── Input ──────────────────────────────────────────────────────────
+    // Input
 
     /**
      * Left click: in the open popover, a row (the dispatcher gave it to this
@@ -410,8 +409,6 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         if (highlighted < first) scrollOffset = clampScroll(highlighted);
         else if (highlighted >= first + visible) scrollOffset = clampScroll(highlighted - visible + 1);
     }
-
-    // ── Builder ────────────────────────────────────────────────────────
 
     /**
      * What both dropdowns' builders share: {@code size} (the trigger; the

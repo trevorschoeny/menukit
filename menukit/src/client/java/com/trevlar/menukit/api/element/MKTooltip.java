@@ -29,47 +29,42 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 /**
- * The single library entry point for queuing a hover-float tooltip, the one
- * place a {@code Component} tooltip becomes pixels on screen. Every element
- * tooltip and the panel-level tooltip route through {@link #queue} instead of
- * calling vanilla's {@code setTooltipForNextFrame} directly.
+ * The one place a hover tooltip is queued: every element tooltip and the panel
+ * tooltip go through {@link #queue} instead of calling vanilla's
+ * {@code setTooltipForNextFrame} directly.
  *
- * <h3>Why this exists (the §0029 walk)</h3>
+ * <h3>Why it exists</h3>
  *
- * Hover tooltips had NO maximum width: a long tooltip drew as one unwrapped
- * line stretching across the screen, annoying. The fix is a width cap, and the
- * cap must be a library DEFAULT that every tooltip inherits automatically, never
- * patched per element or per call site. The width decision is not element-specific
- * (every tooltip should wrap the same way), and it is part of the <em>emit</em>
- * call, not the per-widget <em>trigger</em> logic (which legitimately varies.
- * Button suppresses on press, Dropdown gates trigger-vs-popover). The one
- * substrate all ~16 tooltip sites already shared was the single vanilla call
- * {@code graphics.setTooltipForNextFrame(font, component, mx, my)}. So the missing
- * primitive is a thin wrapper over exactly that call, this class.
+ * Vanilla's hover tooltips have no maximum width, so a long one draws as a single
+ * line across the screen. The cap belongs in one default that every tooltip
+ * inherits, not in each element: how wide a tooltip may be is the same for every
+ * element, while when to show one varies (a button hides it while pressed, a
+ * dropdown chooses between the trigger's and a row's). Every tooltip site already
+ * made the same vanilla call, {@code graphics.setTooltipForNextFrame(font,
+ * component, mx, my)}, so this class is a thin wrapper over that call.
  *
- * <h3>The exception to adaptive-width-as-default</h3>
+ * <h3>Why a tooltip is capped when panels are not</h3>
  *
- * Pass 3 made adaptive (grow-to-content) width the default for laid-out panel
- * content. A hover tooltip is the deliberate exception: it is a mouse-follower
- * float with no containing layout to bound it, so "grow to content" is exactly
- * what produces the across-the-screen line. Capping the tooltip is the
- * tooltip-surface analogue of the screen-edge ceiling that already bounds panels
- * same intent (don't let a float run to the screen edge), applied to the one
- * surface the panel machinery doesn't reach. The cap reuses {@code Font.split},
- * the same vanilla wrapper {@code TextLabel}'s adaptive path uses, so the two
- * layers share a wrapping vocabulary without sharing code.
+ * Laid-out panel content grows to fit what it holds. A tooltip follows the mouse
+ * with no layout around it to bound it, so growing to fit is exactly what draws
+ * the line across the screen. The cap does for tooltips what the screen edge
+ * does for panels. It wraps with {@code Font.split}, the splitter
+ * {@code TextLabel} uses, so both wrap the same way.
+ *
+ * <p>This class also holds the switches a mod can turn on for every tooltip in the
+ * game: {@link #hideWhen}, {@link #wrapWhen}, {@link #clampWhen},
+ * {@link #avoidCoverWhen} and {@link #onWheel}.
  */
 public final class MKTooltip {
 
     private MKTooltip() {}
 
-    // ── Hiding every tooltip ─────────────────────────────────────────────
-    // MenuKit owns the one seam every tooltip in the game is queued through
-    // (MKTooltipSuppressMixin, on vanilla's setTooltipForNextFrameInternal), and
-    // §0064 allows one seam per vanilla method, so a mod that wants tooltips gone
-    // registers a predicate here instead of adding a second mixin. MenuKit supplies
-    // the mechanism; the mod supplies the policy (Inventory Plus: "a setting is on
-    // and Ctrl is held").
+    // Hiding every tooltip. MenuKit owns the one hook every tooltip in the game is
+    // queued through (MKTooltipSuppressMixin, on vanilla's
+    // setTooltipForNextFrameInternal), and a vanilla method gets only one such hook,
+    // so a mod that wants tooltips gone registers a predicate here instead of adding
+    // a second mixin. MenuKit supplies the mechanism; the mod supplies the policy
+    // (Inventory Plus: "a setting is on and Ctrl is held").
 
     /** Registered "hide while" predicates. Written only during init, read every frame. */
     private static final Set<BooleanSupplier> HIDE_WHEN = new LinkedHashSet<>();
@@ -101,11 +96,11 @@ public final class MKTooltip {
         return false;
     }
 
-    // ── Keeping a tooltip on screen ──────────────────────────────────────
-    // Vanilla 26.2's positioner only moves a tooltip's corner: a line wider than the
-    // screen runs off the right, a tooltip taller than the screen runs off the top.
-    // Two switches, same split as hideWhen (MenuKit places, the mod decides when;
-    // Inventory Plus: "keep tooltips on screen"), both off unless a mod registers.
+    // Keeping a tooltip on screen. Vanilla 26.2's positioner only moves a tooltip's
+    // corner: a line wider than the screen runs off the right, a tooltip taller than
+    // the screen runs off the top. Two switches, same split as hideWhen (MenuKit
+    // places, the mod decides when; Inventory Plus: "keep tooltips on screen"), both
+    // off unless a mod registers.
 
     /** Registered "wrap while" and "clamp while" predicates. Written only during init, read every frame. */
     private static final Set<BooleanSupplier> WRAP_WHEN = new LinkedHashSet<>();
@@ -203,9 +198,9 @@ public final class MKTooltip {
 
     /**
      * A tooltip line back as splittable text: each run of one style becomes a styled
-     * piece. ponytail: Font.split reorders right-to-left text for display, and the line
-     * already was, so an Arabic or Hebrew line wider than the screen may wrap reversed.
-     * Keep the source Component per line if that ever shows.
+     * piece. Font.split reorders right-to-left text for display, and the line already
+     * was, so an Arabic or Hebrew line wider than the screen may wrap reversed. Keep the
+     * source Component per line if that ever shows.
      */
     private static FormattedText asText(FormattedCharSequence line) {
         List<FormattedText> runs = new ArrayList<>();
@@ -246,11 +241,11 @@ public final class MKTooltip {
         }
     }
 
-    // ── Choosing the side that covers less ───────────────────────────────
-    // Vanilla puts a tooltip right of the cursor and flips it left when it does not fit,
-    // never wrapping it, so a wide tooltip on a button near an inventory's right edge
-    // lands over the whole inventory. Same split as hideWhen: MenuKit places, the mod
-    // decides when (Inventory Plus: its wide in-inventory button tooltips).
+    // Choosing the side that covers less. Vanilla puts a tooltip right of the cursor
+    // and flips it left when it does not fit, never wrapping it, so a wide tooltip on
+    // a button near an inventory's right edge lands over the whole inventory. Same
+    // split as hideWhen: MenuKit places, the mod decides when (Inventory Plus: its
+    // wide in-inventory button tooltips).
 
     /** Registered "avoid covering while" predicates. Written only during init, read every frame. */
     private static final Set<BooleanSupplier> AVOID_COVER_WHEN = new LinkedHashSet<>();
@@ -275,9 +270,8 @@ public final class MKTooltip {
      * creative tab row), every shown MenuKit panel, and the screen's widgets. A tie goes to
      * vanilla's side (right, unless the tooltip does not fit there whole); neither side left
      * places it as vanilla does, and so does a tooltip vanilla anchors to a widget for the
-     * keyboard. The height is
-     * placed as vanilla does. Several mods may register; any one returning true switches it
-     * on. Call from client init.
+     * keyboard. The height is placed as vanilla does. Several mods may register; any one
+     * returning true switches it on. Call from client init.
      *
      * @throws IllegalStateException after MenuKit's declarations froze
      */
@@ -440,11 +434,11 @@ public final class MKTooltip {
         return h;
     }
 
-    // ── Scrolling a tooltip ──────────────────────────────────────────────
-    // Same split as hideWhen: MenuKit owns where a tooltip lands (MKTooltipSuppressMixin
-    // wraps vanilla's GuiGraphicsExtractor.tooltip, the one method that positions and
-    // draws every tooltip), the mod owns when and how far to move it (Inventory Plus:
-    // "scroll long tooltips", the wheel scrolls a tooltip taller than the screen).
+    // Scrolling a tooltip. Same split as hideWhen: MenuKit owns where a tooltip lands
+    // (MKTooltipSuppressMixin wraps vanilla's GuiGraphicsExtractor.tooltip, the one
+    // method that positions and draws every tooltip), the mod owns when and how far
+    // to move it (Inventory Plus: "scroll long tooltips", the wheel scrolls a tooltip
+    // taller than the screen).
     //
     // The state is one offset for "the tooltip on screen now". MenuKit clears it
     // whenever that tooltip changes: different text (another stack, a line added) or
@@ -564,8 +558,8 @@ public final class MKTooltip {
      * A hash of what a tooltip says, line by line, so "the hovered stack changed"
      * reads as "the text changed" for any tooltip, item or not. Text lines hash their
      * characters; other lines (a bundle's item grid) their kind and size.
-     * ponytail: 32-bit hash; a collision between two consecutive tooltips would keep
-     * the old scroll for one hover. Compare the strings if that ever shows.
+     * A 32-bit hash: a collision between two consecutive tooltips would keep the old
+     * scroll for one hover. Compare the strings if that ever shows.
      */
     @org.jetbrains.annotations.ApiStatus.Internal
     public static int contentKey(Font font, List<ClientTooltipComponent> lines) {
@@ -583,19 +577,18 @@ public final class MKTooltip {
     }
 
     /**
-     * Library-default maximum hover-tooltip width, in GUI pixels. Sized to
-     * about seven average words: ~7 words averaging ~5 chars + a space ≈ 40
-     * chars, and Minecraft's default font averages ~6px per glyph (incl. the
-     * 1px gap), so ≈ 200px. A tooltip wider than this wraps onto multiple lines
-     * rather than drawing as one long horizontal line. Tunable, the sane band
-     * is roughly 180 to 220; widen if seven words feels too tight in-game.
+     * The default maximum tooltip width, in GUI pixels: about seven average words.
+     * Seven words of about 5 characters plus a space is about 40 characters, and
+     * Minecraft's default font averages about 6 px per glyph (the 1 px gap
+     * included), so about 200 px. A wider tooltip wraps onto more lines. Values from
+     * about 180 to 220 work; widen it if seven words feels tight in game.
      */
     public static final int DEFAULT_MAX_WIDTH = 200;
 
     /**
      * Queues a hover tooltip for end-of-frame draw at the mouse position,
      * wrapping at the library-default max width ({@link #DEFAULT_MAX_WIDTH}).
-     * This is the form every element/panel tooltip site calls.
+     * This is the form every element and panel tooltip calls.
      *
      * @param graphics the active GuiGraphicsExtractor
      * @param text     the tooltip text (may span multiple wrapped lines)
@@ -607,14 +600,13 @@ public final class MKTooltip {
     }
 
     /**
-     * Queues a hover tooltip with an explicit max width, the per-tooltip escape
-     * hatch from the default. Pass {@code 0} (or any non-positive value) to
-     * disable wrapping entirely and restore the old single-line behavior.
+     * Queues a hover tooltip with its own maximum width instead of the default.
+     * Pass {@code 0} (or any non-positive value) for no wrapping: one line, as
+     * vanilla draws it.
      *
-     * <p>Wrapping uses {@code Font.split} (the same splitter as in-panel text),
-     * which breaks on spaces and only force-breaks within a single
-     * unbreakable word as a last resort, so a single ~40-char word can still
-     * exceed the budget on one line, exactly as vanilla behaves.
+     * <p>Wrapping uses {@code Font.split}, the splitter in-panel text uses. It breaks
+     * at spaces and splits a word only as a last resort, so one very long word can
+     * still run past the budget, as in vanilla.
      *
      * @param graphics   the active GuiGraphicsExtractor
      * @param text       the tooltip text
@@ -626,16 +618,15 @@ public final class MKTooltip {
                              int mouseX, int mouseY, int maxWidthPx) {
         if (text == null) return;
         Font font = Minecraft.getInstance().font;
-        // Fast path: wrapping disabled, or the whole line already fits the
-        // budget, hand the single Component straight through (no split cost).
+        // No wrapping, or the line already fits: hand the Component straight
+        // through without splitting it.
         if (maxWidthPx <= 0 || font.width(text) <= maxWidthPx) {
             graphics.setTooltipForNextFrame(font, text, mouseX, mouseY);
             return;
         }
-        // Over budget, wrap to the budget and hand the pre-split lines to the
-        // List overload. Same vanilla call chain (and the same private
-        // setTooltipForNextFrameInternal that MKTooltipSuppressMixin guards),
-        // so modal/opaque-panel tooltip suppression keeps working unchanged.
+        // Too wide: split to the budget and use the List overload. It goes through
+        // the same private setTooltipForNextFrameInternal that MKTooltipSuppressMixin
+        // guards, so tooltip suppression under a modal or opaque panel still works.
         List<FormattedCharSequence> lines = font.split(text, maxWidthPx);
         graphics.setTooltipForNextFrame(font, lines, mouseX, mouseY);
     }

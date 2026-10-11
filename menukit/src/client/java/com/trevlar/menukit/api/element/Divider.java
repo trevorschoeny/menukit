@@ -15,7 +15,7 @@ import com.trevlar.menukit.core.VanillaLook;
  * Divider.vertical().at(x, 0).size(1, 40).build();       // 40 px tall
  * }</pre>
  *
- * <h3>Filling (§0066)</h3>
+ * <h3>Filling</h3>
  *
  * A horizontal divider given no {@code size} fills whatever width its panel or
  * container gives it, every layout pass, and asks for none itself, so it never
@@ -100,8 +100,6 @@ public class Divider extends AbstractPanelElement {
 
     /** The divider's ARGB colour. */
     public int getColor() { return color; }
-
-    // ── Builder ────────────────────────────────────────────────────────
 
     public static class Builder extends AbstractPanelElement.Builder<Divider, Builder> {
         private final boolean horizontal;

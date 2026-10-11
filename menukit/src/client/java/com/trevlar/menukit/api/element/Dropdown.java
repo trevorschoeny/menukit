@@ -12,8 +12,7 @@ import java.util.function.Supplier;
 
 /**
  * A single-selection dropdown: a trigger showing the current choice, and a
- * popover list to pick another from. A lens onto the consumer's value (§0026,
- * §0066).
+ * popover list to pick another from. A lens onto the consumer's value.
  *
  * <pre>{@code
  * Dropdown.<GameMode>builder().size(120, 20)

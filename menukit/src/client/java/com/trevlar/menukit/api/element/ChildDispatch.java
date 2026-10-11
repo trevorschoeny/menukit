@@ -7,7 +7,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 
 /**
- * The one way a list of elements is rendered and receives input (§0066). A
+ * The one way a list of elements is rendered and receives input. A
  * panel's host dispatches to the panel's elements through it, and every element
  * that contains others ({@link ScrollContainer}, {@link Flow}, {@link Section},
  * {@link Tabs}) dispatches to its children through it, so the order below is the
@@ -48,8 +48,6 @@ public final class ChildDispatch {
 
     private ChildDispatch() {}
 
-    // ── Render ─────────────────────────────────────────────────────────
-
     /** The base pass: renders every shown child. */
     public static void render(List<? extends PanelElement> children, RenderContext ctx) {
         for (PanelElement c : children) {
@@ -63,8 +61,6 @@ public final class ChildDispatch {
             if (c.isVisible()) c.renderOverlay(ctx);
         }
     }
-
-    // ── Queries ────────────────────────────────────────────────────────
 
     /** Whether any shown child wants an event at the context's point. */
     public static boolean hitTest(List<? extends PanelElement> children, InputContext in) {
@@ -93,8 +89,6 @@ public final class ChildDispatch {
         }
         return null;
     }
-
-    // ── Input ──────────────────────────────────────────────────────────
 
     /**
      * Routes a click: an open overlay under the point takes it exclusively (it
@@ -154,8 +148,6 @@ public final class ChildDispatch {
             if (c.isVisible()) c.notifyClickOutsideOverlay(in);
         }
     }
-
-    // ── Lifecycle ──────────────────────────────────────────────────────
 
     /**
      * Attaches every child, shown or not, as a hidden panel's elements are: a

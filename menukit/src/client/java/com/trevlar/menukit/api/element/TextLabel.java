@@ -39,8 +39,8 @@ import java.util.function.Supplier;
  * <h3>Disabled look</h3>
  *
  * While its own {@code disabledWhen} holds, or its panel or container is
- * disabled, the label draws in its kind's {@link TextRole#DISABLED} colour
- * (§0066): the text of a greyed settings group greys with its controls, with no
+ * disabled, the label draws in its kind's {@link TextRole#DISABLED} colour:
+ * the text of a greyed settings group greys with its controls, with no
  * colour swapping by hand.
  *
  * <h3>ARGB (26.2)</h3>
@@ -98,7 +98,7 @@ public class TextLabel extends AbstractPanelElement {
     /** The text the label would draw right now. */
     public Component getCurrentText() { return text.get(); }
 
-    // ── Size (scaled screen pixels; the wrap width is font space) ──────
+    // Sizes are in scaled screen pixels; the wrap width is in font space.
 
     @Override
     public int naturalWidth() {
@@ -138,8 +138,6 @@ public class TextLabel extends AbstractPanelElement {
     @Override
     public void fillWidth(int width) {}
 
-    // ── Rendering ──────────────────────────────────────────────────────
-
     @Override
     public void render(RenderContext ctx) {
         if (onRender != null) onRender.run();
@@ -174,8 +172,6 @@ public class TextLabel extends AbstractPanelElement {
         if (scaled) g.pose().popMatrix();
         queueTooltip(ctx);
     }
-
-    // ── Builder ────────────────────────────────────────────────────────
 
     public static class Builder extends AbstractPanelElement.Builder<TextLabel, Builder> {
         private @Nullable Supplier<Component> text;

@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 
 /**
  * A two-state on/off control: MenuKit's general boolean primitive, a lens onto
- * the consumer's boolean and only a lens (§0026, §0066).
+ * the consumer's boolean and only a lens.
  *
  * <pre>{@code
  * Toggle.builder()
@@ -98,8 +98,6 @@ public class Toggle extends AbstractPanelElement {
         return new Builder();
     }
 
-    // ── Size ───────────────────────────────────────────────────────────
-
     private @Nullable Component currentLabel() {
         return label == null ? null : label.get();
     }
@@ -146,8 +144,6 @@ public class Toggle extends AbstractPanelElement {
     }
 
     @Override public boolean isInteractive() { return true; }
-
-    // ── Rendering ──────────────────────────────────────────────────────
 
     @Override
     public final void render(RenderContext ctx) {
@@ -216,8 +212,6 @@ public class Toggle extends AbstractPanelElement {
         }
     }
 
-    // ── Input ──────────────────────────────────────────────────────────
-
     @Override
     public boolean mouseClicked(InputContext in, int button) {
         if (disabled(in)) return false;
@@ -251,8 +245,6 @@ public class Toggle extends AbstractPanelElement {
     public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
         if (widget != null) widget.detach(screen);
     }
-
-    // ── Builder ────────────────────────────────────────────────────────
 
     public static class Builder extends AbstractPanelElement.Builder<Toggle, Builder> {
         private @Nullable BooleanSupplier stateGet;

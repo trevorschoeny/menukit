@@ -20,7 +20,7 @@ import java.util.function.Supplier;
 
 /**
  * A setting whose value is an item: a slot showing the item the setting is about,
- * and a lens onto it (§0026, §0066). Made for settings pages, so an options screen
+ * and a lens onto it. Made for settings pages, so an options screen
  * can let the player pick the items a setting is about (Inventory Plus's item lock
  * groups: which items are locked).
  *
@@ -97,13 +97,11 @@ public class ItemPicker extends AbstractPanelElement {
         return item != null ? item : Items.AIR;
     }
 
-    // ── Size: a slot, always ───────────────────────────────────────────
+    // Always one slot in size.
 
     @Override public void layoutWithin(int budget) {}
     @Override public void fillWidth(int width) {}
     @Override public boolean isInteractive() { return true; }
-
-    // ── Rendering ──────────────────────────────────────────────────────
 
     @Override
     public void render(RenderContext ctx) {
@@ -139,8 +137,6 @@ public class ItemPicker extends AbstractPanelElement {
     static Component itemName(Item item) {
         return item == Items.AIR ? Component.literal("Empty") : new ItemStack(item).getHoverName();
     }
-
-    // ── Input ──────────────────────────────────────────────────────────
 
     /** Left click opens the chooser; right click empties the setting. */
     @Override
@@ -178,8 +174,6 @@ public class ItemPicker extends AbstractPanelElement {
     public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
         if (widget != null) widget.detach(screen);
     }
-
-    // ── Builder ────────────────────────────────────────────────────────
 
     public static class Builder extends AbstractPanelElement.Builder<ItemPicker, Builder> {
         private @Nullable Supplier<Item> stateGet;

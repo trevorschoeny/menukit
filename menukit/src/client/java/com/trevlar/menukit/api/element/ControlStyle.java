@@ -10,9 +10,9 @@ import net.minecraft.resources.Identifier;
  * MenuKit 6.0.0's per-control look. Since 6.1.0 nothing picks a look: every
  * element draws for the kind of screen it is on ({@link ScreenKind}).
  *
- * <p>Kept, and inert, only so a mod built against 6.0.0 still loads on 6.1.0
- * (versioning.md: code built against an earlier minor of the same major keeps
- * working; §0068: deprecated in a minor, removed in the next major). A
+ * <p>Kept, and inert, only so a mod built against 6.0.0 still loads on 6.1.0:
+ * code built against an earlier minor of the same major keeps working, and
+ * anything deprecated in a minor is removed in the next major. A
  * {@code style(ControlStyle)} call on {@link Button} or a dropdown does nothing;
  * on an options screen the control already draws in vanilla's look. Removed in
  * 7.0.0.

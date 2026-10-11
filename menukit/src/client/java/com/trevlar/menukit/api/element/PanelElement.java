@@ -21,7 +21,7 @@ import java.util.function.Supplier;
  * Elements aren't shared between panels.
  *
  * <p>MenuKit's own elements are built with builders and extend
- * {@link AbstractPanelElement} (§0066). Consumer mods can implement this
+ * {@link AbstractPanelElement}. Consumer mods can implement this
  * interface directly for custom element types.
  *
  * <h3>Coordinate contract</h3>
@@ -40,7 +40,7 @@ import java.util.function.Supplier;
  * Render and input compose the two the same way: the element's top-left is
  * {@code (ctx.originX() + getChildX(), ctx.originY() + getChildY())}.
  *
- * <h3>Input receives its context (§0066)</h3>
+ * <h3>Input receives its context</h3>
  *
  * Every input method takes an {@link InputContext}, as {@link #render} takes a
  * {@link RenderContext}: the content origin, the mouse, and whether the
@@ -57,8 +57,7 @@ import java.util.function.Supplier;
  */
 public interface PanelElement {
 
-    // ── Position & Bounds ──────────────────────────────────────────────
-    // Coordinates are relative to the panel's content area (after padding).
+    // Position and bounds, relative to the panel's content area (after padding).
 
     /** X position within the panel's content area. */
     int getChildX();
@@ -86,11 +85,11 @@ public interface PanelElement {
      */
     default void fillWidth(int width) {}
 
-    // ── Reactive sizing: width flows DOWN from the panel ───────────────
+    // Sizing: width flows down from the panel.
 
     /**
-     * The element's NATURAL (authored / intrinsic) width before any panel
-     * width-constraint: what it wants when the panel has room. The owning
+     * The element's natural (authored or intrinsic) width before any panel
+     * width constraint: what it wants when the panel has room. The owning
      * {@link Panel} maxes this across its elements to compute its hug-width,
      * then feeds each element a budget via {@link #layoutWithin}. Distinct from
      * {@link #getWidth()}, which reports the resolved width. Default returns
@@ -99,11 +98,11 @@ public interface PanelElement {
     default int naturalWidth() { return getWidth(); }
 
     /**
-     * Width flows DOWN: the owning {@link Panel} (or container) calls this every
-     * layout pass with the horizontal pixel budget available to this element.
-     * The element resolves its presentation width, and when it wraps a label its
-     * height, REVERSIBLY from its authored intent: a later call with a larger
-     * budget restores the natural extent.
+     * The owning {@link Panel} (or container) calls this every layout pass with
+     * the horizontal pixel budget available to this element. The element resolves
+     * its presentation width, and when it wraps a label its height, from its
+     * authored intent, and reversibly: a later call with a larger budget restores
+     * the natural extent.
      *
      * <ul>
      *   <li>Text-bearing elements wrap their text to the budget, growing taller
@@ -129,7 +128,7 @@ public interface PanelElement {
      */
     default int extraLayoutHeight() { return 0; }
 
-    // ── Reactive sizing: height flows DOWN to filling elements ─────────
+    // Sizing: height flows down to filling elements.
 
     /** Whether this element takes its height from the panel ({@link #fillHeight}). Default {@code false}. */
     default boolean fillsHeight() { return false; }
@@ -152,16 +151,12 @@ public interface PanelElement {
      */
     default void wrapHeight(int height) {}
 
-    // ── Visibility ─────────────────────────────────────────────────────
-
     /**
      * Returns whether this element is currently visible. Invisible elements are
      * not rendered and receive no input. Default: always visible. MenuKit's
      * elements read their builder's {@code visibleWhen} here.
      */
     default boolean isVisible() { return true; }
-
-    // ── Hover Convenience ──────────────────────────────────────────────
 
     /**
      * Returns whether the mouse is over this element in this render pass, using
@@ -170,8 +165,6 @@ public interface PanelElement {
     default boolean isHovered(RenderContext ctx) {
         return ctx.isHovered(getChildX(), getChildY(), getWidth(), getHeight());
     }
-
-    // ── Tooltip (universal hover-float contract) ───────────────────────
 
     /**
      * The element's hover-tooltip text supplier, or {@code null} if none.
@@ -198,7 +191,7 @@ public interface PanelElement {
         MKTooltip.queue(ctx.graphics(), text, ctx.mouseX(), ctx.mouseY());
     }
 
-    // ── Rendering ──────────────────────────────────────────────────────
+    // Rendering
 
     /**
      * Renders this element at {@code (ctx.originX() + getChildX(),
@@ -216,7 +209,7 @@ public interface PanelElement {
      */
     default void renderOverlay(RenderContext ctx) {}
 
-    // ── Input ──────────────────────────────────────────────────────────
+    // Input
 
     /**
      * The screen-space bounds {@code [x, y, width, height]} of this element's
@@ -289,7 +282,7 @@ public interface PanelElement {
      * Whether this element is solid, which matters on a <em>transparent</em>
      * panel: there a panel claims only its solid elements (shown, opaque and
      * {@linkplain #isInteractive interactive}). On an opaque panel the panel
-     * claims its whole rectangle (§0065). Builders set it with {@code opaque}.
+     * claims its whole rectangle. Builders set it with {@code opaque}.
      */
     default boolean isElementOpaque() { return true; }
 
@@ -304,7 +297,7 @@ public interface PanelElement {
     /**
      * Whether this element presents a live menu slot under the event's point.
      * An opaque panel claims its whole rectangle; a slot the panel itself
-     * presents stays live under that claim (§0065). Default {@code false}.
+     * presents stays live under that claim. Default {@code false}.
      */
     default boolean presentsSlotAt(InputContext in) { return false; }
 

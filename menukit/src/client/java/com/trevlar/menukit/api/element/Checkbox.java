@@ -17,8 +17,7 @@ import java.util.function.Supplier;
 
 /**
  * A boolean setting as a small square with a check mark and a label beside it:
- * the settings-screen convention, and a lens onto the consumer's boolean (§0026,
- * §0066).
+ * the settings-screen convention, and a lens onto the consumer's boolean.
  *
  * <pre>{@code
  * Checkbox.builder()
@@ -93,8 +92,6 @@ public class Checkbox extends AbstractPanelElement {
         return new Builder();
     }
 
-    // ── Size: from the label ───────────────────────────────────────────
-
     @Override
     public int naturalWidth() {
         Component text = label.get();
@@ -130,8 +127,6 @@ public class Checkbox extends AbstractPanelElement {
     public void fillWidth(int width) {}
 
     @Override public boolean isInteractive() { return true; }
-
-    // ── Rendering ──────────────────────────────────────────────────────
 
     @Override
     public void render(RenderContext ctx) {
@@ -174,8 +169,6 @@ public class Checkbox extends AbstractPanelElement {
         if (hovered) queueTooltip(ctx);
     }
 
-    // ── Input ──────────────────────────────────────────────────────────
-
     @Override
     public boolean mouseClicked(InputContext in, int button) {
         if (button != Click.LEFT || disabled(in)) return false;
@@ -202,8 +195,6 @@ public class Checkbox extends AbstractPanelElement {
     public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
         if (widget != null) widget.detach(screen);
     }
-
-    // ── Builder ────────────────────────────────────────────────────────
 
     public static class Builder extends AbstractPanelElement.Builder<Checkbox, Builder> {
         private @Nullable Supplier<Component> label;

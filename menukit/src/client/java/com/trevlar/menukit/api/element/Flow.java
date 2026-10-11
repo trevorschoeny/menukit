@@ -22,14 +22,15 @@ import java.util.Objects;
  *         .build();
  * }</pre>
  *
- * <h3>Spacers: label left, control right (§0066)</h3>
+ * <h3>Spacers: label left, control right</h3>
  *
  * {@link #spacer()} is a gap that takes whatever the row's other children and
  * gaps leave of the Flow's width, split evenly among the row's spacers (the odd
  * pixel to the last). The Flow's gap sits only between two pieces of content; a
  * spacer adds its share and never a gap of its own, so a row's natural width and
- * its layout count the same pixels wherever the spacer sits. A row with a spacer therefore fills the Flow's width: a
- * label, a spacer and a control is a settings row with the control pinned to the
+ * its layout count the same pixels wherever the spacer sits. A row with a spacer
+ * therefore fills the Flow's width: a label, a spacer and a control is a settings
+ * row with the control pinned to the
  * right edge, at whatever width the panel has, with no width handed to whoever
  * built it (a {@link Tabs} body factory never knows its width). A spacer at
  * each end of a one-row Flow centres what is between them. When the row is
@@ -140,7 +141,7 @@ public final class Flow extends AbstractPanelElement {
         @Override public void render(RenderContext ctx) {}
     }
 
-    // ── Layout ─────────────────────────────────────────────────────────
+    // Layout
 
     /** Stores the room the panel gives the Flow: the width its rows wrap at. */
     @Override
@@ -227,8 +228,8 @@ public final class Flow extends AbstractPanelElement {
             // The gap sits between two pieces of content only. A spacer spends no gap
             // of its own (it is the stretchable part of one), so this pass counts the
             // same pixels naturalWidth() does and a row that fits by the natural width
-            // never wraps one gap early (Trev's 6.1.0 smoke, 2026-10-11: a leading
-            // spacer cost a gap here but not there, and Inventory Plus's Sort wrapped).
+            // never wraps one gap early. When a leading spacer cost a gap here but not
+            // there, Inventory Plus's Sort button wrapped to a second row.
             if (!spacer && hasContent) x += gapX;
             row.add(c);
             x += w;
@@ -394,7 +395,7 @@ public final class Flow extends AbstractPanelElement {
     @Override
     public void fillWidth(int width) {}
 
-    // ── Render and input (the children share the Flow's origin) ────────
+    // Render and input. The children share the Flow's origin.
 
     @Override
     public void render(RenderContext ctx) {
@@ -463,8 +464,6 @@ public final class Flow extends AbstractPanelElement {
     public void onDetach(Screen screen) {
         ChildDispatch.detach(children, screen);
     }
-
-    // ── Builder ────────────────────────────────────────────────────────
 
     public static final class Builder extends AbstractPanelElement.Builder<Flow, Builder> {
         private final List<PanelElement> children = new ArrayList<>();

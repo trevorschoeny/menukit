@@ -14,8 +14,8 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * A single-line text field: vanilla's {@link EditBox} (§0020), laid out and
- * lensed by MenuKit (§0026, §0066). Vanilla owns the input mechanism (selection,
+ * A single-line text field: vanilla's {@link EditBox}, laid out and
+ * lensed by MenuKit. Vanilla owns the input mechanism (selection,
  * IME, copy and paste, word navigation, the caret, the hint, the I-beam cursor);
  * MenuKit owns placement, the lens and the disabled cascade. The vanilla widget
  * is exposed through {@link #widget()}.
@@ -90,7 +90,7 @@ public class TextField extends AbstractPanelElement {
     }
 
     /**
-     * The vanilla widget this element draws and registers (§0020), or
+     * The vanilla widget this element draws and registers, or
      * {@code null} before the field's first screen init.
      */
     public @Nullable EditBox widget() {
@@ -108,8 +108,6 @@ public class TextField extends AbstractPanelElement {
         editBox.setValue(stateGet.get());
         editBox.setResponder(stateSet);
     }
-
-    // ── PanelElement ───────────────────────────────────────────────────
 
     @Override public boolean isInteractive() { return true; }
 
@@ -145,8 +143,6 @@ public class TextField extends AbstractPanelElement {
         if (editBox != null) Focus.removeWidget(screen, editBox);
         attachedScreen = null;
     }
-
-    // ── Builder ────────────────────────────────────────────────────────
 
     public static class Builder extends AbstractPanelElement.Builder<TextField, Builder> {
         private @Nullable Supplier<String> stateGet;
@@ -227,8 +223,6 @@ public class TextField extends AbstractPanelElement {
             return new TextField(this);
         }
     }
-
-    // ── The vanilla widget ─────────────────────────────────────────────
 
     /**
      * Vanilla's EditBox with MenuKit's two differences: Enter goes to

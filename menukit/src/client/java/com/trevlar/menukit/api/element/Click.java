@@ -50,7 +50,7 @@ public record Click(int button, boolean shift, boolean ctrl, boolean alt) {
     public boolean isRight()  { return button == RIGHT; }
     public boolean isMiddle() { return button == MIDDLE; }
 
-    /** Right-click with shift held, the "pin this mode" gesture IP asked for. */
+    /** Right-click with shift held, for example a "pin this mode" gesture. */
     public boolean isShiftRight() { return isRight() && shift; }
 
     /** Any button other than left. What the secondary-click handlers receive. */

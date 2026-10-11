@@ -114,7 +114,7 @@ public class ScrollContainer extends AbstractPanelElement {
      * ends {@code Entry.CONTENT_PADDING} (2) inside the row, so 10; Controls'
      * {@code KeyBindsList.KeyEntry} ends its last button at {@code scrollBarX() - 10}.
      * MenuKit adds 4 to that: a settings page of labels, headings and wrapped text
-     * read cramped at vanilla's 10, whose lists hold only buttons (Trev, 2026-10-03).
+     * read cramped at vanilla's 10, whose lists hold only buttons.
      */
     public static final int OPTIONS_INSET_X = 14;
     /**
@@ -122,7 +122,7 @@ public class ScrollContainer extends AbstractPanelElement {
      * last: vanilla's list padding ({@code AbstractSelectionList.getFirstEntryY()}
      * is the list's top + 2, {@code contentHeight()} the rows + 4) plus a row's
      * {@code Entry.CONTENT_PADDING} (2), which is 4. MenuKit uses 10: at 4 the first
-     * heading sat on the band's top separator (Trev, 2026-10-03). It scrolls with the
+     * heading sat on the band's top separator. It scrolls with the
      * content, as vanilla's does.
      */
     public static final int OPTIONS_INSET_Y = 10;
@@ -185,7 +185,7 @@ public class ScrollContainer extends AbstractPanelElement {
         return max;
     }
 
-    // ── Geometry ───────────────────────────────────────────────────────
+    // Geometry
 
     private int viewportWidth() {
         return width - TRACK_WIDTH - SCROLLER_GUTTER;
@@ -246,8 +246,6 @@ public class ScrollContainer extends AbstractPanelElement {
         ScreenKind k = ctx.kind();
         return childContext(ctx.at(ctx.originX() + childX + insetX(k), ctx.originY() + childY + insetY(k) - (int) scroll(k)));
     }
-
-    // ── PanelElement ───────────────────────────────────────────────────
 
     /** Column fill widens the viewport; floored so the scrollbar lane always fits. */
     @Override
@@ -393,8 +391,6 @@ public class ScrollContainer extends AbstractPanelElement {
     public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
         ChildDispatch.detach(content, screen);
     }
-
-    // ── Builder ────────────────────────────────────────────────────────
 
     public static class Builder extends AbstractPanelElement.Builder<ScrollContainer, Builder> {
         private List<PanelElement> content = List.of();

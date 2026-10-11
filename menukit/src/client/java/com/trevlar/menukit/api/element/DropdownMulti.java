@@ -15,8 +15,7 @@ import java.util.function.Supplier;
 
 /**
  * A multi-selection dropdown: a trigger summarising the chosen set, and a
- * popover list where each row toggles its item. A lens onto the consumer's set
- * (§0026, §0066).
+ * popover list where each row toggles its item. A lens onto the consumer's set.
  *
  * <pre>{@code
  * DropdownMulti.<String>builder().size(160, 20)
@@ -87,7 +86,7 @@ public final class DropdownMulti<T> extends PopoverControl<T> {
         stateSet.accept(Set.copyOf(next));
     }
 
-    // ── Pinned rows: Select all, then Clear all, when configured ───────
+    // Pinned rows: Select all, then Clear all, when configured
 
     @Override
     protected int pinnedRowCount() {
@@ -104,8 +103,6 @@ public final class DropdownMulti<T> extends PopoverControl<T> {
         boolean selectAll = index == 0 && selectAllLabel != null;
         stateSet.accept(selectAll ? Set.copyOf(items) : Set.of());
     }
-
-    // ── Check column ───────────────────────────────────────────────────
 
     @Override
     protected int checkColumnWidth() {

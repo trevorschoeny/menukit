@@ -15,8 +15,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * A slider: vanilla's {@link AbstractSliderButton} (§0020), laid out and
- * lensed by MenuKit (§0026, §0066). Vanilla owns the mechanism (drag, arrow keys,
+ * A slider: vanilla's {@link AbstractSliderButton}, laid out and
+ * lensed by MenuKit. Vanilla owns the mechanism (drag, arrow keys,
  * narration, sprites, the cursor, the sound); MenuKit owns placement, the lens
  * and the disabled cascade. The vanilla widget is exposed through
  * {@link #widget()}.
@@ -139,12 +139,10 @@ public class Slider<V> extends AbstractPanelElement {
         return d < 0.0 ? 0.0 : Math.min(d, 1.0);
     }
 
-    /** The vanilla widget this element draws and registers (§0020): for narration or focus checks. */
+    /** The vanilla widget this element draws and registers: for narration or focus checks. */
     public AbstractSliderButton widget() {
         return slider;
     }
-
-    // ── PanelElement ───────────────────────────────────────────────────
 
     @Override public boolean isInteractive() { return true; }
 
@@ -178,8 +176,6 @@ public class Slider<V> extends AbstractPanelElement {
         Focus.removeWidget(screen, slider);
         attachedScreen = null;
     }
-
-    // ── Builder ────────────────────────────────────────────────────────
 
     public static class Builder<V> extends AbstractPanelElement.Builder<Slider<V>, Builder<V>> {
         private final Scale<V> scale;
@@ -225,8 +221,6 @@ public class Slider<V> extends AbstractPanelElement {
             return new Slider<>(this);
         }
     }
-
-    // ── The vanilla widget ─────────────────────────────────────────────
 
     /**
      * Vanilla's slider wired to the lens: {@code applyValue} (a player's change)

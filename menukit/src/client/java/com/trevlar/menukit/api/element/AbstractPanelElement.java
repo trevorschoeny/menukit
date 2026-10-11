@@ -11,8 +11,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
- * Base of MenuKit's own elements: built once by a builder, immutable after
- * (§0066, applying §0022 to elements).
+ * Base of MenuKit's own elements: built once by a builder, immutable after.
  *
  * <h2>One vocabulary</h2>
  *
@@ -26,7 +25,7 @@ import java.util.function.Supplier;
  *   <li>{@code disabledWhen(supplier)}: greyed and inert while it holds.</li>
  *   <li>{@code tooltip(text)}: the hover tooltip.</li>
  *   <li>{@code state(get, set)}: the lens onto the consumer's value, on every
- *       element that shows one (§0026). An element never stores the value: it
+ *       element that shows one. An element never stores the value: it
  *       reads {@code get} every frame and hands a change to {@code set}.</li>
  *   <li>{@code onClick(Runnable)}: what a press does.</li>
  *   <li>{@code opaque(boolean)}: whether it is solid on a transparent panel.</li>
@@ -70,7 +69,7 @@ import java.util.function.Supplier;
  */
 public abstract class AbstractPanelElement implements PanelElement {
 
-    // ── Position (mutable only through the container protocol) ─────────
+    // Position, changed only through the container protocol.
 
     /** Element X within the panel content area. */
     protected int childX;
@@ -82,7 +81,7 @@ public abstract class AbstractPanelElement implements PanelElement {
      */
     protected int childY;
 
-    // ── Size: the one width-cap helper ─────────────────────────────────
+    // Size: the one width-cap helper.
 
     /** The resolved (live) width: the authored width, capped by the last layout pass. */
     protected int width;
@@ -93,7 +92,7 @@ public abstract class AbstractPanelElement implements PanelElement {
     /** The authored width, the cap's target; re-authored by {@link #fillWidth}. */
     protected int authoredWidth;
 
-    // ── Declared once, by the builder ──────────────────────────────────
+    // Declared once, by the builder.
 
     private final @Nullable BooleanSupplier visibleWhen;
     private final @Nullable BooleanSupplier disabledWhen;
@@ -101,9 +100,8 @@ public abstract class AbstractPanelElement implements PanelElement {
     private final boolean opaque;
     private final @Nullable String declId;
 
-    // ── Wrap-reflow baseline ───────────────────────────────────────────
     // The panel's reflow pushes elements down when an element above wraps. To stay
-    // reversible it needs each element's BASELINE Y (the authored or explicitly
+    // reversible it needs each element's baseline Y (the authored or explicitly
     // moved position), distinct from the live childY (baseline + push). A builder
     // sets it at construction; a custom element that assigns childY in its own
     // constructor has it captured lazily on the first reflow read. A move through
@@ -140,18 +138,16 @@ public abstract class AbstractPanelElement implements PanelElement {
         this.declId = null;
     }
 
-    // ── Position ───────────────────────────────────────────────────────
-
     @Override public int getChildX() { settle(); return childX; }
     @Override public int getChildY() { settle(); return childY; }
 
-    // ── A placement measured on first use ──────────────────────────────
-    // A Row or Column places its elements from their sizes, and a text-bearing
-    // element's size needs the game's font, which does not exist yet at mod init,
-    // where panels and dialogs are declared (§0063). So a Row or Column hands each
-    // element it places the one layout of the whole row, run on the first read of
-    // any member's position: in practice the panel's first layout pass, when the
-    // font is loaded. Render reads the fields only after that pass.
+    // A placement measured on first use. A Row or Column places its elements from
+    // their sizes, and a text-bearing element's size needs the game's font, which
+    // does not exist yet at mod init, where panels and dialogs are declared. So a
+    // Row or Column hands each element it places the one layout of the whole row,
+    // run on the first read of any member's position: in practice the panel's
+    // first layout pass, when the font is loaded. Render reads the fields only
+    // after that pass.
     private @Nullable Runnable pendingPlacement;
 
     /**
@@ -187,7 +183,7 @@ public abstract class AbstractPanelElement implements PanelElement {
         this.baselineCaptured = true;
     }
 
-    /** The baseline Y the panel's reflow stacks from. Package-private: {@code Panel}'s reflow reads it. */
+    /** The baseline Y the panel's reflow stacks from. Internal: {@code Panel}'s reflow reads it. */
     @ApiStatus.Internal
     public int reflowBaselineY() {
         settle();
@@ -198,13 +194,11 @@ public abstract class AbstractPanelElement implements PanelElement {
         return baselineY;
     }
 
-    /** Sets the live Y to baseline plus the reflow push, leaving the baseline alone. Package-private. */
+    /** Sets the live Y to baseline plus the reflow push, leaving the baseline alone. Internal. */
     @ApiStatus.Internal
     public void applyReflowedY(int y) {
         this.childY = y;
     }
-
-    // ── Size ───────────────────────────────────────────────────────────
 
     @Override public int getWidth() { return width; }
     @Override public int getHeight() { return height; }
@@ -220,8 +214,6 @@ public abstract class AbstractPanelElement implements PanelElement {
         this.authoredWidth = width;
         this.width = width;
     }
-
-    // ── The shared vocabulary, read ────────────────────────────────────
 
     @Override
     public boolean isVisible() {
@@ -258,8 +250,6 @@ public abstract class AbstractPanelElement implements PanelElement {
         return in.disabled() || ownDisabled();
     }
 
-    // ── The kind of screen ─────────────────────────────────────────────
-
     /**
      * The context a container hands its children: its own disabled state added to
      * what it was given (the cascade). Never re-enables. The kind of screen passes
@@ -276,10 +266,6 @@ public abstract class AbstractPanelElement implements PanelElement {
     protected final int textColor(RenderContext ctx, TextRole role) {
         return ctx.kind().textColor(disabled(ctx) ? TextRole.DISABLED : role);
     }
-
-    // ════════════════════════════════════════════════════════════════════
-    // Builder
-    // ════════════════════════════════════════════════════════════════════
 
     /**
      * The builder every MenuKit element's builder extends: the shared vocabulary,
@@ -364,7 +350,7 @@ public abstract class AbstractPanelElement implements PanelElement {
          * Whether the element is solid on a transparent panel ({@code Panel.opaque(false)}):
          * there only solid, interactive elements claim input, so a non-opaque one lets
          * clicks, hover and tooltips through to what is behind it. On an opaque panel
-         * it makes no difference (the panel claims its whole rectangle, §0065).
+         * it makes no difference (the panel claims its whole rectangle).
          * Default {@code true}. Was {@code setElementOpaque}.
          */
         public B opaque(boolean opaque) {

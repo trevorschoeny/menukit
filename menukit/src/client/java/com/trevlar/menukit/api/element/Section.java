@@ -63,7 +63,7 @@ import java.util.function.Supplier;
  * keeps it). {@code state(get, set)} hands it to the consumer instead: {@code get}
  * is read every frame and a header click hands the new value to {@code set}.
  *
- * <h3>Disabled look (§0066)</h3>
+ * <h3>Disabled look</h3>
  *
  * While disabled (its own {@code disabledWhen}, or its panel's or container's),
  * the arrow, title and summary draw in the disabled grey, the header takes no
@@ -141,7 +141,7 @@ public final class Section extends AbstractPanelElement {
         return openGet.getAsBoolean();
     }
 
-    // ── Layout ─────────────────────────────────────────────────────────
+    // Layout
 
     private int contentTop() {
         return childY + HEADER_HEIGHT + CONTENT_GAP;
@@ -217,7 +217,7 @@ public final class Section extends AbstractPanelElement {
 
     @Override public boolean isInteractive() { return true; }
 
-    // ── Render ─────────────────────────────────────────────────────────
+    // Rendering
 
     @Override
     public void render(RenderContext ctx) {
@@ -241,7 +241,7 @@ public final class Section extends AbstractPanelElement {
         // The header reads from the left on both kinds, where the section's content
         // starts. Vanilla's category header is centred (KeyBindsList.CategoryEntry), but
         // over a settings page of labels and controls a centred heading floats away
-        // from what it heads (Trev, 2026-10-03: "section headers align left").
+        // from what it heads.
         int x = hx + HEADER_INSET;
         g.text(font, arrow, x, textY, titleCol, shadow);
         x += font.width(arrow);
@@ -283,7 +283,7 @@ public final class Section extends AbstractPanelElement {
         return in.at(in.originX() + childX, in.originY() + contentTop()).disabledIf(ownDisabled());
     }
 
-    // ── Input ──────────────────────────────────────────────────────────
+    // Input
 
     private boolean onHeader(InputContext in) {
         return in.isOver(childX, childY, getWidth(), HEADER_HEIGHT);
@@ -354,8 +354,6 @@ public final class Section extends AbstractPanelElement {
     public void onDetach(Screen screen) {
         ChildDispatch.detach(children, screen);
     }
-
-    // ── Builder ────────────────────────────────────────────────────────
 
     public static final class Builder extends AbstractPanelElement.Builder<Section, Builder> {
         private final Component title;

@@ -20,12 +20,11 @@ import java.util.Objects;
  *   {@code false}; {@link #isHovered} returns {@code false} uniformly.</li>
  * </ul>
  *
- * <p>The {@code -1} sentinel for "no input dispatch" is a deliberate convention,
- * not a bug: HUDs render without input routing per library doctrine. Consumers
- * should use {@link #hasMouseInput()} and {@link #isHovered} rather than
- * inspecting the raw coordinates.
+ * <p>The {@code -1} sentinel is deliberate: HUDs render without input routing.
+ * Use {@link #hasMouseInput()} and {@link #isHovered} rather than inspecting the
+ * raw coordinates.
  *
- * <h3>The disabled cascade (§0066)</h3>
+ * <h3>The disabled cascade</h3>
  *
  * {@code disabled} is true when something around the element is disabled: its
  * panel ({@code Panel.disabledWhen}), or a container it sits in (a

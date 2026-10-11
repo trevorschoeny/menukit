@@ -14,66 +14,25 @@ import net.minecraft.util.Util;
 import java.util.List;
 
 /**
- * Shared text-rendering helper for MK widgets that render single-line
- * text inside a bounded width. Provides vanilla's overflow-scroll
- * behavior: when the text fits, it's drawn statically with the
- * requested alignment; when it doesn't, it scrolls back and forth
- * within the bounds, the same primitive vanilla's Button uses for
- * its label.
+ * Text drawing shared by MenuKit's elements: one line in a bounded width, and
+ * wrapped text.
  *
- * <h3>Why a helper</h3>
+ * <p>A single line that fits is drawn at the requested alignment. One that is
+ * wider than its bounds scrolls back and forth inside them, as vanilla's button
+ * labels do, so no text is ever cut off. Vanilla's own
+ * {@code GuiGraphicsExtractor.textRenderer().acceptScrolling(...)} always uses its
+ * centred model, so it cannot draw text left-aligned when it fits and scrolling
+ * when it does not; {@link #render} can.
  *
- * The underlying primitive is {@code GuiGraphicsExtractor.textRenderer()
- * .acceptScrolling(...)}, which always uses vanilla's centered scroll
- * model when the text overflows. Many MK widgets need LEFT-aligned
- * text when it fits, then graceful overflow scrolling, a combination
- * vanilla's API doesn't directly express. This helper bridges the
- * gap: align-when-it-fits, scroll-when-it-doesn't, single call site
- * per widget.
- *
- * <h3>Where this is used</h3>
- *
- * Every MK widget rendering single-line text inside a bounded width:
- * {@code Button} (centered), {@code Dropdown}/{@code DropdownMulti}
- * (trigger header + popover items, left-aligned), {@code TextLabel}
- * (single-line mode, configurable alignment), {@code ProgressBar}
- * (value text, centered). Excluded: widgets with auto-sized labels
- * ({@code Checkbox}, {@code Radio}, labels grow the widget to fit, no
- * overflow possible), multi-line modes ({@code TextLabel} multi-line,
- * {@code InfoBox}, wrapping is the intent), and HUD widgets (display-
- * style, wrap or stay short).
- *
- * <h3>Phase 18s follow-up</h3>
- *
- * Added in response to Trev's "scroll wherever there's text" directive.
- * Replaces ad-hoc truncate-with-ellipsis in Dropdown / DropdownMulti
- * and the no-overflow-handling state on Button / TextLabel.
+ * <p>Button, Toggle and ProgressBar centre their label with it, and the dropdowns
+ * draw their trigger and popover rows with it. An element whose label sizes the
+ * element (Checkbox, Radio) never overflows, and multi-line text wraps instead
+ * ({@link #drawWrapped}).
  */
 public final class Text {
 
     private Text() {}
 
-    /**
-     * Renders {@code text} within the rectangle (x1..x2, y1..y2) with
-     * the requested alignment. When the text fits within
-     * (x2 - x1), it's drawn statically at the aligned position. When
-     * it's wider, vanilla's scroll-back-and-forth animation kicks in
-     * within the bounds (alignment doesn't apply visually when
-     * scrolling, the text fills the bounds and moves).
-     *
-     * <p>{@code x1..x2} = the horizontal bounds. Text draws between them
-     * when scrolling.
-     * <br>{@code y1..y2} = the vertical bounds. Text is vertically
-     * centered in this range. Typically {@code (textY, textY + font.lineHeight)}.
-     * <br>{@code color} = ARGB (alpha non-zero, else vanilla silently
-     * discards the draw).
-     *
-     * @param shadow whether to draw a text shadow (matches vanilla
-     *               {@code drawString}'s {@code shadow} parameter; the
-     *               static-fit path passes it through, the scroll path
-     *               always renders with vanilla's default shadow
-     *               behavior)
-     */
     /**
      * Where to draw one line of text so it looks centred in the box from
      * {@code top} to {@code bottom}: vanilla's rule, {@code (top + bottom -
@@ -102,6 +61,19 @@ public final class Text {
         return (top + bottom - Math.max(1, lines) * font.lineHeight) / 2 + 1;
     }
 
+    /**
+     * Draws {@code text} in the box from {@code (x1, y1)} to {@code (x2, y2)}. Text
+     * that fits is drawn at {@code align}; wider text scrolls back and forth
+     * across the bounds with vanilla's animation, where the alignment no longer
+     * shows.
+     *
+     * <p>The text is centred vertically between {@code y1} and {@code y2}, usually
+     * {@code (textY, textY + font.lineHeight)}. {@code color} is ARGB and needs a
+     * non-zero alpha, or vanilla silently drops the draw.
+     *
+     * @param shadow whether to draw a text shadow. Only the fitting path uses it;
+     *               scrolling text always draws with vanilla's default shadow.
+     */
     public static void render(GuiGraphicsExtractor graphics, Component text,
                               TextAlignment align,
                               int x1, int x2, int y1, int y2,
@@ -110,46 +82,32 @@ public final class Text {
         int boundsW = x2 - x1;
         int textW = font.width(text);
         if (textW <= boundsW) {
-            // Fits, draw statically at the requested alignment.
-            //
-            // NOTE: not using TextAlignment.calculateLeft here because
-            // its arg semantics are surprising, it takes
-            // (anchorPoint, textWidth), where anchorPoint differs per
-            // alignment (left edge for LEFT, center for CENTER, right
-            // edge for RIGHT). Inlining the math is clearer and avoids
-            // the foot-gun of passing (containerWidth, textWidth).
+            // Not TextAlignment.calculateLeft: it takes (anchorPoint, textWidth),
+            // where the anchor is the left edge, the centre or the right edge
+            // depending on the alignment, and passing (containerWidth, textWidth)
+            // to it is an easy mistake. The arithmetic here is plainer.
             int textX = switch (align) {
                 case LEFT -> x1;
                 case CENTER -> x1 + (boundsW - textW) / 2;
                 case RIGHT -> x2 - textW;
             };
-            // Vertical centering inside y1..y2, by vanilla's rule, which is also
-            // what the scrolling branch below gets from vanilla: fitting and
-            // overflowing labels sit on the same row.
+            // Vanilla's centring rule, the same one the scrolling branch gets from
+            // vanilla, so fitting and overflowing labels sit on the same row.
             int textY = centeredTextY(y1, y2);
             graphics.text(font, text, textX, textY, color, shadow);
         } else {
-            // Overflows, defer to vanilla's scroll primitive. The
-            // signature is (text, centerX, x1, x2, y1, y2), there is
-            // NO color parameter on vanilla's scroll API, so color is
-            // applied via Style on the Component before handoff.
-            //
-            // centerX is the alignment anchor, only relevant when text
-            // fits (we already handled that above); for the actual
-            // scrolling animation, text traverses x1..x2 left-right.
-            //
-            // Scissor wrapping clips the animation to widget bounds:
-            // vanilla's acceptScrolling animates the text position each
-            // frame but does NOT scissor itself.
+            // Vanilla's scroll call is (text, centerX, x1, x2, y1, y2) with no
+            // colour parameter, so the colour goes on the Component's style.
+            // centerX only matters for text that fits, handled above; scrolling
+            // text moves across x1..x2. acceptScrolling does not scissor itself,
+            // so the scissor here clips the animation to the bounds.
             int centerX = switch (align) {
                 case LEFT -> x1;
                 case CENTER -> (x1 + x2) / 2;
                 case RIGHT -> x2;
             };
-            // Apply color via Style, strip alpha (TextColor.fromRgb
-            // takes RGB only; alpha is implicit in text rendering).
-            // Composes with existing Style so any bold/italic on the
-            // Component carries through.
+            // TextColor.fromRgb takes RGB only, so the alpha is masked off. The
+            // existing style is kept, so bold or italic still applies.
             MutableComponent colored = text.copy()
                     .withStyle(existing -> existing.withColor(
                             TextColor.fromRgb(color & 0x00FFFFFF)));
@@ -161,9 +119,8 @@ public final class Text {
     }
 
     /**
-     * Convenience: centered single-line scroll, vertically centered
-     * across {@code height} starting at {@code y}. Matches the
-     * vanilla button-label call shape.
+     * {@link #render} centred in the box at {@code (x, y)} of {@code width} by
+     * {@code height}, the shape of a vanilla button label.
      */
     public static void renderCentered(GuiGraphicsExtractor graphics, Component text,
                                        int x, int y, int width, int height,
@@ -173,10 +130,9 @@ public final class Text {
     }
 
     /**
-     * Convenience: left-aligned single-line scroll on a single text
-     * baseline. Vertical bounds are derived from font line height
-     * text draws at {@code y} with scroll-on-overflow inside
-     * {@code [x, x + width)}.
+     * {@link #render} left-aligned, with the text drawn at {@code y} and
+     * scrolling inside {@code [x, x + width)} when it overflows. The vertical
+     * bounds come from the font's line height.
      */
     public static void renderLeft(GuiGraphicsExtractor graphics, Component text,
                                    int x, int y, int width,
@@ -186,46 +142,27 @@ public final class Text {
                 color, shadow);
     }
 
-    // ── Scroll-from-time variant ───────────────────────────────────────
-    //
-    // Vanilla's ActiveTextCollector.acceptScrolling uses GLOBAL system
-    // time as the scroll-cycle clock, so the phase at any given moment
-    // depends on Util.getMillis() % cyclePeriod, text could be at the
-    // start, middle, or end of its scroll when the consumer first
-    // displays it. Fine for persistently-visible widgets (Button label,
-    // ProgressBar) where there's no meaningful "appears at moment X."
-    // Bad UX for transient surfaces (Dropdown popover items): when the
-    // user opens a dropdown, items already mid-scroll feel disorienting
-    //, they don't see the item's beginning, just whatever phase
-    // happens to be active.
-    //
-    // The {@link #renderFromOpenTime} variant reorients the cycle so
-    // {@code openTimeMillis} maps to "text at beginning visible." The
-    // math is vanilla's exact formula (cos+sin smoothing, 0.5 sec/
-    // pixel, 3-sec minimum cycle), just with an explicit time origin
-    // instead of global system time.
+    // Vanilla's ActiveTextCollector.acceptScrolling times its scroll cycle from
+    // global system time (Util.getMillis() % cyclePeriod), so text can be anywhere
+    // in its scroll when it first appears. That is fine for text that is always
+    // on screen (a button label), but in a popover that just opened the player
+    // would see rows already mid-scroll instead of their beginning.
+    // renderFromOpenTime uses vanilla's exact formula (cos and sin smoothing,
+    // 0.5 s per pixel, a 3 s minimum cycle) with its own time origin.
 
     /**
-     * Same as {@link #render} but the scroll cycle is anchored to
-     * {@code openTimeMillis}, at that instant the text is at its
-     * beginning (left-most position, fully visible from the start);
-     * the scroll then smoothly traverses to the end and back, repeating
-     * every {@code max(scrollDistance * 0.5, 3.0)} seconds (vanilla's
-     * cycle period formula).
+     * {@link #render}, with the scroll cycle starting at {@code openTimeMillis}:
+     * at that instant the text shows its beginning, then it scrolls to the end
+     * and back, repeating every {@code max(scrollDistance * 0.5, 3.0)} seconds
+     * (vanilla's cycle period). Text that fits is drawn as {@link #render} draws
+     * it, and {@code openTimeMillis} is ignored.
      *
-     * <p>When the text fits within bounds, falls through to the static-
-     * draw path same as {@link #render}, {@code openTimeMillis} is
-     * ignored because no scrolling occurs.
+     * <p>Use it for text that appears at a moment the player notices, such as a
+     * popover's rows. For text that is always shown, {@link #render} keeps every
+     * scrolling label in step.
      *
-     * <p>Use for transient overlay surfaces (Dropdown popover items,
-     * future modal toast text, etc.) where "open moment" is a meaningful
-     * event the user expects the scroll to anchor to. For persistently-
-     * visible widgets stick with {@link #render}, global-time sync
-     * across all such widgets reads as intentional.
-     *
-     * @param openTimeMillis the {@link Util#getMillis} value at the
-     *                       "open" instant. The scroll cycle's phase=0
-     *                       (text at beginning) lands at this time.
+     * @param openTimeMillis the {@link Util#getMillis} value when the surface
+     *                       opened; the text is at its beginning then
      */
     public static void renderFromOpenTime(GuiGraphicsExtractor graphics, Component text,
                                            TextAlignment align,
@@ -236,8 +173,7 @@ public final class Text {
         int boundsW = x2 - x1;
         int textW = font.width(text);
         if (textW <= boundsW) {
-            // Fits, same static-draw path as render(). openTimeMillis
-            // is irrelevant because no scrolling occurs.
+            // Fits: drawn as render() draws it, with no scroll to time.
             int textX = switch (align) {
                 case LEFT -> x1;
                 case CENTER -> x1 + (boundsW - textW) / 2;
@@ -248,14 +184,12 @@ public final class Text {
             return;
         }
 
-        // Overflows, replicate vanilla's scroll math with explicit
-        // time origin. See ActiveTextCollector.defaultScrollingHelper
-        // bytecode for the source formula.
+        // Vanilla's scroll math from ActiveTextCollector.defaultScrollingHelper,
+        // with an explicit time origin.
         int scrollDistance = textW - boundsW;
         double cyclePeriod = Math.max(scrollDistance * 0.5, 3.0);  // sec
-        // Add half-period offset so elapsedSec=0 → phase=0 (text at
-        // beginning). Vanilla's raw formula has phase=1 at t=0 (text
-        // at END); we want the opposite for the open-the-dropdown UX.
+        // A half-period offset, so that elapsedSec = 0 gives phase 0 (the text's
+        // beginning). Vanilla's formula has phase 1 (the end) at t = 0.
         double elapsedSec = (Util.getMillis() - openTimeMillis) / 1000.0
                           + cyclePeriod / 2.0;
         double cosT = Math.cos(2.0 * Math.PI * elapsedSec / cyclePeriod);
@@ -269,16 +203,12 @@ public final class Text {
         graphics.disableScissor();
     }
 
-    // ── The one wrap helper (6.0.0 plan, decision 5) ──────────────────
-    //
-    // Every text-bearing element wraps its text the same way: only when the
-    // text is wider than the room it has, split by vanilla's own font.split (the
-    // splitter chat, tooltips and book pages use, so the breaks match what a
-    // player expects), one line every lineHeight. TextLabel, InfoBox, Button,
-    // Toggle, Checkbox, Radio and Dropdown's trigger each carried their own copy
-    // of this; these three calls are the copy they share now. The decision stays
-    // reversible because an element keeps only the wrap width, recomputed on every
-    // layout pass: a wider pass returns 0 and the text is one line again.
+    // Wrapping. Every element with text wraps it the same way: only when the
+    // text is wider than its room, split by vanilla's font.split (the splitter
+    // chat, tooltips and book pages use, so the breaks match what a player
+    // expects), one line every lineHeight. An element keeps only the wrap width,
+    // recomputed on every layout pass, so a wider pass returns 0 and the text is
+    // one line again.
 
     /**
      * The width {@code text} should wrap to inside {@code available} pixels:
