@@ -26,7 +26,9 @@ import java.util.Objects;
  *
  * {@link #spacer()} is a gap that takes whatever the row's other children and
  * gaps leave of the Flow's width, split evenly among the row's spacers (the odd
- * pixel to the last). A row with a spacer therefore fills the Flow's width: a
+ * pixel to the last). The Flow's gap sits only between two pieces of content; a
+ * spacer adds its share and never a gap of its own, so a row's natural width and
+ * its layout count the same pixels wherever the spacer sits. A row with a spacer therefore fills the Flow's width: a
  * label, a spacer and a control is a settings row with the control pinned to the
  * right edge, at whatever width the panel has, with no width handed to whoever
  * built it (a {@link Tabs} body factory never knows its width). A spacer at
@@ -222,7 +224,12 @@ public final class Flow extends AbstractPanelElement {
                 x = 0;
                 rowH = 0;
             }
-            if (!row.isEmpty()) x += gapX;
+            // The gap sits between two pieces of content only. A spacer spends no gap
+            // of its own (it is the stretchable part of one), so this pass counts the
+            // same pixels naturalWidth() does and a row that fits by the natural width
+            // never wraps one gap early (Trev's 6.1.0 smoke, 2026-10-11: a leading
+            // spacer cost a gap here but not there, and Inventory Plus's Sort wrapped).
+            if (!spacer && hasContent) x += gapX;
             row.add(c);
             x += w;
             if (!spacer) rowH = Math.max(rowH, c.getHeight());
@@ -299,23 +306,27 @@ public final class Flow extends AbstractPanelElement {
                 lastContent = i;
             }
         }
+        // One gap between each two pieces of content, as in relayout(); spacers add
+        // only their share of what is left.
         int fixed = 0, spacers = 0;
+        boolean contentBefore = false;
         for (int i = 0; i < m.size(); i++) {
             PanelElement c = m.get(i);
-            if (i > 0) fixed += gapX;
             if (c instanceof Spacer) {
                 if (live(i, firstContent, lastContent, wrapped)) spacers++;
             } else {
+                if (contentBefore) fixed += gapX;
                 fixed += c.getWidth();
+                contentBefore = true;
             }
         }
         int leftover = Math.max(0, cap - fixed);
         int share = spacers > 0 ? leftover / spacers : 0;
         int odd = spacers > 0 ? leftover % spacers : 0;
         int x = 0, seen = 0;
+        contentBefore = false;
         for (int i = 0; i < m.size(); i++) {
             PanelElement c = m.get(i);
-            if (i > 0) x += gapX;
             if (c instanceof Spacer s) {
                 boolean live = live(i, firstContent, lastContent, wrapped);
                 if (live) seen++;
@@ -324,8 +335,10 @@ public final class Flow extends AbstractPanelElement {
                 s.y = childY + r.top();
                 x += s.w;
             } else {
+                if (contentBefore) x += gapX;
                 if (c instanceof AbstractPanelElement ape) ape.setChildPosition(childX + x, childY + r.top());
                 x += c.getWidth();
+                contentBefore = true;
             }
         }
         return x;

@@ -36,6 +36,7 @@ The kind changes how an element draws, never its size or behaviour, except that 
 
 ### Fixed
 
+- A horizontal `Flow` with a spacer no longer wraps one gap early. The row spent a gap beside a spacer that its natural width never counted, so a row handed exactly its natural width (a `TOP_ALIGN_RIGHT` toolbar of a spacer and three buttons) wrapped its last control onto a second row and grew taller. The gap now sits only between two pieces of content, in both the measure and the layout; a spacer adds just its share of the leftover. Rows with room to spare look the same as before.
 - A `Tabs` body or a panel that scrolled, then fitted (a section closed), then scrolled again (the section reopened) jumped back to its old offset instead of starting from the top. A body that fits now sets its offset to the top.
 - Input to a `Tabs` body before its first draw (a screen just rebuilt) went nowhere; the body is laid out for input as for drawing.
 - A dialog or a panel laid out with `Row` or `Column` can be built at mod init, where adapters are declared. `Row` and `Column` measured their elements in `build()`, and a label's or button's size needs the game's font, which does not exist yet at init, so `ConfirmDialog` and `AlertDialog` could only be built after the declaration freeze had closed. They now place their elements on the first read of any element's position, in practice the panel's first layout pass. A `Row` or `Column` holding a custom `ElementSpec` still lays out in `build()`, and a spacer without `width(px)` still throws there.
