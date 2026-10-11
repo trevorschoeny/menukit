@@ -65,7 +65,7 @@ dependencies {
     // can reference YACL classes. MenuKit does not depend on YACL at runtime: the
     // @Pseudo mixin is skipped silently when YACL is absent. YACL only reaches the
     // runtime through consumer mods that bundle it.
-    compileOnly "maven.modrinth:yacl:3.9.6+26.2-fabric"
+    compileOnly "maven.modrinth:yacl:3.9.7+26.3-fabric"
 }
 
 loom {
