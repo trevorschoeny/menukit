@@ -1,5 +1,5 @@
 /**
- * Internal to MenuKit. Outside the version contract (§0068): anything here may change
+ * Internal to MenuKit. Not covered by the version contract: anything here may change
  * or go in any release. The public API is the {@code api} packages.
  */
 @ApiStatus.Internal

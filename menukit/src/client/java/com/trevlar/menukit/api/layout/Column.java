@@ -7,19 +7,16 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Build-time vertical layout helper. Mirrors {@link Row} on the vertical
- * axis: computes per-child {@code childY} positions for a sequence of
- * {@link ElementSpec}s under uniform spacing and a cross-axis (horizontal)
- * alignment policy. Emits a flat list of positioned
- * {@link PanelElement}s.
+ * Lays elements out top to bottom, the vertical counterpart of {@link Row}: it
+ * positions each child with even spacing and a horizontal alignment, and returns a
+ * flat list of positioned {@link PanelElement}s.
  *
  * <p>Measured on first use, as {@link Row} is: the positions are computed on
  * the first read of any emitted element's position, so a Column builds at mod
  * init, before the game's font exists.
  *
- * <p>Same helper-not-container discipline as Row, Column does not
- * implement {@link PanelElement}, has no {@code render(...)} method, and
- * does not exist at runtime.
+ * <p>Like Row, Column is a helper, not a container: it is not a
+ * {@link PanelElement}, does not render, and is gone once built.
  *
  * <h3>Usage</h3>
  *
@@ -40,22 +37,17 @@ public final class Column {
     private Column() {}
 
     /**
-     * Begin a column layout at the given panel-local origin.
+     * Starts a column at a panel-local origin.
      *
-     * @param originX the panel-local X coordinate where the column sits
-     *                (cross-axis alignment is applied within
-     *                [originX, originX + maxChildWidth])
-     * @param originY the panel-local Y coordinate where the column's
-     *                first child's top edge will be placed
+     * @param originX panel-local X of the column; alignment applies within
+     *                [originX, originX + widest child]
+     * @param originY panel-local Y of the first child's top edge
      */
     public static Builder at(int originX, int originY) {
         return new Builder(originX, originY);
     }
 
-    /**
-     * Builder for a single column layout. Methods chain; terminate with
-     * {@link #build()} to emit the positioned element list.
-     */
+    /** Builds one column. Finish with {@link #build()}. */
     public static final class Builder {
 
         private final int originX;
@@ -69,7 +61,7 @@ public final class Column {
             this.originY = originY;
         }
 
-        /** Pixel spacing between adjacent children. Must be {@code >= 0}. */
+        /** Pixels between adjacent children. Must be {@code >= 0}. */
         public Builder spacing(int px) {
             if (px < 0) {
                 throw new IllegalArgumentException(
@@ -80,9 +72,8 @@ public final class Column {
         }
 
         /**
-         * Cross-axis (horizontal) alignment policy. Default
-         * {@link CrossAlign#START} aligns children to the column's
-         * left edge.
+         * Horizontal alignment. The default, {@link CrossAlign#START}, aligns
+         * children to the column's left edge.
          */
         public Builder crossAlign(CrossAlign align) {
             if (align == null) {
@@ -92,18 +83,17 @@ public final class Column {
             return this;
         }
 
-        /** Append an element to this column. */
+        /** Appends an element. */
         public Builder add(ElementSpec spec) {
             entries.add(LayoutEntry.fromSpec(spec));
             return this;
         }
 
         /**
-         * Append an ALREADY-CONSTRUCTED element (Pass 3), bridges the common
-         * case of laying out pre-built widgets, including under
-         * {@link CrossAlign#FILL}. The element must extend
+         * Appends an element that is already built, including under
+         * {@link CrossAlign#FILL}. It must extend
          * {@link com.trevlar.menukit.api.element.AbstractPanelElement} (every
-         * library widget does) so the layout can reposition it; a bare custom
+         * MenuKit element does) so the layout can move it; a bare custom
          * {@link PanelElement} throws at build time. See
          * {@link ElementSpec#of(PanelElement)}.
          */
@@ -112,7 +102,7 @@ public final class Column {
             return this;
         }
 
-        /** Append a nested column to this column. See {@link Row.Builder#addRow(Consumer)}. */
+        /** Appends a nested column. See {@link Row.Builder#addRow(Consumer)}. */
         public Builder addColumn(Consumer<Column.Builder> config) {
             Column.Builder nested = new Column.Builder(0, 0);
             config.accept(nested);
@@ -121,7 +111,7 @@ public final class Column {
             return this;
         }
 
-        /** Append a nested row to this column. */
+        /** Appends a nested row. */
         public Builder addRow(Consumer<Row.Builder> config) {
             Row.Builder nested = new Row.Builder(0, 0);
             config.accept(nested);
@@ -132,17 +122,16 @@ public final class Column {
         }
 
         /**
-         * Finalize layout and emit positioned elements. Returns a flat
-         * {@code List<PanelElement>} with {@code childX}/{@code childY}
-         * computed for each child.
+         * Returns the children as a flat list, each with its {@code childX} and
+         * {@code childY} set.
          */
         public List<PanelElement> build() {
             return LayoutEntry.placeOnFirstRead(entries, () -> buildAt(originX, originY));
         }
 
-        // ── Internal, used by nesting and by build() ─────────────────
+        // Used by nesting and by build()
 
-        /** Main-axis (vertical) extent: sum of child heights plus spacings. */
+        /** Height: the children's heights plus spacing. */
         int computeMainAxisExtent() {
             if (entries.isEmpty()) return 0;
             int sum = 0;
@@ -153,7 +142,7 @@ public final class Column {
             return sum;
         }
 
-        /** Cross-axis (horizontal) extent: max child width. */
+        /** Width: the widest child. */
         int computeCrossAxisExtent() {
             int max = 0;
             for (LayoutEntry e : entries) {
@@ -162,16 +151,13 @@ public final class Column {
             return max;
         }
 
-        /**
-         * Emit positioned elements at an arbitrary base origin, used by
-         * outer-helper translation when this Column is nested.
-         */
+        /** Lays the column out from any origin, as when it is nested. */
         List<PanelElement> buildAt(int baseX, int baseY) {
             int crossExtent = computeCrossAxisExtent();
             List<PanelElement> result = new ArrayList<>();
-            // FILL: collect the emitted LEAF elements for the post-pass stretch.
-            // Nested Row/Column entries are excluded, blanket-stretching their
-            // leaves would override the nested helper's own internal layout.
+            // FILL: collect the leaf elements to stretch afterwards. Nested rows and
+            // columns are left out, since stretching their leaves would override
+            // their own layout.
             List<PanelElement> fillTargets =
                     (crossAlign == CrossAlign.FILL) ? new ArrayList<>() : null;
             int y = baseY;
@@ -191,11 +177,11 @@ public final class Column {
                 y += entry.height();
                 if (i < entries.size() - 1) y += spacing;
             }
-            // FILL post-pass, compute the true fill extent from the POST-EMIT
-            // reported widths (a Toggle's getWidth() floors at its label, so the
-            // spec width can understate it), then stretch every leaf to it.
-            // Fill-capable widgets honor fillWidth and report the new width;
-            // auto-sized widgets no-op and stay intrinsic (left-aligned).
+            // FILL: take the widest width the leaves report after emitting (a
+            // Toggle's getWidth() is at least its label, so the spec width can be
+            // smaller), then stretch every leaf to it. Widgets that support
+            // fillWidth take the new width; auto-sized ones keep their own and stay
+            // left-aligned.
             if (fillTargets != null && !fillTargets.isEmpty()) {
                 int fillExtent = 0;
                 for (PanelElement e : fillTargets) {

@@ -12,25 +12,19 @@ import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
- * Internal, generalizes "thing the layout can place" so {@link Row} and
- * {@link Column} builders can mix element-specs and nested-helper entries
- * uniformly during the {@code build()} pass.
- *
- * <p>Two construction paths:
+ * Something a {@link Row} or {@link Column} can place, so the builders can mix
+ * element specs and nested layouts in {@code build()}.
  *
  * <ul>
- *   <li>{@link #fromSpec(ElementSpec)}, wraps an {@link ElementSpec};
- *       its {@code emitAt(x, y)} returns a single-element list via
+ *   <li>{@link #fromSpec(ElementSpec)} wraps an {@link ElementSpec}; its
+ *       {@code emitAt(x, y)} returns one element from
  *       {@link ElementSpec#at(int, int)}.</li>
- *   <li>{@link #fromNested(int, int, BiFunction)}, wraps a nested Row /
- *       Column builder; its {@code emitAt(x, y)} delegates to the nested
- *       builder's translate-and-emit function, which produces the nested
- *       layout's elements with positions adjusted by the outer translation.</li>
+ *   <li>{@link #fromNested} wraps a nested Row or Column builder; its
+ *       {@code emitAt(x, y)} returns the nested layout's elements, offset by the
+ *       outer position.</li>
  * </ul>
  *
- * <p>Package-private, not part of the public M8 surface. Consumers
- * compose layouts via {@link Row}/{@link Column} builders and never see
- * {@code LayoutEntry}.
+ * <p>Package-private: consumers only see the Row and Column builders.
  */
 final class LayoutEntry {
 
@@ -41,9 +35,9 @@ final class LayoutEntry {
     private final boolean leaf;
     private final boolean spacer;
     private final BiFunction<Integer, Integer, List<PanelElement>> emitter;
-    /** The built elements this entry places, or null when it constructs them at
-     *  layout (a custom {@link ElementSpec}) or cannot move them (a bare
-     *  {@link PanelElement}): then the whole layout runs at build. */
+    // The built elements this entry places, or null when it constructs them at
+    // layout (a custom ElementSpec) or cannot move them (a bare PanelElement); then
+    // the whole layout runs at build.
     private final @Nullable List<AbstractPanelElement> members;
 
     private LayoutEntry(IntSupplier width, IntSupplier height, boolean leaf, boolean spacer,
@@ -61,15 +55,14 @@ final class LayoutEntry {
     int height() { return height.getAsInt(); }
 
     /**
-     * True for a single-element {@link #fromSpec} entry; false for a nested
-     * Row/Column. Pass-3 column-fill stretches only leaf entries, blanket-
-     * stretching the leaves of a nested row would override that row's own
-     * internal horizontal layout.
+     * True for a single-element entry, false for a nested Row or Column. Column
+     * FILL stretches only leaf entries: stretching a nested row's leaves would
+     * override that row's own layout.
      */
     boolean isLeaf() { return leaf; }
 
-    /** True for {@link #spacer()}, a gap with no element, whose share of the
-     *  row's leftover width is resolved by the caller before emitting. */
+    /** True for {@link #spacer()}: a gap with no element, whose share of the
+     *  row's leftover width the caller works out before emitting. */
     boolean isSpacer() { return spacer; }
 
     List<PanelElement> emitAt(int x, int y) {
@@ -91,10 +84,8 @@ final class LayoutEntry {
     }
 
     /**
-     * Wraps a nested helper's bounds and translate-emit pair. The nested helper's
-     * {@code emitter} accepts the outer-layout origin and returns the nested
-     * layout's elements with their {@code childX}/{@code childY} computed against
-     * that origin.
+     * Wraps a nested layout's bounds and emitter. The emitter takes the origin in
+     * the outer layout and returns the nested elements positioned from it.
      */
     static LayoutEntry fromNested(IntSupplier width, IntSupplier height,
             BiFunction<Integer, Integer, List<PanelElement>> emitter,
@@ -103,9 +94,8 @@ final class LayoutEntry {
     }
 
     /**
-     * A flexible gap: zero intrinsic width, emits nothing, and stands for
-     * "whatever room {@link Row.Builder#width(int)} leaves over", see
-     * {@link Row.Builder#addSpacer()}.
+     * A flexible gap: no width of its own, emits nothing, and takes whatever room
+     * {@link Row.Builder#width(int)} leaves over. See {@link Row.Builder#addSpacer()}.
      */
     static LayoutEntry spacer() {
         return new LayoutEntry(() -> 0, () -> 0, false, true, (x, y) -> List.of(), List.of());

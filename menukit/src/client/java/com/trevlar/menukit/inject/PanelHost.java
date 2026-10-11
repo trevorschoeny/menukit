@@ -44,11 +44,11 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * One place panels live (§0065). Each of the five contexts instantiates a host: a
- * container screen, a non-container vanilla screen, a slot group, the HUD, a
- * standalone screen ({@code MKScreen}, {@code CustomContainerScreen}). The five stay as
- * mental models (§0028); the five copies of stacking, budget, render, claim and
- * dispatch collapse into this class.
+ * One place panels live. Each of the five contexts makes a host: a container
+ * screen, a non-container vanilla screen, a slot group, the HUD, and a standalone
+ * screen ({@code MKScreen}, {@code CustomContainerScreen}). The contexts stay
+ * distinct, but stacking, budgets, rendering, claims and dispatch are written once,
+ * here.
  *
  * <h2>What a host owns</h2>
  * <ul>
@@ -87,7 +87,7 @@ public final class PanelHost {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
-    // ── Types ──────────────────────────────────────────────────────────
+    // Types
 
     /** The five contexts. Each names what its host places against. */
     public enum Kind {
@@ -209,7 +209,7 @@ public final class PanelHost {
         void draw(GuiGraphicsExtractor graphics, Placed placed);
     }
 
-    // ── State ──────────────────────────────────────────────────────────
+    // State
 
     private final Kind kind;
     /**
@@ -310,7 +310,7 @@ public final class PanelHost {
     /** Standalone: drawn between a panel's background and its elements. */
     public PanelHost decoration(Decoration decoration) { this.decoration = decoration; return this; }
 
-    // ── Entries ────────────────────────────────────────────────────────
+    // Entries
 
     /** The next registration sequence number: the final, per-process tie-break. */
     private static final AtomicInteger SEQ = new AtomicInteger();
@@ -387,7 +387,7 @@ public final class PanelHost {
         }
     }
 
-    // ── The one isShown, the one claim rule ────────────────────────────
+    // Shown and claim rules
 
     /**
      * The one "is this panel shown" answer: its own visibility (imperative or
@@ -400,8 +400,8 @@ public final class PanelHost {
     }
 
     /**
-     * The claim rule (§0065 as reworded 2026-09-27): does this placed panel
-     * take the point, so whatever lies beneath it is inert?
+     * The claim rule: does this placed panel take the point, so whatever lies
+     * beneath it is inert?
      *
      * <ol>
      *   <li>An element's <b>active overlay</b> (an open Dropdown popover) claims its
@@ -455,7 +455,7 @@ public final class PanelHost {
     }
 
     /**
-     * The input context for a placed panel's elements (§0066): its content origin,
+     * The input context for a placed panel's elements: its content origin,
      * the event's point, whether the panel is disabled (the cascade), and this
      * host's kind of screen, as its render context carries.
      */
@@ -523,7 +523,7 @@ public final class PanelHost {
         return null;
     }
 
-    // ── Layout ─────────────────────────────────────────────────────────
+    // Layout
 
     /** This frame's placements, bottom to top. */
     public List<Placed> placed() {
@@ -715,8 +715,8 @@ public final class PanelHost {
      * sum plus gaps. Each side takes its largest region. Overlays and in-frame CENTER
      * panels need no band.
      *
-     * <p>ponytail: panels are measured against the screen-wide budget here, before the
-     * frame exists; {@link #place} re-feeds the anchor budget. A top or bottom panel that
+     * <p>Known limit: panels are measured against the screen-wide budget here, before
+     * the frame exists; {@link #place} re-feeds the anchor budget. A top or bottom panel that
      * wraps taller under the narrower anchor budget can still miss its band. Measure
      * twice (frame, then bands) if that ever shows up.
      */
@@ -807,7 +807,7 @@ public final class PanelHost {
                 e.panel().id(), kind.label(), what);
     }
 
-    // ── Render ─────────────────────────────────────────────────────────
+    // Render
 
     /** How many live panels are rendering right now (render thread only). */
     private static int liveRenderDepth = 0;
@@ -870,7 +870,7 @@ public final class PanelHost {
         }
     }
 
-    // ── Input ──────────────────────────────────────────────────────────
+    // Input
 
     /** Routes a click to this host's panels alone; see {@link #mouseClicked(List, double, double, int, boolean)}. */
     public boolean mouseClicked(double mouseX, double mouseY, int button, boolean modalUp) {
@@ -1030,7 +1030,7 @@ public final class PanelHost {
         for (Entry e : entries) ChildDispatch.detach(e.panel().getElements(), screen);
     }
 
-    // ── Registering mod (the tie-break after priority) ─────────────────
+    // Registering mod, the tie-break after priority
 
     /**
      * The mod that called into MenuKit: the first stack frame outside MenuKit's

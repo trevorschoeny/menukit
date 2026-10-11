@@ -5,16 +5,15 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import java.util.List;
 
 /**
- * Which screens a registered-slot presence (or any screen-complete feature) applies
- * to, the consumer-facing expression of inventory-screen parity's
- * <b>default-on, opt-out-per-screen</b> rule.
+ * Which screens a registered slot (or any feature meant for every inventory screen)
+ * applies to. Features are <b>on everywhere by default, and opted out per
+ * screen</b>.
  *
- * <p>The default ({@link #all()}) is the full inventory-bearing screen family:
- * every {@link AbstractContainerScreen}. Under parity that is the right default.
- * a consumer registers intent once and it manifests everywhere it could. Naming
- * specific screens is therefore an explicit <em>narrowing</em>, the inverse of
- * the old footgun where {@code .on(InventoryScreen)} silently missed creative
- * (siblings, not parent/child):
+ * <p>The default, {@link #all()}, is every {@link AbstractContainerScreen}: you
+ * register once and the feature appears on every screen it could. Naming screens
+ * <em>narrows</em> that on purpose. It avoids the old trap where
+ * {@code .on(InventoryScreen)} quietly missed creative, which is a sibling class,
+ * not a subclass:
  * <ul>
  *   <li>{@link #all()}, every container screen (the default).</li>
  *   <li>{@link #allExcept(Class...)}, every container screen but the named ones
@@ -24,10 +23,9 @@ import java.util.List;
  *
  * <p>Matching is by class ancestry, the same {@code isAssignableFrom} test
  * {@link ScreenPanelAdapter#matches} uses, so naming a base class matches its
- * subclasses. This is the one matching primitive parity reuses; it is not a
- * second screen-matcher.
+ * subclasses.
  *
- * <p>Immutable value type. Reuse one instance across presences freely.
+ * <p>Immutable; one instance can be shared freely.
  */
 public final class ScreenMatcher {
 
@@ -41,14 +39,14 @@ public final class ScreenMatcher {
         this.classes = classes;
     }
 
-    /** Every inventory-bearing screen, the parity default. */
+    /** Every inventory screen: the default. */
     public static ScreenMatcher all() {
         return new ScreenMatcher(Mode.ALL, List.of());
     }
 
     /**
-     * Every inventory-bearing screen <em>except</em> the named ones (and their
-     * subclasses). The clean way to opt a slot out of a specific screen, e.g.
+     * Every inventory screen <em>except</em> the named ones and their subclasses.
+     * Opts a slot out of specific screens, as in
      * {@code allExcept(CreativeModeInventoryScreen.class)}.
      */
     public static ScreenMatcher allExcept(Class<?>... screens) {
@@ -57,8 +55,8 @@ public final class ScreenMatcher {
     }
 
     /**
-     * Only the named screens (and their subclasses). Full narrowing, use when a
-     * slot genuinely belongs on a closed set of screens rather than everywhere.
+     * Only the named screens and their subclasses, for a slot that belongs on a
+     * fixed set of screens rather than everywhere.
      */
     public static ScreenMatcher only(Class<?>... screens) {
         if (screens.length == 0) {
@@ -70,9 +68,8 @@ public final class ScreenMatcher {
     }
 
     /**
-     * Whether this matcher applies to the given opened screen's class. The mixins
-     * already gate on {@code AbstractContainerScreen}, so {@link Mode#ALL} is an
-     * unconditional yes.
+     * Whether this matcher applies to an open screen's class. The mixins already
+     * check for {@code AbstractContainerScreen}, so {@code all()} always matches.
      */
     public boolean matches(Class<?> screenClass) {
         return switch (mode) {
@@ -82,7 +79,6 @@ public final class ScreenMatcher {
         };
     }
 
-    /** True iff any of the listed classes is assignable from {@code screenClass}. */
     private boolean anyAssignableFrom(Class<?> screenClass) {
         for (Class<?> c : classes) {
             if (c.isAssignableFrom(screenClass)) return true;

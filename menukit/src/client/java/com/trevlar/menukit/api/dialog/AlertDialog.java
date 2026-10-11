@@ -16,17 +16,16 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Builder for a modal acknowledge dialog. Composes a {@link Panel} from
- * existing primitives ({@link TextLabel}, {@link Button}, M8 layout helpers)
- * and ships it with {@link Panel#modal() modal flags} pre-configured
- * (opaque + dimsBehind + tracksAsModal).
+ * Builds a modal dialog with one acknowledge button. It is an ordinary
+ * {@link Panel} made of {@link TextLabel}s, a {@link Button} and the layout
+ * helpers, with the {@link Panel#modal() modal flags} already set (opaque,
+ * dimsBehind, tracksAsModal).
  *
- * <p>Structurally a subset of {@link ConfirmDialog}: same shell (title +
- * body + button row), one button instead of two. Use case: information
- * surfaces the user must explicitly acknowledge before continuing.
- * operation-failed messages, completion confirmations, version-change notices.
+ * <p>The same shell as {@link ConfirmDialog} (title, body, button row) with one
+ * button instead of two. For messages the player has to acknowledge before going
+ * on: a failed operation, a finished one, a version-change notice.
  *
- * <h3>Canonical usage</h3>
+ * <h3>Usage</h3>
  *
  * <pre>{@code
  * private boolean noAllaysAlertOpen = false;
@@ -41,8 +40,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * new ScreenPanelAdapter(alert).on(MyMenuScreen.class);
  * }</pre>
  *
- * <p>See {@link ConfirmDialog} for cross-context applicability and the
- * multi-line body escape hatch, same constraints apply here.
+ * <p>See {@link ConfirmDialog} for where it can be shown and how to get a
+ * multi-line body; the same applies here.
  *
  * @see ConfirmDialog two-button confirm/cancel variant
  */
@@ -54,18 +53,16 @@ public final class AlertDialog {
     public static final int SECTION_GAP = 6;
     /** Default button width. */
     public static final int BUTTON_W = 60;
-    /** Default button height, matches vanilla's confirm-screen button proportions. */
+    /** Default button height, matching vanilla's confirm-screen buttons. */
     public static final int BUTTON_H = 20;
 
-    /** Default acknowledge label. */
     private static final Component DEFAULT_ACKNOWLEDGE_LABEL = Component.literal("OK");
 
-    /** Counter for auto-generated panel IDs. */
     private static final AtomicLong AUTO_ID_COUNTER = new AtomicLong();
 
     private AlertDialog() {}
 
-    /** Begins an AlertDialog builder. */
+    /** Starts an AlertDialog builder. */
     public static Builder builder() {
         return new Builder();
     }
@@ -89,8 +86,8 @@ public final class AlertDialog {
         /**
          * Body text shown below the title. Required.
          *
-         * <p>Single-line in v1. For multi-line bodies, compose the Panel
-         * manually, see {@link ConfirmDialog} class javadoc and DIALOGS.md §5.
+         * <p>One line. For a multi-line body, build the Panel yourself; see
+         * {@link ConfirmDialog}.
          */
         public Builder body(Component body) {
             this.body = Objects.requireNonNull(body, "body must not be null");
@@ -98,12 +95,12 @@ public final class AlertDialog {
         }
 
         /**
-         * Fired when the user clicks the Acknowledge button. Required.
+         * Runs when the player clicks the acknowledge button, or presses Escape.
+         * Required.
          *
-         * <p>The library does not auto-dismiss the dialog, consumer's
-         * callback is responsible for mutating their visibility state to
-         * close the dialog (typically setting their {@code dialogOpen}
-         * boolean to {@code false}).
+         * <p>The dialog does not close itself: the callback closes it by changing
+         * the state its visibility reads (typically setting a {@code dialogOpen}
+         * flag to {@code false}).
          */
         public Builder onAcknowledge(Runnable onAcknowledge) {
             this.onAcknowledge = Objects.requireNonNull(onAcknowledge,
@@ -111,7 +108,7 @@ public final class AlertDialog {
             return this;
         }
 
-        /** Override the Acknowledge button label. Default: "OK". */
+        /** The acknowledge button's label. Default "OK". */
         public Builder acknowledgeLabel(Component label) {
             this.acknowledgeLabel = Objects.requireNonNull(label,
                     "acknowledgeLabel must not be null");
@@ -119,9 +116,8 @@ public final class AlertDialog {
         }
 
         /**
-         * Override the Panel's id. Default: auto-generated unique id of the
-         * form {@code "alert-dialog-N"}. Specify explicitly when registering
-         * multiple alert dialogs to ensure stable IDs.
+         * The Panel's id. Defaults to a generated {@code "alert-dialog-N"}; set it
+         * when registering several alert dialogs so their ids stay stable.
          */
         public Builder id(String id) {
             this.id = Objects.requireNonNull(id, "id must not be null");
@@ -129,9 +125,9 @@ public final class AlertDialog {
         }
 
         /**
-         * Construct the configured dialog Panel. Modal-by-default via
-         * {@link Panel#modal()} (sets opaque + dimsBehind + tracksAsModal);
-         * starts hidden (visibility set via {@link Panel#visibleWhen}).
+         * Builds the dialog Panel: modal through {@link Panel#modal()} (opaque,
+         * dimsBehind, tracksAsModal) and hidden until {@link Panel#visibleWhen}
+         * shows it.
          *
          * @throws IllegalStateException if any required field
          *         (title, body, onAcknowledge) is unset
@@ -142,9 +138,8 @@ public final class AlertDialog {
             requireField(onAcknowledge, "onAcknowledge");
 
             final Runnable ackRun = onAcknowledge;
-            // Single button, wrap in a Row of one for layout consistency
-            // with ConfirmDialog (so the body's cross-axis centering math
-            // matches whether one or two buttons render).
+            // The single button still goes in a Row, as in ConfirmDialog, so the
+            // centring works the same with one button or two.
             List<PanelElement> elements = Column.at(PADDING, PADDING)
                     .spacing(SECTION_GAP)
                     .crossAlign(CrossAlign.CENTER)
@@ -159,11 +154,8 @@ public final class AlertDialog {
                     ? id
                     : "alert-dialog-" + AUTO_ID_COUNTER.incrementAndGet();
 
-            // Build via Panel.builder() (B1), the fluent path that replaces
-            // the magic -1 positional ctor. modal() sets opaque + dimsBehind +
-            // tracksAsModal; onEscape wires the consumer's onAcknowledge so
-            // pressing Escape over the alert dismisses it (B3) exactly as
-            // clicking OK does, instead of closing the host screen.
+            // onEscape runs onAcknowledge, so Escape dismisses the alert exactly as
+            // clicking OK does instead of closing the screen underneath.
             return Panel.builder(panelId)
                     .elements(elements)
                     .visible(false)

@@ -9,15 +9,13 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
- * Exposes the protected leftPos/topPos fields of AbstractContainerScreen so that
- * other mixins can read the ACTUAL container position rather than re-computing it.
+ * Exposes AbstractContainerScreen's protected position and size fields so other
+ * code reads the actual container position instead of recomputing it.
  *
- * Why this exists: when the vanilla recipe book is open, AbstractContainerScreen shifts
- * leftPos rightward by ~77 px (roughly 4 hotbar slots). Any mixin that re-derives
- * leftPos as (screenWidth - containerWidth) / 2 will be wrong whenever the recipe book
- * is visible, causing indicators to appear on the wrong slots.
- *
- * Usage: cast the InventoryScreen instance to this interface via (AbstractContainerScreenAccessor)(Object)this
+ * <p>When the vanilla recipe book is open, the screen shifts leftPos right by
+ * about 77 px (roughly 4 hotbar slots). Anything that re-derives leftPos as
+ * (screenWidth - containerWidth) / 2 is wrong while the book is visible and puts
+ * indicators on the wrong slots.
  */
 @ApiStatus.Internal
 @Mixin(AbstractContainerScreen.class)
@@ -38,7 +36,7 @@ public interface AbstractContainerScreenAccessor {
     @Accessor("hoveredSlot")
     Slot mk$getHoveredSlot();
 
-    /** Vanilla's hovered-slot back highlight (private); re-issued by {@code ContainerScreenLayers}. */
+    /** Vanilla's private hovered-slot back highlight, re-issued by {@code ContainerScreenLayers}. */
     @Invoker("extractSlotHighlightBack")
     void mk$extractSlotHighlightBack(GuiGraphicsExtractor graphics);
 }

@@ -10,34 +10,26 @@ import java.util.Map;
 import org.jetbrains.annotations.ApiStatus;
 
 /**
- * Library-owned registry of vanilla-menu-chrome extents — the pixel
- * amounts each {@link AbstractContainerScreen} subclass draws <i>outside</i>
- * its declared {@code imageWidth × imageHeight} frame. The M5 region system
- * consults this registry when resolving MenuContext region origins so panels
- * anchor to the effective visible edge of the screen, not the declared
- * frame edge.
+ * How far each {@link AbstractContainerScreen} subclass draws <i>outside</i> its
+ * declared {@code imageWidth x imageHeight} frame. Region resolution reads this
+ * when computing MenuContext region origins, so panels anchor to the visible edge
+ * of the screen rather than the declared frame edge.
  *
- * <p>See {@code menukit/Design Docs/Phase 12.5/M7_CHROME_AWARE_REGIONS.md}
- * for the design rationale and Principle 9 tie-in.
+ * <h3>Exact class only</h3>
  *
- * <h3>Resolution — exact-class only</h3>
- *
- * {@link #of(AbstractContainerScreen)} looks up by {@code screen.getClass()}
- * — no inheritance walk. Rationale: vanilla subclass relationships don't
- * map to chrome relationships (creative's tabs live on
- * {@code CreativeModeInventoryScreen}; its parents don't draw tabs). Exact-
- * class-only is predictable and avoids the "register on a base class,
- * accidentally cover every screen in existence" foot-gun. Modded consumers
+ * {@link #of(AbstractContainerScreen)} looks up {@code screen.getClass()} with no
+ * inheritance walk. Vanilla's subclassing doesn't follow its chrome (creative's
+ * tabs are on {@code CreativeModeInventoryScreen}; its parents draw none), and a
+ * provider registered on a base class would otherwise cover every screen. Mods
  * register for their own concrete classes.
  *
- * <h3>Transition semantics</h3>
+ * <h3>Changes mid-session</h3>
  *
- * Chrome extents are recomputed per frame via {@link ChromeProvider}.
- * Dynamic providers read live screen state (recipe book open/closed);
- * static providers ignore the screen parameter and return a constant. When
- * a screen's chrome changes mid-session (recipe book toggle), there may
- * be a one-frame visual transition as the provider picks up the new state.
- * In practice imperceptible; acceptable for current cases.
+ * Extents are recomputed every frame through {@link ChromeProvider}. Dynamic
+ * providers read live screen state (recipe book open or closed); static ones
+ * ignore the screen and return a constant. When chrome changes, such as a recipe
+ * book toggle, there may be one frame before the provider picks it up, which in
+ * practice can't be seen.
  */
 @ApiStatus.Internal
 public final class MenuChrome {
@@ -47,42 +39,31 @@ public final class MenuChrome {
     private MenuChrome() {}
 
     /**
-     * Per-side chrome extents outside the declared menu frame.
-     * {@code top}/{@code left}/{@code right}/{@code bottom} are non-negative
-     * pixel amounts added to the frame's bounds to produce the effective
-     * visible boundary.
+     * Chrome outside the declared menu frame, per side: non-negative pixel amounts
+     * added to the frame's bounds to give the visible boundary.
      */
     public record ChromeExtents(int top, int left, int right, int bottom) {
-        /** All-zero extents — the default for screens without a registered provider. */
+        /** No chrome: the default for screens without a provider. */
         public static final ChromeExtents NONE = new ChromeExtents(0, 0, 0, 0);
     }
 
-    /**
-     * Computes chrome extents for a live screen instance. Providers take
-     * the screen even when their answer is static (they ignore it) so the
-     * interface is uniform across dynamic and static cases.
-     */
+    /** Computes chrome extents for a live screen. Static providers ignore the screen. */
     @FunctionalInterface
     public interface ChromeProvider {
         ChromeExtents compute(AbstractContainerScreen<?> screen);
     }
 
-    // Exact-class-only map — no inheritance walk.
+    // Keyed by exact class; no inheritance walk.
     private static final Map<Class<? extends AbstractContainerScreen<?>>, ChromeProvider> PROVIDERS
             = new HashMap<>();
 
     /**
-     * Registers a chrome provider for a screen class. First registration of
-     * a class wins; subsequent calls with the same class are no-ops with a
-     * warning log (same pattern as {@code SlotState.register}).
+     * Registers a chrome provider for a concrete screen class, at mod init. MenuKit's
+     * own providers register in {@code MenuKitClient.onInitializeClient}; mods
+     * register from their own {@code ClientModInitializer}.
      *
-     * <p>Called at mod init — library-shipped providers register during
-     * {@code MenuKitClient.onInitializeClient}; modded consumers register
-     * from their own {@code ClientModInitializer}.
-     *
-     * @param screenClass the concrete screen class
-     * @param provider    the provider
-     * @param <T>         the screen type
+     * @throws IllegalStateException if the class already has a provider, since load
+     *         order would otherwise decide which one applies
      */
     public static <T extends AbstractContainerScreen<?>> void register(
             Class<T> screenClass, ChromeProvider provider) {
@@ -97,12 +78,9 @@ public final class MenuChrome {
     }
 
     /**
-     * Returns the chrome extents for the given screen instance. Exact-class
-     * match on {@code screen.getClass()}; returns {@link ChromeExtents#NONE}
-     * for screens without a registered provider.
-     *
-     * <p>Called per-frame by the container-screen {@code PanelHost}'s frame as
-     * part of origin computation. Must be cheap.
+     * The chrome extents for the screen, matched on its exact class, or
+     * {@link ChromeExtents#NONE} without a provider. Called every frame when
+     * computing origins, so it must be cheap.
      */
     public static ChromeExtents of(AbstractContainerScreen<?> screen) {
         if (screen == null) return ChromeExtents.NONE;

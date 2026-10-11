@@ -14,13 +14,12 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Library-owned registered-slot input dispatch — the input half of inventory-screen
- * parity. (Render needs no slot mixin: a registered slot is drawn by vanilla's own
- * slot pass once its panel has written its {@code Slot.x/y} — see
- * {@code ContainerScreenLayers}.) Targets
- * {@code AbstractContainerScreen} so it covers every container screen (creative
- * routes its {@code mouseClicked} and slot-hover through the inherited
- * {@code AbstractContainerScreen} machinery — see the parity build notes).
+ * Input dispatch for registered slots. Rendering needs no slot mixin: vanilla's
+ * own slot pass draws a registered slot once its panel has written its
+ * {@code Slot.x/y} (see {@code ContainerScreenLayers}). Targets
+ * {@code AbstractContainerScreen} so it covers every container screen; creative
+ * routes its {@code mouseClicked} and slot hover through the inherited
+ * {@code AbstractContainerScreen} code.
  *
  * <h3>Hover ({@code getHoveredSlot})</h3>
  *
@@ -31,21 +30,22 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * Registered slots are appended <em>last</em> to {@code menu.slots}, so where a
  * registered slot sits over a vanilla slot, vanilla's first-hit
  * {@code getHoveredSlot} would return the covered vanilla slot. The hook resolves
- * the point against the revealed registered slots first and, when one wins, returns <b>the slot that is in {@code menu.slots}</b> — the raw
- * {@code CreatedSlot} on a survival inventory, the creative {@code SlotWrapper}
- * that wraps it on the creative screen. Returning the in-menu slot is load-bearing
- * in creative: its click path hard-casts the hovered slot to {@code SlotWrapper}.
+ * the point against the revealed registered slots first and, when one wins, returns
+ * <b>the slot that is in {@code menu.slots}</b>: the raw {@code CreatedSlot} on a
+ * survival inventory, or the creative {@code SlotWrapper} around it on the creative
+ * screen. Creative needs the in-menu slot because its click path hard-casts the
+ * hovered slot to {@code SlotWrapper}.
  * A {@code null} return for an in-panel gap makes the covered vanilla slot inert.
  *
  * <h3>Click ({@code mouseClicked})</h3>
  *
  * Eats clicks that land in a revealed panel's empty space so a carried item
- * can't drop through to the covered vanilla slot. A click on a revealed slot
- * <em>slot</em> is not eaten here — {@code getHoveredSlot} above already routes it
- * to the slot.
+ * can't drop through to the covered vanilla slot. A click on a revealed
+ * <em>slot</em> is not eaten here, because {@code getHoveredSlot} above already
+ * routes it to the slot.
  *
- * <p>Both forward to {@link SlotScreenDispatcher}, which no-ops without
- * MenuKit-Containers (§0062).
+ * <p>Both forward to {@link SlotScreenDispatcher}, which does nothing without
+ * MenuKit-Containers.
  */
 @Mixin(AbstractContainerScreen.class)
 public abstract class MKSlotInputMixin {
@@ -53,7 +53,7 @@ public abstract class MKSlotInputMixin {
     @Inject(method = "getHoveredSlot", at = @At("HEAD"), cancellable = true)
     private void mk$slotHover(double mouseX, double mouseY,
                                     CallbackInfoReturnable<Slot> cir) {
-        // A panel claims the point (§0065): a modal anywhere, an opaque panel's whole
+        // A panel claims the point: a modal anywhere, an opaque panel's whole
         // rectangle, a transparent panel's solid elements. Unless the claimant's own
         // slot is what sits there, no slot is hovered, so vanilla draws no highlight,
         // routes no click and queues no tooltip for whatever the panel covers. Asked

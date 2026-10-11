@@ -24,19 +24,17 @@ import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 /**
- * Builder entry point for HUD panels, visual elements rendered on the
- * game's heads-up display.
+ * Builds HUD panels: panels drawn on the game's heads-up display.
  *
- * <p>A HUD panel is a {@link Panel} in the HUD's host (§0065): render-only (no
- * input), placed on an {@link InsideRegion} spot of the game window, stacked with
+ * <p>A HUD panel is a {@link Panel} in the HUD's host: render only (no input),
+ * placed on an {@link InsideRegion} spot of the game window, stacked with
  * the other panels on that spot in priority order, sized to its content. Build once
  * from your client initializer (registration freezes at client start); MenuKit
  * renders it every frame the HUD draws.
  *
- * <p>Holds {@link PanelElement}s, the same abstraction used in inventory
- * menus and standalone screens. Elements are context-neutral; the HUD panel
- * supplies their {@link RenderContext} with {@code mouseX = -1} at render
- * time to signal "no input dispatch."
+ * <p>It holds the same {@link PanelElement}s as inventory menus and standalone
+ * screens. The HUD gives them a {@link RenderContext} with {@code mouseX = -1},
+ * meaning no input.
  *
  * <p>Usage:
  * <pre>{@code
@@ -48,26 +46,19 @@ import java.util.function.Supplier;
  *     .text(0, 12, () -> "Y: " + (int) player.getY())
  *     .build();
  * }</pre>
- *
- * <p>Part of the <b>MenuKit</b> framework.
  */
 public class HudPanel {
 
     private HudPanel() {} // static API only
 
     /**
-     * Creates a new HUD panel builder.
+     * Starts a HUD panel builder.
      *
-     * @param name unique identifier for this panel (used for visibility toggling)
-     * @return the builder
+     * @param name unique id for this panel
      */
     public static Builder builder(String name) {
         return new Builder(name);
     }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // Builder
-    // ═══════════════════════════════════════════════════════════════════
 
     public static class Builder {
         private final String name;
@@ -83,8 +74,6 @@ public class HudPanel {
         Builder(String name) {
             this.name = name;
         }
-
-        // ── Placement ────────────────────────────────────────────────
 
         /**
          * Where on the game window the panel sits: one of the nine
@@ -130,9 +119,7 @@ public class HudPanel {
             return this;
         }
 
-        // ── Panel configuration ──────────────────────────────────────
-
-        /** Sets inner padding (space between panel edge and content). */
+        /** Inner padding between the panel edge and its content. */
         public Builder padding(int padding) {
             this.padding = padding;
             return this;
@@ -174,8 +161,6 @@ public class HudPanel {
             return this;
         }
 
-        // ── Child elements (simple shortcuts) ─────────────────────────
-
         /**
          * Adds a text element with default styling (white, shadow, 1x scale).
          *
@@ -184,9 +169,8 @@ public class HudPanel {
          * @param text supplier that returns the text to display each frame
          */
         public Builder text(int x, int y, Supplier<String> text) {
-            // HUD default styling: white, shadow on (1× scale, no backdrop, no
-            // wrap are the TextLabel defaults). Folded onto TextLabel, the former
-            // HUD-only MKHudText is gone; HUD text is now a TextLabel variant.
+            // HUD default: white with a shadow. Scale 1, no backdrop and no wrap
+            // are TextLabel's own defaults.
             elements.add(TextLabel.builder().at(x, y)
                     .text(() -> Component.literal(text.get()))
                     .color(0xFFFFFFFF).shadow(true)
@@ -194,32 +178,24 @@ public class HudPanel {
             return this;
         }
 
-        /**
-         * Adds a text element and returns a TextBuilder for customization.
-         */
+        /** Adds a text element and returns a TextBuilder to configure it. */
         public TextBuilder text(int x, int y) {
             return new TextBuilder(this, x, y);
         }
 
-        /**
-         * Adds an item icon at native 16×16 size. Count and durability
-         * overlays default to visible (matching vanilla item rendering).
-         */
+        /** Adds a 16x16 item icon, with count and durability shown as vanilla shows them. */
         public Builder item(int x, int y, Supplier<ItemStack> item) {
             elements.add(ItemDisplay.builder().at(x, y).item(item).build());
             return this;
         }
 
-        /**
-         * Adds an item icon and returns an ItemBuilder for customization.
-         */
+        /** Adds an item icon and returns an ItemBuilder to configure it. */
         public ItemBuilder item(int x, int y) {
             return new ItemBuilder(this, x, y);
         }
 
         /**
-         * Adds a hotbar-style slot with an item inside.
-         * Uses the vanilla hotbar sprite for authentic look.
+         * Adds a hotbar slot, drawn with vanilla's hotbar sprite, holding an item.
          *
          * @param x    panel-relative X position
          * @param y    panel-relative Y position
@@ -230,32 +206,26 @@ public class HudPanel {
             return this;
         }
 
-        /**
-         * Adds a hotbar-style slot and returns a SlotBuilder for customization.
-         */
+        /** Adds a hotbar slot and returns a SlotBuilder to configure it. */
         public SlotBuilder slot(int x, int y) {
             return new SlotBuilder(this, x, y);
         }
 
-        /**
-         * Adds a progress bar and returns a BarBuilder for configuration.
-         */
+        /** Adds a progress bar and returns a BarBuilder to configure it. */
         public BarBuilder bar(int x, int y, int barWidth, int barHeight) {
             return new BarBuilder(this, x, y, barWidth, barHeight);
         }
 
-        /**
-         * Adds a sprite icon.
-         */
+        /** Adds a sprite icon. */
         public Builder icon(int x, int y, Identifier sprite, int w, int h) {
             elements.add(new HudIcon(x, y, sprite, w, h, null));
             return this;
         }
 
         /**
-         * Adds a custom render region. The lambda receives the per-frame
-         * {@link RenderContext} for its position and graphics handle.
-         * The declared width/height are the element's bounds for layout.
+         * Adds a custom drawn area. The callback gets each frame's
+         * {@link RenderContext} for its position and graphics. The width and height
+         * are the element's bounds for layout.
          *
          * @param childX panel-relative X position
          * @param childY panel-relative Y position
@@ -276,15 +246,13 @@ public class HudPanel {
         }
 
         /**
-         * Adds any panel element directly. Escape hatch for consumers that
-         * implement {@link PanelElement} themselves.
+         * Adds any panel element, for mods that implement {@link PanelElement}
+         * themselves.
          */
         public Builder element(PanelElement element) {
             elements.add(element);
             return this;
         }
-
-        // ── Build ─────────────────────────────────────────────────────
 
         /**
          * Builds the HUD panel and registers it; from then on it renders every frame
@@ -317,11 +285,7 @@ public class HudPanel {
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════
-    // Sub-builders
-    // ═══════════════════════════════════════════════════════════════════
-
-    /** Builder for customizing text elements. */
+    /** Configures a text element. */
     public static class TextBuilder {
         private final Builder parent;
         private final int x, y;
@@ -355,14 +319,10 @@ public class HudPanel {
         public TextBuilder backdrop() { this.backdrop = true; return this; }
 
         /**
-         * Wraps this HUD text to {@code maxWidth} pixels: it renders multi-line and
-         * the auto-sized HUD panel grows to fit the wrapped height. Zero (default) =
-         * single line. A HUD panel is consumer-anchored and consumer-sized, so the
-         * wrap width is declared here directly rather than computed from a
-         * screen-edge budget, the adaptive auto-wrap (which reacts to the room a
-         * panel's anchor leaves) is a Panel-context feature; a HUD author specifies
-         * the width. Folded-in TextLabel wrapping is what makes this possible (the
-         * former MKHudText could not wrap).
+         * Wraps this text at {@code maxWidth} pixels, so it runs over several lines
+         * and an auto-sized HUD panel grows to fit. Zero (the default) keeps one
+         * line. On the HUD you set the width yourself; the automatic wrapping that
+         * follows the room a panel's anchor leaves applies to other panels only.
          *
          * @param maxWidth wrap width in pixels (font space), or 0 to disable
          * @return this text builder, for chaining
@@ -372,10 +332,6 @@ public class HudPanel {
         public TextBuilder onRender(Runnable callback) { this.onRender = callback; return this; }
 
         public Builder done() {
-            // HUD text is a TextLabel variant now (the former MKHudText is folded
-            // away). Configure scale/backdrop/onRender via the fluent chain; wrap
-            // width is set directly (it's consumer-declared for the HUD, not
-            // Panel-budget-driven).
             TextLabel.Builder label = TextLabel.builder().at(x, y).text(text).color(color).shadow(shadow)
                     .scale(scale).backdrop(backdrop).wrapWidth(wrapWidth);
             if (onRender != null) label.onRender(onRender);
@@ -384,14 +340,14 @@ public class HudPanel {
         }
     }
 
-    /** Builder for customizing item display elements. */
+    /** Configures an item display element. */
     public static class ItemBuilder {
         private final Builder parent;
         private final int x, y;
         private Supplier<ItemStack> item = () -> ItemStack.EMPTY;
         private int size = 16;
-        private boolean showCount = true;    // default: show item count
-        private boolean showDurability = true; // default: show durability bar
+        private boolean showCount = true;
+        private boolean showDurability = true;
 
         ItemBuilder(Builder parent, int x, int y) {
             this.parent = parent;
@@ -401,9 +357,7 @@ public class HudPanel {
 
         public ItemBuilder item(Supplier<ItemStack> item) { this.item = item; return this; }
         public ItemBuilder size(int size) { this.size = size; return this; }
-        // Count + durability overlays show by default; these suppress them (icon-only),
-        // mirroring SlotBuilder. (The old showCount()/showDurability() only re-set the
-        // default, they could never actually hide, so the hide verbs replace them.)
+        // Count and durability show by default; these hide them, as on SlotBuilder.
         public ItemBuilder hideCount() { this.showCount = false; return this; }
         public ItemBuilder hideDurability() { this.showDurability = false; return this; }
 
@@ -416,13 +370,11 @@ public class HudPanel {
         }
     }
 
-    /** Builder for customizing progress bar elements. */
+    /** Configures a progress bar element. */
     public static class BarBuilder {
         private final Builder parent;
         private final int x, y, barW, barH;
-        // Normalized 0.0 to 1.0 bar value as a DoubleSupplier, the canonical
-        // numeric-supplier shape ProgressBar (and Slider/ScrollContainer) read,
-        // so a double-valued source needs no box-and-cast here.
+        // The bar's 0.0 to 1.0 value, as the DoubleSupplier ProgressBar reads.
         private DoubleSupplier value = () -> 0.0;
         private int fillColor = ProgressBar.DEFAULT_FILL_COLOR;
         private int bgColor = ProgressBar.DEFAULT_BG_COLOR;
@@ -452,7 +404,7 @@ public class HudPanel {
         }
     }
 
-    /** Builder for customizing HUD slot elements. */
+    /** Configures a HUD slot element. */
     public static class SlotBuilder {
         private final Builder parent;
         private final int x, y;

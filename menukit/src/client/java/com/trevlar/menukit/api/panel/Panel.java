@@ -19,25 +19,22 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
- * The fundamental unit of composition. Every element in MenuKit lives
- * inside a Panel, because that's the scope at which visibility toggles.
- * and visibility is the load-bearing concept for the whole dynamic-menu story.
+ * The basic unit of composition. Every element in MenuKit lives inside a Panel,
+ * because the panel is what shows and hides, and showing and hiding is what makes
+ * menus dynamic.
  *
- * <p>A Panel holds an ordered list of {@link PanelElement}s (buttons, text
- * labels, and anything else implementing the interface), along with a visual
- * style, a layout position, a toggle key, and a visibility flag. Visibility
- * is mutable (the one mutable thing); the element list is fixed after
- * construction.
+ * <p>A Panel holds an ordered list of {@link PanelElement}s (buttons, text labels,
+ * anything implementing the interface), plus a style, a position, a toggle key and
+ * a visibility flag. Visibility can change; the element list is fixed once built.
  *
- * <p>Panel is context-neutral. The same Panel type is used across inventory
- * menus, HUDs, and standalone screens. Context-specific machinery, inventory
- * slot groups, HUD anchoring, standalone-screen lifecycle, lives on the
- * context-specific container holding the panel, not on the panel itself.
+ * <p>The same Panel type is used in inventory menus, on the HUD and on standalone
+ * screens. What is specific to each (slot groups, HUD anchoring, a standalone
+ * screen's lifecycle) lives in whatever holds the panel, not in the panel.
  *
- * <p>A Panel is client-only: how a panel looks. On a Containers custom menu the
- * server's half of a panel (its id, its slot groups, whether it is shown) is the
- * menu's own; the screen builds a Panel for each and shows it while the server
- * says so (§0067).
+ * <p>A Panel is client-only: it is how a panel looks. On a MenuKit: Containers
+ * custom menu the server's half of a panel (its id, its slot groups, whether it is
+ * shown) belongs to the menu; the screen builds a Panel for each and shows it while
+ * the server says so.
  *
  * <h3>Visibility: imperative or supplier-driven</h3>
  *
@@ -47,28 +44,20 @@ import java.util.function.Supplier;
  *       the boolean.</li>
  *   <li><b>Supplier-driven</b> via {@link #visibleWhen(java.util.function.BooleanSupplier)}. Consumer holds
  *       the state; Panel reads via the supplier on each {@code isVisible()}
- *       call. Canonical for Phase 10 injected panels, HUDs, and standalone
- *       screens, following the Phase 8/9 state-ownership pattern
- *       (a {@code Toggle}'s {@code state(get, set)}).</li>
+ *       call. The usual choice for injected panels, HUDs and standalone
+ *       screens, like a {@code Toggle}'s {@code state(get, set)}.</li>
  * </ul>
- * The two modes are mutually exclusive, see {@link #visibleWhen(java.util.function.BooleanSupplier)} for
- * precedence semantics.
+ * Only one applies at a time; see {@link #visibleWhen(java.util.function.BooleanSupplier)}
+ * for which wins.
  */
 public class Panel {
 
-    // ── Interior padding (Phase 16g; per-style in Phase 18r) ───────────
-    // The consumer-side screen (MKScreen, CustomContainerScreen,
-    // ScreenPanelAdapter) reserves padding pixels between the panel
-    // background and where elements actually render. Panel-side mirror
-    // of the canonical screen padding.
-    //
-    // INTERIOR_PADDING is the value for STYLED panels (RAISED / DARK /
-    // INSET), those need breathing room between a visible frame and the
-    // elements inside. For PanelStyle.NONE there's no visible frame to
-    // space FROM, so the per-style query {@link #interiorPadding()}
-    // returns 0, element edge = panel edge. Render sites that care about
-    // per-style behavior call {@link #interiorPadding()}; the constant
-    // remains for consumers who explicitly want the styled value.
+    // Interior padding: the room the screen (MKScreen, CustomContainerScreen,
+    // ScreenPanelAdapter) leaves between the panel background and its elements.
+    // INTERIOR_PADDING is the value for styled panels (RAISED, DARK, INSET), which
+    // need space between the visible frame and the elements. A NONE panel has no
+    // frame, so interiorPadding() returns 0 for it. Rendering code calls
+    // interiorPadding(); the constant is for mods that want the styled value.
     public static final int INTERIOR_PADDING = 7;
 
     private final String id;
@@ -79,68 +68,53 @@ public class Panel {
     private boolean visible;
 
     /**
-     * Optional panel-level hover-triggered tooltip. Fires when the cursor is
-     * over the panel's outer bounds regardless of which child element (if
-     * any) is also hovered. Consumers who want tooltips that fire only on
-     * specific children should put tooltips on those children, child
-     * tooltips can overlap with this one and both will queue
-     * (last-call-wins per vanilla's {@code setTooltipForNextFrame} semantics,
-     * so child-render order determines which wins; the element pass runs
-     * before this panel-level tooltip pass, so the panel tooltip wins by
-     * default, see {@link #maybeQueueTooltip}).
+     * Optional tooltip for the whole panel, shown while the cursor is over the
+     * panel's outer bounds whichever child is hovered. For tooltips on specific
+     * children, put them on those children. When both queue, the last call wins
+     * (vanilla's {@code setTooltipForNextFrame}), and the panel tooltip is queued
+     * after the elements, so it wins. See {@link #maybeQueueTooltip}.
      */
     private @Nullable Supplier<Component> tooltipSupplier;
 
-    // ── Size pinning (M5 region stacking) ──────────────────────────────
-    // When pinnedWidth >= 0, getWidth() returns pinnedWidth regardless of
-    // element visibility. Same for pinnedHeight. Opt-in escape hatch for
-    // panels whose dynamic element visibility would otherwise cause
-    // getWidth/getHeight to collapse to zero, which would jitter the
-    // stacking of subsequent panels in a region.
+    // Size pinning. When pinnedWidth >= 0, getWidth() returns it whatever the
+    // elements' visibility; the same for pinnedHeight. For panels whose elements
+    // come and go, so their size doesn't drop to zero and shift the panels stacked
+    // after them in a region.
     //
-    // Phase 16g, these pinned dims double as triggers for auto-wrap +
-    // auto-scroll:
-    //   - pinnedWidth set → every child TextLabel wraps to fit the panel's
-    //     content width (pinnedWidth − 2 × INTERIOR_PADDING, minus the
-    //     scrollbar reserve when pinnedHeight is also set).
-    //   - pinnedHeight set + aggregate content height > pinnedHeight →
-    //     getElements() returns a single internal ScrollContainer wrapping
-    //     the original elements; mouse-wheel scrolls; scrollbar appears.
-    // Both are always-on for bounded panels (no opt-in flag) per Trev's
-    // 16g architectural call.
+    // Pinned sizes also turn on wrapping and scrolling:
+    //   - pinnedWidth set: every child TextLabel wraps to the content width
+    //     (pinnedWidth - 2 * INTERIOR_PADDING, less the scrollbar when
+    //     pinnedHeight is also set).
+    //   - pinnedHeight set and the content taller than it: getElements() returns
+    //     one internal ScrollContainer around the elements, with wheel scrolling
+    //     and a scrollbar.
+    // Both always apply to a bounded panel; there is no flag to turn them off.
     private int pinnedWidth = -1;
     private int pinnedHeight = -1;
 
-    // ── Pass 3 adaptive screen-edge wrap ───────────────────────────────
-    // effectiveContentWidth is the screen-edge-derived content-width ceiling
-    // set per-frame by the placement layer (PanelHost's budget feed,
-    // MKScreen/CustomContainerScreen.computePanelSize, the HUD + vanilla-screen +
-    // slot-group origin paths) via setAvailableContentWidth. -1 = unset (no
-    // ceiling; panel grows to content as before). Distinct from pinnedWidth on
-    // purpose: a library-computed fit ceiling must NOT masquerade as a
-    // consumer-declared pin (getPinnedWidth() stays honest, so MKC's
-    // pinned-vs-auto layout logic is untouched).
+    // Wrapping at the screen edge. effectiveContentWidth is the most content width
+    // the screen leaves the panel, set every frame by the placement code
+    // (PanelHost) through setAvailableContentWidth. -1 means no limit: the panel
+    // grows to its content. It is kept apart from pinnedWidth so a limit MenuKit
+    // computed never looks like a size the mod pinned (getPinnedWidth() stays
+    // accurate for MKC's pinned-versus-auto layout).
     //
-    // The ceiling only bites when the panel is UNPINNED and its natural content
-    // width exceeds the ceiling, then TextLabels wrap to it (the existing 16g
-    // wrap machinery, now screen-driven instead of pin-driven). lastFitAvail
-    // guards the configuration pass: setAvailableContentWidth flips
-    // configurationDirty ONLY when the available width actually changes, so the
-    // per-frame placement calls are free and the auto-scroll ScrollContainer
-    // isn't rebuilt every frame (which would reset its drag state).
+    // The limit only applies to an unpinned panel whose content is wider than it;
+    // then TextLabels wrap to it, as they do for a pinned width. lastFitAvail
+    // makes setAvailableContentWidth mark the configuration dirty only when the
+    // width actually changes, so the per-frame calls cost nothing and the
+    // auto-scroll ScrollContainer isn't rebuilt every frame (which would reset
+    // its drag state).
     private int effectiveContentWidth = -1;
     private int lastFitAvail = Integer.MIN_VALUE;
 
-    // ── Movement ②: adaptive screen-edge auto-scroll (vertical twin) ────
-    // effectiveContentHeight is the screen-edge-derived content-HEIGHT ceiling
-    // set per-frame by the placement layer (PanelHost's budget feed)
-    // via setAvailableContentHeight. -1 = unset. The height analog of
-    // effectiveContentWidth: when the panel is UNPINNED (no pinnedHeight) and its
-    // natural content height exceeds this ceiling, the panel auto-scrolls into the
-    // ceiling (viewport = ceiling) instead of running off the top/bottom screen
-    // edge, reusing the same ScrollContainer machinery pinnedHeight drives. When
-    // content fits under the ceiling, nothing changes (no scroll, no reserve).
-    // lastFitAvailHeight guards the configuration pass exactly like lastFitAvail.
+    // Scrolling at the screen edge: the height counterpart of
+    // effectiveContentWidth, set every frame by PanelHost through
+    // setAvailableContentHeight; -1 means no limit. An unpinned panel whose content
+    // is taller than the limit scrolls within it instead of running off the
+    // screen, using the same ScrollContainer as pinnedHeight. Content that fits
+    // changes nothing (no scrolling, no scrollbar room). lastFitAvailHeight works
+    // like lastFitAvail.
     private int effectiveContentHeight = -1;
     private int lastFitAvailHeight = Integer.MIN_VALUE;
 
@@ -159,81 +133,62 @@ public class Panel {
     // elements are laid out that much narrower.
     private ScreenKind screenKind = ScreenKind.CONTAINER;
 
-    // ── Phase 16g Auto-Scroll state ────────────────────────────────────
-    // Scroll position, in pixels from the top, for the auto-scroll wrap. Pixels,
-    // not a fraction: when content changes height while shown, what is on
-    // screen stays put (ScrollContainer.Builder.state, in pixels). Panel owns the
-    // state directly here rather than delegating to a consumer-side field
-    // because auto-scroll is an internal Panel concern, the consumer
-    // never sees the inner ScrollContainer. Mutable; updated by
-    // ScrollContainer's callback when the user scrolls.
+    // Auto-scroll position, in pixels from the top. Pixels rather than a fraction,
+    // so what is on screen stays put when the content changes height
+    // (ScrollContainer.Builder.state is in pixels). The panel keeps it because the
+    // inner ScrollContainer is internal; the mod never sees it. Updated by the
+    // ScrollContainer's callback when the player scrolls.
     private double scrollOffset = 0.0;
 
-    // Cached internal ScrollContainer for auto-scroll mode. Constructed
-    // lazily on first getElements() call after pinnedHeight triggers
-    // overflow, then reused across frames so its drag state + cached
-    // render origin stay stable. Rebuilt only when pinnedHeight /
-    // pinnedWidth change (the only mutable inputs to its construction).
+    // The internal ScrollContainer for auto-scroll. Built on the first
+    // getElements() call once the content overflows, then reused across frames so
+    // its drag state and cached render origin stay stable. Rebuilt only when the
+    // configuration changes.
     private @Nullable ScrollContainer cachedScrollContainer;
 
-    // Tracks whether the configuration pass (wrap-width propagation +
-    // scroll-container construction) has run since the last pinned-dim
-    // change. The configuration pass is idempotent and cheap, but skipping
-    // when nothing changed saves a per-frame walk over elements.
+    // Whether the configuration pass (handing down wrap widths, building the
+    // scroll container) needs to run again. It is cheap, but skipping it when
+    // nothing changed saves a walk over the elements every frame.
     private boolean configurationDirty = true;
 
-    // Movement ④, signature of the raw elements' live dimensions at the last
-    // configuration pass. When an element changes its own size without a ceiling
-    // change (e.g. a SlotFlowElement growing rows on a slot reveal), this differs
-    // from the freshly-computed signature and forces a reconfigure. Sentinel
-    // (MIN_VALUE) until the first pass so the first ensureConfigured always runs.
+    // A signature of the elements' sizes at the last configuration pass. When an
+    // element changes size by itself (a SlotFlowElement growing rows when a slot
+    // is revealed, say), the new signature differs and forces a reconfigure.
+    // MIN_VALUE until the first pass, so the first ensureConfigured always runs.
     private int lastLayoutSig = Integer.MIN_VALUE;
 
-    // Supplier-driven visibility (Phase 10). When non-null, this takes precedence
-    // over the imperative `visible` field, isVisible() reads the supplier, and
-    // setVisible(...) silently no-ops. Clear with visibleWhen(null) to revert to
-    // imperative control. Matches the Phase 8/9 state-ownership pattern
-    // (a Toggle's state lens): consumer holds the state; library reads via supplier.
-    // Uses BooleanSupplier (no boxing), unified with the element-level
-    // visibleWhen / disabledWhen / revealWhen predicate type.
+    // Supplier-driven visibility. When non-null it wins over the `visible` field:
+    // isVisible() reads the supplier and setVisible(...) does nothing. Clear it
+    // with visibleWhen(null) to go back to setVisible. The mod holds the state and
+    // the panel reads it, like a Toggle's state lens. A BooleanSupplier, the same
+    // type as the elements' visibleWhen, disabledWhen and revealWhen.
     private @Nullable BooleanSupplier visibilitySupplier;
 
-    // The panel-wide disabled cascade (§0066). While it holds, every element of
-    // the panel draws its disabled look and takes no clicks, wheel or keys: the
-    // host hands the panel's elements disabled contexts. The panel is still
-    // present (it claims its area, §0065); only what is inside is inert.
+    // Disabling the whole panel. While it holds, every element draws its disabled
+    // look and takes no clicks, wheel or keys: the host gives the elements
+    // disabled contexts. The panel is still there and still claims its area; only
+    // what is inside is inert.
     private @Nullable BooleanSupplier disabledSupplier;
 
-    // Opacity / dim / modal-tracking flags (Phase 14d-2.5 M9 mechanism).
+    // Three independent flags make up "modal", so other kinds of panel (popovers,
+    // dropdowns) can take only the parts they need.
     //
-    // Three independent flags compose the "modal" semantic. The 14d-1 single-
-    // flag `cancelsUnhandledClicks` bundled all three concerns; M9 factors
-    // them so future primitives (popovers, dropdowns) can opt into pieces
-    // independently. See Design Docs/Mechanisms/M9_PANEL_OPACITY.md.
+    // - `opaque` (default true): while the panel is visible, input inside its
+    //   bounds goes to the panel and vanilla underneath never sees it, so clicks
+    //   never pass through a visible panel. Transparent overlays opt out with
+    //   `opaque(false)`.
     //
-    // - `opaque` (default TRUE): interaction opacity. When the panel is
-    //   visible, input arriving at coords within the panel's bounds is
-    //   handled by the panel; vanilla underneath never sees it. Default-true
-    //   delivers Trevor's click-through prohibition principle: visible
-    //   panels are interaction-opaque over their bounds. Consumers wanting
-    //   transparent overlays opt out via `opaque(false)`.
+    // - `dimsBehind` (default false): while the panel is visible, the LayerPlan
+    //   draws a translucent black fill over the screen before drawing it. Real
+    //   modals set it; other opaque panels (decoration, popups) don't.
     //
-    // - `dimsBehind` (default FALSE): visual dim layer. When this panel is
-    //   visible, the host's LayerPlan inserts a translucent-
-    //   black quad over the underlying screen before drawing this panel.
-    //   Real modals set this true; non-modal opaque panels (decoration,
-    //   popups) leave it false.
+    // - `tracksAsModal` (default false): while the panel is visible, MenuKit locks
+    //   the cursor shape (no clickable feedback over vanilla widgets) and eats
+    //   keys other than Escape. Real modals set it; other opaque panels leave the
+    //   cursor and keyboard working normally outside their bounds.
     //
-    // - `tracksAsModal` (default FALSE): global modal-tracking. When this
-    //   panel is visible, the library locks the OS cursor (no clickable-
-    //   feedback over vanilla widgets) and eats keystrokes other than
-    //   Escape. Real modals set this true; non-modal opaque panels leave
-    //   it false (cursor + keyboard work normally outside the panel's
-    //   bounds).
-    //
-    // The Panel.modal() sugar sets all three to true, canonical real-modal
-    // pattern. Independent flag setters are exposed for non-canonical
-    // compositions (popovers, click-blockers, etc.).
+    // Panel.modal() sets all three. The separate setters are for other
+    // combinations (popovers, click blockers and so on).
     private boolean opaque = true;
     private boolean dimsBehind = false;
     private boolean tracksAsModal = false;
@@ -243,29 +198,19 @@ public class Panel {
     // the screen, below the modal overlay: the LayerPlan's POPOVER layer.
     private boolean popover = false;
 
-    // Optional Escape action (B3 modal-Escape fix). When this panel is a
-    // visible tracksAsModal panel and the user presses Escape, the host
-    // (MKScreen / the ScreenPanelRegistry key path for injected panels) invokes
-    // this action to dismiss the topmost modal, instead of letting Escape
-    // close the whole host screen out from under an open dialog. The dialog
-    // builders (ConfirmDialog / AlertDialog) register their onCancel /
-    // onAcknowledge here so the consumer's existing self-dismiss callback
-    // fires on Escape. Null = no escape action declared (the host still EATS
-    // Escape while a modal is up so it can't close the host screen).
+    // Optional Escape action. When this is the topmost visible tracksAsModal panel
+    // and the player presses Escape, the host (MKScreen, or ScreenPanelRegistry's
+    // key listener for injected panels) runs it to dismiss the modal instead of
+    // closing the screen under an open dialog. ConfirmDialog and AlertDialog put
+    // their onCancel / onAcknowledge here. With none set, the host still eats
+    // Escape while a modal is up so it can't close the screen.
     private @Nullable Runnable escapeAction;
 
     /**
-     * Full constructor with all metadata.
-     *
-     * <p><b>Internal construction path.</b> Consumers build panels via
-     * {@link #builder(String)}, the fluent builder names only the fields the
-     * consumer cares about and hides the {@code -1} no-toggle-key sentinel
-     * behind {@link Builder#toggleKey(int)}. This positional constructor is the
-     * builder's terminal target and the library's own internal construction
-     * site; it is kept public only so the builder (a nested static class) and
-     * cross-package library code can reach it. Marked {@link ApiStatus.Internal}
-     * to steer fresh consumers to {@code Panel.builder(...)} instead of the
-     * magic-{@code -1} positional form.
+     * The full constructor. Internal: build panels with {@link #builder(String)},
+     * which names only the fields you set and hides the {@code -1} no-toggle-key
+     * value behind {@link Builder#toggleKey(int)}. It stays public only so the
+     * builder and MenuKit's other packages can reach it.
      *
      * @param id        unique identifier within the screen
      * @param elements  panel elements, buttons, text labels, etc. (immutable after construction)
@@ -287,10 +232,8 @@ public class Panel {
     }
 
     /**
-     * Convenience constructor, default style (RAISED), no position
-     * ({@link PanelPosition#UNPLACED}), no toggle key. Use {@link #builder(String)} in consumer code; this
-     * positional form is {@link ApiStatus.Internal} so fresh consumers are
-     * steered to the builder.
+     * Default style (RAISED), no position ({@link PanelPosition#UNPLACED}), no
+     * toggle key. Internal; use {@link #builder(String)}.
      */
     @ApiStatus.Internal
     public Panel(String id, List<PanelElement> elements, boolean visible) {
@@ -298,31 +241,21 @@ public class Panel {
     }
 
     /**
-     * Convenience constructor, a visible panel with default style and
-     * position. Use {@link #builder(String)} in consumer code; this positional
-     * form is {@link ApiStatus.Internal} so fresh consumers are steered to the
-     * builder.
+     * A visible panel with the default style and position. Internal; use
+     * {@link #builder(String)}.
      */
     @ApiStatus.Internal
     public Panel(String id, List<PanelElement> elements) {
         this(id, elements, true);
     }
 
-    // ── Builder ─────────────────────────────────────────────────────────
+    // Builder
 
-    /**
-     * Sentinel toggle-key value meaning "no toggle key." Hidden behind the
-     * {@link Builder} so consumers never type a magic {@code -1}, they either
-     * leave {@link Builder#toggleKey(int)} unset (no key) or pass a real GLFW
-     * key code.
-     */
+    // "No toggle key". Callers leave Builder.toggleKey unset instead of passing -1.
     static final int NO_TOGGLE_KEY = -1;
 
     /**
-     * Starts a fluent builder for a Panel with the given id. Additive
-     * alternative to the positional constructors, lets a consumer name only
-     * the fields they care about and skip the magic {@code -1} toggle-key
-     * sentinel entirely.
+     * Starts a builder for a Panel with the given id.
      *
      * <pre>{@code
      * Panel p = Panel.builder("settings")
@@ -341,11 +274,9 @@ public class Panel {
     }
 
     /**
-     * Fluent builder for {@link Panel}. Mirrors the full positional
-     * constructor's parameters as named, optional setters with sensible
-     * defaults (visible, {@link PanelStyle#RAISED}, {@link PanelPosition#UNPLACED},
-     * no toggle key). The {@code -1} no-toggle-key sentinel is hidden behind
-     * {@link #toggleKey(int)}, leaving it unset means "no key."
+     * Builds a {@link Panel}. Defaults: visible, {@link PanelStyle#RAISED},
+     * {@link PanelPosition#UNPLACED}, and no toggle key unless
+     * {@link #toggleKey(int)} is called.
      */
     public static final class Builder {
         private final String id;
@@ -363,9 +294,8 @@ public class Panel {
         }
 
         /**
-         * Replaces the accumulated element list with the given one. Additive
-         * with {@link #add(PanelElement)}, call order is: this resets the
-         * list, subsequent {@code add(...)} append to it.
+         * Replaces the element list so far with the given one; later
+         * {@link #add(PanelElement)} calls append to it.
          */
         public Builder elements(List<? extends PanelElement> elements) {
             this.elements.clear();
@@ -373,7 +303,7 @@ public class Panel {
             return this;
         }
 
-        /** Appends a single element to the panel's element list. */
+        /** Appends an element. */
         public Builder add(PanelElement element) {
             this.elements.add(element);
             return this;
@@ -387,7 +317,7 @@ public class Panel {
 
         /**
          * Shows the panel only while {@code condition} holds, read every frame: the
-         * same word every element's builder uses (§0066, §0068). See
+         * same name every element's builder uses. See
          * {@link Panel#visibleWhen}.
          */
         public Builder visibleWhen(BooleanSupplier condition) {
@@ -402,7 +332,7 @@ public class Panel {
         }
 
         /**
-         * Sets where the panel sits: the one placement every host reads (§0065).
+         * Sets where the panel sits; every host reads this.
          * Default {@link PanelPosition#UNPLACED}: adapters and the HUD reject an
          * unplaced panel; {@code MKScreen} and {@code CustomContainerMenu} make the first
          * unplaced panel their {@code main()} and stack later ones below it.
@@ -413,9 +343,8 @@ public class Panel {
         }
 
         /**
-         * Sets the GLFW key code that toggles this panel's visibility. Leave
-         * unset for no toggle key, there is no need to pass the {@code -1}
-         * sentinel by hand.
+         * Sets the GLFW key code that toggles this panel's visibility. Leave it unset
+         * for no toggle key.
          */
         public Builder toggleKey(int glfwKeyCode) {
             this.toggleKey = glfwKeyCode;
@@ -424,8 +353,8 @@ public class Panel {
 
         /**
          * Disables the whole panel while {@code condition} holds, read every frame:
-         * every element draws greyed and takes no input (the disabled cascade,
-         * §0066). See {@link Panel#disabledWhen}.
+         * every element draws greyed and takes no input. See
+         * {@link Panel#disabledWhen}.
          */
         public Builder disabledWhen(BooleanSupplier condition) {
             this.disabledWhen = java.util.Objects.requireNonNull(condition, "condition");
@@ -462,72 +391,60 @@ public class Panel {
         }
     }
 
-    // ── Identity ────────────────────────────────────────────────────────
+    // Identity
 
-    /** Returns this panel's unique identifier within the screen. */
+    /** This panel's id, unique within the screen. */
     public String id() { return id; }
 
-    // ── Style & Position ──────────────────────────────────────────────
+    // Style and position
 
-    /** Returns the visual style for this panel's background. */
+    /** The panel's background style. */
     public PanelStyle getStyle() { return style; }
 
     /**
-     * Returns the content padding the panel needs between its outer
-     * (background) bounds and the element-render origin, in pixels.
+     * The padding, in pixels, between the panel's outer (background) bounds and
+     * where its elements start.
      *
-     * <p>Style-conditional:
      * <ul>
-     *   <li>{@link PanelStyle#NONE} → {@code 0}. The panel has no visible
-     *       frame, so there's nothing for elements to space FROM, the
-     *       element edge IS the panel edge. Hover/click/tooltip bounds
-     *       collapse onto the element extent.</li>
-     *   <li>All other styles ({@link PanelStyle#RAISED},
-     *       {@link PanelStyle#DARK}, {@link PanelStyle#INSET}) →
-     *       {@link #INTERIOR_PADDING} ({@code 7}). Breathing room
-     *       between the visible frame and the elements inside.</li>
+     *   <li>{@link PanelStyle#NONE}: {@code 0}. With no visible frame, the element
+     *       edge is the panel edge, and hover, click and tooltip bounds match the
+     *       elements.</li>
+     *   <li>Every other style ({@link PanelStyle#RAISED}, {@link PanelStyle#DARK},
+     *       {@link PanelStyle#INSET}): {@link #INTERIOR_PADDING} ({@code 7}), room
+     *       between the visible frame and the elements.</li>
      * </ul>
      *
-     * <p>Consumed by every render context that computes outer bounds
-     * from element extent (or vice versa): {@code MKScreen},
-     * {@code CustomContainerScreen}, and the default-padding overloads of
-     * {@link com.trevlar.menukit.api.panel.ScreenPanelAdapter} +
-     * {@link com.trevlar.menukit.api.panel.SlotGroupPanelAdapter}.
-     * Explicit-padding adapter overloads bypass this, the consumer is
-     * in control.
+     * <p>Used wherever outer bounds are worked out from the elements or the other
+     * way round: {@code MKScreen}, {@code CustomContainerScreen}, and the
+     * default-padding constructors of
+     * {@link com.trevlar.menukit.api.panel.ScreenPanelAdapter} and
+     * {@link com.trevlar.menukit.api.panel.SlotGroupPanelAdapter}. The
+     * explicit-padding constructors use the padding they are given.
      */
     public int interiorPadding() {
         return style == PanelStyle.NONE ? 0 : INTERIOR_PADDING;
     }
 
-    /** Returns how this panel is positioned in the layout. */
+    /** Where this panel sits. */
     public PanelPosition getPosition() { return position; }
 
-    /** Returns the GLFW key code that toggles this panel's visibility, or -1 for none. */
+    /** The GLFW key code that toggles this panel's visibility, or -1 for none. */
     public int getToggleKey() { return toggleKey; }
 
-    // ── Elements ────────────────────────────────────────────────────────
+    // Elements
 
     /**
-     * Returns the effective element list for layout / render / input
-     * dispatch.
+     * The elements to lay out, render and send input to.
      *
-     * <p>Normal mode (no pinnedHeight, or content fits within pinnedHeight):
-     * returns the panel's original declared elements.
+     * <p>Usually the panel's own elements. When the content is taller than the
+     * panel's viewport (a pinned height, or the room the screen leaves), this is a
+     * single internal {@link ScrollContainer} holding them, which passes render,
+     * clicks, scrolling and releases on to its children. To the screen it is just
+     * another element.
      *
-     * <p>Auto-scroll mode (pinnedHeight set + aggregate content height
-     * exceeds pinnedHeight): returns a single internal
-     * {@link ScrollContainer} wrapping the original elements. The screen
-     * iterates this list opaquely, the ScrollContainer dispatches render,
-     * click, scroll, and release to its children internally. From the
-     * screen's POV, the swap is transparent: it's "an element," and
-     * elements know how to render and route input.
-     *
-     * <p><b>Lifecycle note (Pass 3):</b> {@link ScrollContainer} now propagates
-     * {@code onAttach} / {@code onDetach} / {@code keyPressed} to its children,
-     * so widget-wrapping elements (Slider, TextField) inside an auto-scroll panel
-     * register their vanilla widgets and route keyboard correctly, there is no
-     * longer a propagation gap at the auto-scroll boundary.
+     * <p>{@link ScrollContainer} also passes {@code onAttach}, {@code onDetach} and
+     * {@code keyPressed} on, so widget-wrapping elements (Slider, TextField) inside
+     * a scrolling panel still register their vanilla widgets and get key input.
      */
     public List<PanelElement> getElements() {
         ensureConfigured();
@@ -538,79 +455,56 @@ public class Panel {
     }
 
     /**
-     * Returns the raw original elements declared at construction,
-     * regardless of auto-scroll wrapping. Used internally by the
-     * configuration pass and any consumer that needs to bypass the
-     * effective-list swap (rare).
+     * The elements the panel was built with, never the auto-scroll wrapper. For
+     * the configuration pass and the rare caller that needs the raw list.
      */
     public List<PanelElement> getRawElements() {
         return elements;
     }
 
-    // ── Phase 16g Configuration Pass ───────────────────────────────────
+    // Configuration pass
 
     /**
-     * Runs the wrap + scroll configuration pass if pinned dims have
-     * changed since the last pass. Idempotent and cheap; safe to call
-     * from any size/element accessor.
+     * Runs the wrap and scroll configuration pass when something it depends on
+     * has changed. Cheap, and safe to call from any size or element getter.
      *
-     * <p><b>Semantic note on pinned dims:</b> {@code pinnedWidth} and
-     * {@code pinnedHeight} represent the panel's <i>content extent</i>
-     * (matching the existing M5 contract, what {@link #getWidth()} /
-     * {@link #getHeight()} return). The consumer-side screen adds its own
-     * {@code PANEL_PADDING} on top to produce the panel's outer (background)
-     * extent. So a panel with {@code pinnedWidth=80} renders 80px of
-     * content + 2 × 7px of background padding = 94px outer.
+     * <p>{@code pinnedWidth} and {@code pinnedHeight} are the panel's
+     * <i>content</i> size, what {@link #getWidth()} and {@link #getHeight()}
+     * return. The screen adds its padding on top for the outer (background) size,
+     * so {@code pinnedWidth=80} gives 80 px of content plus 2 x 7 px of padding,
+     * 94 px outer.
      *
-     * <p>Two responsibilities:
      * <ol>
-     *   <li><b>Auto-wrap propagation</b>, when {@code pinnedWidth} is set,
-     *       walks {@link #elements} and calls {@code setWrapWidth} on every
-     *       {@link TextLabel} child. Budget = {@code pinnedWidth} (the
-     *       content extent), minus the scrollbar reserve when
-     *       {@code pinnedHeight} is also set (always-reserve, since
-     *       post-wrap overflow can't be known until wrap is computed.
-     *       see comment in body).</li>
-     *   <li><b>Auto-scroll wrap</b>, when {@code pinnedHeight} is set AND
-     *       aggregate content height (after wrap propagation, so wrapped
-     *       heights are accurate) exceeds {@code pinnedHeight}, builds an
-     *       internal {@link ScrollContainer} wrapping all original
-     *       elements. {@link #getElements()} then returns this wrapper.
-     *       ScrollContainer outer width = {@code pinnedWidth} if set,
-     *       otherwise aggregate child width + scrollbar reserve.</li>
+     *   <li><b>Wrapping</b>: works out one content width (the pinned width, or
+     *       the natural width capped by the room the screen leaves) and hands each
+     *       element its share, so text wraps to it.</li>
+     *   <li><b>Scrolling</b>: when the content, measured after wrapping, is taller
+     *       than the viewport, lays it out again narrower to clear the scrollbar
+     *       and wraps every element in an internal {@link ScrollContainer}, which
+     *       {@link #getElements()} then returns.</li>
      * </ol>
      */
     private void ensureConfigured() {
-        // Movement ④, element-DRIVEN layout changes re-trigger the gated pass.
-        // The pinned/available ceilings flip configurationDirty, but an element
-        // that changes its OWN live size without a ceiling change would not.
-        // e.g. a SlotFlowElement whose slot visibility toggled, growing its row
-        // count. That left the auto-scroll overflow check (Step 4, gated here)
-        // stale, so a reveal that overflows the height ceiling wouldn't build the
-        // ScrollContainer. Detect a change in the raw elements' live dimensions
-        // and force a reconfigure so wrap + scroll stay correct on reveal. Cheap
-        // (no allocation), stable between reveals (same dims → same signature →
-        // early-return), inert for panels whose elements don't self-resize.
+        // An element can change its own size without any limit changing (a
+        // SlotFlowElement gaining rows when a slot is revealed). Without this the
+        // overflow check below would go stale, and a reveal that overflows the
+        // height limit wouldn't build the ScrollContainer. The signature is cheap,
+        // allocates nothing, and stays the same until an element's size changes.
         int sig = layoutSignature();
         if (sig != lastLayoutSig) configurationDirty = true;
         if (!configurationDirty) return;
         configurationDirty = false;
 
-        // ── Step 1: resolve ONE content width, top-down ────────────────
-        // The panel's content width is the single number every element reacts
-        // to (Verification-4: element lives in panel; width flows DOWN). It is
-        // the panel's natural hug-width, the widest element's UNCONSTRAINED
-        // extent, clamped to the available ceiling so the panel never bleeds
-        // past the screen-edge margin.
+        // Step 1: one content width, which every element works from (width flows
+        // down from the panel). It is the widest element's unconstrained extent,
+        // capped by the room the screen leaves so the panel never runs past the
+        // screen-edge margin.
         //
-        //   pinnedWidth set → contentWidth = pinnedWidth (consumer declared it).
-        //   else            → contentWidth = min(naturalWidth, ceiling), where
-        //                     ceiling = effectiveContentWidth (screen-edge room
-        //                     set per-frame by the placement layer) or unbounded
-        //                     when no placement ceiling applies. When the natural
-        //                     width already fits under the ceiling, the panel
-        //                     keeps hugging its content exactly as before, the
-        //                     ceiling only bites a genuine overflow.
+        //   pinnedWidth set: contentWidth = pinnedWidth.
+        //   otherwise:       contentWidth = min(naturalWidth, effectiveContentWidth),
+        //                    or naturalWidth with no limit. A panel that fits keeps
+        //                    hugging its content; the limit only matters when it
+        //                    doesn't fit.
         int naturalW = 0;
         for (PanelElement e : elements) {
             if (!e.isVisible()) continue;
@@ -626,18 +520,16 @@ public class Panel {
             contentWidth = Math.min(naturalW, ceiling);
         }
 
-        // ── Step 2+3+4: budget → measure → (only-on-overflow) reserve + scroll
+        // Steps 2 to 4: hand out widths, measure, and only on overflow reserve the
+        // scrollbar and scroll.
         //
-        // The viewport that bounds the panel vertically is the explicit
-        // pinnedHeight if declared, else the screen-edge height ceiling
-        // (Movement ②, effectiveContentHeight). Either way the panel scrolls
-        // ONLY when its natural content overflows that viewport.
-        // pinnedHeight (consumer-declared) always drives a scroll viewport. The
-        // screen-edge height ceiling (②) only does so when it leaves a USEFUL
-        // viewport: a region sibling squeezed to a sliver against a tall frame would
-        // otherwise build a uselessly-tiny scrollbar, below the threshold we let it
-        // render at natural height and rely on resolveMenu's on-screen clamp (the
-        // honest height fallback, mirroring how an over-wide panel clamps).
+        // The viewport is pinnedHeight when set, else the height the screen leaves
+        // (effectiveContentHeight). The panel scrolls only when its content is
+        // taller than the viewport. A pinned height always gives a viewport; the
+        // screen's limit only does when it leaves a useful one. A region panel
+        // squeezed to a sliver against a tall frame would get a uselessly tiny
+        // scrollbar, so below MIN_SCROLL_VIEWPORT it draws at natural height and
+        // resolveMenu's on-screen clamp handles it, as for an over-wide panel.
         int viewportHeight;
         if (pinnedHeight >= 0) {
             viewportHeight = pinnedHeight;
@@ -647,19 +539,16 @@ public class Panel {
             viewportHeight = -1;
         }
 
-        // First lay out every element against the FULL content width (no
-        // scrollbar reserve) and reflow, then measure the natural content
-        // height. The reserve is deducted ONLY if the panel actually overflows
-        // its viewport, otherwise a fitting panel would needlessly narrow its
-        // content (wrapping text early) to clear a scrollbar that never appears.
-        // (Pre-Movement-② the reserve was deducted unconditionally on any
-        // pinnedHeight panel; gating it on real overflow is strictly tighter and
-        // is what lets the placement layer impose a height ceiling on EVERY
-        // region panel without shrinking the ones that fit.)
+        // Lay out against the full content width (no scrollbar room) and reflow,
+        // then measure the content height. Scrollbar room is taken only if the
+        // panel overflows; otherwise a panel that fits would narrow its content
+        // (wrapping text early) for a scrollbar that never appears. That is also
+        // what lets PanelHost give every region panel a height limit without
+        // shrinking the ones that fit.
         layoutElementsWithin(contentWidth);
         reflowForWrap();
-        // Height flows DOWN to the elements that fill it (the vertical twin of the
-        // width budget above): a filling element takes the viewport from its top
+        // Height flows down to the elements that fill it, like the width above: a
+        // filling element takes the viewport from its top
         // edge down, so its bottom lands exactly on the viewport's and the panel
         // never scrolls it. With no viewport it is released (-1) to its natural
         // height. Only elements that declare fillsHeight() are touched, so every
@@ -668,7 +557,7 @@ public class Panel {
             if (!e.fillsHeight()) continue;
             e.fillHeight(viewportHeight > 0 ? Math.max(1, viewportHeight - e.getChildY()) : -1);
         }
-        // The frame band flows DOWN the same way, to every element, as the room from
+        // The frame band flows down the same way, to every element, as the room from
         // its top edge to the frame's bottom (or -1, no frame beside the panel). Only a
         // wrapping element (a vertical Flow) reads it; it lays out against it lazily,
         // before the height is measured just below.
@@ -679,19 +568,20 @@ public class Panel {
 
         cachedScrollContainer = null;
         boolean overflow = viewportHeight > 0 && naturalContentHeight > viewportHeight;
-        // Everything fits in a real viewport, so it is at the top: say so, as the
-        // container writes back its clamp. Kept, the old offset would come back the
-        // moment the panel overflowed again (a section closed so all fits, then
-        // reopened), a jump from the top to wherever it once was. Tabs' bodies do the same.
+        // Everything fits a real viewport, so the scroll is at the top; reset it, as
+        // the container would write back its clamp. Otherwise the old offset would
+        // come back the moment the panel overflowed again (a section closed so all
+        // fits, then reopened), jumping from the top to where it once was. Tabs'
+        // bodies do the same.
         if (!overflow && viewportHeight > 0) scrollOffset = 0;
         if (overflow) {
-            // Re-lay out with the scrollbar reserve so wrapped content clears the
-            // track, reflow again, then wrap everything in a ScrollContainer sized
-            // to the viewport. Outer width = the panel's content area: pinnedWidth
-            // when declared; the ceiling-clamped contentWidth when a screen-edge
-            // width ceiling bit; otherwise the natural child extent plus reserve.
-            // The reserve is the scrollbar lane plus, on an options screen, the list
-            // band's left inset (ScrollContainer.viewportWidthFor is the one rule).
+            // Lay out again with room for the scrollbar so wrapped content clears
+            // the track, reflow, then wrap everything in a ScrollContainer the size
+            // of the viewport. Its width is the content area: pinnedWidth when set,
+            // the capped contentWidth when the screen limits width, otherwise the
+            // children's width plus the reserve. The reserve is the scrollbar lane
+            // plus, on an options screen, the list band's left inset
+            // (ScrollContainer.viewportWidthFor decides it).
             int reserve = contentWidth - ScrollContainer.viewportWidthFor(contentWidth, screenKind);
             layoutElementsWithin(contentWidth - reserve);
             reflowForWrap();
@@ -704,8 +594,8 @@ public class Panel {
                 outerWidth = aggregateRawContentWidth() + reserve;
             }
             // ScrollContainer.Builder.size() rejects widths <= track + gutter + 1
-            // (= 17). Skip scroll silently if the budget is too tight, content
-            // overflows but no crash.
+            // (17). When there isn't that much room, skip scrolling: the content
+            // overflows, but nothing crashes.
             int minScrollWidth = reserve + 1;
             if (outerWidth > minScrollWidth) {
                 cachedScrollContainer = ScrollContainer.builder()
@@ -717,23 +607,20 @@ public class Panel {
             }
         }
 
-        // Store the POST-reflow signature so a SETTLED layout doesn't re-trigger an
-        // extra reconfigure next frame: reflow just mutated each element's live
-        // childY, and layoutSignature() reads childY, computing it HERE (after
-        // reflow) means the signature the next frame derives from the settled
-        // positions matches, so the gate skips. A real change (visibility / size / a
-        // runtime move) still shifts the signature and re-triggers correctly.
+        // Take the signature after reflow, which just moved each element's childY,
+        // so next frame's signature from the settled positions matches and the
+        // pass is skipped. A real change (visibility, size, a move) still changes
+        // it.
         lastLayoutSig = layoutSignature();
     }
 
     /**
-     * Step 2 of {@link #ensureConfigured}: hands each element its horizontal
-     * budget = {@code contentWidth} minus the element's own left offset (room
-     * from the element's left edge to the panel's content right edge). Every
-     * element resolves its width, and, if it wraps a label, its height.
-     * REVERSIBLY from this budget, so a later wider budget restores natural size.
-     * Extracted so the configuration pass can lay out twice when overflow forces
-     * a scrollbar reserve (first at full width to detect overflow, then narrower).
+     * Step 2 of {@link #ensureConfigured}: gives each element the room from its left
+     * edge to the content's right edge ({@code contentWidth} minus its x). Each
+     * element works out its width, and for wrapped text its height, from that,
+     * reversibly, so a wider budget later restores its natural size. A separate
+     * method because overflow lays out twice: at full width to detect it, then
+     * narrower for the scrollbar.
      */
     private void layoutElementsWithin(int contentWidth) {
         layoutElementsWithin(elements, contentWidth);
@@ -750,12 +637,10 @@ public class Panel {
     }
 
     /**
-     * A cheap, allocation-free hash of the raw elements' current visibility +
-     * live position/size, the gate for the element-driven reconfigure
-     * (Movement ④, see {@link #ensureConfigured}). Reads each element's
-     * getChildX/Y/Width/Height (the flow's are live; a fixed element's are
-     * constant), so the value is stable frame-to-frame unless an element actually
-     * resizes/moves, at which point it changes and re-triggers configuration.
+     * A cheap, allocation-free hash of the elements' visibility, position and size,
+     * which triggers a reconfigure when an element changes by itself (see
+     * {@link #ensureConfigured}). Stable from frame to frame unless an element
+     * actually resizes or moves.
      */
     private int layoutSignature() {
         int sig = 1;
@@ -770,42 +655,36 @@ public class Panel {
         return sig;
     }
 
-    /** Minimum horizontal budget handed to any element (a tight gutter can't
-     *  squeeze content to nothing). See {@link #ensureConfigured}. */
+    // The least width any element is given, so a tight gutter can't squeeze content
+    // to nothing.
     private static final int MIN_ELEMENT_WIDTH = 8;
 
-    /** Smallest screen-edge height ceiling (②) worth auto-scrolling INTO. When a
-     *  region sibling is squeezed against a tall main frame its available height can
-     *  floor to a sliver; building a scrollbar into fewer than this many pixels is
-     *  worse than rendering at natural height and relying on the on-screen clamp.
-     *  Gates ONLY the library-imposed screen-edge ceiling, a consumer's explicit
-     *  {@code pinnedHeight} is always honored. See {@link #ensureConfigured}. */
+    // The smallest screen-imposed height worth scrolling within. A region panel
+    // squeezed against a tall main frame can be left a sliver, and a scrollbar in
+    // fewer pixels than this is worse than drawing at natural height and relying on
+    // the on-screen clamp. A pinnedHeight is always honoured.
     private static final int MIN_SCROLL_VIEWPORT = 24;
 
     /**
-     * Re-stacks elements' live childY from their BASELINES so an auto-wrapped
-     * (taller) element pushes everything below it down by exactly the extra
-     * height, keeping fixed-childY layouts overlap-free under wrap.
+     * Re-stacks the elements' childY from their baselines, so a wrapped (taller)
+     * element pushes everything below it down by exactly the extra height and
+     * fixed-childY layouts don't overlap when text wraps.
      *
-     * <p>The baseline is each element's authored / explicitly-moved Y, held on
-     * the element itself ({@link AbstractPanelElement#reflowBaselineY()}, captured
-     * lazily and updated by {@code at}/{@code setChildPosition}). Reflow sets the
-     * live childY to {@code baseline + cumulativePush} via
-     * {@link AbstractPanelElement#applyReflowedY}, which leaves the baseline
-     * intact, so the push is reversible (a wider frame that un-wraps restores
-     * {@code baseline + 0}) AND a runtime move re-bases the stack instead of being
-     * clobbered. (Earlier this read a Panel-level snapshot captured once on the
-     * first pass; that snapshot never saw a runtime move, so reflow re-asserted
-     * the stale Y and explicit moves silently no-op'd.)
+     * <p>The baseline is each element's declared or explicitly moved Y, kept on the
+     * element ({@link AbstractPanelElement#reflowBaselineY()}, captured lazily and
+     * updated by {@code at}/{@code setChildPosition}). Reflow sets childY to
+     * {@code baseline + push} through {@link AbstractPanelElement#applyReflowedY},
+     * which leaves the baseline alone. So the push is reversible (a wider frame
+     * that un-wraps gives back {@code baseline + 0}), and a move at runtime re-bases
+     * the stack instead of being overwritten. A snapshot taken once on the first
+     * pass would never see runtime moves, and reflow would put the old Y back.
      *
-     * <p>No-op when nothing wrapped (every extra is 0 → live = baseline). Render
-     * and input read position via {@code getChildY()} each frame (§0055), so the
-     * reflow takes effect uniformly with no dispatcher changes.
+     * <p>Nothing changes when nothing wrapped. Rendering and input read
+     * {@code getChildY()} every frame, so reflow needs nothing else.
      *
      * <p>Only library elements ({@link AbstractPanelElement}) can be repositioned;
-     * a bare custom {@link PanelElement} keeps its position (it doesn't auto-wrap,
-     * so it never drives a reflow, only ever receives a push, which it can't take
-     * here). Elements sharing a baseline childY form one row: the row's downward
+     * a bare custom {@link PanelElement} keeps its position (it doesn't wrap, so it
+     * never causes a reflow; it could only be pushed, which it can't be here). Elements sharing a baseline childY form one row: the row's downward
      * push is the tallest wrap within it, so side-by-side cells (e.g. a slot grid
      * row) don't double-count.
      */
@@ -819,8 +698,8 @@ public class Panel {
         if (elements.isEmpty()) return;
         int n = elements.size();
 
-        // Each element's BASELINE Y (authored / explicitly-moved). A bare custom
-        // element can't be repositioned, so its baseline = its current childY.
+        // Each element's baseline Y (declared or explicitly moved). A bare custom
+        // element can't be moved, so its baseline is its current childY.
         int[] baseline = new int[n];
         for (int i = 0; i < n; i++) {
             PanelElement e = elements.get(i);
@@ -851,20 +730,16 @@ public class Panel {
                 ape.applyReflowedY(dY + cumulative);
             }
             if (e.isVisible()) {
-                // Generic growth: any element that grew under layoutWithin, a
-                // wrapped TextLabel OR a multi-line Button, pushes its row's
-                // siblings down by its extra height.
+                // Any element that grew under layoutWithin (a wrapped TextLabel,
+                // a multi-line Button) pushes the rows below down by its extra
+                // height.
                 rowExtra = Math.max(rowExtra, e.extraLayoutHeight());
             }
         }
     }
 
-    /**
-     * Aggregate content height from the raw elements, used by the
-     * configuration pass to detect scroll overflow. Walks the raw element
-     * list (NOT {@link #getElements()}, to avoid recursion through the
-     * configuration pass) and returns the max {@code childY + height}.
-     */
+    // Content height of the raw elements, for the overflow check. Not
+    // getElements(), which would recurse into the configuration pass.
     private int aggregateRawContentHeight() {
         return contentHeightOf(elements);
     }
@@ -881,12 +756,8 @@ public class Panel {
         return max;
     }
 
-    /**
-     * Aggregate content width from the raw elements. Used by the
-     * configuration pass when auto-scroll fires without an explicit
-     * {@code pinnedWidth}, gives the ScrollContainer a natural outer
-     * width based on the widest child.
-     */
+    // Content width of the raw elements: the ScrollContainer's width when it
+    // scrolls with no pinned or limited width.
     private int aggregateRawContentWidth() {
         int max = 0;
         for (PanelElement e : elements) {
@@ -897,15 +768,14 @@ public class Panel {
         return max;
     }
 
-    // ── Size (for M5 region stacking) ──────────────────────────────────
+    // Size
 
     /**
-     * Pins this panel's width and height for the region-stacking calculation.
-     * Overrides the auto-sized bounding-box computation in {@link #getWidth()}
-     * and {@link #getHeight()}. Use when the panel's content is
-     * supplier-driven and its auto-size would fluctuate between frames.
-     * pinning stabilizes the stacking math so subsequent panels in the same
-     * region don't jitter.
+     * Pins this panel's width and height, overriding the size {@link #getWidth()}
+     * and {@link #getHeight()} would compute from the elements. Use it when the
+     * content is supplier-driven and its size would change from frame to frame,
+     * so the panels stacked after it in the same region don't jump. Text wraps to
+     * the pinned width and content taller than the pinned height scrolls.
      *
      * @param w pinned width in pixels (must be non-negative)
      * @param h pinned height in pixels (must be non-negative)
@@ -914,18 +784,15 @@ public class Panel {
     public Panel size(int w, int h) {
         this.pinnedWidth = w;
         this.pinnedHeight = h;
-        // Pinned dims feed wrap-width + scroll-viewport calculations, so
-        // re-run the configuration pass on next access.
+        // Pinned sizes feed wrapping and scrolling, so reconfigure on next access.
         this.configurationDirty = true;
         this.cachedScrollContainer = null;
         return this;
     }
 
     /**
-     * Sets only the pinned width (height stays auto-sized). Trigger for
-     * auto-wrap without auto-scroll, text wraps to the pinned width but
-     * vertical extent grows naturally to fit the wrapped content.
-     * Chainable.
+     * Pins only the width; the height still follows the content. Text wraps to the
+     * pinned width and the panel grows to fit it.
      */
     public Panel pinnedWidth(int w) {
         this.pinnedWidth = w;
@@ -935,35 +802,28 @@ public class Panel {
     }
 
     /**
-     * Returns the pinned width set via {@link #size(int,int)} or
-     * {@link #pinnedWidth(int)}, or {@code -1} if no pinned width is
-     * declared. Exposed for consumer-screen layout code that needs to
-     * distinguish "consumer declared a fixed width" from "panel
-     * auto-sized", e.g. MKC's {@code CustomContainerScreen.computePanelSize}
-     * which uses pinned-when-set and slot+element max otherwise. The
-     * panel's auto-sized {@link #getWidth()} aggregates from elements
-     * only, so callers needing the slot-aware width can't infer
-     * "pinned vs auto" from {@code getWidth()} alone.
+     * The width set with {@link #size(int,int)} or {@link #pinnedWidth(int)}, or
+     * {@code -1} if none. For layout code that has to tell a pinned width from an
+     * automatic one, such as MKC's {@code CustomContainerScreen.computePanelSize},
+     * which uses the pinned width when set and otherwise the widest of its slots
+     * and elements. {@link #getWidth()} only counts elements, so it can't tell.
      */
     public int getPinnedWidth() {
         return pinnedWidth;
     }
 
     /**
-     * Returns the pinned height set via {@link #size(int,int)} or
-     * {@link #pinnedHeight(int)}, or {@code -1} if no pinned height is
-     * declared. See {@link #getPinnedWidth()} for the symmetric
-     * "pinned vs auto" rationale.
+     * The height set with {@link #size(int,int)} or {@link #pinnedHeight(int)}, or
+     * {@code -1} if none. See {@link #getPinnedWidth()}.
      */
     public int getPinnedHeight() {
         return pinnedHeight;
     }
 
     /**
-     * Sets only the pinned height (width stays auto-sized). Trigger for
-     * auto-scroll without auto-wrap, content scrolls vertically when it
-     * exceeds the pinned height; text doesn't wrap (long lines clip
-     * horizontally inside the scissor). Chainable.
+     * Pins only the height; the width still follows the content. Content taller
+     * than the pinned height scrolls; text doesn't wrap, and long lines are
+     * clipped.
      */
     public Panel pinnedHeight(int h) {
         this.pinnedHeight = h;
@@ -973,75 +833,63 @@ public class Panel {
     }
 
     /**
-     * Sets the screen-edge-derived available content width (Pass 3 adaptive
-     * wrap). Called by the placement layer EVERY frame, before reading
-     * {@link #getWidth()}, with the content-width room remaining before the
-     * physical screen-edge margin at this panel's anchor. When the panel is
-     * unpinned and its natural content is wider than {@code avail}, its
-     * TextLabels wrap to {@code avail} (and an auto-scroll viewport is sized to
-     * it) instead of overflowing the screen, making screen-edge-aware
-     * adaptive wrapping the default for every panel, with no consumer opt-in.
+     * Sets the content width the screen leaves this panel. PanelHost calls it every
+     * frame, before {@link #getWidth()}, with the room left before the screen-edge
+     * margin at the panel's anchor. An unpinned panel whose content is wider wraps
+     * its TextLabels to it (and sizes a scroll viewport to it) instead of running
+     * off the screen, so every panel wraps at the screen edge without opting in.
      *
-     * <p><b>Idempotency / staleness guard.</b> Re-flips
-     * {@code configurationDirty} (and drops the cached scroll container) ONLY
-     * when {@code avail} actually changes from the last call. The placement
-     * layer calls this per frame; without the guard, a stable frame would
-     * either keep a stale wrap (if it never re-ran) or rebuild the scroll
-     * container every frame (resetting its drag state). The guard delivers
-     * both: re-fits on a real change (window resize), free otherwise.
+     * <p>Only a changed value marks the configuration dirty and drops the scroll
+     * container. Since this runs every frame, it would otherwise either keep a
+     * stale wrap or rebuild the scroll container each frame, resetting its drag
+     * state. A window resize re-fits; a stable frame costs nothing.
      *
-     * <p>Library-internal, consumers never call this; it carries the screen
-     * geometry the panel itself is deliberately blind to. Negative values are
-     * floored to a small minimum so a degenerate frame can't wrap to zero.
+     * <p>Internal: it carries screen geometry the panel itself doesn't know.
+     * Values below a small minimum are raised to it, so a degenerate frame can't
+     * wrap to zero.
      *
      * @param avail content-width room before the screen-edge margin, in pixels
      */
     @ApiStatus.Internal
     public void setAvailableContentWidth(int avail) {
         int clamped = Math.max(MIN_FIT_WIDTH, avail);
-        if (clamped == lastFitAvail) return; // no change, keep the cached pass
+        if (clamped == lastFitAvail) return; // unchanged: keep the last pass
         lastFitAvail = clamped;
         this.effectiveContentWidth = clamped;
         this.configurationDirty = true;
         this.cachedScrollContainer = null;
     }
 
-    /** Floor for {@link #setAvailableContentWidth} so a degenerate frame
-     *  (tiny/negative avail) can't wrap content to nothing. */
+    // Minimum for setAvailableContentWidth, so a tiny or negative value can't wrap
+    // content to nothing.
     private static final int MIN_FIT_WIDTH = 16;
 
     /**
-     * Imposes the per-frame screen-edge content-HEIGHT ceiling (Movement ②).
-     * the vertical twin of {@link #setAvailableContentWidth}. The placement layer
-     * computes how much room the panel's anchor leaves toward the screen edge
-     * ({@link RegionMath#availableMenuHeight}) and passes it here; when the panel's
-     * natural content height exceeds the ceiling, the panel auto-scrolls into it
-     * (reusing the {@code pinnedHeight} ScrollContainer path) instead of running
-     * off-screen. When content fits under the ceiling, this is inert, no scroll,
-     * no scrollbar reserve.
+     * Sets the content height the screen leaves this panel, the height counterpart
+     * of {@link #setAvailableContentWidth}. PanelHost works out the room the
+     * panel's anchor leaves toward the screen edge
+     * ({@link RegionMath#availableMenuHeight}); when the content is taller, the
+     * panel scrolls within it (the same ScrollContainer as {@code pinnedHeight})
+     * instead of running off the screen. Content that fits is unaffected: no
+     * scrolling, no scrollbar room.
      *
-     * <p>Idempotency guard identical to {@link #setAvailableContentWidth}: re-flips
-     * {@code configurationDirty} (and drops the cached scroll container) ONLY when
-     * {@code avail} changes, so the per-frame placement calls are free and the
-     * scroll container isn't rebuilt every frame (which would reset its drag state).
-     *
-     * <p>Library-internal, consumers never call this; it carries the screen
-     * geometry the panel is deliberately blind to.
+     * <p>Like {@link #setAvailableContentWidth}, only a changed value triggers a
+     * reconfigure. Internal.
      *
      * @param avail content-height room before the screen-edge margin, in pixels
      */
     @ApiStatus.Internal
     public void setAvailableContentHeight(int avail) {
         int clamped = Math.max(MIN_FIT_HEIGHT, avail);
-        if (clamped == lastFitAvailHeight) return; // no change, keep cached pass
+        if (clamped == lastFitAvailHeight) return; // unchanged: keep the last pass
         lastFitAvailHeight = clamped;
         this.effectiveContentHeight = clamped;
         this.configurationDirty = true;
         this.cachedScrollContainer = null;
     }
 
-    /** Floor for {@link #setAvailableContentHeight} so a degenerate frame
-     *  can't collapse the scroll viewport to nothing. */
+    // Minimum for setAvailableContentHeight, so a degenerate frame can't collapse
+    // the scroll viewport to nothing.
     private static final int MIN_FIT_HEIGHT = 16;
 
     /**
@@ -1054,10 +902,8 @@ public class Panel {
      * receives it as its wrap height ({@link PanelElement#wrapHeight}).
      *
      * <p>Not a scroll ceiling: a panel taller than its band does not scroll (that is
-     * {@link #setAvailableContentHeight}, at the screen's edge). Same idempotency
-     * guard as the ceilings: re-lays out only when the value changes.
-     *
-     * <p>Library-internal, consumers never call this.
+     * {@link #setAvailableContentHeight}, at the screen's edge). Like those, it
+     * only re-lays out when the value changes. Internal.
      *
      * @param height content-height room down to the frame's bottom, or {@code -1}
      */
@@ -1075,9 +921,7 @@ public class Panel {
      * host fixes it from its screen, {@link ScreenKind#of}). An auto-scrolling panel
      * on an options screen lays its elements out inside the list band's inset
      * ({@link ScrollContainer#viewportWidthFor(int, ScreenKind)}). Re-lays out only
-     * when it changes, like the size ceilings.
-     *
-     * <p>Library-internal, consumers never call this.
+     * when it changes, like the size limits. Internal.
      */
     @ApiStatus.Internal
     public void setScreenKind(ScreenKind kind) {
@@ -1088,25 +932,17 @@ public class Panel {
     }
 
     /**
-     * Returns the panel's width for region-stacking math.
+     * The panel's content width: the pinned width if one was set, otherwise the
+     * extent of the visible elements (the largest {@code childX + width}).
      *
-     * <p>If a pinned size was declared via {@link #size(int, int)}, returns
-     * the pinned width. Otherwise, returns the bounding-box extent computed
-     * from visible elements (max {@code childX + width}), plus any
-     * background-padding contribution when the panel has a non-NONE style.
-     *
-     * <p>Consumers whose panels have only supplier-gated elements should pin
-     * the size explicitly, auto-size collapses to zero when all elements
-     * report invisible, causing subsequent panels to shift inward for a
-     * frame until the elements reappear.
+     * <p>A panel whose elements are all supplier-gated should pin its size: with
+     * every element hidden the width drops to zero, and the panels after it shift
+     * for a frame until the elements come back.
      */
     public int getWidth() {
         if (pinnedWidth >= 0) return pinnedWidth;
-        // Iterate the EFFECTIVE element list (via getElements) so that
-        // when auto-scroll fires without an explicit pinnedWidth, the
-        // ScrollContainer's outer width (which includes scrollbar reserve)
-        // contributes to the panel's reported size. Falls through to raw
-        // elements when no scroll wrapper is active.
+        // getElements(), so a scrolling panel reports the ScrollContainer's width,
+        // scrollbar included.
         int extent = 0;
         for (PanelElement e : getElements()) {
             if (!e.isVisible()) continue;
@@ -1117,15 +953,11 @@ public class Panel {
     }
 
     /**
-     * Returns the panel's height for region-stacking math.
-     *
-     * <p>See {@link #getWidth()}, same auto-size/pin semantics along the Y axis.
+     * The panel's content height, worked out like {@link #getWidth()}.
      */
     public int getHeight() {
         if (pinnedHeight >= 0) return pinnedHeight;
-        // Iterate effective elements, see getWidth() comment for the
-        // auto-scroll rationale (scroll container's outer extent must
-        // factor in even when only pinnedHeight is set).
+        // getElements(), as in getWidth().
         int extent = 0;
         for (PanelElement e : getElements()) {
             if (!e.isVisible()) continue;
@@ -1135,26 +967,19 @@ public class Panel {
         return extent + backgroundPadding();
     }
 
-    /**
-     * Additional pixels the panel background contributes beyond the element
-     * extent. Zero for {@link PanelStyle#NONE}; reserved as a style-specific
-     * hook for frame insets when styled-background panels need it. Kept as a
-     * single value (rather than per-edge insets) because all current styles
-     * are visually symmetric. Currently returns 0 for all styles, refine
-     * when visual verification shows frame clipping.
-     */
+    // Extra pixels a background adds beyond the elements. 0 for every style for
+    // now; one value rather than per-edge insets because every style is
+    // symmetric. Change it if a styled frame ever clips.
     private int backgroundPadding() {
         return 0;
     }
 
-    // ── Visibility ──────────────────────────────────────────────────────
+    // Visibility
 
     /**
-     * Returns whether this panel is currently visible.
-     *
-     * <p>If a visibility supplier is set (via {@link #visibleWhen(java.util.function.BooleanSupplier)}),
-     * returns the supplier's current value. Otherwise returns the imperative
-     * {@code visible} field, which is controlled via {@link #setVisible(boolean)}.
+     * Whether this panel is visible: the supplier's value if one is set with
+     * {@link #visibleWhen(java.util.function.BooleanSupplier)}, otherwise what
+     * {@link #setVisible(boolean)} last set.
      */
     public boolean isVisible() {
         if (visibilitySupplier != null) {
@@ -1166,61 +991,55 @@ public class Panel {
     /**
      * Sets this panel's visibility.
      *
-     * <p><b>No-op when a visibility supplier is active.</b> If
-     * {@link #visibleWhen(java.util.function.BooleanSupplier)} has been called with a non-null supplier,
-     * calls to {@code setVisible} are silently ignored, the supplier is the
-     * single source of truth. Consumers who have committed to supplier-driven
-     * visibility should not get spurious partial overrides from unrelated code
-     * paths. Call {@code visibleWhen(null)} first to revert to imperative control.
+     * <p><b>Ignored while a supplier is set.</b> After
+     * {@link #visibleWhen(java.util.function.BooleanSupplier)} with a non-null
+     * supplier, the supplier alone decides, so unrelated code can't override it.
+     * Call {@code visibleWhen(null)} first to go back to {@code setVisible}.
      */
     public void setVisible(boolean visible) {
-        if (visibilitySupplier != null) return; // silent no-op when supplier is active
-        if (this.visible == visible) return;    // no-op if unchanged
+        if (visibilitySupplier != null) return; // the supplier decides
+        if (this.visible == visible) return;
         this.visible = visible;
     }
 
     /**
-     * Installs a supplier that drives this panel's visibility. Once set, the
-     * supplier is the single source of truth, {@link #isVisible()} evaluates
-     * it on each call, and {@link #setVisible(boolean)} becomes a silent no-op.
+     * Makes a supplier decide this panel's visibility. {@link #isVisible()} reads
+     * it on every call and {@link #setVisible(boolean)} is ignored.
      *
-     * <p>This matches the Phase 8/9 state-ownership pattern established by
-     * an element's {@code state(get, set)}: the consumer holds the state, the library reads
-     * it via the supplier, and there is no parallel library-owned field that
-     * could desync from consumer state.
+     * <p>Like an element's {@code state(get, set)}: you hold the state and MenuKit
+     * reads it, so there is no second copy to fall out of sync.
      *
-     * <h4>Precedence semantics</h4>
+     * <h4>Precedence</h4>
      * <ul>
      *   <li>Calling {@code visibleWhen(supplier)} replaces any prior
      *       {@link #setVisible(boolean)} state. The imperative {@code visible}
      *       field is ignored while the supplier is active.</li>
-     *   <li>To revert to imperative-only visibility, call
+     *   <li>To go back to {@code setVisible}, call
      *       {@code visibleWhen(null)}. The prior {@code setVisible} state is not
      *       restored; visibility resets to the default ({@code true}) until
      *       the consumer calls {@code setVisible} again.</li>
      * </ul>
      *
-     * <h4>Sync-safety caveat</h4>
+     * <h4>Sync</h4>
      *
      * A panel's visibility is a client-side rendering decision. Where it must
-     * drive slot inertness and sync (a Containers custom menu), the menu holds
+     * drive slot inertness and sync (a MenuKit: Containers custom menu), the menu holds
      * it on the server and the screen reads it through this supplier.
      *
-     * @param supplier the visibility predicate, or {@code null} to revert to
-     *                 imperative control.
+     * @param supplier the visibility condition, or {@code null} to go back to
+     *                 {@code setVisible}.
      * @return this panel, for method chaining.
      */
     public Panel visibleWhen(@Nullable BooleanSupplier supplier) {
         this.visibilitySupplier = supplier;
         if (supplier == null) {
-            // Reset to default-visible per the design-doc-locked semantics.
-            // The prior setVisible state is not restored.
+            // Back to visible by default; the earlier setVisible state is not restored.
             this.visible = true;
         }
         return this;
     }
 
-    // ── Disabled (the panel-wide cascade, §0066) ───────────────────────
+    // Disabled
 
     /**
      * Disables the whole panel while {@code condition} holds, read every frame
@@ -1228,7 +1047,6 @@ public class Panel {
      * and section headers grey, controls dark) and takes no clicks, wheel or
      * keys; containers pass it down to their children. The panel itself stays
      * present: it still claims its area, so nothing behind it reacts either.
-     * Chainable.
      */
     public Panel disabledWhen(@Nullable BooleanSupplier condition) {
         this.disabledSupplier = condition;
@@ -1240,24 +1058,18 @@ public class Panel {
         return disabledSupplier != null && disabledSupplier.getAsBoolean();
     }
 
-    // ── Opacity / dim / modal-tracking (M9) ────────────────────────────
+    // Opacity, dim and modal tracking
 
     /**
-     * Sets whether this panel is interaction-opaque over its bounds. Chainable.
+     * Sets whether this panel takes all input over its bounds.
      *
-     * <p>When {@code true} and the panel is visible, input arriving at coords
-     * within the panel's bounding box (clicks, hover, tooltip queueing) is
-     * handled by the panel and does not pass through to vanilla widgets
-     * underneath. Empty space within the panel's bounds eats input;
-     * tooltips for items behind the panel are suppressed; slot hover
-     * returns null.
+     * <p>When {@code true} and the panel is visible, input inside its bounding box
+     * (clicks, hover, tooltips) goes to the panel and never reaches vanilla widgets
+     * underneath. Empty space in the panel eats input, tooltips for items behind
+     * it are suppressed, and slot hover returns null. Clicks never pass through a
+     * visible panel unless it opts out, as transparent overlays do.
      *
-     * <p>This is Trevor's click-through prohibition principle (Phase 14d-2):
-     * visible panels are interaction-opaque over their bounds. Default-true
-     * makes opacity the path-of-least-friction; consumers wanting
-     * transparent overlays opt out explicitly.
-     *
-     * <p>The claim rule (§0065 as reworded): an opaque panel claims its
+     * <p>The claim rule: an opaque panel claims its
      * whole bounding box, regardless of {@link PanelStyle}, with no holes; a
      * transparent panel ({@code opaque(false)}) claims only its solid elements
      * (shown, opaque, interactive). {@code PanelStyle.NONE + opaque(true)} is the
@@ -1265,10 +1077,9 @@ public class Panel {
      * stay live under its own claim.
      *
      * <p><b>Every host:</b> panels on container and vanilla screens, slot-group
-     * panels, and a standalone screen's own panels all claim by this one rule.
+     * panels, and a standalone screen's own panels all claim by this rule.
      *
-     * <p>Default: {@code true} (M9 default-flip from the 14d-1
-     * {@code cancelsUnhandledClicks} default of {@code false}).
+     * <p>Default: {@code true}.
      *
      * @param isOpaque {@code true} to make this panel interaction-opaque
      * @return this panel, for chaining
@@ -1278,25 +1089,22 @@ public class Panel {
         return this;
     }
 
-    /** Returns whether this panel is interaction-opaque. See {@link #opaque(boolean)}. */
+    /** Whether this panel takes all input over its bounds. See {@link #opaque(boolean)}. */
     public boolean isOpaque() {
         return opaque;
     }
 
     /**
-     * Sets whether the screen dims visually behind this panel when visible.
-     * Chainable.
+     * Sets whether the screen dims behind this panel while it is visible.
      *
-     * <p>When {@code true} and the panel is visible, the dispatcher renders
-     * a translucent-black quad over the underlying screen before drawing
-     * this panel. Used by real modal dialogs to visually distinguish them
-     * from regular decoration.
+     * <p>When {@code true} and the panel is visible, a translucent black fill is
+     * drawn over the screen before this panel. Modal dialogs use it to stand apart
+     * from ordinary decoration.
      *
-     * <p>Independent of {@link #opaque(boolean)}, a panel can be opaque
-     * without dimming (popovers, dropdowns) and could in principle be
-     * transparent-with-dim (unusual; not a current use case). Independent
-     * of {@link #tracksAsModal(boolean)}, dim is purely visual; modal
-     * tracking governs cursor + keyboard.
+     * <p>Independent of {@link #opaque(boolean)}: a panel can be opaque without
+     * dimming (popovers, dropdowns), or in principle transparent with a dim.
+     * Independent of {@link #tracksAsModal(boolean)} too: the dim is only visual,
+     * while modal tracking governs the cursor and keyboard.
      *
      * <p>Default: {@code false}.
      *
@@ -1308,34 +1116,31 @@ public class Panel {
         return this;
     }
 
-    /** Returns whether this panel dims the screen behind it. See {@link #dimsBehind(boolean)}. */
+    /** Whether this panel dims the screen behind it. See {@link #dimsBehind(boolean)}. */
     public boolean dimsBehind() {
         return dimsBehind;
     }
 
     /**
-     * Sets whether this panel participates in global modal tracking.
-     * Chainable.
+     * Sets whether this panel acts as a modal for the whole window.
      *
-     * <p>When {@code true} and the panel is visible, the library applies
-     * window-state suppressions:
+     * <p>When {@code true} and the panel is visible:
      * <ul>
-     *   <li><b>Cursor lock</b>, {@code Window.setAllowCursorChanges(false)}
-     *       per-tick; the OS cursor stays as DEFAULT regardless of vanilla
-     *       widgets requesting clickable-feedback (creative tabs, etc.).</li>
-     *   <li><b>Keyboard suppression</b>, keystrokes other than Escape are
-     *       eaten before reaching the underlying screen. Escape closes the
-     *       screen as normal v1 behavior.</li>
-     *   <li><b>Outside-bounds click eating</b>, clicks outside any visible
-     *       opaque panel are eaten while a tracksAsModal panel is up
-     *       (preserves modal-blocking semantic).</li>
+     *   <li><b>Cursor lock:</b> {@code Window.setAllowCursorChanges(false)} every
+     *       tick, so the cursor stays DEFAULT whatever vanilla widgets ask for
+     *       (creative tabs and so on).</li>
+     *   <li><b>Keys:</b> keys the panels don't take never reach the screen
+     *       underneath. Escape runs the panel's {@link #onEscape} action instead
+     *       of closing the screen.</li>
+     *   <li><b>Clicks anywhere:</b> a visible modal claims every point, so clicks
+     *       outside it are eaten too.</li>
      * </ul>
      *
-     * <p>Pointer-driven suppressions (slot hover, tooltip queueing) are
-     * governed by {@link #opaque(boolean)} bounds-locally, they do NOT
-     * require {@code tracksAsModal}. The asymmetry is principled: pointer
-     * position localizes naturally; cursor + keyboard are window-state
-     * concerns appropriately scoped to modal-tracking. See M9 §4.7.
+     * <p>Pointer-based suppression (slot hover, tooltips) comes from
+     * {@link #opaque(boolean)} within the panel's bounds and doesn't need
+     * {@code tracksAsModal}. The pointer has a position, so that can be local;
+     * the cursor shape and keyboard belong to the whole window, so only modals
+     * take them over.
      *
      * <p>Default: {@code false}.
      *
@@ -1347,30 +1152,25 @@ public class Panel {
         return this;
     }
 
-    /** Returns whether this panel participates in modal tracking. See {@link #tracksAsModal(boolean)}. */
+    /** Whether this panel acts as a modal. See {@link #tracksAsModal(boolean)}. */
     public boolean tracksAsModal() {
         return tracksAsModal;
     }
 
     /**
-     * Whether this panel is positioned as a screen-centered overlay rather than
-     * flowing in the body stack. True when the panel either declares
-     * {@link PanelPosition#center()} <em>or</em> carries an overlay/modal visual
-     * semantic ({@link #dimsBehind()} or {@link #tracksAsModal()}).
+     * Whether this panel is a screen-centred overlay rather than part of the
+     * normal layout: true when it declares {@link PanelPosition#center()}, or is
+     * {@link #dimsBehind()} or {@link #tracksAsModal()}.
      *
-     * <p>This is the single predicate the standalone-screen
-     * ({@link com.trevlar.menukit.api.panel.MKScreen}) layer uses to decide
-     * three things together: (1) auto-center the panel on the screen window,
-     * (2) exclude it from the body-stack layout + extent, and (3) draw it in the
-     * on-top overlay pass. Folding {@code dimsBehind}/{@code tracksAsModal} in
-     * (not just {@code center()}) means existing dialogs, which set those via
-     * {@code modal()} but never call {@code center()}, keep auto-centering with
-     * no consumer change, while a non-dim, non-modal overlay can opt in
-     * explicitly with {@code position(PanelPosition.center())}.
+     * <p>Hosts use this one check for three things: centring the panel on the
+     * screen, leaving it out of the normal layout, and drawing it in the overlay
+     * layer on top. Counting {@code dimsBehind} and {@code tracksAsModal} means a
+     * dialog made with {@code modal()} is centred without calling
+     * {@code center()}, while a non-dim, non-modal overlay opts in with
+     * {@code position(PanelPosition.center())}.
      *
-     * <p>Note this is POSITION, decoupled from the dim VISUAL: the dim fill is
-     * still gated on {@link #dimsBehind()} alone (M9 doctrine, the three flags
-     * stay independent). An overlay panel may center-and-draw-on-top without
+     * <p>This is about position only. The dim is still drawn only for
+     * {@link #dimsBehind()}, so an overlay can be centred on top without
      * dimming.
      */
     public boolean isOverlayPositioned() {
@@ -1388,19 +1188,14 @@ public class Panel {
     }
 
     /**
-     * Builder convenience setting all three modal flags to {@code true}.
-     * Equivalent to {@code opaque(true).dimsBehind(true).tracksAsModal(true)}.
+     * Sets all three modal flags, the same as
+     * {@code opaque(true).dimsBehind(true).tracksAsModal(true)}: a real modal in
+     * one call. Popovers, dropdowns and click blockers use the separate setters.
      *
-     * <p>Canonical "real modal" pattern, sets the whole bundle in one call.
-     * Consumers building non-canonical compositions (popovers, dropdowns,
-     * click-blockers) reach for the independent flag setters.
-     *
-     * <p><b>Undefined combination warning:</b> {@code opaque(false) +
-     * tracksAsModal(true)} is logically nonsensical (clicks pass through
-     * but Escape closes + cursor locks). Consumers constructing this
-     * combination almost certainly have a bug; v1 doesn't reject the
-     * combination but documents it as undefined. Future phases may
-     * fold-on-evidence to reject at builder time. See M9 §4.3.
+     * <p><b>Undefined:</b> {@code opaque(false)} with {@code tracksAsModal(true)}
+     * makes no sense (clicks pass through while the cursor and keys are locked)
+     * and is almost certainly a bug. It isn't rejected, but its behaviour is not
+     * defined.
      *
      * @return this panel, for chaining
      */
@@ -1409,27 +1204,19 @@ public class Panel {
     }
 
     /**
-     * Registers an action invoked when the user presses Escape while this
-     * panel is a visible {@link #tracksAsModal() modal} panel. Chainable.
+     * Sets the action run when the player presses Escape while this panel is the
+     * topmost visible {@link #tracksAsModal() modal}. The host ({@code MKScreen},
+     * or the key listener for injected panels) runs it and eats the key, so Escape
+     * dismisses the modal instead of closing the screen under it.
      *
-     * <p>Without this, Escape over an open modal flows past the modal to the
-     * host screen's own Escape handler, which closes the entire screen out
-     * from under the dialog. With an escape action set, the host
-     * ({@code MKScreen}, or the container-screen key-dispatch path) invokes
-     * this action FIRST and eats the key, so Escape dismisses the topmost
-     * modal, the universal modal-cancel gesture.
+     * <p>The dialog builders set it for you:
+     * {@link com.trevlar.menukit.api.dialog.ConfirmDialog} to its {@code onCancel}
+     * and {@link com.trevlar.menukit.api.dialog.AlertDialog} to its
+     * {@code onAcknowledge}, so Escape does what the button does. For a modal you
+     * build yourself, pass your dismiss callback here.
      *
-     * <p>The dialog builders wire this automatically:
-     * {@link com.trevlar.menukit.api.dialog.ConfirmDialog} registers
-     * its {@code onCancel} and
-     * {@link com.trevlar.menukit.api.dialog.AlertDialog} registers its
-     * {@code onAcknowledge}, so the consumer's existing self-dismiss callback
-     * fires on Escape exactly as it does on the button click. Consumers
-     * composing modal panels by hand set their own dismiss callback here.
-     *
-     * <p>Even when no escape action is set, a visible {@code tracksAsModal}
-     * panel still causes the host to EAT Escape (so it cannot close the host
-     * screen); the action only adds the consumer-driven dismissal on top.
+     * <p>Without an action, a visible {@code tracksAsModal} panel still makes the
+     * host eat Escape, so it can't close the screen.
      *
      * @param action the dismiss callback, or {@code null} to clear it
      * @return this panel, for chaining
@@ -1440,58 +1227,47 @@ public class Panel {
     }
 
     /**
-     * Returns the Escape-dismiss action registered via {@link #onEscape(Runnable)},
-     * or {@code null} if none. Invoked by the host's modal-Escape path when this
-     * panel is the topmost visible modal. See {@link #onEscape(Runnable)}.
+     * The action set with {@link #onEscape(Runnable)}, or {@code null}.
      */
     public @Nullable Runnable getEscapeAction() {
         return escapeAction;
     }
 
-    // ── Tooltip (panel-level hover-triggered configuration) ───────────
+    // Tooltip
 
     /**
-     * Attaches a hover-triggered tooltip that fires whenever the cursor is
-     * over the panel's outer bounds. Returns this panel for chaining.
+     * Sets a tooltip shown whenever the cursor is over the panel's outer bounds,
+     * say to explain what a collapsible or configurable panel is for.
      *
-     * <p>Useful for "what is this panel for" disclosure on collapsible /
-     * configurable panels. Consumers who want tooltips that fire only on
-     * specific children should put tooltips on those children, child
-     * tooltips are queued during the element-render pass and the
-     * panel-level tooltip is queued after, so by vanilla's
-     * last-call-wins semantics the panel tooltip takes precedence when
-     * both are configured AND the cursor is over a child.
+     * <p>For tooltips on specific children, put them on the children. Child
+     * tooltips are queued while the elements render and the panel's after, and
+     * the last one queued wins, so over a child with both, the panel's shows.
      */
     public Panel tooltip(Component text) {
         return tooltip(() -> text);
     }
 
     /**
-     * Attaches a hover-triggered tooltip with supplier-driven text.
-     * Supplier invoked each frame while the panel is hovered. Returns this
-     * panel for chaining.
+     * Sets a tooltip whose text comes from a supplier, read every frame while the
+     * panel is hovered.
      */
     public Panel tooltip(Supplier<Component> supplier) {
         this.tooltipSupplier = supplier;
         return this;
     }
 
-    /** Returns the configured tooltip supplier (nullable), for callers that need to inspect. */
+    /** The tooltip supplier, or null. */
     public @Nullable Supplier<Component> getTooltipSupplier() {
         return tooltipSupplier;
     }
 
     /**
-     * Queues the panel-level tooltip (if configured) when the cursor is
-     * over the given outer rect. Called by each panel-rendering site
-     * (MKScreen, CustomContainerScreen, ScreenPanelAdapter,
-     * SlotGroupPanelAdapter) AFTER element rendering. No-op when the
-     * tooltip supplier is unset or the cursor is out of bounds.
+     * Queues the panel's tooltip, if it has one, when the cursor is inside the
+     * given outer rectangle. The host calls it after rendering the elements.
      *
-     * <p>Skips when {@code hasMouseInput} is {@code false}, HUD contexts
-     * use sentinel {@code mouseX = -1} per RenderContext conventions, so
-     * the hit test would happen to miss, but the explicit gate makes the
-     * intent clear and saves the supplier call.
+     * <p>Skipped when {@code hasMouseInput} is {@code false}. The HUD passes
+     * {@code mouseX = -1}, which would miss the hit test anyway; the check makes
+     * that explicit and saves the supplier call.
      */
     public void maybeQueueTooltip(GuiGraphicsExtractor graphics,
                                   int panelX, int panelY,

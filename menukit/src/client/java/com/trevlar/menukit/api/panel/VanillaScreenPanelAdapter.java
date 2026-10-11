@@ -38,11 +38,11 @@ import java.util.Objects;
  *
  * <h3>Targeting is required</h3>
  * Call {@link #on} or {@link #onAny} exactly once. An adapter with no targeting fails
- * loudly at the first screen open: an everywhere-default makes no sense across the
- * title screen, Options and world select.
+ * loudly at the first screen open: showing everywhere by default makes no sense
+ * across the title screen, Options and world select.
  *
  * <h3>Input</h3>
- * The panel claims input by the one rule ({@link PanelHost#claimsPoint}): an opaque
+ * The panel claims input by the usual rule ({@link PanelHost#claimsPoint}): an opaque
  * panel its whole rectangle, a transparent one its solid elements. Vanilla widgets
  * under a claim neither hover nor click.
  *
@@ -92,8 +92,6 @@ public final class VanillaScreenPanelAdapter {
         ScreenPanelRegistry.declare(this);
     }
 
-    // ── Targeting ───────────────────────────────────────────────────────
-
     /**
      * The screens this panel appears on, by class ancestry (OR across classes). Call
      * exactly once.
@@ -140,8 +138,6 @@ public final class VanillaScreenPanelAdapter {
     /** Whether {@link #on} or {@link #onAny} was called. */
     public boolean isTargetingDeclared() { return targets != null || targetedAny; }
 
-    // ── Teardown ────────────────────────────────────────────────────────
-
     /**
      * Withdraws this adapter from screens opened from now on. Idempotent. Throws after
      * MenuKit's declarations froze; gate at runtime with {@link Panel#visibleWhen}.
@@ -150,8 +146,6 @@ public final class VanillaScreenPanelAdapter {
         Declarations.requireOpen("VanillaScreenPanelAdapter(" + panel.id() + ").unregister()");
         ScreenPanelRegistry.withdraw(this);
     }
-
-    // ── Accessors ──────────────────────────────────────────────────────
 
     /** The panel this adapter declares. */
     public Panel getPanel() { return panel; }

@@ -54,9 +54,9 @@ public class MK {
     @ApiStatus.Internal
     public static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
-    // ── HUD panels: one host (§0065), placing each panel on its InsideRegion spot
-    //    of the game window with the HUD's insets. Registered at init, frozen at
-    //    client start, rendered in sorted (priority, modId, sequence) order.
+    // HUD panels share one host, which places each panel on its InsideRegion spot
+    // of the game window with the HUD's insets. Registered at init, frozen at
+    // client start, rendered in sorted (priority, modId, sequence) order.
     private static final PanelHost HUD = PanelHost.hud(() -> {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.getWindow() == null) return null;
@@ -64,11 +64,10 @@ public class MK {
                 mc.getWindow().getGuiScaledHeight(), null);
     });
 
-    // ── Notification definitions (registered at mod init) ─────────────────
+    // Notification definitions, registered at mod init
     private static final Map<String, HudNotification> notificationDefs = new LinkedHashMap<>();
 
-    // ── Active notifications (runtime animation state) ────────────────────
-    // Written by notify() from any thread (a server-side feature in singleplayer
+    // Active notifications. Written by notify() from any thread (a server-side feature in singleplayer
     // notifies from the server thread) and read by the HUD on the render thread:
     // synchronized, and render works on a snapshot.
     private static final Map<String, ActiveNotification> activeNotifications =
@@ -79,21 +78,13 @@ public class MK {
                               @Nullable String textData,
                               @Nullable ItemStack itemData) {}
 
-    // ══════════════════════════════════════════════════════════════════════
-    // Mod lifecycle
-    // ══════════════════════════════════════════════════════════════════════
-
-
-    /** Client-side initialization for the MenuKit artifact. Invoked from
-     *  {@link MenuKitClient#onInitializeClient()}; logs only. */
+    /** Called from {@link MenuKitClient#onInitializeClient()}; only logs. */
     @ApiStatus.Internal
     public static void initClient() {
         LOGGER.info("[MenuKit] Client initialized");
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // HUD, registration, rendering, notifications
-    // ══════════════════════════════════════════════════════════════════════
+    // HUD panels and notifications
 
     /**
      * Registers a HUD panel into the HUD's host. Called by
@@ -149,8 +140,8 @@ public class MK {
     }
 
     /**
-     * Triggers a notification by key. The notification slides in, displays
-     * for its configured duration, then fades out.
+     * Triggers a notification by key. It slides in, stays for its configured
+     * duration, then fades out.
      *
      * @param key  notification key (must match a
      *             {@link HudNotification#builder(String)} registration)
@@ -175,12 +166,8 @@ public class MK {
         notify(key, text, new ItemStack(item));
     }
 
-    /**
-     * Renders all active notifications, removing expired ones.
-     * Iterates once; each notification's own {@link HudNotification#render}
-     * handles its slide-in / display / fade-out animation based on elapsed
-     * time since trigger.
-     */
+    // Draws the active notifications and removes expired ones. Each one's
+    // HudNotification.render animates itself from the time since it was triggered.
     private static void renderActiveNotifications(GuiGraphicsExtractor graphics,
                                                    DeltaTracker deltaTracker,
                                                    int screenW, int screenH) {
@@ -217,36 +204,23 @@ public class MK {
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // Recipe book, public face
-    // ══════════════════════════════════════════════════════════════════════
+    // Recipe book
     //
-    // The recipe-book overlay query/toggle is a client-side utility consumers
-    // genuinely reach for (e.g. "make room for my panel when the recipe book
-    // is open"). The implementation lives on {@link MenuKitClient} (which stays
-    // {@code @ApiStatus.Internal}, it's the Fabric client entry point, not a
-    // consumer surface), so the PUBLIC face belongs here on {@code MK}
-    // alongside registerHud/notify. These two methods are pure delegators.
-    // no behavior of their own, so the impl stays single-sourced in MenuKitClient.
+    // Mods use these to make room for a panel while the recipe book is open. The
+    // implementation is in MenuKitClient, which is internal (it is the Fabric
+    // client entry point), so the public methods live here and only delegate.
 
     /**
-     * Returns whether the recipe book is currently visible on the active
-     * screen. Safe to call at any time; returns {@code false} when there is
-     * no active screen or the active screen has no recipe book.
-     *
-     * <p>Delegates to the client-side implementation; this is the public,
-     * consumer-facing entry point.
+     * Whether the recipe book is visible on the active screen. Safe to call at any
+     * time; false when there is no screen or it has no recipe book.
      */
     public static boolean isRecipeBookOpen() {
         return MenuKitClient.isRecipeBookOpen();
     }
 
     /**
-     * Sets the recipe book's visibility on the active screen. No-op when the
-     * active screen has no recipe book or the requested state already matches.
-     *
-     * <p>Delegates to the client-side implementation; this is the public,
-     * consumer-facing entry point.
+     * Sets the recipe book's visibility on the active screen. Does nothing when
+     * the screen has no recipe book or it is already in the requested state.
      *
      * @param open {@code true} to show the recipe book, {@code false} to hide it
      */

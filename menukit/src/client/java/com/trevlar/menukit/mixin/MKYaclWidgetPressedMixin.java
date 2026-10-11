@@ -13,48 +13,37 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Part of MenuKit's one styling exception to §0019, recorded in §0068 (see
- * {@link MKVanillaButtonPressedMixin}).
+ * Part of MenuKit's one styling exception (see {@link MKVanillaButtonPressedMixin}).
  *
- * <p>YACL counterpart to {@link MKVanillaButtonPressedMixin} —
- * tracks press state on YACL's controller-element widgets (subclasses
- * of YACL's own {@code AbstractWidget} base, sibling-not-subclass of
- * vanilla's AbstractWidget; since YACL 3.9.5 each element declares its
- * own mouseClicked, so the targets are per-element — see the @Mixin
- * target list). Pairs with {@code MKYaclControllerOverlayMixin} which
- * reads the tracked state at render time.
+ * <p>The YACL counterpart of {@link MKVanillaButtonPressedMixin}: tracks press
+ * state on YACL's controller element widgets. These extend YACL's own
+ * {@code AbstractWidget}, not vanilla's, and since YACL 3.9.5 each element declares
+ * its own mouseClicked, so the targets are listed per element.
+ * {@code MKYaclControllerOverlayMixin} reads the tracked state at render time.
  *
- * <h3>{@code @Pseudo} for soft loading</h3>
+ * <p>MenuKit doesn't depend on YACL at runtime. When YACL is absent (most setups;
+ * only consumer mods that bundle it bring it in), {@code @Pseudo} makes Mixin skip
+ * this mixin quietly, and {@code require = 0} on each injection tolerates some
+ * targets being missing.
  *
- * MK doesn't take YACL as a runtime dependency. When YACL is absent
- * (which is most environments — only consumer mods that JIJ YACL per
- * §0028 bring it in), Mixin sees the target classes can't be resolved
- * and silently skips this mixin entirely thanks to {@code @Pseudo}
- * (plus {@code require = 0} per injection, so partial-target presence
- * is tolerated too). No runtime error, no behavior change.
- *
- * <h3>Why two YACL mixins</h3>
- *
- * Mixin can't inject into inherited methods on a subclass target — it
- * needs the method body in the target's own bytecode. Press tracking
- * lives where {@code mouseClicked} bodies live (the per-element classes
- * since YACL 3.9.5); the pressed-overlay render lives where the render
- * body lives ({@code ControllerWidget.extractRenderState} — the sibling
- * overlay mixin). Both share state via {@link PressedTracker}.
+ * <p>There are two YACL mixins because Mixin can only inject into a method whose
+ * body is in the target's own bytecode, not an inherited one. Press tracking goes
+ * where the {@code mouseClicked} bodies are (the per-element classes since 3.9.5);
+ * the overlay goes where the render body is
+ * ({@code ControllerWidget.extractRenderState}). They share state through
+ * {@link PressedTracker}.
  */
 @ApiStatus.Internal
 @Pseudo
 @Mixin(targets = {
-        // 26.2 / YACL 3.9.5 retarget: YACL's AbstractWidget no longer
-        // declares mouseClicked — each controller element declares its own
-        // (verified against the 3.9.5+26.2 jar, 2026-07-02). The old
-        // single-injection-on-the-base-body seam is gone; the equivalent
-        // coverage is every ControllerWidget element that declares
-        // mouseClicked. (In 3.8.1, subclasses that overrode mouseClicked
-        // without a super-call never hit the base injection either — so
-        // per-element injection IS the faithful translation, not a
-        // broadening.) String targets keep this @Pseudo-soft: any class
-        // YACL drops or renames later just skips.
+        // Since 26.2 / YACL 3.9.5, YACL's AbstractWidget no longer declares
+        // mouseClicked; each controller element declares its own (checked
+        // against the 3.9.5+26.2 jar). So instead of one injection on the base,
+        // every ControllerWidget element that declares mouseClicked is a target.
+        // In 3.8.1, subclasses that overrode mouseClicked without calling super
+        // never reached the base injection either, so this covers the same
+        // widgets as before. String targets keep it soft: a class YACL later
+        // drops or renames is just skipped.
         "dev.isxander.yacl3.gui.controllers.ActionController$ActionControllerElement",
         "dev.isxander.yacl3.gui.controllers.BooleanController$BooleanControllerElement",
         "dev.isxander.yacl3.gui.controllers.ColorController$ColorControllerElement",
@@ -71,19 +60,16 @@ public abstract class MKYaclWidgetPressedMixin {
             at = @At("TAIL"), require = 0)
     private void mk$trackPress(MouseButtonEvent event, boolean alreadyHandled,
                                      CallbackInfoReturnable<Boolean> cir) {
-        // Only mark pressed when YACL's dispatch confirmed the click
-        // was claimed by this widget (return value true = "I'm
-        // handling this click"). Filters out cursor-over-widget
-        // clicks that didn't actually fire on us.
+        // Only mark pressed when this widget claimed the click (returned true),
+        // not merely because the cursor was over it.
         if (Boolean.TRUE.equals(cir.getReturnValue())) {
             PressedTracker.markPressed(this);
         }
     }
 
-    // The explicit clear-on-release path from 3.8.1 is gone with the base
-    // mouseReleased body (only slider/color-picker/list-entry declare it in
-    // 3.9.5, and the release seam differs per class). The tracker's
-    // auto-clear — isPressedAndCheckRelease polls GLFW's real button state
-    // at render time — already covered every widget whose release never
-    // routed through the base body in 3.8.1, and now covers all of them.
+    // There is no release hook. 3.9.5 removed the base mouseReleased body (only
+    // the slider, colour picker and list entry declare one, each differently).
+    // The tracker clears itself instead: isPressedAndCheckRelease polls GLFW's
+    // real button state at render time, which already handled every widget
+    // whose release skipped the base body in 3.8.1.
 }

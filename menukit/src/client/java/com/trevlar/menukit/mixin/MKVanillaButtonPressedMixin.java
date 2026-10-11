@@ -14,51 +14,43 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * <b>MenuKit's one styling exception to §0019, recorded in §0068.</b>
+ * <b>MenuKit's one exception to its rule of not restyling vanilla UI.</b>
  *
  * <p>Applies MenuKit's vanilla-style pressed visual (inverted bevel and a dark
  * overlay) to every vanilla {@link AbstractButton} in the game (title screen,
  * Options, Pause, world select, Controls), so a vanilla button looks pushed in
  * while pressed, the same as MenuKit's own VANILLA-styled controls. With the two
  * YACL mixins it is library-wide and always on, and it changes how buttons MenuKit
- * did not create look. §0068 keeps it (Trev, 2026-09-27: players see it as part of
- * MenuKit's feel) and records it so it stays the only one: a second styling change
- * to vanilla needs its own record.
+ * did not create look. It stays because players see it as part of MenuKit's feel,
+ * and it is meant to stay the only one: a second styling change to vanilla would
+ * need its own decision.
  *
  * <p>It is visual only. It reads existing widget state ({@code isHovered},
  * {@code active}, a press-tracker flag) and draws over vanilla's own draw;
  * pressing a button does exactly what it did before. A change here that
  * intercepted input or changed behaviour would fall outside the exception.
  *
- * <h3>Known costs we accept</h3>
+ * <h3>Known costs</h3>
  *
  * <ol>
- *   <li>Consumers can't opt out (no toggle exposed). MK-using mods
- *       carry the visual to every screen.</li>
- *   <li>Multi-mod coexistence: if another mod also overlays vanilla
- *       AbstractButton, our overlay and theirs may both paint. Both
- *       being purely visual, the result is layered overlays — visually
- *       weird but non-functional.</li>
- *   <li>Vanilla AbstractButton.renderWidget is the injection target;
- *       Mojang refactoring there breaks the mixin (loud failure at
- *       load, not silent — easy to detect on a vanilla update).</li>
+ *   <li>Consumers can't opt out; there is no toggle. Every mod using MenuKit
+ *       brings the visual to every screen.</li>
+ *   <li>If another mod also draws over vanilla AbstractButton, both overlays
+ *       may paint. Both are visual only, so the result looks odd but works.</li>
+ *   <li>A Mojang refactor of the injected render method breaks the mixin, but
+ *       loudly at load, so a vanilla update makes it obvious.</li>
  * </ol>
  *
- * <h3>Mechanism</h3>
+ * <h3>How it works</h3>
  *
- * Per-instance press tracking via a {@link Unique} field
- * {@code mk$pressed}, set on {@code onClick} (when the press
- * originates on THIS button via vanilla's dispatch) and cleared in
- * the next render frame after the mouse is released. The render-time
- * draw is gated on hover so dragging off the button while holding
- * removes the visual (matching vanilla button behavior); dragging
- * back over re-shows it.
+ * Press state is tracked per button: set in {@code onClick}, which vanilla only
+ * calls when the press starts on this button, and cleared on the first frame after
+ * the mouse is released. The overlay is only drawn while hovered, so dragging off
+ * the button while holding removes it and dragging back shows it again, as vanilla
+ * buttons behave.
  *
- * <p>The earlier GLFW-poll-only approach had a false positive: click
- * elsewhere, drag over a button while holding → pressed visual fired
- * even though click didn't originate on the button. Press-state
- * tracking via onClick fixes that — the flag only sets when vanilla's
- * own dispatch routed the click to this button.
+ * <p>Polling GLFW alone gave a false positive: click elsewhere, drag onto a button
+ * while holding, and it looked pressed. Tracking through onClick fixes that.
  */
 @ApiStatus.Internal
 @Mixin(AbstractButton.class)
@@ -76,18 +68,13 @@ public abstract class MKVanillaButtonPressedMixin {
     private void mk$drawVanillaPressedOverlay(GuiGraphicsExtractor graphics, int mouseX,
                                                     int mouseY, float partialTick,
                                                     CallbackInfo ci) {
-        // Press tracking via shared PressedTracker — the same
-        // tracker the YACL mixins use, so all "vanilla-style pressed
-        // visual" code paths share one source of truth.
-        // isPressedAndCheckRelease auto-clears the whole map when
-        // GLFW reports mouse released, so stale entries drain on the
-        // next render frame (sub-perceptible).
+        // The YACL mixins use the same PressedTracker. isPressedAndCheckRelease
+        // clears every entry once GLFW reports the mouse released, so stale
+        // entries go on the next frame.
         if (!PressedTracker.isPressedAndCheckRelease(this)) return;
 
-        // Don't draw the overlay when the user has dragged off the
-        // button (mouse still held but no longer over us). Matches
-        // vanilla button behavior — dragging off mid-press removes
-        // the hover visual; dragging back re-applies it.
+        // No overlay while the player has dragged off the button with the mouse
+        // still held, matching vanilla's hover visual.
         AbstractButton self = (AbstractButton) (Object) this;
         if (!self.active) return;
         if (!self.isHovered()) return;

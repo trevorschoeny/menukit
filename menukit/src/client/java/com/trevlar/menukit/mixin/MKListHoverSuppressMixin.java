@@ -11,57 +11,40 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * Phase 18s follow-up — scroll-list row-hover suppression. Sibling to
- * {@link MKWidgetHoverSuppressMixin} but for vanilla scroll-list
- * row highlights, which DON'T go through {@code AbstractWidget.isHovered}.
+ * Suppresses scroll-list row hover under MenuKit panels. The counterpart of
+ * {@link MKWidgetHoverSuppressMixin} for vanilla list rows, whose highlight does
+ * not go through {@code AbstractWidget.isHovered}.
  *
- * <h3>Why this needs its own mixin</h3>
+ * <p>{@link AbstractSelectionList} extends {@code AbstractWidget}, but it draws
+ * the row highlight from a per-list "hovered entry" tracked apart from the
+ * widget's {@code isHovered} field. {@code renderItem} reads that entry through
+ * {@link AbstractSelectionList#getHovered} and renderSelection paints the row
+ * when it is non-null, so the {@code isHovered()} mixin never reaches it.
  *
- * {@link AbstractSelectionList} extends {@code AbstractWidget} but draws
- * its row-selection highlight based on a per-list-instance "hovered
- * entry" tracked separately from the widget's own {@code isHovered}
- * field. The hovered entry is read via {@link AbstractSelectionList#getHovered}
- * inside {@code renderItem}, and renderSelection paints the row
- * highlight when it's non-null. So the {@code isHovered()} mixin doesn't
- * reach the row-level decision — we need a separate mixin on the list
- * itself.
+ * <p>This returns {@code null} from {@code getHovered()} while the cursor is over
+ * an opaque MenuKit region, so vanilla skips renderSelection.
  *
- * <h3>Mechanism</h3>
+ * <p>Keyboard navigation and scroll-to-hovered also read {@code getHovered()}, so
+ * they are skipped too. That is fine: a player with the mouse on MenuKit content
+ * is not using the list.
  *
- * Overrides {@code getHovered()} to return {@code null} when the cursor
- * is over an MK opaque region. With no hovered entry, vanilla skips
- * renderSelection — the row stays visually inert behind MK content.
- *
- * <h3>What this affects beyond visuals</h3>
- *
- * {@code getHovered()} is also consulted by keyboard navigation and
- * scroll-to-hovered behaviors. Suppressing it means those skip too —
- * which is fine for the MK-cursor-over-list case: if the user has moved
- * the mouse onto MK content, they're not interacting with the list, so
- * suppressing list-level hover state is consistent with user intent.
- *
- * <h3>Click dispatch is NOT affected</h3>
- *
- * Click dispatch on lists uses {@link AbstractSelectionList#getEntryAtPosition}
- * (with explicit coords) — not {@code getHovered()}. The MK opacity-eat
- * input path already routes clicks away from covered rows; this mixin
- * doesn't touch that.
+ * <p>Clicks are not affected. Lists dispatch clicks through
+ * {@link AbstractSelectionList#getEntryAtPosition} with explicit coordinates, and
+ * MenuKit's click-eating already keeps clicks off covered rows.
  */
 @ApiStatus.Internal
 @Mixin(AbstractSelectionList.class)
 public abstract class MKListHoverSuppressMixin {
 
-    // Entry is protected on AbstractSelectionList; can't reference it
-    // from outside the vanilla package. Mixin's bytecode-level handling
-    // erases the generic param at runtime — wildcard type is fine.
+    // Entry is protected on AbstractSelectionList, so it can't be named here.
+    // The type parameter is erased at runtime, so the wildcard is fine.
     @Inject(
             method = "getHovered()Lnet/minecraft/client/gui/components/AbstractSelectionList$Entry;",
             at = @At("HEAD"),
             cancellable = true
     )
     private void mk$suppressListHoverWhenOpaque(CallbackInfoReturnable<?> cir) {
-        // Unified inertness predicate (modal-global OR covered) — same question
-        // every other suppressor asks.
+        // The same inertness check (modal anywhere, or covered) every other suppressor uses.
         if (Focus.isInertUnderPanelAtCursor()) {
             cir.setReturnValue(null);
         }

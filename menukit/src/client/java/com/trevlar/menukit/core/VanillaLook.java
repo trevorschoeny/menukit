@@ -15,10 +15,10 @@ import org.jetbrains.annotations.ApiStatus;
  * an options screen ({@code ScreenKind.OPTIONS}, 6.1.0). The button sprites, the
  * popup frame, the slot, the separator lines and the darker list background of
  * every Options screen, plus MenuKit's pressed overlay on a vanilla button
- * (§0068's one styling exception, which also draws on vanilla's and YACL's own
+ * (MenuKit's one styling exception, which also draws on vanilla's and YACL's own
  * buttons).
  *
- * <p>Verified against 26.2: the button sprites are {@code AbstractButton.SPRITES}
+ * <p>Checked against 26.2: the button sprites are {@code AbstractButton.SPRITES}
  * (enabled, disabled, highlighted); the popup frame is
  * {@code PopupScreen.BACKGROUND_SPRITE}; the slot is
  * {@code CreateFlatWorldScreen.SLOT_SPRITE}, the slot the Superflat layer list
@@ -35,8 +35,6 @@ import org.jetbrains.annotations.ApiStatus;
 public final class VanillaLook {
 
     private VanillaLook() {}
-
-    // ── Buttons ────────────────────────────────────────────────────────
 
     private static final Identifier BUTTON = Identifier.withDefaultNamespace("widget/button");
     private static final Identifier BUTTON_DISABLED = Identifier.withDefaultNamespace("widget/button_disabled");
@@ -55,7 +53,7 @@ public final class VanillaLook {
     }
 
     /**
-     * MenuKit's pressed look on a vanilla button (§0068): the 1 px bevel inside the
+     * MenuKit's pressed look on a vanilla button: the 1 px bevel inside the
      * frame inverted (dark top and left, light grey bottom and right) and a
      * translucent dark wash over the inside, so the button reads as pushed in. Drawn
      * over the button sprite; the outer frame is left alone.
@@ -80,9 +78,7 @@ public final class VanillaLook {
         g.blitSprite(RenderPipelines.GUI_TEXTURED, BUTTON_DISABLED, x, y, width, height, 0xFFFFFFFF);
     }
 
-    // ── A panel's background on an options screen ──────────────────────
-
-    /** Vanilla's popup frame: the dark box its warning and confirm popups sit in. Nine-sliced. */
+    // Vanilla's popup frame: the dark box its warning and confirm popups sit in. Nine-sliced.
     private static final Identifier POPUP = Identifier.withDefaultNamespace("popup/background");
 
     /**
@@ -102,17 +98,13 @@ public final class VanillaLook {
         }
     }
 
-    // ── Slots ──────────────────────────────────────────────────────────
-
-    /** The slot vanilla draws items in on an options screen (the Superflat layer list). */
+    // The slot vanilla draws items in on an options screen (the Superflat layer list).
     private static final Identifier SLOT = Identifier.withDefaultNamespace("container/slot");
 
     /** Vanilla's 18 x 18 slot at {@code (x, y)}, faded while disabled as vanilla fades a widget. */
     public static void slot(GuiGraphicsExtractor g, int x, int y, boolean disabled) {
         g.blitSprite(RenderPipelines.GUI_TEXTURED, SLOT, x, y, 18, 18, disabled ? 0x80FFFFFF : 0xFFFFFFFF);
     }
-
-    // ── Lists ──────────────────────────────────────────────────────────
 
     /** Vanilla's separator is 2 px tall: a light line over a dark one (header), or the reverse (footer). */
     public static final int SEPARATOR_HEIGHT = 2;
@@ -146,7 +138,7 @@ public final class VanillaLook {
     /**
      * The darker list background over a rectangle, tiled from texture point
      * {@code (u, v)}. Two areas that pass their own screen position as {@code (u, v)}
-     * tile seamlessly where they meet.
+     * tile without a seam where they meet.
      */
     public static void listBackground(GuiGraphicsExtractor g, int x, int y, int width, int height, int u, int v) {
         if (width <= 0 || height <= 0) return;

@@ -6,36 +6,32 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The §0062 firewall between MenuKit's registered-slot screen <em>dispatch</em> and
- * MenuKit-Containers' registered-slot <em>work</em>.
+ * The boundary between MenuKit's registered-slot screen <em>dispatch</em> and
+ * MenuKit-Containers' registered-slot <em>work</em>, so MenuKit never names a
+ * registered-slot type.
  *
- * <p>MenuKit's hooks on {@code AbstractContainerScreen} (frame start / hover / click /
- * scroll / release) call the static {@code fire*} methods here. This class holds
- * the one {@link SlotScreenHook} MenuKit-Containers registers at client init and
- * forwards to it — or no-ops when no hook is set (MK-only consumer: no slots
- * exist, so nothing to dispatch). MenuKit thus drives the per-screen dispatch
- * while never naming a registered-slot type.
+ * <p>MenuKit's hooks on {@code AbstractContainerScreen} (frame start, hover, click,
+ * scroll, release) call the static {@code fire*} methods here, which forward to the
+ * one {@link SlotScreenHook} MenuKit-Containers registers at client init. With no
+ * hook set (MenuKit without MenuKit-Containers) there are no registered slots, and
+ * every call does nothing.
  *
- * <p>Stateless beyond the single hook reference; the hook is {@code volatile} so
- * the client-init write is visible to the render thread. There is no
- * {@code init()} — the dispatch is the mixins themselves, which exist as soon as
- * the class loads; registration is a single {@link #setHook} call.
+ * <p>The only state is the hook, which is {@code volatile} so the client-init write
+ * is visible to the render thread. There is no {@code init()}: the mixins do the
+ * dispatch, and registering is one {@link #setHook} call.
  */
 @ApiStatus.Internal
 public final class SlotScreenDispatcher {
 
     private SlotScreenDispatcher() {}
 
-    /**
-     * The single registered-slot hook, or null when MenuKit-Containers is absent.
-     * Written once from {@code MenuKitContainersClient.onInitializeClient}, read
-     * from the render/input threads — hence volatile.
-     */
+    // Null when MenuKit-Containers is absent. Written once at client init, read on
+    // the render thread.
     private static volatile @Nullable SlotScreenHook hook = null;
 
     /**
-     * Registers the registered-slot hook. Called once by MenuKit-Containers at client
-     * init. Idempotent in practice (one MKC instance), last write wins.
+     * Sets the registered-slot hook. MenuKit-Containers calls this once at client
+     * init; a later call replaces the hook.
      */
     public static void setHook(SlotScreenHook hook) {
         SlotScreenDispatcher.hook = hook;
@@ -46,24 +42,23 @@ public final class SlotScreenDispatcher {
         return hook != null;
     }
 
-    // ── Fire methods — called by the AbstractContainerScreen mixins ─────────
-    // Each is a no-op when no hook is set. Kept tiny so the mixins stay thin.
+    // Called by the AbstractContainerScreen mixins. Each does nothing when no hook is set.
 
-    /** {@code extractSlot} HEAD — is this a created slot (the layer boundary)? False without MKC. */
+    /** At {@code extractSlot} HEAD: whether this is a created slot (the layer boundary). False without MKC. */
     public static boolean fireIsCreated(net.minecraft.world.inventory.Slot slot) {
         SlotScreenHook h = hook;
         return h != null && h.isCreated(slot);
     }
 
-    /** End of {@code ContainerScreenLayers} — park created slots no panel presented this frame. */
+    /** At the end of {@code ContainerScreenLayers}: parks created slots no panel showed this frame. */
     public static void fireEndFrame(AbstractContainerScreen<?> screen) {
         SlotScreenHook h = hook;
         if (h != null) h.endFrame(screen);
     }
 
     /**
-     * {@code getHoveredSlot} HEAD — resolve slot hover. Returns {@link SlotHoverResult#PASS}
-     * (vanilla resolution proceeds) when no hook is set.
+     * At {@code getHoveredSlot} HEAD: resolves slot hover. Returns {@link SlotHoverResult#PASS},
+     * so vanilla resolves it, when no hook is set.
      */
     public static SlotHoverResult fireResolveHover(AbstractContainerScreen<?> screen,
                                                     double mouseX, double mouseY) {
@@ -71,21 +66,21 @@ public final class SlotScreenDispatcher {
         return h != null ? h.resolveHover(screen, mouseX, mouseY) : SlotHoverResult.PASS;
     }
 
-    /** {@code mouseClicked} HEAD — consumer buttons + gap-block. */
+    /** At {@code mouseClicked} HEAD: consumer buttons and blocking clicks in panel gaps. */
     public static boolean fireMouseClicked(AbstractContainerScreen<?> screen,
                                            double mouseX, double mouseY, int button) {
         SlotScreenHook h = hook;
         return h != null && h.mouseClicked(screen, mouseX, mouseY, button);
     }
 
-    /** {@code mouseScrolled} HEAD — consumer scroll over a slot region. */
+    /** At {@code mouseScrolled} HEAD: consumer scrolling over a slot region. */
     public static boolean fireMouseScrolled(AbstractContainerScreen<?> screen, double mouseX,
                                             double mouseY, double scrollX, double scrollY) {
         SlotScreenHook h = hook;
         return h != null && h.mouseScrolled(screen, mouseX, mouseY, scrollX, scrollY);
     }
 
-    /** {@code mouseReleased} HEAD — finish a drag over a slot region. */
+    /** At {@code mouseReleased} HEAD: finishes a drag over a slot region. */
     public static boolean fireMouseReleased(AbstractContainerScreen<?> screen,
                                             double mouseX, double mouseY, int button) {
         SlotScreenHook h = hook;

@@ -11,11 +11,11 @@ import org.jetbrains.annotations.ApiStatus;
 /**
  * MenuKit's one scroll model and its one scrollbar: what a {@code ScrollContainer}
  * (the text body's scroller) and a {@code Tabs} strip (the sidebar column, and the
- * side-scroll row across the top) both scroll by. Before 6.1.0's rework the strip
- * had its own copy: it stepped a whole tab per wheel notch and drew vanilla's list
+ * side-scroll row across the top) both scroll by. Before 6.1.0 the strip had its
+ * own copy: it stepped a whole tab per wheel notch and drew vanilla's list
  * scrollbar with a thumb sized to the share in view, which on a column only a tab
- * or two too tall came out nearly as tall as the track (Trev, 2026-10-03: "the
- * scroll bar is super tall"). One model means one feel and one look.
+ * or two too tall came out nearly as tall as the track. One model means one feel
+ * and one look.
  *
  * <h3>The model</h3>
  *
@@ -79,8 +79,6 @@ public final class Scroller {
     private static final Identifier LIST_THUMB = Identifier.withDefaultNamespace("widget/scroller");
     private static final Identifier LIST_TRACK = Identifier.withDefaultNamespace("widget/scroller_background");
 
-    // ── The model ──────────────────────────────────────────────────────────
-
     /** How far the offset can go: the content's overhang, or 0 when it fits. */
     public static int maxScroll(int content, int view) {
         return Math.max(0, content - view);
@@ -124,7 +122,7 @@ public final class Scroller {
         return shown + gap * (1 - Math.exp(-elapsedMillis / GLIDE_MILLIS));
     }
 
-    // ── The scrollbar's geometry, along a track {@code track} pixels long ────
+    // The scrollbar's geometry, along a track that is track pixels long
 
     /** How far the thumb's top can move: the track less the thumb and the padding at both ends. */
     public static int thumbTravel(int track) {
@@ -160,8 +158,6 @@ public final class Scroller {
         double fraction = Math.max(0.0, Math.min(1.0, (along - grab - TRACK_PADDING) / travel));
         return fraction * maxScroll(content, view);
     }
-
-    // ── Drawing ────────────────────────────────────────────────────────────
 
     /** The track's width on a screen of {@code kind}. */
     public static int trackWidth(ScreenKind kind) {

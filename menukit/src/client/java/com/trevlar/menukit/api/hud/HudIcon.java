@@ -8,15 +8,8 @@ import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.Nullable;
 
 /**
- * HUD sprite icon element, renders a texture sprite at configurable size.
- *
- * <p>Uses vanilla's {@code graphics.blitSprite()} for rendering, which
- * reads from the GUI texture atlas.
- *
- * <p>Implements {@link PanelElement}. Phase 8 will subsume this into the
- * core {@code Icon} element.
- *
- * <p>Part of the <b>MenuKit</b> framework.
+ * A HUD element that draws a sprite from the GUI atlas at a given size, using
+ * vanilla's {@code blitSprite}.
  */
 public class HudIcon implements PanelElement {
 

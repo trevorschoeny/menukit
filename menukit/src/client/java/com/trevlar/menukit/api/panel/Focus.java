@@ -16,84 +16,57 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 /**
- * MK-managed focus registration + screen-level focus utilities.
+ * Focus for widgets MenuKit places on a screen, and the "is this point covered by
+ * MenuKit" checks.
  *
- * <h3>Why this exists</h3>
- *
- * MenuKit's panel system intercepts clicks within panel bounds (the
- * opacity contract). That interception SUPPRESSES vanilla's natural
- * focus-transition mechanism, which only fires when a vanilla widget
- * actively claims a click via {@code Screen.children()} iteration.
- * On empty-space clicks (in-panel OR outside-panel), no widget claims,
- * so vanilla never calls {@code Screen.setFocused(...)}, a previously-
- * focused widget stays focused indefinitely and silently swallows
- * subsequent keystrokes.
- *
- * <p>Two complementary fixes restore expected UX:
+ * <p>Panels eat clicks inside their bounds, and vanilla only moves focus when a
+ * widget in {@code Screen.children()} claims a click. So on a click in empty space,
+ * inside a panel or outside, nothing claims it, vanilla never calls
+ * {@code Screen.setFocused(...)}, and a focused widget stays focused and keeps
+ * swallowing keystrokes. Two paths fix that:
  * <ol>
- *   <li><b>In-panel empty-space clicks</b>, the opacity-eat code paths
- *       (in {@link com.trevlar.menukit.api.panel.VanillaScreenPanelAdapter}
- *       and {@link com.trevlar.menukit.inject.ScreenPanelRegistry})
- *       call {@code screen.setFocused(null)} before returning the eat.</li>
- *   <li><b>Outside-panel clicks</b>, handled by an {@link #init}-installed
- *       Fabric {@code ScreenMouseEvents.afterMouseClick} listener. After
- *       vanilla's dispatch runs, if the focused widget is MK-managed
- *       (registered via {@link #addWidget}) AND the click was outside its
- *       bounds, the listener clears focus. Scoping to MK-managed widgets
- *       avoids changing vanilla's behavior for non-MK widgets on the
- *       same screen.</li>
+ *   <li><b>Clicks MenuKit takes</b>: {@link com.trevlar.menukit.inject.ScreenPanelRegistry}
+ *       calls {@link #blurOnOutsideBounds} after routing a click to a panel.</li>
+ *   <li><b>Clicks vanilla handles</b>: a Fabric
+ *       {@code ScreenMouseEvents.afterMouseClick} listener, installed by
+ *       {@link #init}, does the same after vanilla's dispatch.</li>
  * </ol>
+ * Both only touch widgets registered through {@link #addWidget}; other widgets on
+ * the screen keep vanilla's focus behaviour.
  *
- * <p>The outside-panel path uses a Fabric API event rather than a mixin
- * because {@code Screen} doesn't override {@code mouseClicked} in 26.2
- * it inherits the default method from {@code ContainerEventHandler}, so
- * there's no bytecode in {@code Screen.class} for a mixin to inject into.
- * The Fabric event is the upstream-approved injection point.
+ * <p>The second path is a Fabric event rather than a mixin because in 26.2
+ * {@code Screen} doesn't override {@code mouseClicked}; it inherits the default
+ * method from {@code ContainerEventHandler}, so there is no code in
+ * {@code Screen.class} to inject into.
  *
- * <h3>Consumer contract</h3>
+ * <h3>For mods</h3>
  *
- * Consumer mods that register focusable widgets via MK (TextField,
- * Keybindery's SearchBox, future MK-adjacent input widgets) call
- * {@link #addWidget} instead of {@code ScreenAccessor.mk$addWidget}
- * directly. This wraps the underlying registration AND opts the widget
- * into MK-managed focus semantics. Pair with {@link #removeWidget} on
- * teardown.
+ * Register focusable widgets (TextField, Keybindery's SearchBox and the like)
+ * with {@link #addWidget} rather than {@code ScreenAccessor.mk$addWidget}: it adds
+ * the widget to the screen and opts it into this focus handling. Pair it with
+ * {@link #removeWidget}.
  *
- * <p>{@link #clear} is the canonical "blur whatever is focused right now"
- * helper, usable as defense-in-depth before triggering input modes that
- * should start from a clean focus state (chord capture, modal confirms,
- * navigation handoffs).
+ * <p>{@link #clear} blurs whatever is focused, for starting an input mode from a
+ * clean state (chord capture, a modal confirm, handing navigation over).
  *
- * <h3>Lifecycle</h3>
- *
- * Tracking is keyed by {@link Screen} reference via {@link WeakHashMap},
- * so screen GC naturally evicts entries. Widget references inside the
- * per-screen set are strong, widget lifetime is dominated by the
- * screen's own children-list ownership, so the strong reference doesn't
- * extend lifetime beyond what vanilla already does.
+ * <p>Tracking is keyed weakly by {@link Screen}, so a collected screen drops out.
+ * The widgets in each set are held strongly, but the screen's own children list
+ * already keeps them alive as long.
  */
 public final class Focus {
 
-    /**
-     * Per-screen registry of MK-managed widgets. WeakHashMap-keyed so
-     * closed screens don't leak. Single-threaded, Minecraft's client UI
-     * runs on the render thread; no synchronization needed.
-     */
+    // Widgets registered through addWidget, per screen. Weak keys so closed screens
+    // don't leak. Render thread only, so no synchronisation.
     private static final WeakHashMap<Screen, Set<GuiEventListener>> MANAGED =
             new WeakHashMap<>();
 
     private Focus() {}
 
-    // ── Initialization ──────────────────────────────────────────────────
-
     /**
-     * Registers the global {@code ScreenEvents.AFTER_INIT} listener that
-     * wires {@code ScreenMouseEvents.afterMouseClick} on every opened
-     * screen for outside-bounds focus janitor. Called once from
-     * {@code MenuKitClient.onInitializeClient}.
-     *
-     * <p>The per-screen listeners are GC'd naturally when the screen
-     * instance is collected; no explicit teardown.
+     * Registers the {@code ScreenEvents.AFTER_INIT} listener that adds the
+     * {@code afterMouseClick} focus check to every screen. Called once from
+     * {@code MenuKitClient.onInitializeClient}. The per-screen listeners go with
+     * their screen.
      */
     public static void init() {
         ScreenEvents.AFTER_INIT.register(Focus::onScreenInit);
@@ -104,48 +77,25 @@ public final class Focus {
         ScreenMouseEvents.afterMouseClick(screen).register(Focus::onAfterMouseClick);
     }
 
-    /**
-     * {@code AfterMouseClick} handler, outside-bounds focus janitor for
-     * clicks that vanilla actually processed (out-of-panel clicks).
-     * Delegates to {@link #blurOnOutsideBounds} so both this path and
-     * the panel-adapter in-panel dispatch sites share one rule.
-     */
+    // For clicks vanilla handled; same rule as the panel click paths.
     private static boolean onAfterMouseClick(Screen screen, MouseButtonEvent event,
                                               boolean consumed) {
         blurOnOutsideBounds(screen, event.x(), event.y());
-        return false;  // AFTER events don't consume; return value unused.
+        return false;  // after-events can't consume; the value is unused
     }
 
     /**
-     * Core focus-janitor rule, shared by the {@code afterMouseClick}
-     * listener AND the MK panel-adapter in-panel dispatch sites.
+     * Clears the screen's focus when the focused widget was registered through
+     * {@link #addWidget} and the click landed outside it. A click inside leaves
+     * focus alone: either vanilla moves focus to whatever claimed the click, or
+     * the widget keeps it (clicking a focused TextField again, say). Widgets not
+     * registered here keep vanilla's behaviour.
      *
-     * <p>If a focused MK-managed widget exists AND the click landed
-     * OUTSIDE its bounds, clear focus on the screen. Inside-bounds
-     * clicks leave focus alone, letting either vanilla's natural
-     * setFocused-on-claim flow handle the transition, or the widget
-     * legitimately retain focus on a no-op interaction (e.g. clicking
-     * the already-focused TextField again).
-     *
-     * <p>Scope: only MK-managed widgets (registered via
-     * {@link #addWidget}). Non-MK focused widgets keep vanilla focus
-     * semantics, no behavioral change for non-MK consumers sharing
-     * a screen with MK panels.
-     *
-     * <p>Called from:
-     * <ul>
-     *   <li>{@link #onAfterMouseClick}, after vanilla's Screen.mouseClicked
-     *       (out-of-panel clicks)</li>
-     *   <li>{@code VanillaScreenPanelAdapter.mouseClicked}, after any
-     *       in-panel dispatch path (overlay match, element claim, or
-     *       opacity-eat fallthrough)</li>
-     *   <li>{@code ScreenPanelRegistry.dispatchCoveredClick}, after a claimed
-     *       click is routed to its panel</li>
-     * </ul>
-     * The unified rule means clicking any MK button, dropdown, etc.
-     * that doesn't itself take focus blurs a focused MK text input.
-     * matching vanilla's "claimant gets focus, others lose it" behavior
-     * for non-focus-taking MK elements.
+     * <p>Called after vanilla's click dispatch (through the
+     * {@code afterMouseClick} listener) and after MenuKit routes a click to a
+     * panel. So clicking any MenuKit button or dropdown that doesn't take focus
+     * itself blurs a focused MenuKit text field, as vanilla does when another
+     * widget claims a click.
      */
     public static void blurOnOutsideBounds(Screen screen, double mouseX, double mouseY) {
         GuiEventListener focused = screen.getFocused();
@@ -155,19 +105,13 @@ public final class Focus {
         screen.setFocused(null);
     }
 
-    // ── Widget registration + focus utilities ───────────────────────────
-
     /**
-     * Registers a widget with the given screen for input dispatch AND
-     * MK-managed focus semantics. Wraps
-     * {@link ScreenAccessor#mk$addWidget}, the widget is added to
-     * the screen's {@code children} + {@code narratables} lists (so
-     * vanilla's input pipeline dispatches to it) and recorded in MK's
-     * focus-tracking set (so {@code MKFocusJanitorMixin} clears its
-     * focus on outside-bounds clicks).
+     * Adds a widget to the screen for input and opts it into MenuKit's focus
+     * handling. Through {@link ScreenAccessor#mk$addWidget} the widget joins the
+     * screen's {@code children} and {@code narratables} lists, so vanilla sends it
+     * input, and it is recorded here, so a click outside it clears its focus.
      *
-     * <p>Returns the widget for fluent-style chaining (matching vanilla's
-     * {@code addWidget} return signature).
+     * <p>Returns the widget, as vanilla's {@code addWidget} does.
      */
     public static <T extends GuiEventListener & NarratableEntry> T addWidget(
             Screen screen, T widget) {
@@ -177,9 +121,8 @@ public final class Focus {
     }
 
     /**
-     * Symmetric counterpart to {@link #addWidget}. Removes the widget
-     * from the screen's input pipeline AND from MK's focus-tracking
-     * set. Safe to call even if the widget was never registered (no-op).
+     * Undoes {@link #addWidget}: removes the widget from the screen's input and
+     * from focus tracking. Does nothing for a widget that was never registered.
      */
     public static void removeWidget(Screen screen, GuiEventListener widget) {
         ((ScreenAccessor) screen).mk$removeWidget(widget);
@@ -191,28 +134,19 @@ public final class Focus {
     }
 
     /**
-     * Clears focus from any widget currently focused on the given screen.
-     * Convenience pass-through to {@code screen.setFocused(null)}.
-     * exposed at MK's API surface for discoverability and to give
-     * consumers a defense-in-depth path (e.g. before triggering a
-     * chord-capture flow or other input mode that should start from a
-     * clean focus state).
-     *
-     * <p>The opacity-eat code paths and the focus-janitor mixin also
-     * clear focus automatically in their respective scenarios, this
-     * method is for consumer-driven clears outside those flows.
+     * Clears focus on the screen, the same as {@code screen.setFocused(null)}. For
+     * a mod that wants a clean focus state, say before starting chord capture.
+     * MenuKit's click handling already clears focus in the cases above.
      */
     public static void clear(Screen screen) {
         screen.setFocused(null);
     }
 
     /**
-     * Tests whether a widget is MK-managed on the given screen. Used by
-     * the {@code afterMouseClick} listener and the widget-hover-suppression
-     * mixin to scope their behavior to MK-registered widgets (the suppressor
-     * SKIPS suppression for MK-managed widgets so MK-placed widgets like
-     * {@code TextField}'s wrapped EditBox keep their hover / cursor
-     * feedback even when "underneath" the panel they belong to).
+     * Whether the widget was registered on the screen through {@link #addWidget}.
+     * The focus check and the widget hover suppressor use it; the suppressor skips
+     * registered widgets, so a {@code TextField}'s wrapped EditBox keeps its hover
+     * and cursor feedback inside the panel it belongs to.
      */
     public static boolean isManaged(Screen screen, GuiEventListener widget) {
         Set<GuiEventListener> set = MANAGED.get(screen);
@@ -220,8 +154,8 @@ public final class Focus {
     }
 
     /**
-     * Is vanilla content at the point covered by MenuKit? Asks the one claim answer
-     * ({@link ScreenPanelRegistry#claimAt}): a shown modal claims everything; an
+     * Whether vanilla content at the point is covered by MenuKit, by
+     * {@link ScreenPanelRegistry#claimAt}: a shown modal claims everything; an
      * opaque panel claims its whole rectangle; a transparent panel its solid
      * elements; an open popover its area. Across every host on the screen (container
      * and vanilla-screen adapters, slot groups, a standalone screen's own panels).
@@ -247,9 +181,9 @@ public final class Focus {
     }
 
     /**
-     * THE inertness predicate every suppressor of screen content asks (widget hover,
-     * list hover, creative tabs, tooltips), so none can disagree about whether the
-     * point is covered. Slot hover asks the slot form,
+     * The inertness check every suppressor of screen content uses (widget hover,
+     * list hover, creative tabs, tooltips), so they all agree on whether a point is
+     * covered. Slot hover asks the slot form,
      * {@link ScreenPanelRegistry#slotInertAt}, which differs only in that a panel's
      * own slot stays live under its own claim. The modal case is part of the claim.
      */

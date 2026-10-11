@@ -16,14 +16,12 @@ import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
 
 /**
- * HUD notification element, a timed popup that slides in, displays for
- * a duration, then fades out.
+ * A timed HUD popup that slides in, stays for a while, then fades out.
  *
- * <p>Built as a template at mod init, triggered at runtime via
+ * <p>Built as a template at mod init and triggered at runtime with
  * {@link MK#notify(String, String)} or {@link MK#notify(String, String, ItemStack)}.
- *
- * <p>This is the only stateful HUD element, animation state is tracked
- * in {@link MK}'s active notification map, not on this object.
+ * The animation state lives in {@link MK}'s active notifications, not on this
+ * object.
  *
  * <p>Usage:
  * <pre>{@code
@@ -39,8 +37,6 @@ import org.jspecify.annotations.Nullable;
  * // Trigger at runtime
  * MK.notify("alert", "First Diamond!");
  * }</pre>
- *
- * <p>Part of the <b>MenuKit</b> framework.
  */
 public class HudNotification {
 
@@ -48,11 +44,10 @@ public class HudNotification {
     public enum SlideDirection { TOP, BOTTOM, LEFT, RIGHT }
 
     private final String key;
-    // Where it pops up: an InsideRegion spot resolved by the one resolver,
-    // RegionMath.resolveInside, with the HUD's insets (4px in, CENTER below the
-    // crosshair), then nudged by the offset. A notification is a singular popup, so
-    // it resolves with a zero stacking prefix, and it always shows (a toast that
-    // does not fit overhangs rather than vanishing).
+    // Where it pops up: an InsideRegion spot resolved by RegionMath.resolveInside
+    // with the HUD's insets (4 px in, CENTER below the crosshair), then nudged by
+    // the offset. Only one shows at a spot, so it resolves with no stacking prefix,
+    // and it always shows: a toast that doesn't fit overhangs rather than vanishing.
     private final InsideRegion region;
     private final int offsetX, offsetY;
     private final int durationMs;
@@ -63,7 +58,6 @@ public class HudNotification {
     private final int padding;
     private final int width, height;
 
-    // Slide-in duration in milliseconds
     private static final int SLIDE_IN_MS = 200;
 
     HudNotification(String key, InsideRegion region,
@@ -92,20 +86,17 @@ public class HudNotification {
     public int getDurationMs() { return durationMs; }
 
     /**
-     * Renders this notification given its active state.
+     * Draws this notification at its point in the animation.
      *
-     * @param graphics the GUI graphics context
-     * @param dt       tick delta
      * @param screenW  GUI-scaled screen width
      * @param screenH  GUI-scaled screen height
      * @param elapsed  milliseconds since the notification was triggered
-     * @param text     the text data passed to notify()
-     * @param item     the item data passed to notify() (may be null)
+     * @param text     the text passed to notify()
+     * @param item     the item passed to notify(), or null
      */
     public void render(GuiGraphicsExtractor graphics, DeltaTracker dt,
                        int screenW, int screenH, long elapsed,
                        @Nullable String text, @Nullable ItemStack item) {
-        // Compute content size
         var mc = Minecraft.getInstance();
         int contentW = width > 0 ? width : computeContentWidth(mc, text, item);
         int contentH = height > 0 ? height : padding * 2 + 9; // 9 = font height
@@ -118,9 +109,8 @@ public class HudNotification {
         int baseX = origin.x() + offsetX;
         int baseY = origin.y() + offsetY;
 
-        // Slide animation
         float slideProgress = Math.min(1f, (float) elapsed / SLIDE_IN_MS);
-        // Ease-out: 1 - (1 - t)^2
+        // Ease out: 1 - (1 - t)^2
         slideProgress = 1f - (1f - slideProgress) * (1f - slideProgress);
 
         int slideOffsetX = 0, slideOffsetY = 0;
@@ -135,7 +125,7 @@ public class HudNotification {
         int drawX = baseX + slideOffsetX;
         int drawY = baseY + slideOffsetY;
 
-        // Fade-out during last fadeMs
+        // Fade out over the last fadeMs
         float alpha = 1f;
         long fadeStart = durationMs - fadeMs;
         if (elapsed > fadeStart && fadeMs > 0) {
@@ -143,15 +133,12 @@ public class HudNotification {
             alpha = Math.max(0f, alpha);
         }
 
-        // Apply alpha to colors
         int alphaInt = (int) (alpha * 255) << 24;
 
-        // Render panel background
         if (style != PanelStyle.NONE && alpha > 0.01f) {
             PanelRendering.renderPanel(graphics, drawX, drawY, panelW, panelH, style);
         }
 
-        // Render content
         int contentX = drawX + padding;
         int contentY = drawY + padding;
 
@@ -174,12 +161,8 @@ public class HudNotification {
         return Math.max(w, 40); // minimum width
     }
 
-    // ═══════════════════════════════════════════════════════════════════
-    // Builder
-    // ═══════════════════════════════════════════════════════════════════
-
     /**
-     * Creates a new notification builder.
+     * Starts a notification builder.
      *
      * @param key unique identifier used to trigger this notification at runtime
      *            (see {@link MK#notify(String, String)})
@@ -204,8 +187,8 @@ public class HudNotification {
 
         /**
          * Where it pops up: an {@link InsideRegion} spot of the game window, 4px in
-         * from the edges it touches (default {@code TOP_CENTER}). Resolved by the one
-         * resolver the HUD panels use, {@link RegionMath#resolveInside}.
+         * from the edges it touches (default {@code TOP_CENTER}). Resolved the same
+         * way as HUD panels, by {@link RegionMath#resolveInside}.
          */
         public Builder region(InsideRegion region) {
             this.region = region;

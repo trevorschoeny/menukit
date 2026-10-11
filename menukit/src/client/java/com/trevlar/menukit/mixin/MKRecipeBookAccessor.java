@@ -8,25 +8,14 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 /**
  * Exposes the private {@code recipeBookComponent} field on
- * {@link AbstractRecipeBookScreen} so that MenuKit's recipe book
- * utility methods can read and toggle visibility without consumers
- * needing to touch vanilla internals.
- *
- * <p>Client-only — the recipe book is purely a client-side UI widget.
- *
- * <p>Part of the <b>MenuKit</b> framework internals. Consumers should
- * use {@link com.trevlar.menukit.MenuKitClient#isRecipeBookOpen()}
- * and {@link com.trevlar.menukit.MenuKitClient#setRecipeBookOpen(boolean)}
- * instead of casting to this interface directly.
+ * {@link AbstractRecipeBookScreen} so MenuKit's recipe book methods can read and
+ * toggle it. Consumers use {@link com.trevlar.menukit.MenuKitClient#isRecipeBookOpen()}
+ * and {@link com.trevlar.menukit.MenuKitClient#setRecipeBookOpen(boolean)} instead.
  */
 @ApiStatus.Internal
 @Mixin(AbstractRecipeBookScreen.class)
 public interface MKRecipeBookAccessor {
 
-    /**
-     * @return the {@link RecipeBookComponent} that controls the recipe
-     *         book overlay on any screen extending AbstractRecipeBookScreen
-     */
     @Accessor("recipeBookComponent")
     RecipeBookComponent<?> mk$getRecipeBookComponent();
 }

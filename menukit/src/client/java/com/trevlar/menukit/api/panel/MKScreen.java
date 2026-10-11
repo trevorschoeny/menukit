@@ -27,7 +27,7 @@ import java.util.List;
  * identically.
  *
  * <h3>Its panels live in one host</h3>
- * The screen's panels go into a standalone {@link PanelHost} (§0065), attached to
+ * The screen's panels go into a standalone {@link PanelHost}, attached to
  * {@link ScreenPanelRegistry} so global questions (what claims a point, is a modal
  * up) see them alongside anything injected onto this screen. The host places each
  * panel by its {@link PanelPosition}:
@@ -43,7 +43,7 @@ import java.util.List;
  * ones stack below it. A {@code region(...)} panel with no main to anchor to is
  * rejected at construction.
  *
- * <p>Render follows the one {@link LayerPlan} (FLOW, POPOVER, dim, OVERLAY), composed by the
+ * <p>Rendering follows the {@link LayerPlan} (FLOW, POPOVER, dim, OVERLAY), composed by the
  * registry with any injected hosts on this screen. Input: the screen routes its own
  * panels (topmost first, modal-aware), then vanilla widgets, then eats a click its
  * panels claim.
@@ -82,12 +82,11 @@ public class MKScreen extends Screen {
     private boolean titleBand = true;
 
     /**
-     * Optional "return" action, run on close (Escape) instead of the default
-     * close-to-game. Set when this screen was opened over something the consumer
-     * wants to restore on exit, most importantly a live server-synced container
-     * (a {@code CustomContainerScreen}): opening a plain Screen over a container makes
-     * vanilla close that container server-side, so returning means re-opening it.
-     * Null = default close behavior. See {@link #setReturnAction}.
+     * Optional action run on close (Escape) instead of returning to the game. Set it
+     * when this screen was opened over something to restore on exit, above all a
+     * live server-synced container (a {@code CustomContainerScreen}): opening a
+     * plain Screen over a container makes vanilla close that container on the
+     * server, so going back means opening it again. Null for the default close.
      */
     private @Nullable Runnable returnAction;
 
@@ -214,7 +213,7 @@ public class MKScreen extends Screen {
         super.removed();
     }
 
-    // ── Input ───────────────────────────────────────────────────────────
+    // Input
 
     /** Whether one of this screen's own panels is a shown modal. */
     private boolean ownModalUp() {
@@ -223,7 +222,7 @@ public class MKScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean flag) {
-        // Popover janitor: an open Dropdown closes when the click falls outside it,
+        // An open Dropdown closes when the click falls outside it,
         // even if something else consumes the click.
         host.notifyOutsideClick(event.x(), event.y());
         boolean modal = ownModalUp();
@@ -284,9 +283,9 @@ public class MKScreen extends Screen {
         return super.mouseReleased(event);
     }
 
-    // ── Panel Access ────────────────────────────────────────────────────
+    // Panel access
 
-    /** Returns the ordered list of panels (immutable). */
+    /** The panels in order, unmodifiable. */
     public List<Panel> getPanels() { return panels; }
 
     /** This frame's placement of {@code panel} on this screen, or {@code null} when it is not placed. */

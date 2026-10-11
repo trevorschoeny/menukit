@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The one frame-composition plan every panel surface follows (§0065): FLOW, then
+ * The one frame-composition plan every panel surface follows: FLOW, then
  * POPOVER, then the modal dim, then OVERLAY.
  *
  * <ul>
@@ -39,10 +39,8 @@ import java.util.List;
  * to bottom. So what is drawn on top is what takes the point, by construction: a
  * click or hover on a popover never reaches a panel drawn under it.
  *
- * <p>§0065 says z-order is sorted order. It still is within a layer, and the layers
- * stack the sorted runs: FLOW below POPOVER below OVERLAY, which is what OVERLAY
- * already did before popovers. (Recorded in the changelog as an amendment
- * candidate for §0065.)
+ * <p>Z-order is still sorted order within a layer, and the layers stack the sorted
+ * runs: FLOW below POPOVER below OVERLAY, as OVERLAY already did before popovers.
  *
  * <p>A surface with no slot pass composes the plan in one go ({@link #compose}).
  * A container screen is the one surface that has to split it, because vanilla's
@@ -60,7 +58,7 @@ public final class LayerPlan {
     /** The layers top to bottom: the order claims and pointer input test them in. */
     public static final List<Layer> TOP_DOWN = List.of(Layer.OVERLAY, Layer.POPOVER, Layer.FLOW);
 
-    /** ~75% black: the dim fill, tuned to vanilla's confirm-screen darkening. */
+    /** About 75% black: the dim fill, tuned to vanilla's confirm-screen darkening. */
     public static final int DIM_COLOR = 0xC0000000;
 
     /**

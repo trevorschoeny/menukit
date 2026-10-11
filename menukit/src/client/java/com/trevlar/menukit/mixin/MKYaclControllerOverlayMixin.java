@@ -16,32 +16,28 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Part of MenuKit's one styling exception to §0019, recorded in §0068 (see
- * {@link MKVanillaButtonPressedMixin}).
+ * Part of MenuKit's one styling exception (see {@link MKVanillaButtonPressedMixin}).
  *
- * <p>Render-time overlay for YACL controller widgets (toggles,
- * sliders, dropdowns, color-pickers) when they're being pressed.
- * Reads press state from {@link PressedTracker} (set by
- * {@link MKYaclWidgetPressedMixin} on the AbstractWidget
- * superclass). Both YACL mixins use {@code @Pseudo} so they
- * silently skip when YACL isn't loaded.
+ * <p>Draws the pressed overlay on YACL controller widgets (toggles, sliders,
+ * dropdowns, colour pickers) while they are held down. Press state comes from
+ * {@link PressedTracker}, set by {@link MKYaclWidgetPressedMixin} on the
+ * AbstractWidget superclass. Both YACL mixins are {@code @Pseudo}, so they are
+ * skipped when YACL isn't loaded.
  *
- * <p>Scoped to {@link ControllerWidget} (not the broader
- * AbstractWidget) because controllers are the user-facing "click to
- * toggle/adjust" elements — applying the overlay to YACL's other
- * widget kinds (search field, option-list entries, etc.) would be
- * out of scope.
+ * <p>Scoped to {@link ControllerWidget} rather than AbstractWidget because
+ * controllers are the "click to toggle or adjust" elements. YACL's other widgets
+ * (search field, option-list entries and so on) don't get the overlay.
  */
 @ApiStatus.Internal
 @Pseudo
 @Mixin(ControllerWidget.class)
 public abstract class MKYaclControllerOverlayMixin {
 
-    // 26.2 / YACL 3.9.5: the render entry point followed vanilla's
-    // extract/draw split — Renderable.render → extractRenderState
-    // (verified against the 3.9.5+26.2 jar, 2026-07-02).
-    // require = 0: a YACL release that renames this method must cost the pressed
-    // overlay on its controllers, not the game at load.
+    // In 26.2 / YACL 3.9.5 the render entry point followed vanilla's
+    // extract/draw split, from Renderable.render to extractRenderState
+    // (checked against the 3.9.5+26.2 jar).
+    // require = 0: a YACL release that renames this method should lose the
+    // pressed overlay on its controllers, not crash the game at load.
     @Inject(method = "extractRenderState(Lnet/minecraft/client/gui/GuiGraphicsExtractor;IIF)V",
             at = @At("TAIL"), require = 0)
     private void mk$drawPressedOverlay(GuiGraphicsExtractor graphics, int mouseX,
@@ -49,10 +45,9 @@ public abstract class MKYaclControllerOverlayMixin {
                                              CallbackInfo ci) {
         if (!PressedTracker.isPressedAndCheckRelease(this)) return;
 
-        // isHovered() is on ControllerWidget (not the YACL AbstractWidget
-        // base). getDimension() is inherited from AbstractWidget. Cast
-        // to ControllerWidget (raw type — YACL's parameterization is
-        // irrelevant for this hover/coord access).
+        // isHovered() is on ControllerWidget, not YACL's AbstractWidget base;
+        // getDimension() is inherited from AbstractWidget. The raw type is fine
+        // because the type parameter doesn't matter for hover and bounds.
         @SuppressWarnings("rawtypes")
         ControllerWidget self = (ControllerWidget) (Object) this;
         if (!self.isHovered()) return;

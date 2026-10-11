@@ -41,7 +41,7 @@ import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * The one registry of panel placement (§0065): which panels are declared, which
+ * The one registry of panel placement: which panels are declared, which
  * {@link PanelHost}s exist on each open screen, and every global question about
  * them.
  *
@@ -82,7 +82,7 @@ public final class ScreenPanelRegistry {
 
     private ScreenPanelRegistry() {}
 
-    // ── Declarations ───────────────────────────────────────────────────
+    // Declarations
 
     private static final List<ScreenPanelAdapter> CONTAINER = new CopyOnWriteArrayList<>();
     private static final List<VanillaScreenPanelAdapter> VANILLA = new CopyOnWriteArrayList<>();
@@ -96,7 +96,7 @@ public final class ScreenPanelRegistry {
     public static void withdraw(VanillaScreenPanelAdapter adapter) { VANILLA.remove(adapter); }
     public static void withdraw(SlotGroupPanelAdapter adapter) { SLOT_GROUP.remove(adapter); }
 
-    // ── Hosts per screen ───────────────────────────────────────────────
+    // Hosts per screen
 
     /** The hosts on one open screen. */
     private static final class ScreenHosts {
@@ -168,7 +168,7 @@ public final class ScreenPanelRegistry {
         return mc == null ? null : mc.gui.screen();
     }
 
-    // ── Screen open ────────────────────────────────────────────────────
+    // Screen open
 
     private static volatile boolean checkpointRun = false;
 
@@ -237,8 +237,8 @@ public final class ScreenPanelRegistry {
         if (routed.isEmpty()) return;
 
         // Input the MouseHandler-level claim did not take: element dispatch for points
-        // no panel claims (a transparent panel's click-through elements), plus the
-        // popover janitor. A consumed click is eaten from vanilla.
+        // no panel claims (a transparent panel's click-through elements), plus closing
+        // any popover the click fell outside of. A consumed click is eaten from vanilla.
         // Both walk the panels in the one draw order read top down, across the
         // routed hosts, so a popover on a lower host is offered the click first.
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
@@ -272,7 +272,7 @@ public final class ScreenPanelRegistry {
                 if (escape != null) escape.run();
                 return false;
             }
-            // §0068: under an injected modal a key the panels did not take goes to the
+            // Under an injected modal a key the panels did not take goes to the
             // screen's focused widget when MenuKit placed it (a dialog's text field, a
             // control's focus stand-in), then is eaten, so the screen under the modal
             // never acts on it. Vanilla's global keys (F11, F3 combinations, the
@@ -304,7 +304,7 @@ public final class ScreenPanelRegistry {
         throw new IllegalStateException(message);
     }
 
-    // ── Frames ─────────────────────────────────────────────────────────
+    // Frames
 
     /**
      * A container screen's frame: the menu frame, extended by the screen's chrome
@@ -392,7 +392,7 @@ public final class ScreenPanelRegistry {
         return out;
     }
 
-    // ── Rendering ──────────────────────────────────────────────────────
+    // Rendering
 
     /** A non-container screen's whole LayerPlan: FLOW, POPOVER, dim, OVERLAY for every host. */
     private static void renderAll(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
@@ -437,7 +437,7 @@ public final class ScreenPanelRegistry {
         };
     }
 
-    // ── The one claim answer ───────────────────────────────────────────
+    // The one claim answer
 
     /**
      * What takes a screen point.
@@ -513,7 +513,7 @@ public final class ScreenPanelRegistry {
         return true;
     }
 
-    // ── Modal and dim ──────────────────────────────────────────────────
+    // Modal and dim
 
     private static @Nullable Panel topmostModal(List<PanelHost> hosts) {
         for (int i = hosts.size() - 1; i >= 0; i--) {
@@ -543,7 +543,7 @@ public final class ScreenPanelRegistry {
         return topmostModal(routedOn(currentScreen())) != null;
     }
 
-    // ── MouseHandler-level dispatch (claimed input) ────────────────────
+    // MouseHandler-level dispatch (claimed input)
 
     /**
      * Press at the MouseHandler, before any screen sees it. When a panel from the
@@ -562,7 +562,7 @@ public final class ScreenPanelRegistry {
         if (claim.placed() != null) {
             claim.host().mouseClicked(claim.placed(), mouseX, mouseY, button);
             // Vanilla never sees this click, so the natural focus hand-over can't
-            // run: blur a focused MK widget the click landed outside of. (Outside a
+            // run: blur a focused MenuKit widget the click landed outside of. (Outside a
             // modal, placed is null and the modal's own widgets keep focus.)
             Focus.blurOnOutsideBounds(screen, mouseX, mouseY);
         }

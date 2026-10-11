@@ -6,52 +6,40 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 
 /**
- * Static rendering utilities for {@link PanelStyle} backgrounds and
- * slot backgrounds. The {@link PanelStyle} enum is declarative metadata
- * ("what does this panel look like"); this class is the imperative
- * renderer ("draw it like this").
+ * Draws {@link PanelStyle} backgrounds and slot backgrounds. {@link PanelStyle}
+ * says what a panel looks like; this class draws it.
  *
- * <p>Sprite-based styles (RAISED, DARK) use vanilla's 9-slice blitSprite
- * with MenuKit-owned texture assets. Programmatic styles (INSET) draw
- * themselves with fills, matching vanilla's inventory panel look.
- *
- * <p>Part of the canonical MenuKit hierarchy:
- * Screen → Panel → SlotGroup → CreatedSlot
+ * <p>RAISED and DARK are nine-sliced sprites drawn with blitSprite. INSET is drawn
+ * with fills to match vanilla's inventory panel look.
  */
 public final class PanelRendering {
 
     private PanelRendering() {}
 
-    // ── Panel colors (programmatic rendering) ───────────────────────────────
+    // Colours for the fill-drawn styles
 
     private static final int COLOR_BASE      = 0xFFC6C6C6;
     private static final int COLOR_HIGHLIGHT = 0xFFFFFFFF;
     private static final int COLOR_SHADOW    = 0xFF555555;
     private static final int COLOR_BORDER    = 0xFF000000;
 
-    // ── Sprite assets (9-slice) ─────────────────────────────────────────────
-
-    /** MenuKit's RAISED panel sprite — vanilla inventory-panel look. */
+    // MenuKit's RAISED panel sprite, in vanilla's inventory-panel look.
     private static final Identifier PANEL_RAISED_SPRITE =
             Identifier.fromNamespaceAndPath("menukit", "panel_raised");
 
-    /** Vanilla's dark panel sprite — used for the effects background. */
+    // Vanilla's dark panel sprite, the one behind status effects.
     private static final Identifier PANEL_DARK_SPRITE =
             Identifier.withDefaultNamespace("container/inventory/effect_background");
 
-    // ── Panel Rendering ─────────────────────────────────────────────────────
-
     /**
-     * Renders a panel background at the given position and size.
-     * RAISED and DARK use 9-slice sprites; INSET renders programmatically
-     * with default panel colors; NONE renders nothing.
+     * Draws a panel background. RAISED and DARK are nine-sliced sprites, INSET is
+     * drawn with the default colours, and NONE draws nothing.
      */
     public static void renderPanel(GuiGraphicsExtractor graphics, int x, int y,
                                    int w, int h, PanelStyle style) {
         if (w <= 0 || h <= 0) return;
         if (style == PanelStyle.NONE) return;
 
-        // Sprite-based styles — vanilla's 9-slice blitSprite
         if (style == PanelStyle.RAISED) {
             graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
                     PANEL_RAISED_SPRITE, x, y, w, h);
@@ -63,15 +51,14 @@ public final class PanelRendering {
             return;
         }
 
-        // INSET — programmatic render with default colors
         renderPanel(graphics, x, y, w, h, style,
                 COLOR_BASE, COLOR_HIGHLIGHT, COLOR_SHADOW);
     }
 
     /**
-     * Renders a panel background with custom colors and the default black
-     * border. Programmatic styles (INSET, RAISED fallback) use these colors;
-     * sprite-based styles ignore them.
+     * Draws a panel background with custom colours and the default black border.
+     * Every style except NONE is drawn with fills here: INSET with the shadow at
+     * the top left, any other style raised.
      */
     public static void renderPanel(GuiGraphicsExtractor graphics, int x, int y,
                                    int w, int h, PanelStyle style,
@@ -82,9 +69,8 @@ public final class PanelRendering {
     }
 
     /**
-     * Renders a panel background with fully-custom colors including border.
-     * The entry point for callers that want programmatic rendering with
-     * state-dependent colors (e.g., hover/press states on buttons).
+     * Draws a panel background with custom colours, border included. For callers
+     * whose colours depend on state, such as a button's hover and press.
      */
     public static void renderPanel(GuiGraphicsExtractor graphics, int x, int y,
                                    int w, int h, PanelStyle style,
@@ -99,20 +85,20 @@ public final class PanelRendering {
                 topLeft = shadowColor;
                 bottomRight = highlightColor;
             }
-            default -> { // RAISED (programmatic fallback)
+            default -> { // RAISED, drawn with fills
                 topLeft = highlightColor;
                 bottomRight = shadowColor;
             }
         }
 
-        // Outer border (1px)
+        // 1 px outer border
         graphics.fill(x, y, x + w, y + 1, borderColor);                 // top
         graphics.fill(x, y + h - 1, x + w, y + h, borderColor);         // bottom
         graphics.fill(x, y + 1, x + 1, y + h - 1, borderColor);         // left
         graphics.fill(x + w - 1, y + 1, x + w, y + h - 1, borderColor); // right
 
         if (w > 2 && h > 2) {
-            // Inner highlight/shadow edges
+            // Inner highlight and shadow edges
             graphics.fill(x + 1, y + 1, x + w - 1, y + 2, topLeft);
             graphics.fill(x + 1, y + 1, x + 2, y + h - 1, topLeft);
             graphics.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, bottomRight);
@@ -122,50 +108,41 @@ public final class PanelRendering {
                 graphics.fill(x + 2, y + 2, x + w - 2, y + h - 2, baseColor);
             }
 
-            // Vanilla-style asymmetric corner rounding:
-            // Top-right: inner corner pixel set to border color
+            // Vanilla's asymmetric corner rounding: the top-right and bottom-left
+            // inner corners take the border colour, the bottom-right the shadow.
             graphics.fill(x + w - 2, y + 1, x + w - 1, y + 2, borderColor);
-            // Bottom-left: inner corner pixel set to border color
             graphics.fill(x + 1, y + h - 2, x + 2, y + h - 1, borderColor);
-            // Bottom-right: inner corner = shadow color
             graphics.fill(x + w - 2, y + h - 2, x + w - 1, y + h - 1, bottomRight);
         }
     }
 
-    // ── Slot Background ─────────────────────────────────────────────────────
-
-    // Slot colors matched from the vanilla inventory texture
+    // Slot colours, matched from the vanilla inventory texture
     private static final int SLOT_FILL      = 0xFF8B8B8B; // medium gray (slot interior)
     private static final int SLOT_SHADOW    = 0xFF373737; // dark top-left edge
     private static final int SLOT_HIGHLIGHT = 0xFFFFFFFF; // light bottom-right edge
 
     /**
-     * Renders a vanilla-accurate 18×18 slot background at the given position.
-     * Matches vanilla exactly — no outer black border, just inner
-     * highlight/shadow edges with a medium gray fill.
+     * Draws an 18x18 slot background exactly as vanilla does: no outer black
+     * border, just the inner highlight and shadow edges around a medium grey fill.
      */
     public static void renderSlotBackground(GuiGraphicsExtractor graphics, int x, int y) {
         renderInsetRect(graphics, x, y, 18, 18);
     }
 
     /**
-     * Renders a vanilla-accurate inset rectangle of arbitrary dimensions
-     * — same shadow/highlight/fill pattern as slot backgrounds, but for
-     * non-slot recessed regions (scrollbar tracks, custom recessed inset
-     * areas). Lighter-weight than {@link PanelStyle#INSET} (no outer black
-     * border + heavy bevel) — matches vanilla's subtle recess for tracks
-     * and similar narrow inset chrome.
+     * Draws an inset rectangle of any size with the slot background's edges and
+     * fill, for other recessed areas such as scrollbar tracks. Lighter than
+     * {@link PanelStyle#INSET}, which adds an outer black border and a heavier
+     * bevel.
      */
     public static void renderInsetRect(GuiGraphicsExtractor graphics,
                                        int x, int y, int w, int h) {
         if (w <= 0 || h <= 0) return;
-        // Top and left edge (dark — inset look)
+        // Dark top and left edges, light bottom and right
         graphics.fill(x, y, x + w - 1, y + 1, SLOT_SHADOW);            // top
         graphics.fill(x, y, x + 1, y + h - 1, SLOT_SHADOW);            // left
-        // Bottom and right edge (light — inset look)
         graphics.fill(x + 1, y + h - 1, x + w, y + h, SLOT_HIGHLIGHT); // bottom
         graphics.fill(x + w - 1, y + 1, x + w, y + h, SLOT_HIGHLIGHT); // right
-        // Fill interior
         if (w > 2 && h > 2) {
             graphics.fill(x + 1, y + 1, x + w - 1, y + h - 1, SLOT_FILL);
         }

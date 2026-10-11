@@ -54,11 +54,9 @@ public enum ScreenKind {
     /** Options, Controls, Create World and the like: the pause-menu look. */
     OPTIONS;
 
-    // ── Where the kind comes from ──────────────────────────────────────
-
     /**
-     * The kind of {@code screen}: the one rule every host on a screen, and every
-     * screen MenuKit opens over another, asks. A standalone {@link MKScreen} is the
+     * The kind of {@code screen}. Every host on a screen, and every screen MenuKit
+     * opens over another, uses this. A standalone {@link MKScreen} is the
      * kind it declared; any other container screen is {@link #CONTAINER}; any other
      * screen is {@link #OPTIONS}. No screen (the HUD, the game itself) is
      * {@link #CONTAINER}.
@@ -70,8 +68,6 @@ public enum ScreenKind {
         if (screen instanceof AbstractContainerScreen<?>) return CONTAINER;
         return OPTIONS;
     }
-
-    // ── Text by role ───────────────────────────────────────────────────
 
     /**
      * The colour of text in {@code role} on this kind's surface. Container: dark

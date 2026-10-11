@@ -11,79 +11,46 @@ import org.lwjgl.glfw.GLFW;
 import org.jetbrains.annotations.ApiStatus;
 
 /**
- * Phase 16h — utility for preserving OS cursor position across screen
- * transitions. Universal capture: every screen's {@code removed()}
- * stashes the cursor; the next screen's {@code init()} (any screen,
- * vanilla or MK or MKC or third-party) restores from the stash via the
- * AFTER_INIT hook. Single utility class, no base-class coupling, no
- * per-consumer opt-in.
+ * Keeps the OS cursor where it was across screen transitions. Every screen's
+ * {@code removed()} stashes the cursor position, and the next screen's
+ * {@code init()} (any screen: vanilla, MenuKit, MKC or another mod's) restores it
+ * through Fabric's AFTER_INIT hook. No base class and no per-consumer opt-in.
  *
- * <h3>Why universal capture</h3>
- *
- * Vanilla / platform / OS layer moves the OS cursor to window center on
- * certain screen transitions (consistent ~window-center coords on every
- * InventoryScreen open in dev). Capture-on-opt-in can't help across
- * vanilla→MK or vanilla→MKC transitions because vanilla screens (the
- * LEAVING side) weren't opt-in candidates. Universal capture sidesteps
- * that — every screen.removed() stashes, every screen.init() restores.
- *
- * <h3>Why a utility class instead of base-class methods</h3>
- *
- * Cursor continuity is a transition-behavior, not a property of any
- * Screen hierarchy. Putting the mechanism in a utility decouples it
- * from base classes and from per-consumer registration; the mechanism
- * rides on Fabric's universal AFTER_INIT (which fires for every screen
- * including vanilla).
- *
- * <h3>Lifecycle semantics</h3>
+ * <p>Vanilla moves the cursor to the window centre on some screen transitions (in
+ * dev, every InventoryScreen open lands at about the centre). Capturing only on
+ * screens that opt in can't fix a transition from a vanilla screen, because the
+ * screen being left never opted in. So every screen captures and every screen
+ * restores. Cursor position belongs to the transition, not to any Screen class,
+ * which is why this is a utility on Fabric's AFTER_INIT (fired for every screen,
+ * vanilla included) rather than base-class methods.
  *
  * <ul>
- *   <li><b>Capture:</b> every screen's {@code removed()} stashes the
- *       current OS cursor pos via {@code GLFW.glfwGetCursorPos}. Wired
- *       in AFTER_INIT for every screen so the listener exists before
- *       its eventual removed() fires.</li>
- *   <li><b>Restore:</b> every screen's {@code init()} reads the stash
- *       via {@code GLFW.glfwSetCursorPos} <i>and</i> updates Minecraft's
- *       internal {@code MouseHandler.xpos/ypos} via the accessor mixin.
- *       glfwSetCursorPos alone wouldn't update the internal handler
- *       state; the mixin sync covers that gap. One-shot, cleared after
- *       restore so subsequent unrelated opens don't get a stale pose.</li>
- *   <li><b>HUD invalidation (Phase 17 follow-up):</b> a per-tick listener
- *       clears the stash whenever {@code Gui.screen() == null}.
- *       Reason: HUD → first-screen-open should center the cursor
- *       (vanilla default), not restore from a long-stale stash left over
- *       from the last screen the user closed. Chained
- *       screen → screen transitions don't tick through HUD (setScreen is
- *       synchronous: remove → set new screen → init), so the stash
- *       survives those. Only an actual close-to-HUD frame invalidates.</li>
+ *   <li><b>Capture:</b> every screen's {@code removed()} stashes the OS cursor
+ *       position from {@code GLFW.glfwGetCursorPos}. The listener is added in
+ *       AFTER_INIT so it exists before removed() fires.</li>
+ *   <li><b>Restore:</b> every screen's {@code init()} applies the stash with
+ *       {@code GLFW.glfwSetCursorPos} <i>and</i> writes Minecraft's
+ *       {@code MouseHandler.xpos/ypos} through the accessor mixin, since
+ *       glfwSetCursorPos alone doesn't update them. The stash is cleared after
+ *       use so a later, unrelated open doesn't get a stale position.</li>
+ *   <li><b>Back to the HUD:</b> a tick listener clears the stash whenever
+ *       {@code Gui.screen() == null}, so opening the first screen from the HUD
+ *       centres the cursor as vanilla does, instead of restoring a position from
+ *       long ago. Screen-to-screen changes never tick with no screen (setScreen
+ *       removes, sets and inits synchronously), so the stash survives those.</li>
  * </ul>
  *
- * <h3>Library-not-platform alignment (§0019)</h3>
- *
- * Universal capture/restore is library-not-platform-compatible
- * <i>because</i> it counters a platform misbehavior (vanilla / OS
- * centering cursor on screen transitions). If the platform did the
- * right thing by default, the library wouldn't need to act; since
- * vanilla doesn't, the library compensates uniformly. There's no
- * ambient behavior beyond "cursor stays where it was" — which is the
- * intuitively-correct user-facing default.
+ * <p>This acts on every screen only to undo vanilla's re-centring. The only
+ * visible effect is that the cursor stays where it was.
  */
 @ApiStatus.Internal
 public final class CursorContinuity {
 
     private CursorContinuity() {}
 
-    /**
-     * Static stash for cursor pos pending restore. Null = no stash. Updated
-     * by per-screen capture lambda, consumed by {@link #restoreIfAny}.
-     */
+    // Cursor position waiting to be restored, or null.
     private static double @Nullable [] stashed = null;
 
-    /**
-     * Samples the current OS cursor position and stashes it. Internal —
-     * called by per-screen {@code ScreenEvents.remove} listeners wired
-     * universally in {@link #registerRestoreHook}.
-     */
     private static void capture() {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.getWindow() == null) return;
@@ -93,31 +60,21 @@ public final class CursorContinuity {
         stashed = new double[]{xpos[0], ypos[0]};
     }
 
-    /**
-     * Restores the stashed cursor position if one is pending, then clears
-     * the stash. Wired from {@code MenuKitClient.onInitializeClient} via
-     * {@link #registerRestoreHook} as a universal {@code AFTER_INIT}
-     * listener so it fires for ANY screen open (vanilla, MK, MKC, third-
-     * party — same behavior). One-shot semantics: cleared after restore
-     * so unrelated subsequent opens don't get a stale cursor position.
-     */
+    /** Restores the stashed cursor position, if any, and clears the stash. Runs on every screen open. */
     public static void restoreIfAny() {
         if (stashed == null) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.getWindow() == null) {
-            stashed = null; // avoid stale stash if window vanished
+            stashed = null; // don't keep a stash if the window is gone
             return;
         }
         GLFW.glfwSetCursorPos(mc.getWindow().handle(), stashed[0], stashed[1]);
 
-        // Phase 16h — sync Minecraft's internal MouseHandler fields too.
         // glfwSetCursorPos doesn't fire GLFW's cursor-position callback for
-        // programmatic moves, so MouseHandler.xpos/ypos remain stuck at
-        // whatever vanilla last wrote (typically window-center on the
-        // async-open path). Writing through the accessor mixin keeps the
-        // OS cursor and internal handler state aligned — without this,
-        // hover detection and any code reading mouseHandler.xpos()/ypos()
-        // gets a stale centered position until the next physical mouse move.
+        // programmatic moves, so MouseHandler.xpos/ypos would keep whatever
+        // vanilla last wrote (usually the window centre on the async open path).
+        // Without this, hover detection and anything reading
+        // mouseHandler.xpos()/ypos() sees the centre until the mouse moves.
         ((MouseHandlerCursorPosAccessor) (Object) mc.mouseHandler)
                 .mk$setXpos(stashed[0]);
         ((MouseHandlerCursorPosAccessor) (Object) mc.mouseHandler)
@@ -126,24 +83,10 @@ public final class CursorContinuity {
     }
 
     /**
-     * Wires the universal AFTER_INIT listener that does two things:
-     * <ol>
-     *   <li><b>Registers a per-screen capture listener.</b> Every screen's
-     *       eventual {@code removed()} call will stash the cursor.</li>
-     *   <li><b>Restores stashed cursor.</b> If a stash is pending (from
-     *       the previous screen's removed() firing), teleport the OS
-     *       cursor and clear the stash.</li>
-     * </ol>
-     *
-     * <p>Also wires a per-tick HUD-invalidation listener (see class javadoc
-     * "HUD invalidation"): whenever {@code Gui.screen() == null}, clear
-     * any pending stash so the next HUD → screen-open lands with vanilla's
-     * centering behavior. Chained screen → screen transitions don't tick
-     * through HUD and therefore preserve the stash for restore.
-     *
-     * <p>Call once from the library's client-init entry point. Idempotent
-     * at the cost of duplicate listeners — but typically called exactly
-     * once.
+     * Registers the AFTER_INIT listener, which adds a capture listener to each
+     * screen's {@code removed()} and restores any pending stash, and the tick
+     * listener that clears the stash while no screen is open. Call once from client
+     * init; a second call would add duplicate listeners.
      */
     public static void registerRestoreHook() {
         ScreenEvents.AFTER_INIT.register((client, screen, sw, sh) -> {
@@ -151,11 +94,9 @@ public final class CursorContinuity {
             restoreIfAny();
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // HUD frame — invalidate any stash so next screen-open centers
-            // (vanilla default). Chained screen → screen transitions are
-            // synchronous within setScreen() and never tick through here
-            // with screen == null, so this only triggers on real
-            // close-to-HUD events.
+            // No screen open: drop the stash so the next open centres the cursor
+            // as vanilla does. Screen-to-screen changes happen inside setScreen()
+            // and never tick here with no screen.
             if (client.gui.screen() == null && stashed != null) {
                 stashed = null;
             }

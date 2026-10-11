@@ -16,17 +16,17 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Builder for a modal confirm/cancel dialog. Composes a {@link Panel} from
- * existing primitives ({@link TextLabel}, {@link Button}, M8 layout helpers)
- * and ships it with {@link Panel#modal() modal flags} pre-configured
- * (opaque + dimsBehind + tracksAsModal).
+ * Builds a modal confirm/cancel dialog. It is an ordinary {@link Panel} made of
+ * {@link TextLabel}s, {@link Button}s and the layout helpers, with the
+ * {@link Panel#modal() modal flags} already set (opaque, dimsBehind,
+ * tracksAsModal).
  *
- * <p>The returned Panel is added to the consumer's UI like any other panel.
- * Visibility is consumer-managed via {@link Panel#visibleWhen} per Principle 8
- * ("elements are lenses, not stores"). Confirm and Cancel callbacks fire on
- * the corresponding buttons; consumers mutate their own state to dismiss.
+ * <p>Add the returned Panel like any other. Its visibility is yours, through
+ * {@link Panel#visibleWhen}: the dialog reads your state rather than keeping its
+ * own. The Confirm and Cancel callbacks run on their buttons, and you change your
+ * state to close it.
  *
- * <h3>Canonical usage</h3>
+ * <h3>Usage</h3>
  *
  * <pre>{@code
  * private boolean confirmDeleteOpen = false;
@@ -48,24 +48,19 @@ import java.util.concurrent.atomic.AtomicLong;
  * Button.builder().label(Component.literal("Delete")).onClick(() -> confirmDeleteOpen = true).build();
  * }</pre>
  *
- * <h3>Cross-context applicability</h3>
+ * <h3>Where dialogs work</h3>
  *
- * Dialogs work in MenuContext (vanilla container screen decoration),
- * StandaloneContext (decorating vanilla standalone screens via mixin), and on
- * MenuKit-native {@code MKScreen} subclasses: add the {@code modal()} dialog
- * Panel to the screen's panel list (visibility driven by {@link Panel#visibleWhen})
- * and {@code MKScreen}'s modal-aware path handles it, {@code dimsBehind} panels
- * are auto-centered, the dim layer + click-eat + key dispatch route input to the
- * dialog's buttons only. SlotGroupContext and HudContext don't apply (anchor
- * mismatch / no input dispatch).
+ * On vanilla container screens, on other vanilla screens, and on {@code MKScreen}
+ * subclasses. For an {@code MKScreen}, add the dialog Panel to the screen's panels
+ * (visibility driven by {@link Panel#visibleWhen}): {@code dimsBehind} panels are
+ * centred, and the dim, click-eating and key dispatch send input only to the
+ * dialog's buttons. Slot groups and the HUD don't apply: one anchors to slots,
+ * the other takes no input.
  *
  * <h3>Multi-line body</h3>
  *
- * Body is a single {@link Component} in v1. For multi-line dialog bodies,
- * compose the Panel manually using the same M8 patterns this builder uses
- * internally (see DIALOGS.md §5 escape-hatch example). A multi-line
- * {@code TextLabel} variant is filed as a deferred primitive (see
- * {@code DEFERRED.md}).
+ * The body is a single {@link Component}. For a multi-line body, build the Panel
+ * yourself the way this builder does.
  *
  * @see AlertDialog single-button variant
  */
@@ -79,19 +74,17 @@ public final class ConfirmDialog {
     public static final int BUTTON_GAP = 4;
     /** Default button width. */
     public static final int BUTTON_W = 60;
-    /** Default button height, matches vanilla's confirm-screen button proportions. */
+    /** Default button height, matching vanilla's confirm-screen buttons. */
     public static final int BUTTON_H = 20;
 
-    /** Default labels. */
     private static final Component DEFAULT_CONFIRM_LABEL = Component.literal("Confirm");
     private static final Component DEFAULT_CANCEL_LABEL = Component.literal("Cancel");
 
-    /** Counter for auto-generated panel IDs. */
     private static final AtomicLong AUTO_ID_COUNTER = new AtomicLong();
 
     private ConfirmDialog() {}
 
-    /** Begins a ConfirmDialog builder. */
+    /** Starts a ConfirmDialog builder. */
     public static Builder builder() {
         return new Builder();
     }
@@ -117,8 +110,8 @@ public final class ConfirmDialog {
         /**
          * Body text shown below the title. Required.
          *
-         * <p>Single-line in v1. For multi-line bodies, compose the Panel
-         * manually, see class javadoc and DIALOGS.md §5.
+         * <p>One line. For a multi-line body, build the Panel yourself (see the
+         * class description).
          */
         public Builder body(Component body) {
             this.body = Objects.requireNonNull(body, "body must not be null");
@@ -126,40 +119,37 @@ public final class ConfirmDialog {
         }
 
         /**
-         * Fired when the user clicks the Confirm button. Required.
+         * Runs when the player clicks Confirm. Required.
          *
-         * <p>The library does not auto-dismiss the dialog, consumer's
-         * callback is responsible for both running the confirmed action AND
-         * mutating their visibility state to close the dialog. See class
-         * javadoc for the canonical pattern.
+         * <p>The dialog does not close itself: the callback runs the action and
+         * changes the state its visibility reads. See the class description.
          */
         public Builder onConfirm(Runnable onConfirm) {
             this.onConfirm = Objects.requireNonNull(onConfirm, "onConfirm must not be null");
             return this;
         }
 
-        /** Fired when the user clicks the Cancel button. Required. */
+        /** Runs when the player clicks Cancel, or presses Escape. Required. */
         public Builder onCancel(Runnable onCancel) {
             this.onCancel = Objects.requireNonNull(onCancel, "onCancel must not be null");
             return this;
         }
 
-        /** Override the Confirm button label. Default: "Confirm". */
+        /** The Confirm button's label. Default "Confirm". */
         public Builder confirmLabel(Component label) {
             this.confirmLabel = Objects.requireNonNull(label, "confirmLabel must not be null");
             return this;
         }
 
-        /** Override the Cancel button label. Default: "Cancel". */
+        /** The Cancel button's label. Default "Cancel". */
         public Builder cancelLabel(Component label) {
             this.cancelLabel = Objects.requireNonNull(label, "cancelLabel must not be null");
             return this;
         }
 
         /**
-         * Override the Panel's id. Default: auto-generated unique id of the
-         * form {@code "confirm-dialog-N"}. Specify explicitly when
-         * registering multiple confirm dialogs to ensure stable IDs.
+         * The Panel's id. Defaults to a generated {@code "confirm-dialog-N"}; set it
+         * when registering several confirm dialogs so their ids stay stable.
          */
         public Builder id(String id) {
             this.id = Objects.requireNonNull(id, "id must not be null");
@@ -167,15 +157,10 @@ public final class ConfirmDialog {
         }
 
         /**
-         * Construct the configured dialog Panel. The returned Panel:
-         * <ul>
-         *   <li>has {@link PanelStyle#RAISED} background</li>
-         *   <li>has {@link Panel#modal()} pre-set (opaque + dimsBehind +
-         *       tracksAsModal)</li>
-         *   <li>starts hidden (initial visibility {@code false}), consumer
-         *       sets {@link Panel#visibleWhen(java.util.function.BooleanSupplier)} to
-         *       drive visibility from their state</li>
-         * </ul>
+         * Builds the dialog Panel: a {@link PanelStyle#RAISED} background,
+         * {@link Panel#modal()} set (opaque, dimsBehind, tracksAsModal), and hidden
+         * until you show it with
+         * {@link Panel#visibleWhen(java.util.function.BooleanSupplier)}.
          *
          * @throws IllegalStateException if any required field
          *         (title, body, onConfirm, onCancel) is unset
@@ -186,13 +171,9 @@ public final class ConfirmDialog {
             requireField(onConfirm, "onConfirm");
             requireField(onCancel, "onCancel");
 
-            // Cross-axis CENTER on the outer Column means title and body
-            // (which auto-size to font width) center against the wider
-            // button row, they don't sit flush-left when the buttons are
-            // wider than the text.
-            //
-            // Cancel is on the left, Confirm on the right (matches vanilla
-            // ConfirmScreen's convention).
+            // CENTER on the outer Column centres the title and body over the button
+            // row when the buttons are wider than the text. Cancel is on the left
+            // and Confirm on the right, as in vanilla's ConfirmScreen.
             final Runnable cancelRun = onCancel;
             final Runnable confirmRun = onConfirm;
             List<PanelElement> elements = Column.at(PADDING, PADDING)
@@ -211,11 +192,8 @@ public final class ConfirmDialog {
                     ? id
                     : "confirm-dialog-" + AUTO_ID_COUNTER.incrementAndGet();
 
-            // Build via Panel.builder() (B1), the fluent path that replaces
-            // the magic -1 positional ctor. modal() sets opaque + dimsBehind +
-            // tracksAsModal; onEscape wires the consumer's onCancel so pressing
-            // Escape over the dialog dismisses it (B3) exactly as clicking
-            // Cancel does, instead of closing the host screen.
+            // onEscape runs onCancel, so Escape dismisses the dialog exactly as
+            // clicking Cancel does instead of closing the screen underneath.
             return Panel.builder(panelId)
                     .elements(elements)
                     .visible(false)

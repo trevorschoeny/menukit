@@ -12,29 +12,20 @@ import org.jspecify.annotations.Nullable;
 import java.util.function.Supplier;
 
 /**
- * HUD element that renders an item inside a hotbar-style slot background.
+ * A HUD element that draws an item in a hotbar slot. The background is a slice of
+ * vanilla's {@code hud/hotbar} sprite, and the item is drawn at 16x16 inside the
+ * 20x22 slot.
  *
- * <p>Uses vanilla's {@code hud/hotbar} sprite for the slot background,
- * matching the look and feel of the in-game hotbar. The item is rendered
- * at native 16×16 centered within the 20×22 slot.
- *
- * <p>This is a display-only element, no interaction. For interactive
- * slots, use a {@code CreatedSlot} inside a {@code Panel} on a
- * {@code CustomContainerMenu}.
- *
- * <p>Implements {@link PanelElement}. Phase 8 may subsume this into a
- * hotbar-styled variant of the core {@code ItemDisplay}.
- *
- * <p>Part of the <b>MenuKit</b> framework.
+ * <p>Display only. For a slot the player can use, put a {@code CreatedSlot} in a
+ * {@code Panel} on a {@code CustomContainerMenu}.
  */
 public class HudSlot implements PanelElement {
 
-    // Vanilla hotbar sprite, 182x22, contains 9 slots of 20px each
+    // Vanilla's hotbar sprite: 182x22, nine slots of 20 px
     private static final Identifier HOTBAR_SPRITE =
             Identifier.withDefaultNamespace("hud/hotbar");
 
-    // A single slot occupies 20x22 pixels within the hotbar sprite.
-    // Item renders at (3, 3) within the slot for proper centering.
+    // One slot is 20x22 of the sprite; the item sits at (3, 3) in it.
     public static final int SLOT_WIDTH = 20;
     public static final int SLOT_HEIGHT = 22;
     private static final int ITEM_OFFSET_X = 3; // center 16px item in 20px slot
@@ -70,9 +61,8 @@ public class HudSlot implements PanelElement {
         int slotX = ctx.originX() + childX;
         int slotY = ctx.originY() + childY;
 
-        // Render a single slot from the hotbar sprite.
-        // The hotbar sprite is 182x22. We render a 20x22 slice starting at
-        // source (1, 0), skipping the 1px left border of the full hotbar.
+        // A 20x22 slice of the 182x22 hotbar sprite from (1, 0), skipping the
+        // hotbar's 1 px left border.
         graphics.blitSprite(
                 RenderPipelines.GUI_TEXTURED,
                 HOTBAR_SPRITE,
@@ -82,7 +72,6 @@ public class HudSlot implements PanelElement {
                 SLOT_WIDTH, SLOT_HEIGHT  // destination size
         );
 
-        // Render the item centered inside the slot
         ItemStack stack = itemSupplier.get();
         if (!stack.isEmpty()) {
             int itemX = slotX + ITEM_OFFSET_X;

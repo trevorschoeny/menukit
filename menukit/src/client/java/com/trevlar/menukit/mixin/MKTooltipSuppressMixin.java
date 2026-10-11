@@ -25,82 +25,44 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Phase 14d-1 modal tooltip suppression — HEAD-cancellable mixin into
- * {@code GuiGraphicsExtractor.setTooltipForNextFrameInternal}.
+ * MenuKit's one mixin on vanilla's tooltip pipeline. It suppresses tooltips under
+ * MenuKit panels and adds MKTooltip's placement and scrolling.
  *
- * <h3>Why this mixin (not the originally-planned queue-clear)</h3>
- *
- * Round-2 verdict on Finding C originally preferred a queue-clearing
- * approach over a tooltip-pipeline mixin: render path is library-owned,
- * mixin would be vanilla-code-path-flavored. Implementation surfaced that
- * the queue-clear approach didn't cover the full flow:
+ * <p>Suppression cancels {@code setTooltipForNextFrameInternal} at HEAD, the private
+ * method every public {@code setTooltipForNextFrame} overload calls, so one hook
+ * catches every tooltip. Clearing the tooltip from the render path instead does not
+ * work:
  *
  * <ul>
- *   <li>{@code GuiGraphicsExtractor.deferredTooltip} is a single
- *       last-write-wins {@link Runnable} field, not a queue.</li>
- *   <li>{@code CreativeModeInventoryScreen.render} queues tab-hover
- *       tooltips AFTER {@code super.render()} returns — and thus AFTER
- *       our render-path clear (which fires inside super.render via the
- *       existing INVOKE renderCarriedItem injection point).</li>
- *   <li>Subsequent setTooltipForNextFrame calls overwrite our clear,
- *       so tab tooltips still render through the modal.</li>
+ *   <li>{@code GuiGraphicsExtractor.deferredTooltip} is a single last-write-wins
+ *       {@link Runnable} field, not a queue.</li>
+ *   <li>{@code CreativeModeInventoryScreen.render} sets tab tooltips after
+ *       {@code super.render()} returns, which is after any clear made inside
+ *       super.render.</li>
+ *   <li>So later setTooltipForNextFrame calls overwrite the clear, and tab tooltips
+ *       still show through a modal.</li>
  * </ul>
  *
- * <p>Suppressing at the queueing site — HEAD-cancellable on the private
- * {@code setTooltipForNextFrameInternal} method that all public
- * {@code setTooltipForNextFrame} overloads delegate to — is the robust
- * mechanism. Single mixin point catches every tooltip queue call.
+ * <p>Suppression is scoped by the pointer: a visible modal suppresses tooltips
+ * everywhere, and an opaque non-modal panel (a popover, a dropdown) only within its
+ * bounds. Like the click-eating mixin it only reads per-panel flags, so two mods
+ * with opaque panels coexist without either owning the hook.
  *
- * <h3>The other tooltip seams on this class</h3>
- *
- * This class is MenuKit's one mixin on vanilla's tooltip pipeline (§0064), so the
- * scroll seam lives here too: {@code tooltip} (the method that places and draws every
- * queued tooltip) is wrapped to put it on the side that covers less
+ * <p>The other tooltip hooks live here too. {@code tooltip}, which places and draws
+ * every queued tooltip, is wrapped to put it on the side that covers less
  * ({@link MKTooltip#avoidCoverWhen}), keep it on screen ({@link MKTooltip#wrapWhen},
  * {@link MKTooltip#clampWhen}), add {@link MKTooltip#scrollBy}'s offset and pin the
- * title, and {@code extractDeferredElements} (where a screen frame draws its
- * tooltip) marks the frame boundary MKTooltip uses to tell a new hover from the same one.
- *
- * <h3>Library-not-platform check</h3>
- *
- * Same shape as the click-eat mixin: library-wide HEAD-cancellable
- * inject gated on per-Panel opacity (consulted via
- * {@link ScreenPanelRegistry#anyPanelCoversCursor()}). Two
- * mods both shipping opaque panels coexist independently; the mixin
- * checks "any visible opaque panel covers the cursor" without taking
- * ownership across mods. The mixin is observational/dispatch-policy
- * at a single hook point.
- *
- * <p>M9 generalization: scope changed from "any modal visible" (global
- * suppression) to "cursor inside any opaque panel" (bounds-localized).
- * Modal dialogs still suppress correctly because they're opaque and
- * cover their bounds; non-modal opaque panels (popovers, dropdowns)
- * also suppress within their bounds. See M9 §4.7.
- *
- * <h3>Round-2 implementation finding (filed in DIALOGS.md §10)</h3>
- *
- * The advisor's preference for queue-clear over mixin was based on a
- * model where {@code deferredTooltip} could be cleared once and stay
- * cleared. Implementation revealed the field is overwriteable per-frame.
- * Switching to mixin-based suppression preserves the architectural
- * intent (modality is a per-Panel property; library-wide dispatch
- * mechanism makes it work) while delivering on the modal contract.
+ * title. {@code extractDeferredElements}, where a screen frame draws its tooltip,
+ * marks the frame boundary MKTooltip uses to tell a new hover from the same one.
  */
 @ApiStatus.Internal
 @Mixin(GuiGraphicsExtractor.class)
 public abstract class MKTooltipSuppressMixin {
 
     /**
-     * Fires at HEAD of every tooltip-queue call. When a visible modal
-     * panel is present on the current screen, cancel the call — the
-     * tooltip never gets queued, so it never renders. Modal-internal
-     * tooltips (e.g., button.tooltip on a dialog button) are also
-     * suppressed by this v1 — modal dialogs don't typically have
-     * hover tooltips on their elements; ConfirmDialog/AlertDialog
-     * buttons are labeled rather than tooltipped. If smoke surfaces
-     * a need for modal-internal tooltips, fold-on-evidence (e.g.,
-     * coord-based suppression: only cancel when tooltip position is
-     * outside modal bounds).
+     * Cancels a tooltip before it is queued when the pointer is inert under a
+     * panel. A tooltip queued while the panel that owns the pointer is rendering is
+     * that panel's own content and is let through.
      */
     @Inject(
             method = "setTooltipForNextFrameInternal",
@@ -108,27 +70,17 @@ public abstract class MKTooltipSuppressMixin {
             cancellable = true
     )
     private void mk$suppressTooltipWhenOpaque(CallbackInfo ci) {
-        // M9: pointer-driven tooltip suppression honors both panel scopes:
-        //   - tracksAsModal panel visible → suppress GLOBALLY (modal
-        //     claims the whole screen; tooltips behind don't render per
-        //     Trevor's principle, including for vanilla widgets like
-        //     creative tabs that lie outside the modal's bounds).
-        //   - else if cursor inside any visible opaque panel → suppress
-        //     LOCALLY (bounds-local for non-modal opaque panels — items
-        //     outside the popover still tooltip normally).
-        //   - else → don't suppress; vanilla tooltip queues normally.
-        // See M9 §4.7 for the scope-asymmetry framing.
-        // Post-Phase 18r-5: the predicate includes ACTIVE ELEMENT OVERLAYS
-        // (Dropdown popovers, etc.) in addition to panel bounds. Now routed
-        // through the single inertness predicate (modal-global OR covered by an
-        // opaque panel/element/overlay) — the same question slot hover, tab
-        // hover, widget hover, list hover, and the click-eat all ask.
+        // A visible tracksAsModal panel claims the whole screen, so nothing behind
+        // it shows a tooltip, including vanilla widgets outside its bounds such as
+        // creative tabs. An opaque non-modal panel or an active element overlay
+        // (a Dropdown popover) only suppresses within its bounds. This is the same
+        // inertness check slot, tab, widget and list hover and click-eating use.
         // A tooltip queued while the pointer's owner renders is that panel's own
         // content (an element tooltip, the panel tooltip): it passes, even over the
-        // panel's own claim. Everything else under a claim is suppressed.
-        // A mod asked for no tooltips at all right now (MKTooltip.hideWhen, e.g.
-        // Inventory Plus while Ctrl is held). Asked first, so a live panel's own
-        // element tooltips hide too: the player asked for none.
+        // panel's own claim.
+        // A mod can ask for no tooltips at all right now (MKTooltip.hideWhen, such
+        // as Inventory Plus while Ctrl is held). That is checked first, so a live
+        // panel's own element tooltips hide too.
         if (com.trevlar.menukit.api.element.MKTooltip.hidden()) {
             ci.cancel();
             return;
@@ -139,9 +91,9 @@ public abstract class MKTooltipSuppressMixin {
         }
     }
 
-    // ── Scrolling (MKTooltip.scrollBy / onWheel) ─────────────────────────
+    // Scrolling (MKTooltip.scrollBy / onWheel)
 
-    /** Inside a tooltip's draw: a bundle draws its hovered item's tooltip from inside its own. */
+    // Set while drawing a tooltip: a bundle draws its hovered item's tooltip from inside its own.
     @Unique private static boolean mk$drawingTooltip;
 
     /** Each screen frame draws its tooltip here, once: the boundary between one frame's tooltip and the next. */
@@ -152,10 +104,9 @@ public abstract class MKTooltipSuppressMixin {
 
     /**
      * Wraps the tooltip's text to the screen ({@link MKTooltip#wrapWhen}), then places it
-     * where vanilla's positioner says, kept on screen ({@link MKTooltip#wrapWhen},
-     * {@link MKTooltip#clampWhen}), plus the scroll offset, by
-     * handing vanilla a positioner that adds it; vanilla then draws the background,
-     * text and images there as always. When scrolled with its top above the screen,
+     * where vanilla's positioner says, kept on screen ({@link MKTooltip#clampWhen}), plus
+     * the scroll offset, by handing vanilla a positioner that adds it. Vanilla then draws
+     * the background, text and images there as usual. When scrolled with its top above the screen,
      * the first line is drawn again on a background of its own at the top edge, one
      * stratum up, so the body scrolls under a fixed title. A tooltip drawn inside
      * another (a bundle's item) moves with its parent and is otherwise left alone.

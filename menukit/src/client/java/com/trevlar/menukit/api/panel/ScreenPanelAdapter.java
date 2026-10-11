@@ -31,8 +31,8 @@ import java.util.Optional;
  * }</pre>
  *
  * <h3>Placement is the panel's</h3>
- * Where the panel sits is its {@link com.trevlar.menukit.api.panel.PanelPosition}
- * (§0065): {@code region(OutsideRegion)} around the menu frame (extended by the
+ * Where the panel sits is its {@link com.trevlar.menukit.api.panel.PanelPosition}:
+ * {@code region(OutsideRegion)} around the menu frame (extended by the
  * screen's chrome: creative tab rows, an open recipe book),
  * {@code screenAnchor(InsideRegion)} on the screen, {@code center()} as an overlay,
  * or {@code pixel(...)}. The adapter only says which screens it appears on. An
@@ -40,8 +40,8 @@ import java.util.Optional;
  *
  * <h3>Targeting</h3>
  * With no {@link #on}, {@link #onAny}, {@link #onPlayerInventory} or
- * {@link #onMatching} call the panel appears on every container screen (default-on,
- * opt-out, like {@code ContainerPanel}). Declare targeting at most once.
+ * {@link #onMatching} call the panel appears on every container screen (on by
+ * default, opted out per screen, like {@code ContainerPanel}). Declare targeting at most once.
  *
  * <h3>Frozen after init</h3>
  * Construct adapters from your client initializer. Construction, targeting and
@@ -100,8 +100,6 @@ public final class ScreenPanelAdapter {
         ScreenPanelRegistry.declare(this);
     }
 
-    // ── Teardown ────────────────────────────────────────────────────────
-
     /**
      * Withdraws this adapter: the next screen that opens no longer shows the panel.
      * Idempotent. A declaration like any other: throws after MenuKit's declarations
@@ -112,13 +110,11 @@ public final class ScreenPanelAdapter {
         ScreenPanelRegistry.withdraw(this);
     }
 
-    // ── Targeting ───────────────────────────────────────────────────────
-
     /**
      * Narrows the panel to screens that are instances of one of
      * {@code screenClasses} (class ancestry: {@code ChestScreen} covers modded
      * subclasses). {@code InventoryScreen} alone is survival only; use
-     * {@link #onPlayerInventory()} for the player inventory in both modes (§0055).
+     * {@link #onPlayerInventory()} for the player inventory in both modes.
      *
      * @throws IllegalStateException    if targeting was already declared, or after
      *                                  MenuKit's declarations froze
@@ -151,9 +147,9 @@ public final class ScreenPanelAdapter {
     }
 
     /**
-     * Every screen a {@link ScreenMatcher} accepts: the parity-shaped targeting mode
-     * ({@code ScreenMatcher.all()} with an {@code allExcept} opt-out), which
-     * {@code ContainerPanel} uses to scope its chrome.
+     * Every screen a {@link ScreenMatcher} accepts, typically {@code ScreenMatcher.all()}
+     * or an {@code allExcept} opt-out. {@code ContainerPanel} uses this to scope its
+     * chrome.
      */
     public ScreenPanelAdapter onMatching(ScreenMatcher matcher) {
         requireUndeclared();
@@ -183,8 +179,6 @@ public final class ScreenPanelAdapter {
         }
         return false;
     }
-
-    // ── Accessors ──────────────────────────────────────────────────────
 
     /** The panel this adapter declares. */
     public Panel getPanel() { return panel; }

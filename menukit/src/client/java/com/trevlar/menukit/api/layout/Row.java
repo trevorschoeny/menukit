@@ -7,16 +7,13 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Build-time horizontal layout helper. Computes per-child {@code childX}
- * positions for a sequence of {@link ElementSpec}s under uniform spacing
- * and a cross-axis alignment policy. Emits a flat list of positioned
- * {@link PanelElement}s to the consumer.
+ * Lays elements out left to right: it positions each child with even spacing and
+ * a vertical alignment, and returns a flat list of positioned
+ * {@link PanelElement}s.
  *
- * <p>Row exists only during the {@code .build()} call chain. After
- * {@code build()} returns, the Row builder discharges its job and is
- * dead; no Row reference should be retained for "relayout." The emitted
- * elements are added to a {@link com.trevlar.menukit.api.panel.Panel} like
- * any other elements.
+ * <p>A Row only exists while you build it. Don't keep it around to lay out again;
+ * add the returned elements to a {@link com.trevlar.menukit.api.panel.Panel} like
+ * any others.
  *
  * <p><b>Measured on first use.</b> The positions are computed once, on the
  * first read of any emitted element's position (in practice the panel's first
@@ -26,11 +23,9 @@ import java.util.function.Consumer;
  * {@link ElementSpec}, whose element exists only once placed, is laid out in
  * {@code build()} instead, measuring then.
  *
- * <p><b>Helper, not container.</b> Row does NOT implement
- * {@link PanelElement}, does NOT have a {@code render(...)} method, and
- * does NOT exist at runtime. The Panel renders the emitted elements
- * directly with no indirection, preserving "Panel is the ceiling of
- * composition" (THESIS).
+ * <p><b>Helper, not container.</b> Row is not a {@link PanelElement}, does not
+ * render, and is gone once built. The Panel draws the elements directly, so a
+ * Panel stays the only thing that contains elements.
  *
  * <h3>Usage</h3>
  *
@@ -48,9 +43,9 @@ import java.util.function.Consumer;
  *
  * {@link Builder#width(int)} declares the row's overall pixel width, and
  * {@link Builder#addSpacer()} adds a flexible gap that expands to fill
- * whatever the other children and spacing leave over, the CSS
- * {@code justify-content: space-between} case, for a header with one thing
- * on the left and another on the right:
+ * whatever the other children and spacing leave over (like CSS
+ * {@code justify-content: space-between}), for a header with one thing on the
+ * left and another on the right:
  *
  * <pre>{@code
  * List<PanelElement> header = Row.at(0, 0).width(220).spacing(6)
@@ -61,17 +56,15 @@ import java.util.function.Consumer;
  * }</pre>
  *
  * Several spacers in one row split the leftover evenly (the odd pixel to the
- * last one), so a three-part header, one thing pinned to each edge and one
- * centred, is two spacers, not a special case.
+ * last one), so a three-part header (one thing at each edge and one centred) is
+ * just two spacers.
  *
  * <h3>Nesting</h3>
  *
- * Row supports nesting via {@link Builder#addRow(Consumer)} and
- * {@link Builder#addColumn(Consumer)}. Nested helpers compose: each
- * helper emits a flat list of positioned elements relative to its own
- * origin; outer helpers translate the inner list by their computed
- * child offset. After {@code build()}, the result is a flat list with
- * all positions computed, no nested helper objects survive.
+ * Rows and columns nest through {@link Builder#addRow(Consumer)} and
+ * {@link Builder#addColumn(Consumer)}. Each lays its elements out from its own
+ * origin and the outer one offsets them, so {@code build()} still returns one
+ * flat list of positioned elements.
  *
  * @see Column
  * @see ElementSpec
@@ -82,22 +75,17 @@ public final class Row {
     private Row() {}
 
     /**
-     * Begin a row layout at the given panel-local origin.
+     * Starts a row at a panel-local origin.
      *
-     * @param originX the panel-local X coordinate where the row's first
-     *                child's left edge will be placed
-     * @param originY the panel-local Y coordinate where the row sits
-     *                (cross-axis alignment is applied within
-     *                [originY, originY + maxChildHeight])
+     * @param originX panel-local X of the first child's left edge
+     * @param originY panel-local Y of the row; alignment applies within
+     *                [originY, originY + tallest child]
      */
     public static Builder at(int originX, int originY) {
         return new Builder(originX, originY);
     }
 
-    /**
-     * Builder for a single row layout. Methods chain; terminate with
-     * {@link #build()} to emit the positioned element list.
-     */
+    /** Builds one row. Finish with {@link #build()}. */
     public static final class Builder {
 
         private final int originX;
@@ -112,7 +100,7 @@ public final class Row {
             this.originY = originY;
         }
 
-        /** Pixel spacing between adjacent children. Must be {@code >= 0}. */
+        /** Pixels between adjacent children. Must be {@code >= 0}. */
         public Builder spacing(int px) {
             if (px < 0) {
                 throw new IllegalArgumentException(
@@ -123,11 +111,10 @@ public final class Row {
         }
 
         /**
-         * Declares the row's overall pixel width, the budget an
-         * {@link #addSpacer()} expands into. Only needed when the row has a
-         * spacer; without one this is just what {@link #computeMainAxisExtent()}
-         * reports to an outer nesting Row/Column, in place of the sum of the
-         * children (e.g. to reserve room for a sibling that grows later).
+         * The row's overall width in pixels, the room an {@link #addSpacer()}
+         * expands into. Needed only with a spacer; otherwise it is the width the row
+         * reports to an enclosing Row or Column instead of its children's total
+         * (to reserve room for a sibling that grows later, say).
          */
         public Builder width(int px) {
             if (px <= 0) {
@@ -138,12 +125,11 @@ public final class Row {
         }
 
         /**
-         * A flexible gap: expands to fill whatever {@link #width(int)} leaves
-         * over after the row's other children and the spacing between them.
-         * how "Back" and "Reset" end up pinned to opposite edges of one row.
-         * Several spacers split the leftover evenly, the odd pixel going to
-         * the last one. Requires {@link #width(int)}; building without it
-         * throws.
+         * A flexible gap that fills whatever {@link #width(int)} leaves after the
+         * other children and the spacing between them; this is how "Back" and
+         * "Reset" end up at opposite edges of one row. Several spacers split the
+         * leftover evenly, the odd pixel going to the last one. Needs
+         * {@link #width(int)}; building without it throws.
          */
         public Builder addSpacer() {
             entries.add(LayoutEntry.spacer());
@@ -151,8 +137,8 @@ public final class Row {
         }
 
         /**
-         * Cross-axis (vertical) alignment policy. Default {@link CrossAlign#START}
-         * aligns children to the row's top edge.
+         * Vertical alignment. The default, {@link CrossAlign#START}, aligns children
+         * to the row's top edge.
          */
         public Builder crossAlign(CrossAlign align) {
             if (align == null) {
@@ -162,27 +148,22 @@ public final class Row {
             return this;
         }
 
-        /** Append an element to this row. */
+        /** Appends an element. */
         public Builder add(ElementSpec spec) {
             entries.add(LayoutEntry.fromSpec(spec));
             return this;
         }
 
-        /**
-         * Append an ALREADY-CONSTRUCTED element (Pass 3). See
-         * {@link ElementSpec#of(PanelElement)}.
-         */
+        /** Appends an element that is already built. See {@link ElementSpec#of(PanelElement)}. */
         public Builder add(PanelElement element) {
             entries.add(LayoutEntry.fromElement(element));
             return this;
         }
 
         /**
-         * Append a nested row to this row. The nested row's elements are
-         * laid out per its own spacing + alignment, then translated into
-         * this row's main-axis position. The nested row's bounding
-         * dimensions ({@code totalWidth} x {@code maxHeight}) determine
-         * how much main-axis space it occupies in this row.
+         * Appends a nested row. Its elements are laid out with its own spacing and
+         * alignment, then moved to its place in this row, where it takes up its
+         * total width.
          */
         public Builder addRow(Consumer<Row.Builder> config) {
             Row.Builder nested = new Row.Builder(0, 0);
@@ -193,7 +174,7 @@ public final class Row {
             return this;
         }
 
-        /** Append a nested column to this row. See {@link #addRow(Consumer)}. */
+        /** Appends a nested column. See {@link #addRow(Consumer)}. */
         public Builder addColumn(Consumer<Column.Builder> config) {
             Column.Builder nested = new Column.Builder(0, 0);
             config.accept(nested);
@@ -203,15 +184,11 @@ public final class Row {
         }
 
         /**
-         * Finalize layout and emit positioned elements. Returns a flat
-         * {@code List<PanelElement>} with {@code childX}/{@code childY}
-         * computed for each child.
+         * Returns the children as a flat list, each with its {@code childX} and
+         * {@code childY} set.
          *
-         * <p>After this call, the Builder has discharged its job. Do not
-         * retain or mutate it; do not re-invoke {@code build()} expecting
-         * different results (the entries list is mutable internally and
-         * the second call would emit the same layout again, but that's
-         * not a supported use case).
+         * <p>Don't keep, change or build the builder again afterwards; a second
+         * {@code build()} is not supported.
          */
         public List<PanelElement> build() {
             requireSpacerWidth();
@@ -229,12 +206,11 @@ public final class Row {
             }
         }
 
-        // ── Internal, used by nesting and by build() ─────────────────
+        // Used by nesting and by build()
 
         /**
-         * Main-axis (horizontal) extent: the declared {@link #width(int)} when
-         * set (a row with a spacer occupies that whole budget when nested),
-         * else the sum of child widths plus spacings.
+         * Width: the declared {@link #width(int)} when set (a nested row with a
+         * spacer takes all of it), else the children's widths plus spacing.
          */
         int computeMainAxisExtent() {
             if (width > 0) return width;
@@ -247,7 +223,7 @@ public final class Row {
             return sum;
         }
 
-        /** Cross-axis (vertical) extent: max child height. */
+        /** Height: the tallest child. */
         int computeCrossAxisExtent() {
             int max = 0;
             for (LayoutEntry e : entries) {
@@ -257,10 +233,8 @@ public final class Row {
         }
 
         /**
-         * Emit positioned elements at an arbitrary base origin, used by
-         * outer-helper translation when this Row is nested. When called
-         * directly (via {@link #build()}), {@code baseX}/{@code baseY}
-         * are this row's declared origin.
+         * Lays the row out from any origin, as when it is nested. From
+         * {@link #build()} the origin is the row's own.
          */
         List<PanelElement> buildAt(int baseX, int baseY) {
             int crossExtent = computeCrossAxisExtent();
@@ -270,10 +244,9 @@ public final class Row {
             for (int i = 0; i < entries.size(); i++) {
                 LayoutEntry entry = entries.get(i);
                 int y = switch (crossAlign) {
-                    // FILL is a Column-only primitive (cross-axis height-fill
-                    // for a Row is not symmetric-cheap, TextLabel can't honor a
-                    // forced height, and is deferred). On a Row, FILL falls
-                    // back to START on the (vertical) cross axis.
+                    // FILL only applies to Column; a Row treats it as START.
+                    // Filling height would need elements that can take a forced
+                    // height, which TextLabel can't.
                     case START, FILL -> baseY;
                     case CENTER -> baseY + (crossExtent - entry.height()) / 2;
                     case END -> baseY + (crossExtent - entry.height());
@@ -286,12 +259,10 @@ public final class Row {
         }
 
         /**
-         * The main-axis distance to advance past each entry: its own width,
-         * except a spacer, which gets an even share of whatever {@link #width}
-         * leaves over once every other entry and every gap between entries is
-         * accounted for. The odd pixel, if the leftover doesn't divide evenly,
-         * goes to the last spacer, so the row's total still lands exactly on
-         * {@code width}.
+         * How far to advance past each entry: its own width, except a spacer, which
+         * gets an even share of what {@link #width} leaves after every other entry
+         * and gap. Any remainder goes to the last spacer, so the row comes out at
+         * exactly {@code width}.
          */
         private int[] resolveAdvances() {
             int n = entries.size();

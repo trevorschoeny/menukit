@@ -14,45 +14,36 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * §0055 Fix 3 — creative tab-hover suppression under a modal. The cosmetic
- * companion to the slot-hover claim in {@link MKSlotInputMixin}.
+ * Suppresses creative tab hover under a MenuKit panel. The cosmetic companion to
+ * the slot-hover suppression in {@link MKSlotInputMixin}.
  *
  * <p>That hook suppresses <em>slot</em> hover by returning {@code null} from
- * {@code getHoveredSlot}; but a creative <b>tab</b> still glows through a modal,
- * because {@code CreativeModeInventoryScreen.checkTabHovering} tests
- * {@code mouseX}/{@code mouseY} directly rather than going through
- * {@code getHoveredSlot}. This is exactly the creative-only follow-on that the
- * hover mixin's own javadoc anticipates ("fold a creative-specific mixin into
- * {@code checkTabHovering} returning false when modal up").
+ * {@code getHoveredSlot}, but a creative <b>tab</b> would still glow through a
+ * modal, because {@code CreativeModeInventoryScreen.checkTabHovering} tests
+ * {@code mouseX}/{@code mouseY} directly instead of going through
+ * {@code getHoveredSlot}.
  *
- * <h3>Why creative-only is correct here (§0055)</h3>
- *
- * Tabs exist only on the creative inventory screen — there is no survival analog
- * to unify, so this is legitimate mode-specific UI getting a mode-specific hook,
- * not a parity violation. Gated on the same
- * {@link ScreenPanelRegistry#hasAnyVisibleModalTracking()} signal the other
- * modal mixins use: a visible modal claims the whole screen, so its screen-level
- * chrome (the tabs) must not light up behind it. Matches the creative-aware
- * stance of {@link MKTooltipSuppressMixin}, which already suppresses the
- * tab <em>tooltip</em> under a modal — this closes the matching tab
- * <em>highlight</em>.
+ * <p>A creative-only hook is right here because tabs exist only on the creative
+ * inventory screen; there is no survival equivalent to share it with. It uses the
+ * same inertness check as the other suppressors (see
+ * {@link ScreenPanelRegistry#hasAnyVisibleModalTracking()} for the modal part): a
+ * visible modal claims the whole screen, so the tabs must not light up behind it.
+ * {@link MKTooltipSuppressMixin} already suppresses the tab <em>tooltip</em> under
+ * a modal; this covers the tab <em>highlight</em>.
  */
 @ApiStatus.Internal
 @Mixin(CreativeModeInventoryScreen.class)
 public abstract class MKCreativeTabHoverMixin {
 
     /**
-     * HEAD of {@code checkTabHovering}. When the tab position is inert under a
-     * MenuKit panel — a modal anywhere, OR an opaque panel/element/overlay
-     * covering this exact point — report the tab as not-hovered ({@code false})
-     * so vanilla draws no tab highlight.
+     * When the tab position is inert under a MenuKit panel (a modal anywhere, or
+     * an opaque panel, element or overlay covering this point), report the tab
+     * as not hovered so vanilla draws no highlight.
      *
-     * <p>Previously this only checked for a visible modal, so a non-modal
-     * opaque panel (e.g. the pockets controls) sitting over a tab let the tab
-     * still glow through. Routing through {@link Focus#isInertUnderPanel} —
-     * the same predicate slot hover, widget hover, tooltip, and the click-eat
-     * use — closes that highlight-through and keeps tabs from drifting from
-     * every other surface.
+     * <p>Checking only for a modal let a tab glow through a non-modal opaque
+     * panel sitting over it (such as the pockets controls).
+     * {@link Focus#isInertUnderPanel} is the same check slot hover, widget hover,
+     * tooltips and click-eating use, so tabs behave like every other surface.
      */
     @Inject(
             method = "checkTabHovering",
