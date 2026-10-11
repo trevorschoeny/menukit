@@ -1,8 +1,6 @@
 package com.trevlar.menukit.core;
 
-import net.minecraft.client.Minecraft;
-
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.WeakHashMap;
 
@@ -19,8 +17,8 @@ import java.util.WeakHashMap;
  * a field; this map holds the state for all of them.
  *
  * <p>Keys are weak, so widgets from a closed screen drop out when collected.
- * {@link #isPressedAndCheckRelease} clears the whole map once GLFW reports the
- * mouse released, which also drains leftovers from a release off the widget or a
+ * {@link #isPressedAndCheckRelease} clears the whole map once the left button is
+ * released, which also drains leftovers from a release off the widget or a
  * screen change mid-press.
  */
 public final class PressedTracker {
@@ -28,6 +26,22 @@ public final class PressedTracker {
     private PressedTracker() {}
 
     private static final WeakHashMap<Object, Boolean> PRESSED = new WeakHashMap<>();
+
+    // Whether the left mouse button is held. Since 26.3 a mouse button can't be
+    // polled, and MouseHandler.isLeftPressed() only follows clicks made with no
+    // screen open, so this follows every button event instead
+    // (MKModalMouseHandlerMixin feeds it from the head of MouseHandler.onButton).
+    private static boolean leftMouseDown;
+
+    /** Records a mouse button event, before vanilla or MenuKit act on it. */
+    public static void onMouseButton(int button, int action) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT) leftMouseDown = action == InputConstants.PRESS;
+    }
+
+    /** Whether the left mouse button is held right now. */
+    public static boolean isLeftMouseDown() {
+        return leftMouseDown;
+    }
 
     /** Records a press on the widget, from a mixin at the TAIL of its click handler. */
     public static void markPressed(Object widget) {
@@ -41,18 +55,11 @@ public final class PressedTracker {
 
     /**
      * Whether the widget is pressed and the left mouse button is still held.
-     * If GLFW reports the button released, clears the whole map.
+     * If the button has been released, clears the whole map.
      */
     public static boolean isPressedAndCheckRelease(Object widget) {
         if (!PRESSED.containsKey(widget)) return false;
-        Minecraft mc = Minecraft.getInstance();
-        if (mc == null || mc.getWindow() == null) {
-            PRESSED.clear();
-            return false;
-        }
-        long handle = mc.getWindow().handle();
-        if (GLFW.glfwGetMouseButton(handle, GLFW.GLFW_MOUSE_BUTTON_LEFT)
-                != GLFW.GLFW_PRESS) {
+        if (!leftMouseDown) {
             PRESSED.clear();
             return false;
         }

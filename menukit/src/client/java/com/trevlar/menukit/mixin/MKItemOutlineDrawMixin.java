@@ -1,7 +1,7 @@
 package com.trevlar.menukit.mixin;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.renderpearl.api.textures.FilterMode;
 import com.trevlar.menukit.core.ItemOutline;
 import com.trevlar.menukit.core.MKRenderPipelines;
 

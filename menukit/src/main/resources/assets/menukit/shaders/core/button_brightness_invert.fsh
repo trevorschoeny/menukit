@@ -1,4 +1,5 @@
 #version 330
+#extension GL_ARB_separate_shader_objects : require
 
 // MenuKit: fragment shader for SpriteButton's pressed look. Inverts each pixel's
 // lightness in HSL space and keeps its hue and saturation, so black becomes
@@ -13,17 +14,17 @@
 
 layout(std140) uniform DynamicTransforms {
     mat4 ModelViewMat;
+    mat4 TextureMat;
     vec4 ColorModulator;
     vec3 ModelOffset;
-    mat4 TextureMat;
 };
 
 uniform sampler2D Sampler0;
 
-in vec2 texCoord0;
-in vec4 vertexColor;
+layout(location = 0) in vec2 texCoord0;
+layout(location = 1) in vec4 vertexColor;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 // RGB and HSL conversion, with the standard formulas (as in the CSS Color
 // Level 3 spec), on components from 0 to 1. A round trip is lossless at float32

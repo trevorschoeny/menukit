@@ -4,6 +4,7 @@ import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.api.panel.PanelStyle;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -13,7 +14,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.util.Util;
 
 import org.jspecify.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 import java.util.Objects;
@@ -373,22 +373,22 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     public boolean keyPressed(InputContext in, int keyCode, int scanCode, int modifiers) {
         if (!open || items.isEmpty() || disabled(in)) return false;
         switch (keyCode) {
-            case GLFW.GLFW_KEY_DOWN -> {
+            case InputConstants.KEY_DOWN -> {
                 highlighted = highlighted < 0 ? firstSelected() : Math.min(items.size() - 1, highlighted + 1);
                 keepHighlightVisible();
                 return true;
             }
-            case GLFW.GLFW_KEY_UP -> {
+            case InputConstants.KEY_UP -> {
                 highlighted = highlighted < 0 ? firstSelected() : Math.max(0, highlighted - 1);
                 keepHighlightVisible();
                 return true;
             }
-            case GLFW.GLFW_KEY_ENTER, GLFW.GLFW_KEY_KP_ENTER, GLFW.GLFW_KEY_SPACE -> {
+            case InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER, InputConstants.KEY_SPACE -> {
                 if (highlighted >= 0 && highlighted < items.size()) pick(items.get(highlighted));
-                else if (keyCode != GLFW.GLFW_KEY_SPACE) open = false;
+                else if (keyCode != InputConstants.KEY_SPACE) open = false;
                 return true;
             }
-            case GLFW.GLFW_KEY_ESCAPE -> {
+            case InputConstants.KEY_ESCAPE -> {
                 open = false;
                 return true;
             }

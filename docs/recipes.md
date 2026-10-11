@@ -429,7 +429,7 @@ ClientMenu.of(CUSTOM)
         .panel("mymod:menu:main", p -> p.position(PanelPosition.main())
                 .add(TextLabel.builder().text(Component.literal("Items")).at(0, -12).build()))
         .panel("mymod:menu:extra", p -> p.position(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP))
-                .toggleKey(GLFW.GLFW_KEY_E));
+                .toggleKey(InputConstants.KEY_E));
 
 // Client:
 ClientMenu.of(CUSTOM).requestOpen();

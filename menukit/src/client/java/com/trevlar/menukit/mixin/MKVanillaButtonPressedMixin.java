@@ -49,7 +49,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * the button while holding removes it and dragging back shows it again, as vanilla
  * buttons behave.
  *
- * <p>Polling GLFW alone gave a false positive: click elsewhere, drag onto a button
+ * <p>Checking the mouse button alone gave a false positive: click elsewhere, drag onto a button
  * while holding, and it looked pressed. Tracking through onClick fixes that.
  */
 @ApiStatus.Internal
@@ -69,7 +69,7 @@ public abstract class MKVanillaButtonPressedMixin {
                                                     int mouseY, float partialTick,
                                                     CallbackInfo ci) {
         // The YACL mixins use the same PressedTracker. isPressedAndCheckRelease
-        // clears every entry once GLFW reports the mouse released, so stale
+        // clears every entry once the left button is released, so stale
         // entries go on the next frame.
         if (!PressedTracker.isPressedAndCheckRelease(this)) return;
 

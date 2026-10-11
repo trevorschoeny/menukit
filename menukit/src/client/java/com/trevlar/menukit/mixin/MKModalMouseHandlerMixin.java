@@ -1,5 +1,6 @@
 package com.trevlar.menukit.mixin;
 
+import com.trevlar.menukit.core.PressedTracker;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 
 import net.minecraft.client.Minecraft;
@@ -59,7 +60,10 @@ public abstract class MKModalMouseHandlerMixin {
      *       Fabric's {@code allowMouseRelease}.</li>
      * </ul>
      *
-     * <p>GLFW {@code action} values: 0 = release, 1 = press, 2 = repeat.
+     * <p>{@code action} values: 0 = release, 1 = press.
+     *
+     * <p>Every event is also handed to {@link PressedTracker} first, cancelled or
+     * not, since that is the only record of whether the left button is held.
      *
      * <p>Releases have to match presses. Letting every release through (to end
      * ScrollContainer drags) broke modal tab blocking, because creative selects a
@@ -75,6 +79,7 @@ public abstract class MKModalMouseHandlerMixin {
     )
     private void mk$eatModalButton(long window, MouseButtonInfo button, int action,
                                         CallbackInfo ci) {
+        PressedTracker.onMouseButton(button.button(), action);
         if (action == 0) {
             // Release: ends drags in opaque panels, and is eaten when the press
             // would have been. Passes through when nothing opaque covers the

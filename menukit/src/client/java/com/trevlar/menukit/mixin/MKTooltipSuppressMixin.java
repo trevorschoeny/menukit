@@ -30,7 +30,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *
  * <p>Suppression cancels {@code setTooltipForNextFrameInternal} at HEAD, the private
  * method every public {@code setTooltipForNextFrame} overload calls, so one hook
- * catches every tooltip. Clearing the tooltip from the render path instead does not
+ * catches every tooltip. 26.3 added a shorter overload that only forwards to the
+ * full one, so the hook names the full one. Clearing the tooltip from the render path instead does not
  * work:
  *
  * <ul>
@@ -65,7 +66,7 @@ public abstract class MKTooltipSuppressMixin {
      * that panel's own content and is let through.
      */
     @Inject(
-            method = "setTooltipForNextFrameInternal",
+            method = "setTooltipForNextFrameInternal(Lnet/minecraft/client/gui/Font;Ljava/util/List;IILnet/minecraft/client/gui/screens/inventory/tooltip/ClientTooltipPositioner;Lnet/minecraft/resources/Identifier;ZZ)V",
             at = @At("HEAD"),
             cancellable = true
     )
@@ -114,9 +115,9 @@ public abstract class MKTooltipSuppressMixin {
     @WrapMethod(method = "tooltip")
     private void mk$scrollTooltip(Font font, java.util.List<ClientTooltipComponent> lines, int mouseX, int mouseY,
                                   ClientTooltipPositioner positioner, @Nullable Identifier sprite,
-                                  Operation<Void> original) {
+                                  boolean extraSpaceAfterFirstLine, Operation<Void> original) {
         if (mk$drawingTooltip || lines.isEmpty()) {
-            original.call(font, lines, mouseX, mouseY, positioner, sprite);
+            original.call(font, lines, mouseX, mouseY, positioner, sprite, extraSpaceAfterFirstLine);
             return;
         }
         mk$drawingTooltip = true;
@@ -144,7 +145,7 @@ public abstract class MKTooltipSuppressMixin {
                 drawn[2] = w;
                 return at;
             };
-            original.call(font, shown, mouseX, mouseY, scrolled, sprite);
+            original.call(font, shown, mouseX, mouseY, scrolled, sprite, extraSpaceAfterFirstLine);
             if (shown.size() > 1 && MKTooltip.pinsTitle(drawn[1])) {
                 ClientTooltipComponent title = shown.get(0);
                 self.nextStratum();  // above the body's text, which draws over anything in its own stratum

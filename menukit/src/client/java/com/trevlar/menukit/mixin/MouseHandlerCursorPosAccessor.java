@@ -9,14 +9,13 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 /**
  * Makes {@code MouseHandler.xpos} and {@code ypos} writable so
  * {@link com.trevlar.menukit.input.CursorContinuity} can keep Minecraft's mouse
- * position in sync with the OS cursor after a {@code glfwSetCursorPos} restore.
+ * position in sync with the OS cursor after it warps the cursor back.
  *
  * <p>On some screen transitions (notably the async server-driven open path used
  * for custom MKC menus), vanilla resets {@code xpos}/{@code ypos} to the window
  * centre before the new screen's {@code init()} runs. {@code CursorContinuity}
- * puts the OS cursor back with {@code glfwSetCursorPos}, but GLFW does not fire
- * its cursor-position callback for programmatic moves, so the handler fields stay
- * centred until the mouse physically moves. The cursor then looks right while
+ * puts the OS cursor back with a warp, but the handler fields don't follow it
+ * straight away; without this they stay centred until the mouse moves. The cursor then looks right while
  * hover detection, and anything else reading {@code mouseHandler.xpos()/ypos()},
  * uses the centre. Setting both in the same restore step fixes that.
  */

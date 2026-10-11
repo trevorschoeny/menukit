@@ -1,10 +1,10 @@
 package com.trevlar.menukit.core;
 
-import com.mojang.blaze3d.PrimitiveTopology;
-import com.mojang.blaze3d.pipeline.BlendFunction;
-import com.mojang.blaze3d.pipeline.ColorTargetState;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 
 import net.minecraft.client.renderer.BindGroupLayouts;
 import net.minecraft.resources.Identifier;
@@ -17,10 +17,10 @@ import org.jetbrains.annotations.ApiStatus;
  * toggle, and {@link #GUI_SILHOUETTE}, the coloured item outline
  * ({@code SlotRendering.drawItemOutline}).
  *
- * <p>Both copy vanilla's 26.2 {@code RenderPipelines.GUI_TEXTURED} setup
- * (MATRICES_PROJECTION and SAMPLER0 bind groups, TRANSLUCENT colour target,
- * POSITION_TEX_COLOR vertex binding, QUADS topology, no depth state since GUI
- * ordering is done by strata) with a custom fragment shader.
+ * <p>Both copy vanilla's 26.3 {@code RenderPipelines.GUI_TEXTURED} setup
+ * (GLOBALS, PROJECTION, DYNAMIC_TRANSFORMS and SAMPLER0 bind groups, TRANSLUCENT
+ * colour target, POSITION_TEX_COLOR vertex binding, QUADS topology, no depth
+ * state since GUI ordering is done by strata) with a custom fragment shader.
  *
  * <p>Locations are in the {@code menukit} namespace so they can't collide with
  * vanilla or other mods. Shaders live at
@@ -43,11 +43,14 @@ public final class MKRenderPipelines {
     // blend became a colour-target state, and vertex format and mode split into
     // vertex binding and primitive topology. There is no depth test, because
     // vanilla's GUI pipelines declare no depth state (ordering moved to render
-    // strata). MATRICES_PROJECTION carries the DynamicTransforms and Projection
-    // UBOs the shader reads; SAMPLER0 carries the texture sampler.
+    // strata). 26.3 split MATRICES_PROJECTION into PROJECTION and
+    // DYNAMIC_TRANSFORMS (the two UBOs the shaders read) and put GLOBALS first,
+    // in vanilla's order; SAMPLER0 carries the texture sampler.
     public static final RenderPipeline GUI_BRIGHTNESS_INVERTED = RenderPipeline.builder()
             .withLocation(Identifier.fromNamespaceAndPath("menukit", "pipeline/gui_brightness_inverted"))
-            .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.GLOBALS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
             .withVertexShader(Identifier.fromNamespaceAndPath("menukit", "core/button_brightness_invert"))
             .withFragmentShader(Identifier.fromNamespaceAndPath("menukit", "core/button_brightness_invert"))
             .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
@@ -65,7 +68,9 @@ public final class MKRenderPipelines {
      */
     public static final RenderPipeline GUI_SILHOUETTE = RenderPipeline.builder()
             .withLocation(Identifier.fromNamespaceAndPath("menukit", "pipeline/gui_silhouette"))
-            .withBindGroupLayout(BindGroupLayouts.MATRICES_PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.GLOBALS)
+            .withBindGroupLayout(BindGroupLayouts.PROJECTION)
+            .withBindGroupLayout(BindGroupLayouts.DYNAMIC_TRANSFORMS)
             .withVertexShader(Identifier.fromNamespaceAndPath("menukit", "core/button_brightness_invert"))
             .withFragmentShader(Identifier.fromNamespaceAndPath("menukit", "core/item_silhouette"))
             .withBindGroupLayout(BindGroupLayouts.SAMPLER0)

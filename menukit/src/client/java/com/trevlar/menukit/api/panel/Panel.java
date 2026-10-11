@@ -64,7 +64,7 @@ public class Panel {
     private final List<PanelElement> elements;
     private final PanelStyle style;
     private final PanelPosition position;
-    private final int toggleKey; // GLFW key code that toggles visibility, or -1 for none
+    private final int toggleKey; // InputConstants.KEY_* code that toggles visibility, or -1 for none
     private boolean visible;
 
     /**
@@ -217,7 +217,7 @@ public class Panel {
      * @param visible   initial visibility state
      * @param style     visual style for panel background rendering
      * @param position  how this panel is positioned in the layout
-     * @param toggleKey GLFW key code that toggles this panel's visibility, or -1 for none
+     * @param toggleKey key code ({@code InputConstants.KEY_*}) that toggles this panel's visibility, or -1 for none
      */
     @ApiStatus.Internal
     public Panel(String id, List<PanelElement> elements,
@@ -343,11 +343,11 @@ public class Panel {
         }
 
         /**
-         * Sets the GLFW key code that toggles this panel's visibility. Leave it unset
-         * for no toggle key.
+         * Sets the key code ({@code InputConstants.KEY_*}) that toggles this panel's
+         * visibility. Leave it unset for no toggle key.
          */
-        public Builder toggleKey(int glfwKeyCode) {
-            this.toggleKey = glfwKeyCode;
+        public Builder toggleKey(int keyCode) {
+            this.toggleKey = keyCode;
             return this;
         }
 
@@ -428,7 +428,7 @@ public class Panel {
     /** Where this panel sits. */
     public PanelPosition getPosition() { return position; }
 
-    /** The GLFW key code that toggles this panel's visibility, or -1 for none. */
+    /** The key code ({@code InputConstants.KEY_*}) that toggles this panel's visibility, or -1 for none. */
     public int getToggleKey() { return toggleKey; }
 
     // Elements

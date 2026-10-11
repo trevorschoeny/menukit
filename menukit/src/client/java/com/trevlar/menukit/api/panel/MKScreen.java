@@ -8,13 +8,13 @@ import com.trevlar.menukit.inject.LayerPlan;
 import com.trevlar.menukit.inject.PanelHost;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
 import org.jspecify.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.List;
 
@@ -244,12 +244,12 @@ public class MKScreen extends Screen {
     @Override
     public boolean keyPressed(KeyEvent event) {
         boolean modal = ownModalUp();
-        if (host.keyPressed(event.key(), event.scancode(), event.modifiers(), modal)) {
+        if (host.keyPressed(event.key(), event.keycode(), event.modifiers(), modal)) {
             return true;
         }
         // Escape with a modal up dismisses the topmost modal (its onEscape) instead
         // of closing the screen out from under it; eaten either way.
-        if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
+        if (event.key() == InputConstants.KEY_ESCAPE) {
             Panel top = host.topmostModal();
             if (top != null) {
                 Runnable escape = top.getEscapeAction();

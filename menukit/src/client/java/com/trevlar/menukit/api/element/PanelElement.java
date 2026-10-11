@@ -246,7 +246,8 @@ public interface PanelElement {
     /**
      * A mouse click on this element (the dispatcher hit-tested first). Returns
      * true if consumed, stopping dispatch to other elements, slots and vanilla.
-     * {@code button} is GLFW's (0 left, 1 right, 2 middle). Default: false.
+     * {@code button} is vanilla's; compare it with {@link Click#LEFT},
+     * {@link Click#RIGHT} and {@link Click#MIDDLE}. Default: false.
      */
     default boolean mouseClicked(InputContext in, int button) {
         return false;
@@ -271,8 +272,9 @@ public interface PanelElement {
 
     /**
      * A key press, offered to every shown element of an active panel until one
-     * consumes it (keys are not pointer-localised). GLFW codes, as vanilla's
-     * {@code GuiEventListener.keyPressed}. Default: false.
+     * consumes it (keys are not pointer-localised). {@code keyCode} is
+     * {@code KeyEvent.key()} (an {@code InputConstants.KEY_*} value) and
+     * {@code scanCode} is {@code KeyEvent.keycode()}. Default: false.
      */
     default boolean keyPressed(InputContext in, int keyCode, int scanCode, int modifiers) {
         return false;

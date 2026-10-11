@@ -1,5 +1,6 @@
 package com.trevlar.menukit.input;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.trevlar.menukit.mixin.MouseHandlerCursorPosAccessor;
 
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -7,7 +8,6 @@ import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 
 import org.jspecify.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 import org.jetbrains.annotations.ApiStatus;
 
 /**
@@ -26,12 +26,13 @@ import org.jetbrains.annotations.ApiStatus;
  *
  * <ul>
  *   <li><b>Capture:</b> every screen's {@code removed()} stashes the OS cursor
- *       position from {@code GLFW.glfwGetCursorPos}. The listener is added in
+ *       position from {@code MouseHandler.xpos/ypos}. The listener is added in
  *       AFTER_INIT so it exists before removed() fires.</li>
  *   <li><b>Restore:</b> every screen's {@code init()} applies the stash with
- *       {@code GLFW.glfwSetCursorPos} <i>and</i> writes Minecraft's
- *       {@code MouseHandler.xpos/ypos} through the accessor mixin, since
- *       glfwSetCursorPos alone doesn't update them. The stash is cleared after
+ *       {@code InputConstants.releaseMouse} (a cursor warp; the cursor is
+ *       already free on a screen) <i>and</i> writes Minecraft's
+ *       {@code MouseHandler.xpos/ypos} through the accessor mixin, since the
+ *       warp alone doesn't update them. The stash is cleared after
  *       use so a later, unrelated open doesn't get a stale position.</li>
  *   <li><b>Back to the HUD:</b> a tick listener clears the stash whenever
  *       {@code Gui.screen() == null}, so opening the first screen from the HUD
@@ -54,10 +55,7 @@ public final class CursorContinuity {
     private static void capture() {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.getWindow() == null) return;
-        double[] xpos = new double[1];
-        double[] ypos = new double[1];
-        GLFW.glfwGetCursorPos(mc.getWindow().handle(), xpos, ypos);
-        stashed = new double[]{xpos[0], ypos[0]};
+        stashed = new double[]{mc.mouseHandler.xpos(), mc.mouseHandler.ypos()};
     }
 
     /** Restores the stashed cursor position, if any, and clears the stash. Runs on every screen open. */
@@ -68,10 +66,10 @@ public final class CursorContinuity {
             stashed = null; // don't keep a stash if the window is gone
             return;
         }
-        GLFW.glfwSetCursorPos(mc.getWindow().handle(), stashed[0], stashed[1]);
+        InputConstants.releaseMouse(mc.getWindow(), stashed[0], stashed[1]);
 
-        // glfwSetCursorPos doesn't fire GLFW's cursor-position callback for
-        // programmatic moves, so MouseHandler.xpos/ypos would keep whatever
+        // The warp doesn't reach MouseHandler before this screen's first frame,
+        // so MouseHandler.xpos/ypos would keep whatever
         // vanilla last wrote (usually the window centre on the async open path).
         // Without this, hover detection and anything reading
         // mouseHandler.xpos()/ypos() sees the centre until the mouse moves.

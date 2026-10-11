@@ -16,6 +16,7 @@ import com.trevlar.menukit.mixin.ScreenAccessor;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -28,7 +29,6 @@ import net.minecraft.world.inventory.Slot;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -258,7 +258,7 @@ public final class ScreenPanelRegistry {
         ScreenKeyboardEvents.allowKeyPress(screen).register((s, keyEvent) -> {
             boolean modal = modalUpOn(s);
             for (int i = routed.size() - 1; i >= 0; i--) {
-                if (routed.get(i).keyPressed(keyEvent.key(), keyEvent.scancode(), keyEvent.modifiers(), modal)) {
+                if (routed.get(i).keyPressed(keyEvent.key(), keyEvent.keycode(), keyEvent.modifiers(), modal)) {
                     return false;
                 }
             }
@@ -267,7 +267,7 @@ public final class ScreenPanelRegistry {
             // screen out from under it. Eaten either way while the modal is up.
             Panel topModal = topmostModal(routed);
             if (topModal == null) return true;
-            if (keyEvent.key() == GLFW.GLFW_KEY_ESCAPE) {
+            if (keyEvent.key() == InputConstants.KEY_ESCAPE) {
                 Runnable escape = topModal.getEscapeAction();
                 if (escape != null) escape.run();
                 return false;

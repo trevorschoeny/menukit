@@ -3,6 +3,7 @@ package com.trevlar.menukit.api.element;
 import com.trevlar.menukit.core.MKRenderPipelines;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.core.PanelRendering;
+import com.trevlar.menukit.core.PressedTracker;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.VanillaLook;
@@ -11,7 +12,6 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -164,9 +164,7 @@ public class Button extends AbstractPanelElement {
 
         // A press whose release went to another screen (the button navigated
         // away) never reaches this button; the mouse state is the truth.
-        if (pressed && Minecraft.getInstance() != null && Minecraft.getInstance().getWindow() != null
-                && GLFW.glfwGetMouseButton(Minecraft.getInstance().getWindow().handle(),
-                        GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_RELEASE) {
+        if (pressed && !PressedTracker.isLeftMouseDown()) {
             pressed = false;
         }
 
