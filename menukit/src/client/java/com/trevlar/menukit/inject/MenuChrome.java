@@ -71,7 +71,7 @@ public final class MenuChrome {
         ChromeProvider existing = PROVIDERS.get(screenClass);
         if (existing != null) {
             throw new IllegalStateException("MenuChrome: a provider for " + screenClass.getName()
-                    + " is already registered; two would be settled by load order (§0063)");
+                    + " is already registered; two would be settled by load order");
         }
         PROVIDERS.put(screenClass, provider);
         LOGGER.info("[MenuChrome] registered provider for {}", screenClass.getSimpleName());

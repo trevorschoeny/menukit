@@ -35,7 +35,7 @@ public final class Declarations {
         if (frozen) {
             throw new IllegalStateException(what + " after declarations froze (" + frozenAt + "). "
                     + "Declare from your mod's initializer: MenuKit freezes declarations once every "
-                    + "entrypoint has run, before any menu can open (§0063).");
+                    + "entrypoint has run, before any menu can open.");
         }
     }
 
