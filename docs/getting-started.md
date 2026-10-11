@@ -13,14 +13,14 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    implementation 'maven.modrinth:menukit:6.0.0+26.2'
+    implementation 'maven.modrinth:menukit:6.1.0+26.2'
 }
 ```
 
 Declare the dependency in `fabric.mod.json`:
 
 ```json
-"depends": { "menukit": ">=6.0.0 <7.0.0" }
+"depends": { "menukit": ">=6.1.0 <7.0.0" }
 ```
 
 Declare both bounds. The lower bound guarantees the API you call exists. The upper bound stops the next breaking MenuKit from loading against a jar built before it existed. That combination fails at a class load in the middle of a play session instead of at launch.

@@ -25,7 +25,7 @@ The `+26.2` suffix is the Minecraft target. It is build metadata and takes no pa
 Pin to the major.minor the mod was built against, not the major alone:
 
 ```json
-"depends": { "menukit": ">=6.0.0 <7.0.0" }
+"depends": { "menukit": ">=6.1.0 <7.0.0" }
 ```
 
 A minor release can add API. A mod can call something a later minor added while declaring only the major's first release as its floor. That mod loads on the older MenuKit and crashes with `NoSuchMethodError` the first time it calls the new method. Within a major, semantic versioning promises new API only going forward. The floor has to track the minor the mod uses.
@@ -34,8 +34,8 @@ A mod that also uses MenuKit: Containers pins it the same way. Containers and Me
 
 ```json
 "depends": {
-  "menukit": ">=6.0.0 <7.0.0",
-  "menukit-containers": ">=6.0.0 <7.0.0"
+  "menukit": ">=6.1.0 <7.0.0",
+  "menukit-containers": ">=6.1.0 <7.0.0"
 }
 ```
 
@@ -45,7 +45,7 @@ Set the lower bound to the version the mod was built and tested against, not the
 
 ### A comma between the bounds
 
-Fabric splits the bounds on a space. A comma is not a separator, so `">=6.0.0,<7.0.0"` is read as one bound with a malformed version, and the mod does not load. Use a space.
+Fabric splits the bounds on a space. A comma is not a separator, so `">=6.1.0,<7.0.0"` is read as one bound with a malformed version, and the mod does not load. Use a space.
 
 ### A missing upper bound
 
