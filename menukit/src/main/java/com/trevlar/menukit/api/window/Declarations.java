@@ -3,7 +3,7 @@ package com.trevlar.menukit.api.window;
 import org.jetbrains.annotations.ApiStatus;
 
 /**
- * Declarations freeze; state does not (§0063).
+ * Declarations freeze; state does not.
  *
  * <p>Every mod declares its slot groups, categories, operations, vetoes, menus,
  * container panels, channels and resolvers from its initializer. Once every

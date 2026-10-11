@@ -10,8 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * MenuKit's common initializer, on both sides (§0062): the shared vocabularies
- * every other mod reads, declared before anyone can read them. The client half
+ * MenuKit's common initializer, run on both sides. It declares the shared vocabularies
+ * every other mod reads, before anyone can read them. The client half
  * is {@link MenuKitClient}.
  */
 public final class MenuKit implements ModInitializer {

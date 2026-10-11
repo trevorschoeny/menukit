@@ -1,10 +1,10 @@
 #version 330
 
-// MenuKit — vertex shader paired with button_brightness_invert.fsh.
-// Mechanically identical to vanilla's core/position_tex_color.vsh; shipped
-// under the menukit namespace so the pipeline can declare both stages with
-// menukit:core/button_brightness_invert paths (avoids a cross-namespace
-// shader reference). The fragment shader does all the inversion work.
+// MenuKit: vertex shader paired with button_brightness_invert.fsh. The same as
+// vanilla's core/position_tex_color.vsh, shipped under the menukit namespace so
+// the pipeline can declare both stages as menukit:core/button_brightness_invert
+// without a cross-namespace shader reference. The fragment shader does the
+// inversion.
 
 layout(std140) uniform DynamicTransforms {
     mat4 ModelViewMat;

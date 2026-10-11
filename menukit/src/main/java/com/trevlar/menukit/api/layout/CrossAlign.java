@@ -1,22 +1,18 @@
 package com.trevlar.menukit.api.layout;
 
 /**
- * Cross-axis alignment policy for {@link Row} and {@link Column} layout
- * helpers.
+ * Cross-axis alignment for {@link Row} and {@link Column}.
  *
- * <p>For a {@link Row} (horizontal main axis), the cross axis is vertical:
- * {@link #START} aligns children to the top edge, {@link #CENTER}
- * vertically centers them within the row's bounding height, {@link #END}
- * aligns to the bottom edge.
+ * <p>In a {@link Row} the cross axis is vertical: {@link #START} aligns children
+ * to the top, {@link #CENTER} centres them in the row's height, {@link #END}
+ * aligns them to the bottom.
  *
- * <p>For a {@link Column} (vertical main axis), the cross axis is
- * horizontal: {@code START} = left, {@code CENTER} = horizontal center,
- * {@code END} = right.
+ * <p>In a {@link Column} the cross axis is horizontal: {@code START} is left,
+ * {@code CENTER} the horizontal centre, {@code END} right.
  *
- * <p>Default for both Row and Column is {@code START}, matching the
- * pre-M8 manual-layout pattern (children placed at row-origin / column-
- * origin without cross-axis adjustment). Mixed-height (Row) or
- * mixed-width (Column) consumer cases opt into {@code CENTER} explicitly.
+ * <p>Both default to {@code START}, which places children at the row or column
+ * origin with no cross-axis adjustment. A row of mixed heights or a column of
+ * mixed widths opts into {@code CENTER}.
  */
 public enum CrossAlign {
 
@@ -30,21 +26,19 @@ public enum CrossAlign {
     END,
 
     /**
-     * Stretch every FILL-CAPABLE child to the column's cross-axis extent (the
-     * width of its single widest child); intrinsic-width children keep their
-     * width and align to the column's START (left) edge, so a mixed column
-     * reads as full-width controls with left-aligned switches/checkboxes, not
-     * "everything the same width" (Pass 3 column-intrinsic-fill). Each
-     * fill-capable child (Button, LABELED Toggle, Slider, Dropdown, DropdownMulti, TextField,
-     * ProgressBar, ScrollContainer, horizontal Divider) is grown to that width
-     * via {@link com.trevlar.menukit.api.element.PanelElement#fillWidth(int)};
-     * auto-content-sized children (TextLabel, Checkbox, Radio, ItemDisplay,
-     * Icon, and a BARE/sprite Toggle switch) keep their intrinsic width,
-     * left-aligned (their {@code fillWidth} is a no-op by design).
+     * Stretches every child that can fill to the column's width (the width of its
+     * widest child). Children with a natural width keep it and align left, so a
+     * mixed column reads as full-width controls with left-aligned switches and
+     * checkboxes, not everything at one width. The children that fill (Button, a
+     * labeled Toggle, Slider, Dropdown, DropdownMulti, TextField, ProgressBar,
+     * ScrollContainer, a horizontal Divider) grow through
+     * {@link com.trevlar.menukit.api.element.PanelElement#fillWidth(int)}. Those
+     * sized by their content (TextLabel, Checkbox, Radio, ItemDisplay, Icon, and a
+     * bare sprite Toggle) keep their width, left-aligned; their {@code fillWidth}
+     * does nothing.
      *
-     * <p><b>{@link Column} only.</b> {@code Row} treats FILL as START on its
-     * (vertical) cross axis, cross-axis height-fill is not symmetric-cheap
-     * (TextLabel can't honor a forced height) and is deliberately deferred.
+     * <p>{@link Column} only. {@code Row} treats FILL as START: filling height is
+     * not as cheap (a TextLabel can't take a forced height), so it is left out.
      */
     FILL
 }

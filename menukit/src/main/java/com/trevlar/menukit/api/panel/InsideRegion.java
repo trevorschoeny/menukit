@@ -11,7 +11,7 @@ import com.trevlar.menukit.core.RegionMath;
  * is a standalone screen's chrome. One enum serves both. (Before 5.0.0 this was
  * two identical enums, {@code HudRegion} and {@code ScreenRegion}.)
  *
- * <p><b>One resolver, the context's insets.</b> Every host resolves these spots
+ * <p>Every host resolves these spots
  * through {@link RegionMath#resolveInside}; what differs per context is only its
  * {@link RegionMath.Insets}: the HUD sits {@link RegionConstants#EDGE_INSET} in and
  * drops {@link #CENTER} below the crosshair by

@@ -8,7 +8,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.function.Supplier;
 
 /**
- * Where a panel sits: the one placement declaration every host reads (§0065).
+ * Where a panel sits: the one placement declaration every host reads.
  *
  * <p>Placement is declared once, on the panel. A host (a container screen, a
  * vanilla screen, a slot group, the HUD, a standalone {@code MKScreen}) reads
@@ -19,13 +19,13 @@ import java.util.function.Supplier;
  *
  * <p>Modes:
  * <ul>
- *   <li>{@link Mode#UNPLACED}: no placement declared (the default). A host rejects
- *       an unplaced panel loudly, except the standalone-screen builders
+ *   <li>{@link Mode#UNPLACED}: no placement declared (the default). A host throws on
+ *       an unplaced panel, except the standalone-screen builders
  *       ({@code MKScreen}, {@code CustomContainerMenu}), which normalise it: the first
  *       unplaced panel becomes {@link #main()}, each later one
  *       {@code region(BOTTOM_CENTER)}.</li>
- *   <li>{@link Mode#MAIN}: a standalone screen's frame: one per screen, centred,
- *       the reference its {@code REGION} siblings resolve against.</li>
+ *   <li>{@link Mode#MAIN}: a standalone screen's frame. One per screen, centred,
+ *       and the reference its {@code REGION} siblings resolve against.</li>
  *   <li>{@link Mode#REGION}: outside a reference rectangle via an
  *       {@link OutsideRegion} (RIGHT_ALIGN_TOP, BOTTOM_CENTER, ...). The rectangle is
  *       the host's: the menu frame on a container screen, the slot group's box for
@@ -35,10 +35,10 @@ import java.util.function.Supplier;
  *       touches.</li>
  *   <li>{@link Mode#CENTER}: a screen-centred overlay, drawn on top.</li>
  *   <li>{@link Mode#PIXEL}: the outer origin comes from a per-frame supplier, in
- *       absolute screen pixels (§0057 Revision): the precision escape.</li>
+ *       absolute screen pixels, for positions a region cannot express.</li>
  * </ul>
  *
- * <p>Two modifiers ride every mode:
+ * <p>Two modifiers apply to every mode:
  * <ul>
  *   <li>{@link #priority(int)}: stacking order among siblings sharing a region, and
  *       z-order within a host. Lower goes first (closer to the region's anchor
@@ -70,15 +70,16 @@ public record PanelPosition(Mode mode,
     /** How a panel is positioned. */
     public enum Mode {
         /**
-         * No placement declared. Hosts refuse it (a panel with nowhere to go is a
-         * declaration bug, and failing at registration beats an invisible panel);
-         * the standalone-screen builders normalise it instead (see the class doc).
+         * No placement declared. Hosts refuse it, since a panel with nowhere to go
+         * is a declaration bug and failing at registration is better than an
+         * invisible panel. The standalone-screen builders normalise it instead
+         * (see the class doc).
          */
         UNPLACED,
         /**
          * A standalone screen's frame, centred on the screen window: the reference
          * every {@link #REGION} sibling resolves against. One per screen; the
-         * custom-screen analogue of a vanilla container's menu frame.
+         * custom screen's equivalent of a vanilla container's menu frame.
          */
         MAIN,
         /** Outside the host's reference rectangle, via an {@link OutsideRegion}. */
@@ -87,14 +88,14 @@ public record PanelPosition(Mode mode,
         SCREEN_ANCHOR,
         /**
          * Centred on the screen as an overlay and drawn on top. Position only: it
-         * composes freely with {@code dimsBehind}, {@code opaque} and
-         * {@code tracksAsModal} (M9: those flags stay independent).
+         * combines freely with {@code dimsBehind}, {@code opaque} and
+         * {@code tracksAsModal}, which stay independent.
          */
         CENTER,
         /**
-         * Pixel-precision override (§0057 Revision): the outer origin comes from a
-         * consumer supplier, re-evaluated every frame, in absolute screen pixels.
-         * The escape for positions a region cannot say.
+         * Exact pixel placement: the outer origin comes from a consumer supplier,
+         * evaluated every frame, in absolute screen pixels. For positions a region
+         * cannot express.
          */
         PIXEL
     }
@@ -136,7 +137,7 @@ public record PanelPosition(Mode mode,
 
     /**
      * Centred on the screen as an overlay, drawn on top: the placement for dialogs
-     * and popovers. Composes freely with {@code dimsBehind}, {@code opaque} and
+     * and popovers. Combines freely with {@code dimsBehind}, {@code opaque} and
      * {@code tracksAsModal}.
      */
     public static PanelPosition center() {
@@ -144,15 +145,15 @@ public record PanelPosition(Mode mode,
     }
 
     /**
-     * Pixel-precision placement (§0057 Revision): the panel's <b>outer</b> top-left
+     * Exact pixel placement: the panel's <b>outer</b> top-left
      * (the background origin; elements render inside at origin + padding) is exactly
      * what {@code origin} supplies, in absolute screen pixels, re-evaluated every
      * frame. Returning {@code null} skips the panel that frame: not drawn, claims
      * nothing. No reactive budgets are fed: pixel placement means the consumer owns
      * the exact geometry, on-screen included.
      *
-     * @param origin per-frame supplier of the panel's outer top-left; {@code null}
-     *               return = skip this frame
+     * @param origin per-frame supplier of the panel's outer top-left; returning
+     *               {@code null} skips the panel that frame
      */
     public static PanelPosition pixel(Supplier<ScreenOrigin> origin) {
         return new PanelPosition(Mode.PIXEL, null, null, origin, 0, 0, DEFAULT_PRIORITY);
@@ -189,9 +190,9 @@ public record PanelPosition(Mode mode,
      * through untouched. Used by {@code MKScreen} and {@code CustomContainerMenu}, the
      * only hosts that accept an unplaced panel.
      *
-     * <p>ponytail: the offset assumes every earlier stacked panel is shown; with a
-     * middle one hidden, later ones sit 12px lower than the old column did.
-     * Upgrade path: a per-region stacking gap on the host, if anyone notices.
+     * <p>The offset assumes every earlier stacked panel is shown. With a middle one
+     * hidden, later ones sit 12 px lower than the old column did; a per-region
+     * stacking gap on the host would fix that if it ever matters.
      *
      * @param declared each panel's declared position, in declaration order
      * @return the position each panel takes, same order

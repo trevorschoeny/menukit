@@ -1,19 +1,15 @@
 #version 330
 
-// MenuKit — fragment shader for SpriteButton's "pressed" affordance.
-// Inverts the LIGHTNESS channel of each pixel (in HSL space) while
-// preserving HUE and SATURATION. Result: blacks → whites, dark blues →
-// light blues (same hue), light greys → dark greys.
+// MenuKit: fragment shader for SpriteButton's pressed look. Inverts each pixel's
+// lightness in HSL space and keeps its hue and saturation, so black becomes
+// white, dark blue becomes light blue, and light grey becomes dark grey.
 //
-// Why HSL-L inversion and not RGB inversion: per-channel RGB inversion
-// (color = 1 - color) rotates the HUE 180° — a dark blue would become
-// yellow, a dark red would become cyan. That's the wrong affordance for
-// "this button is being pressed; show its complement-brightness state."
-// HSL-L inversion keeps the hue identity stable.
+// Plain RGB inversion (color = 1 - color) would rotate the hue by 180 degrees,
+// turning dark blue into yellow and dark red into cyan. A pressed button should
+// only change brightness, so only lightness is inverted.
 //
-// Uniforms / inputs mirror vanilla's core/position_tex_color.fsh so this
-// shader plugs into the same POSITION_TEX_COLOR vertex format used by
-// RenderPipelines.GUI_TEXTURED.
+// Uniforms and inputs mirror vanilla's core/position_tex_color.fsh, so it plugs
+// into the same POSITION_TEX_COLOR vertex format RenderPipelines.GUI_TEXTURED uses.
 
 layout(std140) uniform DynamicTransforms {
     mat4 ModelViewMat;
@@ -29,11 +25,9 @@ in vec4 vertexColor;
 
 out vec4 fragColor;
 
-// ── RGB ↔ HSL helpers ─────────────────────────────────────────────────
-//
-// Standard formulas (see e.g. css-color-3 §4.2.4). Operate on normalized
-// 0–1 components. RGB→HSL→RGB round-trips losslessly within float32
-// precision for input pixels we care about (8-bit-per-channel sprites).
+// RGB and HSL conversion, with the standard formulas (as in the CSS Color
+// Level 3 spec), on components from 0 to 1. A round trip is lossless at float32
+// precision for 8-bit-per-channel sprites.
 
 vec3 rgb2hsl(vec3 rgb) {
     float maxC = max(max(rgb.r, rgb.g), rgb.b);
@@ -70,8 +64,8 @@ vec3 hsl2rgb(vec3 hsl) {
     float S = hsl.y;
     float L = hsl.z;
     if (S == 0.0) {
-        // Achromatic — short-circuit to avoid divide-shaped paths in the
-        // hue rebuild. Greys invert cleanly: L → 1 - L on each channel.
+        // Grey: return early instead of rebuilding a hue. Greys invert
+        // cleanly, each channel becoming 1 - L.
         return vec3(L);
     }
     float q = L < 0.5 ? L * (1.0 + S) : L + S - L * S;
@@ -89,8 +83,8 @@ void main() {
         discard;
     }
 
-    // RGB → HSL → invert L → HSL → RGB.
-    // Alpha passes through unchanged so the sprite's edge mask is preserved.
+    // Convert to HSL, invert lightness, convert back. Alpha passes through
+    // unchanged so the sprite's edge mask is kept.
     vec3 hsl = rgb2hsl(color.rgb);
     hsl.z = 1.0 - hsl.z;
     vec3 inverted = hsl2rgb(hsl);

@@ -18,17 +18,16 @@ package com.trevlar.menukit.api.panel;
  * parameterized by side and alignment end, inside by a three-by-three grid, and
  * "outside the top-left corner" is not well defined.
  *
- * <p><b>Coverage.</b> Eight edge regions, each of the four sides combined with
- * two alignment ends, plus three centered anchors. {@code SIDE_ALIGN_END} reads
+ * <p>There are eight edge regions, each of the four sides with two alignment
+ * ends, plus three centered anchors. {@code SIDE_ALIGN_END} reads
  * as: "on {@code SIDE} of the reference, aligned to {@code END}, stacking away
  * from {@code END}."
  *
- * <p><b>{@link #CENTER} is the deliberate exception</b>: it centers a panel
- * <em>inside</em> the reference rather than outside it, which is what a modal
- * dialog wants. It is the one inside-placement in an outside vocabulary, kept here
- * because modal placement has always lived on this enum. It does not stack.
+ * <p>{@link #CENTER} is the exception: it centers a panel inside the reference
+ * rather than outside it, as a modal dialog needs. It stays on this enum because
+ * modal placement has always lived here. It does not stack.
  *
- * <p><b>Flow direction</b>, stacking grows away from the anchor end:
+ * <p>Stacking grows away from the anchor end:
  * <ul>
  *   <li>{@link #LEFT_ALIGN_TOP} / {@link #RIGHT_ALIGN_TOP}, flow down
  *   <li>{@link #LEFT_ALIGN_BOTTOM} / {@link #RIGHT_ALIGN_BOTTOM}, flow up
@@ -50,54 +49,49 @@ public enum OutsideRegion {
     BOTTOM_ALIGN_RIGHT,
 
     /**
-     * Above the menu's container frame, centered on the horizontal axis
-     * (Phase 3b, Item 4a). The panel renders at
-     * {@code (leftPos + (imageWidth - panelWidth) / 2,
-     *         topPos - panelHeight - STACK_GAP - prefix)}, so stacking grows
-     * UP (away from the menu), each sibling staying horizontally centered.
+     * Above the menu's container frame, centered horizontally. The panel renders
+     * at {@code (leftPos + (imageWidth - panelWidth) / 2,
+     *         topPos - panelHeight - STACK_GAP - prefix)}, so stacking grows up,
+     * away from the menu, each sibling staying centered.
      *
-     * <p>Parity counterpart to {@link InsideRegion#TOP_CENTER}, anchored to
-     * the reference rectangle rather than the screen edge.
+     * <p>The counterpart of {@link InsideRegion#TOP_CENTER}, anchored to the
+     * reference rectangle rather than the screen edge.
      */
     TOP_CENTER,
 
     /**
-     * Below the menu's container frame, centered on the horizontal axis
-     * (Phase 3b, Item 4a). The panel renders at
-     * {@code (leftPos + (imageWidth - panelWidth) / 2,
-     *         topPos + imageHeight + STACK_GAP + prefix)}, so stacking grows
-     * DOWN (away from the menu), each sibling staying horizontally centered.
+     * Below the menu's container frame, centered horizontally. The panel renders
+     * at {@code (leftPos + (imageWidth - panelWidth) / 2,
+     *         topPos + imageHeight + STACK_GAP + prefix)}, so stacking grows down,
+     * away from the menu, each sibling staying centered.
      *
-     * <p>Parity counterpart to {@link InsideRegion#BOTTOM_CENTER}.
+     * <p>The counterpart of {@link InsideRegion#BOTTOM_CENTER}.
      */
     BOTTOM_CENTER,
 
     /**
-     * Centered within the menu's container frame. Canonical anchor for
-     * modal dialogs (Phase 14d-1). The panel renders at
+     * Centered within the menu's container frame, the usual anchor for modal
+     * dialogs. The panel renders at
      * {@code (leftPos + (imageWidth - panelWidth) / 2,
      *         topPos + (imageHeight - panelHeight) / 2)}.
      *
-     * <p>Stacking semantics: CENTER is a single-position anchor. Multiple
-     * panels registered with CENTER all resolve to the same origin and
-     * overlap (or, for modal dialogs, the consumer is expected to gate
-     * visibility so only one is up at a time).
+     * <p>CENTER is a single position. Several panels registered with it all
+     * resolve to the same origin and overlap; for modal dialogs the consumer
+     * shows only one at a time.
      *
-     * <p>Centers within the menu's container frame, not the screen window.
-     * For most vanilla menus the frame is roughly mid-screen so the result
-     * looks visually centered; for strict screen-window centering declare
-     * {@link PanelPosition#center()} instead.
+     * <p>It centers on the menu's frame, not the game window. For most vanilla
+     * menus the frame is roughly mid-screen, so it looks centered; to center on
+     * the window, declare {@link PanelPosition#center()} instead.
      */
     CENTER;
 
     /**
-     * Returns true if panels in this region stack along the X axis.
+     * Whether panels in this region stack along the X axis.
      *
-     * <p>TOP_ALIGN / BOTTOM_ALIGN regions flow horizontally (panels arranged
-     * left-to-right or right-to-left above/below the menu frame). LEFT / RIGHT
-     * regions flow vertically. {@link #TOP_CENTER} / {@link #BOTTOM_CENTER}
-     * flow vertically (away from the frame, staying horizontally centered).
-     * CENTER does not stack, value is conventionally {@code false}.
+     * <p>The TOP_ALIGN and BOTTOM_ALIGN regions flow horizontally, above or below
+     * the menu frame. The LEFT and RIGHT regions flow vertically, and so do
+     * {@link #TOP_CENTER} and {@link #BOTTOM_CENTER}, away from the frame.
+     * CENTER does not stack and returns {@code false}.
      */
     public boolean isHorizontalFlow() {
         return switch (this) {

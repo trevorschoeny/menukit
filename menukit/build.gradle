@@ -1,17 +1,15 @@
-// ═══════════════════════════════════════════════════════════════════════════
 // MenuKit: the window (one interface to any slot, panel or element), the slot
 // operations and slot groups, and the UI library (panels, elements, layouts,
-// HUD, regions). Universal since 6.0.0 (§0062): src/main runs on both sides,
+// HUD, regions). Runs on both sides since 6.0.0: src/main runs on both sides,
 // src/client is what touches a screen, and Loom's split source sets make the
-// compiler hold that line.
+// compiler enforce that.
 //
 // Keeps the bare `menukit` mod ID. MenuKit: Containers (the slot extension) is
-// published separately and depends on this one-way.
-// ═══════════════════════════════════════════════════════════════════════════
+// published separately and depends on this one, not the other way round.
 
 plugins {
-    // 26.x migration (2026-07-02): Loom plugin id is namespaced at 1.15+;
-    // 1.17 is the 26.2-era line. Version pinned at the workspace root.
+    // The Loom plugin id is namespaced from 1.15 on, and 1.17 is the line for
+    // 26.2. The version is pinned at the workspace root.
     id 'net.fabricmc.fabric-loom' version '1.17-SNAPSHOT'
     id 'java'
     id 'com.modrinth.minotaur' version '2.+'
@@ -22,13 +20,13 @@ group   = 'com.trevlar'
 
 base.archivesName = 'menukit'
 
-// Stamp the real mod version into fabric.mod.json at build time. The version
-// used to be HARDCODED "1.0.0" in the manifest — bumping the gradle version
-// property renamed the JAR but the loader (which reads fabric.mod.json) still
-// saw 1.0.0, so every published artifact self-reported 1.0.0 and no versioned
-// dependency gate could ever be satisfied (the 2026-07-01 Keybindery boot
-// wall). fabric.mod.json now declares "version": "${version}" and this block
-// expands it from the project version — one source of truth.
+// Stamps the real mod version into fabric.mod.json at build time. The manifest
+// used to hardcode "1.0.0": bumping the Gradle version renamed the jar, but the
+// loader reads fabric.mod.json and still saw 1.0.0, so every published jar
+// reported 1.0.0 and no versioned dependency could ever be satisfied (Keybindery
+// once failed to boot on it). fabric.mod.json declares "version": "${version}"
+// and this block fills it from the project version, so the version lives in one
+// place.
 processResources {
     inputs.property "version", project.version
     filesMatching("fabric.mod.json") {
@@ -44,15 +42,16 @@ java {
 
 repositories {
     maven { url 'https://maven.fabricmc.net/' }
-    // YACL — for the YACL-controller pressed-overlay mixin (compileOnly).
-    // 26.x: isxander's own maven stops at the 3.8.x line; the 26.2 builds
-    // (3.9.x) ship via the Modrinth maven only (verified 2026-07-02).
+    // YACL, for the YACL controller pressed-overlay mixin (compileOnly).
+    // isxander's own Maven stops at the 3.8.x line; the 26.2 builds (3.9.x) are
+    // only on this Maven repository.
     maven { url 'https://api.modrinth.com/maven' }
 }
 
 dependencies {
-    // 26.x: the game is unobfuscated — no mappings line, and mod deps use the
-    // standard java configurations (modImplementation → implementation etc.).
+    // 26.x is unobfuscated: no mappings line, and mod dependencies use the
+    // standard Java configurations (implementation instead of modImplementation,
+    // and so on).
     minecraft "com.mojang:minecraft:${property('minecraft_version')}"
     implementation "net.fabricmc:fabric-loader:${property('loader_version')}"
     implementation "net.fabricmc.fabric-api:fabric-api:${property('fabric_version')}"
@@ -62,17 +61,16 @@ dependencies {
     // signal, never required at execution time.
     compileOnly 'org.jetbrains:annotations:24.1.0'
 
-    // YACL — compile-only so MK can reference YACL classes in
-    // MenuKitYaclControllerPressedMixin (@Pseudo target). MK does NOT
-    // depend on YACL at runtime — the mixin uses @Pseudo to be
-    // tolerant of YACL absence (silently skips). YACL only enters the
-    // runtime environment via consumer mods that bundle it per §0028.
+    // YACL, compile-only so MenuKitYaclControllerPressedMixin (a @Pseudo target)
+    // can reference YACL classes. MenuKit does not depend on YACL at runtime: the
+    // @Pseudo mixin is skipped silently when YACL is absent. YACL only reaches the
+    // runtime through consumer mods that bundle it.
     compileOnly "maven.modrinth:yacl:3.9.6+26.2-fabric"
 }
 
 loom {
-    // §0062: what touches a screen lives in src/client; src/main is what runs on
-    // both sides. The compiler refuses a main class that reaches a client one.
+    // What touches a screen lives in src/client; src/main is what runs on both
+    // sides. The compiler refuses a main class that reaches a client one.
     splitEnvironmentSourceSets()
     mods {
         menukit {
@@ -120,7 +118,7 @@ modrinth {
     }
 }
 
-// ci-cd.md stage 2: the shipped jar must self-report the bumped version. A jar that
+// The shipped jar must report the bumped version. A jar that
 // says the wrong version silently breaks every dependency gate against it, so this
 // fails the build instead of relying on someone remembering to unzip and look.
 tasks.register('verifyJarVersion') {
@@ -137,14 +135,13 @@ tasks.register('verifyJarVersion') {
 }
 build.dependsOn verifyJarVersion
 
-// ── Javadoc: the published API reference ────────────────────────────────
-// Consumer-facing reference only: the api packages (§0068). Everything else is
-// internal and stays out of the generated site.
+// Javadoc: the published API reference. Only the api packages; everything else
+// is internal and stays out of the generated site.
 // doclint keeps broken {@link}s as errors (a stale link is a doc bug);
 // `missing` and `html` are off because getter @return tags and heading
 // levels are noise, not defects.
 javadoc {
-    // §0068: the reference is the public API, the api packages of both source sets.
+    // The reference covers the api packages of both source sets.
     source += sourceSets.client.allJava
     classpath += sourceSets.client.compileClasspath + sourceSets.main.output + sourceSets.client.output
     include 'com/trevlar/menukit/api/**', 'com/trevlar/menukit/containers/api/**'

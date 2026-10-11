@@ -17,18 +17,17 @@ import com.trevlar.menukit.api.slot.ResolvedSlotGroup;
  *   <tr><td>Screen</td><td>the game window, for HUD panels and screen chrome</td></tr>
  * </table>
  *
- * <p>Which kind a placement uses is decided by the call site, a
- * {@link ScreenPanelAdapter} means the menu frame, a {@link SlotGroupPanelAdapter}
- * means the group it targets, so the reference does not need to be a tagged type
- * and a {@link com.trevlar.menukit.api.panel.OutsideRegion} does not need to name which
- * kind it applies to. That naming was the confusion this type retires: before
- * 5.0.0 there were two identical records, {@code ScreenBounds} and
- * {@code SlotGroupBounds}, and four region enums encoding the reference a second
- * time.
+ * <p>The call site decides which kind a placement uses: a {@link ScreenPanelAdapter}
+ * means the menu frame, a {@link SlotGroupPanelAdapter} the group it targets. So the
+ * reference is not a tagged type, and a
+ * {@link com.trevlar.menukit.api.panel.OutsideRegion} does not name which kind it
+ * applies to. (Before 5.0.0 there were two identical records, {@code ScreenBounds}
+ * and {@code SlotGroupBounds}, and four region enums that encoded the reference a
+ * second time.)
  *
- * <p>Values are passed per call rather than held, so an adapter stays decoupled
- * from {@code Screen} state and resize handling falls out for free: the caller
- * reads the current numbers each frame.
+ * <p>Values are passed per call rather than held, so an adapter does not depend on
+ * {@code Screen} state and a resize needs no handling: the caller reads the current
+ * numbers each frame.
  *
  * @param leftPos     screen-space X of the rectangle
  * @param topPos      screen-space Y of the rectangle

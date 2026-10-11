@@ -6,8 +6,8 @@ import java.util.function.Supplier;
 
 /**
  * The lens a set of {@code Radio} buttons shares: which value is selected, read
- * from the consumer every frame and written back when the player picks another
- * (§0026, §0066). It stores nothing.
+ * from the consumer every frame and written back when the player picks another.
+ * It stores nothing.
  *
  * <pre>{@code
  * RadioGroup<Mode> mode = RadioGroup.state(() -> config.mode, m -> config.mode = m);
@@ -15,10 +15,10 @@ import java.util.function.Supplier;
  * Radio.builder(mode, Mode.SAFE).label(Component.literal("Safe")).at(0, 14).build();
  * }</pre>
  *
- * <p><b>Not an element.</b> The group holds no Radios, and Radios are not its
+ * <p>The group is not an element. It holds no Radios, and Radios are not its
  * children: each lives in a panel like any other element and asks the group
- * whether its value is the selected one. The group is wiring only, which keeps
- * "a Panel is the ceiling of composition" true.
+ * whether its value is the selected one. The group only wires them together, so
+ * a Panel stays the largest thing elements compose into.
  *
  * <p>Values are compared with {@link Objects#equals}, so they should implement
  * {@code equals} (enums do). A {@code get} that returns {@code null} selects no
