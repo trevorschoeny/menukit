@@ -31,16 +31,16 @@ Its types are vanilla types. A created slot is a real `Slot`, and a custom menu 
 
 ## Install
 
-Minecraft 26.2 is unobfuscated, so MenuKit goes on the plain `implementation` configuration:
+Minecraft 26.3 is unobfuscated, so MenuKit goes on the plain `implementation` configuration:
 
 ```gradle
 repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    implementation 'maven.modrinth:menukit:6.1.0+26.2'
+    implementation 'maven.modrinth:menukit:6.1.1+26.3'
     // Only if the mod creates slots or custom menus.
-    implementation 'maven.modrinth:menukit-containers:6.1.0+26.2'
+    implementation 'maven.modrinth:menukit-containers:6.1.1+26.3'
 }
 ```
 
