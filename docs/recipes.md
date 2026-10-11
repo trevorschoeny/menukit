@@ -1,6 +1,6 @@
 # Recipes
 
-One task per section. Each names the artifact it needs. [concepts.md](concepts.md) defines the terms. Every Java block on this page is compiled by the build (the `validator-mkc` snippets), so it matches the API as it ships. Imports are the `api` packages; your IDE finds them by class name.
+One task per section. Each names the artifact it needs. [concepts.md](concepts.md) defines the terms. The build compiles every Java block on this page (the `validator-mkc` snippets), so each one matches the API as it ships. Imports are the `api` packages, and your IDE finds them by class name.
 
 ## Show a readout on the HUD
 
@@ -23,7 +23,7 @@ HudPanel.builder("offshore:boat-health")
 
 Result: a 7 pixel tall bar renders 50 pixels above the bottom centre of the window while `boatActive()` returns true and no screen is open. `value` is a `DoubleSupplier` in the range 0 to 1.
 
-`.region(InsideRegion)` puts the panel on one of nine spots of the window, 4 pixels in from the edges it touches, stacked with the other panels on that spot in `.priority(n)` order. `.offset(dx, dy)` nudges this panel alone. Sub-builders (`text`, `item`, `slot`, `bar`) end with `.done()`. `.element(PanelElement)` adds any element, and `.custom(x, y, w, h, ctx -> ...)` draws freely inside the panel.
+`.region(InsideRegion)` puts the panel on one of nine spots of the window, 4 pixels in from the edges it touches. It stacks with the other panels on that spot in `.priority(n)` order. `.offset(dx, dy)` nudges this panel alone. Sub-builders (`text`, `item`, `slot`, `bar`) end with `.done()`. `.element(PanelElement)` adds any element, and `.custom(x, y, w, h, ctx -> ...)` draws freely inside the panel.
 
 ## Put a button on every container screen
 
@@ -42,9 +42,9 @@ Panel p = Panel.builder("mymod:region-everywhere")
 new ScreenPanelAdapter(p);
 ```
 
-Result: the panel renders in the top left gutter of the inventory, every chest, and the creative inventory. Add `.on(InventoryScreen.class)` to limit it to the survival inventory. To show it only some of the time, give the panel a `visibleWhen(...)`; adapters are declared at init and cannot be added or removed during play.
+Result: the panel renders in the top left gutter of the inventory, every chest, and the creative inventory. Add `.on(InventoryScreen.class)` to limit it to the survival inventory. To show it only some of the time, give the panel a `visibleWhen(...)`. Adapters are declared at init and cannot be added or removed during play.
 
-The panel is opaque by default, so everything under it is inert: a slot it covers does not highlight, click or show a tooltip. `.opaque(false)` makes it see-through, and then only its buttons and other controls block what is behind them.
+The panel is opaque by default, so everything under it is inert. A slot it covers does not highlight, click or show a tooltip. `.opaque(false)` makes it see-through, and then only its buttons and other controls block what is behind them.
 
 ## Put a panel next to the player inventory on every screen
 
@@ -85,7 +85,7 @@ new SlotGroupPanelAdapter(switches)
         .on(SlotGroupCategory.PLAYER_INVENTORY);
 ```
 
-Result: the switches stack down the right of the player inventory grid, 1 pixel apart, from the grid's top to the bottom of the screen's frame (below the hotbar on the survival inventory, not where the grid ends), then continue in a second column to the right, and a third. The panel widens with each column. A switch with a `visibleWhen` that is off takes no room: the ones below it move up. The `Flow` places its children, so their `at(...)` does nothing.
+Result: the switches stack down the right of the player inventory grid, 1 pixel apart. The column runs from the grid's top to the bottom of the screen's frame, which on the survival inventory is below the hotbar, not where the grid ends. The switches then continue in a second column to the right, and a third. The panel widens with each column. A switch with a `visibleWhen` that is off takes no room, and the ones below it move up. The `Flow` places its children, so their `at(...)` does nothing.
 
 ## Pop a panel up over the others
 
@@ -100,7 +100,7 @@ Panel row = Panel.builder("mymod:popup_row")
 new ScreenPanelAdapter(row).onPlayerInventory();
 ```
 
-Result: while `aboveHoveredSlot()` returns a point, the row draws over every other panel on the screen, another mod's slot-group panels included, whichever registered first. The pointer follows the picture: hover, clicks, the wheel and tooltips over the row go to the row, never to a panel under it. Its own slots stay live. A modal dialog still opens above it.
+Result: while `aboveHoveredSlot()` returns a point, the row draws over every other panel on the screen, another mod's slot-group panels included, whichever registered first. Input follows what is drawn. Hover, clicks, the wheel and tooltips over the row go to the row, never to a panel under it. Its own slots stay live. A modal dialog still opens above it.
 
 ## Build a full-screen tabbed menu
 
@@ -129,11 +129,11 @@ Panel main = Panel.builder("mymod:settings")
         .build();
 ```
 
-Result: a strip across the top of the screen that wraps into rows, with the selected tab's body below it filling the rest of the screen. A body is a `List<PanelElement>`, the same as `ScrollContainer` content. Put the panel in an `MKScreen` subclass. To open the menu on a given tab, set `tab` before `setScreen`. A screen that rebuilds itself when a setting changes can keep each body's scroll too: hold a `Map<String, Double>` beside `tab` and pass `.bodyScroll(scroll::get, scroll::put)`. Hiding a tab re-splits the rows and moves the body. For one scrolling row, use `Tabs.Mode.SIDE_SCROLL`.
+Result: a strip across the top of the screen that wraps into rows, with the selected tab's body below it filling the rest of the screen. A body is a `List<PanelElement>`, the same as `ScrollContainer` content. Put the panel in an `MKScreen` subclass. To open the menu on a given tab, set `tab` before `setScreen`. A screen that rebuilds itself when a setting changes can keep each body's scroll too. Hold a `Map<String, Double>` beside `tab` and pass `.bodyScroll(scroll::get, scroll::put)`. Hiding a tab re-splits the rows and moves the body. For one scrolling row, use `Tabs.Mode.SIDE_SCROLL`.
 
 ## Add a tab to another mod's menu
 
-Needs: MenuKit. The owner names the menu; you add to it at your client init.
+Needs: MenuKit. The owner names the menu, and you add to it at your client init.
 
 ```java
 // Owner, when its settings screen opens
@@ -168,7 +168,7 @@ List<PanelElement> buttonRow = Row.at(20, 30).spacing(4)
 Panel p = Panel.builder("mymod:confirm").elements(buttonRow).position(PanelPosition.center()).build();
 ```
 
-Result: two 60 by 20 buttons at y 30, starting at x 20, with a 4 pixel gap. `Column` has the same shape on the vertical axis. `.crossAlign(CrossAlign.CENTER)` centres children on the cross axis. A hidden element keeps its space. `Row` places once, on the panel's first layout, and does not follow the panel after; for a row that follows the panel's width, use a `Flow` (next recipe).
+Result: two 60 by 20 buttons at y 30, starting at x 20, with a 4 pixel gap. `Column` has the same shape on the vertical axis. `.crossAlign(CrossAlign.CENTER)` centres children on the cross axis. A hidden element keeps its space. `Row` places once, on the panel's first layout, and does not follow the panel after that. For a row that follows the panel's width, use a `Flow` (next recipe).
 
 ## Build a settings body: label left, control right, greyed while off
 
@@ -201,11 +201,11 @@ body.add(Flow.builder().at(0, 50).disabledWhen(off)
         .build());
 ```
 
-Result: the switch sits at the left and Reset at the right edge of the tab body, and each setting's control sits at the right edge beside its label, whatever the window's width. When the window is too narrow the control drops under its label. The divider spans the body. While the feature is off, every setting row is grey and ignores the mouse and keys. `Panel.disabledWhen(...)` greys a whole panel the same way.
+Result: the switch sits at the left and Reset at the right edge of the tab body. Each setting's control sits at the right edge beside its label, whatever the window's width. When the window is too narrow the control drops under its label. The divider spans the body. While the feature is off, every setting row is grey and ignores the mouse and keys. `Panel.disabledWhen(...)` greys a whole panel the same way.
 
 ## A settings screen in the pause-menu look
 
-Needs: MenuKit 6.1.0. The shape of Inventory Plus's settings: the mod's name at the top, tabs across, sections of settings, items the player picks, and Done at the bottom, drawn like Options, Video Settings and Controls instead of an inventory. The screen says once that it is an options screen; every element on it draws for that.
+Needs: MenuKit 6.1.0. This follows the shape of Inventory Plus's settings. It has the mod's name at the top, tabs across, sections of settings, items the player picks, and Done at the bottom. It draws as Options, Video Settings and Controls do, not as an inventory. The screen declares once that it is an options screen, and every element on it draws for that kind.
 
 ```java
 public final class ModSettingsScreen extends MKScreen {
@@ -278,9 +278,9 @@ public final class ModSettingsScreen extends MKScreen {
 }
 ```
 
-Open it with `Minecraft.getInstance().gui.setScreen(new ModSettingsScreen(Minecraft.getInstance().gui.screen()))`. Result: "My Mod" in white at the top centre, over the blurred world (the panorama on the title screen). Under it, Create World's tab bar across the whole width; with more tabs than fit, it scrolls with arrows. The page is the darker list band between two thin lines. The section header is centred like a category on Controls, its rows white text; the toggle is a stone button reading ON or OFF, the slider and dropdown vanilla's own. On Locked items, nine slots in vanilla's slot sprite: a click opens a chooser of every item with a search field, a pick fills the slot, a right click empties it. The items are setting values: nothing is taken from the inventory or sent to the server. Done at the bottom and Escape both return to the screen it opened from. Nothing on it picks a look.
+Open it with `Minecraft.getInstance().gui.setScreen(new ModSettingsScreen(Minecraft.getInstance().gui.screen()))`. Result: "My Mod" in white at the top centre, over the blurred world (the panorama on the title screen). Under it, Create World's tab bar runs across the whole width. With more tabs than fit, it scrolls with arrows. The page is the darker list band between two thin lines. The section header is centred as a category on Controls is, and its rows are white text. The toggle is a stone button reading ON or OFF, and the slider and dropdown are vanilla's own. Locked items shows nine slots in vanilla's slot sprite. A click opens a chooser of every item with a search field, a pick fills the slot, and a right click empties it. The items are setting values, so nothing is taken from the inventory or sent to the server. Done at the bottom and Escape both return to the screen it opened from. Nothing on it picks a look.
 
-A dialog on this screen (a `ConfirmDialog` for Reset to Defaults, say) is the same kind: a `RAISED` panel draws vanilla's popup frame, with white text. Keep labels on roles (next recipe) rather than `TextLabel.COLOR_DARK`, which reads only on a container screen's grey. A screen that declares no kind (`super(title, panels)`) stays a container screen, in MenuKit's grey look. Panels injected into vanilla's own screens need nothing: a panel on Options or Controls is already on an options screen.
+A dialog on this screen (a `ConfirmDialog` for Reset to Defaults, for example) is the same kind. A `RAISED` panel draws vanilla's popup frame, with white text. Keep labels on roles (next recipe) rather than `TextLabel.COLOR_DARK`, which reads only on a container screen's grey. A screen that declares no kind (`super(title, panels)`) stays a container screen, in MenuKit's grey look. Panels injected into vanilla's own screens need nothing, because a panel on Options or Controls is already on an options screen.
 
 ## Colour text by role
 
@@ -294,7 +294,7 @@ body.add(TextLabel.builder().at(0, 26).text(Component.literal("Applies to chests
         .role(TextRole.MUTED).build());
 ```
 
-Result: the heading and "Rows" are dark grey on a container screen and white on an options screen; the note is mid grey on the one and vanilla's grey on the other. A label without a role is `BODY`. Disabled text takes the kind's disabled grey whatever its role. `color(argb)` and `shadow(b)` fix a value on every kind instead, for text over the world on the HUD; `TextLabel.COLOR_DARK` is right only on a container screen's grey.
+Result: the heading and "Rows" are dark grey on a container screen and white on an options screen. The note is mid grey on the first and vanilla's grey on the second. A label without a role is `BODY`. Disabled text takes the kind's disabled grey whatever its role. `color(argb)` and `shadow(b)` fix a value on every kind instead, for text over the world on the HUD. `TextLabel.COLOR_DARK` is right only on a container screen's grey.
 
 ## Outline an item in its group's colour
 
@@ -352,11 +352,11 @@ ClientContainerPanel.of("mymod:pockets")
         .parity(ScreenMatcher.all());
 ```
 
-Result: nine real slots render in the top left gutter of the survival inventory, the creative inventory, and every container screen. Their contents persist on the player and sync through vanilla's slot protocol. The chrome and the screen scope name client types, so they are declared from the client initializer; the rest is one common registration. `ScreenMatcher.allExcept(Class...)` removes the panel from named screens. The slots still exist on those menus; they are not drawn there.
+Result: nine real slots render in the top left gutter of the survival inventory, the creative inventory, and every container screen. Their contents persist on the player and sync through vanilla's slot protocol. The chrome and the screen scope name client types, so they are declared from the client initializer. The rest is one common registration. `ScreenMatcher.allExcept(Class...)` removes the panel from named screens. The slots still exist on those menus but are not drawn there.
 
-The category is required. It says what the group is to other mods: `SlotGroupCategories.of(menu)` lists the group under it next to the vanilla categories, on every menu it sits on, so a search that walks the player's inventory menu can treat pockets as inventory and leave an elytra slot alone. Use a vanilla category when the group is one of those things, and declare your own (`new SlotGroupCategory("mymod", "equipment")`) when it is not. The name is a contract once another mod depends on it.
+The category is required. It tells other mods what the group is. `SlotGroupCategories.of(menu)` lists the group under it next to the vanilla categories, on every menu the group sits on. A search that walks the player's inventory menu can then treat pockets as inventory and leave an elytra slot alone. Use a vanilla category when the group is one of those things, and declare your own (`new SlotGroupCategory("mymod", "equipment")`) when it is not. The name is a contract once another mod depends on it.
 
-`SlotSpec.shiftClickOut(false)`, `shiftClickIn(false)`, `collect(false)` and `dragFill(false)` keep a group out of the bulk shortcuts (shift-click, double-click collect, drag-fill). The slot stays storage; the shortcuts skip it.
+`SlotSpec.shiftClickOut(false)`, `shiftClickIn(false)`, `collect(false)` and `dragFill(false)` keep a group out of the bulk shortcuts (shift-click, double-click collect, drag-fill). The slot stays storage, and the shortcuts skip it.
 
 `SlotSpec.accepts(Predicate<ItemStack>)` limits what a slot takes. `SlotSpec.revealWhen(BooleanSupplier)` hides the slots until the supplier returns true. Death, keepInventory, Curse of Vanishing and Curse of Binding behave as they do for vanilla slots. `POCKETS.dropsOnDeath(DropRule.KEEP)` overrides the death rule.
 
@@ -396,9 +396,9 @@ boolean locked = CHANNEL.get(slot);
 CHANNEL.set(slot, !locked);
 ```
 
-`SHARED` stores one value per slot for all viewers. Omit the visibility for `PRIVATE`, one value per viewer. The value persists as NBT on the slot's owner; writing the default removes it.
+`SHARED` stores one value per slot for all viewers. Omit the visibility for `PRIVATE`, one value per viewer. The value persists as NBT on the slot's owner. Writing the default removes it.
 
-The last argument is the channel's writer rule. The server judges every write a client sends: the channel exists, the value parses with the channel's `StreamCodec`, the write names the player's open menu and a live slot on it, the rule allows this player at this slot, and the player is within a write rate. A refused write changes nothing, and the server sends the writer its own value back. A `SHARED` channel with no rule refuses every client write, since one player's write is another player's state. A `PRIVATE` one lets a player write their own value. Server code writing a channel is not judged.
+The last argument is the channel's writer rule. The server judges every write a client sends. It checks that the channel exists and the value parses with the channel's `StreamCodec`. It checks that the write names the player's open menu and a live slot on it, that the rule allows this player at this slot, and that the player is within a write rate. A refused write changes nothing, and the server sends the writer its own value back. A `SHARED` channel with no rule refuses every client write, since one player's write is another player's state. A `PRIVATE` one lets a player write their own value. Server code writing a channel is not judged.
 
 With no open menu, use `CHANNEL.get(player, key, index)` with a `PersistentContainerKey`, or `CHANNEL.get(container, index)` for a shared value at a placed container.
 
@@ -437,11 +437,11 @@ ClientMenu.of(CUSTOM).requestOpen();
 CUSTOM.open(serverPlayer);
 ```
 
-Result: `requestOpen()` sends one payload. The server opens the menu because `validWhen` holds for the player, and the client shows a screen with a nine-slot panel; E shows and hides the extra panel. The handler factory runs on both sides and must build the same storages in the same order. Pass the `type` argument straight to `CustomContainerMenu.builder(type)`.
+Result: `requestOpen()` sends one payload. The server opens the menu because `validWhen` holds for the player, and the client shows a screen with a nine-slot panel. E shows and hides the extra panel. The handler factory runs on both sides and must build the same storages in the same order. Pass the `type` argument straight to `CustomContainerMenu.builder(type)`.
 
-The handler is structure only: panels, their groups, `hidden()`, `toggleable()`, `pairsWith`, `rightClick`. A `rightClick` handler runs instead of vanilla's click, as a click, on both sides: the client's run is its prediction and the server's is the one that counts, so put a one-sided effect behind `player.level().isClientSide()`. `p.group(id, category, storage, priority, columns)` sets shift-click priority and column count. How a panel looks is the client's: `ClientMenu.of(menu).panel(id, p -> ...)` takes MenuKit's `Panel.Builder` (elements, style, placement, toggle key), and `.screen(MyScreen::new)` sets a `CustomContainerScreen` subclass. A panel with no look is a raised panel of its slots. One that declares no placement takes the standalone default: the first is the main panel, and later ones stack below it.
+The handler is structure only: panels, their groups, `hidden()`, `toggleable()`, `pairsWith`, `rightClick`. A `rightClick` handler runs instead of vanilla's click, as a click, on both sides. The client's run is its prediction and the server's run is the one that counts, so put a one-sided effect behind `player.level().isClientSide()`. `p.group(id, category, storage, priority, columns)` sets shift-click priority and column count. How a panel looks is decided on the client. `ClientMenu.of(menu).panel(id, p -> ...)` takes MenuKit's `Panel.Builder` (elements, style, placement, toggle key), and `.screen(MyScreen::new)` sets a `CustomContainerScreen` subclass. A panel with no look is a raised panel of its slots. One that declares no placement takes the standalone default, where the first is the main panel and later ones stack below it.
 
-Whether a panel is shown is the server's: `setPanelVisible(id, visible)` on the server, synced to the client. A player's toggle key asks the server, which honours it only for a panel declared `toggleable()`. Without `validWhen` a client cannot open the menu at all; the server can, and the menu stays open while the player is alive.
+The server decides whether a panel is shown, with `setPanelVisible(id, visible)`, and syncs it to the client. A player's toggle key sends a request to the server, which honours it only for a panel declared `toggleable()`. Without `validWhen` a client cannot open the menu at all. The server can, and the menu stays open while the player is alive.
 
 ## Gate a slot by its address
 
@@ -470,11 +470,11 @@ SlotOperations.veto((ref, op) ->
                 && MyLocks.blocks(op));
 ```
 
-Result: every operation in the game, vanilla's and any other mod's, asks `SlotOperations.allows` before it acts, and this rule refuses the ones the player chose on the slots the player locked. A veto can only say no, so it never overwrites what the slot's author declared and there is nothing to restore on unlock. `SlotOperations.all()` is the list a settings screen shows, with `SlotOperations.name(op)` and `description(op)` for the words. The player check keeps a per-player lock from answering for another player on the same integrated server. Declare nothing on the slots themselves. A rule that needs the slot's group registers a `SlotOperations.GroupVeto` and is handed it.
+Result: every operation in the game, vanilla's and any other mod's, calls `SlotOperations.allows` before it acts. This rule refuses the operations the player chose on the slots the player locked. A veto can only say no, so it never overwrites what the slot's author declared and there is nothing to restore on unlock. `SlotOperations.all()` is the list a settings screen shows, with `SlotOperations.name(op)` and `description(op)` for the words. The player check keeps a per-player lock from answering for another player on the same integrated server. Declare nothing on the slots themselves. A rule that needs the slot's group registers a `SlotOperations.GroupVeto` and is handed it.
 
 ## Add an operation of your own
 
-Needs: MenuKit. Define at common init; ask before acting.
+Needs: MenuKit. Define at common init, and check before acting.
 
 ```java
 public static final BehaviorKey<TriBool> RESTOCK_TAKE = BehaviorKey.of(
@@ -507,4 +507,4 @@ SlotOperations.as(RESTOCK_TAKE, RESTOCK_PUT, () -> {
 });
 ```
 
-Result: the operation appears in `SlotOperations.all()` for every mod to list, a slot's author can turn it off per slot, group or category (`SlotOperations.inherent`), and a locking mod's veto reaches it. An operation that moves items between two slots is two keys, one for the slot being emptied and one for the slot being filled, so a lock can answer each side on its own. Its clicks are judged as the operation, not as the shift-click or plain click they look like, so a lock that blocks shift-click does not block it.
+Result: the operation appears in `SlotOperations.all()` for every mod to list. A slot's author can turn it off per slot, group or category (`SlotOperations.inherent`), and a locking mod's veto reaches it. An operation that moves items between two slots is two keys, one for the slot being emptied and one for the slot being filled. A lock can then answer each side on its own. Its clicks are judged as the operation, not as the shift-click or plain click they look like, so a lock that blocks shift-click does not block it.

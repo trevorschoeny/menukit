@@ -6,10 +6,10 @@ What MenuKit and MenuKit: Containers do not do, and the open gaps a consumer can
 
 These are not planned. Use vanilla or another library.
 
-- A config framework: option types, save files, a generated screen. MenuKit gives the controls, tabs and settings rows; where a value lives and how it saves is the mod's. For a generated config screen, use YACL or Cloth Config.
+- A config framework (option types, save files, a generated screen). MenuKit provides the controls, tabs and settings rows. Where a value lives and how it saves is up to the mod. For a generated config screen, use YACL or Cloth Config.
 - Chat and the F3 overlay. Both render outside the `Screen` system `VanillaScreenPanelAdapter` targets.
 - Nested panels. A panel holds elements only.
-- Themes and skins. `PanelStyle` and the two screen kinds (`ScreenKind`) are the full set; an element's look follows its screen's kind and cannot be picked per element, panel or screen. MenuKit restyles nothing of vanilla's except the pressed look of buttons ([concepts](concepts.md#one-styling-change)).
+- Themes and skins. `PanelStyle` and the two screen kinds (`ScreenKind`) are the full set. An element's look follows its screen's kind and cannot be picked per element, panel or screen. MenuKit restyles nothing of vanilla's except the pressed look of buttons ([concepts](concepts.md#one-styling-change)).
 - Tooltip content. Item Tips (durability and food lines) left MenuKit in 6.0.0 and is a feature of Inventory Plus.
 - Animation beyond HUD notifications.
 - A cross-mod event bus.
@@ -27,19 +27,19 @@ Behavior that is incomplete in the current release.
 |---|---|
 | Shift-click into a created slot | Not routed. Direct click works. The consumer overrides `quickMoveStack` in its own mixin, or accepts the gap. |
 | Unplaced panels on a standalone screen | The default stacks later panels below the main one with a 14 pixel gap, computed for the case where every earlier stacked panel is shown. With one hidden, the panels after it sit 12 pixels lower than the gap alone places them. Declaring `region(BOTTOM_CENTER)` with an explicit `.offset` gives exact spacing. |
-| Offsets and stacking | `.offset(dx, dy)` moves one panel after placement; siblings stack on its un-nudged size. An offset that pushes a panel over its sibling overlaps it. |
+| Offsets and stacking | `.offset(dx, dy)` moves one panel after placement, and siblings stack on its un-nudged size. An offset that pushes a panel over its sibling overlaps it. |
 | Created slot in an overlay panel | Not supported. Overlay panels draw after vanilla's slot pass, so a slot they host is placed one frame late and drawn under the panel. Put created slots in flow panels. |
 | Reactions | `ON_INSERT_OBSERVED` and `ON_TAKE_OBSERVED` fire on the client when a slot's synced contents change. They are UI feedback. No server-side reaction key exists. Server code that must act on a change hooks the slot or menu method that makes it. |
 | Window scope | Every address resolves in the primary scope. Per-tab and per-sub-window scopes are not active. |
 | Panel and element addressing | `Window.panel(id)` and `Window.element(...)` carry visibility and opacity. Gates, operations and reactions apply to slots only. |
 | A slot group built with a menu, before any menu | `CreatedSlots.onto(menu, player)` registers a group when that menu is built, so `SlotGroups` lists it only after the first one. Declare the group at init with `SlotGroups.declare` to list it from the title screen. |
-| Operations on a slot reached with no menu open | An inventory insert (`Inventory.getFreeSlot`) has no menu, so a vanilla slot's category is unknown there. `INVENTORY_INSERT` on such a slot resolves from the slot's own declaration or the key's default, then the vetoes; the group and category rungs need a menu. |
-| Operations the server works out for itself, on a server without MenuKit | The client does not send a click that its own slot does not allow: plain click, shift-click out, drop, swap, a slot joining a drag. Where a shift-click lands, what double-click collect sweeps, and where a picked-up item goes are decided by the server. Those hold in singleplayer and on a LAN host, where MenuKit runs the server side, and not on a server that does not run it. The same goes for a Q action a mod sends to the connection itself instead of through `LocalPlayer.drop`. |
+| Operations on a slot reached with no menu open | An inventory insert (`Inventory.getFreeSlot`) has no menu, so a vanilla slot's category is unknown there. `INVENTORY_INSERT` on such a slot resolves from the slot's own declaration or the key's default, then the vetoes. The group and category rungs need a menu. |
+| Operations the server works out for itself, on a server without MenuKit | The client does not send a click that its own slot does not allow (plain click, shift-click out, drop, swap, a slot joining a drag). Where a shift-click lands, what double-click collect sweeps, and where a picked-up item goes are decided by the server. Those hold in singleplayer and on a LAN host, where MenuKit runs the server side, and not on a server that does not run it. The same goes for a Q action a mod sends to the connection itself instead of through `LocalPlayer.drop`. |
 | Drop rule key | `dropsOnDeath(DropRule)` on a player storage attachment covers death. No window key covers drop rules. |
 | Advancements | Created slots use a separate container and do not fire vanilla's inventory-change trigger. The consumer fires it. |
 | Item-attached storage | Uses vanilla's container component only. |
-| Item picker | Holds one kind of item (an `Item`: no count, no enchantments or other components); a list of items is a row of pickers. Its chooser lists every registered item in registry order, searched by name and id, not by creative tab. Clearing from the keyboard is not supported; a right click or the chooser's Clear empties it. |
-| A look per element | None since 6.1.0: `ControlStyle` and `style(ControlStyle)` are deprecated and do nothing. A control that should differ from its screen's kind (a MenuKit-grey button on an options screen) has no switch; draw it with a consumer sprite (`Button.sprite`). |
+| Item picker | Holds one kind of item (an `Item`, with no count, enchantments or other components). A list of items is a row of pickers. Its chooser lists every registered item in registry order, searched by name and id, not by creative tab. Clearing from the keyboard is not supported. A right click or the chooser's Clear empties it. |
+| A look per element | None since 6.1.0. `ControlStyle` and `style(ControlStyle)` are deprecated and do nothing. No switch makes a control differ from its screen's kind (a MenuKit-grey button on an options screen). Draw such a control with a consumer sprite (`Button.sprite`). |
 | Block-portable content | Metadata travels with a carried shulker. General content travel for other blocks does not. |
 
 ## Element gaps
@@ -62,15 +62,15 @@ Behavior that is incomplete in the current release.
 
 - `build()` freezes a panel's element list, and every element is immutable after its own `build()`. Build a new panel to change the list.
 - A `ScreenPanelAdapter` with no target renders on every container screen. A `SlotGroupPanelAdapter` or `VanillaScreenPanelAdapter` with no `.on(...)` fails at the first screen open with the panel id in the message.
-- Adapters, HUD panels and notifications are declarations: constructing, targeting or unregistering one after the client starts throws. Gate a panel at runtime with `visibleWhen`.
+- Adapters, HUD panels and notifications are declarations. Constructing, targeting or unregistering one after the client starts throws. Gate a panel at runtime with `visibleWhen`.
 - A panel with no placement is rejected by adapters and the HUD. Only `MKScreen` and a custom menu's screen place an unplaced panel.
 - Panel ids are global across mods. Prefix them with the mod id.
 - `CustomMenu` handler factories run on both sides and must produce identical storages.
-- A server running Containers cannot be joined by a client without it; the client is told what to install before the world loads. A Containers client on a server without it has no created slots there.
+- A client without Containers cannot join a server running it. The client is told what to install before the world loads. A Containers client on a server without it has no created slots there.
 - A `SHARED` slot-state channel with no `canWrite` rule cannot be written from a client, only by server code.
 - Slot-state writes from one player are limited to a burst of 64, then 32 a second. Past that the server refuses them until the allowance refills.
 - A custom menu with no `validWhen` cannot be opened by a client's request, only by the server.
-- The slot state a shulker box carries as an item is not sent to clients. A creative player who moves such an item sends the game's copy back without it, so its slot state is lost; survival is unaffected.
+- The slot state a shulker box carries as an item is not sent to clients. A creative player who moves such an item sends the game's copy back without it, so its slot state is lost. Survival is unaffected.
 - Hoppers and dispensers ask a slot's gate, not the vetoes. No automation operation exists, so a lock meant to stop automation needs its own seam.
 - Only the `api` packages are public. Everything else is internal and may change in any release.
 - The dev runtime assigns a new offline player UUID per launch. Test player-scoped persistence across quit-to-title and re-enter within one launch.

@@ -23,11 +23,11 @@ Declare the dependency in `fabric.mod.json`:
 "depends": { "menukit": ">=6.0.0 <7.0.0" }
 ```
 
-Declare both bounds. The lower bound guarantees the API you call exists. The upper bound stops the next breaking MenuKit from loading against a jar built before it existed, which would fail at a class load in the middle of a play session instead of at launch.
+Declare both bounds. The lower bound guarantees the API you call exists. The upper bound stops the next breaking MenuKit from loading against a jar built before it existed. That combination fails at a class load in the middle of a play session instead of at launch.
 
 Separate the bounds with a space. Fabric splits on spaces, so a comma leaves one malformed bound and the mod does not load.
 
-[Versioning](versioning.md) has the full contract. Import only from the `api` packages (`com.trevlar.menukit.api.*`); the rest is internal and may change in any release.
+[Versioning](versioning.md) has the full contract. Import only from the `api` packages (`com.trevlar.menukit.api.*`). The rest is internal and may change in any release.
 
 ## 2. Register a HUD panel
 
@@ -50,7 +50,7 @@ HudPanel.builder("mymod:readout")
 
 Result: the text renders directly below the crosshair during play and disappears while any screen is open.
 
-A HUD panel sits on one of nine `InsideRegion` spots of the game window, 4 pixels in from the edges it touches. `.offset(dx, dy)` nudges it and `.priority(n)` orders it among other panels on the same spot. `build()` registers the panel and returns it. Register from your client initializer, since registration closes when the client finishes starting. There is no unregister; gate a panel with `visibleWhen` instead.
+A HUD panel sits on one of nine `InsideRegion` spots of the game window, 4 pixels in from the edges it touches. `.offset(dx, dy)` nudges it and `.priority(n)` orders it among other panels on the same spot. `build()` registers the panel and returns it. Register from your client initializer. Registration closes when the client finishes starting. There is no unregister. Gate a panel with `visibleWhen` instead.
 
 ## 3. Register a panel on the inventory screen
 
@@ -77,7 +77,7 @@ Result: a 90 by 16 button renders in the top right gutter of the survival invent
 
 Every element is built the same way: `X.builder()`, the settings it needs, then `build()` (see [Builders and one vocabulary](concepts.md#builders-and-one-vocabulary)). A control that shows a value takes a `state(get, set)` over your own field, for example `Toggle.builder().state(config::sort, config::setSort)`.
 
-The panel says where it sits (`position`); the adapter says which screens it appears on. Without `.on(...)` the panel renders on every container screen. Declare adapters from your client initializer. To show a panel only some of the time, give it a `visibleWhen` rather than removing its adapter.
+The panel declares where it sits (`position`), and the adapter declares which screens it appears on. Without `.on(...)` the panel renders on every container screen. Declare adapters from your client initializer. To show a panel only some of the time, give it a `visibleWhen` rather than removing its adapter.
 
 ## 4. Run
 

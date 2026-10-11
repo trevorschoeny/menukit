@@ -1,6 +1,6 @@
 # MenuKit
 
-MenuKit is a UI library for Fabric mods. It provides the parts of a Minecraft interface (buttons, sliders, tabs, panels, HUD readouts, slots) and places them on screen, so a mod builds its menus and overlays without writing vanilla screen code from scratch.
+MenuKit is a UI library for Fabric mods. It provides the parts of a Minecraft interface (buttons, sliders, tabs, panels, HUD readouts, slots) and places them on screen. A mod builds its menus and overlays with it instead of writing vanilla screen code from scratch.
 
 It ships as two artifacts from this repository:
 
@@ -11,21 +11,21 @@ It ships as two artifacts from this repository:
 
 `menukit-containers` depends on `menukit`. A mod that adds no slots depends on `menukit` alone and can stay client-only. A server running Containers requires it on every player's game. It checks before the world loads, and a player without it is told which two mods to install.
 
-Components: buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, tooltips, icons, item displays (with an optional coloured outline), progress bars, dividers, scroll containers, runtime rows (`Flow`), collapsible sections and tabs. Containers adds slots. Every component has a builder with the same vocabulary (`at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state`, `onClick`, `style`), and every control that shows a value reads and writes a field the mod owns.
+Components: buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, tooltips, icons, item displays (with an optional coloured outline), progress bars, dividers, scroll containers, runtime rows (`Flow`), collapsible sections and tabs. Containers adds slots. Every component has a builder with the same vocabulary (`at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state`, `onClick`, `style`). Every control that shows a value reads and writes a field the mod owns.
 
 What it does:
 - Places UI in five contexts with one set of components: the HUD, container screens, other vanilla screens, named slot groups, and standalone screens.
 - Groups components into panels. A panel renders, takes input, and shows or hides as a unit.
-- Takes a panel's placement from one declaration on the panel, and sizes the panel to fit, wrapping and scrolling as needed, at any GUI scale.
+- Takes a panel's placement from one declaration on the panel. Sizes the panel to fit at any GUI scale, wrapping and scrolling as needed.
 - Lets several mods add UI to the same screen. Panels sharing a region stack in priority order instead of overlapping, in the same order on every launch.
-- Makes what a panel covers inert. An opaque panel takes every point of its rectangle and a see-through one only its controls, so a slot or widget under a panel does not highlight, click or show a tooltip.
+- Makes what a panel covers inert. An opaque panel takes every point of its rectangle, and a see-through one takes only its controls. A slot or widget under a panel does not highlight, click or show a tooltip.
 - Publishes every slot group, vanilla or created, under a category any mod can read, with or without a menu open.
-- Names each thing that can be done to a slot as an operation. Vanilla's actions are eleven, one per gesture, and a mod can add its own. A slot answers for itself first, then its group, then its category, and a locking mod can veto any operation.
+- Names each thing that can be done to a slot as an operation. Vanilla has eleven, one per gesture, and a mod can add its own. A slot answers for itself first, then its group, then its category, and a locking mod can veto any operation.
 - Creates real, server-synced slots as UI components and shows them on every container screen without per-screen setup (Containers).
 - Attaches per-slot state to any slot, private per player or shared, stored on the slot's owner. The server judges every write a client sends (Containers).
 - Gives its controls vanilla's click sound, narration and keyboard focus, and greys a whole panel at once with one `disabledWhen`.
-- Draws each element for the kind of screen it is on: MenuKit's grey look on inventories and chests, vanilla's pause-menu look on Options, Controls and the like. A standalone screen says which kind it is once, when it is made; text is coloured by role (heading, body, muted, disabled) so it reads on either.
-- Lets a settings page pick items: an item picker is a slot whose item is a setting value, chosen from a searchable list, never taken from the inventory.
+- Draws each element for the kind of screen it is on. Inventories and chests get MenuKit's grey look, and Options, Controls and similar screens get vanilla's pause-menu look. A standalone screen declares its kind once, when it is made. Text is coloured by role (heading, body, muted, disabled) so it reads on either kind.
+- Lets a settings page pick items. An item picker is a slot whose item is a setting value. The player chooses it from a searchable list, and it is never taken from the inventory.
 
 Its types are vanilla types. A created slot is a real `Slot`, and a custom menu is a real `AbstractContainerMenu`. Requires Fabric and Fabric API.
 
@@ -127,9 +127,9 @@ These sources build as two projects of a parent Gradle workspace that is not in 
 
 Elements draw for the kind of screen they are on (`ScreenKind`), and nothing else picks a look. A mod that uses screen kinds, text roles or the item picker declares `"menukit": ">=6.1.0 <7.0.0"`.
 
-- `ControlStyle` and `style(ControlStyle)` on `Button`, `Dropdown` and `DropdownMulti` are deprecated and do nothing; they go in 7.0.0. A mod built against 6.0.0 still loads. Delete the call: on Options, Controls and every other vanilla screen that is not a container, an element already draws in vanilla's look; on a container screen, in MenuKit's.
-- Panels injected into a vanilla screen that is not a container (the pause screen, Options, Controls, a config screen) now draw in vanilla's look there, where they drew MenuKit's grey before. Panels on inventories, chests and the HUD are unchanged.
-- To move a standalone screen to the pause-menu look, declare it when it is made: `super(title, ScreenKind.OPTIONS, panels)`, give its panels `PanelStyle.NONE`, and replace hand-set label colours (`TextLabel.COLOR_DARK`, `Section.colors`) with roles, which read on both kinds. A screen that declares nothing stays as it was. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) builds a whole settings screen this way.
+- `ControlStyle` and `style(ControlStyle)` on `Button`, `Dropdown` and `DropdownMulti` are deprecated and do nothing, and 7.0.0 removes them. A mod built against 6.0.0 still loads. Delete the call. An element already draws in vanilla's look on Options, Controls and every other vanilla screen that is not a container, and in MenuKit's look on a container screen.
+- Panels injected into a vanilla screen that is not a container (the pause screen, Options, Controls, a config screen) draw in vanilla's look there. Before 6.1.0 they drew MenuKit's grey. Panels on inventories, chests and the HUD are unchanged.
+- To move a standalone screen to the pause-menu look, declare the kind when the screen is made, with `super(title, ScreenKind.OPTIONS, panels)`. Give its panels `PanelStyle.NONE`, and replace hand-set label colours (`TextLabel.COLOR_DARK`, `Section.colors`) with roles, which read on both kinds. A screen that declares nothing stays as it was. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) builds a whole settings screen this way.
 
 ### To 6.0.0
 
@@ -164,7 +164,7 @@ Elements draw for the kind of screen they are on (`ScreenKind`), and nothing els
 
 ### To 5.1.0
 
-Nothing breaks. `SlotSpec.quickMove(...)` and `MKCBehaviorKeys.QUICK_MOVE` are deprecated for removal in 6.0.0; declare `BehaviorKeys.SHIFT_CLICK_OUT` and `SHIFT_CLICK_IN` instead.
+Nothing breaks. `SlotSpec.quickMove(...)` and `MKCBehaviorKeys.QUICK_MOVE` are deprecated for removal in 6.0.0. Declare `BehaviorKeys.SHIFT_CLICK_OUT` and `SHIFT_CLICK_IN` instead.
 
 ### To 5.0.0
 
@@ -181,7 +181,7 @@ With Containers, every created slot group declares a `SlotGroupCategory`: `SlotS
 
 ### To 4.0.0
 
-Vanilla draws every slot; MenuKit runs no slot pass of its own. `CreatedSlotResolver.resolve` returned the live in-menu `Slot` instead of a position, and `SlotRendering` kept the frame helper and dropped the item-drawing helpers.
+Vanilla draws every slot, and MenuKit runs no slot pass of its own. `CreatedSlotResolver.resolve` returned the live in-menu `Slot` instead of a position, and `SlotRendering` kept the frame helper and dropped the item-drawing helpers.
 
 ### To 3.0.0
 
