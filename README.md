@@ -47,11 +47,11 @@ dependencies {
 Declare what you use in `fabric.mod.json`, with both bounds ([why](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md)):
 
 ```json
-"depends": { "menukit": ">=6.1.0 <7.0.0" }
+"depends": { "menukit": ">=6.2.0 <7.0.0" }
 ```
 
 ```json
-"depends": { "menukit": ">=6.1.0 <7.0.0", "menukit-containers": ">=6.1.0 <7.0.0" }
+"depends": { "menukit": ">=6.2.0 <7.0.0", "menukit-containers": ">=6.2.0 <7.0.0" }
 ```
 
 ## Example
@@ -122,6 +122,10 @@ Every Java sample in this README and in `docs/` is compiled against the release 
 These sources build as two projects of a parent Gradle workspace that is not in this repository. They do not build on their own yet.
 
 ## Upgrading
+
+### To 6.2.0
+
+`MKTooltip.avoidCoverWhen` docks tooltips at the bottom or top centre of the screen instead of choosing a side of the cursor. The method keeps its name, so a mod that registers it needs no change. `MKTooltip.MIN_WRAP_WIDTH` is deprecated and goes in 7.0.0.
 
 ### To 6.1.0
 
