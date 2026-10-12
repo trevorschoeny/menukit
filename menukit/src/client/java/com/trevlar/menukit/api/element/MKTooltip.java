@@ -253,7 +253,8 @@ public final class MKTooltip {
     /**
      * Docks every tooltip vanilla places beside the cursor on every frame {@code condition}
      * is true: it sits centred at the bottom of the screen, {@link #EDGE} above the edge,
-     * or centred at the top when the cursor is inside where the bottom one would be.
+     * or centred at the top when the cursor is within {@link #DOCK_MARGIN} of where the
+     * bottom one would sit, not only directly over it.
      * Nothing wraps or changes side. {@link #clampWhen}, {@link #wrapWhen},
      * {@link #scrollBy} and {@link #hideWhen} work on a docked tooltip as on any other,
      * the title still first; one taller than the screen behaves as it does under
@@ -283,19 +284,28 @@ public final class MKTooltip {
     }
 
     /**
+     * How far outside the bottom-docked tooltip's background the cursor still flips it to the
+     * top, in GUI pixels: a bit more than a slot (Trev, 2026-10-11, after trying the dock with
+     * no margin: the cursor could sit just past the tooltip's edge, close enough to still read
+     * it, and the tooltip would not move out of the way).
+     */
+    public static final int DOCK_MARGIN = 20;
+
+    /**
      * Where a docked tooltip's text starts, given the text's {@code width} and {@code height}
      * as vanilla measures them (a positioner's arguments). Centred, at the bottom with
-     * {@link #EDGE} under it; at the top, {@link #EDGE} down, when the cursor is inside the
-     * bottom one's background (the text plus its padding). Pure: no screen is read.
+     * {@link #EDGE} under it; at the top, {@link #EDGE} down, when the cursor is within
+     * {@link #DOCK_MARGIN} of the bottom one's background (the text plus its padding, grown by
+     * the margin on every side). Pure: no screen is read.
      */
     @org.jetbrains.annotations.ApiStatus.Internal
     public static Vector2ic docked(int screenWidth, int screenHeight, int mouseX, int mouseY, int width, int height) {
         int x = (screenWidth - width) / 2;
         int bottom = screenHeight - EDGE - height;
-        boolean underCursor = mouseX >= x - TooltipRenderUtil.PADDING_LEFT
-                && mouseX < x + width + TooltipRenderUtil.PADDING_RIGHT
-                && mouseY >= bottom - TooltipRenderUtil.PADDING_TOP
-                && mouseY < bottom + height + TooltipRenderUtil.PADDING_BOTTOM;
+        boolean underCursor = mouseX >= x - TooltipRenderUtil.PADDING_LEFT - DOCK_MARGIN
+                && mouseX < x + width + TooltipRenderUtil.PADDING_RIGHT + DOCK_MARGIN
+                && mouseY >= bottom - TooltipRenderUtil.PADDING_TOP - DOCK_MARGIN
+                && mouseY < bottom + height + TooltipRenderUtil.PADDING_BOTTOM + DOCK_MARGIN;
         return new Vector2i(x, underCursor ? EDGE : bottom);
     }
 
