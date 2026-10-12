@@ -54,7 +54,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * subclasses. For an {@code MKScreen}, add the dialog Panel to the screen's panels
  * (visibility driven by {@link Panel#visibleWhen}): {@code dimsBehind} panels are
  * centred, and the dim, click-eating and key dispatch send input only to the
- * dialog's buttons. Slot groups and the HUD don't apply: one anchors to slots,
+ * dialog's buttons. SlotKit's slot groups and the HUD don't apply: one anchors to slots,
  * the other takes no input.
  *
  * <h3>Multi-line body</h3>

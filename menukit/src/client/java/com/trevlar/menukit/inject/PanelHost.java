@@ -119,7 +119,7 @@ public final class PanelHost {
     }
 
     /**
-     * One panel in this host. The same {@link Panel} may sit in several hosts (a
+     * One panel in this host. The same {@link Panel} may sit in several hosts (an
      * anchor adapter targeting two anchors is in two anchor hosts), each with
      * its own entry: registries are keyed by (panel, host), not by panel identity.
      *

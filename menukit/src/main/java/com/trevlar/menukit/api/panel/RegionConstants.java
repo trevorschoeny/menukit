@@ -11,26 +11,26 @@ import com.trevlar.menukit.core.RegionMath;
  * <h2>Two stacking gaps</h2>
  *
  * <ul>
- *   <li>{@link #MENU_STACK_GAP} (2) for the menu, slot-group and HUD contexts.</li>
+ *   <li>{@link #MENU_STACK_GAP} (2) for the menu, anchor and HUD contexts.</li>
  *   <li>{@link #SCREEN_STACK_GAP} (4) for vanilla screens that are not
  *       containers.</li>
  * </ul>
  *
  * <p>They stay separate because merging them would move either the menu,
- * slot-group and HUD layouts (to 4) or the vanilla-screen layout (to 2).
+ * anchor and HUD layouts (to 4) or the vanilla-screen layout (to 2).
  *
  * <h2>Edge inset</h2>
  *
  * {@link #EDGE_INSET} (4) is the screen-edge inset for the HUD and vanilla-screen
- * contexts, matching vanilla's F3 debug overlay. The menu and slot-group contexts
- * anchor to a frame rather than a screen edge, so they have no edge inset.
+ * contexts, matching vanilla's F3 debug overlay. The menu and anchor contexts
+ * place against a frame or box rather than a screen edge, so they have no edge inset.
  */
 public final class RegionConstants {
 
     private RegionConstants() {}
 
     /**
-     * Stacking gap (GUI-scaled pixels) for the menu, slot-group and HUD
+     * Stacking gap (GUI-scaled pixels) for the menu, anchor and HUD
      * contexts.
      */
     public static final int MENU_STACK_GAP = 2;

@@ -136,9 +136,9 @@ public final class RegionMath {
      *       beside it: {@code -1}.</li>
      * </ul>
      *
-     * The reference and the frame differ for a slot-group panel: it is placed against
-     * its group's box but its band runs to the container screen's frame, so a column
-     * beside the player inventory wraps where the screen ends, not where the group
+     * The reference and the frame differ for an anchor panel: it is placed against
+     * the anchor's box but its band runs to the container screen's frame, so a column
+     * beside the player inventory wraps where the screen ends, not where the box
      * does. On a container screen's own host they are the same frame. Never negative
      * for a side region (a panel already past the frame's edge has a band of 0, and a
      * wrapping element then puts one child per column).
@@ -284,7 +284,7 @@ public final class RegionMath {
         return Optional.of(new ScreenOrigin(x, y));
     }
 
-    // Menu regions. The menu, slot-group and HUD contexts all stack at
+    // Menu regions. The menu, anchor and HUD contexts all stack at
     // RegionConstants.MENU_STACK_GAP, read directly where it is used.
 
     /**

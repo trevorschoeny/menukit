@@ -276,9 +276,9 @@ public final class MKTooltip {
 
     /**
      * How far outside the bottom-docked tooltip's background the cursor still flips it to the
-     * top, in GUI pixels: a bit more than a slot (Trev, 2026-10-11, after trying the dock with
-     * no margin: the cursor could sit just past the tooltip's edge, close enough to still read
-     * it, and the tooltip would not move out of the way).
+     * top, in GUI pixels: a bit more than a slot. With no margin the cursor could sit just
+     * past the tooltip's edge, close enough to still read it, and the tooltip would not move
+     * out of the way.
      */
     public static final int DOCK_MARGIN = 20;
 

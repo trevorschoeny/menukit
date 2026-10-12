@@ -1076,7 +1076,7 @@ public class Panel {
      * "click blocker" pattern (invisible but blocks input). A panel's own slots
      * stay live under its own claim.
      *
-     * <p><b>Every host:</b> panels on container and vanilla screens, slot-group
+     * <p><b>Every host:</b> panels on container and vanilla screens, anchor
      * panels, and a standalone screen's own panels all claim by this rule.
      *
      * <p>Default: {@code true}.

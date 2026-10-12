@@ -41,8 +41,7 @@ import java.util.List;
  * <p>Each child receives the context it was given: a container moves the origin
  * to where it positions its children ({@link InputContext#at}) before calling
  * these, and adds its own disabled state ({@link InputContext#disabledIf}).
- * "Shown" is the child's own {@link PanelElement#isVisible()}; a host passes only
- * the elements the window engine also shows.
+ * "Shown" is the child's own {@link PanelElement#isVisible()}.
  */
 public final class ChildDispatch {
 
