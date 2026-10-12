@@ -3,32 +3,16 @@
   "minVersion": "0.8",
   "package": "com.trevlar.menukit.mixin",
   "compatibilityLevel": "JAVA_25",
-  "mixins": [
-    "CompoundContainerAccessor",
-    "MKClickContextMixin",
-    "MKDispenserGateMixin",
-    "MKEnderChestOwnerMixin",
-    "MKHopperGateMixin",
-    "MKInventoryInsertMixin",
-    "MKOperationsMixin",
-    "MKPlayerActionMixin",
-    "MKSlotGateMixin",
-    "SlotPositionAccessor"
-  ],
+  "mixins": [],
   "client": [
     "AbstractContainerScreenAccessor",
     "ClientTextTooltipAccessor",
-    "MKClickSendMixin",
     "MKContainerLayersMixin",
     "MKCreativeTabHoverMixin",
     "MKGuiMixin",
-    "MKHasClickedOutsideContainerMixin",
-    "MKHasClickedOutsideCreativeMixin",
-    "MKHasClickedOutsideMixin",
     "MKItemOutlineDrawMixin",
     "MKItemOutlineMarkMixin",
     "MKListHoverSuppressMixin",
-    "MKLocalDropMixin",
     "MKModalMouseHandlerMixin",
     "MKRecipeBookAccessor",
     "MKSlotInputMixin",
@@ -38,9 +22,7 @@
     "MKYaclControllerOverlayMixin",
     "MKYaclWidgetPressedMixin",
     "MouseHandlerCursorPosAccessor",
-    "ScreenAccessor",
-    "SlotWrapperAccessor",
-    "MKPlayerActionSendMixin"
+    "ScreenAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

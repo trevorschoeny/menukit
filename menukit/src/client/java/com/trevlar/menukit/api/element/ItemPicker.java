@@ -36,7 +36,7 @@ import java.util.function.Supplier;
  * by the consumer: {@code get} is read every frame, {@code set} receives a change.
  * Nothing here touches the player's inventory or the container behind a screen,
  * and nothing is sent to the server. The picker is client-only and is MenuKit, not
- * Containers: choosing an item never takes one, and the slot is not a real slot.
+ * a slot library: choosing an item never takes one, and the slot is not a real slot.
  * {@link Items#AIR} is "no item": the slot shows empty.
  *
  * <h3>Input</h3>

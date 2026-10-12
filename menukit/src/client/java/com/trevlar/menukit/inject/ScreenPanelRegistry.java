@@ -1,12 +1,10 @@
 package com.trevlar.menukit.inject;
 
+import com.trevlar.menukit.api.panel.Anchor;
+import com.trevlar.menukit.api.panel.AnchorPanelAdapter;
 import com.trevlar.menukit.api.panel.ScreenPanelAdapter;
-import com.trevlar.menukit.api.slot.SlotGroupId;
-import com.trevlar.menukit.api.panel.SlotGroupPanelAdapter;
 import com.trevlar.menukit.api.panel.VanillaScreenPanelAdapter;
 import com.trevlar.menukit.api.panel.Reference;
-import com.trevlar.menukit.api.slot.ResolvedSlotGroup;
-import com.trevlar.menukit.api.slot.SlotGroupCategories;
 import com.trevlar.menukit.api.panel.Focus;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.ScreenKind;
@@ -22,7 +20,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.world.inventory.Slot;
+import net.minecraft.resources.Identifier;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
@@ -44,7 +42,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *
  * <h2>Declarations</h2>
  * The three adapters ({@link ScreenPanelAdapter}, {@link VanillaScreenPanelAdapter},
- * {@link SlotGroupPanelAdapter}) declare here. Declaring, targeting and unregistering
+ * {@link AnchorPanelAdapter}) declare here. Declaring, targeting and unregistering
  * all freeze with the rest of MenuKit's declarations ({@code Declarations.requireOpen}):
  * after client start they throw. Order is never registration order: each host sorts
  * its entries by {@code (priority, modId, sequence)}.
@@ -53,11 +51,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * When a screen opens, it gets up to three kinds of host, bottom to top:
  * <ol>
  *   <li><b>own</b>: a standalone screen's own panels ({@code MKScreen},
- *       {@code CustomContainerScreen}), attached by the screen itself
+ *       a library's own screen), attached by the screen itself
  *       ({@link #attachOwnHost});</li>
  *   <li><b>context</b>: the adapters targeting this screen (container adapters on a
  *       container screen, vanilla-screen adapters on any other);</li>
- *   <li><b>slot groups</b> (container screens): one host per targeted slot group.</li>
+ *   <li><b>anchors</b> (any screen): one host per targeted {@link Anchor} whose box is
+ *       on the screen.</li>
  * </ol>
  *
  * <h2>Global questions, one answer each</h2>
@@ -66,9 +65,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * panel in the one draw order read top down ({@link LayerPlan#topDown}: OVERLAY,
  * then POPOVER, then FLOW, upper host before lower), by
  * {@link PanelHost#claimsPoint}. Slot hover, widget hover, list and tab hover,
- * tooltips and the MouseHandler-level input eat all reduce to it, so a new host (the
- * slot-group host and the standalone hosts are new to it in 6.0.0) cannot fall
- * through a per-site gap.
+ * tooltips and the MouseHandler-level input eat all reduce to it, so a new host (an
+ * anchor host, a standalone host) cannot fall through a per-site gap.
  *
  * <p>Internal: consumers use the adapters; the mixins call in here.
  */
@@ -83,15 +81,15 @@ public final class ScreenPanelRegistry {
 
     private static final List<ScreenPanelAdapter> CONTAINER = new CopyOnWriteArrayList<>();
     private static final List<VanillaScreenPanelAdapter> VANILLA = new CopyOnWriteArrayList<>();
-    private static final List<SlotGroupPanelAdapter> SLOT_GROUP = new CopyOnWriteArrayList<>();
+    private static final List<AnchorPanelAdapter> ANCHORED = new CopyOnWriteArrayList<>();
 
     public static void declare(ScreenPanelAdapter adapter) { CONTAINER.add(adapter); }
     public static void declare(VanillaScreenPanelAdapter adapter) { VANILLA.add(adapter); }
-    public static void declare(SlotGroupPanelAdapter adapter) { SLOT_GROUP.add(adapter); }
+    public static void declare(AnchorPanelAdapter adapter) { ANCHORED.add(adapter); }
 
     public static void withdraw(ScreenPanelAdapter adapter) { CONTAINER.remove(adapter); }
     public static void withdraw(VanillaScreenPanelAdapter adapter) { VANILLA.remove(adapter); }
-    public static void withdraw(SlotGroupPanelAdapter adapter) { SLOT_GROUP.remove(adapter); }
+    public static void withdraw(AnchorPanelAdapter adapter) { ANCHORED.remove(adapter); }
 
     // Hosts per screen
 
@@ -99,22 +97,22 @@ public final class ScreenPanelRegistry {
     private static final class ScreenHosts {
         @Nullable PanelHost own;
         @Nullable PanelHost context;
-        final Map<SlotGroupId, PanelHost> slotGroups = new LinkedHashMap<>();
+        final Map<Identifier, PanelHost> anchors = new LinkedHashMap<>();
 
         /** Every host, bottom to top. */
         List<PanelHost> all() {
-            List<PanelHost> out = new ArrayList<>(2 + slotGroups.size());
+            List<PanelHost> out = new ArrayList<>(2 + anchors.size());
             if (own != null) out.add(own);
             if (context != null) out.add(context);
-            out.addAll(slotGroups.values());
+            out.addAll(anchors.values());
             return out;
         }
 
         /** The hosts the registry routes input to (not own: the screen routes its own). */
         List<PanelHost> routed() {
-            List<PanelHost> out = new ArrayList<>(1 + slotGroups.size());
+            List<PanelHost> out = new ArrayList<>(1 + anchors.size());
             if (context != null) out.add(context);
-            out.addAll(slotGroups.values());
+            out.addAll(anchors.values());
             return out;
         }
     }
@@ -125,7 +123,7 @@ public final class ScreenPanelRegistry {
 
     /**
      * Attaches a standalone screen's own host, so global questions (claims, modals)
-     * see its panels. Called by {@code MKScreen} and {@code CustomContainerScreen} from
+     * see its panels. Called by {@code MKScreen} and a library's own screen from
      * their {@code init}; idempotent.
      */
     public static void attachOwnHost(Screen screen, PanelHost host) {
@@ -175,7 +173,7 @@ public final class ScreenPanelRegistry {
     }
 
     /**
-     * Builds the screen's context and slot-group hosts from the declared adapters,
+     * Builds the screen's context and anchor hosts from the declared adapters,
      * attaches their elements, and wires render (non-container screens; container
      * screens render through {@link ContainerScreenLayers}) and input.
      */
@@ -186,21 +184,13 @@ public final class ScreenPanelRegistry {
         }
 
         ScreenHosts hosts = HOSTS.computeIfAbsent(screen, s -> new ScreenHosts());
-        hosts.slotGroups.clear();
+        hosts.anchors.clear();
         if (screen instanceof AbstractContainerScreen<?> acs) {
             PanelHost context = PanelHost.container(() -> containerFrame(acs));
             for (ScreenPanelAdapter a : CONTAINER) {
                 if (a.matches(acs)) context.add(a.getPanel(), a.getPanel().getPosition(), a.getPadding(), a.modId(), a.seq());
             }
             hosts.context = context.isEmpty() ? null : context;
-            for (SlotGroupPanelAdapter a : SLOT_GROUP) {
-                if (a.getTargets() == null) continue;
-                for (SlotGroupId id : a.getTargets()) {
-                    PanelHost group = hosts.slotGroups.computeIfAbsent(id,
-                            gid -> PanelHost.slotGroup(() -> slotGroupFrame(acs, gid)));
-                    group.add(a.getPanel(), a.getPanel().getPosition(), a.getPadding(), a.modId(), a.seq());
-                }
-            }
         } else {
             // Any other screen: an options screen when it is vanilla's, the declared
             // kind when it is an MKScreen (ScreenKind.of, the one rule).
@@ -210,6 +200,17 @@ public final class ScreenPanelRegistry {
                 if (a.matches(screen)) context.add(a.getPanel(), a.getPanel().getPosition(), a.getPadding(), a.modId(), a.seq());
             }
             hosts.context = context.isEmpty() ? null : context;
+        }
+        // Anchors, on any screen: one host per targeted anchor, placed around the box
+        // its library supplies this frame (none while the box is absent).
+        ScreenKind kind = ScreenKind.of(screen);
+        for (AnchorPanelAdapter a : ANCHORED) {
+            if (a.getTargets() == null) continue;
+            for (Anchor anchor : a.getTargets()) {
+                PanelHost host = hosts.anchors.computeIfAbsent(anchor.id(),
+                        id -> PanelHost.anchor(kind, () -> anchorFrame(screen, anchor)));
+                host.add(a.getPanel(), a.getPanel().getPosition(), a.getPadding(), a.modId(), a.seq());
+            }
         }
 
         List<PanelHost> routed = hosts.routed();
@@ -282,17 +283,17 @@ public final class ScreenPanelRegistry {
     }
 
     /**
-     * Vanilla-screen and slot-group adapters must name their targets (an everywhere
-     * default makes no sense on the title screen, and "any slot group" is not a
-     * target). Checked once, at the first screen open, and loud.
+     * Vanilla-screen and anchor adapters must name their targets (an everywhere
+     * default makes no sense on the title screen, and "any anchor" is not a target).
+     * Checked once, at the first screen open, and loud.
      */
     private static void requireTargeting() {
         List<String> missing = new ArrayList<>();
         for (VanillaScreenPanelAdapter a : VANILLA) {
             if (!a.isTargetingDeclared()) missing.add("VanillaScreenPanelAdapter " + a.getPanel().id());
         }
-        for (SlotGroupPanelAdapter a : SLOT_GROUP) {
-            if (!a.isTargetingDeclared()) missing.add("SlotGroupPanelAdapter " + a.getPanel().id());
+        for (AnchorPanelAdapter a : ANCHORED) {
+            if (!a.isTargetingDeclared()) missing.add("AnchorPanelAdapter " + a.getPanel().id());
         }
         if (missing.isEmpty()) return;
         String message = "MenuKit: adapters constructed but never targeted (.on(...)): "
@@ -324,7 +325,7 @@ public final class ScreenPanelRegistry {
      * The container screen's own frame, without chrome: {@code leftPos, topPos,
      * imageWidth, imageHeight}. A side-region panel's frame band runs to its edge
      * ({@code topPos + imageHeight} for a top-aligned one), on the container host and
-     * on every slot-group host alike.
+     * on every anchor host alike.
      */
     private static Reference screenFrame(AbstractContainerScreenAccessor acc) {
         return new Reference(acc.mk$getLeftPos(), acc.mk$getTopPos(),
@@ -332,30 +333,16 @@ public final class ScreenPanelRegistry {
     }
 
     /**
-     * One slot group's frame: the box around its slots this frame (re-resolved every
-     * time, since creative tab switches and dynamic menus change {@code menu.slots}),
-     * or {@code null} when the group is not on this menu right now. Each group gets
-     * its own box: a created group declaring a vanilla category never stretches that
-     * category's box.
+     * One anchor's frame: the box its library supplies on this screen this frame, or
+     * {@code null} when the anchor is not there. On a container screen a side-region
+     * panel's band runs to the screen's frame; elsewhere there is no frame to run to.
      */
-    private static PanelHost.@Nullable Frame slotGroupFrame(AbstractContainerScreen<?> screen, SlotGroupId id) {
-        for (ResolvedSlotGroup group : SlotGroupCategories.groups(screen.getMenu())) {
-            if (!group.id().equals(id) || group.slots().isEmpty()) continue;
-            int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
-            int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
-            for (Slot slot : group.slots()) {
-                minX = Math.min(minX, slot.x);
-                minY = Math.min(minY, slot.y);
-                maxX = Math.max(maxX, slot.x + 16);
-                maxY = Math.max(maxY, slot.y + 16);
-            }
-            AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
-            Reference box = new Reference(acc.mk$getLeftPos() + minX, acc.mk$getTopPos() + minY,
-                    maxX - minX, maxY - minY);
-            // Placed around the group's box; its band runs to the screen's frame.
-            return new PanelHost.Frame(screen.width, screen.height, box, screenFrame(acc));
-        }
-        return null;
+    private static PanelHost.@Nullable Frame anchorFrame(Screen screen, Anchor anchor) {
+        Reference box = anchor.box(screen);
+        if (box == null) return null;
+        Reference band = screen instanceof AbstractContainerScreen<?> acs
+                ? screenFrame((AbstractContainerScreenAccessor) acs) : null;
+        return new PanelHost.Frame(screen.width, screen.height, box, band);
     }
 
     // Rendering
@@ -368,9 +355,9 @@ public final class ScreenPanelRegistry {
 
     /**
      * Layer 2 of {@link ContainerScreenLayers}: the FLOW layer of the registry's
-     * hosts (context, then slot groups), then the POPOVER layer of every host on the
-     * screen, the screen's own included. The screen's own FLOW (an
-     * {@code CustomContainerScreen}'s panels) drew earlier, under vanilla's slots.
+     * hosts (context, then anchors), then the POPOVER layer of every host on the
+     * screen, the screen's own included. The screen's own FLOW (a library's own
+     * screen's panels) drew earlier, under vanilla's slots.
      * Popovers draw here, before the created slots, so a popover's own slots draw on
      * its background as a FLOW panel's do.
      */

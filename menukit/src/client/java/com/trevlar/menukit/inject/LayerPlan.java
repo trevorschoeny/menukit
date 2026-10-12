@@ -22,7 +22,7 @@ import java.util.List;
  *       above every FLOW panel on the screen, whichever host holds either and
  *       whichever registered first: Inventory Max's pocket row, on the container
  *       screen's host, over Inventory Plus's switches on the player inventory's
- *       slot-group host.</li>
+ *       anchor host.</li>
  *   <li><b>Dim</b>: when any shown panel on the surface {@link Panel#dimsBehind()
  *       dims behind}, one translucent fill over the whole screen, so it covers
  *       vanilla content and every FLOW and POPOVER panel alike.</li>

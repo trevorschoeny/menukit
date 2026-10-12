@@ -1,11 +1,9 @@
-// MenuKit: the window (one interface to any slot, panel or element), the slot
-// operations and slot groups, and the UI library (panels, elements, layouts,
-// HUD, regions). Runs on both sides since 6.0.0: src/main runs on both sides,
+// MenuKit: the UI library (panels, elements, layouts, HUD, regions, anchors).
+// Universal since 6.0.0: src/main runs on both sides (placement types and the
+// declarations freeze, which the Kits built on MenuKit use on servers too),
 // src/client is what touches a screen, and Loom's split source sets make the
-// compiler enforce that.
-//
-// Keeps the bare `menukit` mod ID. MenuKit: Containers (the slot extension) is
-// published separately and depends on this one, not the other way round.
+// compiler enforce that. MenuKit keeps no slot code (7.0.0): slots are SlotKit's,
+// which depends on MenuKit, never the reverse.
 
 plugins {
     // The Loom plugin id is namespaced from 1.15 on, and 1.17 is the line for
@@ -135,6 +133,39 @@ tasks.register('verifyJarVersion') {
 }
 build.dependsOn verifyJarVersion
 
+// MenuKit keeps no slot code (Amethyst, 7.0.0): the jar has no api/slot, api/window or
+// window package, and no source or resource names slotkit (the library built on
+// MenuKit), so the dependency stays one way. Prose may say "SlotKit"; code may not
+// reach it.
+tasks.register('verifyNoSlotCode') {
+    dependsOn 'jar'
+    def sources = fileTree('src') { exclude '**/*.png' }
+    inputs.files(sources)
+    doLast {
+        def jar = tasks.named('jar').get().archiveFile.get().asFile
+        def slotPackages = ['com/trevlar/menukit/api/slot/', 'com/trevlar/menukit/api/window/', 'com/trevlar/menukit/window/']
+        def inJar = zipTree(jar).matching { slotPackages.each { p -> include "${p}**" } }.files
+        def naming = sources.files.findAll { it.text.contains('slotkit') }
+        def bad = inJar.collect { "jar: ${it.name}" } + naming.collect { "source names slotkit: ${projectDir.toPath().relativize(it.toPath())}" }
+        if (bad) throw new GradleException("Slot code in MenuKit:\n  " + bad.join('\n  '))
+        println "verifyNoSlotCode: ${jar.name} holds no slot package, and no source names slotkit"
+    }
+}
+check.dependsOn verifyNoSlotCode
+
+// No pre-release of MenuKit 7 on Modrinth, ever: every 6.x consumer's "<7.0.0"
+// ceiling admits "7.0.0-beta.1" (semver puts it below 7.0.0), so a pre-release would
+// load under mods built for 6.x and crash them on missing classes. A version with a
+// pre-release part (a '-' before the '+') never uploads.
+tasks.named('modrinth') {
+    doFirst {
+        def v = project.version.toString()
+        if (v.split('\\+')[0].contains('-')) {
+            throw new GradleException("MenuKit ${v} is a pre-release; MenuKit never publishes one to Modrinth.")
+        }
+    }
+}
+
 // Javadoc: the published API reference. Only the api packages; everything else
 // is internal and stays out of the generated site.
 // doclint keeps broken {@link}s as errors (a stale link is a doc bug);
@@ -144,7 +175,7 @@ javadoc {
     // The reference covers the api packages of both source sets.
     source += sourceSets.client.allJava
     classpath += sourceSets.client.compileClasspath + sourceSets.main.output + sourceSets.client.output
-    include 'com/trevlar/menukit/api/**', 'com/trevlar/menukit/containers/api/**'
+    include 'com/trevlar/menukit/api/**'
     options.addBooleanOption('Xdoclint:all,-missing,-html,-accessibility', true)
     options.tags = ['implNote:a:Implementation note:', 'implSpec:a:Implementation requirements:', 'apiNote:a:API note:']
     options.encoding = 'UTF-8'

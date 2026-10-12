@@ -456,19 +456,6 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
             return self();
         }
 
-        /**
-         * 6.0.0's per-dropdown look. Does nothing since 6.1.0: the dropdown draws for
-         * the kind of screen it is on ({@link com.trevlar.menukit.api.panel.ScreenKind}).
-         * Kept so a mod built against 6.0.0 still loads; removed in 7.0.0.
-         *
-         * @deprecated delete the call
-         */
-        @Deprecated(since = "6.1.0", forRemoval = true)
-        @SuppressWarnings("removal")
-        public B style(ControlStyle ignored) {
-            return self();
-        }
-
         /** Validation both share. */
         protected final void requireCommon() {
             require(width > 0 && height > 0, "size(w, h) is required");

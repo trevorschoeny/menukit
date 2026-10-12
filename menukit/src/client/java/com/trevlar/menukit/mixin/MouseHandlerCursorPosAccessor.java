@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
  * position in sync with the OS cursor after it warps the cursor back.
  *
  * <p>On some screen transitions (notably the async server-driven open path used
- * for custom MKC menus), vanilla resets {@code xpos}/{@code ypos} to the window
+ * for a slot library's custom menus), vanilla resets {@code xpos}/{@code ypos} to the window
  * centre before the new screen's {@code init()} runs. {@code CursorContinuity}
  * puts the OS cursor back with a warp, but the handler fields don't follow it
  * straight away; without this they stay centred until the mouse moves. The cursor then looks right while

@@ -1,26 +1,26 @@
 # Getting started
 
-This page takes a Fabric mod from no UI to two visible panels: one on the HUD and one on the inventory screen. It uses MenuKit alone. Slots and custom menus need MenuKit: Containers, covered in [recipes.md](recipes.md).
+This page takes a Fabric mod from no UI to two visible panels: one on the HUD and one on the inventory screen. It uses MenuKit alone. Slots and custom menus are SlotKit's, a separate library built on MenuKit.
 
-Prerequisites: a Fabric mod project on Minecraft 26.2 with a client entry point.
+Prerequisites: a Fabric mod project on Minecraft 26.3 with a client entry point.
 
 ## 1. Add the dependency
 
-Add the Modrinth maven and the MenuKit artifact to `build.gradle`. Minecraft 26.2 is unobfuscated, so the dependency goes on `implementation`:
+Add the Modrinth maven and MenuKit to `build.gradle`. Minecraft 26.3 is unobfuscated, so the dependency goes on `implementation`:
 
 ```gradle
 repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    implementation 'maven.modrinth:menukit:6.2.0+26.3'
+    implementation 'maven.modrinth:menukit:7.0.0+26.3'
 }
 ```
 
 Declare the dependency in `fabric.mod.json`:
 
 ```json
-"depends": { "menukit": ">=6.2.0 <7.0.0" }
+"depends": { "menukit": ">=7.0.0 <8.0.0" }
 ```
 
 Declare both bounds. The lower bound guarantees the API you call exists. The upper bound stops the next breaking MenuKit from loading against a jar built before it existed. That combination fails at a class load in the middle of a play session instead of at launch.
@@ -86,6 +86,6 @@ Start the client with the mod's `runClient` task. Open the inventory to see the 
 ## Next
 
 - [concepts.md](concepts.md) defines panels, elements, placement and the five contexts.
-- [recipes.md](recipes.md) covers the common tasks, including slots.
+- [recipes.md](recipes.md) covers the common tasks.
 - [limits.md](limits.md) lists what MenuKit does not do.
-- The [reference](https://trevorschoeny.github.io/menukit/) is the generated javadoc for every public type in both artifacts.
+- The [reference](https://trevorschoeny.github.io/menukit/) is the generated javadoc for every public type.

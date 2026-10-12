@@ -32,7 +32,7 @@ import org.jspecify.annotations.Nullable;
  *       {@link AbstractContainerScreen} is a container screen, any other vanilla
  *       screen an options screen, so a panel on Controls gets the options look with
  *       no code.</li>
- *   <li>A slot group's panels: container.</li>
+ *   <li>An anchor's panels: the kind of the screen the anchor is on.</li>
  *   <li>A standalone {@link MKScreen}: the kind it declared when it was created
  *       ({@code super(title, ScreenKind.OPTIONS, panels)}), {@link #CONTAINER} when it
  *       declared none, which is how every standalone screen looked before 6.1.0.</li>

@@ -11,9 +11,9 @@ import java.util.function.Supplier;
  * Where a panel sits: the one placement declaration every host reads.
  *
  * <p>Placement is declared once, on the panel. A host (a container screen, a
- * vanilla screen, a slot group, the HUD, a standalone {@code MKScreen}) reads
+ * vanilla screen, an anchor, the HUD, a standalone {@code MKScreen}) reads
  * this record and resolves it against its own reference: the menu frame, the
- * screen, the slot group's box, the game window, or the screen's own
+ * screen, the anchor's box, the game window, or the screen's own
  * {@link Mode#MAIN main} panel. Adapters no longer take a region; the panel says
  * where it goes, and the adapter only says which screens it appears on.
  *
@@ -28,8 +28,8 @@ import java.util.function.Supplier;
  *       and the reference its {@code REGION} siblings resolve against.</li>
  *   <li>{@link Mode#REGION}: outside a reference rectangle via an
  *       {@link OutsideRegion} (RIGHT_ALIGN_TOP, BOTTOM_CENTER, ...). The rectangle is
- *       the host's: the menu frame on a container screen, the slot group's box for
- *       a slot-group adapter, the main panel on a standalone screen.</li>
+ *       the host's: the menu frame on a container screen, the anchor's box for
+ *       an anchor adapter, the main panel on a standalone screen.</li>
  *   <li>{@link Mode#SCREEN_ANCHOR}: on one of the nine {@link InsideRegion} spots of
  *       the screen (or the game window, for the HUD), inset from the edges it
  *       touches.</li>
@@ -114,7 +114,7 @@ public record PanelPosition(Mode mode,
 
     /**
      * Outside the host's reference rectangle via {@code region}: to the right of the
-     * menu frame, below a slot group, above a standalone screen's main panel, and so
+     * menu frame, below an anchor, above a standalone screen's main panel, and so
      * on. Resolved by {@link RegionMath#resolveMenu}, so it is edge-aware on both
      * axes and auto-scrolls when it would overflow the screen. Siblings sharing a
      * region stack away from the anchor edge in {@link #priority} order.

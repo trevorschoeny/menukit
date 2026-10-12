@@ -33,7 +33,7 @@ public final class RegionMath {
     // Available width: how much outer width a panel may take before it crosses
     // the screen-edge margin, given how it is anchored. These three cover every
     // anchor shape, and each placement context (menu, HUD, vanilla screen,
-    // centered screen, slot group) calls the one that matches the way it grows.
+    // centered screen, anchor) calls the one that matches the way it grows.
     // None takes the panel's width, so measuring never depends on placing: every
     // directional region pins one edge and grows into the budget.
 
@@ -144,7 +144,7 @@ public final class RegionMath {
      * wrapping element then puts one child per column).
      *
      * @param region    the panel's region
-     * @param reference what the region resolves around (the frame, or a slot group's box)
+     * @param reference what the region resolves around (the frame, or an anchor's box)
      * @param frame     the screen's frame the band runs to
      * @param prefix    the extent of the siblings stacked before the panel in the region,
      *                  gaps included, as {@link #resolveMenu} takes it

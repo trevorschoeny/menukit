@@ -84,7 +84,7 @@ public class MKScreen extends Screen {
     /**
      * Optional action run on close (Escape) instead of returning to the game. Set it
      * when this screen was opened over something to restore on exit, above all a
-     * live server-synced container (a {@code CustomContainerScreen}): opening a
+     * live server-synced container (a slot library's own screen): opening a
      * plain Screen over a container makes vanilla close that container on the
      * server, so going back means opening it again. Null for the default close.
      */

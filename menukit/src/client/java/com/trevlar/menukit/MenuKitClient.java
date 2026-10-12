@@ -4,18 +4,12 @@ import com.trevlar.menukit.api.MK;
 import com.trevlar.menukit.api.panel.Focus;
 import com.trevlar.menukit.inject.MenuChrome;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
-import com.trevlar.menukit.inject.VanillaSlotGroupResolvers;
 import com.trevlar.menukit.input.CursorContinuity;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevlar.menukit.mixin.MKRecipeBookAccessor;
 
-import com.trevlar.menukit.api.window.WindowSignals;
-
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
 import net.minecraft.client.gui.screens.inventory.CraftingScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
@@ -37,32 +31,19 @@ public class MenuKitClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         // Declarations freeze once every client entrypoint has run, in a phase
-        // after the default one, so anything a library wires at client start (Containers'
-        // container panels) declares before the freeze, whichever mod's entrypoint ran first.
+        // after the default one, so anything a library wires at client start declares
+        // before the freeze, whichever mod's entrypoint ran first.
         net.minecraft.resources.Identifier freeze =
                 net.minecraft.resources.Identifier.fromNamespaceAndPath("menukit", "freeze");
         var started = net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED;
         started.addPhaseOrdering(net.fabricmc.fabric.api.event.Event.DEFAULT_PHASE, freeze);
-        started.register(freeze, client -> com.trevlar.menukit.api.window.Declarations.freeze("client started"));
+        started.register(freeze, client -> com.trevlar.menukit.api.Declarations.freeze("client started"));
 
         MK.initClient();
 
         // Vanilla menu-chrome providers, registered here so region-aware
         // ScreenPanelAdapters built later resolve origins around the chrome.
         registerVanillaMenuChrome();
-
-        // Slot-group recognition is complete in MenuKit without MenuKit-Containers:
-        // resolvers cover the 22 vanilla menu classes, so panels anchored to slot
-        // groups work without MKC loaded.
-        // Seeing through creative's slot wrapper: a client class, so installed here.
-        com.trevlar.menukit.inject.Slots.installUnwrap(slot -> {
-            if (slot instanceof com.trevlar.menukit.mixin.SlotWrapperAccessor wrapper) {
-                net.minecraft.world.inventory.Slot t = wrapper.mk$getTarget();
-                if (t != null) return t;
-            }
-            return slot;
-        });
-        com.trevlar.menukit.inject.CreativeSlotGroupResolver.registerClient();   // the rest registered in MK.init, both sides
 
         // One ScreenEvents.AFTER_INIT listener for every panel adapter, so
         // consumers don't each register their own.
@@ -95,30 +76,6 @@ public class MenuKitClient implements ClientModInitializer {
             if (client.getWindow() != null) {
                 client.getWindow().setAllowCursorChanges(
                         !com.trevlar.menukit.inject.ScreenPanelRegistry.modalGatesInput());
-            }
-            // Client-observed reactions (ON_*_OBSERVED): diff the open container
-            // menu's synced contents and fire UI feedback.
-            AbstractContainerScreen<?> acs =
-                    client.gui.screen() instanceof AbstractContainerScreen<?> s ? s : null;
-            com.trevlar.menukit.window.ObservedReactions.tick(acs != null ? acs.getMenu() : null);
-            // Slot interaction signals: which slot the cursor is over, read from the
-            // screen's hoveredSlot through the accessor. Clicks are wired below.
-            WindowSignals.tickHover(
-                    acs != null ? acs.getMenu() : null,
-                    acs != null ? ((AbstractContainerScreenAccessor) (Object) acs).mk$getHoveredSlot() : null);
-        });
-
-        // Slot interaction signals: record the last-clicked slot on any container
-        // screen (the slot under the cursor at click time) and clear it on close.
-        // Observation only; the click still does what vanilla does.
-        ScreenEvents.AFTER_INIT.register((mc, screen, w, h) -> {
-            if (screen instanceof AbstractContainerScreen<?> acs) {
-                ScreenMouseEvents.afterMouseClick(screen).register((scr, event, consumed) -> {
-                    WindowSignals.recordClick(acs.getMenu(),
-                            ((AbstractContainerScreenAccessor) (Object) acs).mk$getHoveredSlot());
-                    return false; // observation only, never consume
-                });
-                ScreenEvents.remove(screen).register(scr -> WindowSignals.clearSelection());
             }
         });
     }

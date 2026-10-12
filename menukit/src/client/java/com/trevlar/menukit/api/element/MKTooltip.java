@@ -14,7 +14,7 @@ import net.minecraft.network.chat.FormattedText;
 import net.minecraft.network.chat.Style;
 import net.minecraft.util.FormattedCharSequence;
 
-import com.trevlar.menukit.api.window.Declarations;
+import com.trevlar.menukit.api.Declarations;
 import com.trevlar.menukit.mixin.ClientTextTooltipAccessor;
 
 import org.joml.Vector2i;
@@ -240,15 +240,6 @@ public final class MKTooltip {
 
     /** Registered "dock while" predicates. Written only during init, read every frame. */
     private static final Set<BooleanSupplier> DOCK_WHEN = new LinkedHashSet<>();
-
-    /**
-     * Unused since 6.2.0, when {@link #avoidCoverWhen} stopped wrapping a tooltip to the
-     * room beside the cursor. Kept so code that read it still links.
-     *
-     * @deprecated nothing reads it; removed in 7.0.0
-     */
-    @Deprecated(since = "6.2.0", forRemoval = true)
-    public static final int MIN_WRAP_WIDTH = 60;
 
     /**
      * Docks every tooltip vanilla places beside the cursor on every frame {@code condition}

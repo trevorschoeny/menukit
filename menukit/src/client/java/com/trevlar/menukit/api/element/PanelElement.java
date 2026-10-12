@@ -13,8 +13,8 @@ import java.util.function.Supplier;
  * using {@code childX}/{@code childY} coordinates.
  *
  * <p>Panel elements are a decorative/interactive layer on top of the panel
- * backgrounds. In inventory-menu panels they sit alongside slot groups (which
- * live on the handler, not on the panel itself); in HUD panels and
+ * backgrounds. In a slot library's menu panels they sit alongside slots (which
+ * live on the menu, not on the panel itself); in HUD panels and
  * standalone-screen panels they are the only content.
  *
  * <p>Elements are per-panel-instance: each panel holds its own elements.

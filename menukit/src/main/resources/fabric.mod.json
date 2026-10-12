@@ -4,7 +4,7 @@
   "version": "${version}",
   "name": "MenuKit",
   "icon": "icon.png",
-  "description": "A UI library for Fabric mods: panels, buttons, sliders, tabs and HUD readouts, placed on the HUD, vanilla screens and your own screens, with slot groups and slot operations every mod can read. For created slots and custom container menus, add MenuKit: Containers.",
+  "description": "A UI library for Fabric mods: panels, buttons, sliders, tabs and HUD readouts, placed on the HUD, vanilla screens and your own screens. For slots, add SlotKit.",
   "authors": ["trevorschoeny"],
   "license": "MIT",
   "environment": "*",

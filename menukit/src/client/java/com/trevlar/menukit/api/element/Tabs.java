@@ -224,16 +224,6 @@ public final class Tabs extends AbstractPanelElement {
     public static final int SIDEBAR_HEADER_GAP = 4;
     /** Space between the full-width header and everything under it: the same gap as the sidebar header's. */
     public static final int HEADER_GAP = SIDEBAR_HEADER_GAP;
-    /**
-     * Width of the sidebar's scrollbar on an options screen: vanilla's list
-     * scrollbar ({@code AbstractScrollArea.SCROLLBAR_WIDTH}).
-     *
-     * @deprecated The sidebar's scrollbar is a {@link ScrollContainer}'s now, as
-     *     wide as the kind of screen draws it: {@link ScrollContainer#TRACK_WIDTH}
-     *     on a container screen, 6 on an options screen. Goes in 7.0.0.
-     */
-    @Deprecated(since = "6.1.0", forRemoval = true)
-    public static final int SIDEBAR_SCROLLBAR_WIDTH = 6;
     /** Space between the sidebar's scrollbar and its tabs. */
     private static final int SIDEBAR_SCROLLBAR_GAP = 2;
 
@@ -369,7 +359,7 @@ public final class Tabs extends AbstractPanelElement {
      *         same id, or the body is a finished list, or the tab is a stand-in
      */
     public static void addTo(Identifier menu, TabSpec tab) {
-        com.trevlar.menukit.api.window.Declarations.requireOpen("Tabs.addTo(" + menu + ")");
+        com.trevlar.menukit.api.Declarations.requireOpen("Tabs.addTo(" + menu + ")");
         Objects.requireNonNull(menu, "menu");
         Objects.requireNonNull(tab, "tab");
         if (tab.label == null) throw new IllegalStateException("Tabs: tab '" + tab.id + "' has no label");

@@ -1,7 +1,5 @@
 package com.trevlar.menukit.api.panel;
 
-import com.trevlar.menukit.api.slot.ResolvedSlotGroup;
-
 /**
  * The rectangle a panel is placed against, a <b>reference</b>.
  *
@@ -13,12 +11,12 @@ import com.trevlar.menukit.api.slot.ResolvedSlotGroup;
  * <table>
  *   <tr><th>Reference</th><th>What it is</th></tr>
  *   <tr><td>Menu frame</td><td>vanilla's GUI window for the open container</td></tr>
- *   <tr><td>Slot group</td><td>the rectangle enclosing one {@link ResolvedSlotGroup}</td></tr>
+ *   <tr><td>Anchor</td><td>a rectangle another library supplies per screen (a slot group's box, a button column)</td></tr>
  *   <tr><td>Screen</td><td>the game window, for HUD panels and screen chrome</td></tr>
  * </table>
  *
  * <p>The call site decides which kind a placement uses: a {@link ScreenPanelAdapter}
- * means the menu frame, a {@link SlotGroupPanelAdapter} the group it targets. So the
+ * means the menu frame, an {@code AnchorPanelAdapter} the anchor it targets. So the
  * reference is not a tagged type, and a
  * {@link com.trevlar.menukit.api.panel.OutsideRegion} does not name which kind it
  * applies to. (Before 5.0.0 there were two identical records, {@code ScreenBounds}

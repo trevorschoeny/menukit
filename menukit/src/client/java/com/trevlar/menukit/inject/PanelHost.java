@@ -16,7 +16,6 @@ import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.RegionMath;
 import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.api.element.RenderContext;
-import com.trevlar.menukit.window.ClientWindowVisibility;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -45,8 +44,8 @@ import java.util.function.Supplier;
 
 /**
  * One place panels live. Each of the five contexts makes a host: a container
- * screen, a non-container vanilla screen, a slot group, the HUD, and a standalone
- * screen ({@code MKScreen}, {@code CustomContainerScreen}). The contexts stay
+ * screen, a non-container vanilla screen, an anchor, the HUD, and a standalone
+ * screen ({@code MKScreen}, a library's own screen). The contexts stay
  * distinct, but stacking, budgets, rendering, claims and dispatch are written once,
  * here.
  *
@@ -59,7 +58,7 @@ import java.util.function.Supplier;
  *       depends on which mod loaded first.</li>
  *   <li><b>Origin resolution</b> ({@link #layout}): each shown entry's position is
  *       resolved against this frame's {@link Frame}: the reference rectangle (menu
- *       frame, slot-group box, or the standalone screen's own main panel) and the
+ *       frame, anchor box, or the standalone screen's own main panel) and the
  *       screen size. One budget function feeds each panel the room it has before it
  *       is measured; one stacking prefix per region; one resolver per reference kind
  *       ({@link RegionMath#resolveMenu}, {@link RegionMath#resolveInside}).</li>
@@ -95,11 +94,11 @@ public final class PanelHost {
         CONTAINER("container screen"),
         /** A non-container vanilla screen (Options, title, ...): no frame, screen spots only. */
         VANILLA_SCREEN("vanilla screen"),
-        /** One slot group on a container screen: REGION resolves around the group's box. */
-        SLOT_GROUP("slot group"),
+        /** One anchor on any screen: REGION resolves around the rectangle its library supplies. */
+        ANCHOR("anchor"),
         /** The in-game HUD: screen spots on the game window; render only, no input. */
         HUD("HUD"),
-        /** A standalone screen ({@code MKScreen}, {@code CustomContainerScreen}): its own main panel is the frame. */
+        /** A standalone screen ({@code MKScreen}, a library's own screen): its own main panel is the frame. */
         STANDALONE("standalone screen");
 
         private final String label;
@@ -120,7 +119,7 @@ public final class PanelHost {
 
     /**
      * One panel in this host. The same {@link Panel} may sit in several hosts (a
-     * slot-group adapter targeting two groups is in two slot-group hosts), each with
+     * anchor adapter targeting two anchors is in two anchor hosts), each with
      * its own entry: registries are keyed by (panel, host), not by panel identity.
      *
      * @param panel    the panel
@@ -154,14 +153,14 @@ public final class PanelHost {
      *
      * @param sw          GUI-scaled screen width
      * @param sh          GUI-scaled screen height
-     * @param reference   the rectangle REGION resolves around (menu frame, slot-group
+     * @param reference   the rectangle REGION resolves around (menu frame, anchor
      *                    box), or {@code null} when the context has none. A standalone
      *                    host computes its own from its main panel.
      * @param screenFrame the screen's frame, which a side-region panel's frame band
      *                    runs to ({@link RegionMath#frameBandHeight}): the container
      *                    screen's {@code leftPos, topPos, imageWidth, imageHeight} for
-     *                    a container or slot-group host, so a slot-group panel wraps
-     *                    where the screen ends rather than where its group does;
+     *                    a container or anchor host, so an anchor panel wraps
+     *                    where the screen ends rather than where its anchor does;
      *                    {@code null} where there is no frame (a standalone host uses
      *                    its main frame instead).
      */
@@ -195,7 +194,7 @@ public final class PanelHost {
 
     /**
      * A standalone host's own slots: whether {@code panel} hosts the live slot under
-     * the point. {@code CustomContainerScreen} answers for its slot groups, so its opaque
+     * the point. A slot library's screen answers for its own slots, so its opaque
      * panels claim their rectangles without making their own slots inert.
      */
     @FunctionalInterface
@@ -245,7 +244,7 @@ public final class PanelHost {
     }
 
     // Each factory fixes the kind of screen (ScreenKind) by the one rule: a container
-    // screen and its slot groups are CONTAINER; the HUD keeps the look it always had
+    // screen is CONTAINER; an anchor takes the kind of the screen it is on; the HUD keeps the look it always had
     // (CONTAINER); any other screen is what ScreenKind.of says for it (OPTIONS for a
     // vanilla screen, the declared kind for an MKScreen); a standalone screen passes
     // the kind it declared.
@@ -264,9 +263,9 @@ public final class PanelHost {
         return new PanelHost(Kind.VANILLA_SCREEN, screenKind, frames, RegionMath.Insets.SCREEN);
     }
 
-    /** One slot group's host: REGION around the group's box. Always a container screen. */
-    public static PanelHost slotGroup(Supplier<@Nullable Frame> frames) {
-        return new PanelHost(Kind.SLOT_GROUP, ScreenKind.CONTAINER, frames, RegionMath.Insets.CHROME);
+    /** One anchor's host: REGION around the anchor's box, in the look of the screen it is on. */
+    public static PanelHost anchor(ScreenKind screenKind, Supplier<@Nullable Frame> frames) {
+        return new PanelHost(Kind.ANCHOR, screenKind, frames, RegionMath.Insets.CHROME);
     }
 
     /** The HUD's host: screen spots on the game window; render only. Draws as it always has (container). */
@@ -300,7 +299,7 @@ public final class PanelHost {
     /**
      * Standalone: a panel's content size ({width, height}, padding excluded) when the
      * panel's own {@code getWidth/getHeight} does not know it all (a
-     * {@code CustomContainerScreen} panel also holds slot groups). Default: the panel's own.
+     * slot library's screen panel also holds slots). Default: the panel's own.
      */
     public PanelHost contentSize(Function<Panel, int[]> size) { this.contentSize = size; return this; }
 
@@ -368,8 +367,8 @@ public final class PanelHost {
             case UNPLACED -> false;
             case PIXEL, CENTER -> true;
             case MAIN -> kind == Kind.STANDALONE;
-            case REGION -> kind == Kind.CONTAINER || kind == Kind.SLOT_GROUP || kind == Kind.STANDALONE;
-            case SCREEN_ANCHOR -> kind != Kind.SLOT_GROUP;
+            case REGION -> kind == Kind.CONTAINER || kind == Kind.ANCHOR || kind == Kind.STANDALONE;
+            case SCREEN_ANCHOR -> kind != Kind.ANCHOR;
         };
         if (mode == PanelPosition.Mode.REGION && position.region() == null) ok = false;
         if (mode == PanelPosition.Mode.SCREEN_ANCHOR && position.screenAnchor() == null) ok = false;
@@ -378,7 +377,7 @@ public final class PanelHost {
             String hint = switch (kind) {
                 case CONTAINER -> "region(OutsideRegion), screenAnchor(InsideRegion), center() or pixel(...)";
                 case VANILLA_SCREEN, HUD -> "screenAnchor(InsideRegion), center() or pixel(...)";
-                case SLOT_GROUP -> "region(OutsideRegion), center() or pixel(...)";
+                case ANCHOR -> "region(OutsideRegion), center() or pixel(...)";
                 case STANDALONE -> "main(), region(OutsideRegion), screenAnchor(InsideRegion), center() or pixel(...)";
             };
             throw new IllegalArgumentException("MenuKit: panel '" + panel.id() + "' is "
@@ -391,12 +390,11 @@ public final class PanelHost {
 
     /**
      * The one "is this panel shown" answer: its own visibility (imperative or
-     * {@code visibleWhen}) and the engine's VISIBILITY key. A hidden panel is skipped
-     * before layout, so it is never measured, never placed, and its pixel supplier
-     * never runs.
+     * {@code visibleWhen}). A hidden panel is skipped before layout, so it is never
+     * measured, never placed, and its pixel supplier never runs.
      */
     public static boolean isShown(Panel panel) {
-        return ClientWindowVisibility.panelShown(panel);
+        return panel.isVisible();
     }
 
     /**
@@ -426,7 +424,7 @@ public final class PanelHost {
         InputContext in = input(placed, mouseX, mouseY);
         List<PanelElement> shown = shownElements(panel);
         if (ChildDispatch.overlayOwner(shown, in) != null) return true;
-        if (ClientWindowVisibility.panelOpaque(panel)) {
+        if (panel.isOpaque()) {
             return placed.contains(mouseX, mouseY);
         }
         for (PanelElement el : shown) {
@@ -438,7 +436,7 @@ public final class PanelHost {
 
     /**
      * Whether the claimant's own live slot is under the point. A panel that presents
-     * a slot (a {@code SlotElement}, or a standalone screen's slot group) claims its
+     * a slot (a created slot in an element, or a standalone screen's own slots) claims its
      * rectangle like any panel, and the claim routes the point to its own content:
      * for a slot that means vanilla's slot machinery, which then hovers, clicks and
      * tooltips that slot. Anything a different panel put there stays inert.
@@ -464,12 +462,12 @@ public final class PanelHost {
                 screenKind);
     }
 
-    /** The panel's elements the window engine shows (the one isShown for elements). */
+    /** The panel's shown elements (the one isShown for elements). */
     private static List<PanelElement> shownElements(Panel panel) {
         List<PanelElement> all = panel.getElements();
         List<PanelElement> out = new ArrayList<>(all.size());
         for (PanelElement el : all) {
-            if (ClientWindowVisibility.elementShown(panel, el)) out.add(el);
+            if (el.isVisible()) out.add(el);
         }
         return out;
     }
@@ -791,7 +789,7 @@ public final class PanelHost {
      * The frame band for a REGION panel: the content height from its top (its
      * siblings above it counted) down to where the screen's frame ends, for a side
      * region; {@code -1} for every other region or with no screen frame. One feed for
-     * every host that places regions, so a container-screen panel, a slot-group panel
+     * every host that places regions, so a container-screen panel, an anchor panel
      * and a panel beside a standalone screen's main frame all wrap at the frame the
      * same way. Fed before measuring, like the budgets: the panel's size depends on it.
      */

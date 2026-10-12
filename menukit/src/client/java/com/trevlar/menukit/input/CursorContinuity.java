@@ -13,7 +13,7 @@ import org.jetbrains.annotations.ApiStatus;
 /**
  * Keeps the OS cursor where it was across screen transitions. Every screen's
  * {@code removed()} stashes the cursor position, and the next screen's
- * {@code init()} (any screen: vanilla, MenuKit, MKC or another mod's) restores it
+ * {@code init()} (any screen: vanilla, MenuKit, a slot library's or another mod's) restores it
  * through Fabric's AFTER_INIT hook. No base class and no per-consumer opt-in.
  *
  * <p>Vanilla moves the cursor to the window centre on some screen transitions (in

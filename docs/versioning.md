@@ -4,7 +4,7 @@ MenuKit follows semantic versioning. The major number is the compatibility contr
 
 ## What the contract covers
 
-The contract covers the public API: every type in a package named `api` (`com.trevlar.menukit.api.*`, `com.trevlar.menukit.containers.api.*`), and every public member of those types that is not marked `@ApiStatus.Internal`.
+The contract covers the public API: every type in a package named `api` (`com.trevlar.menukit.api.*`), and every public member of those types that is not marked `@ApiStatus.Internal`.
 
 Everything else is internal: the other packages (each marked `@ApiStatus.Internal` on the package), mixins, network payloads, and any member marked `@ApiStatus.Internal`. Internal code can change or disappear in any release, a patch included. It is public only because Java requires that for MenuKit's own packages to reach each other. A mod that calls it can break without warning. A task that seems to need an internal type is a gap in the API, and the fix is a public replacement. Open an issue for it.
 
@@ -12,30 +12,30 @@ Behaviour counts too. A change to what a public method does that could break a c
 
 ## What each part means
 
-A **major** bump means something public was removed or renamed, or its behaviour changed in a way that can break a caller. Code built against the previous major may not link. 5.0.0 replaced the four region enums with `OutsideRegion` and `InsideRegion`; 6.0.0 moved the public types into `api` packages and renamed several.
+A **major** bump means something public was removed or renamed, or its behaviour changed in a way that can break a caller. Code built against the previous major may not link. 5.0.0 replaced the four region enums with `OutsideRegion` and `InsideRegion`; 6.0.0 moved the public types into `api` packages and renamed several; 7.0.0 moved every slot type out to SlotKit.
 
 A **minor** bump adds API. Code built against an earlier minor of the same major keeps working.
 
 A **patch** bump fixes behaviour without changing the API.
 
-The `+26.2` suffix is the Minecraft target. It is build metadata and takes no part in version comparison. A range written against `6.0.0` still matches `6.0.0+26.3` when MenuKit is rebuilt for a newer Minecraft.
+The `+26.3` suffix is the Minecraft target. It is build metadata and takes no part in version comparison. A range written against `7.0.0` still matches `7.0.0+26.4` when MenuKit is rebuilt for a newer Minecraft.
 
 ## What to declare
 
 Pin to the major.minor the mod was built against, not the major alone:
 
 ```json
-"depends": { "menukit": ">=6.1.0 <7.0.0" }
+"depends": { "menukit": ">=7.0.0 <8.0.0" }
 ```
 
 A minor release can add API. A mod can call something a later minor added while declaring only the major's first release as its floor. That mod loads on the older MenuKit and crashes with `NoSuchMethodError` the first time it calls the new method. Within a major, semantic versioning promises new API only going forward. The floor has to track the minor the mod uses.
 
-A mod that also uses MenuKit: Containers pins it the same way. Containers and MenuKit are released together and always carry the same version.
+A mod that also uses SlotKit pins it the same way, against SlotKit's own version. MenuKit and SlotKit each keep their own version; neither re-versions the other.
 
 ```json
 "depends": {
-  "menukit": ">=6.1.0 <7.0.0",
-  "menukit-containers": ">=6.1.0 <7.0.0"
+  "menukit": ">=7.0.0 <8.0.0",
+  "slotkit": ">=1.0.0 <2.0.0"
 }
 ```
 
@@ -45,7 +45,7 @@ Set the lower bound to the version the mod was built and tested against, not the
 
 ### A comma between the bounds
 
-Fabric splits the bounds on a space. A comma is not a separator, so `">=6.1.0,<7.0.0"` is read as one bound with a malformed version, and the mod does not load. Use a space.
+Fabric splits the bounds on a space. A comma is not a separator, so `">=7.0.0,<8.0.0"` is read as one bound with a malformed version, and the mod does not load. Use a space.
 
 ### A missing upper bound
 

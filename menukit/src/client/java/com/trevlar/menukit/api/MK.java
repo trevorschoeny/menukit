@@ -5,7 +5,7 @@ import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.hud.HudNotification;
 import com.trevlar.menukit.inject.LayerPlan;
 import com.trevlar.menukit.inject.PanelHost;
-import com.trevlar.menukit.api.window.Declarations;
+import com.trevlar.menukit.api.Declarations;
 
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -34,14 +34,14 @@ import org.jetbrains.annotations.ApiStatus;
  *       {@link com.trevlar.menukit.api.element.TextLabel}</li>
  *   <li><b>Panels on vanilla container screens:</b>
  *       {@link com.trevlar.menukit.api.panel.ScreenPanelAdapter},
- *       {@link com.trevlar.menukit.api.panel.SlotGroupPanelAdapter}</li>
+ *       {@link com.trevlar.menukit.api.panel.AnchorPanelAdapter}</li>
  *   <li><b>HUD panels:</b> {@link com.trevlar.menukit.api.hud.HudPanel}</li>
  *   <li><b>Standalone screens:</b> {@link com.trevlar.menukit.api.panel.MKScreen}</li>
  *   <li><b>Layout:</b> {@link com.trevlar.menukit.api.layout.Row},
  *       {@link com.trevlar.menukit.api.layout.Column}</li>
  * </ul>
- * Created slots, custom menus, and per-slot state are in MenuKit: Containers
- * ({@code ContainerPanel}, {@code CustomMenu}, {@code SlotState}).
+ * Slot groups, slot operations, created slots and custom menus are SlotKit's, a
+ * separate library built on MenuKit.
  *
  * <p>Supported static methods on this class: {@link #registerHud},
  * {@link #registerNotification}, {@link #notify}, {@link #isRecipeBookOpen},

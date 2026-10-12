@@ -6,7 +6,7 @@ import com.trevlar.menukit.inject.PanelHost;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelStyle;
-import com.trevlar.menukit.api.window.Declarations;
+import com.trevlar.menukit.api.Declarations;
 
 import net.minecraft.client.gui.screens.Screen;
 

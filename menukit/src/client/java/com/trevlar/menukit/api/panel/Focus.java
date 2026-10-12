@@ -158,7 +158,7 @@ public final class Focus {
      * {@link ScreenPanelRegistry#claimAt}: a shown modal claims everything; an
      * opaque panel claims its whole rectangle; a transparent panel its solid
      * elements; an open popover its area. Across every host on the screen (container
-     * and vanilla-screen adapters, slot groups, a standalone screen's own panels).
+     * and vanilla-screen adapters, anchors, a standalone screen's own panels).
      *
      * <p>One exception, for content that belongs to the screen itself (its widgets,
      * list rows, tabs, tooltips): a standalone screen's own panels do not make that

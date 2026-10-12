@@ -1,7 +1,7 @@
 package com.trevlar.menukit.mixin;
 
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
-import com.trevlar.menukit.inject.SlotHoverResult;
+import com.trevlar.menukit.api.host.SlotHoverResult;
 import com.trevlar.menukit.inject.SlotScreenDispatcher;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -44,8 +44,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * <em>slot</em> is not eaten here, because {@code getHoveredSlot} above already
  * routes it to the slot.
  *
- * <p>Both forward to {@link SlotScreenDispatcher}, which does nothing without
- * MenuKit-Containers.
+ * <p>Both forward to {@link SlotScreenDispatcher}, which does nothing until a slot
+ * library installs its {@code SlotScreenHook}.
  */
 @Mixin(AbstractContainerScreen.class)
 public abstract class MKSlotInputMixin {

@@ -1,50 +1,49 @@
 package com.trevlar.menukit.inject;
 
+import com.trevlar.menukit.api.Declarations;
+import com.trevlar.menukit.api.host.SlotHoverResult;
+import com.trevlar.menukit.api.host.SlotScreenHook;
+
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The boundary between MenuKit's registered-slot screen <em>dispatch</em> and
- * MenuKit-Containers' registered-slot <em>work</em>, so MenuKit never names a
- * registered-slot type.
+ * Forwards MenuKit's container-screen dispatch (frame start, hover, click, scroll,
+ * release) to the one {@link SlotScreenHook} a slot library installs, so MenuKit never
+ * names a slot type. With no hook there are no created slots, and every call does
+ * nothing.
  *
- * <p>MenuKit's hooks on {@code AbstractContainerScreen} (frame start, hover, click,
- * scroll, release) call the static {@code fire*} methods here, which forward to the
- * one {@link SlotScreenHook} MenuKit-Containers registers at client init. With no
- * hook set (MenuKit without MenuKit-Containers) there are no registered slots, and
- * every call does nothing.
- *
- * <p>The only state is the hook, which is {@code volatile} so the client-init write
- * is visible to the render thread. There is no {@code init()}: the mixins do the
- * dispatch, and registering is one {@link #setHook} call.
+ * <p>The only state is the hook, {@code volatile} so the client-init write is visible
+ * to the render thread.
  */
 @ApiStatus.Internal
 public final class SlotScreenDispatcher {
 
     private SlotScreenDispatcher() {}
 
-    // Null when MenuKit-Containers is absent. Written once at client init, read on
-    // the render thread.
+    // Null with no slot library. Written once at client init, read on the render thread.
     private static volatile @Nullable SlotScreenHook hook = null;
 
-    /**
-     * Sets the registered-slot hook. MenuKit-Containers calls this once at client
-     * init; a later call replaces the hook.
-     */
-    public static void setHook(SlotScreenHook hook) {
-        SlotScreenDispatcher.hook = hook;
+    /** {@link SlotScreenHook#install}: once, before the freeze. */
+    public static synchronized void install(SlotScreenHook hook) {
+        Declarations.requireOpen("SlotScreenHook.install");
+        if (SlotScreenDispatcher.hook != null) {
+            throw new IllegalStateException("A SlotScreenHook is already installed ("
+                    + SlotScreenDispatcher.hook.getClass().getName() + "); only one slot library may install one.");
+        }
+        SlotScreenDispatcher.hook = java.util.Objects.requireNonNull(hook, "hook");
     }
 
-    /** Whether a registered-slot hook is present (MenuKit-Containers loaded). */
+    /** Whether a hook is installed. */
     public static boolean hasHook() {
         return hook != null;
     }
 
     // Called by the AbstractContainerScreen mixins. Each does nothing when no hook is set.
 
-    /** At {@code extractSlot} HEAD: whether this is a created slot (the layer boundary). False without MKC. */
+    /** At {@code extractSlot} HEAD: whether this is a created slot (the layer boundary). False with no hook. */
     public static boolean fireIsCreated(net.minecraft.world.inventory.Slot slot) {
         SlotScreenHook h = hook;
         return h != null && h.isCreated(slot);

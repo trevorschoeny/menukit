@@ -16,6 +16,13 @@ plugins {
     id 'com.modrinth.minotaur' version '2.+'
 }
 
+// Amethyst, menukit branch 7.0.0: Containers does not compile against MenuKit 7
+// (the slot code it builds on left MenuKit) and leaves this repo for slotkit in step 2,
+// seeded from this repo's history. Until then every task here is off, so a full
+// workspace build skips it instead of failing on it. Step 2 drops it from the
+// workspace's settings.gradle, and this directory with it.
+tasks.configureEach { enabled = false }
+
 version = property('menukit_version')
 group   = 'com.trevlar'
 

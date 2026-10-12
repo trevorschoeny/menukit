@@ -1,33 +1,22 @@
 # MenuKit
 
-MenuKit is a UI library for Fabric mods. It provides the parts of a Minecraft interface (buttons, sliders, tabs, panels, HUD readouts, slots) and places them on screen. A mod builds its menus and overlays with it instead of writing vanilla screen code from scratch.
+MenuKit is a UI library for Fabric mods. It provides the parts of a Minecraft interface (buttons, sliders, tabs, panels, HUD readouts) and places them on screen. A mod builds its menus and overlays with it instead of writing vanilla screen code from scratch.
 
-It ships as two artifacts from this repository:
+It runs on the client and the server (the UI draws on the client; the Kits built on it run server code too). A mod that only draws UI can stay client-only. For slots (finding and acting on slots in any menu, or building real slots and custom menus), add SlotKit, which is built on MenuKit.
 
-| Artifact | Runs on | Adds |
-|---|---|---|
-| `menukit` | Client and server (the UI draws on the client) | Panels, elements, HUD panels, placement on vanilla screens, standalone screens, slot groups and slot operations |
-| `menukit-containers` | Client and server, required on both | Created slots, custom container menus, per-slot state, storage attachments |
-
-`menukit-containers` depends on `menukit`. A mod that adds no slots depends on `menukit` alone and can stay client-only. A server running Containers requires it on every player's game. It checks before the world loads, and a player without it is told which two mods to install.
-
-Components: buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, tooltips, icons, item displays (with an optional coloured outline), progress bars, dividers, scroll containers, runtime rows (`Flow`), collapsible sections and tabs. Containers adds slots. Every component has a builder with the same vocabulary (`at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state`, `onClick`, `style`). Every control that shows a value reads and writes a field the mod owns.
+Components: buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, tooltips, icons, item displays (with an optional coloured outline), progress bars, dividers, scroll containers, runtime rows (`Flow`), collapsible sections and tabs. Every component has a builder with the same vocabulary (`at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state`, `onClick`). Every control that shows a value reads and writes a field the mod owns.
 
 What it does:
-- Places UI in five contexts with one set of components: the HUD, container screens, other vanilla screens, named slot groups, and standalone screens.
+- Places UI in five contexts with one set of components: the HUD, container screens, other vanilla screens, anchors (a rectangle another mod names on any screen, such as a slot group's box or the pause menu's buttons), and standalone screens.
 - Groups components into panels. A panel renders, takes input, and shows or hides as a unit.
 - Takes a panel's placement from one declaration on the panel. Sizes the panel to fit at any GUI scale, wrapping and scrolling as needed.
 - Lets several mods add UI to the same screen. Panels sharing a region stack in priority order instead of overlapping, in the same order on every launch.
 - Makes what a panel covers inert. An opaque panel takes every point of its rectangle, and a see-through one takes only its controls. A slot or widget under a panel does not highlight, click or show a tooltip.
-- Publishes every slot group, vanilla or created, under a category any mod can read, with or without a menu open.
-- Names each thing that can be done to a slot as an operation. Vanilla has eleven, one per gesture, and a mod can add its own. A slot answers for itself first, then its group, then its category, and a locking mod can veto any operation.
-- Creates real, server-synced slots as UI components and shows them on every container screen without per-screen setup (Containers).
-- Attaches per-slot state to any slot, private per player or shared, stored on the slot's owner. The server judges every write a client sends (Containers).
 - Gives its controls vanilla's click sound, narration and keyboard focus, and greys a whole panel at once with one `disabledWhen`.
 - Draws each element for the kind of screen it is on. Inventories and chests get MenuKit's grey look, and Options, Controls and similar screens get vanilla's pause-menu look. A standalone screen declares its kind once, when it is made. Text is coloured by role (heading, body, muted, disabled) so it reads on either kind.
 - Lets a settings page pick items. An item picker is a slot whose item is a setting value. The player chooses it from a searchable list, and it is never taken from the inventory.
 
-Its types are vanilla types. A created slot is a real `Slot`, and a custom menu is a real `AbstractContainerMenu`. Requires Fabric and Fabric API.
+Requires Fabric and Fabric API.
 
 ## Install
 
@@ -38,20 +27,14 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    implementation 'maven.modrinth:menukit:6.2.0+26.3'
-    // Only if the mod creates slots or custom menus.
-    implementation 'maven.modrinth:menukit-containers:6.2.0+26.3'
+    implementation 'maven.modrinth:menukit:7.0.0+26.3'
 }
 ```
 
-Declare what you use in `fabric.mod.json`, with both bounds ([why](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md)):
+Declare it in `fabric.mod.json`, with both bounds ([why](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md)):
 
 ```json
-"depends": { "menukit": ">=6.2.0 <7.0.0" }
-```
-
-```json
-"depends": { "menukit": ">=6.2.0 <7.0.0", "menukit-containers": ">=6.2.0 <7.0.0" }
+"depends": { "menukit": ">=7.0.0 <8.0.0" }
 ```
 
 ## Example
@@ -68,44 +51,23 @@ HudPanel.builder("mymod:readout")
         .build();
 ```
 
-Nine synced pocket slots on every container screen, registered once from the common entry point (Containers):
-
-```java
-public static final PlayerStorageAttachment<NonNullList<ItemStack>> POCKETS =
-        StorageAttachment.playerAttached("mymod", "pockets", 9);
-```
-
-```java
-ContainerPanel.define("mymod:pockets")
-        .at(OutsideRegion.LEFT_ALIGN_TOP, 7)
-        .style(PanelStyle.RAISED)
-        .addSlot(SlotSpec.at("pockets", SlotGroupCategory.PLAYER_INVENTORY).count(9)
-                .storage(player -> POCKETS.bind(player)))
-        .register();
-```
-
 ## The public API
 
-The API is every type in a package named `api`: `com.trevlar.menukit.api.*` and `com.trevlar.menukit.containers.api.*`. The version contract covers those. Every other package is internal, marked `@ApiStatus.Internal`, and can change in any release. A task that seems to need an internal type is a gap in the API. [Open an issue](https://github.com/trevorschoeny/menukit/issues) for it.
+The API is every type in a package named `api`: `com.trevlar.menukit.api.*`. The version contract covers those. Every other package is internal, marked `@ApiStatus.Internal`, and can change in any release. A task that seems to need an internal type is a gap in the API. [Open an issue](https://github.com/trevorschoeny/menukit/issues) for it.
 
 | Package | Holds |
 |---|---|
-| `api` | `MK`, the HUD facade. It registers HUD panels and notifications, sends a notification, and reads or sets the recipe book. |
+| `api` | `MK`, the HUD facade. It registers HUD panels and notifications, sends a notification, and reads or sets the recipe book. `Declarations`, the one freeze every Kit declares through. |
 | `api.element` | Every element, and the contexts they render and take input in |
 | `api.layout`, `api.dialog` | Rows and columns placed once; confirm and alert dialogs |
-| `api.panel` | `Panel`, placement (`PanelPosition` and the regions), the adapters that put panels on vanilla screens, `MKScreen` |
+| `api.panel` | `Panel`, placement (`PanelPosition` and the regions), the adapters that put panels on vanilla screens and around anchors, `MKScreen` |
 | `api.hud` | HUD panels and notifications |
-| `api.slot` | Slot groups, categories, sets, and `Storage` |
-| `api.window` | Addresses, the window, slot operations, gates and vetoes |
-| `containers.api.slot` | Created slots, container panels, `SlotSpec` |
-| `containers.api.storage` | Storage attachments |
-| `containers.api.state` | Slot-state channels |
-| `containers.api.menu` | Custom container menus and their screens |
+| `api.host` | For a library that ships its own screens: the host of a screen's own panels, and the hook that routes input to slots drawn in panels |
 
 ## Docs
 
 - [Getting started](https://github.com/trevorschoeny/menukit/blob/main/docs/getting-started.md): the dependency, one HUD panel, one inventory-screen panel.
-- [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md): panels, elements, placement, the five contexts, claims, slots, addresses.
+- [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md): panels, elements, placement, the five contexts, claims.
 - [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md): the common tasks.
 - [Limits](https://github.com/trevorschoeny/menukit/blob/main/docs/limits.md): what MenuKit does not do, and the open gaps.
 - [Versioning](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md): what a version number promises.
@@ -115,13 +77,22 @@ Every Java sample in this README and in `docs/` is compiled against the release 
 
 ## Repository layout
 
-- `menukit/`: the `menukit` artifact.
-- `menukit-containers/`: the `menukit-containers` artifact.
+- `menukit/`: the `menukit` mod.
 - `docs/`: the guides above.
 
-These sources build as two projects of a parent Gradle workspace that is not in this repository. They do not build on their own yet.
+These sources build as a project of a parent Gradle workspace that is not in this repository. They do not build on their own yet.
 
 ## Upgrading
+
+### To 7.0.0
+
+MenuKit keeps no slot code now. Everything about slots moved to SlotKit, a separate library built on MenuKit, and the deprecated parts of 6.x are gone. The [changelog](https://github.com/trevorschoeny/menukit/blob/main/menukit/changelog.md) has the full list. Declare `"menukit": ">=7.0.0 <8.0.0"`.
+
+- Slot groups, categories, slot operations, vetoes, addresses, the window and `SlotGroupPanelAdapter` are SlotKit's. A mod that uses any of them depends on SlotKit and changes those imports. Nothing else changes for it.
+- `Declarations` moved to `com.trevlar.menukit.api.Declarations`.
+- `ControlStyle`, `style(ControlStyle)` on `Button`, `Dropdown` and `DropdownMulti`, `Tabs.SIDEBAR_SCROLLBAR_WIDTH` and `MKTooltip.MIN_WRAP_WIDTH` are removed. Delete a `style(...)` call; it did nothing since 6.1.0. Use `ScrollContainer.TRACK_WIDTH` (6 on an options screen) for the scrollbar width.
+- The window's panel and element handles (`Window.panel`, `Window.element`) and the `VISIBILITY` and `OPACITY` keys are gone. Use the panel's own `visibleWhen` and `opaque`.
+- New: `Anchor` and `AnchorPanelAdapter` place a panel around a rectangle a mod names and supplies on any screen. SlotKit's slot-group panels are built on them.
 
 ### To 6.2.0
 

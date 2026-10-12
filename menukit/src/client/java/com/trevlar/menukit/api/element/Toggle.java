@@ -75,7 +75,7 @@ public class Toggle extends AbstractPanelElement {
     private final @Nullable Consumer<Click> onSecondaryClick;
     private final @Nullable IntSupplier tint;
     // The vanilla stand-in for sound, focus and narration (ElementWidget), made at
-    // the first screen attach, not with the element: a Containers menu builds its
+    // the first screen attach, not with the element: a slot library's menu builds its
     // panels on the dedicated server too, where no screen class exists.
     private @Nullable ElementWidget widget;
 

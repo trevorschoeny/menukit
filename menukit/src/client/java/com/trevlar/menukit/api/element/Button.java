@@ -76,7 +76,7 @@ public class Button extends AbstractPanelElement {
     private final @Nullable Consumer<Click> onSecondaryClick;
     private final @Nullable IntSupplier tint;
     // The vanilla stand-in for sound, focus and narration (ElementWidget), made at
-    // the first screen attach, not with the element: a Containers menu builds its
+    // the first screen attach, not with the element: a slot library's menu builds its
     // panels on the dedicated server too, where no screen class exists.
     private @Nullable ElementWidget widget;
 
@@ -331,19 +331,6 @@ public class Button extends AbstractPanelElement {
          */
         public Builder tint(IntSupplier tint) {
             this.tint = Objects.requireNonNull(tint, "tint");
-            return this;
-        }
-
-        /**
-         * 6.0.0's per-button look. Does nothing since 6.1.0: the button draws for the
-         * kind of screen it is on ({@link com.trevlar.menukit.api.panel.ScreenKind}).
-         * Kept so a mod built against 6.0.0 still loads; removed in 7.0.0.
-         *
-         * @deprecated delete the call
-         */
-        @Deprecated(since = "6.1.0", forRemoval = true)
-        @SuppressWarnings("removal")
-        public Builder style(ControlStyle ignored) {
             return this;
         }
 

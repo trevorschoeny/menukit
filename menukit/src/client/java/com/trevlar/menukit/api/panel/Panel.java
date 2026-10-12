@@ -28,12 +28,12 @@ import java.util.function.Supplier;
  * a visibility flag. Visibility can change; the element list is fixed once built.
  *
  * <p>The same Panel type is used in inventory menus, on the HUD and on standalone
- * screens. What is specific to each (slot groups, HUD anchoring, a standalone
+ * screens. What is specific to each (anchors, HUD anchoring, a standalone
  * screen's lifecycle) lives in whatever holds the panel, not in the panel.
  *
- * <p>A Panel is client-only: it is how a panel looks. On a MenuKit: Containers
- * custom menu the server's half of a panel (its id, its slot groups, whether it is
- * shown) belongs to the menu; the screen builds a Panel for each and shows it while
+ * <p>A Panel is client-only: it is how a panel looks. On a slot library's custom
+ * menu the server's half of a panel (its id, its slots, whether it is shown)
+ * belongs to the menu; the screen builds a Panel for each and shows it while
  * the server says so.
  *
  * <h3>Visibility: imperative or supplier-driven</h3>
@@ -52,7 +52,7 @@ import java.util.function.Supplier;
  */
 public class Panel {
 
-    // Interior padding: the room the screen (MKScreen, CustomContainerScreen,
+    // Interior padding: the room the screen (MKScreen, a library's own screen,
     // ScreenPanelAdapter) leaves between the panel background and its elements.
     // INTERIOR_PADDING is the value for styled panels (RAISED, DARK, INSET), which
     // need space between the visible frame and the elements. A NONE panel has no
@@ -97,7 +97,7 @@ public class Panel {
     // (PanelHost) through setAvailableContentWidth. -1 means no limit: the panel
     // grows to its content. It is kept apart from pinnedWidth so a limit MenuKit
     // computed never looks like a size the mod pinned (getPinnedWidth() stays
-    // accurate for MKC's pinned-versus-auto layout).
+    // accurate for a library screen's pinned-versus-auto layout).
     //
     // The limit only applies to an unpinned panel whose content is wider than it;
     // then TextLabels wrap to it, as they do for a pinned width. lastFitAvail
@@ -365,7 +365,7 @@ public class Panel {
          * Makes the panel a popover: something that pops up over the screen while it
          * is shown (a row of pockets over a hovered hotbar slot, a flyout from a
          * button). It draws above every ordinary panel on the screen, whichever host
-         * holds it or them (a container screen's adapters, a slot group's, a
+         * holds it or them (a container screen's adapters, an anchor's, a
          * standalone screen's own) and whichever registered first, and below a modal
          * and its dim. Input follows the picture: a click, the wheel, hover or a
          * tooltip over a popover reach it, never a panel drawn under it. Its own slots
@@ -415,10 +415,10 @@ public class Panel {
      * </ul>
      *
      * <p>Used wherever outer bounds are worked out from the elements or the other
-     * way round: {@code MKScreen}, {@code CustomContainerScreen}, and the
+     * way round: {@code MKScreen}, a library's own screen, and the
      * default-padding constructors of
      * {@link com.trevlar.menukit.api.panel.ScreenPanelAdapter} and
-     * {@link com.trevlar.menukit.api.panel.SlotGroupPanelAdapter}. The
+     * {@link com.trevlar.menukit.api.panel.AnchorPanelAdapter}. The
      * explicit-padding constructors use the padding they are given.
      */
     public int interiorPadding() {
@@ -804,7 +804,7 @@ public class Panel {
     /**
      * The width set with {@link #size(int,int)} or {@link #pinnedWidth(int)}, or
      * {@code -1} if none. For layout code that has to tell a pinned width from an
-     * automatic one, such as MKC's {@code CustomContainerScreen.computePanelSize},
+     * automatic one, such as a library screen sizing a panel that holds slots,
      * which uses the pinned width when set and otherwise the widest of its slots
      * and elements. {@link #getWidth()} only counts elements, so it can't tell.
      */
@@ -1023,7 +1023,7 @@ public class Panel {
      * <h4>Sync</h4>
      *
      * A panel's visibility is a client-side rendering decision. Where it must
-     * drive slot inertness and sync (a MenuKit: Containers custom menu), the menu holds
+     * drive slot inertness and sync (a slot library's custom menu), the menu holds
      * it on the server and the screen reads it through this supplier.
      *
      * @param supplier the visibility condition, or {@code null} to go back to

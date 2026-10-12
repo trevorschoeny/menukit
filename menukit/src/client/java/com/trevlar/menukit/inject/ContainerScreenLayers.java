@@ -39,7 +39,7 @@ import org.jetbrains.annotations.ApiStatus;
  * <em>after</em> the chrome of the panel that hosts it. The one order that
  * satisfies both is vanilla slots, then panels, then created slots, and vanilla's
  * own {@code extractSlots} already walks {@code menu.slots} in exactly that order,
- * because MenuKit-Containers appends created slots last. So flow panels are drawn
+ * because a slot library appends created slots last. So flow panels are drawn
  * from the {@code extractSlot} HEAD of the <em>first created slot</em> in the walk
  * ({@link #beforeSlot}); on a menu with no created slots to draw they fall to the
  * end of the slot pass ({@link #aboveSlots}), the older "panels above slots" order. Either way a created slot and a vanilla slot go
@@ -145,7 +145,7 @@ public final class ContainerScreenLayers {
         SlotScreenDispatcher.fireEndFrame(screen);
     }
 
-    /** Layer 2: the FLOW layer of the screen's registry hosts (container adapters, then slot groups), then every host's POPOVER layer. */
+    /** Layer 2: the FLOW layer of the screen's registry hosts (container adapters, then anchors), then every host's POPOVER layer. */
     private static void renderFlow(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
                                    int mouseX, int mouseY) {
         flowDrawn = true;

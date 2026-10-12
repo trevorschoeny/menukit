@@ -1,11 +1,24 @@
-## 6.2.0
+## 7.0.0
 
-Tooltips dock at the bottom or top of the screen instead of choosing a side of the cursor.
+MenuKit is a UI library only now. Everything about slots moved to SlotKit, a separate library built on MenuKit, and what 6.x deprecated is gone. Mods built for MenuKit 6 need an update.
+
+### Moved to SlotKit
+
+- Slot groups, categories, sets and `Storage` (`api.slot`), the window, addresses, slot operations, gates and vetoes (`api.window`), and `SlotGroupPanelAdapter`. SlotKit keeps their saved text, so choices a mod saved stay valid. A mod that uses any of them adds SlotKit and changes those imports.
+- MenuKit no longer patches slot clicks, drops, hoppers, dispensers or the inventory. SlotKit does.
+
+### Removed
+
+- `ControlStyle` and its helpers, and `style(ControlStyle)` on `Button`, `Dropdown` and `DropdownMulti`. They did nothing since 6.1.0. Delete the call.
+- `Tabs.SIDEBAR_SCROLLBAR_WIDTH`. Use `ScrollContainer.TRACK_WIDTH` on a container screen, 6 on an options screen.
+- `MKTooltip.MIN_WRAP_WIDTH`. Nothing read it.
+- The window's panel and element handles and the `VISIBILITY` and `OPACITY` keys. A panel's own `visibleWhen` and `opaque` do the job.
 
 ### Changed
 
-- `MKTooltip.avoidCoverWhen(BooleanSupplier)` now docks a tooltip. While it holds, every tooltip vanilla would place beside the cursor (vanilla's items, MenuKit elements, other mods) sits centred at the bottom of the screen, `MKTooltip.EDGE` (4 pixels) above the edge. When the cursor is within `MKTooltip.DOCK_MARGIN` (20 pixels, a bit more than a slot) of where that tooltip would sit, not only directly over it, it goes to the top centre instead. Nothing wraps or changes side any more, and what is on the screen no longer matters. `clampWhen`, `wrapWhen`, `scrollBy` and `hideWhen` work on a docked tooltip as before, with the title still first, and a tooltip taller than the screen behaves as it does under `clampWhen`. A tooltip vanilla places somewhere fixed, such as one anchored to a widget for the keyboard, stays there. While no registered condition holds, tooltips are placed exactly as vanilla places them. The method keeps its name and signature, so a mod that registers it needs no change.
+- `Declarations` moved to `com.trevlar.menukit.api.Declarations`. Its `requireOpen` is public, so a library built on MenuKit freezes its own declarations with MenuKit's.
 
-### Deprecated
+### Added
 
-- `MKTooltip.MIN_WRAP_WIDTH`. Nothing reads it now that `avoidCoverWhen` no longer wraps. It goes in 7.0.0.
+- `Anchor` and `AnchorPanelAdapter`: place a panel around a rectangle a mod names and supplies on any screen, such as the pause menu's buttons. Panels on one anchor stack in its regions.
+- `api.host`, for a library that ships its own screens: `OwnHost` lays out a screen's own panels and joins them to MenuKit's claims and draw order, and `SlotScreenHook` routes hover and clicks to slots drawn in panels.
