@@ -53,4 +53,4 @@ MenuKit declares `breaks` against consumer versions known to be incompatible, bu
 
 ## When MenuKit takes a new major
 
-Update the code for the new API, change both bounds to the new major, and release under a new version of the mod. Do not ship different requirements under a version number already published. Two jars with that number claim to be the same release, and only one of them works.
+[upgrading-7.md](upgrading-7.md) lists every change from 6.x to 7.0.0. Update the code for the new API, change both bounds to the new major, and release under a new version of the mod. Do not ship different requirements under a version number already published. Two jars with that number claim to be the same release, and only one of them works.

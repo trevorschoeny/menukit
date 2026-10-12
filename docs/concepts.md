@@ -4,7 +4,7 @@ Definitions of the terms MenuKit coins and the rules that bind consumer code. Ev
 
 ## MenuKit and SlotKit
 
-MenuKit is one mod, `menukit`. It runs on the client and the server: the UI draws on the client, and the Kits built on MenuKit use its placement types and its declarations freeze on the server too. It holds no slot code. Slot groups, slot operations, created slots, custom menus and per-slot state are SlotKit's (`slotkit`), a separate library that depends on MenuKit. MenuKit does not depend on SlotKit, so a mod that depends on MenuKit alone cannot import a SlotKit type. The build fails.
+MenuKit is one mod, `menukit`. It runs on the client and the server: the UI draws on the client, and the Kits built on MenuKit use its placement types and its declarations freeze on the server too. It holds no slot code. Slot groups, slot operations, created slots, custom menus and per-slot state are SlotKit's (`slotkit`), a separate library that depends on MenuKit. MenuKit does not depend on SlotKit, so a mod that depends on MenuKit alone cannot import a SlotKit type. The build fails. SlotKit's terms are on [SlotKit's concepts page](https://github.com/trevorschoeny/slotkit/blob/main/docs/concepts.md). A mod moving from MenuKit 6 follows [upgrading-7.md](upgrading-7.md).
 
 ## Public API
 

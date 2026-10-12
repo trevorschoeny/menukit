@@ -28,7 +28,7 @@ Behavior that is incomplete in the current release.
 | Unplaced panels on a standalone screen | The default stacks later panels below the main one with a 14 pixel gap, computed for the case where every earlier stacked panel is shown. With one hidden, the panels after it sit 12 pixels lower than the gap alone places them. Declaring `region(BOTTOM_CENTER)` with an explicit `.offset` gives exact spacing. |
 | Offsets and stacking | `.offset(dx, dy)` moves one panel after placement, and siblings stack on its un-nudged size. An offset that pushes a panel over its sibling overlaps it. |
 | Item picker | Holds one kind of item (an `Item`, with no count, enchantments or other components). A list of items is a row of pickers. Its chooser lists every registered item in registry order, searched by name and id, not by creative tab. Clearing from the keyboard is not supported. A right click or the chooser's Clear empties it. |
-| A look per element | None since 6.1.0, and 7.0.0 removed `ControlStyle`. No switch makes a control differ from its screen's kind (a MenuKit-grey button on an options screen). Draw such a control with a consumer sprite (`Button.sprite`). |
+| A look per element | None since 6.1.0, and 7.0.0 removed `ControlStyle`. No switch makes a control differ from its screen's kind (a MenuKit-grey button on an options screen). Draw such a control with a sprite of your own (`Button.builder().sprite(...)`). |
 
 ## Element gaps
 

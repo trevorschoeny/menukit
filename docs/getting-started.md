@@ -88,4 +88,6 @@ Start the client with the mod's `runClient` task. Open the inventory to see the 
 - [concepts.md](concepts.md) defines panels, elements, placement and the five contexts.
 - [recipes.md](recipes.md) covers the common tasks.
 - [limits.md](limits.md) lists what MenuKit does not do.
+- [upgrading-7.md](upgrading-7.md) moves a mod from MenuKit 6.x.
+- [SlotKit's getting started](https://github.com/trevorschoeny/slotkit/blob/main/docs/getting-started.md) adds slots.
 - The [reference](https://trevorschoeny.github.io/menukit/) is the generated javadoc for every public type.
