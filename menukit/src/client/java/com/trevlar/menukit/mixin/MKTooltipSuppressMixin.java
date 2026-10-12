@@ -1,6 +1,5 @@
 package com.trevlar.menukit.mixin;
 
-import com.trevlar.menukit.inject.ScreenPanelRegistry;
 import com.trevlar.menukit.api.panel.Focus;
 
 import com.trevlar.menukit.api.element.MKTooltip;
@@ -50,8 +49,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * with opaque panels coexist without either owning the hook.
  *
  * <p>The other tooltip hooks live here too. {@code tooltip}, which places and draws
- * every queued tooltip, is wrapped to put it on the side that covers less
- * ({@link MKTooltip#avoidCoverWhen}), keep it on screen ({@link MKTooltip#wrapWhen},
+ * every queued tooltip, is wrapped to dock it ({@link MKTooltip#avoidCoverWhen}),
+ * keep it on screen ({@link MKTooltip#wrapWhen},
  * {@link MKTooltip#clampWhen}), add {@link MKTooltip#scrollBy}'s offset and pin the
  * title. {@code extractDeferredElements}, where a screen frame draws its tooltip,
  * marks the frame boundary MKTooltip uses to tell a new hover from the same one.
@@ -105,7 +104,7 @@ public abstract class MKTooltipSuppressMixin {
 
     /**
      * Wraps the tooltip's text to the screen ({@link MKTooltip#wrapWhen}), then places it
-     * where vanilla's positioner says, kept on screen ({@link MKTooltip#clampWhen}), plus
+     * where vanilla's positioner says (or docked, {@link MKTooltip#avoidCoverWhen}), kept on screen ({@link MKTooltip#clampWhen}), plus
      * the scroll offset, by handing vanilla a positioner that adds it. Vanilla then draws
      * the background, text and images there as usual. When scrolled with its top above the screen,
      * the first line is drawn again on a background of its own at the top edge, one
@@ -125,20 +124,15 @@ public abstract class MKTooltipSuppressMixin {
             // Keyed on what the tooltip says, before wrapping: a resize re-wraps the same tooltip.
             MKTooltip.tooltipStarts(MKTooltip.contentKey(font, lines));
             GuiGraphicsExtractor self = (GuiGraphicsExtractor) (Object) this;
-            // MKTooltip.avoidCoverWhen: the side of the cursor that covers less of the screen,
-            // with the lines wrapped to that side's room; null keeps vanilla's spot.
-            MKTooltip.Placement side = MKTooltip.avoidsCover()
-                    ? MKTooltip.avoidingCover(font, lines, mouseX, mouseY, self.guiWidth(), self.guiHeight(), positioner,
-                            ScreenPanelRegistry.occupiedOn(net.minecraft.client.Minecraft.getInstance().gui.screen()))
-                    : null;
             // MKTooltip.wrapWhen: lines wider than the screen re-split before vanilla measures
             // and places them; a wrapped line stays one component, so the title is still lines[0].
-            java.util.List<ClientTooltipComponent> shown = side != null ? side.lines()
-                    : MKTooltip.wraps() ? MKTooltip.wrapped(font, lines, self.guiWidth()) : lines;
+            java.util.List<ClientTooltipComponent> shown = MKTooltip.wraps() ? MKTooltip.wrapped(font, lines, self.guiWidth()) : lines;
+            // MKTooltip.avoidCoverWhen: a beside-the-cursor tooltip docks at the bottom (or top) centre.
+            boolean dock = MKTooltip.docks(positioner);
             int[] drawn = new int[3];  // x, y, width, as vanilla placed them after the offset
             ClientTooltipPositioner scrolled = (screenW, screenH, x, y, w, h) -> {
-                Vector2ic placed = positioner.positionTooltip(screenW, screenH, x, y, w, h);
-                if (side != null) placed = new org.joml.Vector2i(side.x(), placed.y());  // vanilla's height, the chosen side
+                Vector2ic placed = dock ? MKTooltip.docked(screenW, screenH, x, y, w, h)
+                        : positioner.positionTooltip(screenW, screenH, x, y, w, h);
                 Vector2ic at = MKTooltip.scrolled(placed, w, h, screenW, screenH);
                 drawn[0] = at.x();
                 drawn[1] = at.y();

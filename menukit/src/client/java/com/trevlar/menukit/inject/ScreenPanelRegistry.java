@@ -19,10 +19,7 @@ import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Renderable;
-import net.minecraft.client.gui.components.events.GuiEventListener;
-import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
@@ -359,37 +356,6 @@ public final class ScreenPanelRegistry {
             return new PanelHost.Frame(screen.width, screen.height, box, screenFrame(acc));
         }
         return null;
-    }
-
-    /**
-     * What is on {@code screen} this frame, for {@code MKTooltip.avoidCoverWhen} to keep a
-     * tooltip off: a container screen's frame with its chrome (an open recipe book, the
-     * creative tab rows), every shown panel's placed rectangle on every host, and each of
-     * the screen's own widgets that is shown and has bounds. Rectangles may overlap.
-     *
-     * <p>Not the widgets MenuKit's own elements register ({@link Focus#addWidget}: a
-     * Button's, Toggle's, TextField's, Slider's stand-in for focus and narration). Every
-     * element of every panel on the screen registers one, shown or not, and it keeps the
-     * rectangle it last drew at (on this screen or another), so a hidden panel's buttons
-     * would occupy empty space. Their panel is counted above while it is shown.
-     */
-    public static List<ScreenRectangle> occupiedOn(@Nullable Screen screen) {
-        List<ScreenRectangle> out = new ArrayList<>();
-        if (screen == null) return out;
-        if (screen instanceof AbstractContainerScreen<?> container) {
-            Reference f = containerFrame(container).reference();
-            if (f != null) out.add(new ScreenRectangle(f.leftPos(), f.topPos(), f.imageWidth(), f.imageHeight()));
-        }
-        for (PanelHost host : hostsOn(screen)) {
-            for (PanelHost.Placed p : host.placed()) out.add(new ScreenRectangle(p.x(), p.y(), p.w(), p.h()));
-        }
-        for (GuiEventListener child : screen.children()) {
-            if (child instanceof AbstractWidget w && !w.visible) continue;
-            if (Focus.isManaged(screen, child)) continue;  // an element's stand-in: its panel speaks for it
-            ScreenRectangle r = child.getRectangle();
-            if (r.width() > 0 && r.height() > 0) out.add(r);
-        }
-        return out;
     }
 
     // Rendering

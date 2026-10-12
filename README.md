@@ -38,9 +38,9 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    implementation 'maven.modrinth:menukit:6.1.1+26.3'
+    implementation 'maven.modrinth:menukit:6.2.0+26.3'
     // Only if the mod creates slots or custom menus.
-    implementation 'maven.modrinth:menukit-containers:6.1.1+26.3'
+    implementation 'maven.modrinth:menukit-containers:6.2.0+26.3'
 }
 ```
 

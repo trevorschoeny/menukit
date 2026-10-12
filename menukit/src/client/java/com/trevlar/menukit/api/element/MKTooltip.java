@@ -4,7 +4,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTextTooltip;
-import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipPositioner;
 import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
@@ -18,7 +17,6 @@ import net.minecraft.util.FormattedCharSequence;
 import com.trevlar.menukit.api.window.Declarations;
 import com.trevlar.menukit.mixin.ClientTextTooltipAccessor;
 
-import org.jspecify.annotations.Nullable;
 import org.joml.Vector2i;
 import org.joml.Vector2ic;
 
@@ -53,7 +51,7 @@ import java.util.function.BooleanSupplier;
  *
  * <p>This class also holds the switches a mod can turn on for every tooltip in the
  * game: {@link #hideWhen}, {@link #wrapWhen}, {@link #clampWhen},
- * {@link #avoidCoverWhen} and {@link #onWheel}.
+ * {@link #avoidCoverWhen} (docking) and {@link #onWheel}.
  */
 public final class MKTooltip {
 
@@ -166,19 +164,12 @@ public final class MKTooltip {
      * {@code lines} with every text line wider than {@link #wrapWidth} split by vanilla's
      * {@code Font.split}. A split line stays one component holding vanilla's text line per
      * piece, so a wrapped title is still the first line. Returns {@code lines} itself when
-     * nothing is too wide.
+     * nothing is too wide. A text line is one MenuKit can read the text of: every
+     * {@code ClientTextTooltip} in game, through its accessor.
      */
     @org.jetbrains.annotations.ApiStatus.Internal
     public static List<ClientTooltipComponent> wrapped(Font font, List<ClientTooltipComponent> lines, int screenWidth) {
-        return wrappedTo(font, lines, wrapWidth(screenWidth));
-    }
-
-    /**
-     * {@code lines} with every text line wider than {@code max} split by vanilla's splitter
-     * (see {@link #wrapped}). A text line is one MenuKit can read the text of: every
-     * {@code ClientTextTooltip} in game, through its accessor.
-     */
-    private static List<ClientTooltipComponent> wrappedTo(Font font, List<ClientTooltipComponent> lines, int max) {
+        int max = wrapWidth(screenWidth);
         List<ClientTooltipComponent> out = null;  // made on the first line that needs it
         for (int i = 0; i < lines.size(); i++) {
             ClientTooltipComponent line = lines.get(i);
@@ -241,197 +232,71 @@ public final class MKTooltip {
         }
     }
 
-    // Choosing the side that covers less. Vanilla puts a tooltip right of the cursor
-    // and flips it left when it does not fit, never wrapping it, so a wide tooltip on
-    // a button near an inventory's right edge lands over the whole inventory. Same
-    // split as hideWhen: MenuKit places, the mod decides when (Inventory Plus: its
-    // wide in-inventory button tooltips).
+    // Docking a tooltip. Vanilla puts a tooltip beside the cursor, so a wide one near an
+    // inventory lands over the slots the player is reading. Docked, it sits at the bottom
+    // centre of the screen instead, or the top centre when the cursor is where the bottom
+    // one would be. Same split as hideWhen: MenuKit places, the mod decides when
+    // (Inventory Plus: "keep long tooltips out of the way").
 
-    /** Registered "avoid covering while" predicates. Written only during init, read every frame. */
-    private static final Set<BooleanSupplier> AVOID_COVER_WHEN = new LinkedHashSet<>();
+    /** Registered "dock while" predicates. Written only during init, read every frame. */
+    private static final Set<BooleanSupplier> DOCK_WHEN = new LinkedHashSet<>();
 
     /**
-     * The narrowest a tooltip's text is ever wrapped to on one side of the cursor, in GUI
-     * pixels: about ten characters of vanilla's font, two short words a line, below which
-     * a sentence reads one word at a time. A side with less room than this (or than the
-     * tooltip's longest word or image) is ruled out unless the tooltip already fits there.
+     * Unused since 6.2.0, when {@link #avoidCoverWhen} stopped wrapping a tooltip to the
+     * room beside the cursor. Kept so code that read it still links.
+     *
+     * @deprecated nothing reads it; removed in 7.0.0
      */
+    @Deprecated(since = "6.2.0", forRemoval = true)
     public static final int MIN_WRAP_WIDTH = 60;
 
     /**
-     * Places every tooltip on the side of the cursor where it covers less, on every frame
-     * {@code condition} is true. MenuKit tries both sides at vanilla's offsets, wrapping
-     * text lines to the room up to that screen edge (vanilla's splitter; the first line
-     * stays the title, so {@link #clampWhen} and {@link #scrollBy} work as before). A side
-     * is ruled out only when the tooltip cannot wrap to fit it: its room is narrower than
-     * the longest word of any line, an image (a bundle's grid), or {@link #MIN_WRAP_WIDTH}.
-     * Of the sides left, the one whose frame overlaps fewer pixels of what is on the screen
-     * wins, however narrow: a container screen's frame (with an open recipe book or
-     * creative tab row), every shown MenuKit panel, and the screen's widgets. A tie goes to
-     * vanilla's side (right, unless the tooltip does not fit there whole); neither side left
-     * places it as vanilla does, and so does a tooltip vanilla anchors to a widget for the
-     * keyboard. The height is placed as vanilla does. Several mods may register; any one
-     * returning true switches it on. Call from client init.
+     * Docks every tooltip vanilla places beside the cursor on every frame {@code condition}
+     * is true: it sits centred at the bottom of the screen, {@link #EDGE} above the edge,
+     * or centred at the top when the cursor is inside where the bottom one would be.
+     * Nothing wraps or changes side. {@link #clampWhen}, {@link #wrapWhen},
+     * {@link #scrollBy} and {@link #hideWhen} work on a docked tooltip as on any other,
+     * the title still first; one taller than the screen behaves as it does under
+     * {@code clampWhen}. Tooltips vanilla places somewhere fixed (one anchored to a widget
+     * for the keyboard) stay there. Several mods may register; any one returning true
+     * docks. Call from client init.
+     *
+     * <p>Before 6.2.0 this put a tooltip on the side of the cursor that covered less of
+     * the screen; the intent (keep tooltips off what the player is looking at) is the same.
      *
      * @throws IllegalStateException after MenuKit's declarations froze
      */
     public static void avoidCoverWhen(BooleanSupplier condition) {
         Declarations.requireOpen("MKTooltip.avoidCoverWhen");
-        AVOID_COVER_WHEN.add(condition);
-    }
-
-    /** True when any registered {@link #avoidCoverWhen} predicate holds this frame. */
-    @org.jetbrains.annotations.ApiStatus.Internal
-    public static boolean avoidsCover() {
-        return anyHolds(AVOID_COVER_WHEN);
-    }
-
-    /** A side of the cursor; {@code VANILLA} is "wherever vanilla puts it". */
-    @org.jetbrains.annotations.ApiStatus.Internal
-    public enum Side { LEFT, RIGHT, VANILLA }
-
-    /** Where {@link #avoidCoverWhen} puts a tooltip: the lines it shows (wrapped or not) and the x its text starts at. */
-    @org.jetbrains.annotations.ApiStatus.Internal
-    public record Placement(List<ClientTooltipComponent> lines, int x) {}
-
-    /**
-     * The pure choice. {@code left} and {@code right} are the tooltip's frame on each side
-     * ({@code null} when that side is ruled out); the side whose frame has fewer pixels
-     * under {@code occupied} wins. One side left wins by default; a tie, or none left, is
-     * {@link Side#VANILLA}.
-     */
-    @org.jetbrains.annotations.ApiStatus.Internal
-    public static Side lessCovered(@Nullable ScreenRectangle left, @Nullable ScreenRectangle right,
-                                   List<ScreenRectangle> occupied) {
-        if (left == null) return right == null ? Side.VANILLA : Side.RIGHT;
-        if (right == null) return Side.LEFT;
-        long l = coveredArea(left, occupied), r = coveredArea(right, occupied);
-        return l < r ? Side.LEFT : r < l ? Side.RIGHT : Side.VANILLA;
+        DOCK_WHEN.add(condition);
     }
 
     /**
-     * Pixels of {@code area} under at least one of {@code occupied}, each pixel counted once
-     * (a widget inside a frame does not count twice): the clipped rectangles swept in
-     * vertical strips between their left and right edges, each strip's spans merged.
+     * True when a tooltip placed by {@code positioner} docks this frame: a registered
+     * {@link #avoidCoverWhen} predicate holds and vanilla places it beside the cursor (its
+     * default and menu positioners), not somewhere fixed.
      */
     @org.jetbrains.annotations.ApiStatus.Internal
-    public static long coveredArea(ScreenRectangle area, List<ScreenRectangle> occupied) {
-        List<ScreenRectangle> in = new ArrayList<>();
-        for (ScreenRectangle o : occupied) {
-            ScreenRectangle c = area.intersection(o);
-            if (c != null && c.width() > 0 && c.height() > 0) in.add(c);
-        }
-        int[] xs = in.stream().flatMapToInt(c -> java.util.stream.IntStream.of(c.left(), c.right())).sorted().distinct().toArray();
-        long total = 0;
-        for (int i = 0; i + 1 < xs.length; i++) {
-            List<ScreenRectangle> strip = new ArrayList<>();
-            for (ScreenRectangle c : in) if (c.left() <= xs[i] && c.right() >= xs[i + 1]) strip.add(c);
-            strip.sort(java.util.Comparator.comparingInt(ScreenRectangle::top));
-            int covered = 0, top = Integer.MIN_VALUE, bottom = Integer.MIN_VALUE;  // the open span (empty)
-            for (ScreenRectangle c : strip) {
-                if (c.top() > bottom) {  // a gap: close the span, open a new one
-                    covered += bottom - top;
-                    top = c.top();
-                    bottom = c.bottom();
-                } else {
-                    bottom = Math.max(bottom, c.bottom());
-                }
-            }
-            total += (long) (covered + bottom - top) * (xs[i + 1] - xs[i]);
-        }
-        return total;
+    public static boolean docks(ClientTooltipPositioner positioner) {
+        return (positioner instanceof DefaultTooltipPositioner || positioner instanceof MenuTooltipPositioner)
+                && anyHolds(DOCK_WHEN);
     }
 
     /**
-     * {@code lines} fitted into {@code room} pixels of text width: as they are when they
-     * fit, else wrapped to it; {@code null} (the side is ruled out) when they cannot wrap to
-     * fit: the room is under {@link #MIN_WRAP_WIDTH} or under {@link #unbreakable} width.
-     * With every word and image fitting, vanilla's splitter (which breaks at spaces) keeps
-     * every wrapped line within the room.
+     * Where a docked tooltip's text starts, given the text's {@code width} and {@code height}
+     * as vanilla measures them (a positioner's arguments). Centred, at the bottom with
+     * {@link #EDGE} under it; at the top, {@link #EDGE} down, when the cursor is inside the
+     * bottom one's background (the text plus its padding). Pure: no screen is read.
      */
     @org.jetbrains.annotations.ApiStatus.Internal
-    public static @Nullable List<ClientTooltipComponent> fitted(Font font, List<ClientTooltipComponent> lines, int room) {
-        if (widthOf(font, lines) <= room) return lines;
-        if (room < Math.max(MIN_WRAP_WIDTH, unbreakable(font, lines))) return null;
-        return wrappedTo(font, lines, room);
-    }
-
-    /**
-     * The widest piece no wrapping can break: the longest word of any text line (split at
-     * spaces, as vanilla's splitter breaks), or the whole width of any other line (an image,
-     * or a line MenuKit cannot read the text of).
-     */
-    private static int unbreakable(Font font, List<ClientTooltipComponent> lines) {
-        int widest = 0;
-        for (ClientTooltipComponent line : lines) {
-            if (!(line instanceof ClientTextTooltipAccessor text)) {
-                widest = Math.max(widest, line.getWidth(font));
-                continue;
-            }
-            // Glyph advances summed per word (vanilla's width is that sum, style included).
-            int[] word = {0, widest};  // the word so far, the widest yet
-            text.mk$text().accept((index, style, codePoint) -> {
-                if (codePoint == ' ') word[0] = 0;
-                else word[1] = Math.max(word[1], word[0] += font.width(FormattedCharSequence.codepoint(codePoint, style)));
-                return true;
-            });
-            widest = word[1];
-        }
-        return widest;
-    }
-
-    /**
-     * Where {@link #avoidCoverWhen} puts this tooltip, or {@code null} for vanilla's spot.
-     * Only a tooltip placed beside the cursor (vanilla's default and menu positioners) has
-     * sides; each side's frame takes the height {@code positioner} gives it there.
-     */
-    @org.jetbrains.annotations.ApiStatus.Internal
-    public static @Nullable Placement avoidingCover(Font font, List<ClientTooltipComponent> lines, int mouseX, int mouseY,
-                                                    int screenWidth, int screenHeight, ClientTooltipPositioner positioner,
-                                                    List<ScreenRectangle> occupied) {
-        if (!(positioner instanceof DefaultTooltipPositioner || positioner instanceof MenuTooltipPositioner)) return null;
-        // Vanilla's two spots: text from 12 right of the cursor, or ending 12 left of it.
-        int rightX = mouseX + TooltipRenderUtil.MOUSE_OFFSET;
-        int leftEnd = mouseX - TooltipRenderUtil.MOUSE_OFFSET;
-        List<ClientTooltipComponent> right = fitted(font, lines, screenWidth - EDGE - TooltipRenderUtil.PADDING_RIGHT - rightX);
-        List<ClientTooltipComponent> left = fitted(font, lines, leftEnd - EDGE - TooltipRenderUtil.PADDING_LEFT);
-        int leftX = left == null ? 0 : leftEnd - widthOf(font, left);
-        Side side = lessCovered(
-                left == null ? null : frame(font, left, leftX, mouseX, mouseY, screenWidth, screenHeight, positioner),
-                right == null ? null : frame(font, right, rightX, mouseX, mouseY, screenWidth, screenHeight, positioner),
-                occupied);
-        // A tie (both sides stand, equally covered) goes to vanilla's side: right unless
-        // the tooltip, whole, does not fit there. No side left: vanilla's spot.
-        if (side == Side.VANILLA && left != null && right != null) side = right == lines ? Side.RIGHT : Side.LEFT;
-        return switch (side) {
-            case LEFT -> new Placement(left, leftX);
-            case RIGHT -> new Placement(right, rightX);
-            case VANILLA -> null;
-        };
-    }
-
-    /** The tooltip's frame with its text at {@code x} and at the height {@code positioner} gives it. */
-    private static ScreenRectangle frame(Font font, List<ClientTooltipComponent> lines, int x, int mouseX, int mouseY,
-                                         int screenWidth, int screenHeight, ClientTooltipPositioner positioner) {
-        int w = widthOf(font, lines), h = heightOf(font, lines);
-        int y = positioner.positionTooltip(screenWidth, screenHeight, mouseX, mouseY, w, h).y();
-        return new ScreenRectangle(x - TooltipRenderUtil.PADDING_LEFT, y - TooltipRenderUtil.PADDING_TOP,
-                w + TooltipRenderUtil.PADDING_LEFT + TooltipRenderUtil.PADDING_RIGHT,
-                h + TooltipRenderUtil.PADDING_TOP + TooltipRenderUtil.PADDING_BOTTOM);
-    }
-
-    /** The widest line, as vanilla measures a tooltip. */
-    private static int widthOf(Font font, List<ClientTooltipComponent> lines) {
-        int w = 0;
-        for (ClientTooltipComponent line : lines) w = Math.max(w, line.getWidth(font));
-        return w;
-    }
-
-    /** The lines' height as vanilla's tooltip measures it (a lone line 2 shorter: no title gap). */
-    private static int heightOf(Font font, List<ClientTooltipComponent> lines) {
-        int h = lines.size() == 1 ? -2 : 0;
-        for (ClientTooltipComponent line : lines) h += line.getHeight(font);
-        return h;
+    public static Vector2ic docked(int screenWidth, int screenHeight, int mouseX, int mouseY, int width, int height) {
+        int x = (screenWidth - width) / 2;
+        int bottom = screenHeight - EDGE - height;
+        boolean underCursor = mouseX >= x - TooltipRenderUtil.PADDING_LEFT
+                && mouseX < x + width + TooltipRenderUtil.PADDING_RIGHT
+                && mouseY >= bottom - TooltipRenderUtil.PADDING_TOP
+                && mouseY < bottom + height + TooltipRenderUtil.PADDING_BOTTOM;
+        return new Vector2i(x, underCursor ? EDGE : bottom);
     }
 
     // Scrolling a tooltip. Same split as hideWhen: MenuKit owns where a tooltip lands
