@@ -13,6 +13,7 @@ import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.RegionConstants;
 import com.trevlar.menukit.api.panel.ScreenKind;
+import com.trevlar.menukit.api.panel.WrapsPanelAdapter;
 import com.trevlar.menukit.core.RegionMath;
 import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.api.element.RenderContext;
@@ -1031,16 +1032,18 @@ public final class PanelHost {
     // Registering mod, the tie-break after priority
 
     /**
-     * The mod that called into MenuKit: the first stack frame outside MenuKit's
-     * packages, matched to its Fabric mod by where its class was loaded from. Called
-     * at registration only, never per frame. Falls back to the caller's package so
-     * the sort key stays total.
+     * The mod that called into MenuKit: the first stack frame outside MenuKit's own
+     * packages and outside any class marked {@link WrapsPanelAdapter} (a library's own
+     * adapter wrapper, such as SlotKit's {@code SlotGroupPanelAdapter}), matched to its
+     * Fabric mod by where its class was loaded from. Called at registration only, never
+     * per frame. Falls back to the caller's package so the sort key stays total.
      */
     public static String captureCallerModId() {
         return StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
                 .walk(frames -> frames
                         .map(StackWalker.StackFrame::getDeclaringClass)
                         .filter(c -> !c.getPackageName().startsWith("com.trevlar.menukit"))
+                        .filter(c -> !c.isAnnotationPresent(WrapsPanelAdapter.class))
                         .map(PanelHost::findModIdForClass)
                         .filter(Objects::nonNull)
                         .findFirst()
