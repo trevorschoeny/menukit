@@ -1,6 +1,6 @@
 ## 7.0.0
 
-MenuKit is a UI library only now. Everything about slots moved to SlotKit, a separate library built on MenuKit, and what 6.x deprecated is gone. Mods built for MenuKit 6 need an update.
+MenuKit is a UI library only now. Everything about slots moved to SlotKit, a separate library built on MenuKit, and what 6.x deprecated is gone. Mods built for MenuKit 6 need an update. [Upgrading to 7.0.0](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading-7.md) has the steps, and tells you whether your mod needs SlotKit.
 
 ### Moved to SlotKit
 
@@ -20,5 +20,5 @@ MenuKit is a UI library only now. Everything about slots moved to SlotKit, a sep
 
 ### Added
 
-- `Anchor` and `AnchorPanelAdapter`: place a panel around a rectangle a mod names and supplies on any screen, such as the pause menu's buttons. Panels on one anchor stack in its regions.
-- `api.host`, for a library that ships its own screens: `OwnHost` lays out a screen's own panels and joins them to MenuKit's claims and draw order, and `SlotScreenHook` routes hover and clicks to slots drawn in panels.
+- `Anchor` and `AnchorPanelAdapter` place a panel around a rectangle a mod names and supplies on any screen, such as the pause menu's buttons. Panels on one anchor stack in its regions.
+- `api.host`, for a library that ships its own screens. `OwnHost` lays out a screen's own panels and joins them to MenuKit's claims and draw order, and `SlotScreenHook` routes hover and clicks to slots drawn in panels.

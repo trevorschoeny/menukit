@@ -2,12 +2,13 @@
 
 MenuKit is a UI library for Fabric mods. It provides the parts of a Minecraft interface (buttons, sliders, tabs, panels, HUD readouts) and places them on screen. A mod builds its menus and overlays with it instead of writing vanilla screen code from scratch.
 
-It runs on the client and the server (the UI draws on the client; the Kits built on it run server code too). A mod that only draws UI can stay client-only. For slots (finding and acting on slots in any menu, or building real slots and custom menus), add SlotKit, which is built on MenuKit.
+It runs on the client and the server. The UI draws on the client, and libraries built on MenuKit run server code too. A mod that only draws UI can stay client-only. For slots, add [SlotKit](https://modrinth.com/mod/slotkit), which is built on MenuKit. It finds and acts on the slots in any menu, and builds real slots and custom menus.
 
 Components: buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, tooltips, icons, item displays (with an optional coloured outline), progress bars, dividers, scroll containers, runtime rows (`Flow`), collapsible sections and tabs. Every component has a builder with the same vocabulary (`at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state`, `onClick`). Every control that shows a value reads and writes a field the mod owns.
 
 What it does:
-- Places UI in five contexts with one set of components: the HUD, container screens, other vanilla screens, anchors (a rectangle another mod names on any screen, such as a slot group's box or the pause menu's buttons), and standalone screens.
+
+- Places UI in five contexts with one set of components: the HUD, container screens, other vanilla screens, anchors, and standalone screens. An anchor is a rectangle a mod names and supplies on any screen, such as the pause menu's row of buttons.
 - Groups components into panels. A panel renders, takes input, and shows or hides as a unit.
 - Takes a panel's placement from one declaration on the panel. Sizes the panel to fit at any GUI scale, wrapping and scrolling as needed.
 - Lets several mods add UI to the same screen. Panels sharing a region stack in priority order instead of overlapping, in the same order on every launch.
@@ -57,7 +58,7 @@ The API is every type in a package named `api`: `com.trevlar.menukit.api.*`. The
 
 | Package | Holds |
 |---|---|
-| `api` | `MK`, the HUD facade. It registers HUD panels and notifications, sends a notification, and reads or sets the recipe book. `Declarations`, the one freeze every Kit declares through. |
+| `api` | `MK`, the HUD facade. It registers HUD panels and notifications, sends a notification, and reads or sets the recipe book. `Declarations`, the one freeze that MenuKit and every library built on it declare through. |
 | `api.element` | Every element, and the contexts they render and take input in |
 | `api.layout`, `api.dialog` | Rows and columns placed once; confirm and alert dialogs |
 | `api.panel` | `Panel`, placement (`PanelPosition` and the regions), the adapters that put panels on vanilla screens and around anchors, `MKScreen` |
@@ -71,6 +72,7 @@ The API is every type in a package named `api`: `com.trevlar.menukit.api.*`. The
 - [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md): the common tasks.
 - [Limits](https://github.com/trevorschoeny/menukit/blob/main/docs/limits.md): what MenuKit does not do, and the open gaps.
 - [Versioning](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md): what a version number promises.
+- [Upgrading to 7.0.0](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading-7.md): moving a mod from MenuKit 6, and finding out whether it needs SlotKit.
 - [Reference](https://trevorschoeny.github.io/menukit/): the generated javadoc for the `api` packages.
 
 Every Java sample in this README and in `docs/` is compiled against the release before it ships.
@@ -86,7 +88,7 @@ These sources build as a project of a parent Gradle workspace that is not in thi
 
 ### To 7.0.0
 
-MenuKit keeps no slot code now. Everything about slots moved to SlotKit, a separate library built on MenuKit, and the deprecated parts of 6.x are gone. The [changelog](https://github.com/trevorschoeny/menukit/blob/main/menukit/changelog.md) has the full list. Declare `"menukit": ">=7.0.0 <8.0.0"`.
+MenuKit keeps no slot code now. Everything about slots moved to SlotKit, a separate library built on MenuKit, and the deprecated parts of 6.x are gone. [Upgrading to 7.0.0](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading-7.md) walks through the move, and the [changelog](https://github.com/trevorschoeny/menukit/blob/main/menukit/changelog.md) has the full list. Declare `"menukit": ">=7.0.0 <8.0.0"`.
 
 - Slot groups, categories, slot operations, vetoes, addresses, the window and `SlotGroupPanelAdapter` are SlotKit's. A mod that uses any of them depends on SlotKit and changes those imports. Nothing else changes for it.
 - `Declarations` moved to `com.trevlar.menukit.api.Declarations`.
