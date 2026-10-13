@@ -11,7 +11,7 @@ These are not planned. Use vanilla or another library.
 - Nested panels. A panel holds elements only.
 - Themes and skins. `PanelStyle` and the two screen kinds (`ScreenKind`) are the full set. An element's look follows its screen's kind and cannot be picked per element, panel or screen. MenuKit restyles nothing of vanilla's except the pressed look of buttons ([concepts](concepts.md#one-styling-change)).
 - Tooltip content. Item Tips (durability and food lines) left MenuKit in 6.0.0 and is a feature of Inventory Plus.
-- Animation beyond HUD notifications.
+- Animation beyond HUD notifications and the cycle strip's slide.
 - A cross-mod event bus.
 - Drag and drop between elements.
 - In-world rendering.

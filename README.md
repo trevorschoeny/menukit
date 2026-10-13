@@ -15,6 +15,7 @@ What it does:
 - Makes what a panel covers inert. An opaque panel takes every point of its rectangle, and a see-through one takes only its controls. A slot or widget under a panel does not highlight, click or show a tooltip.
 - Gives its controls vanilla's click sound, narration and keyboard focus, and greys a whole panel at once with one `disabledWhen`.
 - Draws each element for the kind of screen it is on. Inventories and chests get MenuKit's grey look, and Options, Controls and similar screens get vanilla's pause-menu look. A standalone screen declares its kind once, when it is made. Text is coloured by role (heading, body, muted, disabled) so it reads on either kind.
+- Draws a cycle strip beside the hotbar for any mod that turns a ring of stacks through the held slot, with a slide on each turn.
 - Lets a settings page pick items. An item picker is a slot whose item is a setting value. The player chooses it from a searchable list, and it is never taken from the inventory.
 
 Requires Fabric and Fabric API.
@@ -28,14 +29,14 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    implementation 'maven.modrinth:menukit:7.0.0+26.3'
+    implementation 'maven.modrinth:menukit:7.1.0+26.3'
 }
 ```
 
 Declare it in `fabric.mod.json`, with both bounds ([why](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md)):
 
 ```json
-"depends": { "menukit": ">=7.0.0 <8.0.0" }
+"depends": { "menukit": ">=7.1.0 <8.0.0" }
 ```
 
 ## Example
@@ -62,7 +63,7 @@ The API is every type in a package named `api`: `com.trevlar.menukit.api.*`. The
 | `api.element` | Every element, and the contexts they render and take input in |
 | `api.layout`, `api.dialog` | Rows and columns placed once; confirm and alert dialogs |
 | `api.panel` | `Panel`, placement (`PanelPosition` and the regions), the adapters that put panels on vanilla screens and around anchors, `MKScreen` |
-| `api.hud` | HUD panels and notifications |
+| `api.hud` | HUD panels, notifications and the cycle strip |
 | `api.host` | For a library that ships its own screens: the host of a screen's own panels, and the hook that routes input to slots drawn in panels |
 
 ## Docs
@@ -70,6 +71,7 @@ The API is every type in a package named `api`: `com.trevlar.menukit.api.*`. The
 - [Getting started](https://github.com/trevorschoeny/menukit/blob/main/docs/getting-started.md): the dependency, one HUD panel, one inventory-screen panel.
 - [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md): panels, elements, placement, the five contexts, claims.
 - [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md): the common tasks.
+- [Cycle strip](https://github.com/trevorschoeny/menukit/blob/main/docs/cycle-strip.md): the small hotbar beside the vanilla one that shows a ring of stacks turning through the held slot.
 - [Limits](https://github.com/trevorschoeny/menukit/blob/main/docs/limits.md): what MenuKit does not do, and the open gaps.
 - [Versioning](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md): what a version number promises.
 - [Upgrading to 7.0.0](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading-7.md): moving a mod from MenuKit 6, and finding out whether it needs SlotKit.
@@ -85,6 +87,10 @@ Every Java sample in this README and in `docs/` is compiled against the release 
 These sources build as a project of a parent Gradle workspace that is not in this repository. They do not build on their own yet.
 
 ## Upgrading
+
+### To 7.1.0
+
+Nothing to change. 7.1.0 adds the cycle strip ([guide](https://github.com/trevorschoeny/menukit/blob/main/docs/cycle-strip.md)). A mod that uses it declares `"menukit": ">=7.1.0 <8.0.0"`.
 
 ### To 7.0.0
 

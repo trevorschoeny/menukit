@@ -35,7 +35,8 @@ import org.jetbrains.annotations.ApiStatus;
  *   <li><b>Panels on vanilla container screens:</b>
  *       {@link com.trevlar.menukit.api.panel.ScreenPanelAdapter},
  *       {@link com.trevlar.menukit.api.panel.AnchorPanelAdapter}</li>
- *   <li><b>HUD panels:</b> {@link com.trevlar.menukit.api.hud.HudPanel}</li>
+ *   <li><b>HUD panels:</b> {@link com.trevlar.menukit.api.hud.HudPanel}, and the cycle
+ *       strip beside the hotbar, {@link com.trevlar.menukit.api.hud.HudCycleStrip}</li>
  *   <li><b>Standalone screens:</b> {@link com.trevlar.menukit.api.panel.MKScreen}</li>
  *   <li><b>Layout:</b> {@link com.trevlar.menukit.api.layout.Row},
  *       {@link com.trevlar.menukit.api.layout.Column}</li>
