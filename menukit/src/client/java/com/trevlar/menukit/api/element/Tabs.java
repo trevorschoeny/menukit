@@ -1482,10 +1482,14 @@ public final class Tabs extends AbstractPanelElement {
         }
 
         double lx = in.mouseX() - (in.originX() + childX), ly = in.mouseY() - (in.originY() + childY);
-        // The header band, its gap included, eats its own clicks as the strip does.
+        // The header band, its gap included, eats its own clicks as the strip does,
+        // but only when one of its elements claims it. An unclaimed click is a
+        // vanilla-backed widget (TextField, Slider) reached by vanilla's own
+        // routing, or empty header space with nothing underneath, so it falls
+        // through rather than being eaten.
         if (ly >= 0 && ly < s.top) {
-            if (!disabled(in)) ChildDispatch.mouseClicked(header, headerInput(in), button);
-            return true;
+            if (disabled(in)) return true;
+            return ChildDispatch.mouseClicked(header, headerInput(in), button);
         }
         ly -= s.top;                                      // from here on, from under the header
         if (onStrip(s, lx, ly)) {
@@ -1517,9 +1521,12 @@ public final class Tabs extends AbstractPanelElement {
     /** A click in the sidebar column ({@code ly} from under the full-width header): its header, the scrollbar lane, a tab. */
     private boolean clickSidebar(StripLayout s, InputContext in, double lx, double ly, int button) {
         if (ChildDispatch.mouseClicked(sidebarHeader, columnInput(in), button)) return true;
-        if (button != Click.LEFT) return true;            // the column eats its own clicks
         int viewStart = stripViewportStart(s);
-        if (ly < viewStart || ly >= viewStart + stripViewportLength(s)) return true;
+        // The header band is sidebarHeader's own; unclaimed means a vanilla-backed
+        // widget (TextField, Slider) or empty space, not the column's to eat.
+        if (ly < viewStart) return false;
+        if (button != Click.LEFT) return true;            // the column eats its own clicks
+        if (ly >= viewStart + stripViewportLength(s)) return true;
         if (lx < scrollbarLane(s, in.kind())) {
             // On the handle: grab it where it was pressed. On the track: jump so the
             // handle centres on the click, and keep holding it, as a body's does.
