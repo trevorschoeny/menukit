@@ -71,8 +71,6 @@ public final class CycleStrip {
     private static final int ITEM_OFFSET_X_PX = ITEM_OFFSET_PX - 1;
     /** The floating part of a column clears the hotbar-height cell by this many px. */
     public static final int COLUMN_RISE_PX = 1;
-    /** The floating part of a column sits this many px right of the held cell. */
-    public static final int COLUMN_NUDGE_X_PX = 1;
 
     private static final Identifier HOTBAR_SPRITE = Identifier.withDefaultNamespace("hud/hotbar");
     private static final int HOTBAR_SPRITE_W = 182;
@@ -322,6 +320,15 @@ public final class CycleStrip {
         return cellX - OUTER_BORDER_PX;
     }
 
+    /**
+     * An item's x in the cell whose left edge is {@code cellX}: two pixels in, as
+     * vanilla's hotbar draws its items ({@code guiWidth / 2 - 90 + slot * 20 + 2}, its
+     * cells starting at {@code guiWidth / 2 - 90}). Every cell of both axes uses it.
+     */
+    public static int itemX(int cellX) {
+        return cellX + ITEM_OFFSET_X_PX;
+    }
+
     /** Width (and height) of one framed cell: the cell plus the outline each side. */
     public static final int CELL_FRAME_PX = SLOT_PX + 2 * OUTER_BORDER_PX;
 
@@ -470,27 +477,27 @@ public final class CycleStrip {
         Direction direction = slide == null ? null : slide.direction();
         float p = slide == null ? 1f : progress(slide.startMillis(), System.currentTimeMillis());
         int topY = columnCellY(heldTop, 0, n);
-        // The floating cells sit a hair right of the held cell; the held stack itself
-        // stays on the bar, so handing it back never snaps.
-        int floatX = cellX + COLUMN_NUDGE_X_PX;
+        // The floating cells share the held cell's x, so their frames stack exactly over
+        // the hotbar cell below (frame at cellX - 1, 22 wide, as the bar's own outline is)
+        // and their items sit at the same cellX + 2 as vanilla's. A 1 px nudge right here
+        // read as the column sitting a pixel off the hotbar (Trev, 2026-10-14).
 
         // Top to bottom, so each cell's outline row covers the bottom edge of the one
         // above it: the floating cells read as one framed column. The lowest one's
         // bottom outline lands on the bar's top row, under the selection frame.
         for (int j = 0; j <= n - 2; j++) {
-            renderBar(graphics, cellFrameX(floatX), columnCellY(heldTop, j, n), CELL_FRAME_PX);
+            renderBar(graphics, cellFrameX(cellX), columnCellY(heldTop, j, n), CELL_FRAME_PX);
         }
 
         // Clip to the column plus one cell below the hand, so a forward exit can slide
         // out of the bottom.
-        graphics.enableScissor(cellX, topY, floatX + SLOT_PX, heldTop + SLOT_PX);
+        graphics.enableScissor(cellX, topY, cellX + SLOT_PX, heldTop + SLOT_PX);
         try {
             for (int i = 0; i < n; i++) {
                 if (i == n - 1 && !includeHeld) continue; // the row owns the held stack
                 int toY = columnCellY(heldTop, i, n);
                 int fromY = columnFromY(heldTop, i, n, direction);
-                int x = (i == n - 1) ? cellX : floatX;
-                renderItem(graphics, mc, visual.get(i), x, Math.round(fromY + (toY - fromY) * p));
+                renderItem(graphics, mc, visual.get(i), cellX, Math.round(fromY + (toY - fromY) * p));
             }
             // The wrapped stack leaves through the shared held end, so only when this arm
             // owns that cell. Forward: the old held stack (now at the top) slides out of
@@ -500,8 +507,7 @@ public final class CycleStrip {
                 int wrapIndex = fwd ? 0 : n - 1;
                 int fromY = fwd ? heldTop : columnCellY(heldTop, 0, n);
                 int toY = fwd ? heldTop + SLOT_PX : columnCellY(heldTop, 0, n) - SLOT_PX;
-                int x = fwd ? cellX : floatX;
-                renderItem(graphics, mc, visual.get(wrapIndex), x, Math.round(fromY + (toY - fromY) * p));
+                renderItem(graphics, mc, visual.get(wrapIndex), cellX, Math.round(fromY + (toY - fromY) * p));
             }
         } finally {
             graphics.disableScissor();
@@ -532,7 +538,7 @@ public final class CycleStrip {
 
     private static void renderItem(GuiGraphicsExtractor graphics, Minecraft mc, ItemStack stack, int cellX, int cellY) {
         if (stack.isEmpty()) return;
-        int itemX = cellX + ITEM_OFFSET_X_PX;
+        int itemX = itemX(cellX);
         int itemY = cellY + ITEM_OFFSET_PX;
         graphics.item(stack, itemX, itemY);
         graphics.itemDecorations(mc.font, stack, itemX, itemY);
