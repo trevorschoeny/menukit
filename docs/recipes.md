@@ -338,3 +338,16 @@ Button pin = Button.builder().label(Component.literal("Mode")).size(60, 16)
 Result: left click runs `cycleMode`. Right click runs `cycleModeBackward`, and shift with right click runs `clearMode`. While `pinned` is true an amber wash fills the button under its label. `Toggle` takes the same two builder methods with the same contract.
 
 A control with no `onSecondaryClick` handler passes non-left clicks to vanilla. A disabled control consumes neither kind.
+
+## Hide item tooltips separately
+
+Needs: MenuKit 7.1.0. Call from the client entry point.
+
+```java
+MKTooltip.hideWhen(kind -> kind == MKTooltip.Kind.ITEM && config.hideItemTooltips());
+MKTooltip.hideWhen(kind -> kind == MKTooltip.Kind.OTHER && config.hideOtherTooltips());
+```
+
+Result: while `hideItemTooltips()` returns true, no item stack shows a tooltip: slots on every container screen, the creative menu, the recipe book, an item in chat. Buttons, tabs and MenuKit elements still show theirs. While `hideOtherTooltips()` returns true it is the other way round. Each tooltip asks every registered predicate with its kind, and any one returning true hides it. `MKTooltip.hideWhen(() -> ...)` with no kind still hides both.
+
+A tooltip is `ITEM` when it comes through vanilla's item paths, which other mods' item tooltips use too: `setTooltipForNextFrame(font, stack, x, y)`, a container slot, or lines from `Screen.getTooltipFromItem`. A mod that builds its own lines from `ItemStack.getTooltipLines` and queues them as plain lines draws an `OTHER` tooltip.

@@ -48,6 +48,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * bounds. Like the click-eating mixin it only reads per-panel flags, so two mods
  * with opaque panels coexist without either owning the hook.
  *
+ * <p>What kind of tooltip is queued ({@link MKTooltip.Kind}) is decided before it
+ * gets here: the item paths mark it (MKItemTooltipMarkMixin, MKContainerItemTooltipMixin)
+ * and the suppress hook takes the mark.
+ *
  * <p>The other tooltip hooks live here too. {@code tooltip}, which places and draws
  * every queued tooltip, is wrapped to dock it ({@link MKTooltip#avoidCoverWhen}),
  * keep it on screen ({@link MKTooltip#wrapWhen},
@@ -78,10 +82,12 @@ public abstract class MKTooltipSuppressMixin {
         // A tooltip queued while the pointer's owner renders is that panel's own
         // content (an element tooltip, the panel tooltip): it passes, even over the
         // panel's own claim.
-        // A mod can ask for no tooltips at all right now (MKTooltip.hideWhen, such
-        // as Inventory Plus while Ctrl is held). That is checked first, so a live
-        // panel's own element tooltips hide too.
-        if (com.trevlar.menukit.api.element.MKTooltip.hidden()) {
+        // A mod can ask for no tooltips right now, or none of one kind (MKTooltip.hideWhen:
+        // Inventory Plus while Ctrl is held, Dock and Hide Tooltips' item and other
+        // switches). That is checked first, so a live panel's own element tooltips hide
+        // too. The kind is taken on every tooltip, hidden or not, so an item path's mark
+        // never carries over to the next one (MKTooltip.itemTooltipNext).
+        if (MKTooltip.hidden(MKTooltip.takeKind())) {
             ci.cancel();
             return;
         }

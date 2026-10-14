@@ -22,10 +22,13 @@ import org.joml.Vector2i;
 import org.joml.Vector2ic;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 
 /**
  * The one place a hover tooltip is queued: every element tooltip and the panel
@@ -58,19 +61,43 @@ public final class MKTooltip {
 
     private MKTooltip() {}
 
-    // Hiding every tooltip. MenuKit owns the one hook every tooltip in the game is
-    // queued through (MKTooltipSuppressMixin, on vanilla's
-    // setTooltipForNextFrameInternal), and a vanilla method gets only one such hook,
-    // so a mod that wants tooltips gone registers a predicate here instead of adding
-    // a second mixin. MenuKit supplies the mechanism; the mod supplies the policy
-    // (Inventory Plus: "a setting is on and Ctrl is held").
+    // Hiding tooltips. MenuKit owns the one hook every tooltip in the game is queued
+    // through (MKTooltipSuppressMixin, on vanilla's setTooltipForNextFrameInternal), and
+    // a vanilla method gets only one such hook, so a mod that wants tooltips gone
+    // registers a predicate here instead of adding a second mixin. MenuKit supplies the
+    // mechanism and says what kind of tooltip is coming; the mod supplies the policy
+    // (Inventory Plus: "a setting is on and Ctrl is held"; Dock and Hide Tooltips: "hide
+    // item tooltips" and "hide all other tooltips" as two settings).
 
-    /** Registered "hide while" predicates. Written only during init, read every frame. */
-    private static final Set<BooleanSupplier> HIDE_WHEN = new LinkedHashSet<>();
+    /**
+     * What a tooltip shows, as {@link #hideWhen(Predicate)} sees it. By the time vanilla
+     * queues a tooltip it is only lines, so MenuKit marks the item paths before they get
+     * there (see {@link #itemTooltipNext}).
+     */
+    public enum Kind {
+        /**
+         * An item stack's tooltip, from vanilla's item paths: a slot on any container
+         * screen (the inventory and creative menu included), the recipe book's buttons and
+         * ghost slots, an item in chat, a villager's trades, and any tooltip a mod queues
+         * with {@code setTooltipForNextFrame(font, stack, x, y)} or builds from
+         * {@code Screen.getTooltipFromItem}. A mod that builds its lines from
+         * {@code ItemStack.getTooltipLines} itself and queues them as plain lines is OTHER.
+         */
+        ITEM,
+        /** Every other tooltip: a button, a tab, an effect, a MenuKit element, a panel. */
+        OTHER
+    }
+
+    /**
+     * Registered "hide while" predicates, keyed by what the mod registered so the same
+     * instance twice is one entry. Written only during init, read every frame.
+     */
+    private static final Map<Object, Predicate<Kind>> HIDE_WHEN = new LinkedHashMap<>();
 
     /**
      * Hides every tooltip in the game, on any screen and from any source (vanilla,
-     * MenuKit elements, other mods), on every frame {@code condition} is true.
+     * MenuKit elements, other mods), on every frame {@code condition} is true: both
+     * kinds, as {@link #hideWhen(Predicate)} with a predicate that ignores the kind.
      * Several mods may register; any one returning true hides. Registering the
      * same supplier instance twice is a no-op. Call from client init.
      *
@@ -78,16 +105,66 @@ public final class MKTooltip {
      */
     public static void hideWhen(BooleanSupplier condition) {
         Declarations.requireOpen("MKTooltip.hideWhen");
-        HIDE_WHEN.add(condition);
+        HIDE_WHEN.putIfAbsent(condition, kind -> condition.getAsBoolean());
     }
 
-    /** True when any registered {@link #hideWhen} predicate holds this frame. */
+    /**
+     * Hides each tooltip for which {@code condition} holds, asked once per tooltip with
+     * its {@link Kind}: {@code kind -> kind == Kind.ITEM && hideItems()} hides item
+     * tooltips only. Otherwise the same as {@link #hideWhen(BooleanSupplier)}: any
+     * source, any screen, several mods may register and any one returning true hides,
+     * the same instance twice is a no-op. Call from client init.
+     *
+     * @throws IllegalStateException after MenuKit's declarations froze
+     * @since 7.1.0
+     */
+    public static void hideWhen(Predicate<Kind> condition) {
+        Declarations.requireOpen("MKTooltip.hideWhen");
+        HIDE_WHEN.putIfAbsent(condition, condition);
+    }
+
+    /** True when any registered {@link #hideWhen} predicate holds for a tooltip of {@code kind} this frame. */
     @org.jetbrains.annotations.ApiStatus.Internal
-    public static boolean hidden() {
-        return anyHolds(HIDE_WHEN);
+    public static boolean hidden(Kind kind) {
+        for (Predicate<Kind> c : HIDE_WHEN.values()) {
+            if (c.test(kind)) return true;
+        }
+        return false;
     }
 
-    /** Any one registered predicate holding switches the behaviour on (hide, wrap, clamp). */
+    // Telling an item tooltip from the rest. Vanilla turns an item's tooltip into lines
+    // before it queues them, so the suppress hook alone cannot tell. The item paths mark
+    // the tooltip they are about to queue (MKItemTooltipMarkMixin on Screen.getTooltipFromItem,
+    // the shared step that turns a stack into lines; MKContainerItemTooltipMixin on the
+    // container slot tooltip, which the creative menu builds without that step), and the
+    // suppress hook takes the mark with the next tooltip. The mark lasts until a tooltip
+    // takes it or the screen's frame starts or ends, whichever comes first, so a stack
+    // read for its lines and never shown marks nothing after that frame. Render thread only.
+
+    /** The next tooltip queued is an item stack's. */
+    private static boolean itemNext;
+
+    /** An item path is about to queue its tooltip: the next one queued is {@link Kind#ITEM}. */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static void itemTooltipNext() {
+        itemNext = true;
+    }
+
+    /** The kind of the tooltip being queued now, clearing the mark: ITEM once after {@link #itemTooltipNext}, else OTHER. */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static Kind takeKind() {
+        Kind kind = itemNext ? Kind.ITEM : Kind.OTHER;
+        itemNext = false;
+        return kind;
+    }
+
+    /** A screen frame starts (Screen.extractRenderStateWithTooltipAndSubtitles HEAD): a mark left from before it is dropped. */
+    @org.jetbrains.annotations.ApiStatus.Internal
+    public static void screenFrameStarts() {
+        itemNext = false;
+    }
+
+    /** Any one registered predicate holding switches the behaviour on (wrap, clamp, dock). */
     private static boolean anyHolds(Set<BooleanSupplier> conditions) {
         for (BooleanSupplier c : conditions) {
             if (c.getAsBoolean()) return true;
@@ -372,6 +449,7 @@ public final class MKTooltip {
     /** A screen frame is about to draw its tooltip, if any (GuiGraphicsExtractor.extractDeferredElements HEAD). */
     @org.jetbrains.annotations.ApiStatus.Internal
     public static void frameStarts() {
+        itemNext = false;  // the frame's tooltips are queued: an unused item mark ends here
         shownBefore = shown;
         shown = false;
     }
