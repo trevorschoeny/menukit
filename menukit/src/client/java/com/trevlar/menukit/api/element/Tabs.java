@@ -1483,13 +1483,14 @@ public final class Tabs extends AbstractPanelElement {
 
         double lx = in.mouseX() - (in.originX() + childX), ly = in.mouseY() - (in.originY() + childY);
         // The header band, its gap included, eats its own clicks as the strip does,
-        // but only when one of its elements claims it. An unclaimed click is a
-        // vanilla-backed widget (TextField, Slider) reached by vanilla's own
-        // routing, or empty header space with nothing underneath, so it falls
-        // through rather than being eaten.
+        // so a click on its empty space never reaches what lies under it (a slot,
+        // a vanilla button). The one exception is a click on a header element that
+        // hit-tests but doesn't claim it: that is a vanilla-backed widget (TextField,
+        // Slider) whose click vanilla's own widget routing delivers, so it must
+        // fall through or the EditBox never takes focus (Mod Hub's search box).
         if (ly >= 0 && ly < s.top) {
             if (disabled(in)) return true;
-            return ChildDispatch.mouseClicked(header, headerInput(in), button);
+            return claimOrEat(header, headerInput(in), button);
         }
         ly -= s.top;                                      // from here on, from under the header
         if (onStrip(s, lx, ly)) {
@@ -1518,13 +1519,26 @@ public final class Tabs extends AbstractPanelElement {
         return ov != null && in.isInside(ov);
     }
 
+    /**
+     * A click in a header band: true when a header element claims it, false when
+     * it lands on a header element that doesn't (a vanilla-backed widget such as a
+     * TextField or Slider, reached by vanilla's widget routing once this returns
+     * false), and true again on empty band, which is eaten so nothing under the
+     * Tabs sees it.
+     */
+    private static boolean claimOrEat(List<PanelElement> band, InputContext in, int button) {
+        if (ChildDispatch.mouseClicked(band, in, button)) return true;
+        return !ChildDispatch.hitTest(band, in);
+    }
+
     /** A click in the sidebar column ({@code ly} from under the full-width header): its header, the scrollbar lane, a tab. */
     private boolean clickSidebar(StripLayout s, InputContext in, double lx, double ly, int button) {
         if (ChildDispatch.mouseClicked(sidebarHeader, columnInput(in), button)) return true;
         int viewStart = stripViewportStart(s);
-        // The header band is sidebarHeader's own; unclaimed means a vanilla-backed
-        // widget (TextField, Slider) or empty space, not the column's to eat.
-        if (ly < viewStart) return false;
+        // The band above the tabs is sidebarHeader's own: eaten like the column,
+        // except a click on a vanilla-backed header widget, which falls through
+        // to vanilla's routing (see claimOrEat).
+        if (ly < viewStart) return !ChildDispatch.hitTest(sidebarHeader, columnInput(in));
         if (button != Click.LEFT) return true;            // the column eats its own clicks
         if (ly >= viewStart + stripViewportLength(s)) return true;
         if (lx < scrollbarLane(s, in.kind())) {
