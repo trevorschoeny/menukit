@@ -32,14 +32,15 @@ Needs: MenuKit. Call from the client entry point.
 ```java
 HudPanel.builder("mymod:totem-icon")
         .region(OutsideRegion.LEFT_ALIGN_BOTTOM)
-        .priority(20)
+        .priority(10)
+        .offset(0, -3)
         .visibleWhen(() -> !totemShown().isEmpty())
         .element(ItemDisplay.builder().item(() -> totemShown())
                 .size(12, 12).hideCount().hideDurability().build())
         .build();
 ```
 
-Result: a 12 pixel icon sits 2 pixels left of the vanilla hotbar, its bottom level with the hotbar's bottom, while `totemShown()` holds a stack. On the HUD an `OutsideRegion` is placed around the hotbar, so `.region(OutsideRegion.X)` reads as "on that side of the hotbar". Icons from several mods in one region stack upward 2 pixels apart in `.priority(n)` order, lowest at the bottom. A hidden one takes no room, so the next drops into its place and nothing overlaps or leaves a gap, whichever mods are installed. Use a distinct priority per icon. The hotbar here is vanilla's bar alone: the offhand slot vanilla draws beside it is not part of it.
+Result: a 12 pixel icon sits 2 pixels left of the vanilla hotbar while `totemShown()` holds a stack, its bottom level with the bottom of the hotbar's items: the region puts it on the hotbar's bottom edge, and `.offset(0, -3)` lifts it the 3 pixels vanilla leaves below the item row. On the HUD an `OutsideRegion` is placed around the hotbar, so `.region(OutsideRegion.X)` reads as "on that side of the hotbar". Icons from several mods in one region stack upward 2 pixels apart in `.priority(n)` order, lowest at the bottom: an elytra icon at `.priority(20)` with the same offset sits just above this one. A hidden one takes no room, so the next drops into its place and nothing overlaps or leaves a gap, whichever mods are installed. Use a distinct priority per icon. While vanilla draws the offhand slot beside the hotbar (the offhand holds something: on the left for a right-handed player, on the right for a left-handed one), the regions on that side start 2 pixels beyond the slot instead, so the icons never cover it.
 
 ## Put a button on every container screen
 

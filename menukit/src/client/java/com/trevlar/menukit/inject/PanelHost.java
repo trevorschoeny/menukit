@@ -21,6 +21,7 @@ import com.trevlar.menukit.api.element.RenderContext;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.world.entity.HumanoidArm;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
@@ -167,8 +168,18 @@ public final class PanelHost {
      *                    where the screen ends rather than where its anchor does;
      *                    {@code null} where there is no frame (a standalone host uses
      *                    its main frame instead).
+     * @param offhand     the HUD only (since 7.1.0): the side vanilla draws the offhand
+     *                    slot on beside the hotbar this frame, or {@code null} when it
+     *                    draws none. {@link RegionMath#resolveHud} starts that side's
+     *                    regions beyond the slot. Always {@code null} elsewhere.
      */
-    public record Frame(int sw, int sh, @Nullable Reference reference, @Nullable Reference screenFrame) {
+    public record Frame(int sw, int sh, @Nullable Reference reference, @Nullable Reference screenFrame,
+                        @Nullable HumanoidArm offhand) {
+        /** A frame with no offhand slot beside its reference (every host but the HUD). */
+        public Frame(int sw, int sh, @Nullable Reference reference, @Nullable Reference screenFrame) {
+            this(sw, sh, reference, screenFrame, null);
+        }
+
         /** A frame whose reference is also the screen's frame (or a context with neither). */
         public Frame(int sw, int sh, @Nullable Reference reference) {
             this(sw, sh, reference, reference);
@@ -280,10 +291,20 @@ public final class PanelHost {
     /**
      * The HUD's frame on an {@code sw x sh} GUI: the window, with the vanilla hotbar as
      * the reference a REGION panel is placed around (since 7.1.0). No screen frame: a
-     * side panel beside the hotbar has no frame band to wrap at.
+     * side panel beside the hotbar has no frame band to wrap at. No offhand slot drawn
+     * beside the hotbar.
      */
     public static Frame hudFrame(int sw, int sh) {
-        return new Frame(sw, sh, RegionMath.hotbar(sw, sh), null);
+        return hudFrame(sw, sh, null);
+    }
+
+    /**
+     * The HUD's frame with the offhand slot vanilla draws beside the hotbar on
+     * {@code offhand}'s side this frame ({@code null}: none drawn). Regions on that
+     * side then start beyond the slot ({@link RegionMath#resolveHud}).
+     */
+    public static Frame hudFrame(int sw, int sh, @Nullable HumanoidArm offhand) {
+        return new Frame(sw, sh, RegionMath.hotbar(sw, sh), null, offhand);
     }
 
     /** A standalone screen's host: its main panel is the frame; {@code screenKind} is what the screen declared. */
@@ -581,7 +602,7 @@ public final class PanelHost {
                 out.add(mainPlaced);
                 continue;
             }
-            Placed p = place(e, sw, sh, reference, screenFrame, prefix);
+            Placed p = place(e, sw, sh, reference, screenFrame, frame.offhand(), prefix);
             if (p != null) out.add(p);
         }
         return new Layout(List.copyOf(out), main);
@@ -589,7 +610,8 @@ public final class PanelHost {
 
     /** Resolves one entry, or {@code null} when it has no place this frame. */
     private @Nullable Placed place(Entry e, int sw, int sh, @Nullable Reference reference,
-                                   @Nullable Reference screenFrame, Map<Object, Integer> prefix) {
+                                   @Nullable Reference screenFrame, @Nullable HumanoidArm offhand,
+                                   Map<Object, Integer> prefix) {
         Panel panel = e.panel();
         PanelPosition pos = e.position();
         int pad = e.padding();
@@ -626,9 +648,10 @@ public final class PanelHost {
                     size = measure(panel, pad);
                     // On the HUD the reference is the hotbar, flush with the window's
                     // bottom: no safe-area clamp, which would lift a panel aligned to
-                    // the hotbar's bottom off it (RegionMath.resolveHud).
+                    // the hotbar's bottom off it, and the side the offhand slot is
+                    // drawn on starts beyond the slot (RegionMath.resolveHud).
                     var o = kind == Kind.HUD
-                            ? RegionMath.resolveHud(region, reference, size[0], size[1], before, sw, sh)
+                            ? RegionMath.resolveHud(region, reference, offhand, size[0], size[1], before, sw, sh)
                             : RegionMath.resolveMenu(region, reference, size[0], size[1], before, sw, sh);
                     if (o.isEmpty()) {
                         warnOnce(e, kind == Kind.HUD

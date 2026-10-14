@@ -102,9 +102,11 @@ public class HudPanel {
          * and none on top of another, whichever mods are installed. It follows the
          * hotbar at every GUI scale and window size.
          *
-         * <p>The hotbar here is vanilla's 182 x 22 bar. The offhand slot vanilla draws
-         * beside it while the offhand holds something is not part of it, so a panel
-         * left (or, left-handed, right) of the hotbar sits over that slot then.
+         * <p>The hotbar here is vanilla's 182 x 22 bar. While vanilla draws the offhand
+         * slot beside it (the offhand holds something: on the left for a right-handed
+         * player, on the right for a left-handed one), the side regions on that side
+         * start 2px beyond the slot instead, so a panel there never covers it. The
+         * other side, and the regions above and below the hotbar, do not move.
          */
         public Builder region(OutsideRegion aroundHotbar) {
             this.aroundHotbar = aroundHotbar;

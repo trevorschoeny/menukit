@@ -6,8 +6,11 @@ import com.trevlar.menukit.api.panel.RegionConstants;
 import com.trevlar.menukit.api.panel.Reference;
 import com.trevlar.menukit.api.panel.ScreenOrigin;
 
-import java.util.Optional;
+import net.minecraft.world.entity.HumanoidArm;
 import org.jetbrains.annotations.ApiStatus;
+import org.jspecify.annotations.Nullable;
+
+import java.util.Optional;
 
 /**
  * Coordinate math for panel regions. Given the anchor frame's bounds (or the
@@ -22,7 +25,8 @@ import org.jetbrains.annotations.ApiStatus;
  * <p>Two resolvers cover every placement: {@link #resolveMenu} for an
  * {@link OutsideRegion} around a reference rectangle, and {@link #resolveInside}
  * for an {@link InsideRegion} spot on the screen. {@link #resolveHud} is the first
- * one around the HUD's reference, the hotbar, without the safe-area clamp. The panel hosts
+ * one around the HUD's reference, the hotbar, without the safe-area clamp and
+ * starting beyond the offhand slot on the side vanilla draws it. The panel hosts
  * ({@code com.trevlar.menukit.inject.PanelHost}) supply the inputs and treat
  * {@link Optional#empty()} as "not placed this frame".
  */
@@ -350,6 +354,16 @@ public final class RegionMath {
     public static final int HOTBAR_WIDTH = 182, HOTBAR_HEIGHT = 22;
 
     /**
+     * The vanilla offhand slot's sprite width, in GUI pixels (since 7.1.0). While the
+     * offhand holds something, {@code Hud.extractItemHotbar} draws
+     * {@code hud/hotbar_offhand_left} (29 x 24) at {@code hotbarLeft - 29}, or
+     * {@code hud/hotbar_offhand_right} at {@code hotbarRight}: flush against the
+     * hotbar's edge, a 22 px slot frame on the far side and 7 transparent pixels
+     * between it and the bar. So the slot's outer edge is 29 px beyond the hotbar's.
+     */
+    public static final int OFFHAND_SLOT_WIDTH = 29;
+
+    /**
      * Places a {@code pw x ph} panel around the HUD's reference, the hotbar (since
      * 7.1.0). The same geometry as {@link #resolveMenu} (outside the box, 2 px off it,
      * stacked {@code prefix} away from the aligned end) without the safe-area clamp:
@@ -357,12 +371,45 @@ public final class RegionMath {
      * aligned to its bottom 6 px off where it belongs. A panel that would leave the
      * window instead is not placed, as an {@link InsideRegion} spot on the HUD that
      * overflows is not.
+     *
+     * <p>Offhand-aware: {@code offhand} is the side vanilla draws the offhand slot on
+     * this frame ({@link HumanoidArm#LEFT} when the main arm is right, {@code RIGHT}
+     * when it is left), or {@code null} while it draws none (the offhand is empty,
+     * or a spectator's hotbar is up). The two side regions on that side
+     * ({@code LEFT_ALIGN_*} or {@code RIGHT_ALIGN_*}) then start 2 px beyond the
+     * slot instead of 2 px beyond the hotbar, so an icon there never covers it.
+     * Every other region, including the TOP and BOTTOM ones that only run along the
+     * hotbar, and the side regions on the far side, is placed as before. Every HUD
+     * panel in an OutsideRegion comes through here, so no caller decides this.
      */
     public static Optional<ScreenOrigin> resolveHud(OutsideRegion region, Reference hotbar,
+                                                    @Nullable HumanoidArm offhand,
                                                     int pw, int ph, int prefix, int sw, int sh) {
         ScreenOrigin o = outsideOrigin(region, hotbar, pw, ph, prefix);
+        // Push the panel out past the offhand slot when it is drawn on this
+        // region's side: left regions move further left, right regions further
+        // right, by the slot sprite's whole width. The stack inside the region is
+        // untouched (the shift is the same for every panel in it).
+        int shift = offhandShift(region, offhand);
+        if (shift != 0) o = new ScreenOrigin(o.x() + shift, o.y());
         boolean onScreen = o.x() >= 0 && o.y() >= 0 && o.x() + pw <= sw && o.y() + ph <= sh;
         return onScreen ? Optional.of(o) : Optional.empty();
+    }
+
+    /**
+     * How far a panel in {@code region} moves sideways so it starts beyond the
+     * offhand slot drawn on {@code offhand}'s side: {@code -29} for a left region
+     * with the slot on the left, {@code +29} for a right region with it on the
+     * right, {@code 0} otherwise (no slot, the other side, or a region above or
+     * below the hotbar).
+     */
+    private static int offhandShift(OutsideRegion region, @Nullable HumanoidArm offhand) {
+        if (offhand == null) return 0;
+        boolean leftRegion = region == OutsideRegion.LEFT_ALIGN_TOP || region == OutsideRegion.LEFT_ALIGN_BOTTOM;
+        boolean rightRegion = region == OutsideRegion.RIGHT_ALIGN_TOP || region == OutsideRegion.RIGHT_ALIGN_BOTTOM;
+        if (leftRegion && offhand == HumanoidArm.LEFT) return -OFFHAND_SLOT_WIDTH;
+        if (rightRegion && offhand == HumanoidArm.RIGHT) return OFFHAND_SLOT_WIDTH;
+        return 0;
     }
 
     /**

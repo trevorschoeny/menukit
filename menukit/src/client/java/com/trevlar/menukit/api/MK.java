@@ -10,7 +10,10 @@ import com.trevlar.menukit.api.Declarations;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.GameType;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,8 +65,25 @@ public class MK {
     private static final PanelHost HUD = PanelHost.hud(() -> {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.getWindow() == null) return null;
-        return PanelHost.hudFrame(mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
+        return PanelHost.hudFrame(mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight(),
+                drawnOffhandSide(mc));
     });
+
+    /**
+     * The side vanilla draws the offhand slot on beside the hotbar this frame, or
+     * {@code null} when it draws none. Mirrors {@code Hud.extractItemHotbar} (26.x):
+     * the item hotbar is drawn for the camera's player outside spectator mode (a
+     * spectator gets the spectator bar instead), and the offhand slot only while
+     * that player's offhand holds something, on the side opposite the main arm
+     * (left for a right-handed player, right for a left-handed one). The geometry
+     * this feeds lives in {@code RegionMath.resolveHud}; this only reads the game.
+     */
+    private static @Nullable HumanoidArm drawnOffhandSide(Minecraft mc) {
+        if (mc.gameMode == null || mc.gameMode.getPlayerMode() == GameType.SPECTATOR) return null;
+        if (!(mc.getCameraEntity() instanceof Player player)) return null;
+        if (player.getOffhandItem().isEmpty()) return null;
+        return player.getMainArm().getOpposite();
+    }
 
     // Notification definitions, registered at mod init
     private static final Map<String, HudNotification> notificationDefs = new LinkedHashMap<>();
