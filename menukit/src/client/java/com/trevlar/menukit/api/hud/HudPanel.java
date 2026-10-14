@@ -2,6 +2,7 @@ package com.trevlar.menukit.api.hud;
 
 import com.trevlar.menukit.api.MK;
 import com.trevlar.menukit.api.panel.InsideRegion;
+import com.trevlar.menukit.api.panel.OutsideRegion;
 import com.trevlar.menukit.api.element.ItemDisplay;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.element.PanelElement;
@@ -27,8 +28,9 @@ import java.util.function.Supplier;
  * Builds HUD panels: panels drawn on the game's heads-up display.
  *
  * <p>A HUD panel is a {@link Panel} in the HUD's host: render only (no input),
- * placed on an {@link InsideRegion} spot of the game window, stacked with
- * the other panels on that spot in priority order, sized to its content. Build once
+ * placed on an {@link InsideRegion} spot of the game window or in an
+ * {@link OutsideRegion} around the vanilla hotbar, stacked with the other panels
+ * there in priority order, sized to its content. Build once
  * from your client initializer (registration freezes at client start); MenuKit
  * renders it every frame the HUD draws.
  *
@@ -62,7 +64,9 @@ public class HudPanel {
 
     public static class Builder {
         private final String name;
-        private @Nullable InsideRegion region;      // required: where on the window
+        // Required, exactly one: a spot on the window, or a region around the hotbar.
+        private @Nullable InsideRegion region;
+        private @Nullable OutsideRegion aroundHotbar;
         private int offsetX = 0, offsetY = 0;
         private int priority = PanelPosition.DEFAULT_PRIORITY;
         private int padding = 0;
@@ -83,6 +87,28 @@ public class HudPanel {
          */
         public Builder region(InsideRegion region) {
             this.region = region;
+            this.aroundHotbar = null;
+            return this;
+        }
+
+        /**
+         * Places the panel around the vanilla hotbar instead of on a window spot
+         * (since 7.1.0). The hotbar is the reference: {@code LEFT_ALIGN_BOTTOM} sits
+         * 2px left of it with its bottom on the hotbar's bottom,
+         * {@code RIGHT_ALIGN_BOTTOM} the same on the right, {@code TOP_CENTER} above it.
+         * Panels in one region stack away from the aligned end (2px apart) in
+         * {@link #priority} order, and a hidden one ({@link #visibleWhen}) takes no
+         * room, so the icons of several mods line up beside the hotbar with no gaps
+         * and none on top of another, whichever mods are installed. It follows the
+         * hotbar at every GUI scale and window size.
+         *
+         * <p>The hotbar here is vanilla's 182 x 22 bar. The offhand slot vanilla draws
+         * beside it while the offhand holds something is not part of it, so a panel
+         * left (or, left-handed, right) of the hotbar sits over that slot then.
+         */
+        public Builder region(OutsideRegion aroundHotbar) {
+            this.aroundHotbar = aroundHotbar;
+            this.region = null;
             return this;
         }
 
@@ -110,7 +136,7 @@ public class HudPanel {
 
         /**
          * Stacking order among panels on the same spot (lower is nearer the spot's
-         * edge), and render order (lower draws first). Default
+         * edge; around the hotbar, nearer the region's aligned end), and render order (lower draws first). Default
          * {@link PanelPosition#DEFAULT_PRIORITY}. Ties break by mod id, then by
          * registration order.
          */
@@ -258,23 +284,26 @@ public class HudPanel {
          * Builds the HUD panel and registers it; from then on it renders every frame
          * the in-game HUD draws (never with input: the HUD routes none). A HUD panel
          * is an ordinary {@link Panel} positioned
-         * {@code screenAnchor(region).offset(dx, dy).priority(p)} in the HUD's host.
+         * {@code screenAnchor(region).offset(dx, dy).priority(p)} in the HUD's host, or
+         * {@code region(outsideRegion)...} for one around the hotbar.
          *
          * @return the panel (for its id, or to toggle its visibility)
          * @throws IllegalStateException if no {@link #region} was set, or after
          *         MenuKit's declarations froze at client start
          */
         public Panel build() {
-            if (region == null) {
+            if (region == null && aroundHotbar == null) {
                 throw new IllegalStateException("MenuKit: HUD panel '" + name
-                        + "' has no region. Call .region(InsideRegion.X) (and .offset(dx, dy) to nudge).");
+                        + "' has no region. Call .region(InsideRegion.X) for a spot on the window or"
+                        + " .region(OutsideRegion.X) for one around the hotbar (and .offset(dx, dy) to nudge).");
             }
+            PanelPosition where = region != null
+                    ? PanelPosition.screenAnchor(region)
+                    : PanelPosition.region(aroundHotbar);
             Panel panel = Panel.builder(name)
                     .elements(elements)
                     .style(style)
-                    .position(PanelPosition.screenAnchor(region)
-                            .offset(offsetX, offsetY)
-                            .priority(priority))
+                    .position(where.offset(offsetX, offsetY).priority(priority))
                     .build();
             panel.visibleWhen(visibleWhen);
             if (width >= 0 && height >= 0) {

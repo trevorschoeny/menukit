@@ -114,8 +114,9 @@ public record PanelPosition(Mode mode,
 
     /**
      * Outside the host's reference rectangle via {@code region}: to the right of the
-     * menu frame, below an anchor, above a standalone screen's main panel, and so
-     * on. Resolved by {@link RegionMath#resolveMenu}, so it is edge-aware on both
+     * menu frame, below an anchor, above a standalone screen's main panel, left of
+     * the vanilla hotbar on the HUD (since 7.1.0, through {@link RegionMath#resolveHud}),
+     * and so on. Resolved by {@link RegionMath#resolveMenu}, so it is edge-aware on both
      * axes and auto-scrolls when it would overflow the screen. Siblings sharing a
      * region stack away from the anchor edge in {@link #priority} order.
      */

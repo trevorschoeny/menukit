@@ -41,7 +41,7 @@ Every element is built by its builder and does not change after `build()`: `Butt
 | `size(w, h)` | Size, on the elements that take one. The rest size themselves from their content. |
 | `visibleWhen(supplier)` | Shown while it holds, read every frame. |
 | `disabledWhen(supplier)` | Greyed and inert while it holds. On a container it disables everything inside. |
-| `tooltip(text)` | The hover tooltip, fixed or read every frame. |
+| `tooltip(text)` | The hover tooltip, fixed or read every frame. A `\n` in the text starts a new line. `tooltip(first, more...)` takes several lines, each in its own style. |
 | `state(get, set)` | The lens onto the consumer's value (see State). |
 | `onClick(Runnable)` | What a press does. |
 | `opaque(boolean)` | Whether the element is solid on a transparent panel. |
@@ -197,7 +197,7 @@ On a standalone screen, the `main()` panel makes room for the `region(...)` pane
 
 ## Reference
 
-A reference is the rectangle a `region(...)` placement is measured against. It is not the panel and has no relation to the panel's size. The host decides it. It is a container screen's frame (extended by its chrome, such as creative's tab rows or an open recipe book), an anchor's box, or a standalone screen's main panel. `Reference` is the record that carries it. A region never names its reference.
+A reference is the rectangle a `region(...)` placement is measured against. It is not the panel and has no relation to the panel's size. The host decides it. It is a container screen's frame (extended by its chrome, such as creative's tab rows or an open recipe book), an anchor's box, a standalone screen's main panel, or on the HUD the vanilla hotbar. `Reference` is the record that carries it. A region never names its reference.
 
 ## Region
 
@@ -219,7 +219,7 @@ A context answers one question: what is this panel placed against? Each context 
 | Container screen | The menu frame | `ScreenPanelAdapter` | region, screenAnchor, center, pixel | Yes |
 | Other vanilla screen | The screen | `VanillaScreenPanelAdapter` | screenAnchor, center, pixel | Yes |
 | Anchor | A rectangle a mod supplies on any screen | `AnchorPanelAdapter` | region, center, pixel | Yes |
-| HUD | The game window during play | `HudPanel` | screenAnchor (`.region(...)`), pixel | No |
+| HUD | The game window during play, and the vanilla hotbar | `HudPanel` | screenAnchor (`.region(InsideRegion)`), region around the hotbar (`.region(OutsideRegion)`), pixel | No |
 | Standalone | A screen the consumer opens | `MKScreen` (subclass), or a library's own screen through `api.host.OwnHost` | main, region, screenAnchor, center, pixel | Yes |
 
 A placement a context cannot resolve is rejected at registration. HUD panels do not receive input. For a clickable HUD control, open a standalone screen from a key binding.

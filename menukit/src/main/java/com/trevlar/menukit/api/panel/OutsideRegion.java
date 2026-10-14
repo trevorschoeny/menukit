@@ -7,8 +7,10 @@ package com.trevlar.menukit.api.panel;
  * <p>This names the <em>vocabulary</em>, not the reference. The reference, which
  * rectangle you are measured against, is decided by the call site: a
  * {@code ScreenPanelAdapter} means the container menu's frame, an
- * {@code AnchorPanelAdapter} means the anchor it targets. One enum serves
- * both, because "to the right of the box, aligned to its top" means the same thing
+ * {@code AnchorPanelAdapter} means the anchor it targets, and a {@code HudPanel}
+ * means the vanilla hotbar (since 7.1.0: {@link #LEFT_ALIGN_BOTTOM} is a column
+ * of icons left of the hotbar, rising from its bottom). One enum serves
+ * them all, because "to the right of the box, aligned to its top" means the same thing
  * whichever box it is. (Before 5.0.0 this was two identical enums,
  * {@code MenuRegion} and {@code SlotGroupRegion}, differing only in the reference
  * they implied, which read as though a slot group had a region of its own.)

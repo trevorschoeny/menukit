@@ -59,7 +59,7 @@ import java.util.function.Supplier;
  *       depends on which mod loaded first.</li>
  *   <li><b>Origin resolution</b> ({@link #layout}): each shown entry's position is
  *       resolved against this frame's {@link Frame}: the reference rectangle (menu
- *       frame, anchor box, or the standalone screen's own main panel) and the
+ *       frame, anchor box, the HUD's hotbar, or the standalone screen's own main panel) and the
  *       screen size. One budget function feeds each panel the room it has before it
  *       is measured; one stacking prefix per region; one resolver per reference kind
  *       ({@link RegionMath#resolveMenu}, {@link RegionMath#resolveInside}).</li>
@@ -97,7 +97,10 @@ public final class PanelHost {
         VANILLA_SCREEN("vanilla screen"),
         /** One anchor on any screen: REGION resolves around the rectangle its library supplies. */
         ANCHOR("anchor"),
-        /** The in-game HUD: screen spots on the game window; render only, no input. */
+        /**
+         * The in-game HUD: screen spots on the game window, and (since 7.1.0) REGION
+         * around the vanilla hotbar; render only, no input.
+         */
         HUD("HUD"),
         /** A standalone screen ({@code MKScreen}, a library's own screen): its own main panel is the frame. */
         STANDALONE("standalone screen");
@@ -274,6 +277,15 @@ public final class PanelHost {
         return new PanelHost(Kind.HUD, ScreenKind.CONTAINER, frames, RegionMath.Insets.HUD);
     }
 
+    /**
+     * The HUD's frame on an {@code sw x sh} GUI: the window, with the vanilla hotbar as
+     * the reference a REGION panel is placed around (since 7.1.0). No screen frame: a
+     * side panel beside the hotbar has no frame band to wrap at.
+     */
+    public static Frame hudFrame(int sw, int sh) {
+        return new Frame(sw, sh, RegionMath.hotbar(sw, sh), null);
+    }
+
     /** A standalone screen's host: its main panel is the frame; {@code screenKind} is what the screen declared. */
     public static PanelHost standalone(ScreenKind screenKind, Supplier<@Nullable Frame> frames, TitleBand titleBand) {
         PanelHost host = new PanelHost(Kind.STANDALONE, screenKind, frames, RegionMath.Insets.CHROME);
@@ -368,7 +380,7 @@ public final class PanelHost {
             case UNPLACED -> false;
             case PIXEL, CENTER -> true;
             case MAIN -> kind == Kind.STANDALONE;
-            case REGION -> kind == Kind.CONTAINER || kind == Kind.ANCHOR || kind == Kind.STANDALONE;
+            case REGION -> kind != Kind.VANILLA_SCREEN;
             case SCREEN_ANCHOR -> kind != Kind.ANCHOR;
         };
         if (mode == PanelPosition.Mode.REGION && position.region() == null) ok = false;
@@ -377,7 +389,8 @@ public final class PanelHost {
         if (!ok) {
             String hint = switch (kind) {
                 case CONTAINER -> "region(OutsideRegion), screenAnchor(InsideRegion), center() or pixel(...)";
-                case VANILLA_SCREEN, HUD -> "screenAnchor(InsideRegion), center() or pixel(...)";
+                case VANILLA_SCREEN -> "screenAnchor(InsideRegion), center() or pixel(...)";
+                case HUD -> "screenAnchor(InsideRegion), region(OutsideRegion) (around the hotbar), center() or pixel(...)";
                 case ANCHOR -> "region(OutsideRegion), center() or pixel(...)";
                 case STANDALONE -> "main(), region(OutsideRegion), screenAnchor(InsideRegion), center() or pixel(...)";
             };
@@ -611,9 +624,16 @@ public final class PanelHost {
                     feedRegionBudget(panel, region, reference, pad, sw, sh);
                     feedFrameBand(panel, region, reference, screenFrame, before, pad);
                     size = measure(panel, pad);
-                    var o = RegionMath.resolveMenu(region, reference, size[0], size[1], before, sw, sh);
+                    // On the HUD the reference is the hotbar, flush with the window's
+                    // bottom: no safe-area clamp, which would lift a panel aligned to
+                    // the hotbar's bottom off it (RegionMath.resolveHud).
+                    var o = kind == Kind.HUD
+                            ? RegionMath.resolveHud(region, reference, size[0], size[1], before, sw, sh)
+                            : RegionMath.resolveMenu(region, reference, size[0], size[1], before, sw, sh);
                     if (o.isEmpty()) {
-                        warnOnce(e, "is larger than the screen's safe area in OutsideRegion." + region);
+                        warnOnce(e, kind == Kind.HUD
+                                ? "runs off the window in OutsideRegion." + region + " around the hotbar"
+                                : "is larger than the screen's safe area in OutsideRegion." + region);
                         return null;
                     }
                     int axial = region.isHorizontalFlow() ? size[0] : size[1];

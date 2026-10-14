@@ -293,6 +293,38 @@ public final class CycleStrip {
         return (i == n - 1) ? heldTop + SLOT_PX : columnCellY(heldTop, i + 1, n);
     }
 
+    /**
+     * Left edge of the selection frame ({@code hud/hotbar_selection}, 24 x 23) around the
+     * cell whose left edge is {@code cellX}. Vanilla draws it at {@code hotbarLeft - 1 +
+     * slot * 20}, and its cells start one pixel inside the bar ({@code hotbarLeft + 1 +
+     * slot * 20}), so the frame starts two pixels left of the cell: it covers the bar's
+     * own outline and hangs one pixel past it, and its 16 px hole sits exactly over the
+     * cell's dark inside. One pixel less (the old {@code cellX - 1}) put the hole a pixel
+     * right of the cell and the item a pixel left in it, and the frame no longer covered
+     * the strip's outer edge, so it read as clipped there.
+     *
+     * <p>Only X takes the two: a cell's {@code y} is the bar's top (its outline row, not
+     * the cell's first row), so the frame's top is {@code y - 1}, as vanilla's
+     * {@code guiHeight - 23} is. Items take the same asymmetry ({@code ITEM_OFFSET_X_PX}).
+     */
+    public static int selectionX(int cellX) {
+        return cellX - OUTER_BORDER_PX - 1;
+    }
+
+    /**
+     * Left edge of the frame drawn behind a floating column cell whose left edge is
+     * {@code cellX}: one pixel left, so the frame is a whole 22 x 22 hotbar cell with
+     * its black outline on all four sides (the bar's left cap, one cell, the right cap).
+     * A bare 20 x 20 cell slice has no outline on its left, right or bottom, so the
+     * column's outer square looked cut off a pixel at each side.
+     */
+    public static int cellFrameX(int cellX) {
+        return cellX - OUTER_BORDER_PX;
+    }
+
+    /** Width (and height) of one framed cell: the cell plus the outline each side. */
+    public static final int CELL_FRAME_PX = SLOT_PX + 2 * OUTER_BORDER_PX;
+
     // Drawing
 
     private static boolean shouldShow() {
@@ -344,7 +376,7 @@ public final class CycleStrip {
         // A column alone still needs a frame under its held cell. In the cross the
         // row's bar is that frame; alone, a one-cell bar is.
         if (row == null) {
-            renderBar(graphics, stripX, stripY, SLOT_PX + 2 * OUTER_BORDER_PX);
+            renderBar(graphics, stripX, stripY, CELL_FRAME_PX);
         }
 
         if (!columnOwnsHeld) renderColumn(graphics, mc, column, activeSlot, heldCellX, stripY, false);
@@ -442,8 +474,11 @@ public final class CycleStrip {
         // stays on the bar, so handing it back never snaps.
         int floatX = cellX + COLUMN_NUDGE_X_PX;
 
+        // Top to bottom, so each cell's outline row covers the bottom edge of the one
+        // above it: the floating cells read as one framed column. The lowest one's
+        // bottom outline lands on the bar's top row, under the selection frame.
         for (int j = 0; j <= n - 2; j++) {
-            drawCellBackground(graphics, floatX, columnCellY(heldTop, j, n));
+            renderBar(graphics, cellFrameX(floatX), columnCellY(heldTop, j, n), CELL_FRAME_PX);
         }
 
         // Clip to the column plus one cell below the hand, so a forward exit can slide
@@ -475,14 +510,12 @@ public final class CycleStrip {
 
     // Vanilla-texture drawing
 
-    /** One vanilla hotbar cell background (a 20x20 slice of hud/hotbar), for column cells. */
-    private static void drawCellBackground(GuiGraphicsExtractor graphics, int x, int y) {
-        graphics.blitSprite(RenderPipelines.GUI_TEXTURED, HOTBAR_SPRITE,
-                HOTBAR_SPRITE_W, HOTBAR_SPRITE_H, OUTER_BORDER_PX, 0,
-                x, y, SLOT_PX, SLOT_PX);
-    }
-
-    /** A horizontal hotbar bar {@code width} px wide: left cap, tiled cells, right cap. */
+    /**
+     * A horizontal hotbar bar {@code width} px wide: left cap, tiled cells, right cap,
+     * the sprite's full 22 px height, so its outline shows on every side. One cell wide
+     * ({@link #CELL_FRAME_PX}) it is the frame of a single cell: a column's floating cells
+     * and a column alone's held cell.
+     */
     private static void renderBar(GuiGraphicsExtractor graphics, int x, int y, int width) {
         int cells = (width - 2 * OUTER_BORDER_PX) / SLOT_PX;
         int cellsLeft = x + OUTER_BORDER_PX;
@@ -505,9 +538,10 @@ public final class CycleStrip {
         graphics.itemDecorations(mc.font, stack, itemX, itemY);
     }
 
+    /** The selection frame around the held cell, placed as vanilla places it (see {@link #selectionX}). */
     private static void renderHighlight(GuiGraphicsExtractor graphics, int cellX, int cellY) {
         graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SELECTION_SPRITE,
                 SELECTION_SPRITE_W, SELECTION_SPRITE_H, 0, 0,
-                cellX - 1, cellY - 1, SELECTION_SPRITE_W, SELECTION_SPRITE_H);
+                selectionX(cellX), cellY - 1, SELECTION_SPRITE_W, SELECTION_SPRITE_H);
     }
 }

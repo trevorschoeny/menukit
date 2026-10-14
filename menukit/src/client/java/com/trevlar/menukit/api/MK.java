@@ -56,13 +56,13 @@ public class MK {
     public static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
     // HUD panels share one host, which places each panel on its InsideRegion spot
-    // of the game window with the HUD's insets. Registered at init, frozen at
-    // client start, rendered in sorted (priority, modId, sequence) order.
+    // of the game window with the HUD's insets, or in an OutsideRegion around the
+    // vanilla hotbar (PanelHost.hudFrame). Registered at init, frozen at client
+    // start, rendered in sorted (priority, modId, sequence) order.
     private static final PanelHost HUD = PanelHost.hud(() -> {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.getWindow() == null) return null;
-        return new PanelHost.Frame(mc.getWindow().getGuiScaledWidth(),
-                mc.getWindow().getGuiScaledHeight(), null);
+        return PanelHost.hudFrame(mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight());
     });
 
     // Notification definitions, registered at mod init

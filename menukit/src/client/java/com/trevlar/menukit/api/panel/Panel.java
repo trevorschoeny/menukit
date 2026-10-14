@@ -14,7 +14,9 @@ import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
@@ -1245,6 +1247,17 @@ public class Panel {
      */
     public Panel tooltip(Component text) {
         return tooltip(() -> text);
+    }
+
+    /**
+     * Sets a tooltip of several fixed lines, top to bottom, each keeping its own
+     * style. A {@code \n} inside any tooltip text also starts a new line
+     * ({@link MKTooltip#lines}).
+     */
+    public Panel tooltip(Component first, Component... more) {
+        List<Component> lines = new ArrayList<>(List.of(more));   // List.of refuses a null line
+        lines.addFirst(Objects.requireNonNull(first, "first"));
+        return tooltip(MKTooltip.joinLines(lines));
     }
 
     /**

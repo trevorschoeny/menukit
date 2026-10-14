@@ -21,7 +21,8 @@ import org.jetbrains.annotations.ApiStatus;
  *
  * <p>Two resolvers cover every placement: {@link #resolveMenu} for an
  * {@link OutsideRegion} around a reference rectangle, and {@link #resolveInside}
- * for an {@link InsideRegion} spot on the screen. The panel hosts
+ * for an {@link InsideRegion} spot on the screen. {@link #resolveHud} is the first
+ * one around the HUD's reference, the hotbar, without the safe-area clamp. The panel hosts
  * ({@code com.trevlar.menukit.inject.PanelHost}) supply the inputs and treat
  * {@link Optional#empty()} as "not placed this frame".
  */
@@ -308,11 +309,6 @@ public final class RegionMath {
             OutsideRegion region, Reference bounds,
             int pw, int ph, int prefix, int sw, int sh) {
 
-        int leftPos = bounds.leftPos();
-        int topPos = bounds.topPos();
-        int imageWidth = bounds.imageWidth();
-        int imageHeight = bounds.imageHeight();
-
         // CENTER sits inside the frame (modal dialogs centered in the menu), so it
         // must fit the frame. Edge regions are checked after the origin is
         // computed, against the screen's safe area (below): they exist to extend
@@ -320,10 +316,68 @@ public final class RegionMath {
         // the wrong limit. Checking against it once made BOTTOM_ALIGN_RIGHT hide
         // any panel wider than 176 px.
         if (region == OutsideRegion.CENTER) {
-            if (pw > imageWidth || ph > imageHeight) return Optional.empty();
+            if (pw > bounds.imageWidth() || ph > bounds.imageHeight()) return Optional.empty();
         }
 
-        ScreenOrigin origin = switch (region) {
+        ScreenOrigin origin = outsideOrigin(region, bounds, pw, ph, prefix);
+
+        // Edge regions stay inside the screen's safe area: a panel that would cross
+        // SCREEN_EDGE_MARGIN is clamped back inside rather than hidden. It may then
+        // overlap the menu frame, which is right: a wide or tall panel that doesn't
+        // fit beside the frame belongs on screen, over the frame, not gone. It is
+        // hidden only when it is larger than the safe area itself, with nowhere on
+        // screen to put it.
+        if (region != OutsideRegion.CENTER) {
+            int m = RegionConstants.SCREEN_EDGE_MARGIN;
+            if (pw > sw - 2 * m || ph > sh - 2 * m) return Optional.empty();
+            int cx = Math.max(m, Math.min(origin.x(), sw - m - pw));
+            int cy = Math.max(m, Math.min(origin.y(), sh - m - ph));
+            origin = new ScreenOrigin(cx, cy);
+        }
+        return Optional.of(origin);
+    }
+
+    /**
+     * The vanilla hotbar on an {@code sw x sh} GUI (since 7.1.0): 182 x 22, centred,
+     * flush with the bottom edge, where {@code Hud} draws {@code hud/hotbar}. The HUD's
+     * reference, so an {@link OutsideRegion} on the HUD means "around the hotbar".
+     */
+    public static Reference hotbar(int sw, int sh) {
+        return new Reference(sw / 2 - HOTBAR_WIDTH / 2, sh - HOTBAR_HEIGHT, HOTBAR_WIDTH, HOTBAR_HEIGHT);
+    }
+
+    /** The vanilla hotbar sprite's size, in GUI pixels. */
+    public static final int HOTBAR_WIDTH = 182, HOTBAR_HEIGHT = 22;
+
+    /**
+     * Places a {@code pw x ph} panel around the HUD's reference, the hotbar (since
+     * 7.1.0). The same geometry as {@link #resolveMenu} (outside the box, 2 px off it,
+     * stacked {@code prefix} away from the aligned end) without the safe-area clamp:
+     * the hotbar sits on the window's bottom edge, so clamping would lift every panel
+     * aligned to its bottom 6 px off where it belongs. A panel that would leave the
+     * window instead is not placed, as an {@link InsideRegion} spot on the HUD that
+     * overflows is not.
+     */
+    public static Optional<ScreenOrigin> resolveHud(OutsideRegion region, Reference hotbar,
+                                                    int pw, int ph, int prefix, int sw, int sh) {
+        ScreenOrigin o = outsideOrigin(region, hotbar, pw, ph, prefix);
+        boolean onScreen = o.x() >= 0 && o.y() >= 0 && o.x() + pw <= sw && o.y() + ph <= sh;
+        return onScreen ? Optional.of(o) : Optional.empty();
+    }
+
+    /**
+     * Where a {@code pw x ph} panel sits around {@code bounds} in {@code region},
+     * {@code prefix} pixels along its stacking axis from the aligned end, before any
+     * clamping: the one geometry every outside placement shares.
+     */
+    private static ScreenOrigin outsideOrigin(OutsideRegion region, Reference bounds,
+                                              int pw, int ph, int prefix) {
+        int leftPos = bounds.leftPos();
+        int topPos = bounds.topPos();
+        int imageWidth = bounds.imageWidth();
+        int imageHeight = bounds.imageHeight();
+
+        return switch (region) {
             case RIGHT_ALIGN_TOP -> new ScreenOrigin(
                     leftPos + imageWidth + RegionConstants.MENU_STACK_GAP,
                     topPos + prefix);
@@ -364,20 +418,5 @@ public final class RegionMath {
                     leftPos + (imageWidth - pw) / 2,
                     topPos + (imageHeight - ph) / 2);
         };
-
-        // Edge regions stay inside the screen's safe area: a panel that would cross
-        // SCREEN_EDGE_MARGIN is clamped back inside rather than hidden. It may then
-        // overlap the menu frame, which is right: a wide or tall panel that doesn't
-        // fit beside the frame belongs on screen, over the frame, not gone. It is
-        // hidden only when it is larger than the safe area itself, with nowhere on
-        // screen to put it.
-        if (region != OutsideRegion.CENTER) {
-            int m = RegionConstants.SCREEN_EDGE_MARGIN;
-            if (pw > sw - 2 * m || ph > sh - 2 * m) return Optional.empty();
-            int cx = Math.max(m, Math.min(origin.x(), sw - m - pw));
-            int cy = Math.max(m, Math.min(origin.y(), sh - m - ph));
-            origin = new ScreenOrigin(cx, cy);
-        }
-        return Optional.of(origin);
     }
 }

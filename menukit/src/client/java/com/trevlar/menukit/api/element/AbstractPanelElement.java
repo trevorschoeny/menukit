@@ -6,6 +6,8 @@ import net.minecraft.network.chat.Component;
 
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
@@ -333,14 +335,33 @@ public abstract class AbstractPanelElement implements PanelElement {
             return self();
         }
 
-        /** A hover tooltip with fixed text. */
+        /**
+         * A hover tooltip with fixed text. A {@code \n} in the text starts a new line
+         * ({@link MKTooltip#lines}), so {@code Component.literal("Sort\nRight click: cycle")}
+         * is two lines.
+         */
         public B tooltip(Component text) {
             Objects.requireNonNull(text, "text");
             this.tooltip = () -> text;
             return self();
         }
 
-        /** A hover tooltip read every frame while hovered; a {@code null} result shows none. */
+        /**
+         * A hover tooltip of several fixed lines, top to bottom, each keeping its own
+         * style: a white title, then grey hints, say. Stored as one text joined by line
+         * feeds ({@link MKTooltip#joinLines}).
+         */
+        public B tooltip(Component first, Component... more) {
+            List<Component> lines = new ArrayList<>(List.of(more));   // List.of refuses a null line
+            lines.addFirst(Objects.requireNonNull(first, "first"));
+            return tooltip(MKTooltip.joinLines(lines));
+        }
+
+        /**
+         * A hover tooltip read every frame while hovered; a {@code null} result shows
+         * none. A {@code \n} in it starts a new line; for a list of lines return
+         * {@link MKTooltip#joinLines}.
+         */
         public B tooltip(Supplier<Component> text) {
             this.tooltip = Objects.requireNonNull(text, "text");
             return self();

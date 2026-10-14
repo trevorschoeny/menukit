@@ -11,6 +11,7 @@ import net.minecraft.client.gui.screens.inventory.tooltip.MenuTooltipPositioner;
 import net.minecraft.client.gui.screens.inventory.tooltip.TooltipRenderUtil;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FormattedText;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.util.FormattedCharSequence;
 
@@ -457,7 +458,7 @@ public final class MKTooltip {
      * This is the form every element and panel tooltip calls.
      *
      * @param graphics the active GuiGraphicsExtractor
-     * @param text     the tooltip text (may span multiple wrapped lines)
+     * @param text     the tooltip text; a {@code \n} in it starts a new line
      * @param mouseX   screen-space mouse X
      * @param mouseY   screen-space mouse Y
      */
@@ -467,12 +468,11 @@ public final class MKTooltip {
 
     /**
      * Queues a hover tooltip with its own maximum width instead of the default.
-     * Pass {@code 0} (or any non-positive value) for no wrapping: one line, as
-     * vanilla draws it.
+     * Pass {@code 0} (or any non-positive value) for no wrapping: each line as wide
+     * as its text, as vanilla draws it.
      *
-     * <p>Wrapping uses {@code Font.split}, the splitter in-panel text uses. It breaks
-     * at spaces and splits a word only as a last resort, so one very long word can
-     * still run past the budget, as in vanilla.
+     * <p>The lines come from {@link #lines}: a {@code \n} anywhere in the text always
+     * starts a new line, and a line wider than the budget wraps.
      *
      * @param graphics   the active GuiGraphicsExtractor
      * @param text       the tooltip text
@@ -484,16 +484,57 @@ public final class MKTooltip {
                              int mouseX, int mouseY, int maxWidthPx) {
         if (text == null) return;
         Font font = Minecraft.getInstance().font;
-        // No wrapping, or the line already fits: hand the Component straight
-        // through without splitting it.
-        if (maxWidthPx <= 0 || font.width(text) <= maxWidthPx) {
-            graphics.setTooltipForNextFrame(font, text, mouseX, mouseY);
-            return;
+        // Always the List overload. It goes through the same private
+        // setTooltipForNextFrameInternal that MKTooltipSuppressMixin guards, so
+        // tooltip suppression under a modal or opaque panel still works.
+        graphics.setTooltipForNextFrame(font, lines(font, text, maxWidthPx), mouseX, mouseY);
+    }
+
+    /**
+     * The lines a tooltip of {@code text} draws, as {@link #queue} hands them to vanilla.
+     *
+     * <p><b>Line breaks.</b> A {@code \n} in the text starts a new line, wherever it is:
+     * in a literal ({@code "Sort by Category\nRight click: cycle"}), in a sibling
+     * appended with its own style (a grey hint after a white title), or in a
+     * translation. Each line keeps the style of the text it came from. Vanilla's
+     * single-Component tooltip does not do this: it draws the whole Component on one
+     * line and the font draws the line feed as a glyph (a boxed "LF"). Only a text
+     * wider than the budget used to be split, so only a long tooltip broke its lines;
+     * now every tooltip does.
+     *
+     * <p><b>Wrapping.</b> A line wider than {@code maxWidthPx} wraps with
+     * {@code Font.split}, the splitter {@code TextLabel} uses. It breaks at spaces and
+     * splits a word only as a last resort, so one very long word can still run past
+     * the budget, as in vanilla. A non-positive budget only breaks at the line feeds.
+     *
+     * @param font       the font that measures the text
+     * @param text       the tooltip text
+     * @param maxWidthPx the wrap budget in pixels, or {@code <= 0} to not wrap
+     * @return the lines, top to bottom; never empty for a non-null text
+     */
+    public static List<FormattedCharSequence> lines(Font font, Component text, int maxWidthPx) {
+        // Font.split breaks at every line feed as well as at the width (the splitter
+        // treats '\n' as a forced break), carrying each piece's style. With no budget
+        // the width is unbounded, so only the line feeds break.
+        return font.split(text, maxWidthPx > 0 ? maxWidthPx : Integer.MAX_VALUE);
+    }
+
+    /**
+     * One tooltip text from several lines: each line in order, separated by a
+     * {@code \n}, each keeping its own style. What the elements' and panels'
+     * {@code tooltip(first, more...)} store; a supplier can call it to return several
+     * lines from {@code tooltip(Supplier)}:
+     * {@code .tooltip(() -> MKTooltip.joinLines(List.of(title, hint)))}.
+     *
+     * @param lines the lines, top to bottom
+     * @return one Component that {@link #lines} splits back into the same lines
+     */
+    public static Component joinLines(List<? extends Component> lines) {
+        MutableComponent out = Component.empty();
+        for (int i = 0; i < lines.size(); i++) {
+            if (i > 0) out.append("\n");
+            out.append(lines.get(i));
         }
-        // Too wide: split to the budget and use the List overload. It goes through
-        // the same private setTooltipForNextFrameInternal that MKTooltipSuppressMixin
-        // guards, so tooltip suppression under a modal or opaque panel still works.
-        List<FormattedCharSequence> lines = font.split(text, maxWidthPx);
-        graphics.setTooltipForNextFrame(font, lines, mouseX, mouseY);
+        return out;
     }
 }

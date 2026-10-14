@@ -25,6 +25,22 @@ Result: a 7 pixel tall bar renders 50 pixels above the bottom centre of the wind
 
 `.region(InsideRegion)` puts the panel on one of nine spots of the window, 4 pixels in from the edges it touches. It stacks with the other panels on that spot in `.priority(n)` order. `.offset(dx, dy)` nudges this panel alone. Sub-builders (`text`, `item`, `slot`, `bar`) end with `.done()`. `.element(PanelElement)` adds any element, and `.custom(x, y, w, h, ctx -> ...)` draws freely inside the panel.
 
+## Put an icon beside the hotbar
+
+Needs: MenuKit. Call from the client entry point.
+
+```java
+HudPanel.builder("mymod:totem-icon")
+        .region(OutsideRegion.LEFT_ALIGN_BOTTOM)
+        .priority(20)
+        .visibleWhen(() -> !totemShown().isEmpty())
+        .element(ItemDisplay.builder().item(() -> totemShown())
+                .size(12, 12).hideCount().hideDurability().build())
+        .build();
+```
+
+Result: a 12 pixel icon sits 2 pixels left of the vanilla hotbar, its bottom level with the hotbar's bottom, while `totemShown()` holds a stack. On the HUD an `OutsideRegion` is placed around the hotbar, so `.region(OutsideRegion.X)` reads as "on that side of the hotbar". Icons from several mods in one region stack upward 2 pixels apart in `.priority(n)` order, lowest at the bottom. A hidden one takes no room, so the next drops into its place and nothing overlaps or leaves a gap, whichever mods are installed. Use a distinct priority per icon. The hotbar here is vanilla's bar alone: the offhand slot vanilla draws beside it is not part of it.
+
 ## Put a button on every container screen
 
 Needs: MenuKit. Call from the client entry point.
