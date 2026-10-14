@@ -99,12 +99,13 @@ public final class RegionMath {
      * budget is for the region's anchor edge. That over-estimates for the second
      * and later panels in a vertical stack; a single panel and horizontal-flow
      * regions are exact.
+     *
+     * @param gap the panel's gap off the frame, as {@link #resolveMenu} takes it
      */
     public static int availableMenuHeight(OutsideRegion region, Reference b,
-                                          int sh, int margin) {
+                                          int sh, int margin, int gap) {
         int topPos = b.topPos();
         int imageHeight = b.imageHeight();
-        int gap = RegionConstants.MENU_STACK_GAP;
         int frameTop = topPos;
         int frameBottom = topPos + imageHeight;
         int centerY = topPos + imageHeight / 2;
@@ -178,12 +179,13 @@ public final class RegionMath {
      * prefix: the budget is for the region's anchor edge, which over-estimates for
      * the second and later panels in a horizontal stack. That case is rare; a
      * single panel and every vertical-flow region are exact.
+     *
+     * @param gap the panel's gap off the frame, as {@link #resolveMenu} takes it
      */
     public static int availableMenuWidth(OutsideRegion region, Reference b,
-                                         int sw, int margin) {
+                                         int sw, int margin, int gap) {
         int leftPos = b.leftPos();
         int imageWidth = b.imageWidth();
-        int gap = RegionConstants.MENU_STACK_GAP;
         int centerX = leftPos + imageWidth / 2;
         return switch (region) {
             case RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM ->
@@ -220,7 +222,8 @@ public final class RegionMath {
      * which all share one resolver.
      *
      * @param edge         inset from each screen edge a spot touches
-     * @param gap          stacking gap between siblings on one spot
+     * @param gap          stacking gap between siblings on one spot, for a panel that
+     *                     declares none ({@code PanelPosition.gapOr})
      * @param belowCenter  when positive, {@link InsideRegion#CENTER} flows down from
      *                     this far below the screen centre (the HUD clears the
      *                     crosshair); when zero, CENTER is centred like the other
@@ -289,8 +292,55 @@ public final class RegionMath {
         return Optional.of(new ScreenOrigin(x, y));
     }
 
-    // Menu regions. The menu, anchor and HUD contexts all stack at
-    // RegionConstants.MENU_STACK_GAP, read directly where it is used.
+    // Menu regions. Each panel brings its own gap (PanelPosition.gap, since 7.1.0;
+    // RegionConstants.MENU_STACK_GAP when it declares none), the same in the menu,
+    // anchor and HUD contexts, so the gap is a parameter here and never a constant.
+
+    /**
+     * Whether {@code region}'s gap off the reference lies along its stacking axis
+     * (since 7.1.0). True only for TOP_CENTER and BOTTOM_CENTER, which stack straight
+     * away from the frame: their first panel's gap off the frame and every later
+     * panel's gap off its sibling are the same axis. Every other region stacks
+     * along the frame edge, so its gap off the frame is across the stack (a
+     * RIGHT_ALIGN_TOP panel's x) and its first panel starts flush with the aligned
+     * end. CENTER does not stack.
+     */
+    private static boolean gapAlongStack(OutsideRegion region) {
+        return region == OutsideRegion.TOP_CENTER || region == OutsideRegion.BOTTOM_CENTER;
+    }
+
+    /**
+     * The {@code prefix} {@link #resolveMenu} (or {@link #resolveHud}) takes for the
+     * next panel in {@code region} (since 7.1.0), given where the stack so far ends
+     * and the next panel's own {@code gap}.
+     *
+     * <p>The gap is the space before the panel. For the first panel in a region
+     * ({@code stackEnd} null) the prefix is 0: the resolver itself puts the gap
+     * between the panel and the reference. For a later panel the gap goes between
+     * it and the sibling before it: added here for the regions that stack along
+     * the frame edge, and by the resolver for TOP_CENTER and BOTTOM_CENTER, whose
+     * frame gap is already on the stacking axis (which is why
+     * {@link #stackEnd} counts their gap into the stack instead).
+     *
+     * @param stackEnd where the region's stack ends, from {@link #stackEnd}, or
+     *                 {@code null} when nothing is stacked there yet this frame
+     * @param gap      the next panel's gap ({@code PanelPosition.gapOr})
+     */
+    public static int stackPrefix(OutsideRegion region, @Nullable Integer stackEnd, int gap) {
+        if (stackEnd == null) return 0;
+        return gapAlongStack(region) ? stackEnd : stackEnd + gap;
+    }
+
+    /**
+     * Where {@code region}'s stack ends once a panel {@code axial} pixels long on the
+     * stacking axis has been placed at {@code prefix} with {@code gap} (since 7.1.0):
+     * the {@code stackEnd} the next {@link #stackPrefix} call takes. For TOP_CENTER and
+     * BOTTOM_CENTER it includes the panel's gap, because the resolver adds that gap on
+     * the stacking axis and the next panel must start beyond it.
+     */
+    public static int stackEnd(OutsideRegion region, int prefix, int axial, int gap) {
+        return prefix + axial + (gapAlongStack(region) ? gap : 0);
+    }
 
     /**
      * Resolves a menu region panel's origin. A CENTER panel larger than the
@@ -302,16 +352,19 @@ public final class RegionMath {
      * @param bounds  the vanilla menu's container-frame bounds this frame
      * @param pw      the panel's width (from {@link Panel#getWidth()})
      * @param ph      the panel's height (from {@link Panel#getHeight()})
-     * @param prefix  total axial extent of visible preceding panels in the
-     *                same region, plus one {@link RegionConstants#MENU_STACK_GAP} per preceding
-     *                panel
+     * @param prefix  how far along the stacking axis the panel starts, from
+     *                {@link #stackPrefix}: 0 for the first panel in the region, and for
+     *                a later one the visible preceding panels' extent plus the gaps
+     *                between them
+     * @param gap     the panel's own gap ({@code PanelPosition.gapOr}, since 7.1.0):
+     *                its distance off the reference on the side the region sits
      * @param sw      GUI-scaled screen width, for the safe-area check (edge
      *                regions extend toward the screen edge, not the menu edge)
      * @param sh      GUI-scaled screen height
      */
     public static Optional<ScreenOrigin> resolveMenu(
             OutsideRegion region, Reference bounds,
-            int pw, int ph, int prefix, int sw, int sh) {
+            int pw, int ph, int prefix, int gap, int sw, int sh) {
 
         // CENTER sits inside the frame (modal dialogs centered in the menu), so it
         // must fit the frame. Edge regions are checked after the origin is
@@ -323,7 +376,7 @@ public final class RegionMath {
             if (pw > bounds.imageWidth() || ph > bounds.imageHeight()) return Optional.empty();
         }
 
-        ScreenOrigin origin = outsideOrigin(region, bounds, pw, ph, prefix);
+        ScreenOrigin origin = outsideOrigin(region, bounds, pw, ph, prefix, gap);
 
         // Edge regions stay inside the screen's safe area: a panel that would cross
         // SCREEN_EDGE_MARGIN is clamped back inside rather than hidden. It may then
@@ -365,8 +418,8 @@ public final class RegionMath {
 
     /**
      * Places a {@code pw x ph} panel around the HUD's reference, the hotbar (since
-     * 7.1.0). The same geometry as {@link #resolveMenu} (outside the box, 2 px off it,
-     * stacked {@code prefix} away from the aligned end) without the safe-area clamp:
+     * 7.1.0). The same geometry as {@link #resolveMenu} (outside the box, {@code gap} off
+     * it, stacked {@code prefix} away from the aligned end) without the safe-area clamp:
      * the hotbar sits on the window's bottom edge, so clamping would lift every panel
      * aligned to its bottom 6 px off where it belongs. A panel that would leave the
      * window instead is not placed, as an {@link InsideRegion} spot on the HUD that
@@ -376,16 +429,16 @@ public final class RegionMath {
      * this frame ({@link HumanoidArm#LEFT} when the main arm is right, {@code RIGHT}
      * when it is left), or {@code null} while it draws none (the offhand is empty,
      * or a spectator's hotbar is up). The two side regions on that side
-     * ({@code LEFT_ALIGN_*} or {@code RIGHT_ALIGN_*}) then start 2 px beyond the
-     * slot instead of 2 px beyond the hotbar, so an icon there never covers it.
+     * ({@code LEFT_ALIGN_*} or {@code RIGHT_ALIGN_*}) then start {@code gap} beyond the
+     * slot instead of {@code gap} beyond the hotbar, so an icon there never covers it.
      * Every other region, including the TOP and BOTTOM ones that only run along the
      * hotbar, and the side regions on the far side, is placed as before. Every HUD
      * panel in an OutsideRegion comes through here, so no caller decides this.
      */
     public static Optional<ScreenOrigin> resolveHud(OutsideRegion region, Reference hotbar,
                                                     @Nullable HumanoidArm offhand,
-                                                    int pw, int ph, int prefix, int sw, int sh) {
-        ScreenOrigin o = outsideOrigin(region, hotbar, pw, ph, prefix);
+                                                    int pw, int ph, int prefix, int gap, int sw, int sh) {
+        ScreenOrigin o = outsideOrigin(region, hotbar, pw, ph, prefix, gap);
         // Push the panel out past the offhand slot when it is drawn on this
         // region's side: left regions move further left, right regions further
         // right, by the slot sprite's whole width. The stack inside the region is
@@ -414,11 +467,13 @@ public final class RegionMath {
 
     /**
      * Where a {@code pw x ph} panel sits around {@code bounds} in {@code region},
-     * {@code prefix} pixels along its stacking axis from the aligned end, before any
-     * clamping: the one geometry every outside placement shares.
+     * {@code prefix} pixels along its stacking axis from the aligned end and
+     * {@code gap} pixels off the reference, before any clamping: the one geometry
+     * every outside placement shares. For TOP_CENTER and BOTTOM_CENTER the gap and
+     * the prefix are on the same axis, so both add up (see {@link #stackPrefix}).
      */
     private static ScreenOrigin outsideOrigin(OutsideRegion region, Reference bounds,
-                                              int pw, int ph, int prefix) {
+                                              int pw, int ph, int prefix, int gap) {
         int leftPos = bounds.leftPos();
         int topPos = bounds.topPos();
         int imageWidth = bounds.imageWidth();
@@ -426,39 +481,39 @@ public final class RegionMath {
 
         return switch (region) {
             case RIGHT_ALIGN_TOP -> new ScreenOrigin(
-                    leftPos + imageWidth + RegionConstants.MENU_STACK_GAP,
+                    leftPos + imageWidth + gap,
                     topPos + prefix);
             case RIGHT_ALIGN_BOTTOM -> new ScreenOrigin(
-                    leftPos + imageWidth + RegionConstants.MENU_STACK_GAP,
+                    leftPos + imageWidth + gap,
                     topPos + imageHeight - ph - prefix);
             case LEFT_ALIGN_TOP -> new ScreenOrigin(
-                    leftPos - pw - RegionConstants.MENU_STACK_GAP,
+                    leftPos - pw - gap,
                     topPos + prefix);
             case LEFT_ALIGN_BOTTOM -> new ScreenOrigin(
-                    leftPos - pw - RegionConstants.MENU_STACK_GAP,
+                    leftPos - pw - gap,
                     topPos + imageHeight - ph - prefix);
             case TOP_ALIGN_LEFT -> new ScreenOrigin(
                     leftPos + prefix,
-                    topPos - ph - RegionConstants.MENU_STACK_GAP);
+                    topPos - ph - gap);
             case TOP_ALIGN_RIGHT -> new ScreenOrigin(
                     leftPos + imageWidth - pw - prefix,
-                    topPos - ph - RegionConstants.MENU_STACK_GAP);
+                    topPos - ph - gap);
             case BOTTOM_ALIGN_LEFT -> new ScreenOrigin(
                     leftPos + prefix,
-                    topPos + imageHeight + RegionConstants.MENU_STACK_GAP);
+                    topPos + imageHeight + gap);
             case BOTTOM_ALIGN_RIGHT -> new ScreenOrigin(
                     leftPos + imageWidth - pw - prefix,
-                    topPos + imageHeight + RegionConstants.MENU_STACK_GAP);
+                    topPos + imageHeight + gap);
             // TOP_CENTER and BOTTOM_CENTER: centered horizontally, stacking
             // vertically away from the frame. X is centered on the frame as for
             // CENTER; Y follows TOP_ALIGN and BOTTOM_ALIGN (above or below the
-            // frame by the stack gap, offset by the prefix).
+            // frame by the panel's gap, offset by the prefix).
             case TOP_CENTER -> new ScreenOrigin(
                     leftPos + (imageWidth - pw) / 2,
-                    topPos - ph - RegionConstants.MENU_STACK_GAP - prefix);
+                    topPos - ph - gap - prefix);
             case BOTTOM_CENTER -> new ScreenOrigin(
                     leftPos + (imageWidth - pw) / 2,
-                    topPos + imageHeight + RegionConstants.MENU_STACK_GAP + prefix);
+                    topPos + imageHeight + gap + prefix);
             // CENTER: centered in the menu's frame. One position, so several CENTER
             // panels overlap; the consumer shows one at a time (modal dialogs).
             case CENTER -> new ScreenOrigin(

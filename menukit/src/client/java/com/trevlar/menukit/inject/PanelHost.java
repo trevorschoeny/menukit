@@ -593,16 +593,17 @@ public final class PanelHost {
             }
         }
 
-        // One stacking prefix per region (OutsideRegion and InsideRegion keys never
-        // collide: different enum types).
-        Map<Object, Integer> prefix = new HashMap<>();
+        // Where each region's stack ends so far this frame (OutsideRegion and
+        // InsideRegion keys never collide: different enum types). A region with no
+        // entry has nothing stacked in it yet, so its next panel is the first.
+        Map<Object, Integer> stackEnd = new HashMap<>();
         for (Entry e : entries) {
             if (!isShown(e.panel())) continue;
             if (mainPlaced != null && e == mainPlaced.entry()) {
                 out.add(mainPlaced);
                 continue;
             }
-            Placed p = place(e, sw, sh, reference, screenFrame, frame.offhand(), prefix);
+            Placed p = place(e, sw, sh, reference, screenFrame, frame.offhand(), stackEnd);
             if (p != null) out.add(p);
         }
         return new Layout(List.copyOf(out), main);
@@ -611,7 +612,7 @@ public final class PanelHost {
     /** Resolves one entry, or {@code null} when it has no place this frame. */
     private @Nullable Placed place(Entry e, int sw, int sh, @Nullable Reference reference,
                                    @Nullable Reference screenFrame, @Nullable HumanoidArm offhand,
-                                   Map<Object, Integer> prefix) {
+                                   Map<Object, Integer> stackEnd) {
         Panel panel = e.panel();
         PanelPosition pos = e.position();
         int pad = e.padding();
@@ -642,8 +643,12 @@ public final class PanelHost {
                 case REGION -> {
                     if (reference == null) return null;
                     OutsideRegion region = Objects.requireNonNull(pos.region());
-                    int before = prefix.getOrDefault(region, 0);
-                    feedRegionBudget(panel, region, reference, pad, sw, sh);
+                    // The panel's own gap: off the reference for every panel, off the
+                    // sibling before it for every panel but the first. Every region
+                    // context (menu, anchor, HUD) defaults to MENU_STACK_GAP.
+                    int gap = pos.gapOr(RegionConstants.MENU_STACK_GAP);
+                    int before = RegionMath.stackPrefix(region, stackEnd.get(region), gap);
+                    feedRegionBudget(panel, region, reference, pad, sw, sh, gap);
                     feedFrameBand(panel, region, reference, screenFrame, before, pad);
                     size = measure(panel, pad);
                     // On the HUD the reference is the hotbar, flush with the window's
@@ -651,8 +656,8 @@ public final class PanelHost {
                     // the hotbar's bottom off it, and the side the offhand slot is
                     // drawn on starts beyond the slot (RegionMath.resolveHud).
                     var o = kind == Kind.HUD
-                            ? RegionMath.resolveHud(region, reference, offhand, size[0], size[1], before, sw, sh)
-                            : RegionMath.resolveMenu(region, reference, size[0], size[1], before, sw, sh);
+                            ? RegionMath.resolveHud(region, reference, offhand, size[0], size[1], before, gap, sw, sh)
+                            : RegionMath.resolveMenu(region, reference, size[0], size[1], before, gap, sw, sh);
                     if (o.isEmpty()) {
                         warnOnce(e, kind == Kind.HUD
                                 ? "runs off the window in OutsideRegion." + region + " around the hotbar"
@@ -660,7 +665,10 @@ public final class PanelHost {
                         return null;
                     }
                     int axial = region.isHorizontalFlow() ? size[0] : size[1];
-                    prefix.put(region, before + axial + RegionConstants.MENU_STACK_GAP);
+                    // The stack now ends past this panel. The next panel's gap is its
+                    // own, added when it is placed, so a gap(0) panel sits flush on
+                    // this one whatever gap this one declared.
+                    stackEnd.put(region, RegionMath.stackEnd(region, before, axial, gap));
                     x = o.get().x();
                     y = o.get().y();
                 }
@@ -669,13 +677,18 @@ public final class PanelHost {
                     feedWidth(panel, RegionMath.availableScreenEdgeWidth(sw, insets.edge()), pad);
                     panel.setFrameHeight(-1);
                     size = measure(panel, pad);
-                    int before = prefix.getOrDefault(spot, 0);
+                    // The first panel on a spot starts at the edge inset (prefix 0);
+                    // each later one its own gap past the sibling before it, the
+                    // host's stacking gap when it declares none (4 px on a vanilla
+                    // screen, 2 px on the HUD and a screen's chrome).
+                    Integer end = stackEnd.get(spot);
+                    int before = end == null ? 0 : end + pos.gapOr(insets.gap());
                     var o = RegionMath.resolveInside(spot, sw, sh, size[0], size[1], before, insets);
                     if (o.isEmpty()) {
                         warnOnce(e, "overflows InsideRegion." + spot + " (" + before + "px of siblings above it)");
                         return null;
                     }
-                    prefix.put(spot, before + size[1] + insets.gap());
+                    stackEnd.put(spot, before + size[1]);
                     x = o.get().x();
                     y = o.get().y();
                 }
@@ -764,7 +777,6 @@ public final class PanelHost {
      */
     private int[] outsideBands(int sw, int sh) {
         int m = RegionConstants.SCREEN_EDGE_MARGIN;
-        int gap = RegionConstants.MENU_STACK_GAP;
         Map<OutsideRegion, Integer> need = new HashMap<>();
         for (Entry e : entries) {
             Panel p = e.panel();
@@ -778,6 +790,9 @@ public final class PanelHost {
             feedWidth(p, RegionMath.availableScreenEdgeWidth(sw, m), e.padding());
             int[] size = measure(p, e.padding());
             int across = sideways ? size[0] : size[1];
+            // Each panel's own gap, as place() will put it: off the frame, and for
+            // TOP_CENTER and BOTTOM_CENTER also off the panel before it.
+            int gap = e.position().gapOr(RegionConstants.MENU_STACK_GAP);
             if (r == OutsideRegion.TOP_CENTER || r == OutsideRegion.BOTTOM_CENTER) {
                 need.merge(r, across + gap, Integer::sum);
             } else {
@@ -823,10 +838,10 @@ public final class PanelHost {
      * overflowing.
      */
     private static void feedRegionBudget(Panel panel, OutsideRegion region, Reference frame,
-                                         int pad, int sw, int sh) {
+                                         int pad, int sw, int sh, int gap) {
         int m = RegionConstants.SCREEN_EDGE_MARGIN;
-        panel.setAvailableContentWidth(RegionMath.availableMenuWidth(region, frame, sw, m) - 2 * pad);
-        panel.setAvailableContentHeight(RegionMath.availableMenuHeight(region, frame, sh, m) - 2 * pad);
+        panel.setAvailableContentWidth(RegionMath.availableMenuWidth(region, frame, sw, m, gap) - 2 * pad);
+        panel.setAvailableContentHeight(RegionMath.availableMenuHeight(region, frame, sh, m, gap) - 2 * pad);
     }
 
     /**

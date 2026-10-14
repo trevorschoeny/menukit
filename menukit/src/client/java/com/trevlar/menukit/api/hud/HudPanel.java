@@ -69,6 +69,7 @@ public class HudPanel {
         private @Nullable OutsideRegion aroundHotbar;
         private int offsetX = 0, offsetY = 0;
         private int priority = PanelPosition.DEFAULT_PRIORITY;
+        private @Nullable Integer gap;              // null = the HUD's 2px
         private int padding = 0;
         private int width = -1, height = -1;        // outer size; -1 = size to content
         private PanelStyle style = PanelStyle.NONE;
@@ -144,6 +145,18 @@ public class HudPanel {
          */
         public Builder priority(int priority) {
             this.priority = priority;
+            return this;
+        }
+
+        /**
+         * The space before this panel in its stack, in pixels (since 7.1.0): the
+         * {@link PanelPosition#gap(int)} of the panel's position. Around the hotbar it
+         * is the gap off the hotbar (or the offhand slot) and off the sibling before
+         * it; on a spot, the gap off the sibling before it (the first keeps the 4px
+         * edge inset). Default 2. A negative gap is refused when {@link #build} runs.
+         */
+        public Builder gap(int gap) {
+            this.gap = gap;
             return this;
         }
 
@@ -302,6 +315,8 @@ public class HudPanel {
             PanelPosition where = region != null
                     ? PanelPosition.screenAnchor(region)
                     : PanelPosition.region(aroundHotbar);
+            // PanelPosition.gap validates (and throws on a negative gap) in one place.
+            if (gap != null) where = where.gap(gap);
             Panel panel = Panel.builder(name)
                     .elements(elements)
                     .style(style)

@@ -38,7 +38,7 @@ import java.util.function.Supplier;
  *       absolute screen pixels, for positions a region cannot express.</li>
  * </ul>
  *
- * <p>Two modifiers apply to every mode:
+ * <p>Three modifiers. The first two apply to every mode:
  * <ul>
  *   <li>{@link #priority(int)}: stacking order among siblings sharing a region, and
  *       z-order within a host. Lower goes first (closer to the region's anchor
@@ -49,9 +49,15 @@ import java.util.function.Supplier;
  *   <li>{@link #offset(int, int)}: a pixel nudge applied after the panel is placed.
  *       It moves only this panel; siblings stack as if it were not nudged. (Replaces
  *       the HUD's {@code MKHudAnchor} offsets.)</li>
+ *   <li>{@link #gap(int)} (since 7.1.0): the space before this panel in its stack, for
+ *       the two stacking modes, {@link Mode#REGION} and {@link Mode#SCREEN_ANCHOR}.
+ *       Unset, the host's own spacing applies: {@link RegionConstants#MENU_STACK_GAP}
+ *       (2) for every region, and the context's stacking gap for a screen spot
+ *       ({@link RegionConstants#SCREEN_STACK_GAP} on a vanilla screen). Other modes
+ *       do not stack and ignore it.</li>
  * </ul>
  *
- * <p>Immutable: {@code priority} and {@code offset} return a new record.
+ * <p>Immutable: {@code priority}, {@code offset} and {@code gap} return a new record.
  */
 public record PanelPosition(Mode mode,
                             @Nullable InsideRegion screenAnchor,
@@ -59,13 +65,22 @@ public record PanelPosition(Mode mode,
                             @Nullable Supplier<ScreenOrigin> pixelOrigin,
                             int dx,
                             int dy,
-                            int priority) {
+                            int priority,
+                            int gap) {
 
     /**
      * Default stacking priority. A middle value, so a consumer can move up (lower
      * number) or down (higher number) without renumbering anyone else.
      */
     public static final int DEFAULT_PRIORITY = 100;
+
+    /**
+     * The {@link #gap()} of a position that never called {@link #gap(int)}: "the
+     * host's own spacing" (since 7.1.0). Not a gap a consumer can ask for, since
+     * {@link #gap(int)} refuses anything negative; hosts read the gap through
+     * {@link #gapOr(int)}, which turns this into their default.
+     */
+    public static final int HOST_GAP = -1;
 
     /** How a panel is positioned. */
     public enum Mode {
@@ -102,14 +117,14 @@ public record PanelPosition(Mode mode,
 
     /** No placement. The default on {@code Panel.builder}; see {@link Mode#UNPLACED}. */
     public static final PanelPosition UNPLACED =
-            new PanelPosition(Mode.UNPLACED, null, null, null, 0, 0, DEFAULT_PRIORITY);
+            new PanelPosition(Mode.UNPLACED, null, null, null, 0, 0, DEFAULT_PRIORITY, HOST_GAP);
 
     /**
      * A standalone screen's main panel, its frame: centred on the screen window;
      * every {@link #region} sibling anchors to its bounds. One per screen.
      */
     public static PanelPosition main() {
-        return new PanelPosition(Mode.MAIN, null, null, null, 0, 0, DEFAULT_PRIORITY);
+        return new PanelPosition(Mode.MAIN, null, null, null, 0, 0, DEFAULT_PRIORITY, HOST_GAP);
     }
 
     /**
@@ -121,7 +136,7 @@ public record PanelPosition(Mode mode,
      * region stack away from the anchor edge in {@link #priority} order.
      */
     public static PanelPosition region(OutsideRegion region) {
-        return new PanelPosition(Mode.REGION, null, region, null, 0, 0, DEFAULT_PRIORITY);
+        return new PanelPosition(Mode.REGION, null, region, null, 0, 0, DEFAULT_PRIORITY, HOST_GAP);
     }
 
     /**
@@ -133,7 +148,7 @@ public record PanelPosition(Mode mode,
      * Resolved by {@link RegionMath#resolveInside}.
      */
     public static PanelPosition screenAnchor(InsideRegion region) {
-        return new PanelPosition(Mode.SCREEN_ANCHOR, region, null, null, 0, 0, DEFAULT_PRIORITY);
+        return new PanelPosition(Mode.SCREEN_ANCHOR, region, null, null, 0, 0, DEFAULT_PRIORITY, HOST_GAP);
     }
 
     /**
@@ -142,7 +157,7 @@ public record PanelPosition(Mode mode,
      * {@code tracksAsModal}.
      */
     public static PanelPosition center() {
-        return new PanelPosition(Mode.CENTER, null, null, null, 0, 0, DEFAULT_PRIORITY);
+        return new PanelPosition(Mode.CENTER, null, null, null, 0, 0, DEFAULT_PRIORITY, HOST_GAP);
     }
 
     /**
@@ -157,7 +172,7 @@ public record PanelPosition(Mode mode,
      *               {@code null} skips the panel that frame
      */
     public static PanelPosition pixel(Supplier<ScreenOrigin> origin) {
-        return new PanelPosition(Mode.PIXEL, null, null, origin, 0, 0, DEFAULT_PRIORITY);
+        return new PanelPosition(Mode.PIXEL, null, null, origin, 0, 0, DEFAULT_PRIORITY, HOST_GAP);
     }
 
     /**
@@ -166,7 +181,7 @@ public record PanelPosition(Mode mode,
      * siblings in the same region stack as if it had not.
      */
     public PanelPosition offset(int dx, int dy) {
-        return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority);
+        return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority, gap);
     }
 
     /**
@@ -174,7 +189,57 @@ public record PanelPosition(Mode mode,
      * nearer the anchor edge, and underneath). Default {@link #DEFAULT_PRIORITY}.
      */
     public PanelPosition priority(int priority) {
-        return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority);
+        return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority, gap);
+    }
+
+    /**
+     * This position with {@code gap} pixels before the panel in its stack (since
+     * 7.1.0). Replaces any earlier gap. What "before" means follows the stack:
+     *
+     * <ul>
+     *   <li>{@link Mode#REGION}: the space between this panel and what it stacks
+     *       against. That is the reference (the menu frame, an anchor's box, the
+     *       hotbar on the HUD) on the side the region sits, for every panel in the
+     *       region, and the sibling before it along the stack, for every panel but the
+     *       first. So {@code region(RIGHT_ALIGN_TOP).gap(0)} sits flush against the
+     *       frame's right edge, and a second {@code gap(0)} panel sits flush under the
+     *       first. For {@code TOP_CENTER} and {@code BOTTOM_CENTER} the two are the
+     *       same axis: the first panel is {@code gap} off the frame, each later one
+     *       {@code gap} off the one before. Unset: {@link RegionConstants#MENU_STACK_GAP}.</li>
+     *   <li>{@link Mode#SCREEN_ANCHOR}: the space between this panel and the sibling
+     *       before it on the spot. The first panel on a spot keeps the host's edge
+     *       inset, which is a margin from the screen edge, not a gap between panels.
+     *       Unset: the host's stacking gap ({@link RegionConstants#MENU_STACK_GAP} on
+     *       the HUD and a screen's chrome, {@link RegionConstants#SCREEN_STACK_GAP} on
+     *       a vanilla screen).</li>
+     *   <li>Every other mode does not stack and ignores it.</li>
+     * </ul>
+     *
+     * <p>The gap belongs to the panel that declares it: the space after a panel is
+     * the next panel's gap, not its own, so siblings with different gaps each keep
+     * theirs. {@code gap(0)} on slot panels stacked on a slot group keeps vanilla's
+     * 18 px slot pitch, while a panel after them that declares nothing still sits
+     * 2 px off the last one.
+     *
+     * @param gap pixels before the panel, {@code 0} or more
+     * @throws IllegalArgumentException when {@code gap} is negative: a panel that
+     *         overlaps its neighbour is an {@link #offset(int, int)}, which says so
+     */
+    public PanelPosition gap(int gap) {
+        if (gap < 0) {
+            throw new IllegalArgumentException("PanelPosition.gap(" + gap + ") on " + describe()
+                    + ": a gap is 0 or more pixels. To overlap a neighbour, use offset(dx, dy).");
+        }
+        return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority, gap);
+    }
+
+    /**
+     * The gap before this panel: the one declared with {@link #gap(int)}, or
+     * {@code hostDefault} when none was (since 7.1.0). Every host reads the gap
+     * through here, so "unset means the host's spacing" lives in one place.
+     */
+    public int gapOr(int hostDefault) {
+        return gap == HOST_GAP ? hostDefault : gap;
     }
 
     /**
@@ -187,13 +252,14 @@ public record PanelPosition(Mode mode,
      * The standalone-screen default for unplaced panels, keeping the look of the old
      * BODY column: the first unplaced panel becomes {@link #main()} (unless one is
      * declared), and each later one {@code region(BOTTOM_CENTER)}, offset so it sits
-     * {@link #STANDALONE_STACK_GAP} below the one before. Declared positions pass
-     * through untouched. Used by {@code MKScreen} and {@code CustomContainerMenu}, the
-     * only hosts that accept an unplaced panel.
+     * {@link #STANDALONE_STACK_GAP} below the one before, through its {@link #gap(int)}.
+     * Declared positions pass through untouched. Used by {@code MKScreen} and
+     * {@code CustomContainerMenu}, the only hosts that accept an unplaced panel.
      *
-     * <p>The offset assumes every earlier stacked panel is shown. With a middle one
-     * hidden, later ones sit 12 px lower than the old column did; a per-region
-     * stacking gap on the host would fix that if it ever matters.
+     * <p>Since the gap is the panel's own, a hidden panel takes its gap with it: the
+     * next one closes up to {@link #STANDALONE_STACK_GAP} below the last shown panel,
+     * as the old column did. (Before 7.1.0 this was a cumulative offset, which left
+     * a 12 px hole under a hidden middle panel.)
      *
      * @param declared each panel's declared position, in declaration order
      * @return the position each panel takes, same order
@@ -204,7 +270,6 @@ public record PanelPosition(Mode mode,
             if (p.mode() == Mode.MAIN) hasMain = true;
         }
         java.util.List<PanelPosition> out = new java.util.ArrayList<>(declared.size());
-        int stacked = 0;
         for (PanelPosition p : declared) {
             if (p.isPlaced()) {
                 out.add(p);
@@ -212,11 +277,11 @@ public record PanelPosition(Mode mode,
                 out.add(main());
                 hasMain = true;
             } else {
-                stacked++;
-                // resolveMenu already puts MENU_STACK_GAP between siblings; make up
-                // the rest of the old column's gap, once per panel above this one.
-                int extra = STANDALONE_STACK_GAP - RegionConstants.MENU_STACK_GAP;
-                out.add(region(OutsideRegion.BOTTOM_CENTER).offset(0, stacked * extra));
+                // BOTTOM_CENTER stacks down from the main frame; each panel's own gap is
+                // the space above it, off the main frame for the first and off the
+                // panel before for the rest, so every one sits 14 px below its
+                // neighbour, the old column's spacing.
+                out.add(region(OutsideRegion.BOTTOM_CENTER).gap(STANDALONE_STACK_GAP));
             }
         }
         return out;
