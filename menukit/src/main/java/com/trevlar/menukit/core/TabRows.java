@@ -5,9 +5,10 @@ import org.jetbrains.annotations.ApiStatus;
 import java.util.List;
 
 /**
- * How a wrapping {@link Tabs} strip splits its tabs into rows. A pure function of
- * the tab widths and the strip width, kept apart from {@link Tabs} so it can be
- * checked without a game (the validator's tabs probe runs it at init).
+ * How a wrapping {@link Tabs} strip splits its tabs into rows, and where a tab's
+ * icon and label sit in it. Pure functions of widths, kept apart from
+ * {@link Tabs} so they can be checked without a game (the validator's tabs probe
+ * runs the split at init; elementCheck asserts the placement).
  */
 @ApiStatus.Internal
 public final class TabRows {
@@ -61,5 +62,30 @@ public final class TabRows {
             j = i;
         }
         return List.of(rows);
+    }
+
+    // Where a tab's label goes. A tab's face holds a group: its icon if it has one,
+    // a gap, then the label. Without an icon the group is the label alone, and these
+    // put it exactly where the label always went.
+
+    /**
+     * Where the group starts on the top strip: centred in the tab with vanilla's
+     * {@code centeredText} rounding (the centre, less half the group, each
+     * floored), so a group that is only a label lands where centeredText drew it.
+     */
+    public static int centredStart(int tabX, int tabWidth, int groupWidth) {
+        return tabX + tabWidth / 2 - groupWidth / 2;
+    }
+
+    /**
+     * Where the group starts in a sidebar tab whose face runs from
+     * {@code faceLeft} to {@code right}: {@code pad} in from the left
+     * ({@code side < 0}), centred in the face ({@code side == 0}), or {@code pad}
+     * in from the right ({@code side > 0}).
+     */
+    public static int sidebarStart(int faceLeft, int right, int pad, int groupWidth, int side) {
+        if (side < 0) return faceLeft + pad;
+        if (side == 0) return faceLeft + (right - faceLeft - groupWidth) / 2;
+        return right - pad - groupWidth;
     }
 }

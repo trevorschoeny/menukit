@@ -20,7 +20,7 @@ import java.util.List;
  *   <li><b>POPOVER</b> (6.1.0): every {@link Panel#isPopover() popover} panel, of
  *       every host on the surface, in the same host-then-entry order. A popover is
  *       above every FLOW panel on the screen, whichever host holds either and
- *       whichever registered first: Inventory Max's pocket row, on the container
+ *       whichever registered first: Hotbar Pockets' pocket row, on the container
  *       screen's host, over Inventory Plus's switches on the player inventory's
  *       anchor host.</li>
  *   <li><b>Dim</b>: when any shown panel on the surface {@link Panel#dimsBehind()

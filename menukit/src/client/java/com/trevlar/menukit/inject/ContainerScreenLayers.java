@@ -50,7 +50,7 @@ import org.jetbrains.annotations.ApiStatus;
  *
  * A popover ({@code Panel.Builder.popover()}) draws after every flow panel and in
  * the same layer, so it covers them, and before the created slots, so its own
- * created slots (Inventory Max's pocket row) draw on its background exactly as a
+ * created slots (Hotbar Pockets' pocket row) draw on its background exactly as a
  * flow panel's do. The one thing layer 2 cannot do is put a popover above another
  * panel's <em>created slot</em>: vanilla draws every created slot in layer 3, in
  * {@code menu.slots} order. Vanilla slots under a popover are covered (layer 1), and

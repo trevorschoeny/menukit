@@ -24,9 +24,9 @@ import java.util.Optional;
  *
  * <p>Two resolvers cover every placement: {@link #resolveMenu} for an
  * {@link OutsideRegion} around a reference rectangle, and {@link #resolveInside}
- * for an {@link InsideRegion} spot on the screen. {@link #resolveHud} is the first
- * one around the HUD's reference, the hotbar, without the safe-area clamp and
- * starting beyond the offhand slot on the side vanilla draws it. The panel hosts
+ * for an {@link InsideRegion} spot on the screen. {@link #resolveHud} is
+ * {@link #resolveMenu} for the HUD's reference, the hotbar: no safe-area clamp, and
+ * it starts beyond the offhand slot on the side vanilla draws it. The panel hosts
  * ({@code com.trevlar.menukit.inject.PanelHost}) supply the inputs and treat
  * {@link Optional#empty()} as "not placed this frame".
  */

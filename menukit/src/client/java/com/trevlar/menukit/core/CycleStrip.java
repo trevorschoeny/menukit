@@ -480,7 +480,7 @@ public final class CycleStrip {
         // The floating cells share the held cell's x, so their frames stack exactly over
         // the hotbar cell below (frame at cellX - 1, 22 wide, as the bar's own outline is)
         // and their items sit at the same cellX + 2 as vanilla's. A 1 px nudge right here
-        // read as the column sitting a pixel off the hotbar (Trev, 2026-10-14).
+        // read as the column sitting a pixel off the hotbar.
 
         // Top to bottom, so each cell's outline row covers the bottom edge of the one
         // above it: the floating cells read as one framed column. The lowest one's

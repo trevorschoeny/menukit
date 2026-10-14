@@ -139,9 +139,9 @@ public class HudPanel {
 
         /**
          * Stacking order among panels on the same spot (lower is nearer the spot's
-         * edge; around the hotbar, nearer the region's aligned end), and render order (lower draws first). Default
-         * {@link PanelPosition#DEFAULT_PRIORITY}. Ties break by mod id, then by
-         * registration order.
+         * edge; around the hotbar, nearer the region's aligned end), and render order
+         * (lower draws first). Default {@link PanelPosition#DEFAULT_PRIORITY}. Ties
+         * break by mod id, then by registration order.
          */
         public Builder priority(int priority) {
             this.priority = priority;

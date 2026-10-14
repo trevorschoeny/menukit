@@ -576,9 +576,7 @@ public final class MKTooltip {
      * appended with its own style (a grey hint after a white title), or in a
      * translation. Each line keeps the style of the text it came from. Vanilla's
      * single-Component tooltip does not do this: it draws the whole Component on one
-     * line and the font draws the line feed as a glyph (a boxed "LF"). Only a text
-     * wider than the budget used to be split, so only a long tooltip broke its lines;
-     * now every tooltip does.
+     * line and the font draws the line feed as a glyph (a boxed "LF").
      *
      * <p><b>Wrapping.</b> A line wider than {@code maxWidthPx} wraps with
      * {@code Font.split}, the splitter {@code TextLabel} uses. It breaks at spaces and

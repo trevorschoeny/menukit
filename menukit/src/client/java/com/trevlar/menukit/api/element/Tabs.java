@@ -4,6 +4,7 @@ import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.core.Scroller;
 import com.trevlar.menukit.core.TabRows;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import com.trevlar.menukit.core.VanillaLook;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -71,7 +72,10 @@ import java.util.function.Supplier;
  *
  * A tab is its label's width plus padding, at least {@link #MIN_TAB_WIDTH}, and
  * never wider than the strip (a longer label is cut with "..." and shown whole
- * as a tooltip).
+ * as a tooltip). A tab with an {@linkplain TabSpec#icon icon} is wider by the
+ * icon and {@link #ICON_LABEL_GAP}; the icon sits left of the label and the two
+ * are placed as one group (centred on the strip, aligned in the sidebar), the
+ * selected underline under the label alone.
  * <ul>
  *   <li><b>{@link Mode#WRAP}</b>: the fewest rows the width allows, with the tabs
  *       split across them so the rows are about equally full, in order. A row's
@@ -214,6 +218,8 @@ public final class Tabs extends AbstractPanelElement {
     private static final int UNSELECTED_LABEL_INSET = 3;
     /** Padding on each side of a label. */
     public static final int LABEL_PAD = 8;
+    /** Space between a tab's icon ({@link TabSpec#icon}) and its label. */
+    public static final int ICON_LABEL_GAP = 4;
     /** Narrowest a tab gets, whatever its label. */
     public static final int MIN_TAB_WIDTH = 24;
     /** Space between the strip and the body. */
@@ -455,7 +461,7 @@ public final class Tabs extends AbstractPanelElement {
         int n = visible.size();
         int[] natural = new int[n];
         for (int i = 0; i < n; i++) {
-            int w = font.width(visible.get(i).label) + 2 * LABEL_PAD;
+            int w = font.width(visible.get(i).label) + visible.get(i).iconRoom() + 2 * LABEL_PAD;
             natural[i] = Math.min(Math.max(w, MIN_TAB_WIDTH), width); // never wider than the strip
         }
 
@@ -495,7 +501,7 @@ public final class Tabs extends AbstractPanelElement {
                 Tab t = visible.get(from + i);
                 String text = t.label.getString();
                 boolean truncated = false;
-                int room = widths[i] - 2 * LABEL_PAD;
+                int room = widths[i] - 2 * LABEL_PAD - t.iconRoom();
                 if (font.width(text) > room) {
                     text = font.plainSubstrByWidth(text, Math.max(0, room - font.width(ELLIPSIS))) + ELLIPSIS;
                     truncated = true;
@@ -522,9 +528,9 @@ public final class Tabs extends AbstractPanelElement {
         int column = Math.min(Math.max(sidebarNaturalWidth(visible), naturalWidthOf(sidebarHeader)), cap);
         int headerHeight = layOutHeader(sidebarHeader, column);
         List<Placed> placed = new ArrayList<>(visible.size());
-        int room = column - 2 * LABEL_PAD - SIDE_INSET;
         for (int i = 0; i < visible.size(); i++) {
             Tab t = visible.get(i);
+            int room = column - 2 * LABEL_PAD - SIDE_INSET - t.iconRoom();
             String text = t.label.getString();
             boolean truncated = false;
             if (font.width(text) > room) {
@@ -558,11 +564,11 @@ public final class Tabs extends AbstractPanelElement {
         return false;
     }
 
-    /** The column width every label fits in whole: the widest label, its padding, and the unselected inset. */
+    /** The column width every label fits in whole: the widest label and its icon, its padding, and the unselected inset. */
     private static int sidebarNaturalWidth(List<Tab> visible) {
         Font font = Minecraft.getInstance().font;
         int w = MIN_TAB_WIDTH;
-        for (Tab t : visible) w = Math.max(w, font.width(t.label) + 2 * LABEL_PAD + SIDE_INSET);
+        for (Tab t : visible) w = Math.max(w, font.width(t.label) + t.iconRoom() + 2 * LABEL_PAD + SIDE_INSET);
         return w;
     }
 
@@ -857,7 +863,7 @@ public final class Tabs extends AbstractPanelElement {
         for (Tab t : tabs) {
             if (!t.isVisible()) continue;
             visible.add(t);
-            row += Math.max(font.width(t.label) + 2 * LABEL_PAD, MIN_TAB_WIDTH);
+            row += Math.max(font.width(t.label) + t.iconRoom() + 2 * LABEL_PAD, MIN_TAB_WIDTH);
             for (PanelElement e : t.body) {
                 if (e.isVisible()) widestBody = Math.max(widestBody, e.getChildX() + e.naturalWidth());
             }
@@ -1058,12 +1064,22 @@ public final class Tabs extends AbstractPanelElement {
                     : p.tab.standIn
                             ? (isSelected ? COLOR_STAND_IN_SELECTED : COLOR_STAND_IN_UNSELECTED)
                             : (isSelected ? COLOR_SELECTED : COLOR_UNSELECTED);
-            g.centeredText(font, p.text, tx + p.w / 2, textY, color);
+            // The icon (if any), a gap and the label, centred as one group the way
+            // centeredText centres a label alone, which is what a tab with no icon is,
+            // to the pixel. The icon centres in the same box as the label.
+            int textW = font.width(p.text);
+            int groupX = TabRows.centredStart(tx, p.w, p.tab.iconRoom() + textW);
+            if (p.tab.icon != null) {
+                p.tab.icon.draw(g, groupX, labelTop + (ty + TAB_HEIGHT - labelTop - p.tab.icon.size) / 2);
+            }
+            int textX = groupX + p.tab.iconRoom();
+            g.text(font, p.text, textX, textY, color);
             if (vanilla && isSelected) {
                 // MenuTabButton.renderFocusUnderline: 1 px, the label's colour, as wide
                 // as the label (at most the tab less 4), 2 px above the tab's bottom.
-                int lineW = Math.min(font.width(p.text), p.w - 4);
-                int lineX = tx + (p.w - lineW) / 2;
+                // Under the label only: beside an icon the label is off the tab's centre.
+                int lineW = Math.min(textW, p.w - 4);
+                int lineX = p.tab.icon == null ? tx + (p.w - lineW) / 2 : textX;
                 int lineY = ty + TAB_HEIGHT - 2;
                 g.fill(lineX, lineY, lineX + lineW, lineY + 1, color);
             }
@@ -1156,7 +1172,7 @@ public final class Tabs extends AbstractPanelElement {
             String text = p.text;
             boolean truncated = p.truncated;
             if (lane > 0) {
-                int room = tabW - 2 * LABEL_PAD - SIDE_INSET;
+                int room = tabW - 2 * LABEL_PAD - SIDE_INSET - p.tab.iconRoom();
                 String full = p.tab.label.getString();
                 if (font.width(full) > room) {
                     text = font.plainSubstrByWidth(full, Math.max(0, room - font.width(ELLIPSIS))) + ELLIPSIS;
@@ -1165,13 +1181,18 @@ public final class Tabs extends AbstractPanelElement {
             }
             // Labels line up down the column whatever is selected, so it reads as a
             // list: the selected tab grows toward the left, its label does not move.
+            // The icon (if any), a gap and the label are placed as one group; with no
+            // icon the group is the label, where it always was.
             int textW = font.width(text);
             int faceLeft = tabX + SIDE_INSET;
-            int textX = switch (align) {
-                case LEFT, FILL -> faceLeft + LABEL_PAD;
-                case CENTER -> faceLeft + (tabW - SIDE_INSET - textW) / 2;
-                case RIGHT -> tabX + tabW - LABEL_PAD - textW;
+            int side = switch (align) {
+                case LEFT, FILL -> -1;
+                case CENTER -> 0;
+                case RIGHT -> 1;
             };
+            int groupX = TabRows.sidebarStart(faceLeft, tabX + tabW, LABEL_PAD, p.tab.iconRoom() + textW, side);
+            if (p.tab.icon != null) p.tab.icon.draw(g, groupX, ty + (TAB_HEIGHT - p.tab.icon.size) / 2);
+            int textX = groupX + p.tab.iconRoom();
             int textY = Text.centeredTextY(ty, ty + TAB_HEIGHT);
             // On an options screen the labels are vanilla's, as on the top strip: white
             // (a stand-in's light grey), the selected one underlined.
@@ -1602,14 +1623,16 @@ public final class Tabs extends AbstractPanelElement {
         final @Nullable BooleanSupplier visibleWhen;
         final List<PanelElement> body;
         final boolean standIn;
+        final @Nullable TabIcon icon;
 
         private Tab(String id, Component label, @Nullable BooleanSupplier visibleWhen, List<PanelElement> body,
-                    boolean standIn) {
+                    boolean standIn, @Nullable TabIcon icon) {
             this.id = id;
             this.label = label;
             this.visibleWhen = visibleWhen;
             this.body = body;
             this.standIn = standIn;
+            this.icon = icon;
         }
 
         public String id() { return id; }
@@ -1618,9 +1641,21 @@ public final class Tabs extends AbstractPanelElement {
         boolean isVisible() {
             return visibleWhen == null || visibleWhen.getAsBoolean();
         }
+
+        /** The width the icon takes before the label, its gap included; 0 with no icon. */
+        int iconRoom() {
+            return icon == null ? 0 : icon.size + ICON_LABEL_GAP;
+        }
     }
 
-    /** A tab under construction. An {@code icon(...)} can join the label here later without breaking anything. */
+    /** A tab's icon: a sprite, or a texture when {@code textureSize} is positive, drawn {@code size} square. */
+    private record TabIcon(Supplier<@Nullable Identifier> source, int textureSize, int size) {
+        void draw(GuiGraphicsExtractor g, int x, int y) {
+            Icon.draw(g, source.get(), textureSize, x, y, size, size, 1.0f);
+        }
+    }
+
+    /** A tab under construction. */
     public static final class TabSpec {
         private static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
@@ -1632,6 +1667,7 @@ public final class Tabs extends AbstractPanelElement {
         private boolean standIn;
         private @Nullable String anchor;
         private boolean anchorIsBefore;
+        private @Nullable TabIcon icon;
 
         private TabSpec(String id) {
             this.id = Objects.requireNonNull(id, "id");
@@ -1641,6 +1677,33 @@ public final class Tabs extends AbstractPanelElement {
 
         public TabSpec label(Component label) {
             this.label = Objects.requireNonNull(label, "label");
+            return this;
+        }
+
+        /**
+         * An icon {@code drawSize} px square left of the label, {@link #ICON_LABEL_GAP}
+         * from it: a standalone square texture {@code textureSize} texels on a side
+         * (a mod's icon read from its jar into a {@code DynamicTexture}, say), drawn
+         * whole and scaled, as {@link Icon.Builder#texture(Supplier, int)} draws it.
+         * Read every frame; null draws nothing and keeps the room, so the tab does not
+         * change width while its texture loads. The tab widens by the icon and gap,
+         * and in every mode the icon and label are placed as one group. Default: none.
+         */
+        public TabSpec icon(Supplier<@Nullable Identifier> texture, int textureSize, int drawSize) {
+            Objects.requireNonNull(texture, "texture");
+            if (textureSize <= 0) throw new IllegalArgumentException("Tabs: tab '" + id + "' icon textureSize must be positive");
+            return icon(new TabIcon(texture, textureSize, drawSize));
+        }
+
+        /** {@link #icon(Supplier, int, int)} with a GUI-atlas sprite ({@code textures/gui/sprites}) for the picture. */
+        public TabSpec icon(Identifier sprite, int drawSize) {
+            Objects.requireNonNull(sprite, "sprite");
+            return icon(new TabIcon(() -> sprite, 0, drawSize));
+        }
+
+        private TabSpec icon(TabIcon icon) {
+            if (icon.size <= 0) throw new IllegalArgumentException("Tabs: tab '" + id + "' icon drawSize must be positive");
+            this.icon = icon;
             return this;
         }
 
@@ -1718,7 +1781,7 @@ public final class Tabs extends AbstractPanelElement {
                             .text(Component.literal("This tab failed to build; see the log.")).build());
                 }
             }
-            return new Tab(id, label, visibleWhen, built, standIn);
+            return new Tab(id, label, visibleWhen, built, standIn, icon);
         }
     }
 
