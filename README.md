@@ -90,7 +90,7 @@ These sources build as a project of a parent Gradle workspace that is not in thi
 
 ### To 7.1.0
 
-Nothing to change. 7.1.0 adds the cycle strip ([guide](https://github.com/trevorschoeny/menukit/blob/main/docs/cycle-strip.md)). A mod that uses it declares `"menukit": ">=7.1.0 <8.0.0"`.
+Nothing breaks. Mods built for 7.0.0 work as before. A mod that uses anything new in 7.1.0 declares `"menukit": ">=7.1.0 <8.0.0"`.
 
 ### To 7.0.0
 
