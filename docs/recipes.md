@@ -351,3 +351,44 @@ MKTooltip.hideWhen(kind -> kind == MKTooltip.Kind.OTHER && config.hideOtherToolt
 Result: while `hideItemTooltips()` returns true, no item stack shows a tooltip: slots on every container screen, the creative menu, the recipe book, an item in chat. Buttons, tabs and MenuKit elements still show theirs. While `hideOtherTooltips()` returns true it is the other way round. Each tooltip asks every registered predicate with its kind, and any one returning true hides it. `MKTooltip.hideWhen(() -> ...)` with no kind still hides both.
 
 A tooltip is `ITEM` when it comes through vanilla's item paths, which other mods' item tooltips use too: `setTooltipForNextFrame(font, stack, x, y)`, a container slot, or lines from `Screen.getTooltipFromItem`. A mod that builds its own lines from `ItemStack.getTooltipLines` and queues them as plain lines draws an `OTHER` tooltip.
+
+## Host a widget another library made
+
+Needs: MenuKit 7.2.0. For a widget built outside MenuKit: a config library's custom control, or a vanilla widget MenuKit has no element for.
+
+```java
+// A widget a config library hands over, in a row of your settings page.
+PanelElement custom = WidgetHost.builder()
+        .widget(() -> library.makeWidget())
+        .size(150, 20)
+        .build();
+```
+
+Result: the widget draws in the element's 150 by 20 box wherever the panel puts it, and moves with the panel and its scroll. Clicks, drags, the wheel and the release reach it on a standalone screen and on a panel over a vanilla screen alike. A click on it gives it keyboard focus, so it takes typed keys, Tab moves focus on and off it, and the narrator reads it. While its panel is hidden or its tab not shown, it gives up focus and Tab skips it. The supplier runs once, when the screen opens, so the widget can use the game's font.
+
+A widget that is not a vanilla `LayoutElement` needs a `place` hook to be moved. A widget that opens a list under itself needs `overflow()` to show it:
+
+```java
+PanelElement dropdown = WidgetHost.builder()
+        .widget(() -> library.makeDropdown())
+        .place((widget, x, y, width, height) -> widget.setBounds(x, y, width, height))
+        .size(150, 20)
+        .overflow()
+        .build();
+```
+
+Result: `place` is called every frame with the box in screen coordinates. While the widget has keyboard focus it draws on top of every panel, past its box, and takes clicks anywhere on the screen. A click it does not take ends its focus, which closes its list.
+
+## A colour setting
+
+Needs: MenuKit 7.2.0.
+
+```java
+PanelElement glow = ColorField.builder()
+        .label(Component.literal("Glow color"))
+        .state(config::glowColor, config::setGlowColor)
+        .alpha(true)
+        .build();
+```
+
+Result: a swatch of the colour, over a checkerboard because it has alpha. Clicking it opens a dialog over the screen, titled Glow color. The Dyes tab shows the 16 dye colours by their dye items, and clicking one sets the colour. The Custom tab has a saturation and brightness square, a hue bar, a transparency bar and a hex field. Every change is written at once. Done keeps it; Cancel or Escape puts back the colour from before the dialog opened. Without `alpha(true)` the value is `0xRRGGBB` and there is no transparency bar.

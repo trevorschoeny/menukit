@@ -11,9 +11,9 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
  * Exposes {@code Screen.addWidget} and {@code Screen.removeWidget}.
- * {@link com.trevlar.menukit.api.element.TextField} uses them to register its
- * wrapped {@code EditBox} for input dispatch (children and narratables) without
- * adding it to the renderables list.
+ * {@link com.trevlar.menukit.api.element.WidgetHost} (through {@code Focus}) uses
+ * them to register a hosted widget's stand-in for focus, keys and narration
+ * (children and narratables) without adding anything to the renderables list.
  *
  * <p>Also exposes {@code Screen.addRenderableOnly}, so code outside the Screen
  * subclass (such as {@link com.trevlar.menukit.inject.ScreenPanelRegistry}) can

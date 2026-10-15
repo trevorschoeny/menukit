@@ -1498,9 +1498,10 @@ public final class Tabs extends AbstractPanelElement {
         // The header band, its gap included, eats its own clicks as the strip does,
         // so a click on its empty space never reaches what lies under it (a slot,
         // a vanilla button). The one exception is a click on a header element that
-        // hit-tests but doesn't claim it: that is a vanilla-backed widget (TextField,
-        // Slider) whose click vanilla's own widget routing delivers, so it must
-        // fall through or the EditBox never takes focus (Mod Hub's search box).
+        // hit-tests but doesn't claim it: a widget whose click vanilla's own widget
+        // routing delivers, so it must fall through. TextField and Slider were such
+        // widgets until 7.2.0; on WidgetHost they claim their own clicks now, but a
+        // consumer's element may still rely on vanilla's routing.
         if (ly >= 0 && ly < s.top) {
             if (disabled(in)) return true;
             return claimOrEat(header, headerInput(in), button);
@@ -1534,10 +1535,9 @@ public final class Tabs extends AbstractPanelElement {
 
     /**
      * A click in a header band: true when a header element claims it, false when
-     * it lands on a header element that doesn't (a vanilla-backed widget such as a
-     * TextField or Slider, reached by vanilla's widget routing once this returns
-     * false), and true again on empty band, which is eaten so nothing under the
-     * Tabs sees it.
+     * it lands on a header element that doesn't (a widget reached by vanilla's
+     * widget routing once this returns false), and true again on empty band, which
+     * is eaten so nothing under the Tabs sees it.
      */
     private static boolean claimOrEat(List<PanelElement> band, InputContext in, int button) {
         if (ChildDispatch.mouseClicked(band, in, button)) return true;

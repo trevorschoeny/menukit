@@ -43,10 +43,11 @@ import java.util.WeakHashMap;
  *
  * <h3>For mods</h3>
  *
- * Register focusable widgets (TextField, Keybindery's SearchBox and the like)
- * with {@link #addWidget} rather than {@code ScreenAccessor.mk$addWidget}: it adds
- * the widget to the screen and opts it into this focus handling. Pair it with
- * {@link #removeWidget}.
+ * To put a vanilla widget in a panel, use {@code WidgetHost} (7.2.0): it registers
+ * the widget here, routes its mouse input, and gives up focus when the widget is
+ * not shown. {@link #addWidget} remains for a widget a mod places itself, rather
+ * than {@code ScreenAccessor.mk$addWidget}: it adds the widget to the screen and
+ * opts it into this focus handling. Pair it with {@link #removeWidget}.
  *
  * <p>{@link #clear} blurs whatever is focused, for starting an input mode from a
  * clean state (chord capture, a modal confirm, handing navigation over).

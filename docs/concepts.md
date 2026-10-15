@@ -25,8 +25,9 @@ A `PanelElement` is one item inside a panel. Its position is relative to the pan
 | Kind | Types |
 |---|---|
 | Render only | `TextLabel`, `Icon`, `Divider`, `ItemDisplay`, `ProgressBar`, `InfoBox` |
-| Interactive | `Button`, `Toggle`, `Checkbox`, `Radio` (with `RadioGroup`), `Slider`, `TextField`, `Dropdown`, `DropdownMulti`, `ItemPicker` |
+| Interactive | `Button`, `Toggle`, `Checkbox`, `Radio` (with `RadioGroup`), `Slider`, `TextField`, `Dropdown`, `DropdownMulti`, `ItemPicker`, `ColorField` |
 | Composite | `ScrollContainer`, `Flow`, `Section`, `Tabs`, `ConfirmDialog`, `AlertDialog` |
+| Host | `WidgetHost`, for a vanilla-style widget made outside MenuKit |
 | Slot (SlotKit) | `SlotElement`, `SlotFlowElement`, in SlotKit |
 
 A consumer implements `PanelElement` for a custom element, or extends `AbstractPanelElement`.
@@ -61,7 +62,7 @@ With no secondary handler attached, non-left clicks pass through to vanilla. A d
 
 ## Keyboard, sound and narration
 
-`Button`, `Toggle`, `Checkbox` and `Radio` behave as vanilla widgets do. A click plays vanilla's click sound. Tab moves keyboard focus onto them in screen order, and a focused control draws its hover look. Enter or Space presses the focused one. The narrator reads its label and, for the boolean controls, its on or off state. `Slider` and `TextField` are vanilla's own `AbstractSliderButton` and `EditBox`, exposed through `widget()`. An element that is not drawn (its panel hidden, its section closed, its tab not shown) cannot take focus.
+`Button`, `Toggle`, `Checkbox` and `Radio` behave as vanilla widgets do. A click plays vanilla's click sound. Tab moves keyboard focus onto them in screen order, and a focused control draws its hover look. Enter or Space presses the focused one. The narrator reads its label and, for the boolean controls, its on or off state. `Slider` and `TextField` are vanilla's own `AbstractSliderButton` and `EditBox`, exposed through `widget()` and hosted by a `WidgetHost` (see Widget host). An element that is not drawn (its panel hidden, its section closed, its tab not shown) cannot take focus.
 
 While a modal panel is shown on a vanilla screen, a key goes to the panels' elements first. Escape then runs the modal's `onEscape`. Any other key then goes to the focused widget if MenuKit placed it (a dialog's text field, for instance). After that the key is dropped, so the screen under the modal never acts on it. Keys vanilla handles outside the screen still work: F11, the F3 combinations, the narrator hotkey and screenshots.
 
@@ -71,7 +72,7 @@ While a modal panel is shown on a vanilla screen, a key goes to the panels' elem
 
 ## State
 
-A stateful element is only a lens onto the consumer's value. `state(get, set)` reads the value from `get` every frame and hands a change to `set`. The element stores nothing. A value changed elsewhere shows at once, and a setter that refuses a change shows the refusal on the next frame. Persistence belongs to the consumer. `Toggle`, `Checkbox`, `Slider`, `TextField`, `Dropdown`, `DropdownMulti` and `ItemPicker` require a `state`. A `Radio` reads its `RadioGroup.state(get, set)`.
+A stateful element is only a lens onto the consumer's value. `state(get, set)` reads the value from `get` every frame and hands a change to `set`. The element stores nothing. A value changed elsewhere shows at once, and a setter that refuses a change shows the refusal on the next frame. Persistence belongs to the consumer. `Toggle`, `Checkbox`, `Slider`, `TextField`, `Dropdown`, `DropdownMulti`, `ItemPicker` and `ColorField` require a `state`. A `Radio` reads its `RadioGroup.state(get, set)`.
 
 Some state is the element's own view state, not the consumer's. Examples are whether a `Section` is open, a `ScrollContainer`'s scroll, a `Tabs` body's scroll, and whether a dropdown's popover is open. `Section` and `ScrollContainer` take a `state(get, set)` to hand theirs to the consumer. `Tabs` takes `bodyScroll(get, set)`, in pixels keyed by tab id. A screen that rebuilds itself (a new `MKScreen`, a new `Tabs`) hands these over, so it reopens as the player left it.
 
@@ -116,14 +117,36 @@ What each piece draws on an options screen, from vanilla's 26.2 sprites:
 | `ScrollContainer` | The list band: `menu_list_background` behind the content, a separator directly outside it above and below, and vanilla's thin list scroller. The content is inset a little more than in vanilla's lists, `OPTIONS_INSET_X` (14) from the left and `OPTIONS_INSET_Y` (10) above and below. It is narrower by that much, as `viewportWidthFor(width, kind)` reports |
 | `Tabs` (`WRAP`, `SIDE_SCROLL`) | Create World's tab bar: white labels, the selected one underlined and open into a page of the list background, the separator either side of the tabs. The page insets the body as the list band does, from both sides, and lays it out that much narrower |
 | `Slider`, `TextField` | Vanilla's own widgets on both kinds |
+| `ColorField` | Its swatch is a vanilla button with the colour inside; its dialog is a dialog of the screen, so its tabs, buttons and hex field draw for the kind |
+| `WidgetHost` | Whatever the hosted widget draws: it draws itself, the same on both kinds |
 
-Where vanilla has no counterpart (a radio button, an info box, a progress bar, a colour swatch, a consumer's sprite), the element keeps MenuKit's drawing on both kinds. While a world is open the separators and the list band use vanilla's in-world textures, as vanilla does.
+Where vanilla has no counterpart (a radio button, an info box, a progress bar, a consumer's sprite), the element keeps MenuKit's drawing on both kinds. While a world is open the separators and the list band use vanilla's in-world textures, as vanilla does.
 
 ## Item picker
 
 An `ItemPicker` is a setting whose value is an item. It is a slot plus a lens onto an `Item` (`state(get, set)`), for a settings page where the player picks the items a setting applies to. A left click (or Enter on the focused picker) opens a chooser over the screen. The chooser has every item in a scrolling grid, a search field that narrows it by name or id, and Clear and Cancel buttons. A click on an item hands it to `set` and returns. Escape or Cancel returns with nothing changed. A right click empties the picker by handing `set` `Items.AIR`, which is also how `get` reports "none". On hover, it shows the item's name.
 
 The value is a setting, never the player's item. The picker and its chooser are client-only. They never touch the inventory or a container and send nothing to the server, so the picker belongs to MenuKit, not a slot library. It holds one item. A list of items is a row of pickers, one per position (see [recipes](recipes.md#a-settings-screen-in-the-pause-menu-look)).
+
+## Widget host
+
+A `WidgetHost` puts a vanilla-style widget (anything that is a `GuiEventListener` and a `Renderable`) in a panel, at the element's box. It is the one way MenuKit hosts a vanilla widget: `TextField` and `Slider` are built on it, and a mod hosts a widget another library hands it the same way (see [recipes](recipes.md#host-a-widget-another-library-made)). `WidgetHost.builder().widget(supplier).size(w, h)` builds one. Call `widget` first, since it sets the type `place` works with. The supplier runs when the widget is first needed, at the screen's init.
+
+Every frame the host moves the widget to its box and draws it there. A vanilla `LayoutElement` is moved with `setX` and `setY`, and an `AbstractWidget` is also given the box's width and height. Anything else is moved by `place((widget, x, y, width, height) -> ...)`, which also wins over the `LayoutElement` path when given. Building a host whose widget MenuKit cannot move, with no `place`, fails at the first screen open with a message saying so. The widget is clipped to its box and to any scroll area it sits in.
+
+The host routes the mouse itself, in screen coordinates, the way vanilla routes it to a screen's widgets: the click (with vanilla's double click and the modifier keys held), the drag while the press is held, the release of that press, and the wheel. So a hosted widget takes clicks on a standalone screen and on a panel over a vanilla screen alike. A click the widget takes gives it keyboard focus. Keys, typed characters, Tab and arrow focus and narration come through vanilla's focus, as for `Button`. A hosted widget that stops being drawn, or is disabled, gives up focus at the next key and Tab skips it.
+
+`overflow()` is for a widget that draws past its box while it has focus, such as a dropdown's open list. Then it draws on top of every panel on the screen, after the dialogs, unclipped, and takes clicks anywhere until a click it does not take ends its focus. Under a dialog it does not belong to, it draws in place.
+
+A hosted widget follows the rules of any element. Under another panel's claim it takes no click and shows no hover. Disabled, it takes no input. Its look is its own: it draws itself the same on both kinds of screen.
+
+## Color field
+
+A `ColorField` is a colour setting: a swatch of the colour and a lens onto it (`state(IntSupplier, IntConsumer)`). The value is `0xRRGGBB`, or `0xAARRGGBB` with `alpha(true)`. Without alpha the value's top byte is ignored when read and written as zero. `label(text)` names it for the dialog's title and the narrator.
+
+A click on the swatch (or Enter on it) opens a modal dialog on the same screen, in its kind. The Dyes tab comes first: the 16 vanilla dye colours, each shown by its dye item and named in a tooltip, with the current one ringed. A dye is opaque, so picking one writes alpha `FF`. The Custom tab has a saturation and brightness square, a hue bar, and with alpha a transparency bar over a checkerboard, the colour before and now side by side, and a hex field. Typing in the hex field is free, and only valid hex is written: `#RRGGBB`, and with alpha also `#AARRGGBB`, where six digits keep the current transparency. While the text is not valid it shows red, and when the field loses focus it goes back to the colour's hex. `ColorField.parseHex` and `formatHex` read and write the same strings.
+
+Each change is written through the lens as it is made, so the screen behind the dialog shows it at once. Done closes the dialog and keeps the change. Cancel and Escape write back the colour from before the dialog opened. The dialog needs a screen, so a colour field on the HUD only shows its swatch.
 
 ## Input context
 

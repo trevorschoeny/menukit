@@ -39,8 +39,8 @@ Behavior that is incomplete in the current release.
 | Secondary click and tint | `Button` and `Toggle` only. Other shipped elements take left clicks alone. A custom `PanelElement` handles any button in its own `mouseClicked`. |
 | `ScrollContainer` | Vertical only. No keyboard scrolling. The scrollbar stays visible. |
 | `Slider` | A 0 to 1 fraction, whole numbers (`ofInts`) or an enum's constants (`ofEnum`). No range handle, no vertical orientation. |
-| `Slider`, `TextField` on a panel injected onto a vanilla screen | The claim routes clicks to the panel's elements before vanilla sees them, and these two take their clicks as vanilla widgets, so a click does not reach them there. On a standalone screen (`MKScreen`, or a library's own screen with an `OwnHost`) they work. |
-| `Slider`, `TextField` in a hidden panel | Stay registered with the screen and can keep keyboard focus. Blur them (`screen.setFocused(null)`) before hiding their panel. |
+| `WidgetHost` | A drag reaches the widget once a frame, not once per mouse event. A hosted widget draws itself, so it does not grey when disabled unless it greys itself. `overflow()` knows a widget's popup is open only by its keyboard focus. A hosted widget, like a control, stops being focusable a quarter second after it stops being drawn. |
+| `ColorField` | No eyedropper and no list of recent colours. The dialog opens only on a screen. Hex takes six or eight digits, not the three-digit short form. |
 | Keyboard focus on `Button`, `Toggle`, `Checkbox`, `Radio` | Follows the screen's widget order, which is panel order. An element that stops being drawn loses focusability a quarter second later, not the same frame. |
 | Disabled `Tabs` | The strip and the body are inert and the body greys; the strip's labels keep their colours. |
 | Item outline (`SlotRendering.drawItemOutline`, `ItemDisplay.outline`) | Items whose model reaches outside their 16 by 16 box, which vanilla draws through a separate path, draw without the outline. |
