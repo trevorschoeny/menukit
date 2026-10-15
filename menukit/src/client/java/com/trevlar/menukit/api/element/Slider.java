@@ -1,6 +1,5 @@
 package com.trevlar.menukit.api.element;
 
-import com.trevlar.menukit.api.panel.Focus;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
@@ -49,11 +48,11 @@ import java.util.function.Supplier;
  *
  * <h3>Lifecycle</h3>
  *
- * The vanilla widget is registered with the screen as a widget, not a
- * renderable ({@link #onAttach}), so vanilla's focus, keyboard and narration
- * reach it while MenuKit draws it after the panel background. Known limit,
- * shared with {@link TextField}: a slider in a panel hidden mid-screen stays
- * registered and can keep keyboard focus.
+ * The vanilla widget is hosted by a {@link WidgetHost} (since 7.2.0), the one way
+ * MenuKit hosts a vanilla widget: the host places it, draws it after the panel
+ * background, routes the mouse to it (the press, the drag, the release) on any
+ * panel, and gives it vanilla's focus, keyboard and narration. A slider whose
+ * panel is hidden lets go of focus rather than taking keys unseen.
  *
  * @param <V> the value type: {@code Double} (a fraction), {@code Integer}, or an enum
  */
@@ -106,7 +105,8 @@ public class Slider<V> extends AbstractPanelElement {
     private final Supplier<V> stateGet;
     private final Function<V, Component> label;
     private final MKSlider slider;
-    private @Nullable Screen attachedScreen;
+    /** Hosts the slider at this element's (0, 0). */
+    private final WidgetHost<MKSlider> host;
 
     protected Slider(Builder<V> b) {
         super(b);
@@ -118,6 +118,8 @@ public class Slider<V> extends AbstractPanelElement {
         this.slider = new MKSlider(width, height, label.apply(stateGet.get()), initial,
                 f -> set.accept(scale.fromFraction().apply(f)),
                 f -> label.apply(scale.fromFraction().apply(f)), scale);
+        MKSlider made = slider;
+        this.host = WidgetHost.builder().widget(() -> made).size(width, height).build();
     }
 
     /** A slider over a fraction, 0 to 1. */
@@ -153,28 +155,40 @@ public class Slider<V> extends AbstractPanelElement {
         // Disabled (own or cascaded): vanilla's inactive widget draws greyed and
         // ignores drag, keys and wheel on its own.
         slider.active = !disabled(ctx);
-        slider.setX(ctx.originX() + childX);
-        slider.setY(ctx.originY() + childY);
-        slider.setWidth(width);
-        // Drawn here, after the panel background (it is a widget, not a renderable).
-        slider.extractRenderState(ctx.graphics(), ctx.hasMouseInput() ? ctx.mouseX() : -1,
-                ctx.hasMouseInput() ? ctx.mouseY() : -1, 0f);
+        host.fillWidth(width);
+        host.render(childContext(ctx).at(ctx.originX() + childX, ctx.originY() + childY));
         queueTooltip(ctx);
+    }
+
+    /** The host's input context: this slider's own origin, and its own disabledWhen added. */
+    private InputContext hostInput(InputContext in) {
+        host.fillWidth(width);
+        return in.at(in.originX() + childX, in.originY() + childY).disabledIf(ownDisabled());
+    }
+
+    @Override
+    public boolean mouseClicked(InputContext in, int button) {
+        return host.mouseClicked(hostInput(in), button);
+    }
+
+    @Override
+    public boolean mouseReleased(InputContext in, int button) {
+        return host.mouseReleased(hostInput(in), button);
+    }
+
+    @Override
+    public boolean mouseScrolled(InputContext in, double scrollX, double scrollY) {
+        return host.mouseScrolled(hostInput(in), scrollX, scrollY);
     }
 
     @Override
     public void onAttach(Screen screen) {
-        if (attachedScreen == screen) return;
-        if (attachedScreen != null) onDetach(attachedScreen);
-        attachedScreen = screen;
-        Focus.addWidget(screen, slider);
+        host.onAttach(screen);
     }
 
     @Override
     public void onDetach(Screen screen) {
-        if (attachedScreen != screen) return;
-        Focus.removeWidget(screen, slider);
-        attachedScreen = null;
+        host.onDetach(screen);
     }
 
     public static class Builder<V> extends AbstractPanelElement.Builder<Slider<V>, Builder<V>> {

@@ -79,7 +79,7 @@ public abstract class MKModalMouseHandlerMixin {
     )
     private void mk$eatModalButton(long window, MouseButtonInfo button, int action,
                                         CallbackInfo ci) {
-        PressedTracker.onMouseButton(button.button(), action);
+        PressedTracker.onMouseButton(button.button(), action, button.modifiers());
         if (action == 0) {
             // Release: ends drags in opaque panels, and is eaten when the press
             // would have been. Passes through when nothing opaque covers the

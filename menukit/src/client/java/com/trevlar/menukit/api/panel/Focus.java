@@ -11,6 +11,8 @@ import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 
+import org.jetbrains.annotations.ApiStatus;
+
 import java.util.HashSet;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -129,6 +131,31 @@ public final class Focus {
         Set<GuiEventListener> set = MANAGED.get(screen);
         if (set != null) {
             set.remove(widget);
+            if (set.isEmpty()) MANAGED.remove(screen);
+        }
+    }
+
+    /**
+     * Adds {@code standIn} to the screen as {@link #addWidget} does, and also records
+     * {@code hosted}, the widget it stands in for, as MenuKit's: the hosted widget is
+     * not a child of the screen (the stand-in is), but it keeps its hover inside its
+     * panel and its focus is handled like the stand-in's ({@link #isManaged}). For
+     * {@code WidgetHost}, the one way MenuKit hosts a vanilla widget.
+     */
+    @ApiStatus.Internal
+    public static <T extends GuiEventListener & NarratableEntry> void addHosted(
+            Screen screen, T standIn, GuiEventListener hosted) {
+        addWidget(screen, standIn);
+        MANAGED.computeIfAbsent(screen, k -> new HashSet<>()).add(hosted);
+    }
+
+    /** Undoes {@link #addHosted}. */
+    @ApiStatus.Internal
+    public static void removeHosted(Screen screen, GuiEventListener standIn, GuiEventListener hosted) {
+        removeWidget(screen, standIn);
+        Set<GuiEventListener> set = MANAGED.get(screen);
+        if (set != null) {
+            set.remove(hosted);
             if (set.isEmpty()) MANAGED.remove(screen);
         }
     }

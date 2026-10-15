@@ -1,5 +1,6 @@
 package com.trevlar.menukit.inject;
 
+import com.trevlar.menukit.api.element.ChildDispatch;
 import com.trevlar.menukit.api.panel.Anchor;
 import com.trevlar.menukit.api.panel.AnchorPanelAdapter;
 import com.trevlar.menukit.api.panel.ScreenPanelAdapter;
@@ -56,7 +57,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *   <li><b>context</b>: the adapters targeting this screen (container adapters on a
  *       container screen, vanilla-screen adapters on any other);</li>
  *   <li><b>anchors</b> (any screen): one host per targeted {@link Anchor} whose box is
- *       on the screen.</li>
+ *       on the screen;</li>
+ *   <li><b>dialogs</b> (7.2.0): the dialogs elements on the screen own, attached by
+ *       the elements themselves ({@link #attachDialog}).</li>
  * </ol>
  *
  * <h2>Global questions, one answer each</h2>
@@ -98,23 +101,69 @@ public final class ScreenPanelRegistry {
         @Nullable PanelHost own;
         @Nullable PanelHost context;
         final Map<Identifier, PanelHost> anchors = new LinkedHashMap<>();
+        /**
+         * The dialogs elements on this screen open (7.2.0): a {@code ColorField}'s
+         * picker. Topmost, made when the first one attaches ({@link #attachDialog}).
+         */
+        @Nullable PanelHost dialogs;
 
         /** Every host, bottom to top. */
         List<PanelHost> all() {
-            List<PanelHost> out = new ArrayList<>(2 + anchors.size());
+            List<PanelHost> out = new ArrayList<>(3 + anchors.size());
             if (own != null) out.add(own);
             if (context != null) out.add(context);
             out.addAll(anchors.values());
+            if (dialogs != null) out.add(dialogs);
             return out;
         }
 
         /** The hosts the registry routes input to (not own: the screen routes its own). */
         List<PanelHost> routed() {
+            List<PanelHost> out = new ArrayList<>(2 + anchors.size());
+            out.addAll(declared());
+            if (dialogs != null) out.add(dialogs);
+            return out;
+        }
+
+        /** The hosts built from declared adapters: context, then anchors. */
+        List<PanelHost> declared() {
             List<PanelHost> out = new ArrayList<>(1 + anchors.size());
             if (context != null) out.add(context);
             out.addAll(anchors.values());
             return out;
         }
+    }
+
+    /**
+     * Shows {@code dialog} on {@code screen}'s dialog host, the topmost host, so an
+     * element can own a dialog (a {@code ColorField}'s picker) without the consumer
+     * declaring it: the element attaches it from its own {@code onAttach}, at the
+     * screen's init, and the dialog's {@code visibleWhen} opens and closes it. Its
+     * elements are attached to the screen too. Idempotent per panel.
+     *
+     * <p>Not a declaration: the element was declared; this is per screen, like a
+     * widget registering. The host is placed against the screen and draws in its
+     * kind ({@link ScreenKind#of}); a {@code center()} dialog is an overlay there.
+     */
+    public static void attachDialog(Screen screen, Panel dialog) {
+        ScreenHosts hosts = HOSTS.computeIfAbsent(screen, s -> new ScreenHosts());
+        if (hosts.dialogs == null) {
+            hosts.dialogs = PanelHost.vanillaScreen(ScreenKind.of(screen),
+                    () -> new PanelHost.Frame(screen.width, screen.height, null));
+        }
+        PanelHost host = hosts.dialogs;
+        boolean present = host.entries().stream().anyMatch(e -> e.panel() == dialog);
+        if (!present) host.add(dialog, dialog.getPosition(), dialog.interiorPadding(), "menukit", PanelHost.nextSeq());
+        ChildDispatch.detach(dialog.getElements(), screen);
+        ChildDispatch.attach(dialog.getElements(), screen);
+    }
+
+    /** Undoes {@link #attachDialog}: detaches the dialog's elements and takes it off the screen. */
+    public static void detachDialog(Screen screen, Panel dialog) {
+        ScreenHosts hosts = HOSTS.get(screen);
+        if (hosts == null || hosts.dialogs == null) return;
+        ChildDispatch.detach(dialog.getElements(), screen);
+        hosts.dialogs.remove(dialog);
     }
 
     /** Weak on the screen: a closed screen's hosts go with it. */
@@ -213,15 +262,18 @@ public final class ScreenPanelRegistry {
             }
         }
 
+        // Element lifecycle for the hosts the registry builds (the own host attaches in
+        // its screen's init). Widget-wrapping elements register their vanilla widget,
+        // and an element that owns a dialog puts it on the dialog host, so the routed
+        // list is read after this.
+        List<PanelHost> declared = hosts.declared();
+        for (PanelHost host : declared) host.attach(screen);
+        ScreenEvents.remove(screen).register(removed -> {
+            for (PanelHost host : declared) host.detach(removed);
+        });
+
         List<PanelHost> routed = hosts.routed();
         if (routed.isEmpty() && hosts.own == null) return;
-
-        // Element lifecycle for the hosts the registry owns (the own host attaches in
-        // its screen's init). Widget-wrapping elements register their vanilla widget.
-        for (PanelHost host : routed) host.attach(screen);
-        ScreenEvents.remove(screen).register(removed -> {
-            for (PanelHost host : routed) host.detach(removed);
-        });
 
         // Render: container screens compose through ContainerScreenLayers (the slot
         // pass sits between FLOW and OVERLAY). Every other screen composes here, in

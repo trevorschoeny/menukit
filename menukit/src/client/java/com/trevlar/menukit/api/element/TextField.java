@@ -1,6 +1,5 @@
 package com.trevlar.menukit.api.element;
 
-import com.trevlar.menukit.api.panel.Focus;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -53,10 +52,12 @@ import java.util.function.Supplier;
  *
  * The EditBox is built at the screen's init ({@link #onAttach}), not with the
  * element, because vanilla's EditBox captures the font in its constructor and a
- * consumer may build its UI before the font is loaded. It is registered as a
- * widget, not a renderable, and MenuKit draws it after the panel background.
- * Known limit: a field in a panel hidden mid-screen stays registered and can keep
- * keyboard focus; blur it ({@code screen.setFocused(null)}) before hiding it.
+ * consumer may build its UI before the font is loaded. It is hosted by a
+ * {@link WidgetHost} (since 7.2.0), the one way MenuKit hosts a vanilla widget:
+ * the host places it, draws it after the panel background, routes the mouse to it
+ * on any panel (a standalone screen's or one over a vanilla screen) and gives it
+ * vanilla's keyboard focus. A field whose panel is hidden, or whose tab is not
+ * shown, lets go of focus rather than typing unseen.
  */
 public class TextField extends AbstractPanelElement {
 
@@ -69,9 +70,8 @@ public class TextField extends AbstractPanelElement {
     private final @Nullable Component hint;
     private final @Nullable Consumer<String> onSubmit;
 
-    /** Built at the first attach (the font must exist). Null until then. */
-    private @Nullable MKEditBox editBox;
-    private @Nullable Screen attachedScreen;
+    /** Hosts the EditBox, made at the first attach (the font must exist), at this field's (0, 0). */
+    private final WidgetHost<MKEditBox> host;
 
     protected TextField(Builder b) {
         super(b);
@@ -83,6 +83,7 @@ public class TextField extends AbstractPanelElement {
         this.editable = b.editable;
         this.hint = b.hint;
         this.onSubmit = b.onSubmit;
+        this.host = WidgetHost.builder().widget(this::makeEditBox).size(width, height).build();
     }
 
     public static Builder builder() {
@@ -94,54 +95,69 @@ public class TextField extends AbstractPanelElement {
      * {@code null} before the field's first screen init.
      */
     public @Nullable EditBox widget() {
-        return editBox;
+        return host.widget();
     }
 
-    private void ensureEditBox() {
-        if (editBox != null) return;
-        editBox = new MKEditBox(Minecraft.getInstance().font, width, height, label, onSubmit);
-        if (maxLength != null) editBox.setMaxLength(maxLength);
-        editBox.setBordered(bordered);
-        editBox.setEditable(editable);
-        if (hint != null) editBox.setHint(hint);
+    /** The EditBox the host makes on first need: MenuKit's settings, then the consumer's text. */
+    private MKEditBox makeEditBox() {
+        MKEditBox box = new MKEditBox(Minecraft.getInstance().font, width, height, label, onSubmit);
+        if (maxLength != null) box.setMaxLength(maxLength);
+        box.setBordered(bordered);
+        box.setEditable(editable);
+        if (hint != null) box.setHint(hint);
         // The consumer's text first, then the responder: showing it is not an edit.
-        editBox.setValue(stateGet.get());
-        editBox.setResponder(stateSet);
+        box.setValue(stateGet.get());
+        box.setResponder(stateSet);
+        return box;
     }
 
     @Override public boolean isInteractive() { return true; }
 
     @Override
     public void render(RenderContext ctx) {
-        if (editBox == null) return; // not attached yet
-        // The lens, every frame: show what the consumer holds when it differs from
-        // the edit buffer (a value changed elsewhere, or a setter that refused).
-        String wanted = stateGet.get();
-        if (wanted != null && !wanted.equals(editBox.getValue())) editBox.showWithoutReporting(wanted);
-        editBox.setEditable(editable && !disabled(ctx));
-        editBox.active = !disabled(ctx);
-        editBox.setX(ctx.originX() + childX);
-        editBox.setY(ctx.originY() + childY);
-        editBox.setWidth(width);
-        editBox.extractRenderState(ctx.graphics(), ctx.hasMouseInput() ? ctx.mouseX() : -1,
-                ctx.hasMouseInput() ? ctx.mouseY() : -1, 0f);
+        MKEditBox box = host.widget();
+        if (box != null) {
+            // The lens, every frame: show what the consumer holds when it differs from
+            // the edit buffer (a value changed elsewhere, or a setter that refused).
+            String wanted = stateGet.get();
+            if (wanted != null && !wanted.equals(box.getValue())) box.showWithoutReporting(wanted);
+            box.setEditable(editable && !disabled(ctx));
+            box.active = !disabled(ctx);
+        }
+        host.fillWidth(width);
+        host.render(childContext(ctx).at(ctx.originX() + childX, ctx.originY() + childY));
         queueTooltip(ctx);
+    }
+
+    /** The host's input context: this field's own origin, and its own disabledWhen added. */
+    private InputContext hostInput(InputContext in) {
+        host.fillWidth(width);
+        return in.at(in.originX() + childX, in.originY() + childY).disabledIf(ownDisabled());
+    }
+
+    @Override
+    public boolean mouseClicked(InputContext in, int button) {
+        return host.mouseClicked(hostInput(in), button);
+    }
+
+    @Override
+    public boolean mouseReleased(InputContext in, int button) {
+        return host.mouseReleased(hostInput(in), button);
+    }
+
+    @Override
+    public boolean mouseScrolled(InputContext in, double scrollX, double scrollY) {
+        return host.mouseScrolled(hostInput(in), scrollX, scrollY);
     }
 
     @Override
     public void onAttach(Screen screen) {
-        if (attachedScreen == screen) return;
-        if (attachedScreen != null) onDetach(attachedScreen);
-        attachedScreen = screen;
-        ensureEditBox();
-        Focus.addWidget(screen, editBox);
+        host.onAttach(screen);
     }
 
     @Override
     public void onDetach(Screen screen) {
-        if (attachedScreen != screen) return;
-        if (editBox != null) Focus.removeWidget(screen, editBox);
-        attachedScreen = null;
+        host.onDetach(screen);
     }
 
     public static class Builder extends AbstractPanelElement.Builder<TextField, Builder> {

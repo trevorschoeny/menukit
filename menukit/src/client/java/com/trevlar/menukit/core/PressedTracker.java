@@ -33,9 +33,21 @@ public final class PressedTracker {
     // (MKModalMouseHandlerMixin feeds it from the head of MouseHandler.onButton).
     private static boolean leftMouseDown;
 
+    // The modifier keys held at the last mouse button event, in vanilla's bit form
+    // (InputWithModifiers.modifiers()). An element's click carries only the button, so
+    // a hosted vanilla widget (WidgetHost) gets the rest of its MouseButtonEvent from
+    // here: shift-click extends an EditBox's selection, say.
+    private static int lastModifiers;
+
     /** Records a mouse button event, before vanilla or MenuKit act on it. */
-    public static void onMouseButton(int button, int action) {
+    public static void onMouseButton(int button, int action, int modifiers) {
         if (button == InputConstants.MOUSE_BUTTON_LEFT) leftMouseDown = action == InputConstants.PRESS;
+        lastModifiers = modifiers;
+    }
+
+    /** The modifier bits of the last mouse button event (0 before any). */
+    public static int lastModifiers() {
+        return lastModifiers;
     }
 
     /** Whether the left mouse button is held right now. */

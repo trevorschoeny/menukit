@@ -1,6 +1,7 @@
 package com.trevlar.menukit.inject;
 
 import com.trevlar.menukit.api.panel.Panel;
+import com.trevlar.menukit.core.OverlayDraws;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
@@ -29,6 +30,9 @@ import java.util.List;
  *   <li><b>OVERLAY</b>: every {@link Panel#isOverlayPositioned() overlay} (a
  *       {@code center()} panel, or any dim or modal panel), on top. A modal stays
  *       above a popover.</li>
+ *   <li><b>Deferred draws</b> (7.2.0): what an element handed to the top of the
+ *       frame ({@link OverlayDraws}): an overflowing {@code WidgetHost}'s open popup,
+ *       in a stratum of its own.</li>
  * </ul>
  *
  * <h2>One order for drawing and claiming</h2>
@@ -102,10 +106,23 @@ public final class LayerPlan {
         return out;
     }
 
-    /** Draws {@code layer} of every host, in draw order. */
+    /**
+     * Draws {@code layer} of every host, in draw order. Each panel may hand draws to
+     * the top of the frame ({@link OverlayDraws}, an overflowing widget's popup)
+     * unless a modal it does not belong to is up: then its popup stays under the
+     * dialog, as the panel does.
+     */
     public static void render(List<PanelHost> hosts, Layer layer, GuiGraphicsExtractor graphics,
                               int mouseX, int mouseY, PanelHost.PointerPolicy pointer) {
-        for (Drawn d : drawOrder(hosts, layer)) d.host().render(graphics, mouseX, mouseY, d.placed(), pointer);
+        boolean modalUp = false;
+        for (PanelHost host : hosts) {
+            if (host.topmostModal() != null) modalUp = true;
+        }
+        for (Drawn d : drawOrder(hosts, layer)) {
+            OverlayDraws.allow(!modalUp || d.placed().panel().tracksAsModal());
+            d.host().render(graphics, mouseX, mouseY, d.placed(), pointer);
+        }
+        OverlayDraws.allow(false);
     }
 
     /**
@@ -131,5 +148,8 @@ public final class LayerPlan {
             }
         }
         render(hosts, Layer.OVERLAY, graphics, mouseX, mouseY, pointer);
+        // Last: what the panels handed to the top of the frame (an overflowing
+        // widget's open popup), above the dialogs.
+        OverlayDraws.flush(graphics);
     }
 }
