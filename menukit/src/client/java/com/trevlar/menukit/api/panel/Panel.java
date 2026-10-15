@@ -740,12 +740,14 @@ public class Panel {
 
         int cumulative = 0;            // extra pushed down by wrapped rows above
         int rowExtra = 0;              // tallest wrap in the current row
+        boolean rowSeen = false;       // whether a visible element has reported in this row
         int rowY = Integer.MIN_VALUE;  // current row's baseline Y
         for (int idx : order) {
             int dY = baseline[idx];
             if (dY != rowY) {
                 cumulative += rowExtra; // bank the previous row's push
                 rowExtra = 0;
+                rowSeen = false;
                 rowY = dY;
             }
             PanelElement e = elements.get(idx);
@@ -756,8 +758,12 @@ public class Panel {
             if (e.isVisible()) {
                 // Any element that grew under layoutWithin (a wrapped TextLabel,
                 // a multi-line Button) pushes the rows below down by its extra
-                // height.
-                rowExtra = Math.max(rowExtra, e.extraLayoutHeight());
+                // height. One that shrank below where it was placed (a Tabs fitting
+                // a shorter tab) reports less than 0 and pulls them up, but only
+                // when nothing else in its row holds them where they are.
+                int extra = e.extraLayoutHeight();
+                rowExtra = rowSeen ? Math.max(rowExtra, extra) : extra;
+                rowSeen = true;
             }
         }
     }

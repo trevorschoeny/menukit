@@ -391,4 +391,4 @@ PanelElement glow = ColorField.builder()
         .build();
 ```
 
-Result: a swatch of the colour, over a checkerboard because it has alpha. Clicking it opens a dialog over the screen, titled Glow color. The Basic tab shows the 16 dye colours by their dye items, and clicking one sets the colour. The Custom tab has a saturation and brightness square, a hue bar, a transparency bar and a hex field. Every change is written at once. Done keeps it; Cancel or Escape puts back the colour from before the dialog opened. Without `alpha(true)` the value is `0xRRGGBB` and there is no transparency bar.
+Result: a swatch of the colour, over a checkerboard because it has alpha. Clicking it opens a dialog over the screen, titled Glow color. The Basic tab shows the 16 dye colours by their dye items in three rows, in rainbow order, and clicking one sets the colour. The Custom tab has a saturation and brightness square, a hue bar, a transparency bar and a hex field. Every change is written at once. Done keeps it; Cancel or Escape puts back the colour from before the dialog opened. Without `alpha(true)` the value is `0xRRGGBB` and there is no transparency bar.

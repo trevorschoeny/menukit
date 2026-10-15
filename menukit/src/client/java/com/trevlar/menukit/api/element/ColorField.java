@@ -16,6 +16,7 @@ import net.minecraft.world.item.DyeColor;
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.IntConsumer;
@@ -25,9 +26,10 @@ import java.util.function.IntSupplier;
  * A colour setting: a swatch showing the colour, and a lens onto it. Clicking the
  * swatch (or Enter on it) opens a modal dialog over the screen with two tabs:
  * <ul>
- *   <li><b>Basic</b>, the default: Minecraft's sixteen dye colours, each shown by its
- *       dye item, named in a tooltip, the current one outlined. Clicking one sets the
- *       colour.</li>
+ *   <li><b>Basic</b>, the default: Minecraft's sixteen dye colours in rainbow order,
+ *       rows of six with the four neutrals last, each shown by its dye item, named in a
+ *       tooltip (vanilla's colour name, "Light Blue"), the current one outlined.
+ *       Clicking one sets the colour.</li>
  *   <li><b>Custom</b>: a saturation and brightness square, a hue bar, a transparency
  *       bar over a checkerboard (with {@code alpha(true)}), the colour before and now
  *       side by side, and a hex field.</li>
@@ -217,6 +219,34 @@ public class ColorField extends AbstractPanelElement {
     @ApiStatus.Internal
     public void typeHex(String text) {
         dialog.typeHex(text);
+    }
+
+    /** Shows a tab of the dialog ({@code "basic"} or {@code "custom"}), as a click on it does. */
+    @ApiStatus.Internal
+    public void showDialogTab(String id) {
+        dialog.showTab(id);
+    }
+
+    /**
+     * What the dialog's shown tab draws, each {@code {x, y, width, height}} from the
+     * tab's body: every dye's slot with its ring (in {@link #dyeRows} order), or the
+     * picker and the hex field.
+     */
+    @ApiStatus.Internal
+    public List<int[]> dialogCells() {
+        return dialog.shownCells();
+    }
+
+    /** The dye grid's rows, top to bottom. */
+    @ApiStatus.Internal
+    public static List<List<DyeColor>> dyeRows() {
+        return ColorDialog.DYE_ROWS;
+    }
+
+    /** A dye's tooltip: vanilla's translated colour name. */
+    @ApiStatus.Internal
+    public static Component dyeName(DyeColor dye) {
+        return ColorDialog.dyeName(dye);
     }
 
     /** The dialog's panel: a modal on the screen the field is on, open while {@link #isDialogOpen}. */

@@ -9,7 +9,6 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.DyeColor;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 import java.util.List;
@@ -20,8 +19,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * and a Custom tab, Cancel and Done. Built of MenuKit's own elements ({@link Tabs},
  * {@link TextField}, {@link Button}) plus the two drawn here, the dye grid and the
  * picker, laid out as every MenuKit dialog is ({@link DialogLayout}), so it draws in
- * the kind of screen it opens on like any dialog. The tabs take the height of the
- * taller tab, so switching tabs never resizes the dialog.
+ * the kind of screen it opens on like any dialog. The dialog is as wide as the wider
+ * tab and as tall as the shown one ({@link Tabs.Builder#fitShownTab}): Basic is
+ * short, Custom taller, and switching resizes it, the buttons following.
  * Package-private: consumers reach it through {@link ColorField}.
  *
  * <p>The colour lives with the consumer, through the field's lens. The dialog keeps
@@ -40,9 +40,16 @@ final class ColorDialog {
     /** A preview swatch (before, now) and the hex field's row. */
     static final int ROW_HEIGHT = 18;
     static final int PREVIEW = 24;
-    static final int HEX_WIDTH = 82;
-    /** The dye grid: eight dyes a row, two rows, slots a little apart. */
-    static final int DYE_COLUMNS = 8;
+    /**
+     * The dyes as the Basic tab shows them: the rainbow in rows of six, then the four
+     * neutrals, centred under them.
+     */
+    static final List<List<DyeColor>> DYE_ROWS = List.of(
+            List.of(DyeColor.RED, DyeColor.ORANGE, DyeColor.YELLOW, DyeColor.LIME, DyeColor.GREEN, DyeColor.CYAN),
+            List.of(DyeColor.LIGHT_BLUE, DyeColor.BLUE, DyeColor.PURPLE, DyeColor.MAGENTA, DyeColor.PINK, DyeColor.BROWN),
+            List.of(DyeColor.WHITE, DyeColor.LIGHT_GRAY, DyeColor.GRAY, DyeColor.BLACK));
+    static final int DYE_COLUMNS = 6;
+    /** From one slot to the next: slots a little apart. */
     static final int DYE_STEP = ItemPicker.SIZE + 2;
     /** Room around the grid for the current dye's ring, which is a pixel outside its slot. */
     static final int RING = 1;
@@ -54,6 +61,8 @@ final class ColorDialog {
     private final ColorField field;
     private final Panel panel;
     private final TextField hex;
+    private final DyeGrid grid;
+    private final Picker picker;
 
     // View state
     private String tab = "basic";
@@ -67,19 +76,24 @@ final class ColorDialog {
 
     ColorDialog(ColorField field) {
         this.field = field;
-        this.hex = TextField.builder().at(PREVIEW * 2 + GAP, SQUARE + 6).size(HEX_WIDTH, ROW_HEIGHT)
+        this.grid = new DyeGrid();
+        this.picker = new Picker();
+        // The hex field ends where the picker's last bar does, so Custom is no wider
+        // than its picker.
+        int hexX = PREVIEW * 2 + GAP;
+        this.hex = TextField.builder().at(hexX, SQUARE + 6).size(picker.getWidth() - hexX, ROW_HEIGHT)
                 .maxLength(9)
                 .label(Component.literal("Hex"))
                 .state(this::hexText, this::typeHex)
                 .build();
 
-        // No fixed size: the tabs are as wide as the dialog and as tall as the taller
-        // tab's body (the Custom picker), so the dialog fits its content and switching
-        // tabs never resizes it.
+        // No fixed size: the tabs are as wide as the wider tab (the dialog's width) and
+        // as tall as the shown one, so the dialog fits its content on either tab.
         Tabs tabs = Tabs.builder()
                 .state(() -> tab, id -> tab = id)
-                .tab("basic", Component.literal("Basic"), List.of(new DyeGrid()))
-                .tab("custom", Component.literal("Custom"), List.of(new Picker(), hex))
+                .fitShownTab()
+                .tab("basic", Component.literal("Basic"), List.of(grid))
+                .tab("custom", Component.literal("Custom"), List.of(picker, hex))
                 .build();
 
         // ConfirmDialog's layout: centred, modal (opaque, dims behind, takes every
@@ -97,6 +111,36 @@ final class ColorDialog {
 
     Panel panel() {
         return panel;
+    }
+
+    /** Shows a tab, as a click on it does. */
+    void showTab(String id) {
+        tab = id;
+    }
+
+    /**
+     * What the shown tab draws, as {@code {x, y, width, height}} from its body's
+     * top-left: each dye's slot with its ring, or the picker and the hex field.
+     */
+    List<int[]> shownCells() {
+        if (!tab.equals("basic")) {
+            return List.of(new int[]{picker.getChildX(), picker.getChildY(), picker.getWidth(), picker.getHeight()},
+                    new int[]{hex.getChildX(), hex.getChildY(), hex.getWidth(), hex.getHeight()});
+        }
+        List<int[]> cells = new java.util.ArrayList<>();
+        for (List<DyeColor> row : DYE_ROWS) {
+            for (DyeColor dye : row) {
+                int[] at = grid.slot(dye);
+                cells.add(new int[]{grid.getChildX() + at[0] - RING, grid.getChildY() + at[1] - RING,
+                        ItemPicker.SIZE + 2 * RING, ItemPicker.SIZE + 2 * RING});
+            }
+        }
+        return cells;
+    }
+
+    /** A dye's name, as its tooltip shows it: vanilla's translated colour ("Light Blue"). */
+    static Component dyeName(DyeColor dye) {
+        return Component.translatable("color.minecraft." + dye.getName());
     }
 
     /** Opened: Basic first, the picker and the hex text from the colour as it is now. */
@@ -222,49 +266,59 @@ final class ColorDialog {
     // The Basic tab
 
     /**
-     * The sixteen dyes, by their items, in vanilla's order. Clicking one writes its
+     * The sixteen dyes, by their items, in {@link #DYE_ROWS}. Clicking one writes its
      * colour. The grid's bounds include {@link #RING} round the slots, so the current
      * dye's ring (a pixel outside its slot) is inside them: the tab's body clips to
-     * its own box, and a ring on the top row would otherwise lose its top edge.
+     * its own box, and a ring on the top row would otherwise lose its top edge. Given
+     * more width than it needs (the Custom tab is wider), it centres the slots in it.
      */
     private final class DyeGrid extends AbstractPanelElement {
 
         DyeGrid() {
-            this.width = DYE_COLUMNS * DYE_STEP - 2 + 2 * RING;
-            this.height = (DyeColor.values().length + DYE_COLUMNS - 1) / DYE_COLUMNS * DYE_STEP - 2 + 2 * RING;
+            this.width = this.authoredWidth = DYE_COLUMNS * DYE_STEP - 2 + 2 * RING;
+            this.height = DYE_ROWS.size() * DYE_STEP - 2 + 2 * RING;
         }
 
-        @Override public void layoutWithin(int budget) {}
+        /** As wide as the body, so the slots centre in it; never narrower than they need. */
+        @Override public void layoutWithin(int budget) { width = Math.max(authoredWidth, budget); }
         @Override public void fillWidth(int width) {}
         @Override public boolean isInteractive() { return true; }
 
-        private @org.jspecify.annotations.Nullable DyeColor dyeAt(InputContext in) {
-            double lx = in.mouseX() - (in.originX() + childX + RING), ly = in.mouseY() - (in.originY() + childY + RING);
-            if (lx < 0 || ly < 0) return null;
-            int col = (int) (lx / DYE_STEP), row = (int) (ly / DYE_STEP);
-            if (col >= DYE_COLUMNS || lx - col * DYE_STEP >= ItemPicker.SIZE || ly - row * DYE_STEP >= ItemPicker.SIZE) {
-                return null;
+        /** A dye's slot, {@code {x, y}} from the grid's top-left; a short row is centred under the full ones. */
+        int[] slot(DyeColor dye) {
+            for (int r = 0; r < DYE_ROWS.size(); r++) {
+                List<DyeColor> row = DYE_ROWS.get(r);
+                int c = row.indexOf(dye);
+                if (c < 0) continue;
+                int x = (width - authoredWidth) / 2 + RING + (DYE_COLUMNS - row.size()) * DYE_STEP / 2 + c * DYE_STEP;
+                return new int[]{x, RING + r * DYE_STEP};
             }
-            int i = row * DYE_COLUMNS + col;
-            return i < DyeColor.values().length ? DyeColor.values()[i] : null;
+            throw new IllegalArgumentException("not in the grid: " + dye);
+        }
+
+        private @org.jspecify.annotations.Nullable DyeColor dyeAt(InputContext in) {
+            double lx = in.mouseX() - (in.originX() + childX), ly = in.mouseY() - (in.originY() + childY);
+            for (DyeColor dye : DyeColor.values()) {
+                int[] at = slot(dye);
+                if (lx >= at[0] && lx < at[0] + ItemPicker.SIZE && ly >= at[1] && ly < at[1] + ItemPicker.SIZE) return dye;
+            }
+            return null;
         }
 
         @Override
         public void render(RenderContext ctx) {
             GuiGraphicsExtractor g = ctx.graphics();
-            int gx = ctx.originX() + childX + RING, gy = ctx.originY() + childY + RING;
+            int gx = ctx.originX() + childX, gy = ctx.originY() + childY;
             DyeColor hovered = ctx.hasMouseInput() ? dyeAt(ctx.input()) : null;
             int current = field.value() & 0xFFFFFF;
             for (DyeColor dye : DyeColor.values()) {
-                int i = dye.ordinal();
-                int x = gx + (i % DYE_COLUMNS) * DYE_STEP, y = gy + (i / DYE_COLUMNS) * DYE_STEP;
+                int[] at = slot(dye);
+                int x = gx + at[0], y = gy + at[1];
                 ItemPicker.drawSlot(g, ctx.kind(), x, y, Items.DYE.pick(dye), dye == hovered, false);
                 // The current colour's dye: a white ring around its slot.
                 if ((ColorField.dyeColor(dye) & 0xFFFFFF) == current) g.outline(x - 1, y - 1, ItemPicker.SIZE + 2, ItemPicker.SIZE + 2, 0xFFFFFFFF);
             }
-            if (hovered != null) {
-                MKTooltip.queue(g, new ItemStack(Items.DYE.pick(hovered)).getHoverName(), ctx.mouseX(), ctx.mouseY());
-            }
+            if (hovered != null) MKTooltip.queue(g, dyeName(hovered), ctx.mouseX(), ctx.mouseY());
         }
 
         @Override
@@ -293,7 +347,7 @@ final class ColorDialog {
         private Drag drag = Drag.NONE;
 
         Picker() {
-            this.width = SQUARE + GAP + BAR + (field.hasAlpha() ? GAP + BAR : 0);
+            this.width = this.authoredWidth = SQUARE + GAP + BAR + (field.hasAlpha() ? GAP + BAR : 0);
             this.height = SQUARE + 6 + ROW_HEIGHT;
         }
 

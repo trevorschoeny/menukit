@@ -14,6 +14,7 @@ import net.minecraft.data.AtlasIds;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.joml.Matrix3x2f;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -281,6 +282,8 @@ public final class Tabs extends AbstractPanelElement {
     private final Consumer<String> onSelect;
     private final int fixedWidth;   // -1 = take the panel's width
     private final int fixedHeight;  // -1 = take the panel's height (fillHeight)
+    /** At its natural height, as tall as the shown tab rather than the tallest ({@link Builder#fitShownTab}). */
+    private final boolean fitShownTab;
     /** Elements above the sidebar column, positioned from its top-left. Empty outside SIDEBAR. */
     private final List<PanelElement> sidebarHeader;
     /** Whether {@link Mode#SIDEBAR} draws its tab column; false lays it out 0 wide, so the page takes its place. */
@@ -343,6 +346,7 @@ public final class Tabs extends AbstractPanelElement {
         this.onSelect = b.onSelect;
         this.fixedWidth = b.fixedWidth;
         this.fixedHeight = b.fixedHeight;
+        this.fitShownTab = b.fitShownTab;
         this.sidebarHeader = List.copyOf(b.sidebarHeader);
         this.tabColumn = b.tabColumn == null || b.tabColumn;
         this.header = List.copyOf(b.header);
@@ -908,6 +912,7 @@ public final class Tabs extends AbstractPanelElement {
     /**
      * The strip plus the tallest visible body (the sidebar: the taller of the
      * column and that body), at the current width: steady across tab switches.
+     * With {@link Builder#fitShownTab}, the shown tab's body instead.
      */
     private int naturalHeight() {
         StripLayout s = strip();
@@ -916,8 +921,9 @@ public final class Tabs extends AbstractPanelElement {
         int key = naturalKey(w);
         if (naturalHeightCache >= 0 && key == naturalHeightKey) return naturalHeightCache;
         int tallest = 0;
+        Tab shown = fitShownTab ? shownTab() : null;
         for (Tab t : tabs) {
-            if (!t.isVisible()) continue;
+            if (!t.isVisible() || (fitShownTab && t != shown)) continue;
             Panel.layoutElementsWithin(t.body, w);
             Panel.reflowForWrap(t.body);
             tallest = Math.max(tallest, Panel.contentHeightOf(t.body));
@@ -936,6 +942,8 @@ public final class Tabs extends AbstractPanelElement {
         for (Tab t : tabs) {
             if (t.isVisible()) key = key * 31 + signature(t.body);
         }
+        // Fitting the shown tab, a switch changes the height.
+        if (fitShownTab) key = key * 31 + Objects.hashCode(selected.get());
         return key;
     }
 
@@ -963,14 +971,30 @@ public final class Tabs extends AbstractPanelElement {
     /**
      * At its natural height (no fixed size, no viewport to fill), what it has grown
      * since it was placed: the panel pushes the rows below it down by this much, so
-     * a button row under a Tabs stays under it on either kind of screen.
+     * a button row under a Tabs stays under it on either kind of screen. Fitting the
+     * shown tab ({@link Builder#fitShownTab}) it can also shrink below where it was
+     * placed (placed with a taller tab shown), and then pulls those rows up.
      */
     @Override
     public int extraLayoutHeight() {
         if (fixedHeight >= 0 || filledHeight >= 0) return 0;
         int h = naturalHeight();
         if (placedHeight < 0) placedHeight = h;
-        return Math.max(0, h - placedHeight);
+        return fitShownTab ? h - placedHeight : Math.max(0, h - placedHeight);
+    }
+
+    /**
+     * For MenuKit's checks: where the shown tab's body is drawn and clipped, as
+     * {@code {x, y, width, height}} from the element's top-left, for the kind of
+     * screen it measures for. Anything of the body outside {@code width x height}
+     * from the body's own top-left is cut off (or, when the body scrolls, out of view).
+     */
+    @ApiStatus.Internal
+    public int[] bodyClip() {
+        StripLayout s = strip();
+        BodyView b = bodyView(s, shownTab(), measuredKind);
+        if (b == null) return new int[4];
+        return new int[]{bodyLeft(s, measuredKind), bodyTop(s, measuredKind), b.width, b.height};
     }
 
     @Override
@@ -1852,6 +1876,7 @@ public final class Tabs extends AbstractPanelElement {
         private @Nullable Supplier<@Nullable String> selected;
         private @Nullable Consumer<String> onSelect;
         private int fixedWidth = -1, fixedHeight = -1;
+        private boolean fitShownTab;
         private final List<PanelElement> sidebarHeader = new ArrayList<>();
         private final List<PanelElement> header = new ArrayList<>();
         private @Nullable Boolean tabColumn;   // null: not asked, which is drawn
@@ -1936,6 +1961,18 @@ public final class Tabs extends AbstractPanelElement {
             this.fixedWidth = width;
             this.fixedHeight = height;
             return super.size(width, height);
+        }
+
+        /**
+         * With no fixed size and no viewport to fill (a dialog, whose frame follows
+         * its content), be as tall as the shown tab rather than the tallest: switching
+         * tabs resizes it, and the panel moves the rows below it with it. Default: as
+         * tall as the tallest visible tab, steady across switches. The width is the
+         * widest tab's either way.
+         */
+        public Builder fitShownTab() {
+            this.fitShownTab = true;
+            return this;
         }
 
         /**

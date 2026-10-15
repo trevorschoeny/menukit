@@ -124,7 +124,9 @@ public interface PanelElement {
     /**
      * Extra vertical pixels this element occupies beyond its single-line /
      * authored baseline because it wrapped or opened. The owning {@link Panel}
-     * pushes the elements below it down by exactly this amount. Default
+     * pushes the elements below it down by exactly this amount. Less than 0 (an
+     * element shorter than where it was placed, a {@link Tabs} fitting a shorter
+     * tab) pulls them up, unless another element in its row holds them. Default
      * {@code 0}.
      */
     default int extraLayoutHeight() { return 0; }
