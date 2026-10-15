@@ -130,9 +130,10 @@ public class Panel {
     private int frameHeight = -1;
 
     // The kind of screen the panel is on, fed by its host before each layout
-    // (setScreenKind). Only the auto-scroll path reads it: on an options screen the
-    // wrapping ScrollContainer is the list band, which insets its content, so the
-    // elements are laid out that much narrower.
+    // (setScreenKind), and handed on to the elements (PanelElement.screenKind). The
+    // auto-scroll path reads it: on an options screen the wrapping ScrollContainer is
+    // the list band, which insets its content, so the elements are laid out that much
+    // narrower.
     private ScreenKind screenKind = ScreenKind.CONTAINER;
 
     // Auto-scroll position, in pixels from the top. Pixels rather than a fraction,
@@ -421,10 +422,31 @@ public class Panel {
      * default-padding constructors of
      * {@link com.trevlar.menukit.api.panel.ScreenPanelAdapter} and
      * {@link com.trevlar.menukit.api.panel.AnchorPanelAdapter}. The
-     * explicit-padding constructors use the padding they are given.
+     * explicit-padding constructors use the padding they are given. Either way the
+     * padding is measured against MenuKit's own frame: where the frame drawn is
+     * thicker, the host adds {@link #frameExtra} to it.
      */
     public int interiorPadding() {
         return style == PanelStyle.NONE ? 0 : INTERIOR_PADDING;
+    }
+
+    /**
+     * MenuKit's own frame (a {@link PanelStyle#RAISED} panel on a container screen)
+     * is 3 px thick, so {@link #INTERIOR_PADDING} leaves 4 px between the frame and
+     * the elements. On an options screen a RAISED panel draws vanilla's popup frame,
+     * which is 6 px thick.
+     */
+    private static final int POPUP_FRAME_EXTRA = 3;
+
+    /**
+     * How much thicker this panel's frame is on {@code kind} than the frame its
+     * padding is measured against: 3 px for a {@link PanelStyle#RAISED} panel on an
+     * options screen (vanilla's popup frame, 6 px, against MenuKit's 3), else 0. The
+     * host adds it to whatever padding the panel was registered with, so the elements
+     * keep the same 4 px inside the frame on both kinds of screen.
+     */
+    public int frameExtra(ScreenKind kind) {
+        return style == PanelStyle.RAISED && kind == ScreenKind.OPTIONS ? POPUP_FRAME_EXTRA : 0;
     }
 
     /** Where this panel sits. */
@@ -929,6 +951,9 @@ public class Panel {
     public void setScreenKind(ScreenKind kind) {
         if (kind == screenKind) return;
         this.screenKind = kind;
+        // Down to the elements too, so one whose size depends on the kind (a Tabs on an
+        // options screen's page) measures for this screen before the next layout.
+        for (PanelElement e : elements) e.screenKind(kind);
         this.configurationDirty = true;
         this.cachedScrollContainer = null;
     }

@@ -369,7 +369,9 @@ public final class PanelHost {
             throw new IllegalArgumentException("MenuKit: panel '" + panel.id()
                     + "' is a second main() on one screen; a screen has one frame.");
         }
-        Entry entry = new Entry(panel, position, padding, modId, seq);
+        // The padding is measured against MenuKit's own frame; a thicker frame on this
+        // kind of screen (vanilla's popup frame) widens it by the difference.
+        Entry entry = new Entry(panel, position, padding + panel.frameExtra(screenKind), modId, seq);
         List<Entry> next = new ArrayList<>(entries);
         next.add(entry);
         next.sort(ORDER);

@@ -2,16 +2,11 @@ package com.trevlar.menukit.api.dialog;
 
 import com.trevlar.menukit.api.element.Button;
 import com.trevlar.menukit.api.panel.Panel;
-import com.trevlar.menukit.api.element.PanelElement;
-import com.trevlar.menukit.api.panel.PanelPosition;
-import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.element.TextLabel;
-import com.trevlar.menukit.api.layout.Column;
-import com.trevlar.menukit.api.layout.CrossAlign;
+import com.trevlar.menukit.core.DialogLayout;
 
 import net.minecraft.network.chat.Component;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -66,16 +61,16 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class ConfirmDialog {
 
-    /** Padding inside the dialog Panel between chrome and content. */
-    public static final int PADDING = 8;
-    /** Vertical gap between title, body, and button row sections. */
-    public static final int SECTION_GAP = 6;
+    /** Room between the dialog's frame and its content, on every side and either kind of screen. */
+    public static final int PADDING = DialogLayout.GAP;
+    /** Vertical gap between title, body, and button row sections: the same, so the buttons sit centred under the body. */
+    public static final int SECTION_GAP = DialogLayout.GAP;
     /** Horizontal gap between buttons in the button bar. */
-    public static final int BUTTON_GAP = 4;
+    public static final int BUTTON_GAP = DialogLayout.BUTTON_GAP;
     /** Default button width. */
-    public static final int BUTTON_W = 60;
+    public static final int BUTTON_W = DialogLayout.BUTTON_W;
     /** Default button height, matching vanilla's confirm-screen buttons. */
-    public static final int BUTTON_H = 20;
+    public static final int BUTTON_H = DialogLayout.BUTTON_H;
 
     private static final Component DEFAULT_CONFIRM_LABEL = Component.literal("Confirm");
     private static final Component DEFAULT_CANCEL_LABEL = Component.literal("Cancel");
@@ -157,7 +152,7 @@ public final class ConfirmDialog {
         }
 
         /**
-         * Builds the dialog Panel: a {@link PanelStyle#RAISED} background,
+         * Builds the dialog Panel: a {@link com.trevlar.menukit.api.panel.PanelStyle#RAISED} background,
          * {@link Panel#modal()} set (opaque, dimsBehind, tracksAsModal), and hidden
          * until you show it with
          * {@link Panel#visibleWhen(java.util.function.BooleanSupplier)}.
@@ -171,37 +166,23 @@ public final class ConfirmDialog {
             requireField(onConfirm, "onConfirm");
             requireField(onCancel, "onCancel");
 
-            // CENTER on the outer Column centres the title and body over the button
-            // row when the buttons are wider than the text. Cancel is on the left
-            // and Confirm on the right, as in vanilla's ConfirmScreen.
+            // DialogLayout: title, body and buttons each centred, the same margin on
+            // every side, the buttons centred between the body and the frame. Cancel is
+            // on the left and Confirm on the right, as in vanilla's ConfirmScreen.
             final Runnable cancelRun = onCancel;
             final Runnable confirmRun = onConfirm;
-            List<PanelElement> elements = Column.at(PADDING, PADDING)
-                    .spacing(SECTION_GAP)
-                    .crossAlign(CrossAlign.CENTER)
-                    .add(TextLabel.builder().text(title).build())
-                    .add(TextLabel.builder().text(body).build())
-                    .addRow(r -> r.spacing(BUTTON_GAP)
-                            .add(Button.builder().label(cancelLabel).size(BUTTON_W, BUTTON_H)
-                                    .onClick(cancelRun).build())
-                            .add(Button.builder().label(confirmLabel).size(BUTTON_W, BUTTON_H)
-                                    .onClick(confirmRun).build()))
-                    .build();
-
             String panelId = (id != null)
                     ? id
                     : "confirm-dialog-" + AUTO_ID_COUNTER.incrementAndGet();
 
             // onEscape runs onCancel, so Escape dismisses the dialog exactly as
             // clicking Cancel does instead of closing the screen underneath.
-            return Panel.builder(panelId)
-                    .elements(elements)
-                    .visible(false)
-                    .style(PanelStyle.RAISED)
-                    .position(PanelPosition.center())
-                    .build()
-                    .modal()
-                    .onEscape(cancelRun);
+            return DialogLayout.panel(panelId, cancelRun,
+                    DialogLayout.centred(TextLabel.builder().text(title).build()),
+                    DialogLayout.centred(TextLabel.builder().text(body).build()),
+                    DialogLayout.buttons(
+                            Button.builder().label(cancelLabel).size(BUTTON_W, BUTTON_H).onClick(cancelRun).build(),
+                            Button.builder().label(confirmLabel).size(BUTTON_W, BUTTON_H).onClick(confirmRun).build()));
         }
 
         private static void requireField(Object value, String name) {

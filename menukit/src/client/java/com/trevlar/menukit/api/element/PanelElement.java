@@ -1,6 +1,7 @@
 package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.api.panel.Panel;
+import com.trevlar.menukit.api.panel.ScreenKind;
 import net.minecraft.network.chat.Component;
 
 import org.jspecify.annotations.Nullable;
@@ -150,6 +151,14 @@ public interface PanelElement {
      * element each layout pass. Default: no-op.
      */
     default void wrapHeight(int height) {}
+
+    /**
+     * The kind of screen the owning panel is on, handed down whenever it changes,
+     * before the next layout pass. For an element whose size depends on the kind (a
+     * {@link Tabs} insets its body on an options screen's page), so it measures for
+     * the screen it is on from the first frame. Default: no-op.
+     */
+    default void screenKind(ScreenKind kind) {}
 
     /**
      * Returns whether this element is currently visible. Invisible elements are

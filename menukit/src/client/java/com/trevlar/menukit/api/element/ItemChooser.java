@@ -5,6 +5,7 @@ import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.ScreenKind;
+import com.trevlar.menukit.core.DialogLayout;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -48,8 +49,15 @@ final class ItemChooser extends MKScreen {
     /** The scroll area's outer width: the grid plus the scrollbar lane. */
     private static final int WIDTH = GRID_WIDTH + ScrollContainer.TRACK_WIDTH + ScrollContainer.SCROLLER_GUTTER;
     private static final int FIELD_HEIGHT = 20;
-    /** Room between rows of the layout; clears the 2 px separators an options screen draws around the list. */
-    private static final int GAP = 6;
+    /**
+     * Room between rows of the layout. On an options screen it clears the 2 px
+     * separators drawn around the list; on a container screen it is a dialog's
+     * ({@link DialogLayout#GAP}), the room the panel leaves inside its frame, so the
+     * buttons sit centred between the grid and the frame.
+     */
+    private static int gap(ScreenKind kind) {
+        return kind == ScreenKind.OPTIONS ? 6 : DialogLayout.GAP;
+    }
     private static final int BUTTON_WIDTH = (WIDTH - 4) / 2;
 
     private static final Component TITLE = Component.literal("Choose an item");
@@ -154,13 +162,14 @@ final class ItemChooser extends MKScreen {
                 })
                 .build();
 
-        int gridTop = FIELD_HEIGHT + GAP;
+        int gap = gap(ScreenKind.of(parent));
+        int gridTop = FIELD_HEIGHT + gap;
         ScrollContainer grid = ScrollContainer.builder().at(0, gridTop).size(WIDTH, ROWS * ItemPicker.SIZE)
                 .content(List.of(new Grid(state, pick)))
                 .state(() -> state.scroll, v -> state.scroll = v)
                 .build();
 
-        int buttonsTop = gridTop + ROWS * ItemPicker.SIZE + GAP;
+        int buttonsTop = gridTop + ROWS * ItemPicker.SIZE + gap;
         Button clear = Button.builder().at(0, buttonsTop).size(BUTTON_WIDTH, 20)
                 .label(Component.literal("Clear")).onClick(() -> pick.accept(Items.AIR)).build();
         Button cancel = Button.builder().at(WIDTH - BUTTON_WIDTH, buttonsTop).size(BUTTON_WIDTH, 20)

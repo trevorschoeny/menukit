@@ -10,5 +10,8 @@ Additions only. Nothing was removed, and mods built for 7.1.0 work as before.
 
 ### Fixed
 
+- Dialogs have the same margin on every side. `ConfirmDialog`, `AlertDialog` and the colour dialog leave 4 px between the frame and their content on all four sides, and the buttons sit centred between the content above them and the frame below. Before, the content sat 8 px further from the left and top of the frame than from the right and bottom. `ConfirmDialog.PADDING` and `SECTION_GAP` (and `AlertDialog`'s) are now 4.
+- A `RAISED` panel on an options screen keeps 4 px between vanilla's popup frame and its elements, as it does inside MenuKit's frame on an inventory screen. Before, its content came within 1 px of the frame. The panel is 6 px bigger each way.
+- A `Tabs` with no fixed size that grows after it is placed, for example on an options screen's page, pushes the elements below it down instead of covering them.
 - A `TextField` or `Slider` on a panel over a vanilla screen, such as the inventory, now takes clicks. Before, they only worked on a mod's own screen.
 - A `TextField` or `Slider` whose panel is hidden, or whose tab is not shown, now lets go of keyboard focus instead of taking keys out of sight, and Tab skips it.

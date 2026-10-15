@@ -2,16 +2,11 @@ package com.trevlar.menukit.api.dialog;
 
 import com.trevlar.menukit.api.element.Button;
 import com.trevlar.menukit.api.panel.Panel;
-import com.trevlar.menukit.api.element.PanelElement;
-import com.trevlar.menukit.api.panel.PanelPosition;
-import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.element.TextLabel;
-import com.trevlar.menukit.api.layout.Column;
-import com.trevlar.menukit.api.layout.CrossAlign;
+import com.trevlar.menukit.core.DialogLayout;
 
 import net.minecraft.network.chat.Component;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -47,14 +42,14 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class AlertDialog {
 
-    /** Padding inside the dialog Panel between chrome and content. */
-    public static final int PADDING = 8;
-    /** Vertical gap between title, body, and button row sections. */
-    public static final int SECTION_GAP = 6;
+    /** Room between the dialog's frame and its content, on every side and either kind of screen. */
+    public static final int PADDING = DialogLayout.GAP;
+    /** Vertical gap between title, body, and button row sections: the same, so the buttons sit centred under the body. */
+    public static final int SECTION_GAP = DialogLayout.GAP;
     /** Default button width. */
-    public static final int BUTTON_W = 60;
+    public static final int BUTTON_W = DialogLayout.BUTTON_W;
     /** Default button height, matching vanilla's confirm-screen buttons. */
-    public static final int BUTTON_H = 20;
+    public static final int BUTTON_H = DialogLayout.BUTTON_H;
 
     private static final Component DEFAULT_ACKNOWLEDGE_LABEL = Component.literal("OK");
 
@@ -138,32 +133,18 @@ public final class AlertDialog {
             requireField(onAcknowledge, "onAcknowledge");
 
             final Runnable ackRun = onAcknowledge;
-            // The single button still goes in a Row, as in ConfirmDialog, so the
-            // centring works the same with one button or two.
-            List<PanelElement> elements = Column.at(PADDING, PADDING)
-                    .spacing(SECTION_GAP)
-                    .crossAlign(CrossAlign.CENTER)
-                    .add(TextLabel.builder().text(title).build())
-                    .add(TextLabel.builder().text(body).build())
-                    .addRow(r -> r
-                            .add(Button.builder().label(acknowledgeLabel).size(BUTTON_W, BUTTON_H)
-                                    .onClick(ackRun).build()))
-                    .build();
-
             String panelId = (id != null)
                     ? id
                     : "alert-dialog-" + AUTO_ID_COUNTER.incrementAndGet();
 
-            // onEscape runs onAcknowledge, so Escape dismisses the alert exactly as
-            // clicking OK does instead of closing the screen underneath.
-            return Panel.builder(panelId)
-                    .elements(elements)
-                    .visible(false)
-                    .style(PanelStyle.RAISED)
-                    .position(PanelPosition.center())
-                    .build()
-                    .modal()
-                    .onEscape(ackRun);
+            // ConfirmDialog's layout (DialogLayout) with one button. onEscape runs
+            // onAcknowledge, so Escape dismisses the alert exactly as clicking OK does
+            // instead of closing the screen underneath.
+            return DialogLayout.panel(panelId, ackRun,
+                    DialogLayout.centred(TextLabel.builder().text(title).build()),
+                    DialogLayout.centred(TextLabel.builder().text(body).build()),
+                    DialogLayout.buttons(
+                            Button.builder().label(acknowledgeLabel).size(BUTTON_W, BUTTON_H).onClick(ackRun).build()));
         }
 
         private static void requireField(Object value, String name) {

@@ -25,7 +25,7 @@ import java.util.function.IntSupplier;
  * A colour setting: a swatch showing the colour, and a lens onto it. Clicking the
  * swatch (or Enter on it) opens a modal dialog over the screen with two tabs:
  * <ul>
- *   <li><b>Dyes</b>, the default: Minecraft's sixteen dye colours, each shown by its
+ *   <li><b>Basic</b>, the default: Minecraft's sixteen dye colours, each shown by its
  *       dye item, named in a tooltip, the current one outlined. Clicking one sets the
  *       colour.</li>
  *   <li><b>Custom</b>: a saturation and brightness square, a hue bar, a transparency

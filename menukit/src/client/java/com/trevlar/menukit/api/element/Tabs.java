@@ -321,11 +321,18 @@ public final class Tabs extends AbstractPanelElement {
     /** The tab shown last frame, to scroll a newly selected tab into view. */
     private @Nullable String lastShown = null;
     /**
-     * The kind of screen it was last drawn on, for measuring its natural size only
-     * (a measure gets no context; drawing and input use their context's kind). Its
-     * host fixes the kind for life, so after the first frame this is exact.
+     * The kind of screen it is on, for measuring its natural size only (a measure
+     * gets no context; drawing and input use their context's kind). Its panel hands
+     * it down before laying out ({@link #screenKind}); a Tabs nested in another
+     * element learns it when first drawn. Its host fixes the kind for life.
      */
     private ScreenKind measuredKind = ScreenKind.CONTAINER;
+    /**
+     * The height it was placed at (its first layout pass), so a natural-height Tabs
+     * that grows later (a taller body, the page's insets) pushes what is below it
+     * down by the difference ({@link #extraLayoutHeight}). -1 until then.
+     */
+    private int placedHeight = -1;
 
     private Tabs(Builder b) {
         super(b);
@@ -946,6 +953,24 @@ public final class Tabs extends AbstractPanelElement {
     @Override
     public boolean fillsHeight() {
         return fixedHeight < 0;
+    }
+
+    @Override
+    public void screenKind(ScreenKind kind) {
+        measuredKind = kind;
+    }
+
+    /**
+     * At its natural height (no fixed size, no viewport to fill), what it has grown
+     * since it was placed: the panel pushes the rows below it down by this much, so
+     * a button row under a Tabs stays under it on either kind of screen.
+     */
+    @Override
+    public int extraLayoutHeight() {
+        if (fixedHeight >= 0 || filledHeight >= 0) return 0;
+        int h = naturalHeight();
+        if (placedHeight < 0) placedHeight = h;
+        return Math.max(0, h - placedHeight);
     }
 
     @Override

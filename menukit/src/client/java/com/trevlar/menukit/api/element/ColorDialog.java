@@ -1,10 +1,7 @@
 package com.trevlar.menukit.api.element;
 
-import com.trevlar.menukit.api.layout.Column;
-import com.trevlar.menukit.api.layout.CrossAlign;
 import com.trevlar.menukit.api.panel.Panel;
-import com.trevlar.menukit.api.panel.PanelPosition;
-import com.trevlar.menukit.api.panel.PanelStyle;
+import com.trevlar.menukit.core.DialogLayout;
 import com.trevlar.menukit.core.PressedTracker;
 
 import net.minecraft.client.Minecraft;
@@ -19,10 +16,12 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * The dialog a {@link ColorField} opens: a modal panel with a Dyes tab and a Custom
- * tab, Cancel and Done. Built of MenuKit's own elements ({@link Tabs},
+ * The dialog a {@link ColorField} opens: a modal panel with a Basic tab (the dyes)
+ * and a Custom tab, Cancel and Done. Built of MenuKit's own elements ({@link Tabs},
  * {@link TextField}, {@link Button}) plus the two drawn here, the dye grid and the
- * picker, so it draws in the kind of screen it opens on like any dialog.
+ * picker, laid out as every MenuKit dialog is ({@link DialogLayout}), so it draws in
+ * the kind of screen it opens on like any dialog. The tabs take the height of the
+ * taller tab, so switching tabs never resizes the dialog.
  * Package-private: consumers reach it through {@link ColorField}.
  *
  * <p>The colour lives with the consumer, through the field's lens. The dialog keeps
@@ -45,6 +44,8 @@ final class ColorDialog {
     /** The dye grid: eight dyes a row, two rows, slots a little apart. */
     static final int DYE_COLUMNS = 8;
     static final int DYE_STEP = ItemPicker.SIZE + 2;
+    /** Room around the grid for the current dye's ring, which is a pixel outside its slot. */
+    static final int RING = 1;
 
     /** The hex field's text colour, vanilla's EditBox default, and red while the text is not a colour. */
     private static final int HEX_OK = 0xFFE0E0E0;
@@ -55,7 +56,7 @@ final class ColorDialog {
     private final TextField hex;
 
     // View state
-    private String tab = "dyes";
+    private String tab = "basic";
     private double hue, saturation, brightness;
     private int alpha = 0xFF;
     /** The colour the picker's handles were last set from, so a change from elsewhere moves them. */
@@ -72,44 +73,35 @@ final class ColorDialog {
                 .state(this::hexText, this::typeHex)
                 .build();
 
+        // No fixed size: the tabs are as wide as the dialog and as tall as the taller
+        // tab's body (the Custom picker), so the dialog fits its content and switching
+        // tabs never resizes it.
         Tabs tabs = Tabs.builder()
-                .size(196, 168)
                 .state(() -> tab, id -> tab = id)
-                .tab("dyes", Component.literal("Dyes"), List.of(new DyeGrid()))
+                .tab("basic", Component.literal("Basic"), List.of(new DyeGrid()))
                 .tab("custom", Component.literal("Custom"), List.of(new Picker(), hex))
                 .build();
 
-        List<PanelElement> elements = Column.at(8, 8)
-                .spacing(6)
-                .crossAlign(CrossAlign.CENTER)
-                .add(TextLabel.builder().text(field.label()).build())
-                .add(tabs)
-                .addRow(r -> r.spacing(4)
-                        .add(Button.builder().label(Component.literal("Cancel")).size(60, 20)
-                                .onClick(field::cancel).build())
-                        .add(Button.builder().label(Component.literal("Done")).size(60, 20)
-                                .onClick(field::done).build()))
-                .build();
-
-        // A dialog like ConfirmDialog's: centred, modal (opaque, dims behind, takes
-        // every click and key), Escape cancels. Shown while the field says it is open.
-        this.panel = Panel.builder("menukit:color-dialog-" + IDS.incrementAndGet())
-                .elements(elements)
-                .style(PanelStyle.RAISED)
-                .position(PanelPosition.center())
-                .visibleWhen(field::dialogShown)
-                .build()
-                .modal()
-                .onEscape(field::cancel);
+        // ConfirmDialog's layout: centred, modal (opaque, dims behind, takes every
+        // click and key), Escape cancels. Shown while the field says it is open.
+        this.panel = DialogLayout.panel("menukit:color-dialog-" + IDS.incrementAndGet(), field::cancel,
+                        DialogLayout.centred(TextLabel.builder().text(field.label()).build()),
+                        tabs,
+                        DialogLayout.buttons(
+                                Button.builder().label(Component.literal("Cancel"))
+                                        .size(DialogLayout.BUTTON_W, DialogLayout.BUTTON_H).onClick(field::cancel).build(),
+                                Button.builder().label(Component.literal("Done"))
+                                        .size(DialogLayout.BUTTON_W, DialogLayout.BUTTON_H).onClick(field::done).build()))
+                .visibleWhen(field::dialogShown);
     }
 
     Panel panel() {
         return panel;
     }
 
-    /** Opened: Dyes first, the picker and the hex text from the colour as it is now. */
+    /** Opened: Basic first, the picker and the hex text from the colour as it is now. */
     void opened() {
-        tab = "dyes";
+        tab = "basic";
         syncPicker(true);
         hexDraft = ColorField.formatHex(field.value(), field.hasAlpha());
         hexSynced = field.value();
@@ -227,14 +219,19 @@ final class ColorDialog {
         return Minecraft.getInstance() == null || PressedTracker.isLeftMouseDown();
     }
 
-    // The Dyes tab
+    // The Basic tab
 
-    /** The sixteen dyes, by their items, in vanilla's order. Clicking one writes its colour. */
+    /**
+     * The sixteen dyes, by their items, in vanilla's order. Clicking one writes its
+     * colour. The grid's bounds include {@link #RING} round the slots, so the current
+     * dye's ring (a pixel outside its slot) is inside them: the tab's body clips to
+     * its own box, and a ring on the top row would otherwise lose its top edge.
+     */
     private final class DyeGrid extends AbstractPanelElement {
 
         DyeGrid() {
-            this.width = DYE_COLUMNS * DYE_STEP - 2;
-            this.height = (DyeColor.values().length + DYE_COLUMNS - 1) / DYE_COLUMNS * DYE_STEP - 2;
+            this.width = DYE_COLUMNS * DYE_STEP - 2 + 2 * RING;
+            this.height = (DyeColor.values().length + DYE_COLUMNS - 1) / DYE_COLUMNS * DYE_STEP - 2 + 2 * RING;
         }
 
         @Override public void layoutWithin(int budget) {}
@@ -242,7 +239,7 @@ final class ColorDialog {
         @Override public boolean isInteractive() { return true; }
 
         private @org.jspecify.annotations.Nullable DyeColor dyeAt(InputContext in) {
-            double lx = in.mouseX() - (in.originX() + childX), ly = in.mouseY() - (in.originY() + childY);
+            double lx = in.mouseX() - (in.originX() + childX + RING), ly = in.mouseY() - (in.originY() + childY + RING);
             if (lx < 0 || ly < 0) return null;
             int col = (int) (lx / DYE_STEP), row = (int) (ly / DYE_STEP);
             if (col >= DYE_COLUMNS || lx - col * DYE_STEP >= ItemPicker.SIZE || ly - row * DYE_STEP >= ItemPicker.SIZE) {
@@ -255,7 +252,7 @@ final class ColorDialog {
         @Override
         public void render(RenderContext ctx) {
             GuiGraphicsExtractor g = ctx.graphics();
-            int gx = ctx.originX() + childX, gy = ctx.originY() + childY;
+            int gx = ctx.originX() + childX + RING, gy = ctx.originY() + childY + RING;
             DyeColor hovered = ctx.hasMouseInput() ? dyeAt(ctx.input()) : null;
             int current = field.value() & 0xFFFFFF;
             for (DyeColor dye : DyeColor.values()) {
