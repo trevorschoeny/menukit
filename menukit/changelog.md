@@ -1,3 +1,11 @@
+## 7.2.0
+
+Additions only. Nothing was removed, and mods built for 7.1.0 work as before.
+
+### Added
+
+- A sidebar menu without its tabs. `tabColumn(false)` on a `SIDEBAR` `Tabs` leaves out the column and gives the page the full width. A settings screen for one mod can then look exactly like a tabbed one: the same darker page, insets, bottom line, scrollbar and header across the top.
+
 ## 7.1.0
 
 Additions only. Nothing was removed, and mods built for 7.0.0 work as before.

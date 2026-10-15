@@ -103,7 +103,11 @@ import java.util.function.Supplier;
  *       pixels, and a newly selected tab glides into view. The tabs give the bar
  *       its lane rather than the column widening, so the body never moves.
  *       {@link Builder#sidebarHeader} puts elements above the column (a Back
- *       button, say), in the column's width; the body still starts at the top.</li>
+ *       button, say), in the column's width; the body still starts at the top.
+ *       {@link Builder#tabColumn tabColumn(false)} draws no column at all: the
+ *       column is 0 wide and the body takes the whole width, on the same page
+ *       (band, insets, separators, scrollbar) the column would sit beside. A
+ *       single-page settings screen that looks like its tabbed siblings.</li>
  * </ul>
  * <p>Both strips scroll by MenuKit's one scroller, {@code core.Scroller}, the
  * model and scrollbar a {@link ScrollContainer} uses: an offset in pixels, the
@@ -279,6 +283,8 @@ public final class Tabs extends AbstractPanelElement {
     private final int fixedHeight;  // -1 = take the panel's height (fillHeight)
     /** Elements above the sidebar column, positioned from its top-left. Empty outside SIDEBAR. */
     private final List<PanelElement> sidebarHeader;
+    /** Whether {@link Mode#SIDEBAR} draws its tab column; false lays it out 0 wide, so the page takes its place. */
+    private final boolean tabColumn;
     /** Elements across the whole element, above the strip or column and the body, positioned from its top-left. */
     private final List<PanelElement> header;
     /** While the sidebar's handle is held: how far below the handle's top it was grabbed. */
@@ -331,6 +337,7 @@ public final class Tabs extends AbstractPanelElement {
         this.fixedWidth = b.fixedWidth;
         this.fixedHeight = b.fixedHeight;
         this.sidebarHeader = List.copyOf(b.sidebarHeader);
+        this.tabColumn = b.tabColumn == null || b.tabColumn;
         this.header = List.copyOf(b.header);
         if (b.bodyScrollGet != null) {
             this.bodyScrollGet = b.bodyScrollGet;
@@ -518,10 +525,14 @@ public final class Tabs extends AbstractPanelElement {
     /**
      * One column, one tab per row, all as wide as the widest label or header
      * element, capped at a third of the element; the header laid out to it.
+     * With no tab column ({@link Builder#tabColumn}) it is the empty column, 0
+     * wide with no tabs, the same layout a sidebar with nothing in it gets: every
+     * path that reads {@code columnWidth} (the body's left and width, the page's
+     * left edge, the strip's hit test) then gives the page the whole width.
      */
     private StripLayout layoutSidebar(int width, List<Tab> visible, int top) {
         Font font = Minecraft.getInstance().font;
-        if (width <= 0 || (visible.isEmpty() && !anyVisible(sidebarHeader))) {
+        if (width <= 0 || !tabColumn || (visible.isEmpty() && !anyVisible(sidebarHeader))) {
             return new StripLayout(List.of(), 0, false, 0, 0, 0, top);
         }
         int cap = Math.max(Math.min(MIN_TAB_WIDTH, width), width / 3);
@@ -873,8 +884,10 @@ public final class Tabs extends AbstractPanelElement {
         boolean paged = paged(measuredKind);
         if (paged) widestBody += 2 * ScrollContainer.OPTIONS_INSET_X;
         if (sidebar()) {
-            int column = Math.max(sidebarNaturalWidth(visible), naturalWidthOf(sidebarHeader));
-            return Math.max(column + (paged ? 0 : BODY_GAP) + widestBody, naturalWidthOf(header));
+            // No tab column: 0 wide and no gap, as bodyLeft lays it out.
+            int column = tabColumn ? Math.max(sidebarNaturalWidth(visible), naturalWidthOf(sidebarHeader)) : 0;
+            int gap = paged || column == 0 ? 0 : BODY_GAP;
+            return Math.max(column + gap + widestBody, naturalWidthOf(header));
         }
         return Math.max(Math.max(row, widestBody), naturalWidthOf(header));
     }
@@ -1816,6 +1829,7 @@ public final class Tabs extends AbstractPanelElement {
         private int fixedWidth = -1, fixedHeight = -1;
         private final List<PanelElement> sidebarHeader = new ArrayList<>();
         private final List<PanelElement> header = new ArrayList<>();
+        private @Nullable Boolean tabColumn;   // null: not asked, which is drawn
         private @Nullable Function<String, @Nullable Double> bodyScrollGet;
         private @Nullable BiConsumer<String, Double> bodyScrollSet;
 
@@ -1912,6 +1926,23 @@ public final class Tabs extends AbstractPanelElement {
         }
 
         /**
+         * Whether the sidebar draws its tab column. Default true. False draws no
+         * column: it is laid out 0 wide, so the body takes the element's whole width
+         * on the very page a column would sit beside, with the same band, insets,
+         * separators and scrollbar on an options screen, and MenuKit's own body
+         * from the left edge on a container screen. For a menu with one page that
+         * should look like its tabbed siblings. The {@link #header} still spans the
+         * top; clicks and the wheel over where the column would be reach the body.
+         * The selected tab ({@link #state}) is the one shown, so with several tabs
+         * the lens still chooses which. {@link Mode#SIDEBAR} only, and not with
+         * {@link #sidebarHeader}, which lives in the column.
+         */
+        public Builder tabColumn(boolean shown) {
+            this.tabColumn = shown;
+            return this;
+        }
+
+        /**
          * Elements in a row across the whole element, above the strip (or the
          * sidebar column) and the body, in every mode: a menu's title bar.
          * Positioned from the element's top-left and laid out to its full width
@@ -1931,6 +1962,14 @@ public final class Tabs extends AbstractPanelElement {
             if (!sidebarHeader.isEmpty() && mode != Mode.SIDEBAR) {
                 throw new IllegalStateException("Tabs: sidebarHeader(...) needs mode(Mode.SIDEBAR); there is no "
                         + "column above which to put it");
+            }
+            if (tabColumn != null && mode != Mode.SIDEBAR) {
+                throw new IllegalStateException("Tabs: tabColumn(...) needs mode(Mode.SIDEBAR); only the sidebar "
+                        + "has a tab column to show or leave out");
+            }
+            if (Boolean.FALSE.equals(tabColumn) && !sidebarHeader.isEmpty()) {
+                throw new IllegalStateException("Tabs: sidebarHeader(...) needs the tab column, and tabColumn(false) "
+                        + "leaves it out; put the elements in header(...) instead");
             }
             Set<String> ids = new HashSet<>();
             for (TabSpec t : tabs) {
