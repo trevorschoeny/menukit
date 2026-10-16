@@ -16,7 +16,10 @@ import net.minecraft.world.inventory.Slot;
  * <p>Drawing is not part of it: a created slot is a real {@code Slot} that vanilla
  * draws in its own slot pass once the library has written the panel position into
  * {@code Slot.x/y}. MenuKit only needs {@link #isCreated} to know where created slots
- * start in that pass, so they draw above FLOW panels and below OVERLAY ones.
+ * start in that pass, so they draw above FLOW panels and below OVERLAY ones. The
+ * element that places a slot also reports it with {@link SlotClip#shown}, so a slot
+ * across a clip's edge (a {@code ScrollContainer}'s viewport) draws and hovers only
+ * where it is shown.
  *
  * <p>One library installs one hook, once, from its client initializer
  * ({@link #install}). Without one, MenuKit has no created slots and every dispatch is a

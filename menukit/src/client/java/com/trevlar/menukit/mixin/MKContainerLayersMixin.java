@@ -14,7 +14,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
  * The render hooks MenuKit places on container screens. Three injection points
- * feed {@link ContainerScreenLayers}, which owns the order (see its layer table).
+ * feed {@link ContainerScreenLayers}, which owns the order (see its layer table); the
+ * RETURN of {@code extractSlot} and the two hover highlights' HEAD and RETURN clip a
+ * slot shown in part to what its panel shows of it.
  * All are on {@code AbstractContainerScreen}, which every container screen family
  * (plain, recipe-book, creative) reaches, so no family has its own render path.
  *
@@ -37,6 +39,24 @@ public abstract class MKContainerLayersMixin {
                                CallbackInfo ci) {
         ContainerScreenLayers.beforeSlot((AbstractContainerScreen<?>) (Object) this,
                 graphics, slot, mouseX, mouseY);
+    }
+
+    /** The end of a slot's draw: its clip, if it has one, ends here. */
+    @Inject(method = "extractSlot", at = @At("RETURN"), require = 1)
+    private void mk$afterSlot(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY,
+                              CallbackInfo ci) {
+        ContainerScreenLayers.afterSlot(graphics);
+    }
+
+    /** Vanilla's hover highlights, clipped as the hovered slot is. */
+    @Inject(method = {"extractSlotHighlightBack", "extractSlotHighlightFront"}, at = @At("HEAD"), require = 2)
+    private void mk$beforeHighlight(GuiGraphicsExtractor graphics, CallbackInfo ci) {
+        ContainerScreenLayers.beforeHighlight((AbstractContainerScreen<?>) (Object) this, graphics);
+    }
+
+    @Inject(method = {"extractSlotHighlightBack", "extractSlotHighlightFront"}, at = @At("RETURN"), require = 2)
+    private void mk$afterHighlight(GuiGraphicsExtractor graphics, CallbackInfo ci) {
+        ContainerScreenLayers.afterHighlight(graphics);
     }
 
     /** Layer 2 fallback and layer 4, after vanilla's slot pass and before the carried item's stratum. */

@@ -62,14 +62,25 @@ public final class SlotScreenDispatcher {
     public static SlotHoverResult fireResolveHover(AbstractContainerScreen<?> screen,
                                                     double mouseX, double mouseY) {
         SlotScreenHook h = hook;
-        return h != null ? h.resolveHover(screen, mouseX, mouseY) : SlotHoverResult.PASS;
+        if (h == null) return SlotHoverResult.PASS;
+        SlotHoverResult result = h.resolveHover(screen, mouseX, mouseY);
+        // A slot shown in part (across a ScrollContainer's edge) takes the point only
+        // where it is shown. Past its clip the point is the panel's, like a gap
+        // between slots: nothing there is hovered (SlotClips).
+        return SlotClips.hides(result.slot(), mouseX, mouseY) ? SlotHoverResult.BLOCK : result;
     }
 
-    /** At {@code mouseClicked} HEAD: consumer buttons and blocking clicks in panel gaps. */
+    /**
+     * At {@code mouseClicked} HEAD: consumer buttons and blocking clicks in panel gaps.
+     * A click on the hidden part of a slot shown in part counts as one in a gap and is
+     * eaten too, so a carried item cannot drop through there.
+     */
     public static boolean fireMouseClicked(AbstractContainerScreen<?> screen,
                                            double mouseX, double mouseY, int button) {
         SlotScreenHook h = hook;
-        return h != null && h.mouseClicked(screen, mouseX, mouseY, button);
+        if (h == null) return false;
+        if (h.mouseClicked(screen, mouseX, mouseY, button)) return true;
+        return SlotClips.hides(h.resolveHover(screen, mouseX, mouseY).slot(), mouseX, mouseY);
     }
 
     /** At {@code mouseScrolled} HEAD: consumer scrolling over a slot region. */

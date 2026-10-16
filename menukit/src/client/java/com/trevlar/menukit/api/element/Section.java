@@ -298,6 +298,14 @@ public final class Section extends AbstractPanelElement {
         return ChildDispatch.hitTest(children, content(in));
     }
 
+    /** A slot in the content, while open. */
+    @Override
+    public boolean presentsSlotAt(InputContext in) {
+        if (!isOpen()) return false;
+        relayout();
+        return ChildDispatch.presentsSlotAt(children, content(in));
+    }
+
     @Override
     public boolean mouseClicked(InputContext in, int button) {
         boolean open = isOpen();

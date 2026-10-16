@@ -64,6 +64,13 @@ import org.jetbrains.annotations.ApiStatus;
  * the panels (vanilla drew it before the slot pass, under the chrome); the front
  * highlight is drawn by vanilla after the pass and needs nothing.
  *
+ * <h2>A slot shown in part (7.2.0)</h2>
+ *
+ * A slot a panel places across a clip's edge (a {@code ScrollContainer}'s viewport)
+ * is drawn by vanilla, in layer 1 or 3, scissored to the clip it was placed under
+ * ({@link SlotClips}), and so are vanilla's hover highlights on it. A slot no clip
+ * cuts is drawn exactly as before.
+ *
  * <h2>Why this class exists</h2>
  *
  * Without it, order fell out of wherever the hooks happened to be: three
@@ -101,6 +108,9 @@ public final class ContainerScreenLayers {
     /** Whether layer 2 has been drawn this frame. Render thread only. */
     private static boolean flowDrawn = false;
 
+    /** Whether the slot (or highlight) vanilla is drawing now is scissored to its clip. Render thread only. */
+    private static boolean slotClipped = false;
+
     /** At {@code extractContents} HEAD: a new frame, layer 2 not yet drawn. */
     public static void frameStart(AbstractContainerScreen<?> screen) {
         flowDrawn = false;
@@ -115,19 +125,43 @@ public final class ContainerScreenLayers {
      */
     public static void beforeSlot(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
                                   Slot slot, int mouseX, int mouseY) {
-        if (flowDrawn || !SlotScreenDispatcher.fireIsCreated(slot)) return;
-        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
-        graphics.pose().pushMatrix();
-        graphics.pose().translate(-acc.mk$getLeftPos(), -acc.mk$getTopPos());
-        renderFlow(screen, graphics, mouseX, mouseY);
-        graphics.pose().popMatrix();
-        // Vanilla drew the hovered slot's back highlight before the slot pass; for
-        // a created slot that is under the chrome just drawn, so draw it again on
-        // top. (Runs translated, like vanilla's own call.)
-        Slot hovered = acc.mk$getHoveredSlot();
-        if (hovered != null && SlotScreenDispatcher.fireIsCreated(hovered)) {
-            acc.mk$extractSlotHighlightBack(graphics);
+        if (!flowDrawn && SlotScreenDispatcher.fireIsCreated(slot)) {
+            AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
+            graphics.pose().pushMatrix();
+            graphics.pose().translate(-acc.mk$getLeftPos(), -acc.mk$getTopPos());
+            renderFlow(screen, graphics, mouseX, mouseY);
+            graphics.pose().popMatrix();
+            // Vanilla drew the hovered slot's back highlight before the slot pass; for
+            // a created slot that is under the chrome just drawn, so draw it again on
+            // top. (Runs translated, like vanilla's own call.)
+            Slot hovered = acc.mk$getHoveredSlot();
+            if (hovered != null && SlotScreenDispatcher.fireIsCreated(hovered)) {
+                acc.mk$extractSlotHighlightBack(graphics);
+            }
         }
+        // The slot itself, clipped to what its panel shows of it (SlotClips): a slot
+        // across a ScrollContainer's edge draws only the part inside.
+        slotClipped = SlotClips.push(graphics, slot);
+    }
+
+    /** At {@code extractSlot} RETURN: ends the slot's clip, if {@link #beforeSlot} began one. */
+    public static void afterSlot(GuiGraphicsExtractor graphics) {
+        if (slotClipped) graphics.disableScissor();
+        slotClipped = false;
+    }
+
+    /**
+     * At the HEAD of vanilla's hover highlights (back and front, and the back one
+     * re-issued above): clipped to the hovered slot's clip, as the slot is. Never
+     * inside a slot's own draw, so it shares that draw's flag.
+     */
+    public static void beforeHighlight(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics) {
+        slotClipped = SlotClips.push(graphics, ((AbstractContainerScreenAccessor) screen).mk$getHoveredSlot());
+    }
+
+    /** At the highlights' RETURN: ends the clip {@link #beforeHighlight} began. */
+    public static void afterHighlight(GuiGraphicsExtractor graphics) {
+        afterSlot(graphics);
     }
 
     /**
@@ -136,13 +170,14 @@ public final class ContainerScreenLayers {
      * modal dim (over vanilla content and every flow panel) and the overlay
      * panels on top of it. Finally the end-of-frame park: a created slot that no
      * panel presented this frame goes off-screen, so vanilla neither draws nor
-     * hit-tests it at a stale position next frame.
+     * hit-tests it at a stale position next frame, and loses any clip it had.
      */
     public static void aboveSlots(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
                                   int mouseX, int mouseY) {
         if (!flowDrawn) renderFlow(screen, graphics, mouseX, mouseY);
         ScreenPanelRegistry.renderOverlay(screen, graphics, mouseX, mouseY);
         SlotScreenDispatcher.fireEndFrame(screen);
+        SlotClips.frameEnd();
     }
 
     /** Layer 2: the FLOW layer of the screen's registry hosts (container adapters, then anchors), then every host's POPOVER layer. */

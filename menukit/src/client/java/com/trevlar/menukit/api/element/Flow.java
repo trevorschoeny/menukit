@@ -495,6 +495,12 @@ public final class Flow extends AbstractPanelElement {
     }
 
     @Override
+    public boolean presentsSlotAt(InputContext in) {
+        relayout();
+        return ChildDispatch.presentsSlotAt(children, in);
+    }
+
+    @Override
     public boolean mouseScrolled(InputContext in, double scrollX, double scrollY) {
         relayout();
         return ChildDispatch.mouseScrolled(children, in.disabledIf(ownDisabled()), scrollX, scrollY);

@@ -1602,6 +1602,21 @@ public final class Tabs extends AbstractPanelElement {
         return ChildDispatch.mouseClicked(b.tab.body, inner, button);
     }
 
+    /**
+     * A slot in the shown tab's body, only where the body shows it: inside its
+     * scrolling viewport, or inside the rectangle it is clipped to.
+     */
+    @Override
+    public boolean presentsSlotAt(InputContext in) {
+        StripLayout s = strip();
+        BodyView b = liveBody(in.kind());
+        if (b == null) return false;
+        InputContext inner = bodyInput(in, s);
+        if (b.scroll != null) return b.scroll.presentsSlotAt(inner);
+        if (b.height > 0 && !inner.isOver(0, 0, b.width, b.height)) return false;
+        return ChildDispatch.presentsSlotAt(b.tab.body, inner);
+    }
+
     /** Whether an open overlay among {@code elements} covers the click. */
     private static boolean claimedByOverlay(List<PanelElement> elements, InputContext in) {
         int[] ov = ChildDispatch.activeOverlay(elements, in);

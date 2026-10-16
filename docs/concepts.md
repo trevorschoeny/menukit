@@ -319,6 +319,8 @@ An `Anchor` is a rectangle a mod names and supplies per screen: `Anchor.of(id, s
 
 Vanilla draws every slot. MenuKit runs no slot pass of its own on container screens. It keeps the order a frame is drawn in: FLOW panels, then the slots a slot library adds to panels, then OVERLAY panels. A panel over part of a vanilla slot hides that part and no more, and what a panel covers is inert (Claims).
 
+A slot in a `ScrollContainer` (SlotKit's `SlotElement`) scrolls and clips like any element. A slot wholly out of view is not drawn, and its slot library parks it, so nothing hovers or clicks it. A slot across the viewport's top or bottom edge stays where it is, so nothing beside it moves, and is cut at the edge: vanilla draws only the part inside (item, count, durability, highlight), and only that part hovers, shows its tooltip and takes a click. A click on the part past the edge does nothing, so a carried item cannot drop there. The same holds under any other clip, such as a `Tabs` body. A slot library makes this work by calling `SlotClip.shown(ctx, slot)` (in `api.host`) when an element places a slot, which hands MenuKit the clip that element draws under. SlotKit's slot elements do, so a mod that puts slots in a scrolling panel has nothing to do.
+
 `SlotRendering` draws a slot's frame and an item's outline, for elements such as `ItemDisplay` and `ItemPicker` that show an item without being a slot.
 
 ## One styling change

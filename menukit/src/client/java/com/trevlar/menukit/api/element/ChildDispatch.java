@@ -71,6 +71,19 @@ public final class ChildDispatch {
         return false;
     }
 
+    /**
+     * Whether a shown child presents a live menu slot under the point
+     * ({@link PanelElement#presentsSlotAt}), so an opaque panel's claim lets the point
+     * through to a slot nested in a container. A container that clips its children
+     * asks only for points inside its clip.
+     */
+    public static boolean presentsSlotAt(List<? extends PanelElement> children, InputContext in) {
+        for (PanelElement c : children) {
+            if (c.isVisible() && c.presentsSlotAt(in)) return true;
+        }
+        return false;
+    }
+
     /** The first shown child's open overlay, whether or not it contains the point; {@code null} when none is open. */
     public static int @Nullable [] activeOverlay(List<? extends PanelElement> children, InputContext in) {
         for (PanelElement c : children) {

@@ -59,6 +59,16 @@ import java.util.function.DoubleSupplier;
  * <p>Every child is dispatched through {@link ChildDispatch}, with the context
  * moved to the scrolled content origin: the same order a panel uses.
  *
+ * <h3>Slots (7.2.0)</h3>
+ *
+ * A slot element among the children (SlotKit's) scrolls and clips like any child.
+ * One wholly out of view is not rendered, so its slot is parked. One across the
+ * viewport's top or bottom edge keeps its real position, so nothing beside it moves,
+ * and is cut at the edge: vanilla draws only the part inside, and only that part
+ * hovers and takes clicks (the element reports its slot with
+ * {@code api.host.SlotClip}). Under an opaque panel, the part inside is the panel's
+ * own slot; the part past the edge is the panel's, like a gap between slots.
+ *
  * <h3>On an options screen</h3>
  *
  * On an options screen ({@link ScreenKind#OPTIONS}) it is the band every Options
@@ -403,7 +413,7 @@ public class ScrollContainer extends AbstractPanelElement {
         for (PanelElement e : content) {
             if (!e.isVisible()) continue;
             boolean open = e.getActiveOverlayBounds(probe) != null;
-            if (!open && (e.getChildY() + e.getHeight() < top || e.getChildY() >= top + height)) continue;
+            if (!open && (e.getChildY() + e.getHeight() <= top || e.getChildY() >= top + height)) continue;
             e.render(inner);
         }
         g.disableScissor();
@@ -456,6 +466,16 @@ public class ScrollContainer extends AbstractPanelElement {
             return true;
         }
         return ChildDispatch.mouseClicked(content, inner, button);
+    }
+
+    /**
+     * A slot among the children, only where the viewport shows it: the part of a slot
+     * past the viewport's edge is not drawn, so it is not there to hover or click.
+     */
+    @Override
+    public boolean presentsSlotAt(InputContext in) {
+        if (!in.isOver(childX, childY, viewportWidth(), viewHeight(in.kind()))) return false;
+        return ChildDispatch.presentsSlotAt(content, childInput(in));
     }
 
     @Override
