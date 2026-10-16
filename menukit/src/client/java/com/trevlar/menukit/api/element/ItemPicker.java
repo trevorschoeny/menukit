@@ -134,6 +134,8 @@ public class ItemPicker extends AbstractPanelElement {
     static final Component REMOVE_TOOLTIP = Component.translatable("menukit.item_picker.remove");
     // Dark with a white bar, lighter while hovered: reads on both kinds' grey slots.
     private static final int REMOVE_FILL = 0xFF2A2A2A, REMOVE_HOVER = 0xFF5E5E5E, REMOVE_BAR = 0xFFFFFFFF;
+    // The add slot's plus: white over vanilla's text shadow for white (a quarter of it).
+    private static final int ADD_MARK = 0xFFFFFFFF, ADD_SHADOW = 0xFF3F3F3F;
 
     // Vanilla's slot highlight (AbstractContainerScreen, 26.2): a 24 x 24 glow behind
     // the item and a sheen in front of it, both 4 px out from the item's corner.
@@ -292,7 +294,7 @@ public class ItemPicker extends AbstractPanelElement {
             ItemStack stack = i < v.size() ? v.get(i).stack() : ItemStack.EMPTY;
             boolean hot = !disabled && ((i == hovered && !onRemove) || (focused && i == 0));
             drawSlot(g, ctx.kind(), x, y, stack, hot, disabled);
-            if (list && i == v.size()) drawAddMark(g, ctx.kind(), x, y);
+            if (list && i == v.size()) drawAddMark(g, x, y);
             if (!disabled && i < v.size()) drawRemove(g, x, y, i == hovered && onRemove);
         }
         if (hovered < 0) return;
@@ -353,11 +355,20 @@ public class ItemPicker extends AbstractPanelElement {
         g.fill(rx + 1, y + REMOVE_SIZE / 2, rx + REMOVE_SIZE - 1, y + REMOVE_SIZE / 2 + 1, REMOVE_BAR);
     }
 
-    /** A faint plus in the empty slot at the end of a list: add one here. */
-    static void drawAddMark(GuiGraphicsExtractor g, ScreenKind kind, int x, int y) {
-        int c = kind.textColor(TextRole.MUTED);
-        g.fill(x + 6, y + 8, x + 12, y + 10, c);
-        g.fill(x + 8, y + 6, x + 10, y + 12, c);
+    /**
+     * The plus in the empty slot at the end of a list: add one here. White with a dark
+     * shadow a pixel down and right, as vanilla draws white text, so it reads at rest
+     * on both kinds' grey slots (the remove button's minus is white too).
+     */
+    static void drawAddMark(GuiGraphicsExtractor g, int x, int y) {
+        plus(g, x + 1, y + 1, ADD_SHADOW);
+        plus(g, x, y, ADD_MARK);
+    }
+
+    /** A 6 x 6 plus of 2 px bars, centred in the slot at {@code (x, y)}. */
+    private static void plus(GuiGraphicsExtractor g, int x, int y, int color) {
+        g.fill(x + 6, y + 8, x + 12, y + 10, color);
+        g.fill(x + 8, y + 6, x + 10, y + 12, color);
     }
 
     /**

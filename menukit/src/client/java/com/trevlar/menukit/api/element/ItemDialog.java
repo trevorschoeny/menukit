@@ -742,7 +742,7 @@ final class ItemDialog {
             for (int i = 0; i < slots.size(); i++) {
                 int x = slotX(i, ox), y = slotY(i, oy);
                 ItemPicker.drawSlot(g, ctx.kind(), x, y, slots.get(i), i == hovered && !onRemove, false);
-                if (picker.isList() && i == slots.size() - 1 && slots.get(i).isEmpty()) ItemPicker.drawAddMark(g, ctx.kind(), x, y);
+                if (picker.isList() && i == slots.size() - 1 && slots.get(i).isEmpty()) ItemPicker.drawAddMark(g, x, y);
                 if (i == selected) g.outline(x, y, ItemPicker.SIZE, ItemPicker.SIZE, 0xFFFFFFFF);
                 if (!slots.get(i).isEmpty()) ItemPicker.drawRemove(g, x, y, i == hovered && onRemove);
             }
