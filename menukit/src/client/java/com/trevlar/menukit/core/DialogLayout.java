@@ -8,13 +8,15 @@ import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.PanelStyle;
 
+import net.minecraft.network.chat.Component;
+
 import org.jetbrains.annotations.ApiStatus;
 
 /**
  * The one layout every MenuKit dialog uses ({@code ConfirmDialog},
- * {@code AlertDialog}, a {@code ColorField}'s dialog): rows top to bottom, a title,
- * the body, and the button row last, in a centred modal {@link PanelStyle#RAISED}
- * panel.
+ * {@code AlertDialog}, a {@code ColorField}'s and an {@code ItemPicker}'s dialog):
+ * rows top to bottom, a title, the body, and the button row last, in a centred
+ * modal {@link PanelStyle#RAISED} panel.
  *
  * <p>The rows start at the panel's content origin, so the panel's padding is the
  * only margin and it is the same on all four sides. That padding leaves
@@ -60,6 +62,16 @@ public final class DialogLayout {
     /** The button row: the buttons side by side, centred. */
     public static PanelElement buttons(Button... buttons) {
         return centred(buttons);
+    }
+
+    /** A dialog button: {@code label}, {@link #BUTTON_W} x {@link #BUTTON_H}, running {@code onClick}. */
+    public static Button button(Component label, Runnable onClick) {
+        return Button.builder().label(label).size(BUTTON_W, BUTTON_H).onClick(onClick).build();
+    }
+
+    /** The button row of a dialog that edits a value: Cancel, then Done. */
+    public static PanelElement cancelDone(Runnable cancel, Runnable done) {
+        return buttons(button(Component.literal("Cancel"), cancel), button(Component.literal("Done"), done));
     }
 
     /**

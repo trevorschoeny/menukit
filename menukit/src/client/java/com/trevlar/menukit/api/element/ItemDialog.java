@@ -47,10 +47,10 @@ import java.util.function.Function;
  * with its empty slot to add to at the end), each slot's match, the selected slot,
  * the tab, the search, and the Edit tab's text as typed.
  *
- * <p>Nothing is carried: a click on a grid entry puts one of it straight into the
- * selected slot, which stays selected; the Edit tab's count sets more. A filled
- * slot's small remove button empties it (a list drops it, the rest shifting left).
- * Nothing comes from or goes to the player's inventory.
+ * <p>A click on a grid entry puts one of it straight into the selected slot, which
+ * stays selected; the Edit tab's count sets more. A filled slot's small remove
+ * button empties it (a list drops it, the rest shifting left). Nothing comes from or
+ * goes to the player's inventory.
  */
 final class ItemDialog {
 
@@ -66,8 +66,6 @@ final class ItemDialog {
     static final int COUNT_WIDTH = 30;
     /** The least a filling field asks for, so a dialog with little else in it is still usable. */
     static final int FIELD_MIN_WIDTH = 60;
-    /** Vanilla's EditBox draws its text this far inside its border, each side. */
-    static final int FIELD_TEXT_INSET = 4;
 
     /**
      * The enchantment list: a control button's size, a row (a control and a pixel
@@ -80,10 +78,6 @@ final class ItemDialog {
     static final int TEXT_PAD = 2;
     static final int ROW_GAP = 4;
     static final int CONTROL_GAP = 1;
-
-    /** What a field shows while its text is not valid, and vanilla's EditBox colour otherwise. */
-    private static final int TEXT_OK = 0xFFE0E0E0;
-    private static final int TEXT_BAD = 0xFFFF5555;
 
     static final Component SEARCH_HINT = Component.literal("Search items");
     static final Component NAME_HINT = Component.literal("Name");
@@ -153,11 +147,7 @@ final class ItemDialog {
 
         this.title = DialogLayout.centred(TextLabel.builder().text(picker.label()).build());
         this.row = new SlotRow();
-        this.buttons = DialogLayout.buttons(
-                Button.builder().label(Component.literal("Cancel"))
-                        .size(DialogLayout.BUTTON_W, DialogLayout.BUTTON_H).onClick(picker::cancel).build(),
-                Button.builder().label(Component.literal("Done"))
-                        .size(DialogLayout.BUTTON_W, DialogLayout.BUTTON_H).onClick(picker::done).build());
+        this.buttons = DialogLayout.cancelDone(picker::cancel, picker::done);
 
         String id = "menukit:item-dialog-" + IDS.incrementAndGet();
         if (!edits) {
@@ -478,7 +468,7 @@ final class ItemDialog {
     private static void check(@Nullable TextField field, Draft draft) {
         EditBox box = field != null ? field.widget() : null;
         if (box == null) return;
-        box.setTextColor(draft.error == null ? TEXT_OK : TEXT_BAD);
+        box.setTextColor(draft.error == null ? TextField.TEXT_VALID : TextField.TEXT_INVALID);
         if (draft.error != null && !box.isFocused()) draft.reset();
     }
 
@@ -570,9 +560,10 @@ final class ItemDialog {
      * Each box the dialog draws on the shown tab, in its content's coordinates, with
      * the box it must stay inside: every row in the dialog, every element of the shown
      * tab in the tab's body, each slot in the row (and a filled one's remove button in
-     * its corner), the grid's columns in the grid's viewport, a field's hint inside the field's text area, and each enchantment
-     * row's name, level and controls inside their room in the row. {@code kind} is the
-     * screen it is laid out for (the band's inset).
+     * its corner), the grid's columns in the grid's viewport, a field's hint inside
+     * the field's text area, and each enchantment row's name, level and controls
+     * inside their room in the row. {@code kind} is the screen it is laid out for (the
+     * band's inset).
      */
     List<ItemPicker.Box> boxes(ScreenKind kind) {
         Font font = Minecraft.getInstance().font;
@@ -660,7 +651,7 @@ final class ItemDialog {
 
     /** A field's hint, from where the field's text starts, inside the field's text area. */
     private static ItemPicker.Box hint(String field, Component hint, int[] at, Font font) {
-        int[] area = {at[0] + FIELD_TEXT_INSET, at[1], Math.max(0, at[2] - 2 * FIELD_TEXT_INSET), at[3]};
+        int[] area = {at[0] + TextField.TEXT_INSET, at[1], Math.max(0, at[2] - 2 * TextField.TEXT_INSET), at[3]};
         return box(field + " hint \"" + hint.getString() + "\"", new int[]{area[0], at[1], font.width(hint), at[3]}, area);
     }
 
@@ -687,12 +678,8 @@ final class ItemDialog {
             this.height = ItemPicker.SIZE;
         }
 
-        private int perRow() {
-            return COLUMNS;
-        }
-
         private int rows() {
-            return Math.max(1, (slots.size() + perRow() - 1) / perRow());
+            return Math.max(1, (slots.size() + COLUMNS - 1) / COLUMNS);
         }
 
         /** Left edge of the slots, from the row's: centred under the title. */
@@ -702,14 +689,14 @@ final class ItemDialog {
 
         /** Slot {@code i}'s top-left from the row's content origin {@code (ox, oy)}. */
         int slotX(int i, int ox) {
-            return ox + childX + left() + (i % perRow()) * ItemPicker.SIZE;
+            return ox + childX + left() + (i % COLUMNS) * ItemPicker.SIZE;
         }
 
         int slotY(int i, int oy) {
-            return oy + childY + (i / perRow()) * ItemPicker.SIZE;
+            return oy + childY + (i / COLUMNS) * ItemPicker.SIZE;
         }
 
-        @Override public int naturalWidth() { return Math.min(Math.max(1, slots.size()), perRow()) * ItemPicker.SIZE; }
+        @Override public int naturalWidth() { return Math.min(Math.max(1, slots.size()), COLUMNS) * ItemPicker.SIZE; }
         @Override public int getWidth() { return Math.max(width, naturalWidth()); }
         @Override public int getHeight() { return rows() * ItemPicker.SIZE; }
         @Override public int extraLayoutHeight() { return getHeight() - ItemPicker.SIZE; }
@@ -721,8 +708,8 @@ final class ItemDialog {
             double lx = mx - (ox + childX + left()), ly = my - (oy + childY);
             if (lx < 0 || ly < 0) return -1;
             int col = (int) (lx / ItemPicker.SIZE), row = (int) (ly / ItemPicker.SIZE);
-            if (col >= perRow()) return -1;
-            int i = row * perRow() + col;
+            if (col >= COLUMNS) return -1;
+            int i = row * COLUMNS + col;
             return i < slots.size() ? i : -1;
         }
 

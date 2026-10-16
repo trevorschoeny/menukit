@@ -1,6 +1,8 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.ScreenKind;
+import com.trevlar.menukit.core.PanelRendering;
 
 import net.minecraft.client.gui.screens.Screen;
 
@@ -455,7 +457,7 @@ public final class Flow extends AbstractPanelElement {
         int x = ctx.originX() + childX, y = ctx.originY() + childY;
         int w = lastWidth, h = lastHeight;
         var g = ctx.graphics();
-        if (ctx.kind() == com.trevlar.menukit.api.panel.ScreenKind.OPTIONS) {
+        if (ctx.kind() == ScreenKind.OPTIONS) {
             g.fill(x, y, x + w, y + h, CARD_FILL);
             int border = ctx.isHovered(childX, childY, w, h) ? CARD_BORDER_HOVER : CARD_BORDER;
             g.fill(x, y, x + w, y + 1, border);
@@ -463,8 +465,7 @@ public final class Flow extends AbstractPanelElement {
             g.fill(x, y + 1, x + 1, y + h - 1, border);
             g.fill(x + w - 1, y + 1, x + w, y + h - 1, border);
         } else {
-            com.trevlar.menukit.core.PanelRendering.renderPanel(g, x, y, w, h,
-                    com.trevlar.menukit.api.panel.PanelStyle.INSET);
+            PanelRendering.renderPanel(g, x, y, w, h, PanelStyle.INSET);
         }
     }
 

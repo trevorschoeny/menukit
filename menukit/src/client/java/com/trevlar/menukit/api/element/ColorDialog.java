@@ -11,6 +11,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Items;
 
+import org.jspecify.annotations.Nullable;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -19,9 +22,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * and a Custom tab, Cancel and Done. Built of MenuKit's own elements ({@link Tabs},
  * {@link TextField}, {@link Button}) plus the two drawn here, the dye grid and the
  * picker, laid out as every MenuKit dialog is ({@link DialogLayout}), so it draws in
- * the kind of screen it opens on like any dialog. The dialog is as wide as the wider
- * tab and as tall as the shown one ({@link Tabs.Builder#fitShownTab}): Basic is
- * short, Custom taller, and switching resizes it, the buttons following.
+ * the kind of screen it opens on like any dialog. The dialog is as wide and as tall
+ * as the shown tab ({@link Tabs.Builder#fitShownTab}): Basic is small, Custom
+ * larger, and switching resizes it, the buttons following.
  * Package-private: consumers reach it through {@link ColorField}.
  *
  * <p>The colour lives with the consumer, through the field's lens. The dialog keeps
@@ -54,10 +57,6 @@ final class ColorDialog {
     /** Room around the grid for the current dye's ring, which is a pixel outside its slot. */
     static final int RING = 1;
 
-    /** The hex field's text colour, vanilla's EditBox default, and red while the text is not a colour. */
-    private static final int HEX_OK = 0xFFE0E0E0;
-    private static final int HEX_BAD = 0xFFFF5555;
-
     private final ColorField field;
     private final Panel panel;
     private final TextField hex;
@@ -87,8 +86,8 @@ final class ColorDialog {
                 .state(this::hexText, this::typeHex)
                 .build();
 
-        // No fixed size: the tabs are as wide as the wider tab (the dialog's width) and
-        // as tall as the shown one, so the dialog fits its content on either tab.
+        // No fixed size: the tabs are as wide and as tall as the shown one, so the
+        // dialog fits its content on either tab.
         Tabs tabs = Tabs.builder()
                 .state(() -> tab, id -> tab = id)
                 .fitShownTab()
@@ -96,16 +95,12 @@ final class ColorDialog {
                 .tab("custom", Component.literal("Custom"), List.of(picker, hex))
                 .build();
 
-        // ConfirmDialog's layout: centred, modal (opaque, dims behind, takes every
+        // Every dialog's layout: centred, modal (opaque, dims behind, takes every
         // click and key), Escape cancels. Shown while the field says it is open.
         this.panel = DialogLayout.panel("menukit:color-dialog-" + IDS.incrementAndGet(), field::cancel,
                         DialogLayout.centred(TextLabel.builder().text(field.label()).build()),
                         tabs,
-                        DialogLayout.buttons(
-                                Button.builder().label(Component.literal("Cancel"))
-                                        .size(DialogLayout.BUTTON_W, DialogLayout.BUTTON_H).onClick(field::cancel).build(),
-                                Button.builder().label(Component.literal("Done"))
-                                        .size(DialogLayout.BUTTON_W, DialogLayout.BUTTON_H).onClick(field::done).build()))
+                        DialogLayout.cancelDone(field::cancel, field::done))
                 .visibleWhen(field::dialogShown);
     }
 
@@ -127,7 +122,7 @@ final class ColorDialog {
             return List.of(new int[]{picker.getChildX(), picker.getChildY(), picker.getWidth(), picker.getHeight()},
                     new int[]{hex.getChildX(), hex.getChildY(), hex.getWidth(), hex.getHeight()});
         }
-        List<int[]> cells = new java.util.ArrayList<>();
+        List<int[]> cells = new ArrayList<>();
         for (List<DyeColor> row : DYE_ROWS) {
             for (DyeColor dye : row) {
                 int[] at = grid.slot(dye);
@@ -181,7 +176,7 @@ final class ColorDialog {
         EditBox box = hex.widget();
         boolean valid = ColorField.parseHex(hexDraft, field.hasAlpha()) != null;
         if (box != null) {
-            box.setTextColor(valid ? HEX_OK : HEX_BAD);
+            box.setTextColor(valid ? TextField.TEXT_VALID : TextField.TEXT_INVALID);
             if (!valid && !box.isFocused()) {
                 hexDraft = ColorField.formatHex(field.value(), field.hasAlpha());
                 hexSynced = field.value();
@@ -270,7 +265,8 @@ final class ColorDialog {
      * colour. The grid's bounds include {@link #RING} round the slots, so the current
      * dye's ring (a pixel outside its slot) is inside them: the tab's body clips to
      * its own box, and a ring on the top row would otherwise lose its top edge. Given
-     * more width than it needs (the Custom tab is wider), it centres the slots in it.
+     * more width than it needs (the dialog's button row is wider), it centres the
+     * slots in it.
      */
     private final class DyeGrid extends AbstractPanelElement {
 
@@ -296,7 +292,7 @@ final class ColorDialog {
             throw new IllegalArgumentException("not in the grid: " + dye);
         }
 
-        private @org.jspecify.annotations.Nullable DyeColor dyeAt(InputContext in) {
+        private @Nullable DyeColor dyeAt(InputContext in) {
             double lx = in.mouseX() - (in.originX() + childX), ly = in.mouseY() - (in.originY() + childY);
             for (DyeColor dye : DyeColor.values()) {
                 int[] at = slot(dye);

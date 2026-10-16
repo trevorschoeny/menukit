@@ -144,7 +144,7 @@ public final class AlertDialog {
                     DialogLayout.centred(TextLabel.builder().text(title).build()),
                     DialogLayout.centred(TextLabel.builder().text(body).build()),
                     DialogLayout.buttons(
-                            Button.builder().label(acknowledgeLabel).size(BUTTON_W, BUTTON_H).onClick(ackRun).build()));
+                            DialogLayout.button(acknowledgeLabel, ackRun)));
         }
 
         private static void requireField(Object value, String name) {

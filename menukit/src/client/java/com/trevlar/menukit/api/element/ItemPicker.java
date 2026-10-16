@@ -4,6 +4,7 @@ import com.trevlar.menukit.api.element.ItemMatch.Match;
 import com.trevlar.menukit.api.panel.Focus;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.ScreenKind;
+import com.trevlar.menukit.core.ItemEditing.EnchantChoice;
 import com.trevlar.menukit.core.ItemSources;
 import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
@@ -13,11 +14,13 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantment;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
@@ -78,12 +81,12 @@ import java.util.function.Supplier;
  * <h3>On the page</h3>
  *
  * One slot, or for a list a wrapping row of slots in order, {@link Builder#columns}
- * to a row, with an empty slot at the end to add one. Each filled slot has a small
- * remove button in its top-right corner ("Remove"): a click on it, or a right click
- * anywhere on the slot, empties it, and a list drops it, the items after it moving
- * up one in their order. Left click anywhere else on a slot (or Enter on the focused
- * picker) opens the dialog at that slot. Hovered, a slot shows the item's own
- * tooltip, unless the builder gives a {@code tooltip}.
+ * to a row, with an empty slot marked with a plus at the end to add one. Each filled
+ * slot has a small remove button in its top-right corner ("Remove"): a click on it,
+ * or a right click anywhere on the slot, empties it, and a list drops it, the items
+ * after it moving up one in their order. Left click anywhere else on a slot (or
+ * Enter on the focused picker) opens the dialog at that slot. Hovered, a slot shows
+ * the item's own tooltip, unless the builder gives a {@code tooltip}.
  *
  * <h3>The dialog</h3>
  *
@@ -100,16 +103,15 @@ import java.util.function.Supplier;
  *       so each variant (potions, tipped arrows, enchanted book levels, goat horns,
  *       firework durations, ominous bottles) is its own entry. A click on an entry
  *       puts one of it straight into the selected slot, replacing what was there;
- *       the slot stays selected. Nothing is carried on the cursor. Enter in the
- *       search box puts the first match in the same way.</li>
+ *       the slot stays selected. Enter in the search box puts the first match in
+ *       the same way.</li>
  *   <li><b>Edit</b>, for {@code EXACT} and {@code CONTAINS}: the selected slot's
  *       name, count, enchantments (under "Added" those on the item, under "Not Added"
  *       those that fit it, up to their highest level, the ones a chosen enchantment
- *       excludes greyed; none for an item
- *       nothing enchants; an enchanted book's stored ones), every other component
- *       as text in vanilla's {@code /give} syntax (read by vanilla's own item
- *       parser, its errors shown as a command's), and the match choice when the
- *       player has one.</li>
+ *       excludes greyed; none for an item nothing enchants; an enchanted book's
+ *       stored ones), every other component as text in vanilla's {@code /give}
+ *       syntax (read by vanilla's own item parser, its errors shown as a
+ *       command's), and the match choice when the player has one.</li>
  * </ul>
  * Changes are written as they are made; Done keeps them, Cancel and Escape write
  * back the value from before the dialog opened.
@@ -221,11 +223,6 @@ public class ItemPicker extends AbstractPanelElement {
             if (!list) break;
         }
         stateSet.accept(List.copyOf(out));
-    }
-
-    /** Writes {@code slots} back exactly as they were (Cancel). */
-    void restore(List<ItemMatch> slots) {
-        stateSet.accept(slots);
     }
 
     /** What the setting is called: the dialog's title. */
@@ -452,7 +449,7 @@ public class ItemPicker extends AbstractPanelElement {
         if (!dialog.isOpen()) return;
         List<ItemMatch> before = dialog.before();
         dialog.close();
-        restore(before);
+        stateSet.accept(before);   // exactly as it was, not through write's tidying
     }
 
     /** The dialog's panel: a modal on the screen the picker is on, open while {@link #isDialogOpen}. */
@@ -529,25 +526,25 @@ public class ItemPicker extends AbstractPanelElement {
 
     /** The selected slot's enchantment choices, as the Edit tab lists them (on it, then those that can be added). */
     @ApiStatus.Internal
-    public List<com.trevlar.menukit.core.ItemEditing.EnchantChoice> enchantChoices() {
+    public List<EnchantChoice> enchantChoices() {
         return dialog.enchantChoices();
     }
 
     /** The add control of an enchantment not on the selected item. */
     @ApiStatus.Internal
-    public void addEnchant(net.minecraft.core.Holder<net.minecraft.world.item.enchantment.Enchantment> enchantment) {
+    public void addEnchant(Holder<Enchantment> enchantment) {
         dialog.addEnchant(enchantment);
     }
 
     /** The - ({@code by} -1) or + (1) of an enchantment on the selected item. */
     @ApiStatus.Internal
-    public void stepEnchant(net.minecraft.core.Holder<net.minecraft.world.item.enchantment.Enchantment> enchantment, int by) {
+    public void stepEnchant(Holder<Enchantment> enchantment, int by) {
         dialog.stepEnchant(enchantment, by);
     }
 
     /** The remove control of an enchantment on the selected item. */
     @ApiStatus.Internal
-    public void removeEnchant(net.minecraft.core.Holder<net.minecraft.world.item.enchantment.Enchantment> enchantment) {
+    public void removeEnchant(Holder<Enchantment> enchantment) {
         dialog.removeEnchant(enchantment);
     }
 

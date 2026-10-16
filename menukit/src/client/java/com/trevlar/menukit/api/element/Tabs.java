@@ -129,8 +129,8 @@ import java.util.function.Supplier;
  * lane is the right margin when the body scrolls) and
  * {@link ScrollContainer#OPTIONS_INSET_Y} above and below, so the body is laid out
  * that much narrower. In a dialog the page insets by the dialog's own gap,
- * {@link ScrollContainer#DIALOG_INSET}, the same rule as a ScrollContainer's band. Behaviour, sizes and the arrows (vanilla's page
- * arrows) are the same on both kinds.
+ * {@link ScrollContainer#DIALOG_INSET}, the same rule as a ScrollContainer's band.
+ * Behaviour, sizes and the arrows (vanilla's page arrows) are the same on both kinds.
  *
  * <p>{@link Mode#SIDEBAR} on an options screen is that tab bar turned on its
  * side: vanilla's tab sprites drawn under a pose turned a quarter, open toward
@@ -1575,9 +1575,8 @@ public final class Tabs extends AbstractPanelElement {
         // so a click on its empty space never reaches what lies under it (a slot,
         // a vanilla button). The one exception is a click on a header element that
         // hit-tests but doesn't claim it: a widget whose click vanilla's own widget
-        // routing delivers, so it must fall through. TextField and Slider were such
-        // widgets until 7.2.0; on WidgetHost they claim their own clicks now, but a
-        // consumer's element may still rely on vanilla's routing.
+        // routing delivers (a consumer's element that relies on it), so it must fall
+        // through. MenuKit's own TextField and Slider claim their clicks (WidgetHost).
         if (ly >= 0 && ly < s.top) {
             if (disabled(in)) return true;
             return claimOrEat(header, headerInput(in), button);
@@ -1993,10 +1992,10 @@ public final class Tabs extends AbstractPanelElement {
         /**
          * With no fixed size and no viewport to fill (a dialog, whose frame follows
          * its content), be as wide and as tall as the shown tab rather than the widest
-         * and the tallest (7.2.0: the width too): switching tabs resizes it, and the
-         * panel resizes and moves the rows around it with it. The tab strip still
-         * needs its own width. Default: as wide and as tall as the largest visible
-         * tab, steady across switches.
+         * and the tallest (7.2.0): switching tabs resizes it, and the panel resizes
+         * and moves the rows around it with it. The tab strip still needs its own
+         * width. Default: as wide and as tall as the largest visible tab, steady
+         * across switches.
          */
         public Builder fitShownTab() {
             this.fitShownTab = true;

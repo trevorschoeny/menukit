@@ -1,6 +1,7 @@
 package com.trevlar.menukit.api.element;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
@@ -10,8 +11,8 @@ import java.util.function.Supplier;
 
 /**
  * One choice of a single-selection set: a round button with a dot when its value
- * is the {@link RadioGroup}'s selection, and a label beside it. Round, so a set of
- * them never reads as checkboxes, whose box is square (7.2.0; it was a square).
+ * is the {@link RadioGroup}'s selection, and a label beside it. Round (7.2.0), so a
+ * set of them never reads as checkboxes, whose box is square.
  *
  * <pre>{@code
  * RadioGroup<Mode> mode = RadioGroup.state(() -> config.mode, m -> config.mode = m);
@@ -140,7 +141,7 @@ public class Radio<T> extends AbstractPanelElement {
     private static final int[][] INSIDE = {{2, 6}, {1, 7}, {0, 8}, {0, 8}, {0, 8}, {0, 8}, {1, 7}, {2, 6}};
     private static final int[][] DOT = {{1, 3}, {0, 4}, {0, 4}, {1, 3}};
 
-    private static void disc(net.minecraft.client.gui.GuiGraphicsExtractor g, int x, int y, int[][] rows, int color) {
+    private static void disc(GuiGraphicsExtractor g, int x, int y, int[][] rows, int color) {
         for (int r = 0; r < rows.length; r++) g.fill(x + rows[r][0], y + r, x + rows[r][1], y + r + 1, color);
     }
 

@@ -181,8 +181,8 @@ public final class ConfirmDialog {
                     DialogLayout.centred(TextLabel.builder().text(title).build()),
                     DialogLayout.centred(TextLabel.builder().text(body).build()),
                     DialogLayout.buttons(
-                            Button.builder().label(cancelLabel).size(BUTTON_W, BUTTON_H).onClick(cancelRun).build(),
-                            Button.builder().label(confirmLabel).size(BUTTON_W, BUTTON_H).onClick(confirmRun).build()));
+                            DialogLayout.button(cancelLabel, cancelRun),
+                            DialogLayout.button(confirmLabel, confirmRun)));
         }
 
         private static void requireField(Object value, String name) {

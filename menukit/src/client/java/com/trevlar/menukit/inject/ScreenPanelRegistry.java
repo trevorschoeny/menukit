@@ -102,8 +102,9 @@ public final class ScreenPanelRegistry {
         @Nullable PanelHost context;
         final Map<Identifier, PanelHost> anchors = new LinkedHashMap<>();
         /**
-         * The dialogs elements on this screen open (7.2.0): a {@code ColorField}'s
-         * picker. Topmost, made when the first one attaches ({@link #attachDialog}).
+         * The dialogs elements on this screen open (7.2.0): a {@code ColorField}'s or
+         * an {@code ItemPicker}'s. Topmost, made when the first one attaches
+         * ({@link #attachDialog}).
          */
         @Nullable PanelHost dialogs;
 
@@ -136,10 +137,11 @@ public final class ScreenPanelRegistry {
 
     /**
      * Shows {@code dialog} on {@code screen}'s dialog host, the topmost host, so an
-     * element can own a dialog (a {@code ColorField}'s picker) without the consumer
-     * declaring it: the element attaches it from its own {@code onAttach}, at the
-     * screen's init, and the dialog's {@code visibleWhen} opens and closes it. Its
-     * elements are attached to the screen too. Idempotent per panel.
+     * element can own a dialog (a {@code ColorField}'s, an {@code ItemPicker}'s)
+     * without the consumer declaring it: the element attaches it from its own
+     * {@code onAttach}, at the screen's init, and the dialog's {@code visibleWhen}
+     * opens and closes it. Its elements are attached to the screen too. Idempotent
+     * per panel.
      *
      * <p>Not a declaration: the element was declared; this is per screen, like a
      * widget registering. The host is placed against the screen and draws in its

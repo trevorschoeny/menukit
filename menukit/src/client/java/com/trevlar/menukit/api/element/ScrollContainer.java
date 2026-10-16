@@ -146,8 +146,8 @@ public class ScrollContainer extends AbstractPanelElement {
     /**
      * In a dialog on an options screen, the band's inset on every side it insets:
      * {@link DialogLayout#GAP}, the room the dialog keeps between everything else.
-     * The full screen's {@link #OPTIONS_INSET_X} on top of the dialog's own padding
-     * read as a wide empty margin and pushed a grid's last column out of view.
+     * The dialog's frame and padding are already the margin, so the full screen's
+     * {@link #OPTIONS_INSET_X} on top of them would be a wide empty one.
      */
     public static final int DIALOG_INSET = DialogLayout.GAP;
 

@@ -61,6 +61,15 @@ import java.util.function.Supplier;
  */
 public class TextField extends AbstractPanelElement {
 
+    /** Vanilla's EditBox draws its text (and hint) this far inside its border, each side. */
+    static final int TEXT_INSET = 4;
+    /**
+     * The text colours a dialog's field shows: vanilla's EditBox default while the
+     * text is valid, red while it is not (an item dialog's count or components, a
+     * colour dialog's hex).
+     */
+    static final int TEXT_VALID = 0xFFE0E0E0, TEXT_INVALID = 0xFFFF5555;
+
     private final Supplier<String> stateGet;
     private final Consumer<String> stateSet;
     private final Component label;
@@ -116,9 +125,6 @@ public class TextField extends AbstractPanelElement {
     }
 
     @Override public boolean isInteractive() { return true; }
-
-    /** Vanilla's EditBox draws its text (and hint) this far inside its border, each side. */
-    private static final int TEXT_INSET = 4;
 
     /** Its size's width; filling, at least its hint's, so the hint is never cut off. */
     @Override
@@ -203,8 +209,8 @@ public class TextField extends AbstractPanelElement {
 
         /**
          * As wide as the room its panel gives it (7.2.0); it asks for the size's width,
-         * or its hint's when that is wider. For a field that spans a dialog or a column, lining up with what
-         * is above and below it whatever their width.
+         * or its hint's when that is wider. For a field that spans a dialog or a
+         * column, lining up with what is above and below it whatever their width.
          */
         public Builder fill() {
             this.fill = true;
