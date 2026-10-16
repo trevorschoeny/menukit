@@ -249,9 +249,9 @@ public class TextLabel extends AbstractPanelElement {
         }
 
         /**
-         * Asks its panel for no width and wraps to the room it is given (7.2.0): for
-         * text that should never widen what it is in, a message under a field that may
-         * run long (an error), as a filling divider asks for none.
+         * Asks its panel for no width and wraps to the room it is given (7.2.0). For
+         * text that should never widen what it is in, such as an error message under a
+         * field.
          */
         public Builder fill() {
             this.fill = true;

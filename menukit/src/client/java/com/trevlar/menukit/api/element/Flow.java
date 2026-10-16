@@ -90,7 +90,7 @@ import java.util.Objects;
  * <h3>Boxed: a card</h3>
  *
  * {@link Builder#boxed()} draws a card behind the children: a row of a list that
- * reads as one unit (a world in a world list, a sandbox in Sandboxes' screen). The
+ * reads as one unit (a world in a world list). The
  * children sit {@link #BOX_PADDING} inside the card's edge, a boxed row Flow fills
  * the width its panel gives it, and its height hugs its rows plus the padding. The
  * card's look follows the kind of screen: on an options screen a dark translucent
@@ -274,7 +274,7 @@ public final class Flow extends AbstractPanelElement {
             // of its own (it is the stretchable part of one), so this pass counts the
             // same pixels naturalWidth() does and a row that fits by the natural width
             // never wraps one gap early. When a leading spacer cost a gap here but not
-            // there, Inventory Plus's Sort button wrapped to a second row.
+            // there, a button pushed right by a spacer wrapped to a second row.
             if (!spacer && hasContent) x += gapX;
             row.add(c);
             x += w;
@@ -521,7 +521,6 @@ public final class Flow extends AbstractPanelElement {
         ChildDispatch.notifyClickOutside(children, in);
     }
 
-    /** Whether {@code e} is one of this Flow's own children. */
     boolean contains(PanelElement e) {
         return children.contains(e);
     }

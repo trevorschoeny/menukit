@@ -221,7 +221,7 @@ final class ColorDialog {
         return new float[]{h, max == 0 ? 0 : d / max, max};
     }
 
-    /** The opaque-free RGB ({@code 0xRRGGBB}) of a hue, saturation and brightness, each 0..1. */
+    /** The RGB ({@code 0xRRGGBB}, no alpha) of a hue, saturation and brightness, each 0..1. */
     static int fromHsv(double h, double s, double v) {
         double hh = (h - Math.floor(h)) * 6;
         int sector = (int) hh % 6;
@@ -253,7 +253,7 @@ final class ColorDialog {
         return d < 0 ? 0 : Math.min(d, 1);
     }
 
-    /** Whether the left button is still held: false once it is released, when the game says so. */
+    /** Whether the left button is still held. With no game running it counts as held. */
     private static boolean stillHeld() {
         return Minecraft.getInstance() == null || PressedTracker.isLeftMouseDown();
     }

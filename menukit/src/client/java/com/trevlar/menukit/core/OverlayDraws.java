@@ -34,7 +34,7 @@ public final class OverlayDraws {
     private static boolean open = false;
     private static final List<Consumer<GuiGraphicsExtractor>> QUEUED = new ArrayList<>();
 
-    /** Whether the panel being drawn now may defer draws to the top. */
+    /** Sets whether the panel being drawn now may defer draws to the top. */
     public static void allow(boolean allowed) {
         open = allowed;
     }

@@ -137,7 +137,7 @@ public class ColorField extends AbstractPanelElement {
         return alpha ? before : 0xFF000000 | before;
     }
 
-    // Hex, public: Mod Hub and other consumers read and write the same strings
+    // Hex, public so consumers can read and write the same strings
 
     /**
      * The colour in {@code text}, or {@code null} when it is not valid hex: six digits

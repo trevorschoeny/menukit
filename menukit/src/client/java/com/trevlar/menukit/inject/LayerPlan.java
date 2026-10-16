@@ -30,9 +30,9 @@ import java.util.List;
  *   <li><b>OVERLAY</b>: every {@link Panel#isOverlayPositioned() overlay} (a
  *       {@code center()} panel, or any dim or modal panel), on top. A modal stays
  *       above a popover.</li>
- *   <li><b>Deferred draws</b> (7.2.0): what an element handed to the top of the
- *       frame ({@link OverlayDraws}): an overflowing {@code WidgetHost}'s open popup,
- *       in a stratum of its own.</li>
+ *   <li><b>Deferred draws</b> (7.2.0): draws an element handed to the top of the
+ *       frame through {@link OverlayDraws}, such as an overflowing {@code WidgetHost}'s
+ *       open popup, in a stratum of its own.</li>
  * </ul>
  *
  * <h2>One order for drawing and claiming</h2>
@@ -109,7 +109,7 @@ public final class LayerPlan {
     /**
      * Draws {@code layer} of every host, in draw order. Each panel may hand draws to
      * the top of the frame ({@link OverlayDraws}, an overflowing widget's popup)
-     * unless a modal it does not belong to is up: then its popup stays under the
+     * unless a modal it does not belong to is up. Then its popup stays under the
      * dialog, as the panel does.
      */
     public static void render(List<PanelHost> hosts, Layer layer, GuiGraphicsExtractor graphics,

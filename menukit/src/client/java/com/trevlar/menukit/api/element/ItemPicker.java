@@ -35,8 +35,7 @@ import java.util.function.Supplier;
 /**
  * A setting whose value is an item, or a list of items: slots showing the items the
  * setting is about, and a lens onto them. Clicking a slot opens a dialog over the
- * screen to choose and edit them. Made for settings pages (Inventory Plus's lock
- * groups, Mod Hub's item options).
+ * screen to choose and edit them. Made for settings pages.
  *
  * <pre>{@code
  * // One item, the kind only (the 6.1.0 shape).
@@ -536,7 +535,7 @@ public class ItemPicker extends AbstractPanelElement {
         dialog.addEnchant(enchantment);
     }
 
-    /** The - ({@code by} -1) or + (1) of an enchantment on the selected item. */
+    /** The minus ({@code by} -1) or plus (1) control of an enchantment on the selected item. */
     @ApiStatus.Internal
     public void stepEnchant(Holder<Enchantment> enchantment, int by) {
         dialog.stepEnchant(enchantment, by);

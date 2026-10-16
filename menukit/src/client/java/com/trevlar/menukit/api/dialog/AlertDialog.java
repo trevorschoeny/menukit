@@ -44,7 +44,7 @@ public final class AlertDialog {
 
     /** Room between the dialog's frame and its content, on every side and either kind of screen. */
     public static final int PADDING = DialogLayout.GAP;
-    /** Vertical gap between title, body, and button row sections: the same, so the buttons sit centred under the body. */
+    /** Vertical gap between the title, body and button row. It equals {@link #PADDING}, so the buttons sit centred under the body. */
     public static final int SECTION_GAP = DialogLayout.GAP;
     /** Default button width. */
     public static final int BUTTON_W = DialogLayout.BUTTON_W;

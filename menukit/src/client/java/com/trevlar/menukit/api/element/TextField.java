@@ -53,10 +53,9 @@ import java.util.function.Supplier;
  * The EditBox is built at the screen's init ({@link #onAttach}), not with the
  * element, because vanilla's EditBox captures the font in its constructor and a
  * consumer may build its UI before the font is loaded. It is hosted by a
- * {@link WidgetHost} (since 7.2.0), the one way MenuKit hosts a vanilla widget:
- * the host places it, draws it after the panel background, routes the mouse to it
- * on any panel (a standalone screen's or one over a vanilla screen) and gives it
- * vanilla's keyboard focus. A field whose panel is hidden, or whose tab is not
+ * {@link WidgetHost} (since 7.2.0). The host places it, draws it after the panel
+ * background, routes the mouse to it on any panel (a standalone screen's or one
+ * over a vanilla screen) and gives it vanilla's keyboard focus. A field whose panel is hidden, or whose tab is not
  * shown, lets go of focus rather than typing unseen.
  */
 public class TextField extends AbstractPanelElement {

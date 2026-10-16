@@ -143,8 +143,8 @@ public final class ScreenPanelRegistry {
      * opens and closes it. Its elements are attached to the screen too. Idempotent
      * per panel.
      *
-     * <p>Not a declaration: the element was declared; this is per screen, like a
-     * widget registering. The host is placed against the screen and draws in its
+     * <p>This is not a declaration. The element was declared, and this runs per
+     * screen, as a widget registers. The host is placed against the screen and draws in its
      * kind ({@link ScreenKind#of}); a {@code center()} dialog is an overlay there.
      */
     public static void attachDialog(Screen screen, Panel dialog) {

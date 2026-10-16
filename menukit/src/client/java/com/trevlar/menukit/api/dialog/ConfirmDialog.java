@@ -63,7 +63,7 @@ public final class ConfirmDialog {
 
     /** Room between the dialog's frame and its content, on every side and either kind of screen. */
     public static final int PADDING = DialogLayout.GAP;
-    /** Vertical gap between title, body, and button row sections: the same, so the buttons sit centred under the body. */
+    /** Vertical gap between the title, body and button row. It equals {@link #PADDING}, so the buttons sit centred under the body. */
     public static final int SECTION_GAP = DialogLayout.GAP;
     /** Horizontal gap between buttons in the button bar. */
     public static final int BUTTON_GAP = DialogLayout.BUTTON_GAP;
@@ -166,9 +166,9 @@ public final class ConfirmDialog {
             requireField(onConfirm, "onConfirm");
             requireField(onCancel, "onCancel");
 
-            // DialogLayout: title, body and buttons each centred, the same margin on
-            // every side, the buttons centred between the body and the frame. Cancel is
-            // on the left and Confirm on the right, as in vanilla's ConfirmScreen.
+            // DialogLayout centres the title, body and buttons, with the same margin on
+            // every side and the buttons centred between the body and the frame. Cancel
+            // is on the left and Confirm on the right, as in vanilla's ConfirmScreen.
             final Runnable cancelRun = onCancel;
             final Runnable confirmRun = onConfirm;
             String panelId = (id != null)

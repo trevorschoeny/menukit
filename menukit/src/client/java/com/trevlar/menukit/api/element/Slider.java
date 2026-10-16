@@ -48,10 +48,10 @@ import java.util.function.Supplier;
  *
  * <h3>Lifecycle</h3>
  *
- * The vanilla widget is hosted by a {@link WidgetHost} (since 7.2.0), the one way
- * MenuKit hosts a vanilla widget: the host places it, draws it after the panel
- * background, routes the mouse to it (the press, the drag, the release) on any
- * panel, and gives it vanilla's focus, keyboard and narration. A slider whose
+ * The vanilla widget is hosted by a {@link WidgetHost} (since 7.2.0). The host
+ * places it, draws it after the panel background, routes the mouse to it (the
+ * press, the drag, the release) on any panel, and gives it vanilla's focus,
+ * keyboard and narration. A slider whose
  * panel is hidden lets go of focus rather than taking keys unseen.
  *
  * @param <V> the value type: {@code Double} (a fraction), {@code Integer}, or an enum

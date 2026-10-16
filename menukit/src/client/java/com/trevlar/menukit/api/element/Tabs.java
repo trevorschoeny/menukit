@@ -2017,7 +2017,7 @@ public final class Tabs extends AbstractPanelElement {
         /**
          * Whether the sidebar draws its tab column. Default true. False draws no
          * column: it is laid out 0 wide, so the body takes the element's whole width
-         * on the very page a column would sit beside, with the same band, insets,
+         * on the same page a column would sit beside, with the same band, insets,
          * separators and scrollbar on an options screen, and MenuKit's own body
          * from the left edge on a container screen. For a menu with one page that
          * should look like its tabbed siblings. The {@link #header} still spans the

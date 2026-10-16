@@ -530,7 +530,7 @@ final class ItemDialog {
         setEnchantment(c, 1);
     }
 
-    /** The - or + of an enchantment on the item: a level down or up, from I to its highest, no further. */
+    /** The minus or plus control of an enchantment on the item: a level down or up, from I to its highest. */
     void stepEnchant(Holder<Enchantment> enchantment, int by) {
         EnchantChoice c = choice(enchantment);
         if (c == null || !c.applied()) return;
@@ -851,10 +851,11 @@ final class ItemDialog {
     /**
      * The enchantments that fit the selected stack, in two lists, one above the
      * other, each under its heading while it has any: "Added", those on the item, each
-     * with its level, a - and a + (from I to its highest, no further) and a remove
-     * control; then "Not Added", those that can be added, each with an add control (on at level I, and
-     * into the list above). One excluded by an enchantment on the item is greyed, its
-     * add control off, its tooltip naming what it conflicts with. Asks for the room
+     * with its level, minus and plus controls (from I to its highest) and a remove
+     * control; then "Not Added", those that can be added, each with an add control
+     * (on at level I, and into the list above). One excluded by an enchantment on
+     * the item is greyed, its add control off, its tooltip naming what it conflicts
+     * with. Asks for the room
      * its longest name, the level and the controls need; every row's controls line up
      * at the right, whatever moves between the lists. A name that still does not fit
      * (a narrow screen) is cut with an ellipsis, and its tooltip has it in full.

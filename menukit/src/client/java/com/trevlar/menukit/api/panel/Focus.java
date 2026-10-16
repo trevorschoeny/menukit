@@ -43,11 +43,11 @@ import java.util.WeakHashMap;
  *
  * <h3>For mods</h3>
  *
- * To put a vanilla widget in a panel, use {@code WidgetHost} (7.2.0): it registers
+ * To put a vanilla widget in a panel, use {@code WidgetHost} (7.2.0). It registers
  * the widget here, routes its mouse input, and gives up focus when the widget is
- * not shown. {@link #addWidget} remains for a widget a mod places itself, rather
- * than {@code ScreenAccessor.mk$addWidget}: it adds the widget to the screen and
- * opts it into this focus handling. Pair it with {@link #removeWidget}.
+ * not shown. A widget a mod places itself goes through {@link #addWidget} rather
+ * than {@code ScreenAccessor.mk$addWidget}, since it adds the widget to the screen
+ * and opts it into this focus handling. Pair it with {@link #removeWidget}.
  *
  * <p>{@link #clear} blurs whatever is focused, for starting an input mode from a
  * clean state (chord capture, a modal confirm, handing navigation over).
