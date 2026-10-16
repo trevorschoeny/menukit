@@ -9,7 +9,6 @@ import com.trevlar.menukit.core.ItemEditing;
 import com.trevlar.menukit.core.ItemEditing.EnchantChoice;
 import com.trevlar.menukit.core.ItemSources;
 import com.trevlar.menukit.core.PanelRendering;
-import com.trevlar.menukit.core.PressedTracker;
 import com.trevlar.menukit.core.VanillaLook;
 
 import net.minecraft.client.Minecraft;
@@ -24,7 +23,6 @@ import net.minecraft.world.item.enchantment.Enchantment;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -46,13 +44,13 @@ import java.util.function.Function;
  *
  * <p>The value lives with the consumer, through the picker's lens, written on every
  * change. The dialog keeps its view state: the slots as the row shows them (a list's
- * emptied slots stay where they were until it closes, so an item can go back), each
- * slot's match, the selected slot, what the cursor holds, the tab, the search, and
- * the Edit tab's text as typed.
+ * with its empty slot to add to at the end), each slot's match, the selected slot,
+ * the tab, the search, and the Edit tab's text as typed.
  *
- * <p>The cursor's stack is the dialog's own. Taking an item from the grid makes one;
- * nothing comes from or goes to the player's inventory. A click anywhere but the slot
- * row and the grid drops it, and so does closing the dialog.
+ * <p>Nothing is carried: a click on a grid entry puts one of it straight into the
+ * selected slot, which stays selected; the Edit tab's count sets more. A filled
+ * slot's small remove button empties it (a list drops it, the rest shifting left).
+ * Nothing comes from or goes to the player's inventory.
  */
 final class ItemDialog {
 
@@ -96,8 +94,9 @@ final class ItemDialog {
             "Any other components, as in /give: [unbreakable={},lore=[\"Hi\"]]. Put ! before one to remove it: [!food].");
     /** The Edit tab with an empty slot selected. */
     static final Component EMPTY_HINT = Component.literal("Pick an item in Search first.");
-    /** Between the enchantments on the item and the ones that can be added. */
-    static final Component ADD_HEADING = Component.literal("Can be added");
+    /** Above the enchantments on the item, and above the ones that are not (lang keys, so a resource pack can say them its way). */
+    static final Component ADDED_HEADING = Component.translatable("menukit.item_picker.added");
+    static final Component NOT_ADDED_HEADING = Component.translatable("menukit.item_picker.not_added");
 
     private final ItemPicker picker;
     private final Panel panel;
@@ -120,10 +119,6 @@ final class ItemDialog {
     private final List<ItemStack> slots = new ArrayList<>();
     private final List<Match> matches = new ArrayList<>();
     private int selected = 0;
-    private ItemStack carried = ItemStack.EMPTY;
-    /** A drag over the row: the slots it has covered, and the button held (-1: none). */
-    private final LinkedHashSet<Integer> dragged = new LinkedHashSet<>();
-    private int dragButton = -1;
     private String tab = "search";
     private String query = "";
     private double gridScroll = 0, enchantScroll = 0;
@@ -145,8 +140,8 @@ final class ItemDialog {
                     query = q;
                     gridScroll = 0;   // a new search starts at the top of its results
                 })
-                // Enter puts the first match in the selected slot, so typing a name
-                // and Enter fills it.
+                // Enter puts the first match in the selected slot, as a click on it
+                // would, so typing a name and Enter fills it.
                 .onSubmit(q -> putFirstMatch())
                 .build();
         // As wide as the grid's nine columns, the band's inset and the scrollbar lane.
@@ -267,7 +262,7 @@ final class ItemDialog {
 
     /**
      * Opened at slot {@code slot}: the value as it is now (kept for Cancel), a list's
-     * slot to add to after it, the Search tab, nothing held, the search cleared.
+     * slot to add to after it, the Search tab, the search cleared.
      */
     void open(int slot) {
         before = picker.value();
@@ -282,7 +277,6 @@ final class ItemDialog {
             matches.add(picker.match());
         }
         selected = Math.max(0, Math.min(slot, slots.size() - 1));
-        dropCarried();
         tab = "search";
         query = "";
         gridScroll = 0;
@@ -293,17 +287,9 @@ final class ItemDialog {
         open = true;
     }
 
-    /** Closed (Done, Cancel, a new screen): whatever the cursor held is gone. */
+    /** Closed (Done, Cancel, a new screen). */
     void close() {
         open = false;
-        dropCarried();
-    }
-
-    /** The cursor lets go of what it holds: it is simply gone (it was never anyone's). */
-    private void dropCarried() {
-        carried = ItemStack.EMPTY;
-        dragged.clear();
-        dragButton = -1;
     }
 
     List<ItemMatch> before() {
@@ -316,10 +302,6 @@ final class ItemDialog {
 
     int selected() {
         return selected;
-    }
-
-    ItemStack carried() {
-        return carried;
     }
 
     void showTab(String id) {
@@ -384,11 +366,6 @@ final class ItemDialog {
         picker.write(out);
     }
 
-    /** The most of {@code stack} a slot or the cursor holds: one when the picker keeps only the kind. */
-    private int limit(ItemStack stack) {
-        return picker.match() == Match.ITEM ? 1 : stack.getMaxStackSize();
-    }
-
     // Search
 
     /** The grid's entries for {@code q}: every item, with its variants unless the picker keeps only the kind. */
@@ -396,147 +373,45 @@ final class ItemDialog {
         return ItemSources.search(picker.match() == Match.ITEM, q);
     }
 
-    /** Enter in the search box: the first match into the selected slot, then on to the next empty one. */
+    /** Enter in the search box: the first match into the selected slot, as a click on it would. */
     private void putFirstMatch() {
         List<ItemStack> shown = entries(query);
-        if (shown.isEmpty() || selected >= slots.size()) return;
+        if (!shown.isEmpty()) fill(shown.get(0));
+    }
+
+    // Filling and emptying slots
+
+    /**
+     * A click on a grid entry: one of it into the selected slot, replacing what was
+     * there (the Edit tab's count sets more; with {@code ITEM} there is no count). The
+     * slot stays selected, so another click swaps the item; a list grows a new empty
+     * slot at its end, to select and fill next.
+     */
+    void fill(ItemStack entry) {
+        if (selected >= slots.size()) return;
         ElementWidget.playClickSound();
-        slots.set(selected, shown.get(0).copyWithCount(1));
+        slots.set(selected, entry.copyWithCount(1));
         changed();
-        if (picker.isList()) selected = slots.size() - 1;
     }
 
-    // Moving items, as the creative inventory moves them (CreativeModeInventoryScreen.slotClicked)
-
     /**
-     * A click on a grid entry: with nothing held, take one (shift: a full stack; the
-     * middle button: a full stack); holding the same, left adds one (shift: fills
-     * it) and right takes one away; holding something else, left puts it back and
-     * right puts one back.
+     * Slot {@code i}'s remove button: a list drops the entry, the ones after it
+     * shifting left in their order, and the selection follows the slot it was on; a
+     * single picker's slot is emptied, back to the declared match for its next item.
      */
-    void clickEntry(ItemStack entry, int button, boolean shift) {
-        int lim = limit(entry);
-        if (button == Click.MIDDLE) {
-            if (carried.isEmpty()) carried = entry.copyWithCount(lim);
-            return;
-        }
-        if (!carried.isEmpty() && ItemStack.isSameItemSameComponents(carried, entry)) {
-            if (button == Click.LEFT) {
-                if (shift) carried.setCount(lim);
-                else if (carried.getCount() < lim) carried.grow(1);
-            } else {
-                carried.shrink(1);
-            }
-        } else if (carried.isEmpty()) {
-            carried = entry.copyWithCount(shift ? lim : 1);
-        } else if (button == Click.LEFT) {
-            carried = ItemStack.EMPTY;
+    void remove(int i) {
+        if (i < 0 || i >= slots.size() || slots.get(i).isEmpty()) return;
+        ElementWidget.playClickSound();
+        if (picker.isList()) {
+            slots.remove(i);
+            matches.remove(i);
+            if (selected > i) selected--;
         } else {
-            carried.shrink(1);
+            slots.set(i, ItemStack.EMPTY);
+            matches.set(i, picker.match());
         }
-        if (carried.isEmpty()) carried = ItemStack.EMPTY;
-    }
-
-    /**
-     * A click on a slot of the row, as on a slot of any container: with nothing held,
-     * left picks it all up and right picks up half; holding something, left places
-     * it all (or as much as fits on the same item) and right places one; a
-     * different item swaps with what is held.
-     */
-    void clickSlot(int i, int button) {
-        if (i < 0 || i >= slots.size() || (button != Click.LEFT && button != Click.RIGHT)) return;
-        selected = i;
-        ItemStack in = slots.get(i);
-        boolean left = button == Click.LEFT;
-        if (carried.isEmpty()) {
-            if (in.isEmpty()) return;
-            int take = left ? in.getCount() : (in.getCount() + 1) / 2;
-            carried = in.copyWithCount(take);
-            slots.set(i, take == in.getCount() ? ItemStack.EMPTY : in.copyWithCount(in.getCount() - take));
-        } else if (in.isEmpty()) {
-            int put = left ? Math.min(carried.getCount(), limit(carried)) : 1;
-            slots.set(i, carried.copyWithCount(put));
-            carried.shrink(put);
-        } else if (ItemStack.isSameItemSameComponents(in, carried)) {
-            int room = limit(in) - in.getCount();
-            int put = Math.min(room, left ? carried.getCount() : 1);
-            if (put > 0) {
-                slots.set(i, in.copyWithCount(in.getCount() + put));
-                carried.shrink(put);
-            }
-        } else if (carried.getCount() <= limit(carried)) {
-            slots.set(i, carried);
-            carried = in;
-        }
-        if (carried.isEmpty()) carried = ItemStack.EMPTY;
         changed();
-    }
-
-    /** A drag over {@code over}, then released. */
-    void drag(List<Integer> over, int button) {
-        dragged.clear();
-        dragged.addAll(over);
-        dragButton = button;
-        endDrag();
-    }
-
-    /** Whether a drag may spread onto slot {@code i}: empty, or the same item with room. */
-    private boolean takesDrag(int i) {
-        ItemStack in = slots.get(i);
-        return in.isEmpty() || (ItemStack.isSameItemSameComponents(in, carried) && in.getCount() < limit(in));
-    }
-
-    /**
-     * The drag's release: over one slot it is a click there; over more, the held
-     * stack spreads as vanilla's does, evenly with the left button (what does not
-     * divide stays held), one each with the right.
-     */
-    private void endDrag() {
-        List<Integer> over = new ArrayList<>(dragged);
-        int button = dragButton;
-        dragged.clear();
-        dragButton = -1;
-        if (over.size() <= 1) {
-            if (!over.isEmpty()) clickSlot(over.get(0), button);
-            return;
-        }
-        List<Integer> take = over.stream().filter(i -> i < slots.size() && takesDrag(i)).toList();
-        if (take.isEmpty() || carried.isEmpty()) return;
-        int each = button == Click.LEFT ? Math.max(1, carried.getCount() / take.size()) : 1;
-        for (int i : take) {
-            if (carried.isEmpty()) break;
-            ItemStack in = slots.get(i);
-            int put = Math.min(Math.min(each, limit(carried) - in.getCount()), carried.getCount());
-            if (put <= 0) continue;
-            slots.set(i, carried.copyWithCount(in.getCount() + put));
-            carried.shrink(put);
-        }
-        if (carried.isEmpty()) carried = ItemStack.EMPTY;
-        selected = take.get(0);
-        changed();
-    }
-
-    /**
-     * A click anywhere, before it is dispatched (every click on the screen is offered
-     * to {@link PanelElement#notifyClickOutsideOverlay} first): holding something, a
-     * click that is on neither a slot of the row (which places it) nor the grid (which
-     * takes, adds or puts back, as the creative inventory does) drops it. {@code in}
-     * is at the dialog's content origin.
-     */
-    private void clickAnywhere(InputContext in) {
-        if (!open || carried.isEmpty()) return;
-        if (((SlotRow) row).slotAt(in) >= 0) return;
-        int[] g = gridViewport();
-        if (g != null && in.isOver(g[0], g[1], g[2], g[3])) return;
-        dropCarried();
-    }
-
-    /** The grid's area ({@code x, y, w, h} in the dialog's content), or null while the Edit tab is shown. */
-    private int @Nullable [] gridViewport() {
-        if (tabs == null) return rect(gridBox, 0, 0);
-        if (!tab.equals("search")) return null;
-        int[] clip = tabs.bodyClip();
-        return rect(gridBox, tabs.getChildX() + clip[0], tabs.getChildY() + clip[1]);
+        selected = Math.min(selected, slots.size() - 1);
     }
 
     // The Edit tab's fields
@@ -694,8 +569,8 @@ final class ItemDialog {
     /**
      * Each box the dialog draws on the shown tab, in its content's coordinates, with
      * the box it must stay inside: every row in the dialog, every element of the shown
-     * tab in the tab's body, each slot in the row, the grid's columns in the grid's
-     * viewport, a field's hint inside the field's text area, and each enchantment
+     * tab in the tab's body, each slot in the row (and a filled one's remove button in
+     * its corner), the grid's columns in the grid's viewport, a field's hint inside the field's text area, and each enchantment
      * row's name, level and controls inside their room in the row. {@code kind} is the
      * screen it is laid out for (the band's inset).
      */
@@ -716,8 +591,13 @@ final class ItemDialog {
         int[] slotsRect = rect(row, 0, 0);
         SlotRow r = (SlotRow) row;
         for (int i = 0; i < slots.size(); i++) {
-            out.add(box("slot " + i, new int[]{slotsRect[0] + r.left() + (i % COLUMNS) * ItemPicker.SIZE,
-                    slotsRect[1] + (i / COLUMNS) * ItemPicker.SIZE, ItemPicker.SIZE, ItemPicker.SIZE}, slotsRect));
+            int[] slot = {r.slotX(i, 0), r.slotY(i, 0), ItemPicker.SIZE, ItemPicker.SIZE};
+            out.add(box("slot " + i, slot, slotsRect));
+            // A filled slot's remove button, inside the slot's corner.
+            if (!slots.get(i).isEmpty()) {
+                out.add(box("remove " + i, new int[]{slot[0] + ItemPicker.SIZE - ItemPicker.REMOVE_SIZE, slot[1],
+                        ItemPicker.REMOVE_SIZE, ItemPicker.REMOVE_SIZE}, slot));
+            }
         }
 
         // The shown tab's body: where it is and what clips it.
@@ -796,9 +676,10 @@ final class ItemDialog {
 
     /**
      * The setting's slots, nine to a row, centred: the selected one outlined, a list's
-     * last (empty) one marked with a plus. Takes clicks and drags as a container's
-     * slots do on the Search tab, and only selects on the Edit tab. Draws what the
-     * cursor holds over everything, in the overlay pass. Asks for its slots' width.
+     * last (empty) one marked with a plus, each filled one with its remove button in
+     * the top-right corner. A click on a slot selects it (the grid fills it, the Edit
+     * tab edits it); a click on a remove button empties that slot. Asks for its slots'
+     * width.
      */
     private final class SlotRow extends AbstractPanelElement {
 
@@ -819,6 +700,15 @@ final class ItemDialog {
             return (getWidth() - naturalWidth()) / 2;
         }
 
+        /** Slot {@code i}'s top-left from the row's content origin {@code (ox, oy)}. */
+        int slotX(int i, int ox) {
+            return ox + childX + left() + (i % perRow()) * ItemPicker.SIZE;
+        }
+
+        int slotY(int i, int oy) {
+            return oy + childY + (i / perRow()) * ItemPicker.SIZE;
+        }
+
         @Override public int naturalWidth() { return Math.min(Math.max(1, slots.size()), perRow()) * ItemPicker.SIZE; }
         @Override public int getWidth() { return Math.max(width, naturalWidth()); }
         @Override public int getHeight() { return rows() * ItemPicker.SIZE; }
@@ -826,10 +716,6 @@ final class ItemDialog {
         @Override public void layoutWithin(int budget) { width = budget; }
         @Override public void fillWidth(int width) {}
         @Override public boolean isInteractive() { return true; }
-
-        int slotAt(InputContext in) {
-            return slotAt(in.mouseX(), in.mouseY(), in.originX(), in.originY());
-        }
 
         private int slotAt(double mx, double my, int ox, int oy) {
             double lx = mx - (ox + childX + left()), ly = my - (oy + childY);
@@ -840,73 +726,42 @@ final class ItemDialog {
             return i < slots.size() ? i : -1;
         }
 
+        /** Whether the point is on filled slot {@code i}'s remove button (its few pixels only). */
+        private boolean onRemove(int i, double mx, double my, int ox, int oy) {
+            return i >= 0 && !slots.get(i).isEmpty() && ItemPicker.overRemove(mx, my, slotX(i, ox), slotY(i, oy));
+        }
+
         @Override
         public void render(RenderContext ctx) {
             checkFields();
             GuiGraphicsExtractor g = ctx.graphics();
-            int x0 = ctx.originX() + childX + left(), y0 = ctx.originY() + childY;
-            int hovered = ctx.hasMouseInput() ? slotAt(ctx.mouseX(), ctx.mouseY(), ctx.originX(), ctx.originY()) : -1;
-            // A drag spreads onto each slot it passes that can take it, while the
-            // held stack has more items than slots covered (vanilla's rule).
-            if (dragButton >= 0) {
-                boolean held = dragButton != Click.LEFT || PressedTracker.isLeftMouseDown();
-                if (!held) endDrag();
-                else if (hovered >= 0 && !dragged.contains(hovered) && takesDrag(hovered)
-                        && carried.getCount() > dragged.size()) dragged.add(hovered);
-            }
+            double mx = ctx.mouseX(), my = ctx.mouseY();
+            int ox = ctx.originX(), oy = ctx.originY();
+            int hovered = ctx.hasMouseInput() ? slotAt(mx, my, ox, oy) : -1;
+            boolean onRemove = onRemove(hovered, mx, my, ox, oy);
             for (int i = 0; i < slots.size(); i++) {
-                int x = x0 + (i % perRow()) * ItemPicker.SIZE, y = y0 + (i / perRow()) * ItemPicker.SIZE;
-                ItemPicker.drawSlot(g, ctx.kind(), x, y, slots.get(i), i == hovered || dragged.contains(i), false);
+                int x = slotX(i, ox), y = slotY(i, oy);
+                ItemPicker.drawSlot(g, ctx.kind(), x, y, slots.get(i), i == hovered && !onRemove, false);
                 if (picker.isList() && i == slots.size() - 1 && slots.get(i).isEmpty()) ItemPicker.drawAddMark(g, ctx.kind(), x, y);
                 if (i == selected) g.outline(x, y, ItemPicker.SIZE, ItemPicker.SIZE, 0xFFFFFFFF);
+                if (!slots.get(i).isEmpty()) ItemPicker.drawRemove(g, x, y, i == hovered && onRemove);
             }
-            if (hovered >= 0 && carried.isEmpty() && !slots.get(hovered).isEmpty()) {
+            if (onRemove) {
+                MKTooltip.queue(g, ItemPicker.REMOVE_TOOLTIP, ctx.mouseX(), ctx.mouseY());
+            } else if (hovered >= 0 && !slots.get(hovered).isEmpty()) {
                 ItemPicker.itemTooltip(g, new ItemMatch(slots.get(hovered), matches.get(hovered)), picker.match(),
                         ctx.mouseX(), ctx.mouseY());
             }
         }
 
-        /** What the cursor holds, at the mouse, over the whole dialog. */
-        @Override
-        public void renderOverlay(RenderContext ctx) {
-            if (carried.isEmpty() || !ctx.hasMouseInput()) return;
-            GuiGraphicsExtractor g = ctx.graphics();
-            g.fakeItem(carried, ctx.mouseX() - 8, ctx.mouseY() - 8);
-            g.itemDecorations(Minecraft.getInstance().font, carried, ctx.mouseX() - 8, ctx.mouseY() - 8);
-        }
-
-        /** Every click on the screen passes here first: one off the row and the grid drops what is held. */
-        @Override
-        public void notifyClickOutsideOverlay(InputContext in) {
-            clickAnywhere(in);
-        }
-
+        /** Left click: on a filled slot's remove button, empties it; anywhere else on a slot, selects it. */
         @Override
         public boolean mouseClicked(InputContext in, int button) {
-            if (disabled(in)) return false;
-            int i = slotAt(in);
+            if (button != Click.LEFT || disabled(in)) return false;
+            int i = slotAt(in.mouseX(), in.mouseY(), in.originX(), in.originY());
             if (i < 0) return false;
-            if (picker.hasEditTab() && tab.equals("edit")) {
-                // The Edit tab edits the selected slot: a click only picks which.
-                select(i);
-                return true;
-            }
-            if (!carried.isEmpty() && (button == Click.LEFT || button == Click.RIGHT)) {
-                // Holding something: a press starts a drag; its release decides.
-                select(i);
-                dragged.clear();
-                dragged.add(i);
-                dragButton = button;
-                return true;
-            }
-            clickSlot(i, button);
-            return true;
-        }
-
-        @Override
-        public boolean mouseReleased(InputContext in, int button) {
-            if (dragButton < 0 || button != dragButton) return false;
-            endDrag();
+            if (onRemove(i, in.mouseX(), in.mouseY(), in.originX(), in.originY())) remove(i);
+            else select(i);
             return true;
         }
     }
@@ -975,34 +830,42 @@ final class ItemDialog {
                             entry, entry == hovered, false);
                 }
             }
-            if (hovered != null && carried.isEmpty()) {
+            if (hovered != null) {
                 g.setTooltipForNextFrame(Minecraft.getInstance().font, hovered, ctx.mouseX(), ctx.mouseY());
             }
         }
 
+        /** Left click on an entry: one of it into the selected slot. */
         @Override
         public boolean mouseClicked(InputContext in, int button) {
-            if (disabled(in)) return false;
+            if (button != Click.LEFT || disabled(in)) return false;
             ItemStack entry = entryAt(in.originX(), in.originY(), in.mouseX(), in.mouseY());
             if (entry == null) return false;
-            clickEntry(entry, button, Minecraft.getInstance().hasShiftDown());
+            fill(entry);
             return true;
         }
     }
 
     // The Edit tab's enchantment list
 
-    /** A row of the enchantment list: an enchantment on the item, one that can be added, or (no choice) the heading between. */
-    private record EnchantRow(@Nullable EnchantChoice choice, boolean applied) {}
+    /**
+     * A row of the enchantment list: an enchantment on the item, one that can be added,
+     * or (no choice) a list's heading, "Added" ({@code applied}) or "Not Added".
+     */
+    private record EnchantRow(@Nullable EnchantChoice choice, boolean applied) {
+        Component heading() {
+            return applied ? ADDED_HEADING : NOT_ADDED_HEADING;
+        }
+    }
 
     /** One control button of a row: where it is from the row's left, its glyph, whether it does anything, and what it says. */
     private record Control(int x, String glyph, boolean enabled, Component tooltip, Runnable action) {}
 
     /**
      * The enchantments that fit the selected stack, in two lists, one above the
-     * other: those on the item, each with its level, a - and a + (from I to its
-     * highest, no further) and a remove control; then, under a heading when both
-     * show, those that can be added, each with an add control (on at level I, and
+     * other, each under its heading while it has any: "Added", those on the item, each
+     * with its level, a - and a + (from I to its highest, no further) and a remove
+     * control; then "Not Added", those that can be added, each with an add control (on at level I, and
      * into the list above). One excluded by an enchantment on the item is greyed, its
      * add control off, its tooltip naming what it conflicts with. Asks for the room
      * its longest name, the level and the controls need; every row's controls line up
@@ -1018,8 +881,10 @@ final class ItemDialog {
         List<EnchantRow> rows() {
             List<EnchantRow> applied = new ArrayList<>(), more = new ArrayList<>();
             for (EnchantChoice c : enchantChoices()) (c.applied() ? applied : more).add(new EnchantRow(c, c.applied()));
-            List<EnchantRow> out = new ArrayList<>(applied);
-            if (!applied.isEmpty() && !more.isEmpty()) out.add(new EnchantRow(null, false));
+            List<EnchantRow> out = new ArrayList<>();
+            if (!applied.isEmpty()) out.add(new EnchantRow(null, true));
+            out.addAll(applied);
+            if (!more.isEmpty()) out.add(new EnchantRow(null, false));
             out.addAll(more);
             return out;
         }
@@ -1051,7 +916,7 @@ final class ItemDialog {
         @Override
         public int naturalWidth() {
             Font font = Minecraft.getInstance().font;
-            int name = font.width(ADD_HEADING);
+            int name = Math.max(font.width(ADDED_HEADING), font.width(NOT_ADDED_HEADING));
             for (EnchantChoice c : enchantChoices()) name = Math.max(name, font.width(c.name()));
             // The widest a row gets: an applied one, its name, level and three controls.
             return TEXT_PAD + name + ROW_GAP + levelColumn(font) + ROW_GAP + 3 * CONTROL + 2 * CONTROL_GAP + 1;
@@ -1119,7 +984,7 @@ final class ItemDialog {
                 int textY = Text.centeredTextY(ry, ry + ENCHANT_ROW);
                 EnchantChoice c = r.choice();
                 if (c == null) {
-                    g.text(font, fit(ADD_HEADING, width - TEXT_PAD, font), x + TEXT_PAD, textY,
+                    g.text(font, fit(r.heading(), width - TEXT_PAD, font), x + TEXT_PAD, textY,
                             kind.textColor(TextRole.MUTED), kind.textShadow());
                     continue;
                 }
@@ -1171,7 +1036,7 @@ final class ItemDialog {
                 int[] rowRect = {ox, ry, width, ENCHANT_ROW};
                 EnchantChoice c = r.choice();
                 if (c == null) {
-                    String s = fit(ADD_HEADING, width - TEXT_PAD, font);
+                    String s = fit(r.heading(), width - TEXT_PAD, font);
                     out.add(box("heading \"" + s + "\"", new int[]{ox + TEXT_PAD, ry, font.width(s), ENCHANT_ROW}, rowRect));
                     continue;
                 }

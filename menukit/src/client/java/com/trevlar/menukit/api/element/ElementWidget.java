@@ -137,6 +137,7 @@ final class ElementWidget extends AbstractButton {
     /** Vanilla's button click, for an element's own mouse press. No-op with no game (a build-time check). */
     static void playClickSound() {
         Minecraft mc = Minecraft.getInstance();
-        if (mc != null) playButtonClickSound(mc.getSoundManager());
+        // No game (or one with no sound yet, as MenuKit's checks stand one up): no sound.
+        if (mc != null && mc.getSoundManager() != null) playButtonClickSound(mc.getSoundManager());
     }
 }

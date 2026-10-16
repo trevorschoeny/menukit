@@ -2,5 +2,8 @@
   "key.menukit.unbound": "Unbound",
   "key.menukit.conflicts_header": "Conflicts with:",
   "key.menukit.open_controls": "Open in Controls",
+  "menukit.item_picker.remove": "Remove",
+  "menukit.item_picker.added": "Added",
+  "menukit.item_picker.not_added": "Not Added",
   "key.category.trevmods.trevmods": "Trev's Mods"
 }

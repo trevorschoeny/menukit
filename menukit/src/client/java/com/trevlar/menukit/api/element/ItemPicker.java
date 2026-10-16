@@ -78,10 +78,12 @@ import java.util.function.Supplier;
  * <h3>On the page</h3>
  *
  * One slot, or for a list a wrapping row of slots in order, {@link Builder#columns}
- * to a row, with an empty slot at the end to add one. Left click (or Enter on the
- * focused picker) opens the dialog at that slot; right click empties it (a list
- * drops it). Hovered, a slot shows the item's own tooltip, unless the builder gives
- * a {@code tooltip}.
+ * to a row, with an empty slot at the end to add one. Each filled slot has a small
+ * remove button in its top-right corner ("Remove"): a click on it, or a right click
+ * anywhere on the slot, empties it, and a list drops it, the items after it moving
+ * up one in their order. Left click anywhere else on a slot (or Enter on the focused
+ * picker) opens the dialog at that slot. Hovered, a slot shows the item's own
+ * tooltip, unless the builder gives a {@code tooltip}.
  *
  * <h3>The dialog</h3>
  *
@@ -89,21 +91,21 @@ import java.util.function.Supplier;
  * (equal margins, Cancel and Done centred, as tall as the shown tab):
  * <ul>
  *   <li><b>The slot row</b> at the top: the setting's slots (a list's wrapped, with
- *       an empty one at the end to add to). The selected one is outlined; the Edit
- *       tab edits it.</li>
+ *       an empty one at the end to add to). A click on a slot selects it, outlined;
+ *       the grid fills it and the Edit tab edits it. Each filled slot has the same
+ *       remove button as on the page: it empties the slot, and a list drops it, the
+ *       ones after it moving left.</li>
  *   <li><b>Search</b>, the default tab: a search box, focused so typing starts at
  *       once, over a grid of every item from the creative inventory's search tab,
  *       so each variant (potions, tipped arrows, enchanted book levels, goat horns,
- *       firework durations, ominous bottles) is its own entry. Items move as in the
- *       creative inventory: a click on an entry takes one (shift-click or middle
- *       click a full stack; clicking it again adds one, a right click takes one
- *       back); a click on a slot places, picks up or swaps (a right click places
- *       one or takes half); dragging over slots spreads the stack (right-drag one
- *       each); a click on the grid while holding something else puts it back. Enter
- *       in the search box puts the first match into the selected slot.</li>
+ *       firework durations, ominous bottles) is its own entry. A click on an entry
+ *       puts one of it straight into the selected slot, replacing what was there;
+ *       the slot stays selected. Nothing is carried on the cursor. Enter in the
+ *       search box puts the first match in the same way.</li>
  *   <li><b>Edit</b>, for {@code EXACT} and {@code CONTAINS}: the selected slot's
- *       name, count, enchantments (only those that fit the item, up to their highest
- *       level, the ones a chosen enchantment excludes greyed; none for an item
+ *       name, count, enchantments (under "Added" those on the item, under "Not Added"
+ *       those that fit it, up to their highest level, the ones a chosen enchantment
+ *       excludes greyed; none for an item
  *       nothing enchants; an enchanted book's stored ones), every other component
  *       as text in vanilla's {@code /give} syntax (read by vanilla's own item
  *       parser, its errors shown as a command's), and the match choice when the
@@ -115,8 +117,8 @@ import java.util.function.Supplier;
  * <h3>A setting value, never a player's item</h3>
  *
  * Nothing here touches the player's inventory, a menu or the container behind a
- * screen, and nothing is sent to the server: the slots are not real slots, the item
- * held in the dialog is the dialog's own, and every stack is a picture of a value.
+ * screen, and nothing is sent to the server: the slots are not real slots, and every
+ * stack is a picture of a value.
  *
  * <p>Each slot is 18 x 18, vanilla's slot size, MenuKit's recessed slot on a
  * container screen and vanilla's slot sprite on an options screen.
@@ -127,6 +129,11 @@ public class ItemPicker extends AbstractPanelElement {
     public static final int SIZE = 18;
     /** Slots in a list's row unless {@link Builder#columns} says otherwise: a vanilla inventory row. */
     public static final int DEFAULT_COLUMNS = 9;
+    /** A filled slot's remove button: this many pixels square, over the slot's top-right corner. */
+    static final int REMOVE_SIZE = 5;
+    static final Component REMOVE_TOOLTIP = Component.translatable("menukit.item_picker.remove");
+    // Dark with a white bar, lighter while hovered: reads on both kinds' grey slots.
+    private static final int REMOVE_FILL = 0xFF2A2A2A, REMOVE_HOVER = 0xFF5E5E5E, REMOVE_BAR = 0xFFFFFFFF;
 
     // Vanilla's slot highlight (AbstractContainerScreen, 26.2): a 24 x 24 glow behind
     // the item and a sheen in front of it, both 4 px out from the item's corner.
@@ -246,6 +253,15 @@ public class ItemPicker extends AbstractPanelElement {
     @Override public void fillWidth(int width) {}
     @Override public boolean isInteractive() { return true; }
 
+    /** Page slot {@code i}'s top-left, the picker's at {@code (x, y)}. */
+    private int slotX(int i, int x) {
+        return x + (i % perRow()) * SIZE;
+    }
+
+    private int slotY(int i, int y) {
+        return y + (i / perRow()) * SIZE;
+    }
+
     /** The page slot at a screen point, the picker's top-left at {@code (x, y)}, or -1. */
     private int slotAt(double mx, double my, int x, int y) {
         if (mx < x || my < y) return -1;
@@ -268,15 +284,20 @@ public class ItemPicker extends AbstractPanelElement {
                     Component.empty().append(label).append(": ").append(narration(v)));
         }
         GuiGraphicsExtractor g = ctx.graphics();
+        // The hovered slot's remove button, when the mouse is on its few pixels (a disabled picker has none).
+        boolean onRemove = !disabled && hovered >= 0 && hovered < v.size()
+                && overRemove(ctx.mouseX(), ctx.mouseY(), slotX(hovered, sx), slotY(hovered, sy));
         for (int i = 0; i < slotCount(); i++) {
-            int x = sx + (i % perRow()) * SIZE, y = sy + (i / perRow()) * SIZE;
+            int x = slotX(i, sx), y = slotY(i, sy);
             ItemStack stack = i < v.size() ? v.get(i).stack() : ItemStack.EMPTY;
-            boolean hot = !disabled && (i == hovered || (focused && i == 0));
+            boolean hot = !disabled && ((i == hovered && !onRemove) || (focused && i == 0));
             drawSlot(g, ctx.kind(), x, y, stack, hot, disabled);
             if (list && i == v.size()) drawAddMark(g, ctx.kind(), x, y);
+            if (!disabled && i < v.size()) drawRemove(g, x, y, i == hovered && onRemove);
         }
         if (hovered < 0) return;
-        if (tooltipSupplier() != null) queueTooltip(ctx);
+        if (onRemove) MKTooltip.queue(g, REMOVE_TOOLTIP, ctx.mouseX(), ctx.mouseY());
+        else if (tooltipSupplier() != null) queueTooltip(ctx);
         else if (hovered < v.size()) itemTooltip(g, v.get(hovered), match, ctx.mouseX(), ctx.mouseY());
     }
 
@@ -319,6 +340,19 @@ public class ItemPicker extends AbstractPanelElement {
         drawSlot(g, kind, x, y, item == Items.AIR ? ItemStack.EMPTY : new ItemStack(item), highlighted, disabled);
     }
 
+    /** Whether a point is on the remove button of the slot at {@code (x, y)}: its few pixels, no more. */
+    static boolean overRemove(double mx, double my, int x, int y) {
+        int rx = x + SIZE - REMOVE_SIZE;
+        return mx >= rx && mx < rx + REMOVE_SIZE && my >= y && my < y + REMOVE_SIZE;
+    }
+
+    /** A filled slot's remove button, over its top-right corner: a small dark square with a white minus. */
+    static void drawRemove(GuiGraphicsExtractor g, int x, int y, boolean hovered) {
+        int rx = x + SIZE - REMOVE_SIZE;
+        g.fill(rx, y, rx + REMOVE_SIZE, y + REMOVE_SIZE, hovered ? REMOVE_HOVER : REMOVE_FILL);
+        g.fill(rx + 1, y + REMOVE_SIZE / 2, rx + REMOVE_SIZE - 1, y + REMOVE_SIZE / 2 + 1, REMOVE_BAR);
+    }
+
     /** A faint plus in the empty slot at the end of a list: add one here. */
     static void drawAddMark(GuiGraphicsExtractor g, ScreenKind kind, int x, int y) {
         int c = kind.textColor(TextRole.MUTED);
@@ -345,14 +379,19 @@ public class ItemPicker extends AbstractPanelElement {
         };
     }
 
-    /** Left click opens the dialog at the slot; right click empties it (a list drops it). */
+    /**
+     * Left click on a filled slot's remove button, or right click on any slot, empties
+     * it (a list drops it, the rest moving up); left click anywhere else opens the
+     * dialog at the slot.
+     */
     @Override
     public boolean mouseClicked(InputContext in, int button) {
         if (disabled(in)) return false;
         int x = in.originX() + childX, y = in.originY() + childY;
         int i = slotAt(in.mouseX(), in.mouseY(), x, y);
         if (i < 0) return false;
-        if (button == Click.RIGHT) {
+        boolean onRemove = i < value().size() && overRemove(in.mouseX(), in.mouseY(), slotX(i, x), slotY(i, y));
+        if (button == Click.RIGHT || (button == Click.LEFT && onRemove)) {
             ElementWidget.playClickSound();
             List<ItemMatch> v = new ArrayList<>(value());
             if (i < v.size()) v.remove(i);
@@ -423,37 +462,25 @@ public class ItemPicker extends AbstractPanelElement {
         return dialog.selected();
     }
 
-    /** What the dialog holds on the cursor. */
-    @ApiStatus.Internal
-    public ItemStack carried() {
-        return dialog.carried();
-    }
-
     /** The Search tab's entries for a query: the creative search contents, searched. */
     @ApiStatus.Internal
     public List<ItemStack> searchEntries(String query) {
         return dialog.entries(query);
     }
 
-    /** A click on a grid entry, as the Search tab takes it ({@code shift} for shift-click). */
+    /** A click on a grid entry: one of it into the selected slot. */
     @ApiStatus.Internal
-    public void clickEntry(ItemStack entry, int button, boolean shift) {
-        dialog.clickEntry(entry, button, shift);
+    public void pickEntry(ItemStack entry) {
+        dialog.fill(entry);
     }
 
-    /** A click on slot {@code slot} of the slot row (a press and release on it alone). */
+    /** A click on the remove button of slot {@code slot} of the slot row. */
     @ApiStatus.Internal
-    public void clickSlot(int slot, int button) {
-        dialog.clickSlot(slot, button);
+    public void removeSlot(int slot) {
+        dialog.remove(slot);
     }
 
-    /** A drag with {@code button} held over {@code slots} of the slot row, then released. */
-    @ApiStatus.Internal
-    public void dragSlots(List<Integer> slots, int button) {
-        dialog.drag(slots, button);
-    }
-
-    /** Selects slot {@code slot} of the slot row, as a click on it in the Edit tab does. */
+    /** Selects slot {@code slot} of the slot row, as a click on it does. */
     @ApiStatus.Internal
     public void selectSlot(int slot) {
         dialog.select(slot);
