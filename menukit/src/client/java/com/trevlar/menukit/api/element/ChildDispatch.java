@@ -1,5 +1,7 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.panel.ScreenKind;
+
 import net.minecraft.client.gui.screens.Screen;
 
 import org.jspecify.annotations.Nullable;
@@ -154,6 +156,16 @@ public final class ChildDispatch {
      */
     public static void attach(List<? extends PanelElement> children, Screen screen) {
         for (PanelElement c : children) c.onAttach(screen);
+    }
+
+    /** Hands the kind of screen to every child, shown or not ({@link PanelElement#screenKind}). */
+    public static void screenKind(List<? extends PanelElement> children, ScreenKind kind) {
+        for (PanelElement c : children) c.screenKind(kind);
+    }
+
+    /** Tells every child, shown or not, whether it is in a dialog ({@link PanelElement#inDialog}). */
+    public static void inDialog(List<? extends PanelElement> children, boolean inDialog) {
+        for (PanelElement c : children) c.inDialog(inDialog);
     }
 
     /** Detaches every child. */

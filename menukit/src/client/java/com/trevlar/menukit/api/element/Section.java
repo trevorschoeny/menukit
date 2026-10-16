@@ -344,6 +344,16 @@ public final class Section extends AbstractPanelElement {
         ChildDispatch.notifyClickOutside(children, content(in));
     }
 
+    @Override
+    public void screenKind(ScreenKind kind) {
+        ChildDispatch.screenKind(children, kind);
+    }
+
+    @Override
+    public void inDialog(boolean inDialog) {
+        ChildDispatch.inDialog(children, inDialog);
+    }
+
     /** Every child attaches, open or not, as a hidden panel's elements do. */
     @Override
     public void onAttach(Screen screen) {

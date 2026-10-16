@@ -28,6 +28,11 @@ import org.jetbrains.annotations.ApiStatus;
  * another row's width changes at runtime (a Tabs on an options screen's page is
  * wider than on a container screen). Any other row (a Tabs) is laid out to the
  * dialog's full width.
+ *
+ * <p>The panel is a modal, and a modal tells its elements they are in a dialog
+ * ({@code PanelElement.inDialog}): on an options screen a list band in it (a Tabs
+ * page, a ScrollContainer) insets its content by {@link #GAP}, as everything else
+ * here is spaced, not by the full screen's band inset.
  */
 @ApiStatus.Internal
 public final class DialogLayout {

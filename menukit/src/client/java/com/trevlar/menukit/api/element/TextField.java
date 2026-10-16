@@ -70,6 +70,9 @@ public class TextField extends AbstractPanelElement {
     private final @Nullable Component hint;
     private final @Nullable Consumer<String> onSubmit;
 
+    /** As wide as the room it is given ({@link Builder#fill}). */
+    private final boolean fills;
+
     /** Hosts the EditBox, made at the first attach (the font must exist), at this field's (0, 0). */
     private final WidgetHost<MKEditBox> host;
 
@@ -83,6 +86,7 @@ public class TextField extends AbstractPanelElement {
         this.editable = b.editable;
         this.hint = b.hint;
         this.onSubmit = b.onSubmit;
+        this.fills = b.fill;
         this.host = WidgetHost.builder().widget(this::makeEditBox).size(width, height).build();
     }
 
@@ -112,6 +116,22 @@ public class TextField extends AbstractPanelElement {
     }
 
     @Override public boolean isInteractive() { return true; }
+
+    /** Vanilla's EditBox draws its text (and hint) this far inside its border, each side. */
+    private static final int TEXT_INSET = 4;
+
+    /** Its size's width; filling, at least its hint's, so the hint is never cut off. */
+    @Override
+    public int naturalWidth() {
+        if (!fills || hint == null) return authoredWidth;
+        return Math.max(authoredWidth, Minecraft.getInstance().font.width(hint) + 2 * TEXT_INSET);
+    }
+
+    /** Capped to the room it is given; filling, it takes all of it. */
+    @Override
+    public void layoutWithin(int budget) {
+        width = fills ? Math.max(1, budget) : Math.min(authoredWidth, budget);
+    }
 
     @Override
     public void render(RenderContext ctx) {
@@ -169,6 +189,7 @@ public class TextField extends AbstractPanelElement {
         private boolean editable = true;
         private @Nullable Component hint;
         private @Nullable Consumer<String> onSubmit;
+        private boolean fill = false;
 
         protected Builder() {}
 
@@ -178,6 +199,16 @@ public class TextField extends AbstractPanelElement {
         @Override
         public Builder size(int width, int height) {
             return super.size(width, height);
+        }
+
+        /**
+         * As wide as the room its panel gives it (7.2.0); it asks for the size's width,
+         * or its hint's when that is wider. For a field that spans a dialog or a column, lining up with what
+         * is above and below it whatever their width.
+         */
+        public Builder fill() {
+            this.fill = true;
+            return this;
         }
 
         /**

@@ -158,9 +158,23 @@ public interface PanelElement {
      * The kind of screen the owning panel is on, handed down whenever it changes,
      * before the next layout pass. For an element whose size depends on the kind (a
      * {@link Tabs} insets its body on an options screen's page), so it measures for
-     * the screen it is on from the first frame. Default: no-op.
+     * the screen it is on from the first frame. An element holding others passes it
+     * on to them (a {@link ScrollContainer} in a Tabs body sizes its band's inset by
+     * it). Default: no-op.
      */
     default void screenKind(ScreenKind kind) {}
+
+    /**
+     * Whether the owning panel is a dialog (a modal, {@code Panel.tracksAsModal})
+     * rather than part of the screen, handed down when that is set (7.2.0). On an
+     * options screen a list band (a {@link ScrollContainer}'s, a {@link Tabs} page)
+     * insets its content by the full screen's {@link ScrollContainer#OPTIONS_INSET_X}
+     * and {@link ScrollContainer#OPTIONS_INSET_Y}; inside a dialog the frame and its
+     * padding are already the margin, so a band insets by the dialog's own gap,
+     * {@link ScrollContainer#DIALOG_INSET}, instead. An element holding others passes
+     * it on to them. Default: no-op.
+     */
+    default void inDialog(boolean inDialog) {}
 
     /**
      * Returns whether this element is currently visible. Invisible elements are

@@ -1,7 +1,5 @@
 package com.trevlar.menukit.api.element;
 
-import com.trevlar.menukit.core.PanelRendering;
-import com.trevlar.menukit.api.panel.PanelStyle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
@@ -11,8 +9,9 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
- * One choice of a single-selection set: a square with a dot when its value is
- * the {@link RadioGroup}'s selection, and a label beside it.
+ * One choice of a single-selection set: a round button with a dot when its value
+ * is the {@link RadioGroup}'s selection, and a label beside it. Round, so a set of
+ * them never reads as checkboxes, whose box is square (7.2.0; it was a square).
  *
  * <pre>{@code
  * RadioGroup<Mode> mode = RadioGroup.state(() -> config.mode, m -> config.mode = m);
@@ -115,14 +114,16 @@ public class Radio<T> extends AbstractPanelElement {
                 text != null ? text : Component.empty(), CommonComponents.optionStatus(selected)));
         var g = ctx.graphics();
 
-        PanelRendering.renderPanel(g, sx, sy, BOX_SIZE, BOX_SIZE, disabled ? PanelStyle.DARK : PanelStyle.INSET);
+        // The round button: a black ring, the inset grey inside it (darker when
+        // disabled), the hover wash, and the dot.
+        disc(g, sx, sy, RING, 0xFF000000);
+        disc(g, sx + 1, sy + 1, INSIDE, disabled ? 0xFF8B8B8B : 0xFFC6C6C6);
         if (!disabled && (hovered || (widget != null && widget.focused()))) {
-            g.fill(sx + 1, sy + 1, sx + BOX_SIZE - 1, sy + BOX_SIZE - 1, ElementConstants.HOVER_OVERLAY);
+            disc(g, sx + 1, sy + 1, INSIDE, ElementConstants.HOVER_OVERLAY);
         }
         if (selected) {
-            int ix = sx + (BOX_SIZE - INDICATOR_SIZE) / 2;
-            int iy = sy + (BOX_SIZE - INDICATOR_SIZE) / 2;
-            g.fill(ix, iy, ix + INDICATOR_SIZE, iy + INDICATOR_SIZE, INDICATOR_COLOR);
+            int off = (BOX_SIZE - INDICATOR_SIZE) / 2;
+            disc(g, sx + off, sy + off, DOT, INDICATOR_COLOR);
         }
         if (text != null) {
             // The button keeps MenuKit's drawing (vanilla has no radio); the label takes the kind's text.
@@ -131,6 +132,16 @@ public class Radio<T> extends AbstractPanelElement {
                     textColor(ctx, TextRole.BODY), ctx.kind().textShadow());
         }
         if (hovered) queueTooltip(ctx);
+    }
+
+    // A disc as rows of {from, to} columns, from its top-left: the ring (BOX_SIZE
+    // across), what is inside it (2 less) and the dot (INDICATOR_SIZE).
+    private static final int[][] RING = {{3, 7}, {1, 9}, {1, 9}, {0, 10}, {0, 10}, {0, 10}, {0, 10}, {1, 9}, {1, 9}, {3, 7}};
+    private static final int[][] INSIDE = {{2, 6}, {1, 7}, {0, 8}, {0, 8}, {0, 8}, {0, 8}, {1, 7}, {2, 6}};
+    private static final int[][] DOT = {{1, 3}, {0, 4}, {0, 4}, {1, 3}};
+
+    private static void disc(net.minecraft.client.gui.GuiGraphicsExtractor g, int x, int y, int[][] rows, int color) {
+        for (int r = 0; r < rows.length; r++) g.fill(x + rows[r][0], y + r, x + rows[r][1], y + r + 1, color);
     }
 
     @Override

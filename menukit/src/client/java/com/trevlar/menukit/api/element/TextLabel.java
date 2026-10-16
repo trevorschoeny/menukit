@@ -73,6 +73,8 @@ public class TextLabel extends AbstractPanelElement {
     private final @Nullable Runnable onRender;
     /** A fixed wrap width (a HUD label's), or 0 to wrap to the panel's budget. */
     private final int fixedWrapWidth;
+    /** Asks for no width and wraps to the room it is given ({@link Builder#fill}). */
+    private final boolean fills;
 
     // The wrap width in FONT space (the one wrap helper): 0 = one line. Set by the
     // layout pass when the label is wider than its room, cleared by a wider pass.
@@ -89,6 +91,7 @@ public class TextLabel extends AbstractPanelElement {
         this.onRender = b.onRender;
         this.fixedWrapWidth = b.wrapWidth;
         this.wrapWidth = b.wrapWidth;
+        this.fills = b.fill;
     }
 
     public static Builder builder() {
@@ -102,6 +105,7 @@ public class TextLabel extends AbstractPanelElement {
 
     @Override
     public int naturalWidth() {
+        if (fills) return 0;
         Component t = text.get();
         return t == null ? 0 : (int) (Minecraft.getInstance().font.width(t) * scale);
     }
@@ -182,6 +186,7 @@ public class TextLabel extends AbstractPanelElement {
         private boolean backdrop = false;
         private @Nullable Runnable onRender;
         private int wrapWidth = 0;
+        private boolean fill = false;
 
         protected Builder() {}
 
@@ -240,6 +245,16 @@ public class TextLabel extends AbstractPanelElement {
         /** Runs at the top of every render (a HUD counter or animation driver). */
         public Builder onRender(Runnable onRender) {
             this.onRender = Objects.requireNonNull(onRender, "onRender");
+            return this;
+        }
+
+        /**
+         * Asks its panel for no width and wraps to the room it is given (7.2.0): for
+         * text that should never widen what it is in, a message under a field that may
+         * run long (an error), as a filling divider asks for none.
+         */
+        public Builder fill() {
+            this.fill = true;
             return this;
         }
 

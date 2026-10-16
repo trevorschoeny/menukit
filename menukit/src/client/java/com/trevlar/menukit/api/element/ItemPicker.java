@@ -489,6 +489,52 @@ public class ItemPicker extends AbstractPanelElement {
         dialog.chooseMatch(match);
     }
 
+    /** The selected slot's enchantment choices, as the Edit tab lists them (on it, then those that can be added). */
+    @ApiStatus.Internal
+    public List<com.trevlar.menukit.core.ItemEditing.EnchantChoice> enchantChoices() {
+        return dialog.enchantChoices();
+    }
+
+    /** The add control of an enchantment not on the selected item. */
+    @ApiStatus.Internal
+    public void addEnchant(net.minecraft.core.Holder<net.minecraft.world.item.enchantment.Enchantment> enchantment) {
+        dialog.addEnchant(enchantment);
+    }
+
+    /** The - ({@code by} -1) or + (1) of an enchantment on the selected item. */
+    @ApiStatus.Internal
+    public void stepEnchant(net.minecraft.core.Holder<net.minecraft.world.item.enchantment.Enchantment> enchantment, int by) {
+        dialog.stepEnchant(enchantment, by);
+    }
+
+    /** The remove control of an enchantment on the selected item. */
+    @ApiStatus.Internal
+    public void removeEnchant(net.minecraft.core.Holder<net.minecraft.world.item.enchantment.Enchantment> enchantment) {
+        dialog.removeEnchant(enchantment);
+    }
+
+    /**
+     * Something the dialog draws, {@code x, y, w, h} in its content's coordinates, and
+     * the box {@code px, py, pw, ph} it must stay inside.
+     */
+    @ApiStatus.Internal
+    public record Box(String what, int x, int y, int w, int h, int px, int py, int pw, int ph) {
+        public boolean inside() {
+            return x >= px && y >= py && x + w <= px + pw && y + h <= py + ph;
+        }
+
+        @Override
+        public String toString() {
+            return what + " [" + x + "," + y + " " + w + "x" + h + "] in [" + px + "," + py + " " + pw + "x" + ph + "]";
+        }
+    }
+
+    /** Everything the dialog draws on the shown tab, laid out for {@code kind}, each with the box it must stay inside. */
+    @ApiStatus.Internal
+    public List<Box> dialogBoxes(ScreenKind kind) {
+        return dialog.boxes(kind);
+    }
+
     /** Whether the dialog has an Edit tab: only when the match mode keeps more than the item. */
     @ApiStatus.Internal
     public boolean hasEditTab() {

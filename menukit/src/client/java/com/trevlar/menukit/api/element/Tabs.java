@@ -128,7 +128,8 @@ import java.util.function.Supplier;
  * band does: {@link ScrollContainer#OPTIONS_INSET_X} from each side (the scrollbar
  * lane is the right margin when the body scrolls) and
  * {@link ScrollContainer#OPTIONS_INSET_Y} above and below, so the body is laid out
- * that much narrower. Behaviour, sizes and the arrows (vanilla's page
+ * that much narrower. In a dialog the page insets by the dialog's own gap,
+ * {@link ScrollContainer#DIALOG_INSET}, the same rule as a ScrollContainer's band. Behaviour, sizes and the arrows (vanilla's page
  * arrows) are the same on both kinds.
  *
  * <p>{@link Mode#SIDEBAR} on an options screen is that tab bar turned on its
@@ -336,6 +337,8 @@ public final class Tabs extends AbstractPanelElement {
      * down by the difference ({@link #extraLayoutHeight}). -1 until then.
      */
     private int placedHeight = -1;
+    /** Whether its panel is a dialog: the page then insets by the dialog's gap ({@link PanelElement#inDialog}). */
+    private boolean inDialog = false;
 
     private Tabs(Builder b) {
         super(b);
@@ -751,21 +754,30 @@ public final class Tabs extends AbstractPanelElement {
         return kind == ScreenKind.OPTIONS;
     }
 
+    /** The page's inset from each side, and above and below the body: the one band rule ({@link ScrollContainer#bandInsetX}). */
+    private int pageInsetX(ScreenKind kind) {
+        return ScrollContainer.bandInsetX(kind, inDialog);
+    }
+
+    private int pageInsetY(ScreenKind kind) {
+        return ScrollContainer.bandInsetY(kind, inDialog);
+    }
+
     /**
      * The body's top-left, in element-local coordinates: below the header and the
      * strip, or right of the sidebar. On a page the gap under the strip is the
      * band's top inset.
      */
     private int bodyTop(StripLayout s, ScreenKind kind) {
-        if (sidebar()) return s.top + (paged(kind) ? ScrollContainer.OPTIONS_INSET_Y : 0);
-        int gap = paged(kind) ? ScrollContainer.OPTIONS_INSET_Y : BODY_GAP;
+        if (sidebar()) return s.top + pageInsetY(kind);
+        int gap = paged(kind) ? pageInsetY(kind) : BODY_GAP;
         return s.top + s.height + (s.height > 0 ? gap : 0);
     }
 
     private int bodyLeft(StripLayout s, ScreenKind kind) {
-        if (!sidebar()) return paged(kind) ? ScrollContainer.OPTIONS_INSET_X : 0;
+        if (!sidebar()) return pageInsetX(kind);
         // On a page the column meets the page, and the page insets the body.
-        if (paged(kind)) return s.columnWidth + ScrollContainer.OPTIONS_INSET_X;
+        if (paged(kind)) return s.columnWidth + pageInsetX(kind);
         return s.columnWidth + (s.columnWidth > 0 ? BODY_GAP : 0);
     }
 
@@ -776,7 +788,7 @@ public final class Tabs extends AbstractPanelElement {
 
     /** The width the body is laid out to when it does not scroll: inside the page's right inset too. */
     private int bodyWidth(StripLayout s, ScreenKind kind) {
-        int right = paged(kind) ? ScrollContainer.OPTIONS_INSET_X : 0;
+        int right = pageInsetX(kind);
         return Math.max(1, bodyOuterWidth(s, kind) - right);
     }
 
@@ -803,7 +815,7 @@ public final class Tabs extends AbstractPanelElement {
         Panel.layoutElementsWithin(tab.body, w);
         Panel.reflowForWrap(tab.body);
         int contentH = Panel.contentHeightOf(tab.body);
-        int below = paged(kind) ? ScrollContainer.OPTIONS_INSET_Y : 0;
+        int below = pageInsetY(kind);
         ScrollContainer scroll = null;
         int reserve = ScrollContainer.TRACK_WIDTH + ScrollContainer.SCROLLER_GUTTER;
         // A scrolling body reaches the element's right edge: its lane is the page's right margin.
@@ -882,10 +894,13 @@ public final class Tabs extends AbstractPanelElement {
         Font font = Minecraft.getInstance().font;
         int row = 0, widestBody = 0;
         List<Tab> visible = new ArrayList<>();
+        // Fitting the shown tab, only its body sets the width, as only it sets the height.
+        Tab shown = fitShownTab ? shownTab() : null;
         for (Tab t : tabs) {
             if (!t.isVisible()) continue;
             visible.add(t);
             row += Math.max(font.width(t.label) + t.iconRoom() + 2 * LABEL_PAD, MIN_TAB_WIDTH);
+            if (fitShownTab && t != shown) continue;
             for (PanelElement e : t.body) {
                 if (e.isVisible()) widestBody = Math.max(widestBody, e.getChildX() + e.naturalWidth());
             }
@@ -893,7 +908,7 @@ public final class Tabs extends AbstractPanelElement {
         // A sidebar sits beside the body; a strip sits above it.
         // The header spans both, so it only ever widens the whole.
         boolean paged = paged(measuredKind);
-        if (paged) widestBody += 2 * ScrollContainer.OPTIONS_INSET_X;
+        widestBody += 2 * pageInsetX(measuredKind);
         if (sidebar()) {
             // No tab column: 0 wide and no gap, as bodyLeft lays it out.
             int column = tabColumn ? Math.max(sidebarNaturalWidth(visible), naturalWidthOf(sidebarHeader)) : 0;
@@ -930,7 +945,7 @@ public final class Tabs extends AbstractPanelElement {
         }
         // Under the header: the sidebar column (its own header, then every tab) beside the body, or the body.
         int column = s.top + stripViewportStart(s) + s.height;
-        int below = paged(kind) ? ScrollContainer.OPTIONS_INSET_Y : 0;
+        int below = pageInsetY(kind);
         int bodyBottom = bodyTop(s, kind) + tallest + below;
         naturalHeightCache = sidebar() ? Math.max(column, bodyBottom) : bodyBottom;
         naturalHeightKey = naturalKey(w); // after layout, so a settled body doesn't re-measure
@@ -938,7 +953,7 @@ public final class Tabs extends AbstractPanelElement {
     }
 
     private int naturalKey(int width) {
-        int key = ((width * 31 + visibleMask().hashCode()) * 31 + headersSignature()) * 31 + measuredKind.ordinal();
+        int key = ((width * 31 + visibleMask().hashCode()) * 31 + headersSignature()) * 31 + measuredKind.ordinal() * 2 + (inDialog ? 1 : 0);
         for (Tab t : tabs) {
             if (t.isVisible()) key = key * 31 + signature(t.body);
         }
@@ -963,9 +978,21 @@ public final class Tabs extends AbstractPanelElement {
         return fixedHeight < 0;
     }
 
+    /** Kept for measuring, and handed on to every tab's body and the headers. */
     @Override
     public void screenKind(ScreenKind kind) {
         measuredKind = kind;
+        for (Tab t : tabs) ChildDispatch.screenKind(t.body, kind);
+        ChildDispatch.screenKind(header, kind);
+        ChildDispatch.screenKind(sidebarHeader, kind);
+    }
+
+    @Override
+    public void inDialog(boolean inDialog) {
+        this.inDialog = inDialog;
+        for (Tab t : tabs) ChildDispatch.inDialog(t.body, inDialog);
+        ChildDispatch.inDialog(header, inDialog);
+        ChildDispatch.inDialog(sidebarHeader, inDialog);
     }
 
     /**
@@ -1012,7 +1039,7 @@ public final class Tabs extends AbstractPanelElement {
         int sx = ctx.originX() + childX;
         int sy = ctx.originY() + childY;
         boolean disabled = disabled(ctx);
-        measuredKind = ctx.kind();
+        if (ctx.kind() != measuredKind) screenKind(ctx.kind());
 
         queueTooltip(ctx); // element-level tooltip first, so a tab's own wins
 
@@ -1965,10 +1992,11 @@ public final class Tabs extends AbstractPanelElement {
 
         /**
          * With no fixed size and no viewport to fill (a dialog, whose frame follows
-         * its content), be as tall as the shown tab rather than the tallest: switching
-         * tabs resizes it, and the panel moves the rows below it with it. Default: as
-         * tall as the tallest visible tab, steady across switches. The width is the
-         * widest tab's either way.
+         * its content), be as wide and as tall as the shown tab rather than the widest
+         * and the tallest (7.2.0: the width too): switching tabs resizes it, and the
+         * panel resizes and moves the rows around it with it. The tab strip still
+         * needs its own width. Default: as wide and as tall as the largest visible
+         * tab, steady across switches.
          */
         public Builder fitShownTab() {
             this.fitShownTab = true;

@@ -64,13 +64,23 @@ public final class ItemEditing {
 
     /**
      * One enchantment the Edit tab offers for a stack: its level on the stack (0 for
-     * none), its highest level, and whether it is blocked, which is when it is not on
-     * the stack and an enchantment that is on it excludes it (vanilla's exclusive
-     * sets: Sharpness and Smite, Protection and Blast Protection).
+     * none: not applied), its highest level, and, when it is not on the stack, the
+     * ones on it that exclude it (vanilla's exclusive sets: Sharpness and Smite,
+     * Protection and Blast Protection), by name.
      */
-    public record EnchantChoice(Holder<Enchantment> enchantment, int level, int max, boolean blocked) {
+    public record EnchantChoice(Holder<Enchantment> enchantment, int level, int max, List<Holder<Enchantment>> conflicts) {
         public Component name() {
             return enchantment.value().description();
+        }
+
+        /** On the stack, at some level. */
+        public boolean applied() {
+            return level > 0;
+        }
+
+        /** Not on the stack, and one that is excludes it: it cannot be added. */
+        public boolean blocked() {
+            return !applied() && !conflicts.isEmpty();
         }
     }
 
@@ -89,13 +99,14 @@ public final class ItemEditing {
         registries.lookupOrThrow(Registries.ENCHANTMENT).listElements().forEach(e -> {
             int level = on.getLevel(e);
             if (!stores && level == 0 && !e.value().isSupportedItem(stack)) return;
-            boolean blocked = false;
+            List<Holder<Enchantment>> conflicts = new ArrayList<>();
             if (level == 0) {
                 for (Holder<Enchantment> other : on.keySet()) {
-                    if (!Enchantment.areCompatible(other, e)) blocked = true;
+                    if (!Enchantment.areCompatible(other, e)) conflicts.add(other);
                 }
+                conflicts.sort(Comparator.comparing(c -> c.value().description().getString()));
             }
-            out.add(new EnchantChoice(e, level, e.value().getMaxLevel(), blocked));
+            out.add(new EnchantChoice(e, level, e.value().getMaxLevel(), List.copyOf(conflicts)));
         });
         out.sort(Comparator.comparing(c -> c.name().getString()));
         return out;

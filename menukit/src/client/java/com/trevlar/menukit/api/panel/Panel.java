@@ -606,7 +606,7 @@ public class Panel {
             // children's width plus the reserve. The reserve is the scrollbar lane
             // plus, on an options screen, the list band's left inset
             // (ScrollContainer.viewportWidthFor decides it).
-            int reserve = contentWidth - ScrollContainer.viewportWidthFor(contentWidth, screenKind);
+            int reserve = contentWidth - ScrollContainer.viewportWidthFor(contentWidth, screenKind, tracksAsModal);
             layoutElementsWithin(contentWidth - reserve);
             reflowForWrap();
             int outerWidth;
@@ -628,6 +628,8 @@ public class Panel {
                         .content(elements)
                         .state(() -> scrollOffset, v -> scrollOffset = v)
                         .build();
+                cachedScrollContainer.screenKind(screenKind);
+                cachedScrollContainer.inDialog(tracksAsModal);
             }
         }
 
@@ -1182,6 +1184,11 @@ public class Panel {
      */
     public Panel tracksAsModal(boolean tracks) {
         this.tracksAsModal = tracks;
+        // A modal is a dialog: its elements' list bands inset by the dialog's gap,
+        // not the full screen's (PanelElement.inDialog).
+        for (PanelElement e : elements) e.inDialog(tracks);
+        this.configurationDirty = true;
+        this.cachedScrollContainer = null;
         return this;
     }
 

@@ -1,5 +1,7 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.panel.ScreenKind;
+
 import net.minecraft.client.gui.screens.Screen;
 
 import org.jspecify.annotations.Nullable;
@@ -516,6 +518,21 @@ public final class Flow extends AbstractPanelElement {
     @Override
     public void notifyClickOutsideOverlay(InputContext in) {
         ChildDispatch.notifyClickOutside(children, in);
+    }
+
+    /** Whether {@code e} is one of this Flow's own children. */
+    boolean contains(PanelElement e) {
+        return children.contains(e);
+    }
+
+    @Override
+    public void screenKind(ScreenKind kind) {
+        ChildDispatch.screenKind(children, kind);
+    }
+
+    @Override
+    public void inDialog(boolean inDialog) {
+        ChildDispatch.inDialog(children, inDialog);
     }
 
     @Override

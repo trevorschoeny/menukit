@@ -1,6 +1,8 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.ScreenKind;
+import com.trevlar.menukit.core.DialogLayout;
 import com.trevlar.menukit.core.Scroller;
 import com.trevlar.menukit.core.VanillaLook;
 import net.minecraft.resources.Identifier;
@@ -82,6 +84,21 @@ import java.util.function.DoubleSupplier;
  * clear of the scroller. So the content is narrower on an options screen: size it
  * with {@link #viewportWidthFor(int, ScreenKind)}. A {@code Tabs} page and a
  * panel's own auto-scroll do that for their children.
+ *
+ * <p>In a dialog (a modal panel, {@link PanelElement#inDialog}) the frame and its
+ * padding are already the margin, so the band insets its content by the dialog's
+ * own gap, {@link #DIALOG_INSET}, on every side it insets, not the full screen's.
+ * One rule for every band ({@link #bandInsetX}, {@link #bandInsetY}): this one, a
+ * {@code Tabs} page, a panel's auto-scroll.
+ *
+ * <h3>Sized to its content (7.2.0)</h3>
+ *
+ * {@link Builder#fitWidth()} makes it as wide as its widest child plus the band's
+ * inset and the scrollbar lane, so a grid of whole columns is never cut off on
+ * either kind of screen; given more room by its panel it takes it, and lays its
+ * children out to it (a child that centres itself stays centred).
+ * {@link Builder#fitHeight()} makes the declared height the most it is: as tall as
+ * its content up to that, scrolling past it.
  */
 public class ScrollContainer extends AbstractPanelElement {
 
@@ -126,6 +143,13 @@ public class ScrollContainer extends AbstractPanelElement {
      * content, as vanilla's does.
      */
     public static final int OPTIONS_INSET_Y = 10;
+    /**
+     * In a dialog on an options screen, the band's inset on every side it insets:
+     * {@link DialogLayout#GAP}, the room the dialog keeps between everything else.
+     * The full screen's {@link #OPTIONS_INSET_X} on top of the dialog's own padding
+     * read as a wide empty margin and pushed a grid's last column out of view.
+     */
+    public static final int DIALOG_INSET = DialogLayout.GAP;
 
     private final List<PanelElement> content;
     /** The scrollable height given to the builder, or -1 to follow the children's extent every frame. */
@@ -134,6 +158,11 @@ public class ScrollContainer extends AbstractPanelElement {
     private final DoubleConsumer scrollSet;
     /** Whether an options screen draws the list band; off where a host draws it (a Tabs body). */
     private final boolean band;
+    /** Width from the content ({@link Builder#fitWidth}); height up to the declared one ({@link Builder#fitHeight}). */
+    private final boolean fitWidth, fitHeight;
+    /** For measuring only (a measure gets no context): the kind of screen and whether in a dialog, handed down. */
+    private ScreenKind measuredKind = ScreenKind.CONTAINER;
+    private boolean inDialog = false;
 
     /** The scroll, in pixels, when the consumer does not own it (view state). */
     private double ownScroll = 0;
@@ -148,6 +177,9 @@ public class ScrollContainer extends AbstractPanelElement {
         this.content = List.copyOf(b.content);
         this.fixedContentHeight = b.contentHeight;
         this.band = b.band;
+        this.fitWidth = b.fitWidth;
+        this.fitHeight = b.fitHeight;
+        if (fitWidth) this.width = -1;   // its content's until the panel lays it out
         if (b.scrollGet != null) {
             this.scrollGet = b.scrollGet;
             this.scrollSet = b.scrollSet;
@@ -176,7 +208,28 @@ public class ScrollContainer extends AbstractPanelElement {
      * screen, the list band's {@link #OPTIONS_INSET_X}.
      */
     public static int viewportWidthFor(int outerWidth, ScreenKind kind) {
-        return viewportWidthFor(outerWidth) - (kind == ScreenKind.OPTIONS ? OPTIONS_INSET_X : 0);
+        return viewportWidthFor(outerWidth, kind, false);
+    }
+
+    /** As {@link #viewportWidthFor(int, ScreenKind)}, in a dialog or not ({@link #bandInsetX}). */
+    public static int viewportWidthFor(int outerWidth, ScreenKind kind, boolean inDialog) {
+        return viewportWidthFor(outerWidth) - bandInsetX(kind, inDialog);
+    }
+
+    /**
+     * The list band's inset from its left edge (and a {@code Tabs} page's from each
+     * side): {@link #OPTIONS_INSET_X} on an options screen, {@link #DIALOG_INSET} in a
+     * dialog there, none on a container screen, which draws no band.
+     */
+    public static int bandInsetX(ScreenKind kind, boolean inDialog) {
+        if (kind != ScreenKind.OPTIONS) return 0;
+        return inDialog ? DIALOG_INSET : OPTIONS_INSET_X;
+    }
+
+    /** The band's room above its first child and below its last, by the same rule as {@link #bandInsetX}. */
+    public static int bandInsetY(ScreenKind kind, boolean inDialog) {
+        if (kind != ScreenKind.OPTIONS) return 0;
+        return inDialog ? DIALOG_INSET : OPTIONS_INSET_Y;
     }
 
     private static int autoContentHeight(List<PanelElement> content) {
@@ -188,17 +241,57 @@ public class ScrollContainer extends AbstractPanelElement {
     // Geometry
 
     private int viewportWidth() {
-        return width - TRACK_WIDTH - SCROLLER_GUTTER;
+        return getWidth() - TRACK_WIDTH - SCROLLER_GUTTER;
+    }
+
+    /** Fitting its content, as wide as it was laid out (its content's before then); else as declared. */
+    @Override
+    public int getWidth() {
+        return width >= 0 ? width : naturalWidth();
+    }
+
+    /** Fitting its content's height, as tall as it up to the declared height; else as declared. */
+    @Override
+    public int getHeight() {
+        return viewHeight(measuredKind);
+    }
+
+    /** The viewport's height on a screen of {@code kind}. */
+    private int viewHeight(ScreenKind kind) {
+        return fitHeight ? Math.max(1, Math.min(height, contentHeight(kind))) : height;
+    }
+
+    /** Fitting its width: the widest child, the band's inset and the scrollbar lane. */
+    @Override
+    public int naturalWidth() {
+        if (!fitWidth) return authoredWidth;
+        int widest = 0;
+        for (PanelElement e : content) {
+            if (e.isVisible()) widest = Math.max(widest, e.getChildX() + e.naturalWidth());
+        }
+        return widest + insetX(measuredKind) + TRACK_WIDTH + SCROLLER_GUTTER;
+    }
+
+    @Override
+    public void screenKind(ScreenKind kind) {
+        measuredKind = kind;
+        ChildDispatch.screenKind(content, kind);
+    }
+
+    @Override
+    public void inDialog(boolean inDialog) {
+        this.inDialog = inDialog;
+        ChildDispatch.inDialog(content, inDialog);
     }
 
     // The list band's inset, by the kind of screen the context says it is on:
     // only where this container draws the band (a Tabs page insets its own).
     private int insetX(ScreenKind kind) {
-        return band && kind == ScreenKind.OPTIONS ? OPTIONS_INSET_X : 0;
+        return band ? bandInsetX(kind, inDialog) : 0;
     }
 
     private int insetY(ScreenKind kind) {
-        return band && kind == ScreenKind.OPTIONS ? OPTIONS_INSET_Y : 0;
+        return band ? bandInsetY(kind, inDialog) : 0;
     }
 
     /**
@@ -213,26 +306,28 @@ public class ScrollContainer extends AbstractPanelElement {
     }
 
     private boolean canScroll(ScreenKind kind) {
-        return contentHeight(kind) > height;
+        return contentHeight(kind) > viewHeight(kind);
     }
 
     /** The scroll in pixels, clamped to the current range. */
     private double scroll(ScreenKind kind) {
-        return Scroller.clamp(scrollGet.getAsDouble(), contentHeight(kind), height);
+        return Scroller.clamp(scrollGet.getAsDouble(), contentHeight(kind), viewHeight(kind));
     }
 
     private void setScroll(ScreenKind kind, double pixels) {
-        scrollSet.accept(Scroller.clamp(pixels, contentHeight(kind), height));
+        scrollSet.accept(Scroller.clamp(pixels, contentHeight(kind), viewHeight(kind)));
     }
 
     /** The handle's top from the viewport's top: the track is the viewport's height. */
     private double handleTop(ScreenKind kind) {
-        return Scroller.thumbTop(scroll(kind), contentHeight(kind), height, height);
+        int h = viewHeight(kind);
+        return Scroller.thumbTop(scroll(kind), contentHeight(kind), h, h);
     }
 
     /** While the handle is held, the scroll that keeps it under the mouse where it was grabbed. */
     private void followDrag(ScreenKind kind, double mouseFromTop) {
-        setScroll(kind, Scroller.dragTo(mouseFromTop, dragGrab, contentHeight(kind), height, height));
+        int h = viewHeight(kind);
+        setScroll(kind, Scroller.dragTo(mouseFromTop, dragGrab, contentHeight(kind), h, h));
     }
 
     /** Where the children's origin is: the viewport's top-left (inset in the band), moved up by the scroll. */
@@ -253,9 +348,17 @@ public class ScrollContainer extends AbstractPanelElement {
         super.fillWidth(Math.max(width, TRACK_WIDTH + SCROLLER_GUTTER + 1));
     }
 
-    /** A fixed viewport: the panel does not narrow it. */
+    /**
+     * A declared viewport: the panel does not narrow it. Fitting its content's width,
+     * it takes the room it is given (never less than the scrollbar lane needs) and
+     * lays its children out to the viewport inside the band's inset.
+     */
     @Override
-    public void layoutWithin(int budget) {}
+    public void layoutWithin(int budget) {
+        if (!fitWidth) return;
+        width = Math.max(TRACK_WIDTH + SCROLLER_GUTTER + 1, budget);
+        Panel.layoutElementsWithin(content, Math.max(1, viewportWidth() - insetX(measuredKind)));
+    }
 
     @Override public boolean isInteractive() { return true; }
 
@@ -266,7 +369,9 @@ public class ScrollContainer extends AbstractPanelElement {
         int sy = ctx.originY() + childY;
         boolean disabled = disabled(ctx);
         ScreenKind kind = ctx.kind();
+        if (kind != measuredKind) screenKind(kind);
         if (disabled) dragging = false;
+        int width = getWidth(), height = viewHeight(kind);
 
         // The container's own tooltip first, so a hovered child's wins.
         queueTooltip(ctx);
@@ -336,7 +441,7 @@ public class ScrollContainer extends AbstractPanelElement {
 
         double lx = in.mouseX() - (in.originX() + childX);
         double ly = in.mouseY() - (in.originY() + childY);
-        int trackLeft = width - TRACK_WIDTH;
+        int trackLeft = getWidth() - TRACK_WIDTH;
         if (lx >= viewportWidth()) {
             // The gutter and the track eat their own clicks. A left press on the
             // track holds the handle: where it was pressed, on the handle; else by its
@@ -366,7 +471,7 @@ public class ScrollContainer extends AbstractPanelElement {
         if (lx < viewportWidth() && ChildDispatch.mouseScrolled(content, inner, scrollX, scrollY)) return true;
         ScreenKind kind = in.kind();
         if (!canScroll(kind)) return false;
-        setScroll(kind, Scroller.wheel(scroll(kind), scrollY, contentHeight(kind), height));
+        setScroll(kind, Scroller.wheel(scroll(kind), scrollY, contentHeight(kind), viewHeight(kind)));
         return true;
     }
 
@@ -398,6 +503,7 @@ public class ScrollContainer extends AbstractPanelElement {
         private @Nullable DoubleSupplier scrollGet;
         private @Nullable DoubleConsumer scrollSet;
         private boolean band = true;
+        private boolean fitWidth, fitHeight;
 
         protected Builder() {}
 
@@ -419,6 +525,33 @@ public class ScrollContainer extends AbstractPanelElement {
             }
             if (height <= 0) throw new IllegalArgumentException("ScrollContainer height must be > 0");
             return super.size(width, height);
+        }
+
+        /**
+         * The viewport's height alone, for a container that fits its width to its
+         * content ({@link #fitWidth}).
+         */
+        public Builder height(int height) {
+            if (height <= 0) throw new IllegalArgumentException("ScrollContainer height must be > 0");
+            this.height = height;
+            return this;
+        }
+
+        /**
+         * As wide as its content instead of a declared width: the widest child, the
+         * band's inset on an options screen and the scrollbar lane. Given more room by
+         * its panel, it takes it and lays its children out to it. Give it its
+         * {@link #height}.
+         */
+        public Builder fitWidth() {
+            this.fitWidth = true;
+            return this;
+        }
+
+        /** As tall as its content up to the declared height, scrolling past it. */
+        public Builder fitHeight() {
+            this.fitHeight = true;
+            return this;
         }
 
         /** Required: the children, positioned from the viewport's top-left. */
@@ -447,7 +580,7 @@ public class ScrollContainer extends AbstractPanelElement {
 
         @Override
         public ScrollContainer build() {
-            require(width > 0 && height > 0, "size(w, h) is required");
+            require(height > 0 && (fitWidth || width > 0), "size(w, h) is required (or fitWidth() and height(h))");
             return new ScrollContainer(this);
         }
     }

@@ -2,16 +2,24 @@ package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.api.element.ItemMatch.Match;
 import com.trevlar.menukit.api.panel.Panel;
+import com.trevlar.menukit.api.panel.PanelStyle;
+import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.DialogLayout;
 import com.trevlar.menukit.core.ItemEditing;
+import com.trevlar.menukit.core.ItemEditing.EnchantChoice;
 import com.trevlar.menukit.core.ItemSources;
+import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.core.PressedTracker;
+import com.trevlar.menukit.core.VanillaLook;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.Enchantment;
 
 import org.jspecify.annotations.Nullable;
 
@@ -27,9 +35,14 @@ import java.util.function.Function;
  * Edit tab for the selected slot; Cancel and Done. Built of MenuKit's own elements
  * ({@link Tabs}, {@link TextField}, {@link ScrollContainer}, {@link Radio},
  * {@link Button}) plus the slot row, the grid and the enchantment list drawn here,
- * laid out as every MenuKit dialog is ({@link DialogLayout}) and as tall as the
- * shown tab, so it draws in the kind of screen it opens on like any dialog.
+ * laid out as every MenuKit dialog is ({@link DialogLayout}), as wide and as tall as
+ * the shown tab, so it draws in the kind of screen it opens on like any dialog.
  * Package-private: consumers reach it through {@link ItemPicker}.
+ *
+ * <p>Its width comes from its content: the grid asks for its nine columns, its scroll
+ * area adds the band's inset and the scrollbar lane ({@link ScrollContainer.Builder#fitWidth}),
+ * and the search box and the other fields fill whatever that makes, so nothing is
+ * cut off and nothing leaves an empty margin, on either kind of screen.
  *
  * <p>The value lives with the consumer, through the picker's lens, written on every
  * change. The dialog keeps its view state: the slots as the row shows them (a list's
@@ -38,8 +51,8 @@ import java.util.function.Function;
  * the Edit tab's text as typed.
  *
  * <p>The cursor's stack is the dialog's own. Taking an item from the grid makes one;
- * nothing comes from or goes to the player's inventory, and closing the dialog drops
- * whatever it holds.
+ * nothing comes from or goes to the player's inventory. A click anywhere but the slot
+ * row and the grid drops it, and so does closing the dialog.
  */
 final class ItemDialog {
 
@@ -49,27 +62,56 @@ final class ItemDialog {
     static final int COLUMNS = 9;
     static final int ROWS = 5;
     static final int GRID_WIDTH = COLUMNS * ItemPicker.SIZE;
-    /** The dialog's content width: the grid and its scrollbar lane. */
-    static final int WIDTH = GRID_WIDTH + ScrollContainer.TRACK_WIDTH + ScrollContainer.SCROLLER_GUTTER;
     static final int FIELD_HEIGHT = 20;
     static final int GAP = DialogLayout.GAP;
-    /** The enchantment list: rows of 12, four on show, the rest scroll. */
-    static final int ENCHANT_ROW = 12;
-    static final int ENCHANT_ROWS = 4;
     /** The count field's width: three digits. */
     static final int COUNT_WIDTH = 30;
+    /** The least a filling field asks for, so a dialog with little else in it is still usable. */
+    static final int FIELD_MIN_WIDTH = 60;
+    /** Vanilla's EditBox draws its text this far inside its border, each side. */
+    static final int FIELD_TEXT_INSET = 4;
+
+    /**
+     * The enchantment list: a control button's size, a row (a control and a pixel
+     * above and below it), and the rows on show before the list scrolls.
+     */
+    static final int CONTROL = 12;
+    static final int ENCHANT_ROW = CONTROL + 2;
+    static final int ENCHANT_ROWS = 4;
+    /** In a row: the name's room from the left, the gap after a name or a level, and between controls. */
+    static final int TEXT_PAD = 2;
+    static final int ROW_GAP = 4;
+    static final int CONTROL_GAP = 1;
 
     /** What a field shows while its text is not valid, and vanilla's EditBox colour otherwise. */
     private static final int TEXT_OK = 0xFFE0E0E0;
     private static final int TEXT_BAD = 0xFFFF5555;
 
-    /** How the components box says what it is for, while empty. */
-    static final Component COMPONENTS_HINT = Component.literal("Other components, as in /give: [unbreakable={}]");
+    static final Component SEARCH_HINT = Component.literal("Search items");
+    static final Component NAME_HINT = Component.literal("Name");
+    /** How the components box says what it is for, while empty: short enough to fit it. */
+    static final Component COMPONENTS_HINT = Component.literal("More: [unbreakable={}]");
+    /** The longer how-to, on hover. */
+    static final Component COMPONENTS_TOOLTIP = Component.literal(
+            "Any other components, as in /give: [unbreakable={},lore=[\"Hi\"]]. Put ! before one to remove it: [!food].");
+    /** The Edit tab with an empty slot selected. */
+    static final Component EMPTY_HINT = Component.literal("Pick an item in Search first.");
+    /** Between the enchantments on the item and the ones that can be added. */
+    static final Component ADD_HEADING = Component.literal("Can be added");
 
     private final ItemPicker picker;
     private final Panel panel;
+    private final PanelElement title, row, buttons;
     private final TextField search;
+    private final Grid grid;
+    private final ScrollContainer gridBox;
+    private final @Nullable Tabs tabs;
     private final @Nullable TextField nameField, countField, componentsField;
+    private final @Nullable EnchantList enchants;
+    private final @Nullable ScrollContainer enchantBox;
+    /** The Edit tab's column, and everything in it, top to bottom (rows and what is in them). */
+    private final @Nullable PanelElement edit;
+    private final List<PanelElement> editParts = new ArrayList<>();
 
     // View state
     private boolean open = false;
@@ -86,15 +128,19 @@ final class ItemDialog {
     private String query = "";
     private double gridScroll = 0, enchantScroll = 0;
     private final Draft name = new Draft(), count = new Draft(), components = new Draft();
+    /** The selected stack the enchantment choices were last made for, and the choices. */
+    private @Nullable ItemStack choicesFor;
+    private List<EnchantChoice> choices = List.of();
 
     ItemDialog(ItemPicker picker) {
         this.picker = picker;
         boolean edits = picker.match() != Match.ITEM;
 
-        this.search = TextField.builder().at(0, 0).size(WIDTH, FIELD_HEIGHT)
+        // The search box spans the dialog, lined up with the grid's area under it.
+        this.search = TextField.builder().at(0, 0).size(FIELD_MIN_WIDTH, FIELD_HEIGHT).fill()
                 .maxLength(64)
-                .hint(Component.literal("Search items"))
-                .label(Component.literal("Search items"))
+                .hint(SEARCH_HINT)
+                .label(SEARCH_HINT)
                 .state(() -> query, q -> {
                     query = q;
                     gridScroll = 0;   // a new search starts at the top of its results
@@ -103,14 +149,16 @@ final class ItemDialog {
                 // and Enter fills it.
                 .onSubmit(q -> putFirstMatch())
                 .build();
-        ScrollContainer grid = ScrollContainer.builder().at(0, FIELD_HEIGHT + GAP).size(WIDTH, ROWS * ItemPicker.SIZE)
-                .content(List.of(new Grid()))
+        // As wide as the grid's nine columns, the band's inset and the scrollbar lane.
+        this.grid = new Grid();
+        this.gridBox = ScrollContainer.builder().at(0, FIELD_HEIGHT + GAP).fitWidth().height(ROWS * ItemPicker.SIZE)
+                .content(List.of(grid))
                 .state(() -> gridScroll, v -> gridScroll = v)
                 .build();
 
-        PanelElement title = DialogLayout.centred(TextLabel.builder().text(picker.label()).build());
-        PanelElement row = new SlotRow();
-        PanelElement buttons = DialogLayout.buttons(
+        this.title = DialogLayout.centred(TextLabel.builder().text(picker.label()).build());
+        this.row = new SlotRow();
+        this.buttons = DialogLayout.buttons(
                 Button.builder().label(Component.literal("Cancel"))
                         .size(DialogLayout.BUTTON_W, DialogLayout.BUTTON_H).onClick(picker::cancel).build(),
                 Button.builder().label(Component.literal("Done"))
@@ -120,68 +168,83 @@ final class ItemDialog {
         if (!edits) {
             // The kind of item only: nothing to edit, so no tabs, just the search.
             this.nameField = this.countField = this.componentsField = null;
-            this.panel = DialogLayout.panel(id, picker::cancel, title, row, search, grid, buttons)
+            this.enchants = null;
+            this.enchantBox = null;
+            this.edit = null;
+            this.tabs = null;
+            this.panel = DialogLayout.panel(id, picker::cancel, title, row, search, gridBox, buttons)
                     .visibleWhen(this::isOpen);
             return;
         }
 
-        this.nameField = TextField.builder().size(WIDTH - COUNT_WIDTH - GAP, FIELD_HEIGHT)
+        // The name takes its row, less the count beside it when the item stacks.
+        this.nameField = new TextField(TextField.builder().size(FIELD_MIN_WIDTH, FIELD_HEIGHT)
                 .maxLength(50)   // an anvil's limit
-                .hint(Component.literal("Name"))
-                .label(Component.literal("Name"))
-                .state(() -> name.text(current(), selected, ItemEditing::name), this::typeName)
-                .build();
+                .hint(NAME_HINT)
+                .label(NAME_HINT)
+                .state(() -> name.text(current(), selected, ItemEditing::name), this::typeName)) {
+            @Override
+            public void layoutWithin(int budget) {
+                width = Math.max(1, budget - (stacks() ? COUNT_WIDTH + GAP : 0));
+            }
+        };
         this.countField = TextField.builder().size(COUNT_WIDTH, FIELD_HEIGHT)
                 .maxLength(3)
                 .label(Component.literal("Count"))
                 .tooltip(() -> Component.literal("Count, 1 to " + current().getMaxStackSize()))
+                .visibleWhen(this::stacks)
                 .state(() -> count.text(current(), selected, s -> String.valueOf(s.getCount())), this::typeCount)
                 .build();
-        this.componentsField = TextField.builder().size(WIDTH, FIELD_HEIGHT)
+        this.componentsField = TextField.builder().size(FIELD_MIN_WIDTH, FIELD_HEIGHT).fill()
                 .maxLength(4096)
                 .hint(COMPONENTS_HINT)
                 .label(Component.literal("Components"))
-                .tooltip(Component.literal("Every other component, as in /give: [unbreakable={},lore=[\"Hi\"]]. "
-                        + "Type ! before one to remove it: [!food]."))
+                .tooltip(COMPONENTS_TOOLTIP)
+                .visibleWhen(this::hasItem)
                 .state(() -> components.text(current(), selected,
                         s -> ItemEditing.componentsText(s, ItemSources.registries())), this::typeComponents)
                 .build();
 
-        RadioGroup<Match> choice = RadioGroup.state(this::currentMatch, this::chooseMatch);
-        Flow.Builder edit = Flow.builder().at(0, 0).vertical().gap(GAP, GAP)
-                .add(TextLabel.builder().role(TextRole.MUTED)
-                        .text(Component.literal("Put an item in this slot from the Search tab first."))
-                        .visibleWhen(() -> current().isEmpty()).build())
-                // The name and, for an item that stacks, the count beside it.
-                .add(Flow.builder().gap(GAP, GAP).visibleWhen(this::hasItem)
-                        .add(nameField)
-                        .add(Flow.builder().gap(GAP, GAP).visibleWhen(() -> current().getMaxStackSize() > 1)
-                                .add(countField).build())
-                        .build());
+        Flow.Builder column = Flow.builder().at(0, 0).vertical().gap(GAP, GAP);
+        TextLabel emptyHint = TextLabel.builder().role(TextRole.MUTED).text(EMPTY_HINT).fill()
+                .visibleWhen(() -> current().isEmpty()).build();
+        Flow nameRow = Flow.builder().gap(GAP, GAP).visibleWhen(this::hasItem)
+                .add(nameField)
+                .add(countField)
+                .build();
+        column.add(emptyHint).add(nameRow);
+        editParts.addAll(List.of(emptyHint, nameRow, nameField, countField));
         if (picker.playerChoosesMatch()) {
-            edit.add(Flow.builder().gap(8, 2).visibleWhen(this::hasItem)
-                    .add(Radio.builder(choice, Match.CONTAINS)
-                            .label(() -> ItemPicker.matchName(Match.CONTAINS, current())).build())
-                    .add(Radio.builder(choice, Match.EXACT)
-                            .label(() -> ItemPicker.matchName(Match.EXACT, current())).build())
-                    .build());
+            // One choice of two, both on show: round radios, so they never read as checkboxes.
+            RadioGroup<Match> choice = RadioGroup.state(this::currentMatch, this::chooseMatch);
+            Radio<Match> any = Radio.builder(choice, Match.CONTAINS)
+                    .label(() -> ItemPicker.matchName(Match.CONTAINS, current())).build();
+            Radio<Match> exact = Radio.builder(choice, Match.EXACT)
+                    .label(() -> ItemPicker.matchName(Match.EXACT, current())).build();
+            Flow matchRow = Flow.builder().gap(8, 3).visibleWhen(this::hasItem).add(any).add(exact).build();
+            column.add(matchRow);
+            editParts.addAll(List.of(matchRow, any, exact));
         }
-        EnchantList enchants = new EnchantList();
-        edit.add(ScrollContainer.builder().size(WIDTH, ENCHANT_ROWS * ENCHANT_ROW)
-                        .content(List.of(enchants))
-                        .state(() -> enchantScroll, v -> enchantScroll = v)
-                        .visibleWhen(() -> hasItem() && !enchants.choices().isEmpty())
-                        .build())
-                .add(componentsField)
-                .add(TextLabel.builder()
-                        .text(() -> components.error != null ? components.error : Component.empty())
-                        .visibleWhen(() -> hasItem() && components.error != null).build());
+        // The enchantments: those on the item, then the ones that can be added, in one
+        // list as tall as its rows up to ENCHANT_ROWS, then it scrolls.
+        this.enchants = new EnchantList();
+        this.enchantBox = ScrollContainer.builder().fitWidth().height(ENCHANT_ROWS * ENCHANT_ROW).fitHeight()
+                .content(List.of(enchants))
+                .state(() -> enchantScroll, v -> enchantScroll = v)
+                .visibleWhen(() -> hasItem() && !enchantChoices().isEmpty())
+                .build();
+        TextLabel error = TextLabel.builder().fill()
+                .text(() -> components.error != null ? components.error : Component.empty())
+                .visibleWhen(() -> hasItem() && components.error != null).build();
+        column.add(enchantBox).add(componentsField).add(error);
+        editParts.addAll(List.of(enchantBox, componentsField, error));
+        this.edit = column.build();
 
-        Tabs tabs = Tabs.builder()
+        this.tabs = Tabs.builder()
                 .state(() -> tab, t -> tab = t)
                 .fitShownTab()
-                .tab("search", Component.literal("Search"), List.of(search, grid))
-                .tab("edit", Component.literal("Edit"), List.of(edit.build()))
+                .tab("search", Component.literal("Search"), List.of(search, gridBox))
+                .tab("edit", Component.literal("Edit"), List.of(edit))
                 .build();
         this.panel = DialogLayout.panel(id, picker::cancel, title, row, tabs, buttons)
                 .visibleWhen(this::isOpen);
@@ -219,9 +282,7 @@ final class ItemDialog {
             matches.add(picker.match());
         }
         selected = Math.max(0, Math.min(slot, slots.size() - 1));
-        carried = ItemStack.EMPTY;
-        dragged.clear();
-        dragButton = -1;
+        dropCarried();
         tab = "search";
         query = "";
         gridScroll = 0;
@@ -235,6 +296,11 @@ final class ItemDialog {
     /** Closed (Done, Cancel, a new screen): whatever the cursor held is gone. */
     void close() {
         open = false;
+        dropCarried();
+    }
+
+    /** The cursor lets go of what it holds: it is simply gone (it was never anyone's). */
+    private void dropCarried() {
         carried = ItemStack.EMPTY;
         dragged.clear();
         dragButton = -1;
@@ -273,6 +339,11 @@ final class ItemDialog {
 
     private boolean hasItem() {
         return !current().isEmpty();
+    }
+
+    /** Whether the selected item stacks, so its count can be set. */
+    private boolean stacks() {
+        return hasItem() && current().getMaxStackSize() > 1;
     }
 
     private Match currentMatch() {
@@ -445,6 +516,29 @@ final class ItemDialog {
         changed();
     }
 
+    /**
+     * A click anywhere, before it is dispatched (every click on the screen is offered
+     * to {@link PanelElement#notifyClickOutsideOverlay} first): holding something, a
+     * click that is on neither a slot of the row (which places it) nor the grid (which
+     * takes, adds or puts back, as the creative inventory does) drops it. {@code in}
+     * is at the dialog's content origin.
+     */
+    private void clickAnywhere(InputContext in) {
+        if (!open || carried.isEmpty()) return;
+        if (((SlotRow) row).slotAt(in) >= 0) return;
+        int[] g = gridViewport();
+        if (g != null && in.isOver(g[0], g[1], g[2], g[3])) return;
+        dropCarried();
+    }
+
+    /** The grid's area ({@code x, y, w, h} in the dialog's content), or null while the Edit tab is shown. */
+    private int @Nullable [] gridViewport() {
+        if (tabs == null) return rect(gridBox, 0, 0);
+        if (!tab.equals("search")) return null;
+        int[] clip = tabs.bodyClip();
+        return rect(gridBox, tabs.getChildX() + clip[0], tabs.getChildY() + clip[1]);
+    }
+
     // The Edit tab's fields
 
     private void typeName(String text) {
@@ -547,18 +641,168 @@ final class ItemDialog {
         }
     }
 
+    // The Edit tab's enchantments
+
+    /** The enchantments that fit the selected stack, made again only when it changes. */
+    List<EnchantChoice> enchantChoices() {
+        ItemStack s = current();
+        if (choicesFor == null || !ItemStack.matches(s, choicesFor)) {
+            choicesFor = s.copy();
+            choices = ItemEditing.enchantChoices(s, ItemSources.registries());
+        }
+        return choices;
+    }
+
+    private @Nullable EnchantChoice choice(Holder<Enchantment> enchantment) {
+        for (EnchantChoice c : enchantChoices()) if (c.enchantment().equals(enchantment)) return c;
+        return null;
+    }
+
+    /** The add control of an enchantment not on the item: on at level I, unless one on it excludes it. */
+    void addEnchant(Holder<Enchantment> enchantment) {
+        EnchantChoice c = choice(enchantment);
+        if (c == null || c.applied() || c.blocked()) return;
+        setEnchantment(c, 1);
+    }
+
+    /** The - or + of an enchantment on the item: a level down or up, from I to its highest, no further. */
+    void stepEnchant(Holder<Enchantment> enchantment, int by) {
+        EnchantChoice c = choice(enchantment);
+        if (c == null || !c.applied()) return;
+        int level = Math.max(1, Math.min(c.max(), c.level() + by));
+        if (level != c.level()) setEnchantment(c, level);
+    }
+
+    /** The remove control of an enchantment on the item: off it, back with those that can be added. */
+    void removeEnchant(Holder<Enchantment> enchantment) {
+        EnchantChoice c = choice(enchantment);
+        if (c != null && c.applied()) setEnchantment(c, 0);
+    }
+
+    /** The selected stack with {@code choice} at {@code level}, written through. */
+    private void setEnchantment(EnchantChoice choice, int level) {
+        replaceCurrent(ItemEditing.withEnchantment(current(), choice.enchantment(), level));
+    }
+
+    /** A level as vanilla writes it: I to X, a number past that. */
+    static Component levelText(int level) {
+        return level <= 10 ? Component.translatable("enchantment.level." + level) : Component.literal(String.valueOf(level));
+    }
+
+    // For MenuKit's checks: everything the dialog draws, and what it must stay inside
+
+    /**
+     * Each box the dialog draws on the shown tab, in its content's coordinates, with
+     * the box it must stay inside: every row in the dialog, every element of the shown
+     * tab in the tab's body, each slot in the row, the grid's columns in the grid's
+     * viewport, a field's hint inside the field's text area, and each enchantment
+     * row's name, level and controls inside their room in the row. {@code kind} is the
+     * screen it is laid out for (the band's inset).
+     */
+    List<ItemPicker.Box> boxes(ScreenKind kind) {
+        Font font = Minecraft.getInstance().font;
+        List<ItemPicker.Box> out = new ArrayList<>();
+        List<PanelElement> rows = new ArrayList<>(List.of(title, row, buttons));
+        if (tabs != null) rows.add(tabs);
+        else rows.addAll(List.of(search, gridBox));
+        int w = 0, h = 0;
+        for (PanelElement e : rows) {
+            w = Math.max(w, e.getChildX() + e.getWidth());
+            h = Math.max(h, e.getChildY() + e.getHeight());
+        }
+        int[] dialog = {0, 0, w, h};
+        for (PanelElement e : rows) out.add(box("row " + describe(e), rect(e, 0, 0), dialog));
+
+        int[] slotsRect = rect(row, 0, 0);
+        SlotRow r = (SlotRow) row;
+        for (int i = 0; i < slots.size(); i++) {
+            out.add(box("slot " + i, new int[]{slotsRect[0] + r.left() + (i % COLUMNS) * ItemPicker.SIZE,
+                    slotsRect[1] + (i / COLUMNS) * ItemPicker.SIZE, ItemPicker.SIZE, ItemPicker.SIZE}, slotsRect));
+        }
+
+        // The shown tab's body: where it is and what clips it.
+        int bx = 0, by = 0;
+        int[] body = dialog;
+        if (tabs != null) {
+            int[] clip = tabs.bodyClip();
+            bx = tabs.getChildX() + clip[0];
+            by = tabs.getChildY() + clip[1];
+            body = new int[]{bx, by, clip[2], clip[3]};
+        }
+        if (tabs == null || tab.equals("search")) {
+            int[] s = rect(search, bx, by);
+            if (tabs != null) out.add(box("search", s, body));
+            out.add(hint("search", SEARCH_HINT, s, font));
+            int[] gb = rect(gridBox, bx, by);
+            if (tabs != null) out.add(box("grid area", gb, body));
+            int inset = ScrollContainer.bandInsetX(kind, true);
+            int viewport = gb[2] - ScrollContainer.TRACK_WIDTH - ScrollContainer.SCROLLER_GUTTER;
+            out.add(box("grid columns", new int[]{gb[0] + inset + grid.left(), gb[1], GRID_WIDTH, gb[3]},
+                    new int[]{gb[0], gb[1], viewport, gb[3]}));
+            return out;
+        }
+        if (edit == null || enchants == null || enchantBox == null) return out;
+        // The edit column in the body, and each shown thing in it.
+        out.add(box("edit", rect(edit, bx, by), body));
+        for (PanelElement e : editParts) {
+            if (!e.isVisible() || (e != edit && !shownIn(e))) continue;
+            int[] at = rect(e, bx, by);
+            out.add(box(describe(e), at, body));
+            if (e == componentsField) out.add(hint("components", COMPONENTS_HINT, at, font));
+            if (e == nameField) out.add(hint("name", NAME_HINT, at, font));
+        }
+        if (enchantBox.isVisible()) {
+            int[] eb = rect(enchantBox, bx, by);
+            int insetX = ScrollContainer.bandInsetX(kind, true), insetY = ScrollContainer.bandInsetY(kind, true);
+            int viewport = eb[2] - ScrollContainer.TRACK_WIDTH - ScrollContainer.SCROLLER_GUTTER;
+            int ox = eb[0] + insetX, oy = eb[1] + insetY;
+            out.add(box("enchantment rows", new int[]{ox, eb[1], enchants.getWidth(), eb[3]},
+                    new int[]{eb[0], eb[1], viewport, eb[3]}));
+            enchants.boxes(out, ox, oy, font);
+        }
+        return out;
+    }
+
+    /** Whether an Edit part is on show: it and the row it is in (a field in a hidden row is not). */
+    private boolean shownIn(PanelElement e) {
+        for (PanelElement p : editParts) {
+            if (p instanceof Flow f && f.contains(e) && !p.isVisible()) return false;
+        }
+        return true;
+    }
+
+    private static String describe(PanelElement e) {
+        if (e instanceof TextLabel l) return "label \"" + l.getCurrentText().getString() + "\"";
+        if (e instanceof Radio<?> r) return "radio " + r.getValue();
+        if (e instanceof TextField) return "field";
+        return e.getClass().getSimpleName();
+    }
+
+    /** A field's hint, from where the field's text starts, inside the field's text area. */
+    private static ItemPicker.Box hint(String field, Component hint, int[] at, Font font) {
+        int[] area = {at[0] + FIELD_TEXT_INSET, at[1], Math.max(0, at[2] - 2 * FIELD_TEXT_INSET), at[3]};
+        return box(field + " hint \"" + hint.getString() + "\"", new int[]{area[0], at[1], font.width(hint), at[3]}, area);
+    }
+
+    private static int[] rect(PanelElement e, int ox, int oy) {
+        return new int[]{ox + e.getChildX(), oy + e.getChildY(), e.getWidth(), e.getHeight()};
+    }
+
+    private static ItemPicker.Box box(String what, int[] r, int[] p) {
+        return new ItemPicker.Box(what, r[0], r[1], r[2], r[3], p[0], p[1], p[2], p[3]);
+    }
+
     // The slot row
 
     /**
      * The setting's slots, nine to a row, centred: the selected one outlined, a list's
      * last (empty) one marked with a plus. Takes clicks and drags as a container's
      * slots do on the Search tab, and only selects on the Edit tab. Draws what the
-     * cursor holds over everything, in the overlay pass.
+     * cursor holds over everything, in the overlay pass. Asks for its slots' width.
      */
     private final class SlotRow extends AbstractPanelElement {
 
         SlotRow() {
-            this.width = this.authoredWidth = WIDTH;
             this.height = ItemPicker.SIZE;
         }
 
@@ -571,15 +815,21 @@ final class ItemDialog {
         }
 
         /** Left edge of the slots, from the row's: centred under the title. */
-        private int left() {
-            return (width - Math.min(Math.max(1, slots.size()), perRow()) * ItemPicker.SIZE) / 2;
+        int left() {
+            return (getWidth() - naturalWidth()) / 2;
         }
 
+        @Override public int naturalWidth() { return Math.min(Math.max(1, slots.size()), perRow()) * ItemPicker.SIZE; }
+        @Override public int getWidth() { return Math.max(width, naturalWidth()); }
         @Override public int getHeight() { return rows() * ItemPicker.SIZE; }
         @Override public int extraLayoutHeight() { return getHeight() - ItemPicker.SIZE; }
-        @Override public void layoutWithin(int budget) { width = Math.max(authoredWidth, budget); }
+        @Override public void layoutWithin(int budget) { width = budget; }
         @Override public void fillWidth(int width) {}
         @Override public boolean isInteractive() { return true; }
+
+        int slotAt(InputContext in) {
+            return slotAt(in.mouseX(), in.mouseY(), in.originX(), in.originY());
+        }
 
         private int slotAt(double mx, double my, int ox, int oy) {
             double lx = mx - (ox + childX + left()), ly = my - (oy + childY);
@@ -625,10 +875,16 @@ final class ItemDialog {
             g.itemDecorations(Minecraft.getInstance().font, carried, ctx.mouseX() - 8, ctx.mouseY() - 8);
         }
 
+        /** Every click on the screen passes here first: one off the row and the grid drops what is held. */
+        @Override
+        public void notifyClickOutsideOverlay(InputContext in) {
+            clickAnywhere(in);
+        }
+
         @Override
         public boolean mouseClicked(InputContext in, int button) {
             if (disabled(in)) return false;
-            int i = slotAt(in.mouseX(), in.mouseY(), in.originX(), in.originY());
+            int i = slotAt(in);
             if (i < 0) return false;
             if (picker.hasEditTab() && tab.equals("edit")) {
                 // The Edit tab edits the selected slot: a click only picks which.
@@ -659,8 +915,9 @@ final class ItemDialog {
 
     /**
      * The entries matching the search, nine to a row, as slots in the kind of screen.
-     * As tall as its rows, read every frame, so the scroll area around it follows the
-     * search. Draws only the rows on screen.
+     * Asks for its nine columns' width; given more, it centres them. As tall as its
+     * rows, read every frame, so the scroll area around it follows the search. Draws
+     * only the rows on screen.
      */
     private final class Grid extends AbstractPanelElement {
 
@@ -676,13 +933,18 @@ final class ItemDialog {
             return (shown().size() + COLUMNS - 1) / COLUMNS;
         }
 
+        /** The columns' left edge from the grid's: centred in whatever width it was given. */
+        int left() {
+            return Math.max(0, (width - GRID_WIDTH) / 2);
+        }
+
         @Override public int getHeight() { return Math.max(1, rows()) * ItemPicker.SIZE; }
-        @Override public void layoutWithin(int budget) {}
+        @Override public void layoutWithin(int budget) { width = Math.max(GRID_WIDTH, budget); }
         @Override public void fillWidth(int width) {}
         @Override public boolean isInteractive() { return true; }
 
         private @Nullable ItemStack entryAt(int ox, int oy, double mx, double my) {
-            double lx = mx - (ox + childX), ly = my - (oy + childY);
+            double lx = mx - (ox + childX + left()), ly = my - (oy + childY);
             if (lx < 0 || ly < 0 || lx >= GRID_WIDTH) return null;
             int i = (int) (ly / ItemPicker.SIZE) * COLUMNS + (int) (lx / ItemPicker.SIZE);
             List<ItemStack> shown = shown();
@@ -692,7 +954,7 @@ final class ItemDialog {
         @Override
         public void render(RenderContext ctx) {
             GuiGraphicsExtractor g = ctx.graphics();
-            int gx = ctx.originX() + childX, gy = ctx.originY() + childY;
+            int gx = ctx.originX() + childX + left(), gy = ctx.originY() + childY;
             List<ItemStack> shown = shown();
             if (shown.isEmpty()) {
                 g.text(Minecraft.getInstance().font, "No items match", gx + 2, gy + 5,
@@ -728,96 +990,224 @@ final class ItemDialog {
         }
     }
 
-    // The Edit tab's enchantments
+    // The Edit tab's enchantment list
+
+    /** A row of the enchantment list: an enchantment on the item, one that can be added, or (no choice) the heading between. */
+    private record EnchantRow(@Nullable EnchantChoice choice, boolean applied) {}
+
+    /** One control button of a row: where it is from the row's left, its glyph, whether it does anything, and what it says. */
+    private record Control(int x, String glyph, boolean enabled, Component tooltip, Runnable action) {}
 
     /**
-     * The enchantments that fit the selected stack, a row each: the name, then a
-     * minus, the level (or Off) and a plus. A blocked one (excluded by one on the
-     * item) is greyed and its plus does nothing; its tooltip says why.
+     * The enchantments that fit the selected stack, in two lists, one above the
+     * other: those on the item, each with its level, a - and a + (from I to its
+     * highest, no further) and a remove control; then, under a heading when both
+     * show, those that can be added, each with an add control (on at level I, and
+     * into the list above). One excluded by an enchantment on the item is greyed, its
+     * add control off, its tooltip naming what it conflicts with. Asks for the room
+     * its longest name, the level and the controls need; every row's controls line up
+     * at the right, whatever moves between the lists. A name that still does not fit
+     * (a narrow screen) is cut with an ellipsis, and its tooltip has it in full.
      */
     private final class EnchantList extends AbstractPanelElement {
-        /** The stack the list was last made for, and the list. */
-        private @Nullable ItemStack madeFor;
-        private List<ItemEditing.EnchantChoice> made = List.of();
 
         EnchantList() {
-            this.width = this.authoredWidth = GRID_WIDTH;
             this.height = ENCHANT_ROW;
         }
 
-        List<ItemEditing.EnchantChoice> choices() {
-            ItemStack s = current();
-            if (madeFor == null || !ItemStack.matches(s, madeFor)) {
-                madeFor = s.copy();
-                made = ItemEditing.enchantChoices(s, ItemSources.registries());
-            }
-            return made;
+        List<EnchantRow> rows() {
+            List<EnchantRow> applied = new ArrayList<>(), more = new ArrayList<>();
+            for (EnchantChoice c : enchantChoices()) (c.applied() ? applied : more).add(new EnchantRow(c, c.applied()));
+            List<EnchantRow> out = new ArrayList<>(applied);
+            if (!applied.isEmpty() && !more.isEmpty()) out.add(new EnchantRow(null, false));
+            out.addAll(more);
+            return out;
         }
 
-        @Override public int getHeight() { return Math.max(1, choices().size()) * ENCHANT_ROW; }
-        @Override public void layoutWithin(int budget) { width = Math.min(authoredWidth, budget); }
+        /** The widest any level of any of the choices is written. */
+        private int levelColumn(Font font) {
+            int w = 0;
+            for (EnchantChoice c : enchantChoices()) {
+                for (int l = 1; l <= Math.min(c.max(), 10); l++) w = Math.max(w, font.width(levelText(l)));
+            }
+            return w;
+        }
+
+        /** A control's left edge, counted from the right: 0 the last (remove, or add), then + and -. */
+        private int controlX(int fromRight) {
+            return width - 1 - CONTROL - fromRight * (CONTROL + CONTROL_GAP);
+        }
+
+        /** The right edge of an applied row's level. */
+        private int levelRight() {
+            return controlX(2) - ROW_GAP;
+        }
+
+        /** The right edge of a row's name: before the level on an applied row, before the add control on the other. */
+        private int nameRight(boolean applied, Font font) {
+            return applied ? levelRight() - levelColumn(font) - ROW_GAP : controlX(0) - ROW_GAP;
+        }
+
+        @Override
+        public int naturalWidth() {
+            Font font = Minecraft.getInstance().font;
+            int name = font.width(ADD_HEADING);
+            for (EnchantChoice c : enchantChoices()) name = Math.max(name, font.width(c.name()));
+            // The widest a row gets: an applied one, its name, level and three controls.
+            return TEXT_PAD + name + ROW_GAP + levelColumn(font) + ROW_GAP + 3 * CONTROL + 2 * CONTROL_GAP + 1;
+        }
+
+        @Override public int getHeight() { return Math.max(1, rows().size()) * ENCHANT_ROW; }
+        @Override public void layoutWithin(int budget) { width = Math.max(1, budget); }
         @Override public void fillWidth(int width) {}
         @Override public boolean isInteractive() { return true; }
 
-        // The controls at the row's right: minus, level, plus.
-        private int plusX() { return width - 10; }
-        private int levelX() { return width - 40; }
-        private int minusX() { return width - 50; }
+        /** A row's controls. */
+        private List<Control> controls(EnchantRow r) {
+            EnchantChoice c = r.choice();
+            if (c == null) return List.of();
+            Holder<Enchantment> e = c.enchantment();
+            if (r.applied()) {
+                int l = c.level();
+                return List.of(
+                        new Control(controlX(2), "-", l > 1, l > 1
+                                ? Component.literal("Lower to ").append(levelText(l - 1))
+                                : Component.literal("Lowest level"), () -> stepEnchant(e, -1)),
+                        new Control(controlX(1), "+", l < c.max(), l < c.max()
+                                ? Component.literal("Raise to ").append(levelText(l + 1))
+                                : Component.literal("Highest level"), () -> stepEnchant(e, 1)),
+                        new Control(controlX(0), "×", true, Component.literal("Remove"), () -> removeEnchant(e)));
+            }
+            return List.of(new Control(controlX(0), "+", !c.blocked(),
+                    c.blocked() ? conflict(c) : Component.literal("Add at level I"), () -> addEnchant(e)));
+        }
+
+        /** "Conflicts with Sharpness": what on the item excludes it. */
+        private Component conflict(EnchantChoice c) {
+            var out = Component.literal("Conflicts with ");
+            for (int i = 0; i < c.conflicts().size(); i++) {
+                if (i > 0) out.append(", ");
+                out.append(c.conflicts().get(i).value().description());
+            }
+            return out;
+        }
+
+        /** The name's tooltip: in full and up to what level, or what it conflicts with. */
+        private Component nameTooltip(EnchantChoice c) {
+            if (c.blocked()) return conflict(c);
+            return Component.empty().append(c.name()).append(", up to ").append(levelText(c.max()));
+        }
+
+        /** {@code text} cut to {@code room} with an ellipsis when it would not fit. */
+        private String fit(Component text, int room, Font font) {
+            String s = text.getString();
+            if (font.width(s) <= room) return s;
+            return font.plainSubstrByWidth(s, Math.max(0, room - font.width("..."))) + "...";
+        }
 
         @Override
         public void render(RenderContext ctx) {
             GuiGraphicsExtractor g = ctx.graphics();
-            var font = Minecraft.getInstance().font;
+            Font font = Minecraft.getInstance().font;
+            ScreenKind kind = ctx.kind();
             int x = ctx.originX() + childX, y = ctx.originY() + childY;
-            List<ItemEditing.EnchantChoice> list = choices();
-            for (int i = 0; i < list.size(); i++) {
-                ItemEditing.EnchantChoice c = list.get(i);
+            boolean mouse = ctx.hasMouseInput() && g.containsPointInScissor(ctx.mouseX(), ctx.mouseY());
+            List<EnchantRow> rows = rows();
+            for (int i = 0; i < rows.size(); i++) {
+                EnchantRow r = rows.get(i);
                 int ry = y + i * ENCHANT_ROW;
-                boolean over = ctx.hasMouseInput() && g.containsPointInScissor(ctx.mouseX(), ctx.mouseY())
-                        && ctx.mouseY() >= ry && ctx.mouseY() < ry + ENCHANT_ROW && ctx.mouseX() >= x && ctx.mouseX() < x + width;
-                if (over) g.fill(x, ry, x + width, ry + ENCHANT_ROW, ElementConstants.HOVER_OVERLAY);
-                TextRole role = c.blocked() ? TextRole.DISABLED : c.level() > 0 ? TextRole.HEADING : TextRole.BODY;
-                int color = ctx.kind().textColor(role);
-                g.text(font, c.name(), x + 2, ry + 2, color, ctx.kind().textShadow());
-                g.text(font, "-", x + minusX() + 3, ry + 2, color, ctx.kind().textShadow());
-                Component level = c.level() == 0 ? Component.literal("Off") : Component.translatable("enchantment.level." + c.level());
-                g.text(font, level, x + levelX() + (30 - font.width(level)) / 2, ry + 2, color, ctx.kind().textShadow());
-                g.text(font, "+", x + plusX() + 3, ry + 2, color, ctx.kind().textShadow());
-                if (over) MKTooltip.queue(g, tooltip(c), ctx.mouseX(), ctx.mouseY());
+                int textY = Text.centeredTextY(ry, ry + ENCHANT_ROW);
+                EnchantChoice c = r.choice();
+                if (c == null) {
+                    g.text(font, fit(ADD_HEADING, width - TEXT_PAD, font), x + TEXT_PAD, textY,
+                            kind.textColor(TextRole.MUTED), kind.textShadow());
+                    continue;
+                }
+                int color = kind.textColor(c.blocked() ? TextRole.DISABLED : TextRole.BODY);
+                int nameRight = nameRight(r.applied(), font);
+                g.text(font, fit(c.name(), nameRight - TEXT_PAD, font), x + TEXT_PAD, textY, color, kind.textShadow());
+                if (mouse && ctx.mouseY() >= ry && ctx.mouseY() < ry + ENCHANT_ROW && ctx.mouseX() >= x + TEXT_PAD
+                        && ctx.mouseX() < x + nameRight) {
+                    MKTooltip.queue(g, nameTooltip(c), ctx.mouseX(), ctx.mouseY());
+                }
+                if (r.applied()) {
+                    Component level = levelText(c.level());
+                    g.text(font, level, x + levelRight() - font.width(level), textY, color, kind.textShadow());
+                }
+                for (Control k : controls(r)) {
+                    int cx = x + k.x(), cy = ry + 1;
+                    boolean over = mouse && ctx.mouseX() >= cx && ctx.mouseX() < cx + CONTROL
+                            && ctx.mouseY() >= cy && ctx.mouseY() < cy + CONTROL;
+                    drawControl(g, kind, cx, cy, k.glyph(), k.enabled(), over);
+                    if (over) MKTooltip.queue(g, k.tooltip(), ctx.mouseX(), ctx.mouseY());
+                }
             }
-        }
-
-        private Component tooltip(ItemEditing.EnchantChoice c) {
-            if (c.blocked()) return Component.literal("Does not go with an enchantment already on it");
-            return Component.empty().append(c.name()).append(", up to level " + c.max() + ". Click + or - to change it.");
         }
 
         @Override
         public boolean mouseClicked(InputContext in, int button) {
             if (button != Click.LEFT || disabled(in)) return false;
             double lx = in.mouseX() - (in.originX() + childX), ly = in.mouseY() - (in.originY() + childY);
-            List<ItemEditing.EnchantChoice> list = choices();
-            int i = (int) (ly / ENCHANT_ROW);
-            if (lx < 0 || ly < 0 || i >= list.size()) return false;
-            ItemEditing.EnchantChoice c = list.get(i);
-            int level = c.level();
-            if (lx >= plusX()) {
-                if (c.blocked() || level >= c.max()) return true;
-                level++;
-            } else if (lx >= minusX() && lx < minusX() + 10) {
-                if (level == 0) return true;
-                level--;
-            } else {
-                return false;
+            List<EnchantRow> rows = rows();
+            int i = (int) Math.floor(ly / ENCHANT_ROW);
+            if (lx < 0 || ly < 0 || i >= rows.size()) return false;
+            double cy = ly - i * ENCHANT_ROW - 1;
+            for (Control k : controls(rows.get(i))) {
+                if (lx < k.x() || lx >= k.x() + CONTROL || cy < 0 || cy >= CONTROL) continue;
+                if (!k.enabled()) return true;
+                ElementWidget.playClickSound();
+                k.action().run();
+                return true;
             }
-            ElementWidget.playClickSound();
-            setEnchantment(c, level);
-            return true;
+            return false;
+        }
+
+        /** Each row's name, level and controls, with their glyphs, inside the room they have. */
+        void boxes(List<ItemPicker.Box> out, int ox, int oy, Font font) {
+            List<EnchantRow> rows = rows();
+            for (int i = 0; i < rows.size(); i++) {
+                EnchantRow r = rows.get(i);
+                int ry = oy + i * ENCHANT_ROW;
+                int[] rowRect = {ox, ry, width, ENCHANT_ROW};
+                EnchantChoice c = r.choice();
+                if (c == null) {
+                    String s = fit(ADD_HEADING, width - TEXT_PAD, font);
+                    out.add(box("heading \"" + s + "\"", new int[]{ox + TEXT_PAD, ry, font.width(s), ENCHANT_ROW}, rowRect));
+                    continue;
+                }
+                int nameRight = nameRight(r.applied(), font);
+                String s = fit(c.name(), nameRight - TEXT_PAD, font);
+                out.add(box("name \"" + s + "\"", new int[]{ox + TEXT_PAD, ry, font.width(s), ENCHANT_ROW},
+                        new int[]{ox, ry, nameRight, ENCHANT_ROW}));
+                if (r.applied()) {
+                    Component level = levelText(c.level());
+                    int col = levelColumn(font);
+                    out.add(box("level " + level.getString() + " of " + s,
+                            new int[]{ox + levelRight() - font.width(level), ry, font.width(level), ENCHANT_ROW},
+                            new int[]{ox + levelRight() - col, ry, col, ENCHANT_ROW}));
+                }
+                for (Control k : controls(r)) {
+                    int[] at = {ox + k.x(), ry + 1, CONTROL, CONTROL};
+                    out.add(box("control " + k.glyph() + " of " + s, at, rowRect));
+                    int gw = font.width(k.glyph());
+                    out.add(box("glyph " + k.glyph() + " of " + s,
+                            new int[]{at[0] + (CONTROL - gw) / 2, at[1] + 2, gw, font.lineHeight - 1}, at));
+                }
+            }
         }
     }
 
-    /** The selected stack with {@code choice} at {@code level}, written through. */
-    private void setEnchantment(ItemEditing.EnchantChoice choice, int level) {
-        replaceCurrent(ItemEditing.withEnchantment(current(), choice.enchantment(), level));
+    /** A control button: vanilla's button on an options screen, MenuKit's raised one (dark when off) on a container's. */
+    private static void drawControl(GuiGraphicsExtractor g, ScreenKind kind, int x, int y, String glyph, boolean enabled, boolean hovered) {
+        if (kind == ScreenKind.OPTIONS) {
+            VanillaLook.button(g, x, y, CONTROL, CONTROL, enabled, hovered && enabled);
+        } else if (!enabled) {
+            PanelRendering.renderPanel(g, x, y, CONTROL, CONTROL, PanelStyle.DARK);
+        } else {
+            PanelRendering.renderPanel(g, x, y, CONTROL, CONTROL, PanelStyle.RAISED);
+            if (hovered) g.fill(x + 1, y + 1, x + CONTROL - 1, y + CONTROL - 1, ElementConstants.HOVER_OVERLAY);
+        }
+        int color = enabled ? ElementConstants.TEXT_LIGHT : kind.textColor(TextRole.DISABLED);
+        Text.renderCentered(g, Component.literal(glyph), x, y, CONTROL, CONTROL, color, true);
     }
 }
