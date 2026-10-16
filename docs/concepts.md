@@ -97,7 +97,7 @@ The kind comes from the screen, by one rule (`ScreenKind.of(screen)`):
 - An anchor's panels are the kind of the screen the anchor is on.
 - A standalone `MKScreen` is the kind it declares when it is created, `super(title, ScreenKind.OPTIONS, panels)`. One that declares none is a container screen, which is the look every standalone screen had before 6.1.0. `screenKind()` reads it back. A library's own screen declares its kind to its `OwnHost`.
 - The HUD is a container screen, the look it has always had.
-- A dialog or any other panel on a screen is that screen's kind, and so is the chooser an `ItemPicker` opens.
+- A dialog or any other panel on a screen is that screen's kind, and so is the dialog an `ItemPicker` opens.
 
 The kind travels with the frame in `RenderContext.kind()`, and `at` and `disabledIf` keep it. An element built from other elements passes it on without reading it. The kind changes how an element draws, never its size or behaviour.
 
@@ -124,9 +124,30 @@ Where vanilla has no counterpart (a radio button, an info box, a progress bar, a
 
 ## Item picker
 
-An `ItemPicker` is a setting whose value is an item. It is a slot plus a lens onto an `Item` (`state(get, set)`), for a settings page where the player picks the items a setting applies to. A left click (or Enter on the focused picker) opens a chooser over the screen. The chooser has every item in a scrolling grid, a search field that narrows it by name or id, and Clear and Cancel buttons. A click on an item hands it to `set` and returns. Escape or Cancel returns with nothing changed. A right click empties the picker by handing `set` `Items.AIR`, which is also how `get` reports "none". On hover, it shows the item's name.
+An `ItemPicker` is a setting whose value is an item or a list of items. On the page it is one slot, or for a list a wrapping row of slots in order (`columns(n)` to a row, 9 by default) with an empty slot marked with a plus at the end. A left click (or Enter on the focused picker) opens a dialog at that slot; a right click empties it, and in a list drops it. On hover a slot shows the item's own tooltip, and under it how the setting compares it.
 
-The value is a setting, never the player's item. The picker and its chooser are client-only. They never touch the inventory or a container and send nothing to the server, so the picker belongs to MenuKit, not a slot library. It holds one item. A list of items is a row of pickers, one per position (see [recipes](recipes.md#a-settings-screen-in-the-pause-menu-look)).
+The value is always whole stacks, read from `get` every frame and handed to `set` on every change:
+
+| Lens | Value |
+|---|---|
+| `state(Supplier<Item>, Consumer<Item>)` | One item, the kind only. `Items.AIR` is none. The 6.1.0 lens, unchanged. |
+| `stack(get, set)` | One `ItemStack`. `ItemStack.EMPTY` is none. |
+| `stacks(get, set)` | A `List<ItemStack>` in the player's order, never with empty entries. |
+| `rule(get, set)`, `rules(get, set)` | The same as `ItemMatch` values, each a stack and its own match mode. |
+
+`match(ItemMatch.Match)` declares how the setting compares stacks, and `ItemMatch` does the comparing, so a mod never writes its own: `rule.matches(stack)`, or `ItemMatch.matches(config.stack, ItemMatch.Match.EXACT, stack)` for a plain stack.
+
+- `ITEM`, the default: the kind of item only. Count and components are ignored. The dialog has no Edit tab, and every slot holds one plain item.
+- `EXACT`: vanilla's own stack equality, the same item, count and components. A rule with nothing set is a plain item, so an enchanted or renamed one does not match.
+- `CONTAINS`: the same item and at least the components the rule sets; the count is ignored. A rule with nothing set matches any variant. Components compare as vanilla's item predicates compare them: enchantments must be there at their level (more may be), custom data must contain the rule's tag, a component the rule removes must be absent, anything else must be equal.
+
+Whether an empty rule means "any" or "plain" is the mode's answer, never a guess. `playerChoosesMatch()` lets the player choose per slot between `Any <item>` (`CONTAINS`) and "Exactly this" (`EXACT`). It needs `rule` or `rules`, which store the choice, and `match` gives a new slot's. `ItemMatch.CODEC` saves a rule with vanilla's stack codec.
+
+The dialog is a modal dialog of the screen, in its kind, laid out as every dialog is. At the top is the slot row, the setting's slots with the selected one outlined. The Search tab comes first: a search box, focused so typing starts at once, over a grid of every item from the creative inventory's search tab, so each potion, tipped arrow, enchanted book level, goat horn, firework duration and ominous bottle is its own entry (with `ITEM`, each item once). Search reads names, ids and tooltips. Items move as in the creative inventory: a click on an entry takes one, a shift-click or middle click a full stack, another click adds one and a right click takes one back; a click on a slot places, picks up or swaps, a right click places one or takes half; dragging over slots spreads the stack, a right drag one each; clicking a different entry while holding something puts it back. Enter in the search box puts the first match in the selected slot. A list's emptied slot stays in place until the dialog closes, and the slot at the end adds one.
+
+The Edit tab, for `EXACT` and `CONTAINS`, edits the selected slot (a click on the row only selects there): its name, its count, its enchantments (only those that fit the item, up to their highest level, those an enchantment already on it excludes greyed; none for an item nothing enchants; an enchanted book's stored ones), the match choice when the player has one, and every other component as text in vanilla's `/give` syntax, `[unbreakable={},!food]`. The text is read by vanilla's own item parser and checked as `/give` checks a stack; while it is not valid it shows red with vanilla's error under it and writes nothing.
+
+Changes are written as they are made. Done keeps them; Cancel and Escape write back the value from before the dialog opened. The value is a setting, never the player's item: the dialog's slots are not real slots, what the cursor holds is the dialog's own, nothing touches the inventory or a container, and nothing is sent to the server, so the picker belongs to MenuKit, not a slot library. With no world open (a settings screen on the title screen) the picker uses vanilla's own data, loaded once.
 
 ## Widget host
 

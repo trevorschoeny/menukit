@@ -16,7 +16,7 @@ What it does:
 - Gives its controls vanilla's click sound, narration and keyboard focus, and greys a whole panel at once with one `disabledWhen`.
 - Draws each element for the kind of screen it is on. Inventories and chests get MenuKit's grey look, and Options, Controls and similar screens get vanilla's pause-menu look. A standalone screen declares its kind once, when it is made. Text is coloured by role (heading, body, muted, disabled) so it reads on either kind.
 - Draws a cycle strip beside the hotbar for any mod that turns a ring of stacks through the held slot, with a slide on each turn.
-- Lets a settings page pick items. An item picker is a slot whose item is a setting value. The player chooses it from a searchable list, and it is never taken from the inventory.
+- Lets a settings page pick items. An item picker holds one item or a list of them as a setting value. Its dialog lists every item and variant the way the creative inventory does, edits names, counts, enchantments and other components, and compares stacks one shared way. Nothing is ever taken from the inventory.
 
 Requires Fabric and Fabric API.
 

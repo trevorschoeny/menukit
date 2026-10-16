@@ -288,7 +288,7 @@ public final class ModSettingsScreen extends MKScreen {
 }
 ```
 
-Open it with `Minecraft.getInstance().gui.setScreen(new ModSettingsScreen(Minecraft.getInstance().gui.screen()))`. Result: "My Mod" in white at the top centre, over the blurred world (the panorama on the title screen). Under it, Create World's tab bar runs across the whole width. With more tabs than fit, it scrolls with arrows. The page is the darker list band between two thin lines. The section header is centred as a category on Controls is, and its rows are white text. The toggle is a stone button reading ON or OFF, and the slider and dropdown are vanilla's own. Locked items shows nine slots in vanilla's slot sprite. A click opens a chooser of every item with a search field, a pick fills the slot, and a right click empties it. The items are setting values, so nothing is taken from the inventory or sent to the server. Done at the bottom and Escape both return to the screen it opened from. Nothing on it picks a look.
+Open it with `Minecraft.getInstance().gui.setScreen(new ModSettingsScreen(Minecraft.getInstance().gui.screen()))`. Result: "My Mod" in white at the top centre, over the blurred world (the panorama on the title screen). Under it, Create World's tab bar runs across the whole width. With more tabs than fit, it scrolls with arrows. The page is the darker list band between two thin lines. The section header is centred as a category on Controls is, and its rows are white text. The toggle is a stone button reading ON or OFF, and the slider and dropdown are vanilla's own. Locked items shows nine slots in vanilla's slot sprite. A click opens the item dialog over the screen, with a search box and every item; an item taken from the grid and dropped in the slot at the top fills it, and a right click on the page empties it. The items are setting values, so nothing is taken from the inventory or sent to the server. Done at the bottom and Escape both return to the screen it opened from. Nothing on it picks a look.
 
 A dialog on this screen (a `ConfirmDialog` for Reset to Defaults, for example) is the same kind. A `RAISED` panel draws vanilla's popup frame, with white text, and keeps the same 4 px between that frame and its elements as inside MenuKit's own frame (the popup frame is 3 px thicker, so the panel is 6 px bigger). Keep labels on roles (next recipe) rather than `TextLabel.COLOR_DARK`, which reads only on a container screen's grey. A screen that declares no kind (`super(title, panels)`) stays a container screen, in MenuKit's grey look. Panels injected into vanilla's own screens need nothing, because a panel on Options or Controls is already on an options screen.
 
@@ -392,3 +392,34 @@ PanelElement glow = ColorField.builder()
 ```
 
 Result: a swatch of the colour, over a checkerboard because it has alpha. Clicking it opens a dialog over the screen, titled Glow color. The Basic tab shows the 16 dye colours by their dye items in three rows, in rainbow order, and clicking one sets the colour. The Custom tab has a saturation and brightness square, a hue bar, a transparency bar and a hex field. Every change is written at once. Done keeps it; Cancel or Escape puts back the colour from before the dialog opened. Without `alpha(true)` the value is `0xRRGGBB` and there is no transparency bar.
+
+## An item setting
+
+Needs: MenuKit 7.2.0.
+
+```java
+// One item, the kind only.
+PanelElement lockedItem = ItemPicker.builder()
+        .state(config::lockedItem, config::setLockedItem)
+        .build();
+
+// A list of exact stacks, edited in full.
+PanelElement kit = ItemPicker.builder()
+        .label(Component.literal("Starting kit"))
+        .stacks(config::kit, config::setKit)
+        .match(ItemMatch.Match.EXACT)
+        .build();
+
+// A list the player matches per slot: "Any Diamond Sword" or "Exactly this".
+PanelElement locks = ItemPicker.builder()
+        .label(Component.literal("Locked items"))
+        .rules(config::locks, config::setLocks)
+        .match(ItemMatch.Match.CONTAINS)
+        .playerChoosesMatch()
+        .build();
+
+// In play, one matcher for every mode.
+boolean locked = config.locks().stream().anyMatch(rule -> rule.matches(stack));
+```
+
+Result: one slot with the item, and two rows of slots, each with an empty slot marked with a plus at the end. Clicking a slot opens a dialog over the screen: the setting's slots at the top, then a search box over every item and variant. Take items from the grid and drop them into the slots as in the creative inventory, a click for one, shift-click for a stack. The two lists have an Edit tab for the selected slot: name, count, enchantments that fit the item, the other components in `/give` syntax, and for the locks the choice between Any and Exactly. The first picker never shows a count or an Edit tab. Every change is written at once; Cancel or Escape puts back the value from before. Save a rule with `ItemMatch.CODEC`.

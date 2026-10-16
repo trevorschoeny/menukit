@@ -38,7 +38,7 @@ import org.jspecify.annotations.Nullable;
  *       declared none, which is how every standalone screen looked before 6.1.0.</li>
  *   <li>The HUD: {@link #CONTAINER}, the look it has always had.</li>
  *   <li>A dialog or overlay follows the screen it opens on, since it is a panel on
- *       that screen; so does the item chooser an {@code ItemPicker} opens.</li>
+ *       that screen; so does the dialog an {@code ItemPicker} opens.</li>
  * </ul>
  *
  * <h3>What the kind changes</h3>

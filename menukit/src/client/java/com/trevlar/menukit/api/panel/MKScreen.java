@@ -54,7 +54,7 @@ import java.util.List;
  * settings screen that should read like the ones reached from the pause menu.
  * Every element on it draws for that kind, its panels' backgrounds too, and so
  * does anything injected onto it or opened from it (a dialog, an item picker's
- * chooser). Without a kind it is {@link ScreenKind#CONTAINER}, MenuKit's grey
+ * dialog). Without a kind it is {@link ScreenKind#CONTAINER}, MenuKit's grey
  * look, which is how every standalone screen looked before 6.1.0. On an options
  * screen a panel usually has no background ({@link PanelStyle#NONE}), so
  * vanilla's backdrop (the blurred world, or the panorama) shows behind it.

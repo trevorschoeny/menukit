@@ -204,7 +204,7 @@ public class ScrollContainer extends AbstractPanelElement {
     /**
      * The scrollable height: the builder's {@code contentHeight}, else the children's
      * extent, read live, so a child that grows or shrinks while shown (a section
-     * opening, an item chooser's grid narrowing to a search) changes the range.
+     * opening, an item picker's grid narrowing to a search) changes the range.
      * The band's inset above and below is part of it.
      */
     private int contentHeight(ScreenKind kind) {
