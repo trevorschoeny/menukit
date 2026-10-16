@@ -82,17 +82,47 @@ import java.util.Objects;
  * through {@link ChildDispatch}, exactly as the same elements directly on the
  * panel: clicks, the wheel, keys, releases, popovers, attach and detach. A
  * disabled Flow (its own {@code disabledWhen}) disables everything in it.
+ *
+ * <h3>Boxed: a card</h3>
+ *
+ * {@link Builder#boxed()} draws a card behind the children: a row of a list that
+ * reads as one unit (a world in a world list, a sandbox in Sandboxes' screen). The
+ * children sit {@link #BOX_PADDING} inside the card's edge, a boxed row Flow fills
+ * the width its panel gives it, and its height hugs its rows plus the padding. The
+ * card's look follows the kind of screen: on an options screen a dark translucent
+ * box with a one-pixel light border that brightens while hovered, on a container
+ * screen the {@code INSET} panel look. An icon beside a stack of lines is a boxed
+ * Flow holding the icon and a vertical Flow:
+ *
+ * <pre>{@code
+ * Flow.builder().boxed().gap(6)
+ *         .add(icon)
+ *         .add(Flow.builder().vertical().gap(2)
+ *                 .add(title).add(detail).add(buttonRow).build())
+ *         .build();
+ * }</pre>
  */
 public final class Flow extends AbstractPanelElement {
 
     /** Default gap between children, on both axes. */
     public static final int DEFAULT_GAP = 4;
 
+    /** Space between a boxed Flow's card edge and its children ({@link Builder#boxed()}). */
+    public static final int BOX_PADDING = 6;
+
+    // The options-screen card: a dark translucent fill and a one-pixel light border,
+    // brighter while hovered. The container-screen card is the INSET panel look.
+    private static final int CARD_FILL = 0x40000000;
+    private static final int CARD_BORDER = 0x33FFFFFF;
+    private static final int CARD_BORDER_HOVER = 0x80FFFFFF;
+
     private final List<PanelElement> children;
     private final int gapX;
     private final int gapY;
     /** Top to bottom, wrapping into columns ({@link Builder#vertical()}), instead of rows. */
     private final boolean vertical;
+    /** Draws a card behind the children and insets them ({@link Builder#boxed()}). */
+    private final boolean boxed;
 
     /** The width the panel gives the Flow; until the first pass, one row's worth. */
     private int budget = -1;
@@ -116,7 +146,17 @@ public final class Flow extends AbstractPanelElement {
         this.gapX = b.gapX;
         this.gapY = b.gapY;
         this.vertical = b.vertical;
+        this.boxed = b.boxed;
     }
+
+    /** The card's padding on each side: {@link #BOX_PADDING} when boxed, else none. */
+    private int pad() {
+        return boxed ? BOX_PADDING : 0;
+    }
+
+    /** Where the children's area starts, in the panel's content coordinates. */
+    private int innerX() { return childX + pad(); }
+    private int innerY() { return childY + pad(); }
 
     public static Builder builder() {
         return new Builder();
@@ -171,7 +211,7 @@ public final class Flow extends AbstractPanelElement {
             for (PanelElement c : children) {
                 if (!(c instanceof Spacer)) widest = Math.max(widest, c.naturalWidth());
             }
-            return Math.max(1, widest);
+            return Math.max(1, widest + 2 * pad());
         }
         int total = 0, count = 0;
         for (PanelElement c : children) {
@@ -179,7 +219,7 @@ public final class Flow extends AbstractPanelElement {
             total += c.naturalWidth();
             count++;
         }
-        return Math.max(1, total + Math.max(0, count - 1) * gapX);
+        return Math.max(1, total + Math.max(0, count - 1) * gapX + 2 * pad());
     }
 
     private int cap() {
@@ -199,7 +239,8 @@ public final class Flow extends AbstractPanelElement {
     private void relayout() {
         int sig = signature();
         if (laidOut && sig == lastSignature) return;
-        int cap = cap();
+        // Inside a card the children wrap at the width less the padding on both sides.
+        int cap = Math.max(1, cap() - 2 * pad());
         for (PanelElement c : children) {
             if (c.isVisible() && !(c instanceof Spacer)) c.layoutWithin(cap);
         }
@@ -245,8 +286,11 @@ public final class Flow extends AbstractPanelElement {
             for (PanelElement c : r.members()) h = Math.max(h, c.getHeight());
             bottom = Math.max(bottom, r.top() + h);
         }
-        lastWidth = widest;
-        lastHeight = bottom;
+        // A boxed row fills the width it was given (each card is a full row of a
+        // list); otherwise the Flow hugs its widest row. Either way the card's
+        // padding wraps the rows.
+        lastWidth = boxed ? Math.max(cap(), widest + 2 * pad()) : widest;
+        lastHeight = bottom + 2 * pad();
         laidOut = true;
         lastSignature = signature(); // after layout: a settled layout does not relayout
     }
@@ -259,15 +303,15 @@ public final class Flow extends AbstractPanelElement {
      * room. Records the hug of the columns as the Flow's size.
      */
     private void layoutColumns() {
-        int limit = wrapAt > 0 ? wrapAt : Integer.MAX_VALUE;
+        int limit = wrapAt > 0 ? Math.max(1, wrapAt - 2 * pad()) : Integer.MAX_VALUE;
         int x = 0, y = 0, colW = 0, bottom = 0;
         boolean columnHasChild = false;
         for (PanelElement c : children) {
             if (c instanceof Spacer s) {
                 // No room in a column: parked at the origin with nothing to draw.
                 s.w = 0;
-                s.x = childX;
-                s.y = childY;
+                s.x = innerX();
+                s.y = innerY();
                 continue;
             }
             if (!c.isVisible()) continue;
@@ -280,14 +324,14 @@ public final class Flow extends AbstractPanelElement {
                 columnHasChild = false;
             }
             if (columnHasChild) y += gapY;
-            if (c instanceof AbstractPanelElement ape) ape.setChildPosition(childX + x, childY + y);
+            if (c instanceof AbstractPanelElement ape) ape.setChildPosition(innerX() + x, innerY() + y);
             y += h;
             colW = Math.max(colW, c.getWidth());
             bottom = Math.max(bottom, y);
             columnHasChild = true;
         }
-        lastWidth = x + colW;
-        lastHeight = bottom;
+        lastWidth = x + colW + 2 * pad();
+        lastHeight = bottom + 2 * pad();
     }
 
     /**
@@ -332,12 +376,12 @@ public final class Flow extends AbstractPanelElement {
                 boolean live = live(i, firstContent, lastContent, wrapped);
                 if (live) seen++;
                 s.w = live ? share + (seen == spacers ? odd : 0) : 0;
-                s.x = childX + x;
-                s.y = childY + r.top();
+                s.x = innerX() + x;
+                s.y = innerY() + r.top();
                 x += s.w;
             } else {
                 if (contentBefore) x += gapX;
-                if (c instanceof AbstractPanelElement ape) ape.setChildPosition(childX + x, childY + r.top());
+                if (c instanceof AbstractPanelElement ape) ape.setChildPosition(innerX() + x, innerY() + r.top());
                 x += c.getWidth();
                 contentBefore = true;
             }
@@ -389,7 +433,7 @@ public final class Flow extends AbstractPanelElement {
         relayout();
         int oneRow = 0;
         for (PanelElement c : children) if (c.isVisible()) oneRow = Math.max(oneRow, c.getHeight());
-        return Math.max(0, lastHeight - oneRow);
+        return Math.max(0, lastHeight - (oneRow + 2 * pad()));
     }
 
     @Override
@@ -400,7 +444,26 @@ public final class Flow extends AbstractPanelElement {
     @Override
     public void render(RenderContext ctx) {
         relayout();
+        if (boxed) drawCard(ctx);
         ChildDispatch.render(children, childContext(ctx));
+    }
+
+    /** The card behind a boxed Flow's children, in the look of the screen's kind. */
+    private void drawCard(RenderContext ctx) {
+        int x = ctx.originX() + childX, y = ctx.originY() + childY;
+        int w = lastWidth, h = lastHeight;
+        var g = ctx.graphics();
+        if (ctx.kind() == com.trevlar.menukit.api.panel.ScreenKind.OPTIONS) {
+            g.fill(x, y, x + w, y + h, CARD_FILL);
+            int border = ctx.isHovered(childX, childY, w, h) ? CARD_BORDER_HOVER : CARD_BORDER;
+            g.fill(x, y, x + w, y + 1, border);
+            g.fill(x, y + h - 1, x + w, y + h, border);
+            g.fill(x, y + 1, x + 1, y + h - 1, border);
+            g.fill(x + w - 1, y + 1, x + w, y + h - 1, border);
+        } else {
+            com.trevlar.menukit.core.PanelRendering.renderPanel(g, x, y, w, h,
+                    com.trevlar.menukit.api.panel.PanelStyle.INSET);
+        }
     }
 
     @Override
@@ -470,6 +533,7 @@ public final class Flow extends AbstractPanelElement {
         private int gapX = DEFAULT_GAP;
         private int gapY = DEFAULT_GAP;
         private boolean vertical = false;
+        private boolean boxed = false;
 
         private Builder() {}
 
@@ -509,6 +573,16 @@ public final class Flow extends AbstractPanelElement {
          */
         public Builder vertical() {
             this.vertical = true;
+            return this;
+        }
+
+        /**
+         * Draws a card behind the children: they sit {@link Flow#BOX_PADDING} inside
+         * it, a row Flow fills its width, the height hugs the content. See the class
+         * notes.
+         */
+        public Builder boxed() {
+            this.boxed = true;
             return this;
         }
 
