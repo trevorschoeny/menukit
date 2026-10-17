@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -250,6 +251,23 @@ public final class PanelHost {
 
     /** Entries already warned about an overflow; one warning each. */
     private final Set<Entry> warned = Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+
+    /**
+     * Non-null while {@link #layout()} is resolving entries: the placements this pass
+     * has made so far. A panel's position can read another panel's {@link
+     * Panel#placedBounds()} (that method's own example: a close button pinned to an
+     * item panel's corner), which calls back into this same host's layout mid-pass. A
+     * re-entrant call must never start a second pass — that pass would reach the same
+     * panel, ask the same question, and recurse without end — so it answers from this
+     * field instead of recomputing.
+     */
+    private @Nullable List<Placed> layoutInProgress;
+    /** The last completed pass's placements, read by a re-entrant call for a panel this
+     *  pass hasn't reached yet, so {@code placedBounds()} returns last frame's rectangle
+     *  rather than {@code null} for one frame. */
+    private List<Placed> lastPlaced = List.of();
+    /** The last completed pass's main frame, paired with {@link #lastPlaced}. */
+    private @Nullable Reference lastMain;
 
     private PanelHost(Kind kind, ScreenKind screenKind, Supplier<@Nullable Frame> frames, RegionMath.Insets insets) {
         this.kind = kind;
@@ -570,8 +588,16 @@ public final class PanelHost {
      * panel its size budget and this host's kind of screen (a panel measures itself
      * against the room it has, and an auto-scrolling one on an options screen lays
      * its content inside the list band's inset) and a one-time overflow warning.
+     *
+     * <p>Re-entrant: a panel's position can read another panel's {@link
+     * Panel#placedBounds()}, which calls back into {@link #placed()} and so here,
+     * while this very call is still resolving entries. Rather than start a second
+     * pass (which would reach the same panel, ask the same question, and recurse
+     * without end), a re-entrant call answers from what this pass has placed so
+     * far, falling back to the last completed pass for an entry not yet reached.
      */
     public Layout layout() {
+        if (layoutInProgress != null) return new Layout(mergeWithLastPlaced(layoutInProgress), lastMain);
         Frame frame = frames.get();
         if (frame == null || entries.isEmpty()) return Layout.EMPTY;
         int sw = frame.sw(), sh = frame.sh();
@@ -582,37 +608,64 @@ public final class PanelHost {
         // standalone host's main frame once it is resolved below.
         Reference screenFrame = frame.screenFrame();
         List<Placed> out = new ArrayList<>();
-        Reference main = null;
-        Placed mainPlaced = null;
-        if (kind == Kind.STANDALONE) {
-            Entry mainEntry = mainEntry();
-            if (mainEntry != null) {
-                MainFrame mf = resolveMain(mainEntry, sw, sh);
-                main = mf.frame();
-                reference = main;
-                screenFrame = main;
-                if (isShown(mainEntry.panel())) mainPlaced = mf.placed();
+        layoutInProgress = out; // from here, a re-entrant call sees every entry placed so far
+        Reference main;
+        try {
+            main = null;
+            Placed mainPlaced = null;
+            if (kind == Kind.STANDALONE) {
+                Entry mainEntry = mainEntry();
+                if (mainEntry != null) {
+                    MainFrame mf = resolveMain(mainEntry, sw, sh);
+                    main = mf.frame();
+                    reference = main;
+                    screenFrame = main;
+                    if (isShown(mainEntry.panel())) mainPlaced = mf.placed();
+                }
             }
-        }
 
-        // Where each region's stack ends so far this frame (OutsideRegion and
-        // InsideRegion keys never collide: different enum types). A region with no
-        // entry has nothing stacked in it yet, so its next panel is the first.
-        Map<Object, Integer> stackEnd = new HashMap<>();
-        for (Entry e : entries) {
-            if (!isShown(e.panel())) continue;
-            // An adapter's panel with nothing to show (every element hidden or empty,
-            // such as slot elements whose slots this menu lacks) is not placed: no
-            // empty frame, no claim (7.3.0).
-            if (placesAdapters() && e.panel().showsNothing()) continue;
-            if (mainPlaced != null && e == mainPlaced.entry()) {
-                out.add(mainPlaced);
-                continue;
+            // Where each region's stack ends so far this frame (OutsideRegion and
+            // InsideRegion keys never collide: different enum types). A region with no
+            // entry has nothing stacked in it yet, so its next panel is the first.
+            Map<Object, Integer> stackEnd = new HashMap<>();
+            for (Entry e : entries) {
+                if (!isShown(e.panel())) continue;
+                // An adapter's panel with nothing to show (every element hidden or empty,
+                // such as slot elements whose slots this menu lacks) is not placed: no
+                // empty frame, no claim (7.3.0).
+                if (placesAdapters() && e.panel().showsNothing()) continue;
+                if (mainPlaced != null && e == mainPlaced.entry()) {
+                    out.add(mainPlaced);
+                    continue;
+                }
+                Placed p = place(e, sw, sh, reference, screenFrame, frame.offhand(), stackEnd);
+                if (p != null) out.add(p);
             }
-            Placed p = place(e, sw, sh, reference, screenFrame, frame.offhand(), stackEnd);
-            if (p != null) out.add(p);
+        } finally {
+            layoutInProgress = null;
         }
-        return new Layout(List.copyOf(out), main);
+        Layout result = new Layout(List.copyOf(out), main);
+        lastPlaced = result.placed();
+        lastMain = main;
+        return result;
+    }
+
+    /**
+     * {@code pass}, the placements made so far in an in-progress {@link #layout()}
+     * call, plus — for any panel {@code pass} hasn't reached yet — that panel's
+     * placement from the last completed pass, so a re-entrant {@link
+     * Panel#placedBounds()} reads a real rectangle from a frame ago rather than
+     * {@code null}, for every panel but the one asking (which has none yet either way).
+     */
+    private List<Placed> mergeWithLastPlaced(List<Placed> pass) {
+        if (lastPlaced.isEmpty()) return pass;
+        List<Placed> merged = new ArrayList<>(pass);
+        Set<Panel> placedThisPass = new HashSet<>();
+        for (Placed p : pass) placedThisPass.add(p.panel());
+        for (Placed p : lastPlaced) {
+            if (placedThisPass.add(p.panel())) merged.add(p);
+        }
+        return merged;
     }
 
     /** Whether this host places panels mods declared through an adapter (a screen's, an anchor's). */
