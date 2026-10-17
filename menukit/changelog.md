@@ -24,3 +24,4 @@ This release is additions, plus one change to when slots shown in a panel are dr
 ### Fixed
 
 - An element removed from a screen lets go of the keyboard if it had it, and an open dropdown in it closes.
+- A button whose click opens another screen no longer looks pressed the next time its panel is shown. Leaving a screen now ends every element's press, drag and keyboard focus, even when the mouse release never arrives (vanilla drops input while it leaves and loads a world).
