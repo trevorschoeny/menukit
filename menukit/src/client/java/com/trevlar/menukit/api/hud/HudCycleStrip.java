@@ -169,16 +169,55 @@ public final class HudCycleStrip {
     }
 
     /**
-     * The strip's eased progress for a slide that started at {@code startMillis}
-     * ({@link Util#getMillis()}): 0 at the start, exactly 1 at rest, with
-     * the spring's overshoot to about 1.1 just before it settles. For a mod that draws
-     * its own slide (in the vanilla hotbar, say) and wants it to move with the strip.
+     * A slide's start, from {@link #begin}. For a mod that draws its own slide (in the
+     * vanilla hotbar, say) and wants it to move with the strip: hold one (a field is
+     * fine) and pass it to {@link #slideProgress(SlideStart)} / {@link #slideDone(SlideStart)}.
+     * It carries its own clock, so there is no raw millis value for a caller to stamp
+     * with the wrong one, vanilla's {@code System.currentTimeMillis()} included.
      */
+    public static final class SlideStart {
+        private final long startMillis;
+
+        private SlideStart(long startMillis) {
+            this.startMillis = startMillis;
+        }
+    }
+
+    /** Starts timing a slide now. */
+    public static SlideStart begin() {
+        return new SlideStart(Util.getMillis());
+    }
+
+    /**
+     * The strip's eased progress since {@code slide} began: 0 at the start, exactly 1
+     * at rest, with the spring's overshoot to about 1.1 just before it settles.
+     */
+    public static float slideProgress(SlideStart slide) {
+        return CycleStrip.progress(slide.startMillis, Util.getMillis());
+    }
+
+    /** Whether {@code slide} has finished. */
+    public static boolean slideDone(SlideStart slide) {
+        return CycleStrip.done(slide.startMillis, Util.getMillis());
+    }
+
+    /**
+     * @deprecated {@code startMillis} must be {@link Util#getMillis()}; a value from
+     * another clock (vanilla's {@code System.currentTimeMillis()}, for one) silently
+     * never reports done, since the two clocks measure from a different zero. Use
+     * {@link #begin} and {@link #slideProgress(SlideStart)} instead, which cannot take
+     * the wrong clock. Kept through MenuKit 7.x; removed in 8.0.0.
+     */
+    @Deprecated(since = "7.3.0", forRemoval = true)
     public static float slideProgress(long startMillis) {
         return CycleStrip.progress(startMillis, Util.getMillis());
     }
 
-    /** Whether a slide that started at {@code startMillis} has finished. */
+    /**
+     * @deprecated see {@link #slideProgress(long)}; use {@link #begin} and
+     * {@link #slideDone(SlideStart)} instead.
+     */
+    @Deprecated(since = "7.3.0", forRemoval = true)
     public static boolean slideDone(long startMillis) {
         return CycleStrip.done(startMillis, Util.getMillis());
     }
