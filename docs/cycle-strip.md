@@ -89,7 +89,7 @@ HudCycleStrip.slideChanged(hotbarSlot, HudCycleStrip.Direction.FORWARD, before);
 
 Only rings whose stacks changed move, and only their held cell slides, up or down as the vanilla hotbar would. The mod never needs to know which sources exist.
 
-For a mod that draws its own slide, in the vanilla hotbar for example, `HudCycleStrip.slideProgress(startMillis)` and `slideDone(startMillis)` give the strip's timing and spring, so the two move together. `SLIDE_MILLIS` is the length of one slide.
+For a mod that draws its own slide, in the vanilla hotbar for example, stamp the turn with `HudCycleStrip.SlideStart start = HudCycleStrip.begin();`, hold it (a field is fine), and read `HudCycleStrip.slideProgress(start)` and `slideDone(start)` each frame for the strip's timing and spring, so the two move together. `SLIDE_MILLIS` is the length of one slide. `begin()` stamps the slide with MenuKit's own clock, so there is no raw millis value to accidentally stamp with the wrong one, vanilla's `System.currentTimeMillis()` included.
 
 ## Limits
 
