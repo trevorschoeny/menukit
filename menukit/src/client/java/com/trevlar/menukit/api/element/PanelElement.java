@@ -133,13 +133,31 @@ public interface PanelElement {
 
     // Sizing: height flows down to filling elements.
 
-    /** Whether this element takes its height from the panel ({@link #fillHeight}). Default {@code false}. */
+    /**
+     * Whether this element takes its height from its container ({@link #fillHeight}):
+     * the room left below it rather than its natural height. A {@link Tabs} with no
+     * fixed size, a {@code ScrollContainer.builder().fillHeight()}, and a vertical
+     * {@link Flow} holding either. Default {@code false}.
+     */
     default boolean fillsHeight() { return false; }
 
     /**
-     * The height this element should occupy: the owning panel's viewport from
-     * this element's top edge down, or {@code -1} when the panel has no viewport.
-     * Called only when {@link #fillsHeight()} is {@code true}. Default: no-op.
+     * The height this element should occupy, from its container, or {@code -1} when
+     * the container has no height to give (back to its natural height). Called only
+     * when {@link #fillsHeight()} is {@code true}, every layout pass.
+     *
+     * <ul>
+     *   <li>A <b>panel</b> gives each filling element its viewport from the element's
+     *       top edge down (the screen's room for a standalone screen's main panel).
+     *       Put what goes under a filling element in a vertical {@link Flow} with
+     *       it.</li>
+     *   <li>A <b>vertical {@link Flow}</b> gives a filling child what is left after
+     *       its other children and gaps (shared when several fill).</li>
+     *   <li>A <b>{@link Tabs}</b> page (7.3.0): a body with a filling element is not
+     *       wrapped in the page's own scroll; the element gets the page's height from
+     *       its top edge down and scrolls itself.</li>
+     * </ul>
+     * Default: no-op.
      */
     default void fillHeight(int height) {}
 
@@ -175,6 +193,16 @@ public interface PanelElement {
      * it on to them. Default: no-op.
      */
     default void inDialog(boolean inDialog) {}
+
+    /**
+     * Whether the element sits on a list band another element draws (7.3.0): a
+     * {@link Tabs} page whose body fills it ({@link #fillHeight}). There a
+     * {@link ScrollContainer} draws no band of its own (no second background, no
+     * separators, no second inset), only its scrollbar, so the page looks the same
+     * whichever side scrolls. Handed down before layout; an element holding others
+     * passes it on to them. Default: no-op.
+     */
+    default void inBand(boolean inBand) {}
 
     /**
      * Returns whether this element is currently visible. Invisible elements are
@@ -215,6 +243,17 @@ public interface PanelElement {
         if (text == null) return;
         MKTooltip.queue(ctx.graphics(), text, ctx.mouseX(), ctx.mouseY());
     }
+
+    /**
+     * A rectangle this element asks the scroll area around it to bring into view
+     * (7.3.0): {@code {y, height}} in the panel's content coordinates (the space of
+     * {@link #getChildY}), or {@code null} for none. Asking takes the request: the
+     * element answers once per request. A {@link ScrollContainer} asks its children
+     * every frame before drawing them and scrolls the least that shows the rectangle;
+     * a {@link Flow} passes its children's requests on. A {@link ListView} asks when
+     * its selection changes by code or by the arrow keys. Default: none.
+     */
+    default int @Nullable [] takeRevealRequest() { return null; }
 
     // Rendering
 

@@ -18,10 +18,11 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
- * What {@link Dropdown} and {@link DropdownMulti} share: a trigger that opens a
- * popover list of items. The base holds the trigger, the popover's geometry and
+ * What {@link Dropdown}, {@link DropdownMulti} and {@link MenuButton} share: a trigger
+ * that opens a popover list of items. The base holds the trigger, the popover's geometry and
  * drawing, its open, scroll and keyboard-highlight state, and the routing of
  * clicks, wheel and keys, so a fix lands in both. A subclass says
  * only what differs: what the trigger reads, which rows are selected, what
@@ -61,7 +62,8 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     private static final int COLOR_SCROLLBAR_THUMB = 0xFFC6C6C6;
     private static final int COLOR_SEPARATOR = 0xFF606060;
 
-    protected final List<T> items;
+    /** The items, read every time they are needed: a list given at build, or the consumer's supplier (7.3.0). */
+    private final Supplier<? extends List<T>> items;
     protected final Function<T, Component> label;
     private final int maxVisibleItems;
     private final @Nullable Function<T, Component> itemTooltip;
@@ -76,10 +78,21 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
 
     protected PopoverControl(Builder<T, ?, ?> b) {
         super(b);
-        this.items = List.copyOf(b.items);
+        this.items = b.itemsLive != null ? b.itemsLive : copyOf(b.items);
         this.label = b.label;
         this.maxVisibleItems = b.maxVisibleItems;
         this.itemTooltip = b.itemTooltip;
+    }
+
+    /** The items now: the build-time list, or what the consumer's supplier returns this time. */
+    protected final List<T> items() {
+        List<T> now = items.get();
+        return now != null ? now : List.of();
+    }
+
+    private static <T> Supplier<List<T>> copyOf(List<T> list) {
+        List<T> copy = List.copyOf(list);
+        return () -> copy;
     }
 
     // What a subclass says
@@ -108,6 +121,15 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     /** Draws a selected row's check mark in the check column; default nothing. */
     protected void drawCheck(GuiGraphicsExtractor g, int x, int rowY) {}
 
+    /** Whether the trigger shows the open/closed arrow at its right; default yes. Without it the label is centred. */
+    protected boolean chevron() { return true; }
+
+    /** The popover's width; default the trigger's. A wider popover lines up its right edge with the trigger's. */
+    protected int popoverWidth() { return width; }
+
+    /** The colour of {@code item}'s row text; default the light text every row has. */
+    protected int rowColor(T item) { return ElementConstants.TEXT_LIGHT; }
+
     /** Closes the popover (a single-select after a pick). */
     protected final void close() {
         open = false;
@@ -116,7 +138,15 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     // Size: the trigger's, grown when its label wraps.
 
     private int triggerTextWidth() {
-        return Math.max(1, width - CHEVRON_RESERVED_W - 2 * TRIGGER_TEXT_PAD_X);
+        return Math.max(1, width - (chevron() ? CHEVRON_RESERVED_W : 0) - 2 * TRIGGER_TEXT_PAD_X);
+    }
+
+    /** The widest row label, with the row's padding and check column: what a popover sized to its rows needs. */
+    protected final int widestRow() {
+        Font font = Minecraft.getInstance().font;
+        int widest = 0;
+        for (T item : items()) widest = Math.max(widest, font.width(label.apply(item)));
+        return widest + 2 * POPOVER_TEXT_PAD_X + 2 + checkColumnWidth() + (scrollable() ? SCROLLBAR_W : 0);
     }
 
     private int triggerLines() {
@@ -146,11 +176,11 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     // Popover geometry
 
     private int visibleRowCount() {
-        return Math.min(items.size(), maxVisibleItems);
+        return Math.min(items().size(), maxVisibleItems);
     }
 
     private boolean scrollable() {
-        return items.size() > maxVisibleItems;
+        return items().size() > maxVisibleItems;
     }
 
     private int pinnedHeight() {
@@ -163,7 +193,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     }
 
     private int clampScroll(int offset) {
-        return Mth.clamp(offset, 0, Math.max(0, items.size() - visibleRowCount()));
+        return Mth.clamp(offset, 0, Math.max(0, items().size() - visibleRowCount()));
     }
 
     /**
@@ -173,10 +203,13 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
      */
     private int[] popoverBounds(int tx, int ty) {
         var window = Minecraft.getInstance().getWindow();
-        int screenW = window.getGuiScaledWidth();
-        int screenH = window.getGuiScaledHeight();
-        int w = width, h = popoverHeight();
-        int x = Mth.clamp(tx, 0, Math.max(0, screenW - w));
+        // No window (MenuKit's build-time checks): nothing to keep it inside.
+        int screenW = window != null ? window.getGuiScaledWidth() : Short.MAX_VALUE;
+        int screenH = window != null ? window.getGuiScaledHeight() : Short.MAX_VALUE;
+        int w = Math.max(width, popoverWidth()), h = popoverHeight();
+        // As wide as the trigger, from its left; a wider one ends at the trigger's right
+        // edge (a small menu button at the end of a row opens back toward the row).
+        int x = Mth.clamp(w > width ? tx + width - w : tx, 0, Math.max(0, screenW - w));
         int below = ty + getHeight();
         int y = below + h <= screenH ? below : Math.max(0, ty - h);
         return new int[]{x, y, w, h};
@@ -219,14 +252,17 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         int textX = tx + TRIGGER_TEXT_PAD_X;
         int firstLineY = Text.centeredTextY(ty, ty + height);
         int wrap = Text.wrapWidth(text, triggerTextWidth());
+        TextAlignment align = chevron() ? TextAlignment.LEFT : TextAlignment.CENTER;
         if (wrap > 0) {
             Text.drawWrapped(g, text, wrap, textX, firstLineY, 0, color, true);
         } else {
-            Text.render(g, text, TextAlignment.LEFT, textX, textX + triggerTextWidth(), ty, ty + height, color, true);
+            Text.render(g, text, align, textX, textX + triggerTextWidth(), ty, ty + height, color, true);
         }
-        Component chevron = Component.literal(open ? "▲" : "▼");
-        int chevX = tx + width - CHEVRON_RESERVED_W + (CHEVRON_RESERVED_W - font.width(chevron)) / 2 - 1;
-        g.text(font, chevron, chevX, firstLineY, color, true);
+        if (chevron()) {
+            Component chevron = Component.literal(open ? "▲" : "▼");
+            int chevX = tx + width - CHEVRON_RESERVED_W + (CHEVRON_RESERVED_W - font.width(chevron)) / 2 - 1;
+            g.text(font, chevron, chevX, firstLineY, color, true);
+        }
 
         // The trigger's tooltip only while closed: open, the rows are the surface.
         if (hovered && !open) queueTooltip(ctx);
@@ -267,11 +303,11 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         int rowRight = fullRowRight - (scrollable ? SCROLLBAR_W : 0);
         int check = checkColumnWidth();
         int first = clampScroll(scrollOffset);
-        int last = Math.min(items.size(), first + visibleRowCount());
+        int last = Math.min(items().size(), first + visibleRowCount());
         int rowsTop = py + 1 + pinnedHeight();
         for (int i = first; i < last; i++) {
             int rowY = rowsTop + (i - first) * ROW_HEIGHT;
-            T item = items.get(i);
+            T item = items().get(i);
             boolean hover = rowHovered(ctx, px, fullRowRight, rowY);
             if (hover || i == highlighted) g.fill(px + 1, rowY, rowRight, rowY + ROW_HEIGHT, COLOR_ROW_HOVER);
             if (hover && itemTooltip != null) {
@@ -283,7 +319,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
                 drawCheck(g, textX, rowY);
             }
             Text.renderFromOpenTime(g, label.apply(item), TextAlignment.LEFT, textX + check,
-                    rowRight - POPOVER_TEXT_PAD_X, rowY, rowY + ROW_HEIGHT, ElementConstants.TEXT_LIGHT, true, openedAt);
+                    rowRight - POPOVER_TEXT_PAD_X, rowY, rowY + ROW_HEIGHT, rowColor(item), true, openedAt);
         }
 
         // Scrollbar over the items' region: a thumb sized to the share in view.
@@ -292,8 +328,8 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
             int trackH = visibleRowCount() * ROW_HEIGHT;
             PanelRendering.renderInsetRect(g, trackX, rowsTop, SCROLLBAR_W, trackH);
             int visible = visibleRowCount();
-            int thumbH = Math.max(8, trackH * visible / items.size());
-            int range = items.size() - visible;
+            int thumbH = Math.max(8, trackH * visible / items().size());
+            int range = items().size() - visible;
             int thumbY = rowsTop + (range > 0 ? (trackH - thumbH) * first / range : 0);
             g.fill(trackX + 1, thumbY, trackX + SCROLLBAR_W - 1, thumbY + thumbH, COLOR_SCROLLBAR_THUMB);
         }
@@ -341,7 +377,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         int inRows = y - pinnedHeight();
         if (inRows < 0) return;                                                // the separator
         int index = clampScroll(scrollOffset) + inRows / ROW_HEIGHT;
-        if (index >= 0 && index < items.size()) pick(items.get(index));
+        if (index >= 0 && index < items().size()) pick(items().get(index));
     }
 
     /** A click outside both the popover and the trigger closes it, as every native popup does. */
@@ -371,10 +407,10 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
      */
     @Override
     public boolean keyPressed(InputContext in, int keyCode, int scanCode, int modifiers) {
-        if (!open || items.isEmpty() || disabled(in)) return false;
+        if (!open || items().isEmpty() || disabled(in)) return false;
         switch (keyCode) {
             case InputConstants.KEY_DOWN -> {
-                highlighted = highlighted < 0 ? firstSelected() : Math.min(items.size() - 1, highlighted + 1);
+                highlighted = highlighted < 0 ? firstSelected() : Math.min(items().size() - 1, highlighted + 1);
                 keepHighlightVisible();
                 return true;
             }
@@ -384,7 +420,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
                 return true;
             }
             case InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER, InputConstants.KEY_SPACE -> {
-                if (highlighted >= 0 && highlighted < items.size()) pick(items.get(highlighted));
+                if (highlighted >= 0 && highlighted < items().size()) pick(items().get(highlighted));
                 else if (keyCode != InputConstants.KEY_SPACE) open = false;
                 return true;
             }
@@ -398,8 +434,14 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         }
     }
 
+    /** Leaving the screen (or a list that dropped its row) closes the popover. */
+    @Override
+    public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
+        open = false;
+    }
+
     private int firstSelected() {
-        for (int i = 0; i < items.size(); i++) if (isSelected(items.get(i))) return i;
+        for (int i = 0; i < items().size(); i++) if (isSelected(items().get(i))) return i;
         return 0;
     }
 
@@ -419,6 +461,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
             extends AbstractPanelElement.Builder<E, B> {
 
         protected List<T> items = List.of();
+        protected @Nullable Supplier<? extends List<T>> itemsLive;
         protected Function<T, Component> label = v -> Component.literal(String.valueOf(v));
         protected int maxVisibleItems = DEFAULT_MAX_VISIBLE;
         protected @Nullable Function<T, Component> itemTooltip;
@@ -431,9 +474,20 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
             return super.size(width, height);
         }
 
-        /** Required: the items, in popover order. Copied. */
+        /** Required (or {@link #items(Supplier)}): the items, in popover order. Copied. */
         public B items(List<T> items) {
             this.items = List.copyOf(Objects.requireNonNull(items, "items"));
+            this.itemsLive = null;
+            return self();
+        }
+
+        /**
+         * The items read from the consumer each time the control needs them (7.3.0), for
+         * options that change while the screen is open: a list of saved worlds, the
+         * groups a player has made. May be empty for a while; the trigger still shows.
+         */
+        public B items(Supplier<? extends List<T>> items) {
+            this.itemsLive = Objects.requireNonNull(items, "items");
             return self();
         }
 
@@ -459,7 +513,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         /** Validation both share. */
         protected final void requireCommon() {
             require(width > 0 && height > 0, "size(w, h) is required");
-            require(!items.isEmpty(), "items(...) needs at least one item");
+            require(itemsLive != null || !items.isEmpty(), "items(...) needs at least one item, or a supplier");
         }
     }
 }

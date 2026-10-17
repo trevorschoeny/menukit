@@ -362,6 +362,11 @@ public final class Section extends AbstractPanelElement {
         ChildDispatch.inDialog(children, inDialog);
     }
 
+    @Override
+    public void inBand(boolean inBand) {
+        ChildDispatch.inBand(children, inBand);
+    }
+
     /** Every child attaches, open or not, as a hidden panel's elements do. */
     @Override
     public void onAttach(Screen screen) {

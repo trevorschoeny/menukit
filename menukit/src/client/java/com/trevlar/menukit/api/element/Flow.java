@@ -74,6 +74,13 @@ import java.util.Objects;
  * In a vertical Flow {@code gap(horizontal, vertical)} is the gap between columns
  * and the gap between children in a column; a spacer takes no room.
  *
+ * <h3>A filling child (7.3.0)</h3>
+ *
+ * In a vertical Flow a child that fills ({@code ScrollContainer.builder().fillHeight()})
+ * gets the height the Flow is given less its other children and gaps, so a header and a
+ * "New" row sit above a list that takes the rest and scrolls by itself. Such a Flow
+ * fills too, and does not wrap into columns.
+ *
  * <h3>Hidden children</h3>
  *
  * Either way a hidden child takes no room: the next one moves up into its place, so
@@ -136,6 +143,13 @@ public final class Flow extends AbstractPanelElement {
      * {@code -1} until the panel has a frame beside it, which means one column.
      */
     private int wrapAt = -1;
+
+    /**
+     * Vertical only: the height its container gives it while a child fills
+     * ({@link #fillHeight}); {@code -1} for none, the filling children at their natural
+     * height.
+     */
+    private int fillTo = -1;
 
     // The last layout's hug size and the inputs it was computed from, so the
     // several geometry calls a frame makes do not each walk the children.
@@ -307,7 +321,12 @@ public final class Flow extends AbstractPanelElement {
      * room. Records the hug of the columns as the Flow's size.
      */
     private void layoutColumns() {
-        int limit = wrapAt > 0 ? Math.max(1, wrapAt - 2 * pad()) : Integer.MAX_VALUE;
+        // A filling child takes what the others leave of the height the Flow is given,
+        // and the column does not wrap (it is the list under a header, not a column of
+        // switches beside a frame).
+        boolean filling = ChildDispatch.anyFillsHeight(children);
+        if (filling) giveFill();
+        int limit = !filling && wrapAt > 0 ? Math.max(1, wrapAt - 2 * pad()) : Integer.MAX_VALUE;
         int x = 0, y = 0, colW = 0, bottom = 0;
         boolean columnHasChild = false;
         for (PanelElement c : children) {
@@ -336,6 +355,26 @@ public final class Flow extends AbstractPanelElement {
         }
         lastWidth = x + colW + 2 * pad();
         lastHeight = bottom + 2 * pad();
+    }
+
+    /**
+     * Hands each filling child its share of what the others leave: the height the Flow
+     * was given, less its padding, the other shown children and the gaps; or {@code -1}
+     * (its natural height) when the Flow was given none.
+     */
+    private void giveFill() {
+        int fixed = 0, shown = 0, fills = 0;
+        for (PanelElement c : children) {
+            if (c instanceof Spacer || !c.isVisible()) continue;
+            shown++;
+            if (c.fillsHeight()) fills++;
+            else fixed += c.getHeight();
+        }
+        int left = fillTo - 2 * pad() - fixed - Math.max(0, shown - 1) * gapY;
+        for (PanelElement c : children) {
+            if (c instanceof Spacer || !c.isVisible() || !c.fillsHeight()) continue;
+            c.fillHeight(fillTo > 0 ? Math.max(1, left / fills) : -1);
+        }
     }
 
     /**
@@ -406,6 +445,7 @@ public final class Flow extends AbstractPanelElement {
     private int signature() {
         int sig = 31 + cap();
         sig = sig * 31 + wrapAt;
+        sig = sig * 31 + fillTo;
         sig = sig * 31 + childX;
         sig = sig * 31 + childY;
         for (PanelElement c : children) {
@@ -442,6 +482,18 @@ public final class Flow extends AbstractPanelElement {
 
     @Override
     public void fillWidth(int width) {}
+
+    /** A vertical Flow fills when a child of it does (a header over a filling list). */
+    @Override
+    public boolean fillsHeight() {
+        return vertical && ChildDispatch.anyFillsHeight(children);
+    }
+
+    /** The height to share out to the filling children ({@link #giveFill}); {@code -1} for none. */
+    @Override
+    public void fillHeight(int height) {
+        this.fillTo = height;
+    }
 
     // Render and input. The children share the Flow's origin.
 
@@ -527,6 +579,13 @@ public final class Flow extends AbstractPanelElement {
         ChildDispatch.notifyClickOutside(children, in);
     }
 
+    /** A child's request to be scrolled into view, passed on (the children share the Flow's origin). */
+    @Override
+    public int @Nullable [] takeRevealRequest() {
+        relayout();
+        return ChildDispatch.takeRevealRequest(children);
+    }
+
     boolean contains(PanelElement e) {
         return children.contains(e);
     }
@@ -539,6 +598,11 @@ public final class Flow extends AbstractPanelElement {
     @Override
     public void inDialog(boolean inDialog) {
         ChildDispatch.inDialog(children, inDialog);
+    }
+
+    @Override
+    public void inBand(boolean inBand) {
+        ChildDispatch.inBand(children, inBand);
     }
 
     @Override

@@ -97,9 +97,10 @@ final class ElementWidget extends AbstractButton {
         Focus.addWidget(screen, this);
     }
 
-    /** Leaves {@code screen}'s widgets. */
+    /** Leaves {@code screen}'s widgets, letting go of its focus if it held it (a row removed while focused). */
     void detach(Screen screen) {
         if (this.screen != screen) return;
+        if (screen.getFocused() == this) screen.setFocused(null);
         Focus.removeWidget(screen, this);
         this.screen = null;
     }

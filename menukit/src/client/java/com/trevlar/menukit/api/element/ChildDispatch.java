@@ -181,6 +181,29 @@ public final class ChildDispatch {
         for (PanelElement c : children) c.inDialog(inDialog);
     }
 
+    /** The first child's request to be scrolled into view ({@link PanelElement#takeRevealRequest}), or {@code null}. */
+    public static int @Nullable [] takeRevealRequest(List<? extends PanelElement> children) {
+        for (PanelElement c : children) {
+            if (!c.isVisible()) continue;
+            int[] r = c.takeRevealRequest();
+            if (r != null) return r;
+        }
+        return null;
+    }
+
+    /** Tells every child, shown or not, whether it sits on a band another element draws ({@link PanelElement#inBand}). */
+    public static void inBand(List<? extends PanelElement> children, boolean inBand) {
+        for (PanelElement c : children) c.inBand(inBand);
+    }
+
+    /** Whether any shown child fills the height it is given ({@link PanelElement#fillsHeight}). */
+    public static boolean anyFillsHeight(List<? extends PanelElement> children) {
+        for (PanelElement c : children) {
+            if (c.isVisible() && c.fillsHeight()) return true;
+        }
+        return false;
+    }
+
     /** Detaches every child. */
     public static void detach(List<? extends PanelElement> children, Screen screen) {
         for (PanelElement c : children) c.onDetach(screen);

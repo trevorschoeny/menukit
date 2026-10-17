@@ -42,7 +42,9 @@ import java.util.function.DoubleSupplier;
  * position past the new end is clamped, and the clamp written back. Nothing else
  * moves it: no click on a child scrolls it into view, and it never glides (the
  * wheel and the handle move it at once), so a content change has no glide target
- * to fight.
+ * to fight. The one exception (7.3.0): a child that asks to be shown
+ * ({@link PanelElement#takeRevealRequest}, a {@link ListView} whose selection moved)
+ * is scrolled into view, the least distance, at once.
  *
  * <h3>Input</h3>
  *
@@ -109,6 +111,14 @@ import java.util.function.DoubleSupplier;
  * children out to it (a child that centres itself stays centred).
  * {@link Builder#fitHeight()} makes the declared height the most it is: as tall as
  * its content up to that, scrolling past it.
+ *
+ * <h3>Filling its container (7.3.0)</h3>
+ *
+ * {@link Builder#fillHeight()} takes the height its container gives it instead: what
+ * a panel's viewport leaves below it, what a vertical {@link Flow} has left after its
+ * other children, the whole of a {@link Tabs} page. A header above it stays put while
+ * only it scrolls. On a Tabs page it draws no band of its own ({@link #inBand}): the
+ * page's band is behind it already.
  */
 public class ScrollContainer extends AbstractPanelElement {
 
@@ -173,6 +183,12 @@ public class ScrollContainer extends AbstractPanelElement {
     /** For measuring only (a measure gets no context): the kind of screen and whether in a dialog, handed down. */
     private ScreenKind measuredKind = ScreenKind.CONTAINER;
     private boolean inDialog = false;
+    /** On a band another element draws (a filling Tabs body): no band of its own ({@link #inBand}). */
+    private boolean inBand = false;
+    /** Takes the height its container gives it ({@link Builder#fillHeight}). */
+    private final boolean fill;
+    /** The height its container gave it, or -1 for none (its declared height, or its content's). */
+    private int filled = -1;
 
     /** The scroll, in pixels, when the consumer does not own it (view state). */
     private double ownScroll = 0;
@@ -189,6 +205,7 @@ public class ScrollContainer extends AbstractPanelElement {
         this.band = b.band;
         this.fitWidth = b.fitWidth;
         this.fitHeight = b.fitHeight;
+        this.fill = b.fill;
         if (fitWidth) this.width = -1;   // its content's until the panel lays it out
         if (b.scrollGet != null) {
             this.scrollGet = b.scrollGet;
@@ -268,7 +285,31 @@ public class ScrollContainer extends AbstractPanelElement {
 
     /** The viewport's height on a screen of {@code kind}. */
     private int viewHeight(ScreenKind kind) {
+        if (fill && filled > 0) return filled;          // the room its container gave it
+        if (height <= 0) return Math.max(1, contentHeight(kind));   // filling with no room given: its content
         return fitHeight ? Math.max(1, Math.min(height, contentHeight(kind))) : height;
+    }
+
+    @Override
+    public boolean fillsHeight() {
+        return fill;
+    }
+
+    /** The height its container gives it, {@code -1} for none (back to its declared or content height). */
+    @Override
+    public void fillHeight(int height) {
+        this.filled = height;
+    }
+
+    @Override
+    public void inBand(boolean inBand) {
+        this.inBand = inBand;
+        ChildDispatch.inBand(content, inBand);
+    }
+
+    /** Whether it draws the list band on an options screen: built with one, and not on another's. */
+    private boolean drawsBand() {
+        return band && !inBand;
     }
 
     /** Fitting its width: the widest child, the band's inset and the scrollbar lane. */
@@ -297,11 +338,11 @@ public class ScrollContainer extends AbstractPanelElement {
     // The list band's inset, by the kind of screen the context says it is on:
     // only where this container draws the band (a Tabs page insets its own).
     private int insetX(ScreenKind kind) {
-        return band ? bandInsetX(kind, inDialog) : 0;
+        return drawsBand() ? bandInsetX(kind, inDialog) : 0;
     }
 
     private int insetY(ScreenKind kind) {
-        return band ? bandInsetY(kind, inDialog) : 0;
+        return drawsBand() ? bandInsetY(kind, inDialog) : 0;
     }
 
     /**
@@ -391,13 +432,21 @@ public class ScrollContainer extends AbstractPanelElement {
         double raw = scrollGet.getAsDouble();
         if (raw != scroll(kind)) scrollSet.accept(scroll(kind));
 
+        // A child asking to be shown (a list's selection moved by code or the keys):
+        // the least scroll that brings its rectangle into the viewport (7.3.0).
+        int[] reveal = ChildDispatch.takeRevealRequest(content);
+        if (reveal != null) {
+            setScroll(kind, Scroller.intoView(scroll(kind), reveal[0] + insetY(kind), reveal[1],
+                    contentHeight(kind), viewHeight(kind)));
+        }
+
         // Follow a held handle with the mouse.
         if (dragging && canScroll(kind) && ctx.hasMouseInput()) followDrag(kind, ctx.mouseY() - sy);
 
         // On an options screen: the list band behind the children, scrolling with them as
         // vanilla's does, and its separators just outside the top and bottom edges.
         boolean vanilla = kind == ScreenKind.OPTIONS;
-        if (vanilla && band) {
+        if (vanilla && drawsBand()) {
             VanillaLook.listBackground(g, sx, sy, width, height, sx, sy + (int) scroll(kind));
             VanillaLook.headerSeparator(g, sx, sy - VanillaLook.SEPARATOR_HEIGHT, width);
             VanillaLook.footerSeparator(g, sx, sy + height, width);
@@ -523,7 +572,7 @@ public class ScrollContainer extends AbstractPanelElement {
         private @Nullable DoubleSupplier scrollGet;
         private @Nullable DoubleConsumer scrollSet;
         private boolean band = true;
-        private boolean fitWidth, fitHeight;
+        private boolean fitWidth, fitHeight, fill;
 
         protected Builder() {}
 
@@ -574,6 +623,19 @@ public class ScrollContainer extends AbstractPanelElement {
             return this;
         }
 
+        /**
+         * Takes the height its container gives it (7.3.0): the room a panel's viewport
+         * leaves below it, what a vertical {@link Flow} has left after its other
+         * children, a {@link Tabs} page's height. So a header stays put above it and only
+         * it scrolls: a list under a title and a "New" row. Where there is no height to
+         * give, it is its declared height, or without one as tall as its content. Pair
+         * with {@link #size} or {@link #fitWidth()}.
+         */
+        public Builder fillHeight() {
+            this.fill = true;
+            return this;
+        }
+
         /** Required: the children, positioned from the viewport's top-left. */
         public Builder content(List<? extends PanelElement> content) {
             this.content = List.copyOf(Objects.requireNonNull(content, "content"));
@@ -600,7 +662,8 @@ public class ScrollContainer extends AbstractPanelElement {
 
         @Override
         public ScrollContainer build() {
-            require(height > 0 && (fitWidth || width > 0), "size(w, h) is required (or fitWidth() and height(h))");
+            require((height > 0 || fill) && (fitWidth || width > 0),
+                    "size(w, h) is required (or fitWidth() and height(h), or fillHeight() with a width)");
             return new ScrollContainer(this);
         }
     }

@@ -35,11 +35,17 @@ import java.util.function.Supplier;
  * field) shows at once. Nothing is stored beyond vanilla's own edit buffer, which
  * the lens overwrites whenever they differ.
  *
- * <h3>Enter</h3>
+ * <h3>Enter, Escape and focus</h3>
  *
  * With an {@code onSubmit}, Enter on the focused field calls it with the text and
  * is consumed. Without one, Enter is not the field's: it reaches the screen (a
  * dialog's default button, say).
+ *
+ * <p>Escape on the focused field cancels the edit (7.3.0): the text goes back to what
+ * it was when the field took focus (written through {@code set}), the field lets go of
+ * focus, {@code onCancel} runs, and the screen stays open. A second Escape is the
+ * screen's. {@link #focus()} starts editing from code: a rename field that appears
+ * when Rename is clicked takes the keyboard at once.
  *
  * <h3>Filtering</h3>
  *
@@ -77,6 +83,10 @@ public class TextField extends AbstractPanelElement {
     private final boolean editable;
     private final @Nullable Component hint;
     private final @Nullable Consumer<String> onSubmit;
+    private final @Nullable Runnable onCancel;
+
+    /** The text when the field last took focus, which Escape puts back; null while it has none. */
+    private @Nullable String editStart;
 
     /** As wide as the room it is given ({@link Builder#fill}). */
     private final boolean fills;
@@ -94,6 +104,7 @@ public class TextField extends AbstractPanelElement {
         this.editable = b.editable;
         this.hint = b.hint;
         this.onSubmit = b.onSubmit;
+        this.onCancel = b.onCancel;
         this.fills = b.fill;
         this.host = WidgetHost.builder().widget(this::makeEditBox).size(width, height).build();
     }
@@ -138,10 +149,30 @@ public class TextField extends AbstractPanelElement {
         width = fills ? Math.max(1, budget) : Math.min(authoredWidth, budget);
     }
 
+    /**
+     * Starts editing from code (7.3.0): the field takes the keyboard, as a click on it
+     * does, its caret at the end of its text. Call it once the game is running (it
+     * makes the field's {@code EditBox}, which needs the font).
+     */
+    public void focus() {
+        host.takeFocus();
+        noteFocus();
+    }
+
+    /** Remembers the text the field had when it took focus: what Escape puts back. */
+    private void noteFocus() {
+        MKEditBox box = host.widget();
+        if (box != null && box.isFocused() && editStart == null) editStart = box.getValue();
+    }
+
     @Override
     public void render(RenderContext ctx) {
         MKEditBox box = host.widget();
         if (box != null) {
+            // Focus taken (by a click, the keyboard or code): the text to go back to.
+            // Focus gone: nothing to cancel.
+            if (box.isFocused()) noteFocus();
+            else editStart = null;
             // The lens, every frame: show what the consumer holds when it differs from
             // the edit buffer (a value changed elsewhere, or a setter that refused).
             String wanted = stateGet.get();
@@ -162,12 +193,35 @@ public class TextField extends AbstractPanelElement {
 
     @Override
     public boolean mouseClicked(InputContext in, int button) {
-        return host.mouseClicked(hostInput(in), button);
+        boolean took = host.mouseClicked(hostInput(in), button);
+        if (took) noteFocus();
+        return took;
     }
 
     @Override
     public boolean mouseReleased(InputContext in, int button) {
         return host.mouseReleased(hostInput(in), button);
+    }
+
+    /**
+     * Escape while editing cancels the edit: the text from when the field took focus
+     * goes back through {@code set}, focus goes, {@code onCancel} runs, and the key is
+     * consumed so the screen stays open. Every other key reaches the field through
+     * vanilla's focus, as before.
+     */
+    @Override
+    public boolean keyPressed(InputContext in, int keyCode, int scanCode, int modifiers) {
+        MKEditBox box = host.widget();
+        if (keyCode != com.mojang.blaze3d.platform.InputConstants.KEY_ESCAPE || box == null || !box.isFocused()) return false;
+        String back = editStart;
+        editStart = null;
+        if (back != null && !back.equals(box.getValue())) {
+            box.showWithoutReporting(back);
+            stateSet.accept(back);
+        }
+        host.releaseFocus();
+        if (onCancel != null) onCancel.run();
+        return true;
     }
 
     @Override
@@ -194,6 +248,7 @@ public class TextField extends AbstractPanelElement {
         private boolean editable = true;
         private @Nullable Component hint;
         private @Nullable Consumer<String> onSubmit;
+        private @Nullable Runnable onCancel;
         private boolean fill = false;
 
         protected Builder() {}
@@ -265,6 +320,16 @@ public class TextField extends AbstractPanelElement {
         /** What Enter on the focused field does, with its text. Without it, Enter is not consumed. */
         public Builder onSubmit(Consumer<String> onSubmit) {
             this.onSubmit = Objects.requireNonNull(onSubmit, "onSubmit");
+            return this;
+        }
+
+        /**
+         * What Escape on the focused field does after it puts the text back and lets go
+         * of focus (7.3.0): a row leaving its rename mode, say. Escape cancels the edit
+         * without it too.
+         */
+        public Builder onCancel(Runnable onCancel) {
+            this.onCancel = Objects.requireNonNull(onCancel, "onCancel");
             return this;
         }
 

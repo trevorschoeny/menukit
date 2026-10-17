@@ -319,6 +319,19 @@ public class WidgetHost<W extends GuiEventListener & Renderable> extends Abstrac
         return overflow && widget != null && widget.isFocused();
     }
 
+    /**
+     * Gives the widget keyboard focus from code, as a click it took does (7.3.0, a
+     * {@link TextField}'s {@code focus()}), making the widget first if it was not yet.
+     */
+    void takeFocus() {
+        focus(ensure());
+    }
+
+    /** Takes keyboard focus from the widget, when it has it. */
+    void releaseFocus() {
+        if (widget != null && widget.isFocused()) blur(widget);
+    }
+
     private void focus(W w) {
         if (screen != null) {
             if (screen.getFocused() != standIn) screen.setFocused(standIn);

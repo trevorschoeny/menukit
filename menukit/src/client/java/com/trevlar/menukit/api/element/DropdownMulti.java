@@ -101,7 +101,7 @@ public final class DropdownMulti<T> extends PopoverControl<T> {
     @Override
     protected void pickPinned(int index) {
         boolean selectAll = index == 0 && selectAllLabel != null;
-        stateSet.accept(selectAll ? Set.copyOf(items) : Set.of());
+        stateSet.accept(selectAll ? Set.copyOf(items()) : Set.of());
     }
 
     @Override

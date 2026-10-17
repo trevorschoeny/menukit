@@ -177,6 +177,16 @@ import java.util.function.Supplier;
  * a consumer that rebuilds its screen (a new {@code Tabs}) keeps the body where
  * it was, on the first frame, with no slide from the top.
  *
+ * <h3>A body that scrolls itself (7.3.0)</h3>
+ *
+ * A body holding an element that fills ({@code ScrollContainer.builder().fillHeight()},
+ * or a vertical {@link Flow} with one in it) is not wrapped in the page's scroll. The
+ * page is handed to it: the filling element gets the page's height from its top edge
+ * down, so a header above it stays put and only the list in it scrolls. The page's
+ * inset, band, separators and the body's width are the same either way; a
+ * ScrollContainer on the page draws no band of its own ({@link PanelElement#inBand}).
+ * A body with nothing filling scrolls as a whole, as before.
+ *
  * <h3>Scroll stays put</h3>
  *
  * The offset is pixels from the top, so a body that changes height (a section
@@ -812,15 +822,29 @@ public final class Tabs extends AbstractPanelElement {
         // lane reserved, hosted in a ScrollContainer whose offset is this tab's.
         // On a page the room under the last element (the band's bottom inset) is
         // part of the height, and scrolls with it, as in vanilla's lists.
+        //
+        // A body that fills (7.3.0: an element in it takes the height it is given, a
+        // ScrollContainer.fillHeight() under a header) is handed the page instead: no
+        // scroll of the page's own, each filling element given the page's height from
+        // its top edge down to the band's bottom inset, and told it is on the page's
+        // band, so it draws none of its own. It scrolls itself.
+        boolean fills = ChildDispatch.anyFillsHeight(tab.body);
+        ChildDispatch.inBand(tab.body, fills);
         Panel.layoutElementsWithin(tab.body, w);
         Panel.reflowForWrap(tab.body);
-        int contentH = Panel.contentHeightOf(tab.body);
         int below = pageInsetY(kind);
+        if (fills) {
+            for (PanelElement e : tab.body) {
+                if (e.isVisible() && e.fillsHeight()) e.fillHeight(h > 0 ? Math.max(1, h - e.getChildY() - below) : -1);
+            }
+            Panel.reflowForWrap(tab.body);
+        }
+        int contentH = Panel.contentHeightOf(tab.body);
         ScrollContainer scroll = null;
         int reserve = ScrollContainer.TRACK_WIDTH + ScrollContainer.SCROLLER_GUTTER;
         // A scrolling body reaches the element's right edge: its lane is the page's right margin.
         int outer = bodyOuterWidth(s, kind);
-        if (h > 0 && contentH + below > h && outer > reserve + 1) {
+        if (!fills && h > 0 && contentH + below > h && outer > reserve + 1) {
             Panel.layoutElementsWithin(tab.body, outer - reserve);
             Panel.reflowForWrap(tab.body);
             contentH = Panel.contentHeightOf(tab.body);
