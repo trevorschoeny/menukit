@@ -339,6 +339,8 @@ Adapters and HUD panels are declarations. Declare them from the mod's initialize
 
 An `Anchor` is a rectangle a mod names and supplies per screen: `Anchor.of(id, screen -> box)`. MenuKit asks for the box every frame on every open screen, a container screen or not, and places the anchor's panels around it by the same region rules as the menu frame. A `null` box means the anchor is not on that screen, and its panels take no place and claim nothing. Panels on one anchor share one host and stack in its regions. Each id is declared once; a second `Anchor.of` with the same id throws. SlotKit's slot-group panels are anchors, one per slot group, and a mod can anchor to anything it can measure, such as the pause menu's button column.
 
+The other direction needs no declaration: `Panel.placedBounds()` returns a panel's own rectangle on the current screen (or `null` when it isn't placed right now), read fresh every call. Use it to put something against a panel the mod itself made, such as a close button in its corner, with `PanelPosition.pixel(() -> ...)`.
+
 ## Slot rendering
 
 Vanilla draws every slot, through its own `extractSlot`, so every other mod's slot hook marks a slot wherever it is drawn. What MenuKit decides is when. The rule (7.3.0): a slot a panel shows draws right after that panel, and a panel above covers the slots of the panels below it. A slot no panel shows is vanilla's, drawn where vanilla draws it, and a panel over it hides it. A panel over part of a slot hides that part and no more, and what a panel covers is inert (Claims). Menu order decides nothing, so a vanilla slot a panel shows draws on the panel, not under it.
