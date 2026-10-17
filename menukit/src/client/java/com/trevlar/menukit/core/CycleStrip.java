@@ -11,6 +11,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Util;
 import net.minecraft.world.item.ItemStack;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -140,7 +141,7 @@ public final class CycleStrip {
 
     public static void slide(Source source, int hotbarSlot, Direction direction) {
         if (source == null || direction == null) return;
-        SLIDES.put(source, new Slide(hotbarSlot, System.currentTimeMillis(), direction, false, ItemStack.EMPTY));
+        SLIDES.put(source, new Slide(hotbarSlot, Util.getMillis(), direction, false, ItemStack.EMPTY));
     }
 
     public static Map<Source, @Nullable View> snapshot(int hotbarSlot) {
@@ -155,7 +156,7 @@ public final class CycleStrip {
             View was = before.get(s);
             View now = s.viewFor(hotbarSlot);
             if (changed(was, now)) {
-                SLIDES.put(s, new Slide(hotbarSlot, System.currentTimeMillis(), direction,
+                SLIDES.put(s, new Slide(hotbarSlot, Util.getMillis(), direction,
                         true, was == null || was.ring().isEmpty() ? ItemStack.EMPTY : was.ring().get(was.current())));
             }
         }
@@ -165,7 +166,7 @@ public final class CycleStrip {
     private static @Nullable Slide running(Source source, int activeSlot) {
         Slide slide = SLIDES.get(source);
         if (slide == null || slide.hotbarSlot() != activeSlot) return null;
-        return done(slide.startMillis(), System.currentTimeMillis()) ? null : slide;
+        return done(slide.startMillis(), Util.getMillis()) ? null : slide;
     }
 
     // Pure: ring order. Generic over the element type so the order can be checked
@@ -399,7 +400,7 @@ public final class CycleStrip {
      */
     private static void renderHeldVertical(GuiGraphicsExtractor graphics, Minecraft mc,
                                            Slide slide, ItemStack now, int cellX, int stripY) {
-        float p = progress(slide.startMillis(), System.currentTimeMillis());
+        float p = progress(slide.startMillis(), Util.getMillis());
         int travelled = Math.round(SLOT_PX * p);
         int remaining = Math.round(SLOT_PX * (1f - p));
         boolean down = slide.direction() == Direction.FORWARD;
@@ -424,7 +425,7 @@ public final class CycleStrip {
         // still and that one cell slides vertically.
         boolean heldOnly = slide != null && slide.heldOnly();
         int offset = (slide == null || heldOnly) ? 0
-                : rowSlideOffset(slide.direction(), progress(slide.startMillis(), System.currentTimeMillis()));
+                : rowSlideOffset(slide.direction(), progress(slide.startMillis(), Util.getMillis()));
 
         renderBar(graphics, stripX, stripY, stripWidth);
 
@@ -475,7 +476,7 @@ public final class CycleStrip {
         int n = visual.size();
         Slide slide = running(cycle.source(), activeSlot);
         Direction direction = slide == null ? null : slide.direction();
-        float p = slide == null ? 1f : progress(slide.startMillis(), System.currentTimeMillis());
+        float p = slide == null ? 1f : progress(slide.startMillis(), Util.getMillis());
         int topY = columnCellY(heldTop, 0, n);
         // The floating cells share the held cell's x, so their frames stack exactly over
         // the hotbar cell below (frame at cellX - 1, 22 wide, as the bar's own outline is)
