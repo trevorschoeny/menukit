@@ -7,8 +7,11 @@ import com.trevlar.menukit.core.RegionMath;
 import com.trevlar.menukit.api.element.ScrollContainer;
 import com.trevlar.menukit.api.element.Tabs;
 import com.trevlar.menukit.api.element.TextLabel;
+import com.trevlar.menukit.inject.PanelHost;
+import com.trevlar.menukit.inject.ScreenPanelRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -451,6 +454,42 @@ public class Panel {
 
     /** Where this panel sits. */
     public PanelPosition getPosition() { return position; }
+
+    /**
+     * This panel's own rectangle on the current screen, in screen coordinates
+     * (outer box, padding included), or {@code null} when it is not placed
+     * anywhere right now: no screen open, the panel hidden, or nothing has
+     * placed it this frame.
+     *
+     * <p>Read it to put something else against this panel: a close button in a
+     * corner, a badge, a line drawn to it. It is the opposite of an
+     * {@link Anchor}, which is a rectangle a library supplies for panels to
+     * gather around; this is a panel's own rectangle, read fresh each call, so
+     * nothing needs declaring with {@link Anchor#of} for it.
+     *
+     * <pre>{@code
+     * Panel close = Panel.builder("mymod:item_close")
+     *         .style(PanelStyle.NONE)
+     *         .add(Button.builder()...)
+     *         .position(PanelPosition.pixel(() -> {
+     *             Reference r = itemPanel.placedBounds();
+     *             return r == null ? new ScreenOrigin(0, 0)
+     *                     : new ScreenOrigin(r.leftPos() + r.imageWidth() - 4, r.topPos() - 4);
+     *         }))
+     *         .build();
+     * close.visibleWhen(itemPanel::isVisible);
+     * new ScreenPanelAdapter(close, 0).onMatching(...);
+     * }</pre>
+     */
+    public @Nullable Reference placedBounds() {
+        Screen screen = Minecraft.getInstance().gui.screen();
+        if (screen == null) return null;
+        for (PanelHost host : ScreenPanelRegistry.hostsOn(screen)) {
+            PanelHost.Placed placed = host.placedOf(this);
+            if (placed != null) return new Reference(placed.x(), placed.y(), placed.w(), placed.h());
+        }
+        return null;
+    }
 
     /** The key code ({@code InputConstants.KEY_*}) that toggles this panel's visibility, or -1 for none. */
     public int getToggleKey() { return toggleKey; }

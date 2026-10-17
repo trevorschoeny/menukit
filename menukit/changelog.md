@@ -12,6 +12,7 @@ This release is additions, plus one change to when slots shown in a panel are dr
 - `ScreenMatcher.where(test)` puts a panel on the container screens a test accepts, asked as each screen opens, for a panel that belongs where a slot group's slots are. [Recipe](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md#show-a-panel-on-the-screens-that-hold-your-slots).
 - `Attachment`, the one way a container attaches a child added after it was built, for mods that write their own containers.
 - For slot libraries, `SlotClip.panelShowing(slot)` says whether the panel that last showed a slot is on screen this frame, so a vanilla slot whose panel is hidden can go back to its own place while one scrolled out of view parks.
+- `Panel.placedBounds()` returns a panel's own rectangle on the current screen, or `null` when it isn't placed right now. Use it to put something against a panel of your own, such as a close button in its corner, with `PanelPosition.pixel(...)`. It needs no `Anchor` declaration; it's read fresh each call.
 
 ### Changed
 
