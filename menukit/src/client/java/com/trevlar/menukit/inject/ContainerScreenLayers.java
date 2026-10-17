@@ -258,6 +258,7 @@ public final class ContainerScreenLayers {
         ScreenPanelRegistry.renderOverlay(screen, graphics, mouseX, mouseY);
         SlotScreenDispatcher.fireEndFrame(screen);
         SlotClips.frameEnd();
+        PresentedSlots.endFrame();
     }
 
     /** Layer 2: the FLOW layer of the screen's registry hosts (container adapters, then anchors), then every host's POPOVER layer. */

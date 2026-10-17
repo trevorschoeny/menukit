@@ -83,6 +83,15 @@ public final class PresentedSlots {
 
     private static Drawer drawer = PresentedSlots::drawOnScreen;
 
+    /**
+     * The panel that last showed each slot, whatever the frame, and the panels drawn this
+     * frame: so a slot library can tell a slot whose panel is hidden (hand a vanilla slot
+     * back to its place) from one scrolled out of a shown panel (park it). Weak and
+     * identity-keyed: a slot and a panel are objects, and a closed screen's go with it.
+     */
+    private static final Map<Slot, Panel> LAST_PANEL = new java.util.WeakHashMap<>();
+    private static final Set<Panel> DRAWN = Collections.newSetFromMap(new IdentityHashMap<>());
+
     // The frame
 
     /** The start of a place pass on {@code screen}: last frame's record goes. */
@@ -103,6 +112,22 @@ public final class PresentedSlots {
     /** The host starts laying out or drawing {@code panel}'s elements. */
     public static void beginPanel(Panel panel) {
         current = panel;
+        DRAWN.add(panel);
+    }
+
+    /** The end of a container screen's frame, after its slot library has asked {@link #panelShowing}. */
+    public static void endFrame() {
+        DRAWN.clear();
+    }
+
+    /**
+     * {@code SlotClip.panelShowing}: whether the panel that last showed {@code slot} was
+     * drawn this frame. False when it was not (hidden, or not on this screen) and when no
+     * panel ever showed the slot.
+     */
+    public static boolean panelShowing(Slot slot) {
+        Panel panel = LAST_PANEL.get(slot);
+        return panel != null && DRAWN.contains(panel);
     }
 
     /** The host has drawn the panel's elements. */
@@ -115,6 +140,7 @@ public final class PresentedSlots {
      * during the place pass; a slot two panels report belongs to the first.
      */
     public static void record(Slot slot) {
+        if (current != null) LAST_PANEL.put(slot, current);
         if (!recording || current == null) return;
         if (ALL.add(slot)) BY_PANEL.computeIfAbsent(current, p -> new ArrayList<>()).add(slot);
     }

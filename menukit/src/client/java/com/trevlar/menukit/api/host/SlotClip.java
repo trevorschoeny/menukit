@@ -1,6 +1,7 @@
 package com.trevlar.menukit.api.host;
 
 import com.trevlar.menukit.api.element.RenderContext;
+import com.trevlar.menukit.inject.PresentedSlots;
 import com.trevlar.menukit.inject.SlotClips;
 
 import net.minecraft.world.inventory.Slot;
@@ -41,5 +42,17 @@ public final class SlotClip {
      */
     public static void shown(RenderContext ctx, Slot slot) {
         SlotClips.record(slot, ctx.graphics().scissorStack.peek());
+    }
+
+    /**
+     * Whether the panel that last showed {@code slot} ({@link #shown}) was drawn this frame
+     * (7.3.0). Ask it at the end of the frame ({@link SlotScreenHook#endFrame}) for a slot
+     * that was not shown this frame, to tell why: {@code true}, its panel is on screen and
+     * the slot was scrolled out of view or hidden by its element, so park it; {@code false},
+     * its panel is hidden or not on this screen (or no panel ever showed the slot), so a
+     * vanilla slot a panel took over goes back to its own place. Render thread only.
+     */
+    public static boolean panelShowing(Slot slot) {
+        return PresentedSlots.panelShowing(slot);
     }
 }
