@@ -3,6 +3,7 @@ package com.trevlar.menukit.api.hud;
 import com.trevlar.menukit.api.Declarations;
 import com.trevlar.menukit.core.CycleStrip;
 
+import net.minecraft.util.Util;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
 
@@ -169,16 +170,16 @@ public final class HudCycleStrip {
 
     /**
      * The strip's eased progress for a slide that started at {@code startMillis}
-     * ({@link System#currentTimeMillis()}): 0 at the start, exactly 1 at rest, with
+     * ({@link Util#getMillis()}): 0 at the start, exactly 1 at rest, with
      * the spring's overshoot to about 1.1 just before it settles. For a mod that draws
      * its own slide (in the vanilla hotbar, say) and wants it to move with the strip.
      */
     public static float slideProgress(long startMillis) {
-        return CycleStrip.progress(startMillis, System.currentTimeMillis());
+        return CycleStrip.progress(startMillis, Util.getMillis());
     }
 
     /** Whether a slide that started at {@code startMillis} has finished. */
     public static boolean slideDone(long startMillis) {
-        return CycleStrip.done(startMillis, System.currentTimeMillis());
+        return CycleStrip.done(startMillis, Util.getMillis());
     }
 }

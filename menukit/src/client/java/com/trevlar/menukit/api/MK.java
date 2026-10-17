@@ -10,6 +10,7 @@ import com.trevlar.menukit.api.Declarations;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.util.Util;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -179,7 +180,7 @@ public class MK {
             return;
         }
         activeNotifications.put(key, new ActiveNotification(
-                System.currentTimeMillis(), text, item));
+                Util.getMillis(), text, item));
     }
 
     /** Triggers a notification with text and an item type. */
@@ -195,7 +196,7 @@ public class MK {
         if (activeNotifications.isEmpty()) return;
 
         var expired = new ArrayList<String>();
-        long now = System.currentTimeMillis();
+        long now = Util.getMillis();
         List<Map.Entry<String, ActiveNotification>> snapshot;
         synchronized (activeNotifications) {
             snapshot = new ArrayList<>(activeNotifications.entrySet());
