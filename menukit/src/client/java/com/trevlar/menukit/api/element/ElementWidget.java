@@ -97,10 +97,15 @@ final class ElementWidget extends AbstractButton {
         Focus.addWidget(screen, this);
     }
 
-    /** Leaves {@code screen}'s widgets, letting go of its focus if it held it (a row removed while focused). */
+    /**
+     * Leaves {@code screen}'s widgets, letting go of its focus if it held it (a row removed while
+     * focused). The widget outlives the screen (one per element, reused on the next), so its own
+     * focus flag is dropped too, whatever the screen says is focused: focus never carries over.
+     */
     void detach(Screen screen) {
         if (this.screen != screen) return;
         if (screen.getFocused() == this) screen.setFocused(null);
+        setFocused(false);
         Focus.removeWidget(screen, this);
         this.screen = null;
     }
