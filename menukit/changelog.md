@@ -11,6 +11,7 @@ This release is additions, plus one change to when slots shown in a panel are dr
 - `Dropdown` and `DropdownMulti` can take their options from a supplier, for options that change while the screen is open.
 - `ScreenMatcher.where(test)` puts a panel on the container screens a test accepts, asked as each screen opens, for a panel that belongs where a slot group's slots are. [Recipe](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md#show-a-panel-on-the-screens-that-hold-your-slots).
 - `Attachment`, the one way a container attaches a child added after it was built, for mods that write their own containers.
+- For slot libraries, `SlotClip.panelShowing(slot)` says whether the panel that last showed a slot is on screen this frame, so a vanilla slot whose panel is hidden can go back to its own place while one scrolled out of view parks.
 
 ### Changed
 
