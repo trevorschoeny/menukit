@@ -40,10 +40,10 @@ import java.util.function.Supplier;
  *
  * <p>The check mark is vanilla's {@code icon/checkmark} sprite and the box
  * MenuKit's {@link PanelStyle#INSET}, so a resource pack that retextures vanilla's
- * GUI sprites restyles checkboxes too. On an options screen the box is vanilla's
+ * GUI sprites restyles checkboxes too. In the Default look the box is vanilla's
  * own checkbox ({@code widget/checkbox}, {@code _selected}, {@code _highlighted}),
  * drawn at MenuKit's box size ({@value #BOX_SIZE} px; vanilla's is 17), so the
- * layout is the same on both kinds of screen; the label takes the kind's text
+ * layout is the same in both looks; the label takes the kind's text
  * colour.
  */
 public class Checkbox extends AbstractPanelElement {
@@ -142,7 +142,7 @@ public class Checkbox extends AbstractPanelElement {
 
         boolean highlighted = !disabled && (hovered || (widget != null && widget.focused()));
         ScreenKind kind = ctx.kind();
-        if (kind == ScreenKind.OPTIONS) {
+        if (kind == ScreenKind.DEFAULT) {
             // Vanilla's checkbox: one sprite per (checked, highlighted), the check drawn in it.
             Identifier box = checked
                     ? (highlighted ? VANILLA_CHECKED_HIGHLIGHTED : VANILLA_CHECKED)

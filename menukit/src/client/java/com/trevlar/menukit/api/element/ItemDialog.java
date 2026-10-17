@@ -40,7 +40,7 @@ import java.util.function.Function;
  * <p>Its width comes from its content: the grid asks for its nine columns, its scroll
  * area adds the band's inset and the scrollbar lane ({@link ScrollContainer.Builder#fitWidth}),
  * and the search box and the other fields fill whatever that makes, so nothing is
- * cut off and nothing leaves an empty margin, on either kind of screen.
+ * cut off and nothing leaves an empty margin, in either look.
  *
  * <p>The value lives with the consumer, through the picker's lens, written on every
  * change. The dialog keeps its view state: the slots as the row shows them (a list's
@@ -1050,9 +1050,9 @@ final class ItemDialog {
         }
     }
 
-    /** A control button: vanilla's button on an options screen, MenuKit's raised one (dark when off) on a container's. */
+    /** A control button: vanilla's button in the Default look, MenuKit's raised one (dark when off) in the Panel look. */
     private static void drawControl(GuiGraphicsExtractor g, ScreenKind kind, int x, int y, String glyph, boolean enabled, boolean hovered) {
-        if (kind == ScreenKind.OPTIONS) {
+        if (kind == ScreenKind.DEFAULT) {
             VanillaLook.button(g, x, y, CONTROL, CONTROL, enabled, hovered && enabled);
         } else if (!enabled) {
             PanelRendering.renderPanel(g, x, y, CONTROL, CONTROL, PanelStyle.DARK);

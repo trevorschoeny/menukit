@@ -134,10 +134,10 @@ public class Panel {
 
     // The kind of screen the panel is on, fed by its host before each layout
     // (setScreenKind), and handed on to the elements (PanelElement.screenKind). The
-    // auto-scroll path reads it: on an options screen the wrapping ScrollContainer is
+    // auto-scroll path reads it: in the Default look the wrapping ScrollContainer is
     // the list band, which insets its content, so the elements are laid out that much
     // narrower.
-    private ScreenKind screenKind = ScreenKind.CONTAINER;
+    private ScreenKind screenKind = ScreenKind.PANEL;
 
     // Auto-scroll position, in pixels from the top. Pixels rather than a fraction,
     // so what is on screen stays put when the content changes height
@@ -434,9 +434,9 @@ public class Panel {
     }
 
     /**
-     * MenuKit's own frame (a {@link PanelStyle#RAISED} panel on a container screen)
+     * MenuKit's own frame (a {@link PanelStyle#RAISED} panel in the Panel look)
      * is 3 px thick, so {@link #INTERIOR_PADDING} leaves 4 px between the frame and
-     * the elements. On an options screen a RAISED panel draws vanilla's popup frame,
+     * the elements. In the Default look a RAISED panel draws vanilla's popup frame,
      * which is 6 px thick.
      */
     private static final int POPUP_FRAME_EXTRA = 3;
@@ -444,12 +444,12 @@ public class Panel {
     /**
      * How much thicker this panel's frame is on {@code kind} than the frame its
      * padding is measured against: 3 px for a {@link PanelStyle#RAISED} panel on an
-     * options screen (vanilla's popup frame, 6 px, against MenuKit's 3), else 0. The
+     * Default-look screen (vanilla's popup frame, 6 px, against MenuKit's 3), else 0. The
      * host adds it to whatever padding the panel was registered with, so the elements
-     * keep the same 4 px inside the frame on both kinds of screen.
+     * keep the same 4 px inside the frame in both looks.
      */
     public int frameExtra(ScreenKind kind) {
-        return style == PanelStyle.RAISED && kind == ScreenKind.OPTIONS ? POPUP_FRAME_EXTRA : 0;
+        return style == PanelStyle.RAISED && kind == ScreenKind.DEFAULT ? POPUP_FRAME_EXTRA : 0;
     }
 
     /** Where this panel sits. */
@@ -643,7 +643,7 @@ public class Panel {
             // of the viewport. Its width is the content area: pinnedWidth when set,
             // the capped contentWidth when the screen limits width, otherwise the
             // children's width plus the reserve. The reserve is the scrollbar lane
-            // plus, on an options screen, the list band's left inset
+            // plus, in the Default look, the list band's left inset
             // (ScrollContainer.viewportWidthFor decides it).
             int reserve = contentWidth - ScrollContainer.viewportWidthFor(contentWidth, screenKind, tracksAsModal);
             layoutElementsWithin(contentWidth - reserve);
@@ -990,7 +990,7 @@ public class Panel {
     /**
      * The kind of screen the panel is on, fed by its host before each layout (the
      * host fixes it from its screen, {@link ScreenKind#of}). An auto-scrolling panel
-     * on an options screen lays its elements out inside the list band's inset
+     * in the Default look lays its elements out inside the list band's inset
      * ({@link ScrollContainer#viewportWidthFor(int, ScreenKind)}). Re-lays out only
      * when it changes, like the size limits. Internal.
      */
@@ -999,7 +999,7 @@ public class Panel {
         if (kind == screenKind) return;
         this.screenKind = kind;
         // Down to the elements too, so one whose size depends on the kind (a Tabs on an
-        // options screen's page) measures for this screen before the next layout.
+        // Default-look screen's page) measures for this screen before the next layout.
         for (PanelElement e : elements) e.screenKind(kind);
         this.configurationDirty = true;
         this.cachedScrollContainer = null;

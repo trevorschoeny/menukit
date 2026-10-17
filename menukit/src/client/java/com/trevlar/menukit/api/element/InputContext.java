@@ -39,7 +39,7 @@ import java.util.Objects;
  *
  * {@code kind} is the kind of screen the element is on, the same one its
  * {@link RenderContext} carries: an element whose geometry differs by kind (a
- * {@link ScrollContainer}'s content inset in the options list band) answers
+ * {@link ScrollContainer}'s content inset in the Default look's list band) answers
  * input with the geometry it drew.
  *
  * @param originX  screen-space X of the element's containing content origin
@@ -47,7 +47,7 @@ import java.util.Objects;
  * @param mouseX   screen-space mouse X of the event
  * @param mouseY   screen-space mouse Y of the event
  * @param disabled whether the element's panel or container is disabled
- * @param kind     the kind of screen the element is on ({@link ScreenKind#CONTAINER}
+ * @param kind     the kind of screen the element is on ({@link ScreenKind#PANEL}
  *                 in a context built without one)
  */
 public record InputContext(int originX, int originY, double mouseX, double mouseY, boolean disabled,
@@ -57,9 +57,9 @@ public record InputContext(int originX, int originY, double mouseX, double mouse
         Objects.requireNonNull(kind, "kind");
     }
 
-    /** A context on a container screen: the 6.0.0 shape. */
+    /** A context in the Panel look: the 6.0.0 shape. */
     public InputContext(int originX, int originY, double mouseX, double mouseY, boolean disabled) {
-        this(originX, originY, mouseX, mouseY, disabled, ScreenKind.CONTAINER);
+        this(originX, originY, mouseX, mouseY, disabled, ScreenKind.PANEL);
     }
 
     /** Whether the mouse is inside the box at {@code (childX, childY)} of this origin. */

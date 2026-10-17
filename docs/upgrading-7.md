@@ -60,7 +60,7 @@ Each row is one break, the reason for it, and the replacement.
 |---|---|---|
 | `ControlStyle` and its helpers | It did nothing since 6.1.0. The screen's kind picks the look. | Delete the reference. For a control that must look different, give it a sprite of your own with `Button.builder().sprite(...)`. |
 | `style(ControlStyle)` on `Button.Builder`, `Dropdown.Builder`, `DropdownMulti.Builder` | Same. | Delete the call. |
-| `Tabs.SIDEBAR_SCROLLBAR_WIDTH` | Deprecated in 6.1.0. | Use `ScrollContainer.TRACK_WIDTH` on a container screen, and `6` on an options screen. |
+| `Tabs.SIDEBAR_SCROLLBAR_WIDTH` | Deprecated in 6.1.0. | Use `ScrollContainer.TRACK_WIDTH` in the Panel look, and `6` in the Default look. |
 | `MKTooltip.MIN_WRAP_WIDTH` | Nothing read it. | Delete the reference. |
 | `com.trevlar.menukit.api.window.Declarations` | The window left MenuKit. The declaration freeze stays. | Import `com.trevlar.menukit.api.Declarations`. |
 | `Window.panel(id)`, `Window.element(...)`, `PanelHandle`, `ElementHandle` | A panel's own settings do the same job. | Use `visibleWhen` on the panel and `Panel.opaque(boolean)`. |

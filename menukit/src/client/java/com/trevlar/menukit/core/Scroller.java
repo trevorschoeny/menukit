@@ -46,23 +46,23 @@ import org.jetbrains.annotations.ApiStatus;
  * jumps so the thumb centres on the press and keeps holding it, as vanilla's lists
  * and creative inventory do ({@link #grab}, {@link #dragTo}). {@link #draw} paints
  * it for the kind of screen: MenuKit's inset track and vanilla's creative scroller
- * on a container screen, vanilla's thin list scroller on an options screen.
+ * in the Panel look, vanilla's thin list scroller in the Default look.
  */
 @ApiStatus.Internal
 public final class Scroller {
 
     private Scroller() {}
 
-    /** Width of the thumb sprite on a container screen: vanilla's creative-inventory scroller. */
+    /** Width of the thumb sprite in the Panel look: vanilla's creative-inventory scroller. */
     public static final int THUMB_WIDTH = 12;
-    /** Length of the thumb, on both kinds of screen: vanilla's creative scroller's, fixed. */
+    /** Length of the thumb, in both looks: vanilla's creative scroller's, fixed. */
     public static final int THUMB_LENGTH = 15;
     /** Room inside the track at each end (and side) of the thumb. */
     public static final int TRACK_PADDING = 1;
-    /** Width of the track on a container screen: the thumb and its padding. */
+    /** Width of the track in the Panel look: the thumb and its padding. */
     public static final int TRACK_WIDTH = THUMB_WIDTH + 2 * TRACK_PADDING;
-    /** Width of the track on an options screen: vanilla's list scrollbar ({@code AbstractScrollArea.SCROLLBAR_WIDTH}). */
-    public static final int OPTIONS_TRACK_WIDTH = 6;
+    /** Width of the track in the Default look: vanilla's list scrollbar ({@code AbstractScrollArea.SCROLLBAR_WIDTH}). */
+    public static final int DEFAULT_TRACK_WIDTH = 6;
     /** Pixels moved per wheel notch. */
     public static final int PIXELS_PER_NOTCH = 10;
     /**
@@ -161,23 +161,23 @@ public final class Scroller {
 
     /** The track's width on a screen of {@code kind}. */
     public static int trackWidth(ScreenKind kind) {
-        return kind == ScreenKind.OPTIONS ? OPTIONS_TRACK_WIDTH : TRACK_WIDTH;
+        return kind == ScreenKind.DEFAULT ? DEFAULT_TRACK_WIDTH : TRACK_WIDTH;
     }
 
     /**
      * The scrollbar, its track's top-left at {@code (x, y)}, {@link #trackWidth}
-     * wide and {@code track} long, the thumb {@code thumbTop} down it. On a
-     * container screen MenuKit's inset track always shows, the thumb greyed when
-     * nothing scrolls or the owner is disabled; on an options screen vanilla's
+     * wide and {@code track} long, the thumb {@code thumbTop} down it. In the
+     * Panel look MenuKit's inset track always shows, the thumb greyed when
+     * nothing scrolls or the owner is disabled; in the Default look vanilla's
      * list scrollbar shows only while something scrolls, as vanilla's does.
      */
     public static void draw(GuiGraphicsExtractor g, ScreenKind kind, int x, int y, int track, double thumbTop,
                             boolean scrollable, boolean disabled) {
         int top = y + (int) thumbTop;
-        if (kind == ScreenKind.OPTIONS) {
+        if (kind == ScreenKind.DEFAULT) {
             if (!scrollable) return;
-            g.blitSprite(RenderPipelines.GUI_TEXTURED, LIST_TRACK, x, y, OPTIONS_TRACK_WIDTH, track);
-            g.blitSprite(RenderPipelines.GUI_TEXTURED, LIST_THUMB, x, top, OPTIONS_TRACK_WIDTH, THUMB_LENGTH);
+            g.blitSprite(RenderPipelines.GUI_TEXTURED, LIST_TRACK, x, y, DEFAULT_TRACK_WIDTH, track);
+            g.blitSprite(RenderPipelines.GUI_TEXTURED, LIST_THUMB, x, top, DEFAULT_TRACK_WIDTH, THUMB_LENGTH);
             return;
         }
         PanelRendering.renderInsetRect(g, x, y, TRACK_WIDTH, track);

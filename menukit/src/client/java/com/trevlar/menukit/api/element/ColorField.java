@@ -61,8 +61,8 @@ import java.util.function.IntSupplier;
  *
  * <h3>The kind of screen</h3>
  *
- * The swatch is a button of the screen's kind (vanilla's stone button on an options
- * screen, MenuKit's raised grey on a container screen) with the colour inside it,
+ * The swatch is a button of the screen's kind (vanilla's stone button in the Default
+ * look, MenuKit's raised grey in the Panel look) with the colour inside it,
  * over a checkerboard when it has alpha. The dialog is a panel on the same screen,
  * so it draws in the same kind, its tabs, buttons and hex field included. It needs a
  * screen: on the HUD the swatch only shows the colour.
@@ -276,7 +276,7 @@ public class ColorField extends AbstractPanelElement {
         }
         boolean hot = !disabled && (hovered || (widget != null && widget.focused()));
         GuiGraphicsExtractor g = ctx.graphics();
-        if (ctx.kind() == ScreenKind.OPTIONS) {
+        if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.button(g, x, y, width, height, !disabled, hot);
         } else {
             PanelRendering.renderPanel(g, x, y, width, height, disabled ? PanelStyle.DARK : PanelStyle.RAISED);

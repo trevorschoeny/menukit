@@ -21,8 +21,8 @@ import java.util.Objects;
  *
  * <h3>The trigger</h3>
  *
- * Its label centred, with no arrow: on an options screen vanilla's button, on a
- * container screen MenuKit's raised one, pressed while the menu is open.
+ * Its label centred, with no arrow: in the Default look vanilla's button, in the
+ * Panel look MenuKit's raised one, pressed while the menu is open.
  *
  * <h3>The menu</h3>
  *

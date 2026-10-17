@@ -116,32 +116,32 @@ import java.util.function.Supplier;
  * kind of screen. Only a jump the player did not drag (an arrow, a selection)
  * glides; the wheel and the handle move it at once, as in a body.
  *
- * <h3>On an options screen</h3>
+ * <h3>In the Default look</h3>
  *
  * The strip ({@link Mode#WRAP}, {@link Mode#SIDE_SCROLL}) always draws vanilla's
- * tab sprites. On an options screen ({@link ScreenKind#OPTIONS}) it is the tab
+ * tab sprites. In the Default look ({@link ScreenKind#DEFAULT}) it is the tab
  * bar of vanilla's Create World screen: every label white with a shadow, the
  * selected one underlined, vanilla's separator
  * along the strip's bottom on either side of the tabs, and the selected tab open
  * into the page below it, which is vanilla's darker list background down to a
  * separator at the bottom. The page insets the body as {@link ScrollContainer}'s
- * band does: {@link ScrollContainer#OPTIONS_INSET_X} from each side (the scrollbar
+ * band does: {@link ScrollContainer#DEFAULT_INSET_X} from each side (the scrollbar
  * lane is the right margin when the body scrolls) and
- * {@link ScrollContainer#OPTIONS_INSET_Y} above and below, so the body is laid out
+ * {@link ScrollContainer#DEFAULT_INSET_Y} above and below, so the body is laid out
  * that much narrower. In a dialog the page insets by the dialog's own gap,
  * {@link ScrollContainer#DIALOG_INSET}, the same rule as a ScrollContainer's band.
- * Behaviour, sizes and the arrows (vanilla's page arrows) are the same on both kinds.
+ * Behaviour, sizes and the arrows (vanilla's page arrows) are the same in both looks.
  *
- * <p>{@link Mode#SIDEBAR} on an options screen is that tab bar turned on its
+ * <p>{@link Mode#SIDEBAR} in the Default look is that tab bar turned on its
  * side: vanilla's tab sprites drawn under a pose turned a quarter, open toward
  * the page on the right, the selected one open into it; vanilla's separator
  * down the column's edge above and below the tabs; and the page, the same list
  * background, from the column's edge to the element's right, inset as the top
- * strip's page is ({@link ScrollContainer#OPTIONS_INSET_X} from the column and
- * the right edge, {@link ScrollContainer#OPTIONS_INSET_Y} above and below).
+ * strip's page is ({@link ScrollContainer#DEFAULT_INSET_X} from the column and
+ * the right edge, {@link ScrollContainer#DEFAULT_INSET_Y} above and below).
  * Labels stay upright, white, the selected one underlined. Column width and
- * scrolling are the same on both kinds; the scrollbar is a ScrollContainer's,
- * vanilla's thin list scroller here. On a container screen
+ * scrolling are the same in both looks; the scrollbar is a ScrollContainer's,
+ * vanilla's thin list scroller here. In the Panel look
  * the sidebar draws MenuKit's own tab in vanilla's tab colours.
  *
  * <p>{@link Builder#header} puts a row across the whole element, above the strip
@@ -269,13 +269,13 @@ public final class Tabs extends AbstractPanelElement {
     private static final int ARROW_SPRITE_W = 23;
     private static final int ARROW_SPRITE_H = 13;
 
-    // The sidebar tab on a container screen, drawn rather than blitted. Vanilla's tab sprite is a
+    // The sidebar tab in the Panel look, drawn rather than blitted. Vanilla's tab sprite is a
     // nine-slice that TILES its middle, so drawn thicker than its native 24 px (as
     // a sidebar tab is: the column's whole width) it repeats its outline lines
     // across the tab. These are the sprite's own colours and structure, turned on
     // its side with the middle stretched instead. The cost: a resource pack that
     // restyles vanilla's tabs restyles the top strip and not this sidebar. (On an
-    // options screen the sidebar blits the sprite itself, turned: drawTurnedTab.)
+    // Default-look screen the sidebar blits the sprite itself, turned: drawTurnedTab.)
     /** How much shorter an unselected tab is than the selected one, per the sprite. */
     private static final int SIDE_INSET = 4;
     private static final int TAB_EDGE = 0xBF000000;        // outer line
@@ -340,7 +340,7 @@ public final class Tabs extends AbstractPanelElement {
      * it down before laying out ({@link #screenKind}); a Tabs nested in another
      * element learns it when first drawn. Its host fixes the kind for life.
      */
-    private ScreenKind measuredKind = ScreenKind.CONTAINER;
+    private ScreenKind measuredKind = ScreenKind.PANEL;
     /**
      * The height it was placed at (its first layout pass), so a natural-height Tabs
      * that grows later (a taller body, the page's insets) pushes what is below it
@@ -757,11 +757,11 @@ public final class Tabs extends AbstractPanelElement {
     // Bodies
 
     /**
-     * Whether the body sits on an options screen's page (the list band), inset as
+     * Whether the body sits on a Default-look screen's page (the list band), inset as
      * the band insets its content: below the strip, or right of the sidebar column.
      */
     private boolean paged(ScreenKind kind) {
-        return kind == ScreenKind.OPTIONS;
+        return kind == ScreenKind.DEFAULT;
     }
 
     /** The page's inset from each side, and above and below the body: the one band rule ({@link ScrollContainer#bandInsetX}). */
@@ -849,7 +849,7 @@ public final class Tabs extends AbstractPanelElement {
             Panel.reflowForWrap(tab.body);
             contentH = Panel.contentHeightOf(tab.body);
             String id = tab.id;
-            // Bandless: on an options screen the Tabs draws the page band itself, behind
+            // Bandless: in the Default look the Tabs draws the page band itself, behind
             // the whole body, whether or not it scrolls, and insets the body itself.
             scroll = ScrollContainer.builder()
                     .bandless()
@@ -1022,7 +1022,7 @@ public final class Tabs extends AbstractPanelElement {
     /**
      * At its natural height (no fixed size, no viewport to fill), what it has grown
      * since it was placed: the panel pushes the rows below it down by this much, so
-     * a button row under a Tabs stays under it on either kind of screen. Fitting the
+     * a button row under a Tabs stays under it in either look. Fitting the
      * shown tab ({@link Builder#fitShownTab}) it can also shrink below where it was
      * placed (placed with a taller tab shown), and then pulls those rows up.
      */
@@ -1080,11 +1080,11 @@ public final class Tabs extends AbstractPanelElement {
         RenderContext stripCtx = disabled
                 ? new RenderContext(g, ctx.originX(), ctx.originY(), -1, -1, true, ctx.kind()) : ctx;
         ChildDispatch.render(header, childContext(stripCtx.at(sx, sy)));
-        // An options screen's page: the list band from the strip's bottom down (or
+        // A Default-look screen's page: the list band from the strip's bottom down (or
         // from the sidebar column's right edge across), with the footer separator
         // under it across the whole element. The strip's or column's own line is
         // its edge toward the tabs.
-        if (ctx.kind() == ScreenKind.OPTIONS) {
+        if (ctx.kind() == ScreenKind.DEFAULT) {
             int pageLeft = sx + (sidebar() ? s.columnWidth : 0);
             int pageTop = sy + s.top + (sidebar() ? 0 : s.height);
             int bottom = sy + getHeight();
@@ -1141,7 +1141,7 @@ public final class Tabs extends AbstractPanelElement {
         int viewLeft = sx + stripViewportStart(s);
         int viewRight = viewLeft + stripViewportLength(s);
         int shift = s.overflow ? (int) stripScroll : 0;
-        boolean vanilla = ctx.kind() == ScreenKind.OPTIONS;
+        boolean vanilla = ctx.kind() == ScreenKind.DEFAULT;
         if (vanilla) stripSeparators(g, s, sx, sy, viewLeft, viewRight, shift);
         if (s.overflow) g.enableScissor(viewLeft, sy, viewRight, sy + s.height);
         Placed hoveredTruncated = null;
@@ -1208,7 +1208,7 @@ public final class Tabs extends AbstractPanelElement {
     }
 
     /**
-     * An options screen's line along the strip's bottom, either side of the last
+     * A Default-look screen's line along the strip's bottom, either side of the last
      * row's tabs (MenuTabBar draws {@code Screen.HEADER_SEPARATOR} left of the first
      * tab and right of the last): with the selected tab open above the page, the
      * line and the page read as one surface. Under an overflowing row's arrows only,
@@ -1249,7 +1249,7 @@ public final class Tabs extends AbstractPanelElement {
         int viewTop = sy + stripViewportStart(s);
         int viewLength = stripViewportLength(s);
         int viewBottom = viewTop + viewLength;
-        boolean vanilla = ctx.kind() == ScreenKind.OPTIONS;
+        boolean vanilla = ctx.kind() == ScreenKind.DEFAULT;
         if (overflow) {
             if (ctx.hasMouseInput()) followScrollerDrag(s, ctx.mouseY() - viewTop);
         } else {
@@ -1307,7 +1307,7 @@ public final class Tabs extends AbstractPanelElement {
             if (p.tab.icon != null) p.tab.icon.draw(g, groupX, ty + (TAB_HEIGHT - p.tab.icon.size) / 2);
             int textX = groupX + p.tab.iconRoom();
             int textY = Text.centeredTextY(ty, ty + TAB_HEIGHT);
-            // On an options screen the labels are vanilla's, as on the top strip: white
+            // In the Default look the labels are vanilla's, as on the top strip: white
             // (a stand-in's light grey), the selected one underlined.
             int color = vanilla
                     ? (p.tab.standIn ? COLOR_UNSELECTED : COLOR_SELECTED)
@@ -1362,7 +1362,7 @@ public final class Tabs extends AbstractPanelElement {
         }
     }
 
-    // The sidebar on an options screen: vanilla's sprites, turned.
+    // The sidebar in the Default look: vanilla's sprites, turned.
 
     // Vanilla's tab sprite (widget/tab*.png.mcmeta): 130 x 24, nine-sliced with a
     // 2 px border left, top and right and none at the bottom, which is the edge
@@ -1378,7 +1378,7 @@ public final class Tabs extends AbstractPanelElement {
     private static final int TAB_SPRITE_TAIL = 3;
 
     /**
-     * A sidebar tab on an options screen: vanilla's own tab sprite drawn under a
+     * A sidebar tab in the Default look: vanilla's own tab sprite drawn under a
      * pose turned a quarter, its open edge (the sprite's bottom) facing the page
      * on the right. {@code w} is the tab's thickness across the column, {@code h}
      * its length down it.
@@ -1450,7 +1450,7 @@ public final class Tabs extends AbstractPanelElement {
     }
 
     /**
-     * The options screen's line along the column's edge toward the page, above
+     * The Default-look screen's line along the column's edge toward the page, above
      * and below the tabs in view: the top strip's line either side of its tabs
      * ({@link #stripSeparators}), turned, so the header separator's light line
      * faces the column and its dark line the page, as the tabs' own edge lines do.
@@ -2059,8 +2059,8 @@ public final class Tabs extends AbstractPanelElement {
          * Whether the sidebar draws its tab column. Default true. False draws no
          * column: it is laid out 0 wide, so the body takes the element's whole width
          * on the same page a column would sit beside, with the same band, insets,
-         * separators and scrollbar on an options screen, and MenuKit's own body
-         * from the left edge on a container screen. For a menu with one page that
+         * separators and scrollbar in the Default look, and MenuKit's own body
+         * from the left edge in the Panel look. For a menu with one page that
          * should look like its tabbed siblings. The {@link #header} still spans the
          * top; clicks and the wheel over where the column would be reach the body.
          * The selected tab ({@link #state}) is the one shown, so with several tabs
