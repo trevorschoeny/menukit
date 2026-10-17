@@ -48,7 +48,8 @@ import java.util.Set;
  * screen draws its own FLOW panels before the slot pass, under every slot, so their
  * slots stay in vanilla's pass as they always were.
  *
- * <p>Render thread only, like the slot pass. Cleared at the start of every place pass.
+ * <p>Render thread only, like the slot pass. Cleared at the start of every place pass and
+ * at the end of every container screen's frame.
  */
 @ApiStatus.Internal
 public final class PresentedSlots {
@@ -115,9 +116,16 @@ public final class PresentedSlots {
         DRAWN.add(panel);
     }
 
-    /** The end of a container screen's frame, after its slot library has asked {@link #panelShowing}. */
+    /**
+     * The end of a container screen's frame, after its slot library has asked
+     * {@link #panelShowing}: nothing of this frame outlives it, so a panel also shown on
+     * a screen with no slot pass never draws a closed screen's slots.
+     */
     public static void endFrame() {
         DRAWN.clear();
+        BY_PANEL.clear();
+        ALL.clear();
+        screen = null;
     }
 
     /**
