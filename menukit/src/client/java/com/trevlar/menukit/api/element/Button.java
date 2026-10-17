@@ -195,8 +195,8 @@ public class Button extends AbstractPanelElement {
 
     /**
      * Paints the background: raised, inset while pressed, dark while disabled,
-     * with the hover highlight, on a container screen; vanilla's button sprite
-     * on an options screen ({@link ScreenKind#OPTIONS}). Covers the grown height
+     * with the hover highlight, in the Panel look; vanilla's button sprite
+     * in the Default look ({@link ScreenKind#DEFAULT}). Covers the grown height
      * when the label wraps.
      *
      * <p><b>Stable extension point.</b> {@code sx}/{@code sy} are the button's
@@ -205,7 +205,7 @@ public class Button extends AbstractPanelElement {
      */
     protected void renderBackground(RenderContext ctx, int sx, int sy, Look look) {
         int w = getWidth(), h = getHeight();
-        if (ctx.kind() == ScreenKind.OPTIONS) {
+        if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.button(ctx.graphics(), sx, sy, w, h, !look.disabled(), look.hovered() || look.pressed());
             if (look.pressed()) VanillaLook.pressedOverlay(ctx.graphics(), sx, sy, w, h);
             return;

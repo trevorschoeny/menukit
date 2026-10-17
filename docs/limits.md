@@ -9,7 +9,7 @@ These are not planned. Use vanilla or another library.
 - A config framework (option types, save files, a generated screen). MenuKit provides the controls, tabs and settings rows. Where a value lives and how it saves is up to the mod. For a generated config screen, use YACL or Cloth Config.
 - Chat and the F3 overlay. Both render outside the `Screen` system `VanillaScreenPanelAdapter` targets.
 - Nested panels. A panel holds elements only.
-- Themes and skins. `PanelStyle` and the two screen kinds (`ScreenKind`) are the full set. An element's look follows its screen's kind and cannot be picked per element, panel or screen. MenuKit restyles nothing of vanilla's except the pressed look of buttons ([concepts](concepts.md#one-styling-change)).
+- Themes and skins. `PanelStyle` and the two looks (`ScreenKind.PANEL` and `ScreenKind.DEFAULT`) are the full set. An element's look follows its screen's and cannot be picked per element, panel or screen. MenuKit restyles nothing of vanilla's except the pressed look of buttons ([concepts](concepts.md#one-styling-change)).
 - Tooltip content. Item Tips (durability and food lines) left MenuKit in 6.0.0 and is a feature of Inventory Plus.
 - Animation beyond HUD notifications and the cycle strip's slide.
 - A cross-mod event bus.
@@ -28,7 +28,7 @@ Behavior that is incomplete in the current release.
 | Unplaced panels on a standalone screen | The default stacks later panels below the main one with a 14 pixel gap, computed for the case where every earlier stacked panel is shown. With one hidden, the panels after it sit 12 pixels lower than the gap alone places them. Declaring `region(BOTTOM_CENTER)` with an explicit `.offset` gives exact spacing. |
 | Offsets and stacking | `.offset(dx, dy)` moves one panel after placement, and siblings stack on its un-nudged size. An offset that pushes a panel over its sibling overlaps it. `.gap(n)` takes 0 or more pixels, so stacked panels can touch but a gap cannot overlap them. |
 | Item picker | The components box offers no suggestions while the player types, although vanilla's `/give` does. Its errors are vanilla's. Search reads names, ids and tooltips, not `#tags` or `@mods`. No quick-move with the number keys or a double click to collect. The dialog opens only on a screen. Emptying from the keyboard is not supported. With no world open, the first picker shown loads vanilla's data once (a short pause), and enchantments and stacks are vanilla's own. |
-| A look per element | None since 6.1.0, and 7.0.0 removed `ControlStyle`. No switch makes a control differ from its screen's kind (a MenuKit-grey button on an options screen). Draw such a control with a sprite of your own (`Button.builder().sprite(...)`). |
+| A look per element | None since 6.1.0, and 7.0.0 removed `ControlStyle`. No switch makes a control differ from its screen's look (a MenuKit-grey button in the Default look). Draw such a control with a sprite of your own (`Button.builder().sprite(...)`). |
 
 ## Element gaps
 

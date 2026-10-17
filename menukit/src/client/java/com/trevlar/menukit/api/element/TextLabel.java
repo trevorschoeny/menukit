@@ -23,8 +23,8 @@ import java.util.function.Supplier;
  *
  * A label's colour comes from its {@link TextRole} ({@link TextRole#BODY} unless
  * {@code role(...)} says otherwise), resolved by the kind of screen it is on
- * (6.1.0): dark grey without a shadow on a container screen, vanilla's white and
- * greys with a shadow on an options screen ({@link ScreenKind#textColor}). So a
+ * (6.1.0): dark grey without a shadow in the Panel look, vanilla's white and
+ * greys with a shadow in the Default look ({@link ScreenKind#textColor}). So a
  * label reads on either kind with nothing hand-coloured. {@code color(argb)} and
  * {@code shadow(b)} fix a value instead, on every kind: a HUD label over the world,
  * say.
@@ -207,7 +207,7 @@ public class TextLabel extends AbstractPanelElement {
         /**
          * What the text is for: its colour comes from the role on the kind of screen
          * the label is on ({@link ScreenKind#textColor}). Default {@link TextRole#BODY},
-         * which on a container screen is {@link #COLOR_DARK}, the 6.0.0 default.
+         * which in the Panel look is {@link #COLOR_DARK}, the 6.0.0 default.
          */
         public Builder role(TextRole role) {
             this.role = Objects.requireNonNull(role, "role");
@@ -222,8 +222,8 @@ public class TextLabel extends AbstractPanelElement {
 
         /**
          * A fixed drop shadow, on every kind of screen. Without it the kind decides:
-         * none on a container screen (vanilla's container-label style), a shadow on
-         * an options screen.
+         * none in the Panel look (vanilla's container-label style), a shadow on
+         * a Default-look screen.
          */
         public Builder shadow(boolean shadow) {
             this.shadow = shadow;

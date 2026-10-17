@@ -1,6 +1,6 @@
 ## 7.3.0
 
-This release is additions, plus one change to when slots shown in a panel are drawn. Nothing was removed, and mods built for 7.2.0 work as before.
+This release is additions, new names for the two looks, and one change to when slots shown in a panel are drawn. Nothing was removed, and mods built for 7.2.0 work as before.
 
 ### Added
 
@@ -17,6 +17,7 @@ This release is additions, plus one change to when slots shown in a panel are dr
 
 ### Changed
 
+- The two looks are now called the Default look and the Panel look. `ScreenKind.OPTIONS` is now `ScreenKind.DEFAULT`, `ScreenKind.CONTAINER` is now `ScreenKind.PANEL`, and `ScrollContainer.OPTIONS_INSET_X` and `OPTIONS_INSET_Y` are now `DEFAULT_INSET_X` and `DEFAULT_INSET_Y`. The old names still work and mean the same looks, but are deprecated and go in 8.0.0. `ScreenKind.values()` lists only the two new names, and a `switch` over `ScreenKind` must name them. A mod that lets the player switch look offers a toggle labelled "Look: Default" or "Look: Panel".
 - A slot a panel shows draws right after that panel, on top of it. Before, a vanilla slot shown in a panel was drawn before the panel, so the panel covered its item. A panel above another now covers the slots shown in the one below it, and a slot in a dialog draws on the dialog in the same frame. Slots no panel shows draw as before. Mods that mark slots by hooking vanilla's `extractSlot` still see every slot. A mod that hooks the whole slot pass (`extractSlots`) sees the slots shown in panels drawn after it.
 - A panel placed by an adapter whose elements are all hidden or empty is no longer drawn as an empty frame, and no longer blocks clicks. A panel with a pinned size keeps its room as before.
 - The cycle strip's slide and MK's HUD notifications time themselves off vanilla's own clock (`Util.getMillis()`) instead of the wall clock, so a client gametest that pins and steps the clock can record an animation frame by frame. `HudCycleStrip.slideProgress(long)` and `slideDone(long)` still read `Util.getMillis()` as before, but are deprecated: a `startMillis` from any other clock, `System.currentTimeMillis()` included, silently never reports done, since the two clocks don't share a zero. Use `begin()` and the new overloads instead.

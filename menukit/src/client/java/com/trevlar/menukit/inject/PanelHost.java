@@ -276,21 +276,21 @@ public final class PanelHost {
         this.insets = insets;
     }
 
-    // Each factory fixes the kind of screen (ScreenKind) by the one rule: a container
-    // screen is CONTAINER; an anchor takes the kind of the screen it is on; the HUD keeps the look it always had
-    // (CONTAINER); any other screen is what ScreenKind.of says for it (OPTIONS for a
-    // vanilla screen, the declared kind for an MKScreen); a standalone screen passes
-    // the kind it declared.
+    // Each factory fixes the look (ScreenKind) by the one rule: a vanilla container
+    // screen is PANEL; an anchor takes the look of the screen it is on; the HUD keeps the look it always had
+    // (PANEL); any other screen is what ScreenKind.of says for it (DEFAULT for a
+    // vanilla screen, the declared look for an MKScreen); a standalone screen passes
+    // the look it declared.
 
     /** A container screen's host: REGION around the (chrome-extended) menu frame. */
     public static PanelHost container(Supplier<@Nullable Frame> frames) {
-        return new PanelHost(Kind.CONTAINER, ScreenKind.CONTAINER, frames, RegionMath.Insets.CHROME);
+        return new PanelHost(Kind.CONTAINER, ScreenKind.PANEL, frames, RegionMath.Insets.CHROME);
     }
 
     /**
      * A non-container screen's host: screen spots, 4px in. {@code screenKind} is the
-     * screen's ({@link ScreenKind#of}): an options screen for any vanilla screen, an
-     * {@code MKScreen}'s declared kind for a panel injected into one.
+     * screen's ({@link ScreenKind#of}): the Default look for any vanilla screen, an
+     * {@code MKScreen}'s declared look for a panel injected into one.
      */
     public static PanelHost vanillaScreen(ScreenKind screenKind, Supplier<@Nullable Frame> frames) {
         return new PanelHost(Kind.VANILLA_SCREEN, screenKind, frames, RegionMath.Insets.SCREEN);
@@ -301,9 +301,9 @@ public final class PanelHost {
         return new PanelHost(Kind.ANCHOR, screenKind, frames, RegionMath.Insets.CHROME);
     }
 
-    /** The HUD's host: screen spots on the game window; render only. Draws as it always has (container). */
+    /** The HUD's host: screen spots on the game window; render only. Draws as it always has (the Panel look). */
     public static PanelHost hud(Supplier<@Nullable Frame> frames) {
-        return new PanelHost(Kind.HUD, ScreenKind.CONTAINER, frames, RegionMath.Insets.HUD);
+        return new PanelHost(Kind.HUD, ScreenKind.PANEL, frames, RegionMath.Insets.HUD);
     }
 
     /**
@@ -586,7 +586,7 @@ public final class PanelHost {
     /**
      * Resolves every shown entry against this frame. Pure apart from feeding each
      * panel its size budget and this host's kind of screen (a panel measures itself
-     * against the room it has, and an auto-scrolling one on an options screen lays
+     * against the room it has, and an auto-scrolling one in the Default look lays
      * its content inside the list band's inset) and a one-time overflow warning.
      *
      * <p>Re-entrant: a panel's position can read another panel's {@link
@@ -965,11 +965,11 @@ public final class PanelHost {
         boolean live = kind != Kind.HUD && pointer.live(this, p);
         int mx = live ? mouseX : -1;
         int my = live ? mouseY : -1;
-        // The panel's background for the kind of screen: MenuKit's sprites on a
-        // container screen, vanilla's popup frame (and friends) on an options
-        // screen, so a dialog on an options screen reads as vanilla's own.
+        // The panel's background for the kind of screen: MenuKit's sprites in the
+        // Panel look, vanilla's popup frame (and friends) in the Default
+        // look, so a dialog in the Default look reads as vanilla's own.
         if (panel.getStyle() != PanelStyle.NONE) {
-            if (screenKind == ScreenKind.OPTIONS) {
+            if (screenKind == ScreenKind.DEFAULT) {
                 VanillaLook.panelBackground(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
             } else {
                 PanelRendering.renderPanel(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());

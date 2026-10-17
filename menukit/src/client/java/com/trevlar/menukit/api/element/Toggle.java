@@ -50,9 +50,9 @@ import java.util.function.Supplier;
  *       states.</li>
  * </ul>
  *
- * <h3>On an options screen</h3>
+ * <h3>In the Default look</h3>
  *
- * On an options screen ({@link ScreenKind#OPTIONS}) the switch and the labelled
+ * In the Default look ({@link ScreenKind#DEFAULT}) the switch and the labelled
  * bar are a vanilla button, the way
  * vanilla's own on/off options are buttons: the text says the state. A labelled
  * toggle shows its label (give it one that says the state, {@code "On"} /
@@ -165,7 +165,7 @@ public class Toggle extends AbstractPanelElement {
         // Vanilla's on/off option is a button whose text is the state: a switch
         // with no label of its own reads vanilla's ON / OFF there.
         ScreenKind kind = ctx.kind();
-        if (text == null && kind == ScreenKind.OPTIONS && !(this instanceof SpriteToggle)) {
+        if (text == null && kind == ScreenKind.DEFAULT && !(this instanceof SpriteToggle)) {
             text = on ? CommonComponents.OPTION_ON : CommonComponents.OPTION_OFF;
         }
         if (text != null) {
@@ -191,7 +191,7 @@ public class Toggle extends AbstractPanelElement {
 
     /**
      * Paints the toggle for this frame: raised off, inset on, dark disabled, and
-     * the hover highlight; on an options screen, vanilla's button (highlighted on
+     * the hover highlight; in the Default look, vanilla's button (highlighted on
      * hover, its disabled sprite while disabled), whose text carries the state.
      * Covers the grown height when a label wrapped.
      *
@@ -201,7 +201,7 @@ public class Toggle extends AbstractPanelElement {
     protected void renderBackground(RenderContext ctx, int sx, int sy,
                                     boolean on, boolean disabled, boolean hovered) {
         int w = getWidth(), h = getHeight();
-        if (ctx.kind() == ScreenKind.OPTIONS) {
+        if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.button(ctx.graphics(), sx, sy, w, h, !disabled, hovered);
             return;
         }
