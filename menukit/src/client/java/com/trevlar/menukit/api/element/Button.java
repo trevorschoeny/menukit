@@ -88,8 +88,9 @@ public class Button extends AbstractPanelElement {
 
     // The press affordance: true from a left press on this button until the
     // release. Interaction state, not a frame cache: it is set by the press and
-    // cleared by the release (and by the poll in render, for a release that went
-    // to another screen after this button navigated away).
+    // cleared by the release, by the poll in render (a release that went to
+    // another screen after this button navigated away), and by onDetach (a release
+    // that never came: vanilla flushes input while it disconnects and loads a world).
     private boolean pressed = false;
 
     /** Builds from {@code b}. Protected so a consumer subclass can build through a {@link Builder}. */
@@ -278,8 +279,10 @@ public class Button extends AbstractPanelElement {
         widget.attach(screen);
     }
 
+    /** Leaving a screen ends the press: the button outlives the screen, its press does not. */
     @Override
     public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
+        pressed = false;
         if (widget != null) widget.detach(screen);
     }
 

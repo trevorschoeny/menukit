@@ -351,6 +351,12 @@ final class ColorDialog {
         @Override public void fillWidth(int width) {}
         @Override public boolean isInteractive() { return true; }
 
+        /** Leaving a screen ends a drag: its release may never reach this picker. */
+        @Override
+        public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
+            drag = Drag.NONE;
+        }
+
         private int hueX() { return SQUARE + GAP; }
         private int alphaX() { return hueX() + BAR + GAP; }
 

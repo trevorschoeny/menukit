@@ -360,6 +360,9 @@ public class WidgetHost<W extends GuiEventListener & Renderable> extends Abstrac
         if (this.screen != screen) return;
         if (widget != null) Focus.removeHosted(screen, standIn, widget);
         if (screen.getFocused() == standIn) screen.setFocused(null);
+        // The widget outlives the screen: its focus never carries to the next one,
+        // whatever this screen says is focused.
+        if (widget != null && widget.isFocused()) widget.setFocused(false);
         this.screen = null;
         pressed = -1;
     }
