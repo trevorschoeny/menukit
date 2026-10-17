@@ -26,3 +26,5 @@ This release is additions, new names for the two looks, and one change to when s
 
 - An element removed from a screen lets go of the keyboard if it had it, and an open dropdown in it closes.
 - A button whose click opens another screen no longer looks pressed the next time its panel is shown. Leaving a screen now ends every element's press, drag and keyboard focus, even when the mouse release never arrives (vanilla drops input while it leaves and loads a world).
+- A `Tabs` sidebar whose tabs scroll no longer cuts labels that fit when they don't ("List..."). The scrollbar's lane now widens the column instead of narrowing the tabs, so the body is that much narrower while the tabs scroll, in both looks. The sidebar header sits over the tabs, right of the lane. Labels are cut only when the widest is wider than a third of the `Tabs`, as before.
+- A side-scroll `Tabs` tab wider than the room between the arrows is narrowed to it and its label shortened with "...", instead of being clipped at the arrows.

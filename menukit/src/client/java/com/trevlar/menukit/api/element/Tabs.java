@@ -94,17 +94,20 @@ import java.util.function.Supplier;
  *   <li><b>{@link Mode#SIDEBAR}</b>: a column of tabs down the left, the body to
  *       its right. The top tab turned on its side: the selected tab reaches 4 px
  *       further left and opens into the page, the others close against it with the
- *       page's edge. The column is as wide as its widest label, at most a third of
- *       the element, and every tab in it is that wide. {@link Align} places the
- *       label in the tab ({@link Align#FILL} as {@link Align#LEFT}), and labels
- *       stay put on selection so the column reads as a list. When the tabs are
+ *       page's edge. Every tab is as wide as the widest label, at most a third of
+ *       the element. {@link Align} places the label in the tab ({@link Align#FILL}
+ *       as {@link Align#LEFT}), and labels stay put on selection so the column
+ *       reads as a list. When the tabs are
  *       taller than the column, a {@link ScrollContainer}'s scrollbar runs down its
  *       left edge, the same track and handle at the same size: drag the handle, or
  *       press the track to jump there. The wheel over the column scrolls it by
- *       pixels, and a newly selected tab glides into view. The tabs give the bar
- *       its lane rather than the column widening, so the body never moves.
+ *       pixels, and a newly selected tab glides into view. The column widens by
+ *       the bar's lane, so the tabs keep their width and every label that fits
+ *       without a scrollbar fits with one; the body gives up the lane. Whether the
+ *       column scrolls is decided from the element's height before anything is
+ *       laid out, so the column and the body never change width frame to frame.
  *       {@link Builder#sidebarHeader} puts elements above the column (a Back
- *       button, say), in the column's width; the body still starts at the top.
+ *       button, say), in the tabs' width and over them; the body still starts at the top.
  *       {@link Builder#tabColumn tabColumn(false)} draws no column at all: the
  *       column is 0 wide and the body takes the whole width, on the same page
  *       (band, insets, separators, scrollbar) the column would sit beside. A
@@ -437,14 +440,16 @@ public final class Tabs extends AbstractPanelElement {
 
     /**
      * The strip for one width and one visible set. In {@link Mode#SIDEBAR}
-     * {@code height} is the column's full length, {@code columnWidth} its width,
-     * and whether it overflows depends on the element's height, so it is asked
-     * of {@link #overflows}, never read from {@code overflow}. {@code top} is
-     * where everything under the full-width header starts: its height and gap,
-     * or 0; the strip's and column's own coordinates start there.
+     * {@code height} is the column's full length, {@code tabWidth} its tabs'
+     * width (the column is that plus the scrollbar's lane while it scrolls:
+     * {@link #columnWidth}), and whether it overflows depends on the element's
+     * height, so it is asked of {@link #overflows}, never read from
+     * {@code overflow}. {@code top} is where everything under the full-width
+     * header starts: its height and gap, or 0; the strip's and column's own
+     * coordinates start there.
      */
     private record StripLayout(List<Placed> placed, int height, boolean overflow, int contentWidth,
-                               int columnWidth, int headerHeight, int top) {}
+                               int tabWidth, int headerHeight, int top) {}
 
     private @Nullable StripLayout strip;
     private int stripWidthKey = -1;
@@ -503,6 +508,12 @@ public final class Tabs extends AbstractPanelElement {
         } else {
             rows = List.of(new int[]{0, n});
             overflow = sum(natural, 0, n) > width;
+            if (overflow) {
+                // Between the arrows a tab wider than the view would be cut by the view's
+                // clip, never seen whole; it is narrowed to the view and its label ellipsized.
+                int view = Math.max(1, width - 2 * ARROW_WIDTH);
+                for (int i = 0; i < n; i++) natural[i] = Math.min(natural[i], view);
+            }
         }
 
         List<Placed> placed = new ArrayList<>(n);
@@ -549,9 +560,11 @@ public final class Tabs extends AbstractPanelElement {
     /**
      * One column, one tab per row, all as wide as the widest label or header
      * element, capped at a third of the element; the header laid out to it.
+     * The scrollbar's lane, while the tabs scroll, is added on top of this
+     * ({@link #columnWidth}), so only the cap ever cuts a label.
      * With no tab column ({@link Builder#tabColumn}) it is the empty column, 0
      * wide with no tabs, the same layout a sidebar with nothing in it gets: every
-     * path that reads {@code columnWidth} (the body's left and width, the page's
+     * path that reads {@link #columnWidth} (the body's left and width, the page's
      * left edge, the strip's hit test) then gives the page the whole width.
      */
     private StripLayout layoutSidebar(int width, List<Tab> visible, int top) {
@@ -642,9 +655,24 @@ public final class Tabs extends AbstractPanelElement {
         return mode == Mode.SIDEBAR;
     }
 
-    /** Whether the strip is longer than its room and scrolls. */
+    /**
+     * Whether the strip is longer than its room and scrolls. A sidebar can only
+     * when its height is given (fixed, or filled from a viewport): at its natural
+     * height the element is at least as tall as the column. Asking only then also
+     * keeps the natural height, which reads the body's width and so the column's,
+     * from asking itself.
+     */
     private boolean overflows(StripLayout s) {
-        return sidebar() ? s.height > stripViewportLength(s) : s.overflow;
+        if (!sidebar()) return s.overflow;
+        return (fixedHeight >= 0 || filledHeight >= 0) && s.height > stripViewportLength(s);
+    }
+
+    /**
+     * The sidebar column's width: its tabs, and the scrollbar's lane on their left
+     * while they scroll. The lane widens the column rather than narrowing the tabs.
+     */
+    private int columnWidth(StripLayout s, ScreenKind kind) {
+        return s.tabWidth + scrollbarLane(s, kind);
     }
 
     /** Where the sidebar's tabs start: under the header and its gap, or at the top. */
@@ -749,8 +777,8 @@ public final class Tabs extends AbstractPanelElement {
      * Whether a point is on the strip (the sidebar column, or the rows on top),
      * {@code ly} measured from under the header, as the strip's own coordinates are.
      */
-    private boolean onStrip(StripLayout s, double lx, double ly) {
-        if (sidebar()) return lx >= 0 && lx < s.columnWidth && ly >= 0 && ly < getHeight() - s.top;
+    private boolean onStrip(StripLayout s, ScreenKind kind, double lx, double ly) {
+        if (sidebar()) return lx >= 0 && lx < columnWidth(s, kind) && ly >= 0 && ly < getHeight() - s.top;
         return ly >= 0 && ly < s.height;
     }
 
@@ -787,8 +815,9 @@ public final class Tabs extends AbstractPanelElement {
     private int bodyLeft(StripLayout s, ScreenKind kind) {
         if (!sidebar()) return pageInsetX(kind);
         // On a page the column meets the page, and the page insets the body.
-        if (paged(kind)) return s.columnWidth + pageInsetX(kind);
-        return s.columnWidth + (s.columnWidth > 0 ? BODY_GAP : 0);
+        int column = columnWidth(s, kind);
+        if (paged(kind)) return column + pageInsetX(kind);
+        return column + (column > 0 ? BODY_GAP : 0);
     }
 
     /** From the body's left to the element's right edge: the page's right inset included. */
@@ -1085,7 +1114,7 @@ public final class Tabs extends AbstractPanelElement {
         // under it across the whole element. The strip's or column's own line is
         // its edge toward the tabs.
         if (ctx.kind() == ScreenKind.DEFAULT) {
-            int pageLeft = sx + (sidebar() ? s.columnWidth : 0);
+            int pageLeft = sx + (sidebar() ? columnWidth(s, ctx.kind()) : 0);
             int pageTop = sy + s.top + (sidebar() ? 0 : s.height);
             int bottom = sy + getHeight();
             VanillaLook.listBackground(g, pageLeft, pageTop, sx + getWidth() - pageLeft, bottom - pageTop,
@@ -1129,9 +1158,11 @@ public final class Tabs extends AbstractPanelElement {
         return in.at(in.originX() + childX, in.originY() + childY).disabledIf(ownDisabled());
     }
 
-    /** The sidebar header's input context: origin at the column's top-left, under the full-width header. */
+    /** The sidebar header's input context: origin at the tabs' top-left (right of the scrollbar's lane), under the full-width header. */
     private InputContext columnInput(InputContext in) {
-        return in.at(in.originX() + childX, in.originY() + childY + strip().top).disabledIf(ownDisabled());
+        StripLayout s = strip();
+        return in.at(in.originX() + childX + scrollbarLane(s, in.kind()), in.originY() + childY + s.top)
+                .disabledIf(ownDisabled());
     }
 
     /** The strip across the top ({@link Mode#WRAP}, {@link Mode#SIDE_SCROLL}). */
@@ -1236,15 +1267,17 @@ public final class Tabs extends AbstractPanelElement {
     private void renderSidebar(RenderContext ctx, StripLayout s, @Nullable Tab shown, int sx, int sy) {
         var g = ctx.graphics();
         Font font = Minecraft.getInstance().font;
-        int column = s.columnWidth;
+        int column = columnWidth(s, ctx.kind());
         if (column <= 0) return;
+        // When the tabs overflow, the scrollbar takes a lane on the column's left (the
+        // side away from the page) and the column widens by it: the tabs keep their width.
+        int lane = scrollbarLane(s, ctx.kind());
+        int tabX = sx + lane, tabW = s.tabWidth;
 
-        // Header: ordinary elements, positioned from the column's top-left.
-        ChildDispatch.render(sidebarHeader, childContext(ctx.at(sx, sy)));
+        // Header: ordinary elements, positioned from the tabs' top-left, in their width.
+        ChildDispatch.render(sidebarHeader, childContext(ctx.at(tabX, sy)));
 
-        // The tabs, clipped to the column under the header. When they overflow,
-        // the scrollbar takes a lane on the column's left (the side away from the
-        // page) and the tabs narrow into the rest, so the body does not move.
+        // The tabs, clipped to the column under the header.
         boolean overflow = overflows(s);
         int viewTop = sy + stripViewportStart(s);
         int viewLength = stripViewportLength(s);
@@ -1256,8 +1289,6 @@ public final class Tabs extends AbstractPanelElement {
             draggingScroller = false;
         }
         int shift = overflow ? (int) stripScroll : 0;
-        int lane = scrollbarLane(s, ctx.kind());
-        int tabX = sx + lane, tabW = column - lane;
         if (vanilla) columnSeparators(g, s, sx + column, sy, viewTop, viewBottom, shift);
         g.enableScissor(sx, viewTop, sx + column, viewBottom);
         Placed hoveredTruncated = null;
@@ -1281,17 +1312,8 @@ public final class Tabs extends AbstractPanelElement {
             } else {
                 drawSideTab(g, tabX, ty, tabW, TAB_HEIGHT, isSelected, hovered);
             }
-            // Cut again for the narrower tab when the lane is taken; laid out without it.
             String text = p.text;
             boolean truncated = p.truncated;
-            if (lane > 0) {
-                int room = tabW - 2 * LABEL_PAD - SIDE_INSET - p.tab.iconRoom();
-                String full = p.tab.label.getString();
-                if (font.width(full) > room) {
-                    text = font.plainSubstrByWidth(full, Math.max(0, room - font.width(ELLIPSIS))) + ELLIPSIS;
-                    truncated = true;
-                }
-            }
             // Labels line up down the column whatever is selected, so it reads as a
             // list: the selected tab grows toward the left, its label does not move.
             // The icon (if any), a gap and the label are placed as one group; with no
@@ -1606,7 +1628,7 @@ public final class Tabs extends AbstractPanelElement {
             return claimOrEat(header, headerInput(in), button);
         }
         ly -= s.top;                                      // from here on, from under the header
-        if (onStrip(s, lx, ly)) {
+        if (onStrip(s, in.kind(), lx, ly)) {
             if (disabled(in)) return true;               // a disabled strip eats its clicks, picks nothing
             if (sidebar()) return clickSidebar(s, in, lx, ly, button);
             if (button != Click.LEFT) return true;        // the strip eats its own clicks
@@ -1693,7 +1715,7 @@ public final class Tabs extends AbstractPanelElement {
         double lx = in.mouseX() - (in.originX() + childX), ly = in.mouseY() - (in.originY() + childY);
         if (ly >= 0 && ly < s.top) return ChildDispatch.mouseScrolled(header, headerInput(in), scrollX, scrollY);
         ly -= s.top;
-        if (onStrip(s, lx, ly)) {
+        if (onStrip(s, in.kind(), lx, ly)) {
             if (!overflows(s) || disabled(in)) return false;
             // By pixels, as a body scrolls: wheel up goes back, down goes forward. A
             // sideways wheel scrolls the row too.
