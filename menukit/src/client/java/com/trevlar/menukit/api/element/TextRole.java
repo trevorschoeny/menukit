@@ -3,8 +3,8 @@ package com.trevlar.menukit.api.element;
 /**
  * What a piece of text is for, so the kind of screen decides its colour (6.1.0).
  * A label names its role; {@link com.trevlar.menukit.api.panel.ScreenKind#textColor}
- * turns the role into a colour for the surface that kind draws on: dark on a
- * container screen's grey panel, white and greys on an options screen's dark
+ * turns the role into a colour for the surface that kind draws on: dark in the
+ * Panel look's grey panel, white and greys on a Default-look screen's dark
  * backdrop.
  *
  * <pre>{@code

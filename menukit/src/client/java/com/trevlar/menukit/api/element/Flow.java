@@ -100,9 +100,9 @@ import java.util.Objects;
  * reads as one unit (a world in a world list). The
  * children sit {@link #BOX_PADDING} inside the card's edge, a boxed row Flow fills
  * the width its panel gives it, and its height hugs its rows plus the padding. The
- * card's look follows the kind of screen: on an options screen a dark translucent
- * box with a one-pixel light border that brightens while hovered, on a container
- * screen the {@code INSET} panel look. An icon beside a stack of lines is a boxed
+ * card's look follows the kind of screen: in the Default look a dark translucent
+ * box with a one-pixel light border that brightens while hovered, in the Panel
+ * look the {@code INSET} panel style. An icon beside a stack of lines is a boxed
  * Flow holding the icon and a vertical Flow:
  *
  * <pre>{@code
@@ -121,7 +121,7 @@ public final class Flow extends AbstractPanelElement {
     /** Space between a boxed Flow's card edge and its children ({@link Builder#boxed()}). */
     public static final int BOX_PADDING = 6;
 
-    // The options-screen card: a dark translucent fill and a one-pixel light border,
+    // The Default-look card: a dark translucent fill and a one-pixel light border,
     // brighter while hovered. The container-screen card is the INSET panel look.
     private static final int CARD_FILL = 0x40000000;
     private static final int CARD_BORDER = 0x33FFFFFF;
@@ -509,7 +509,7 @@ public final class Flow extends AbstractPanelElement {
         int x = ctx.originX() + childX, y = ctx.originY() + childY;
         int w = lastWidth, h = lastHeight;
         var g = ctx.graphics();
-        if (ctx.kind() == ScreenKind.OPTIONS) {
+        if (ctx.kind() == ScreenKind.DEFAULT) {
             g.fill(x, y, x + w, y + h, CARD_FILL);
             int border = ctx.isHovered(childX, childY, w, h) ? CARD_BORDER_HOVER : CARD_BORDER;
             g.fill(x, y, x + w, y + 1, border);

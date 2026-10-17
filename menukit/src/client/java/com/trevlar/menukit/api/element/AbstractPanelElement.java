@@ -37,7 +37,7 @@ import java.util.function.Supplier;
  * <p>No builder picks a look. An element draws for the kind of screen it is on
  * ({@link com.trevlar.menukit.api.panel.ScreenKind}, read from
  * {@link RenderContext#kind()}), so the same element is MenuKit's grey on an
- * inventory and vanilla's stone on an options screen (6.1.0).
+ * inventory and vanilla's stone in the Default look (6.1.0).
  *
  * <h2>What an instance keeps</h2>
  *

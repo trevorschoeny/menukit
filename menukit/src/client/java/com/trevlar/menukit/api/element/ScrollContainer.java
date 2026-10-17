@@ -71,16 +71,16 @@ import java.util.function.DoubleSupplier;
  * {@code api.host.SlotClip}). Under an opaque panel, the part inside is the panel's
  * own slot; the part past the edge is the panel's, like a gap between slots.
  *
- * <h3>On an options screen</h3>
+ * <h3>In the Default look</h3>
  *
- * On an options screen ({@link ScreenKind#OPTIONS}) it is the band every Options
+ * In the Default look ({@link ScreenKind#DEFAULT}) it is the band every Options
  * screen has: vanilla's darker list
  * background behind the content, scrolling with it, vanilla's separator along
  * the top and the bottom, drawn in the 2 px just outside the container as vanilla
  * draws them, and vanilla's thin list scroller ({@code widget/scroller} on
  * {@code widget/scroller_background}) at the right of the lane, hidden while
  * everything fits. The lane, the handle's size and travel and the input are the
- * same on both kinds of screen.
+ * same in both looks.
  *
  * <h3>One scroller</h3>
  *
@@ -90,10 +90,10 @@ import java.util.function.DoubleSupplier;
  * same handle and track at the same size.
  *
  * <p>The band also insets its content as vanilla's lists do: the children's
- * origin is {@link #OPTIONS_INSET_X} in from the left and {@link #OPTIONS_INSET_Y}
+ * origin is {@link #DEFAULT_INSET_X} in from the left and {@link #DEFAULT_INSET_Y}
  * down, with as much room past the last child, scrolling with the content. The
  * right needs no inset of its own: the scrollbar lane already keeps the content
- * clear of the scroller. So the content is narrower on an options screen: size it
+ * clear of the scroller. So the content is narrower in the Default look: size it
  * with {@link #viewportWidthFor(int, ScreenKind)}. A {@code Tabs} page and a
  * panel's own auto-scroll do that for their children.
  *
@@ -107,7 +107,7 @@ import java.util.function.DoubleSupplier;
  *
  * {@link Builder#fitWidth()} makes it as wide as its widest child plus the band's
  * inset and the scrollbar lane, so a grid of whole columns is never cut off on
- * either kind of screen; given more room by its panel it takes it, and lays its
+ * either look; given more room by its panel it takes it, and lays its
  * children out to it (a child that centres itself stays centred).
  * {@link Builder#fitHeight()} makes the declared height the most it is: as tall as
  * its content up to that, scrolling past it.
@@ -143,7 +143,7 @@ public class ScrollContainer extends AbstractPanelElement {
     public static final int SCROLL_PIXELS_PER_TICK = Scroller.PIXELS_PER_NOTCH;
 
     /**
-     * On an options screen, how far in from the list band's left edge its content
+     * In the Default look, how far in from the list band's left edge its content
      * starts (and, in a {@code Tabs} page that does not scroll, how far from its
      * right edge it ends): vanilla's gap between a list row's content and the
      * list's scrollbar. 26.2's {@code AbstractSelectionList.scrollBarX()} is
@@ -153,21 +153,27 @@ public class ScrollContainer extends AbstractPanelElement {
      * MenuKit adds 4 to that: a settings page of labels, headings and wrapped text
      * read cramped at vanilla's 10, whose lists hold only buttons.
      */
-    public static final int OPTIONS_INSET_X = 14;
+    public static final int DEFAULT_INSET_X = 14;
     /**
-     * On an options screen, the room above the band's first child and below its
+     * In the Default look, the room above the band's first child and below its
      * last: vanilla's list padding ({@code AbstractSelectionList.getFirstEntryY()}
      * is the list's top + 2, {@code contentHeight()} the rows + 4) plus a row's
      * {@code Entry.CONTENT_PADDING} (2), which is 4. MenuKit uses 10: at 4 the first
      * heading sat on the band's top separator. It scrolls with the
      * content, as vanilla's does.
      */
-    public static final int OPTIONS_INSET_Y = 10;
+    public static final int DEFAULT_INSET_Y = 10;
+    /** @deprecated Renamed {@link #DEFAULT_INSET_X} in 7.3.0 (the Default look); removed in 8.0.0. */
+    @Deprecated(since = "7.3.0", forRemoval = true)
+    public static final int OPTIONS_INSET_X = DEFAULT_INSET_X;
+    /** @deprecated Renamed {@link #DEFAULT_INSET_Y} in 7.3.0 (the Default look); removed in 8.0.0. */
+    @Deprecated(since = "7.3.0", forRemoval = true)
+    public static final int OPTIONS_INSET_Y = DEFAULT_INSET_Y;
     /**
-     * In a dialog on an options screen, the band's inset on every side it insets:
+     * In a dialog in the Default look, the band's inset on every side it insets:
      * {@link DialogLayout#GAP}, the room the dialog keeps between everything else.
      * The dialog's frame and padding are already the margin, so the full screen's
-     * {@link #OPTIONS_INSET_X} on top of them would be a wide empty one.
+     * {@link #DEFAULT_INSET_X} on top of them would be a wide empty one.
      */
     public static final int DIALOG_INSET = DialogLayout.GAP;
 
@@ -176,12 +182,12 @@ public class ScrollContainer extends AbstractPanelElement {
     private final int fixedContentHeight;
     private final DoubleSupplier scrollGet;
     private final DoubleConsumer scrollSet;
-    /** Whether an options screen draws the list band; off where a host draws it (a Tabs body). */
+    /** Whether a Default-look screen draws the list band; off where a host draws it (a Tabs body). */
     private final boolean band;
     /** Width from the content ({@link Builder#fitWidth}); height up to the declared one ({@link Builder#fitHeight}). */
     private final boolean fitWidth, fitHeight;
     /** For measuring only (a measure gets no context): the kind of screen and whether in a dialog, handed down. */
-    private ScreenKind measuredKind = ScreenKind.CONTAINER;
+    private ScreenKind measuredKind = ScreenKind.PANEL;
     private boolean inDialog = false;
     /** On a band another element draws (a filling Tabs body): no band of its own ({@link #inBand}). */
     private boolean inBand = false;
@@ -221,8 +227,8 @@ public class ScrollContainer extends AbstractPanelElement {
     }
 
     /**
-     * The content width that fits a container {@code outerWidth} wide on a
-     * container screen: its width minus the scrollbar lane. On an options screen
+     * The content width that fits a container {@code outerWidth} wide in the
+     * Panel look: its width minus the scrollbar lane. In the Default look
      * use {@link #viewportWidthFor(int, ScreenKind)}.
      */
     public static int viewportWidthFor(int outerWidth) {
@@ -231,8 +237,8 @@ public class ScrollContainer extends AbstractPanelElement {
 
     /**
      * The content width that fits a container {@code outerWidth} wide on a screen
-     * of {@code kind}: its width minus the scrollbar lane and, on an options
-     * screen, the list band's {@link #OPTIONS_INSET_X}.
+     * of {@code kind}: its width minus the scrollbar lane and, in the Default
+     * look, the list band's {@link #DEFAULT_INSET_X}.
      */
     public static int viewportWidthFor(int outerWidth, ScreenKind kind) {
         return viewportWidthFor(outerWidth, kind, false);
@@ -245,18 +251,18 @@ public class ScrollContainer extends AbstractPanelElement {
 
     /**
      * The list band's inset from its left edge (and a {@code Tabs} page's from each
-     * side): {@link #OPTIONS_INSET_X} on an options screen, {@link #DIALOG_INSET} in a
-     * dialog there, none on a container screen, which draws no band.
+     * side): {@link #DEFAULT_INSET_X} in the Default look, {@link #DIALOG_INSET} in a
+     * dialog there, none in the Panel look, which draws no band.
      */
     public static int bandInsetX(ScreenKind kind, boolean inDialog) {
-        if (kind != ScreenKind.OPTIONS) return 0;
-        return inDialog ? DIALOG_INSET : OPTIONS_INSET_X;
+        if (kind != ScreenKind.DEFAULT) return 0;
+        return inDialog ? DIALOG_INSET : DEFAULT_INSET_X;
     }
 
     /** The band's room above its first child and below its last, by the same rule as {@link #bandInsetX}. */
     public static int bandInsetY(ScreenKind kind, boolean inDialog) {
-        if (kind != ScreenKind.OPTIONS) return 0;
-        return inDialog ? DIALOG_INSET : OPTIONS_INSET_Y;
+        if (kind != ScreenKind.DEFAULT) return 0;
+        return inDialog ? DIALOG_INSET : DEFAULT_INSET_Y;
     }
 
     private static int autoContentHeight(List<PanelElement> content) {
@@ -307,7 +313,7 @@ public class ScrollContainer extends AbstractPanelElement {
         ChildDispatch.inBand(content, inBand);
     }
 
-    /** Whether it draws the list band on an options screen: built with one, and not on another's. */
+    /** Whether it draws the list band in the Default look: built with one, and not on another's. */
     private boolean drawsBand() {
         return band && !inBand;
     }
@@ -443,9 +449,9 @@ public class ScrollContainer extends AbstractPanelElement {
         // Follow a held handle with the mouse.
         if (dragging && canScroll(kind) && ctx.hasMouseInput()) followDrag(kind, ctx.mouseY() - sy);
 
-        // On an options screen: the list band behind the children, scrolling with them as
+        // In the Default look: the list band behind the children, scrolling with them as
         // vanilla's does, and its separators just outside the top and bottom edges.
-        boolean vanilla = kind == ScreenKind.OPTIONS;
+        boolean vanilla = kind == ScreenKind.DEFAULT;
         if (vanilla && drawsBand()) {
             VanillaLook.listBackground(g, sx, sy, width, height, sx, sy + (int) scroll(kind));
             VanillaLook.headerSeparator(g, sx, sy - VanillaLook.SEPARATOR_HEIGHT, width);
@@ -469,7 +475,7 @@ public class ScrollContainer extends AbstractPanelElement {
 
         // The scrollbar at the lane's right, drawn for the kind of screen by the one
         // scroller: MenuKit's inset track and vanilla's creative handle on a container
-        // screen, vanilla's thin list scroller on an options screen (none while
+        // screen, vanilla's thin list scroller in the Default look (none while
         // everything fits). The handle's size, travel and drag are the same on both.
         Scroller.draw(g, kind, sx + width - Scroller.trackWidth(kind), sy, height, handleTop(kind),
                 canScroll(kind), disabled);
@@ -578,7 +584,7 @@ public class ScrollContainer extends AbstractPanelElement {
 
         protected Builder() {}
 
-        /** No list band on an options screen: for a host that draws one around it (a Tabs body). */
+        /** No list band in the Default look: for a host that draws one around it (a Tabs body). */
         Builder bandless() {
             this.band = false;
             return this;
@@ -610,7 +616,7 @@ public class ScrollContainer extends AbstractPanelElement {
 
         /**
          * As wide as its content instead of a declared width: the widest child, the
-         * band's inset on an options screen and the scrollbar lane. Given more room by
+         * band's inset in the Default look and the scrollbar lane. Given more room by
          * its panel, it takes it and lays its children out to it. Give it its
          * {@link #height}.
          */

@@ -33,10 +33,10 @@ import java.util.function.Supplier;
  * title, and a grey summary read every frame, cut with "..." when it runs out of
  * room. A click anywhere on the header row toggles the section.
  *
- * <p>On an options screen ({@link ScreenKind#OPTIONS}) the header takes the
+ * <p>In the Default look ({@link ScreenKind#DEFAULT}) the header takes the
  * category header's colours from vanilla's Controls screen: the title in white
- * with a shadow, the summary in vanilla's grey. It reads from the left as on a
- * container screen, not centred as vanilla's is, so it lines up with the content
+ * with a shadow, the summary in vanilla's grey. It reads from the left as in the
+ * Panel look, not centred as vanilla's is, so it lines up with the content
  * under it.
  *
  * <h3>Content</h3>
@@ -75,9 +75,9 @@ public final class Section extends AbstractPanelElement {
     public static final int HEADER_HEIGHT = 12;
     /** Space between the header and the content when open. */
     public static final int CONTENT_GAP = 2;
-    /** The title's colour on a container screen ({@link TextRole#HEADING}): dark, for a raised panel. */
+    /** The title's colour in the Panel look ({@link TextRole#HEADING}): dark, for a raised panel. */
     public static final int DEFAULT_TITLE_COLOR = ElementConstants.TEXT_DARK;
-    /** The summary's colour on a container screen ({@link TextRole#MUTED}). */
+    /** The summary's colour in the Panel look ({@link TextRole#MUTED}). */
     public static final int DEFAULT_SUMMARY_COLOR = ElementConstants.TEXT_MUTED;
 
     private static final String ARROW_CLOSED = "▶ ";
@@ -86,7 +86,7 @@ public final class Section extends AbstractPanelElement {
     private static final int SWATCH = 8;
     private static final int SWATCH_GAP = 4;
     private static final int SUMMARY_GAP = 8;
-    /** The arrow's distance from the header's left edge, on both kinds of screen. */
+    /** The arrow's distance from the header's left edge, in both looks. */
     private static final int HEADER_INSET = 1;
     /** A faint darkening under the header while the mouse is on it. */
     private static final int HOVER_FILL = 0x18000000;
@@ -228,7 +228,7 @@ public final class Section extends AbstractPanelElement {
         int w = getWidth();
         int hx = ctx.originX() + childX, hy = ctx.originY() + childY;
         ScreenKind kind = ctx.kind();
-        boolean vanilla = kind == ScreenKind.OPTIONS;
+        boolean vanilla = kind == ScreenKind.DEFAULT;
         boolean shadow = kind.textShadow();
         int titleCol = disabled || titleColor == null ? textColor(ctx, TextRole.HEADING) : titleColor;
         int summaryCol = disabled || summaryColor == null ? textColor(ctx, TextRole.MUTED) : summaryColor;
@@ -238,7 +238,7 @@ public final class Section extends AbstractPanelElement {
         }
         int textY = Text.centeredTextY(hy, hy + HEADER_HEIGHT);
         String arrow = open ? ARROW_OPEN : ARROW_CLOSED;
-        // The header reads from the left on both kinds, where the section's content
+        // The header reads from the left in both looks, where the section's content
         // starts. Vanilla's category header is centred (KeyBindsList.CategoryEntry), but
         // over a settings page of labels and controls a centred heading floats away
         // from what it heads.

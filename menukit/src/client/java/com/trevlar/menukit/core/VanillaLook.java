@@ -12,7 +12,7 @@ import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Vanilla's menu chrome, drawn the way vanilla draws it: what an element draws on
- * an options screen ({@code ScreenKind.OPTIONS}, 6.1.0). The button sprites, the
+ * a Default-look screen ({@code ScreenKind.DEFAULT}, 6.1.0). The button sprites, the
  * popup frame, the slot, the separator lines and the darker list background of
  * every Options screen, plus MenuKit's pressed overlay on a vanilla button
  * (MenuKit's one styling exception, which also draws on vanilla's and YACL's own
@@ -82,7 +82,7 @@ public final class VanillaLook {
     private static final Identifier POPUP = Identifier.withDefaultNamespace("popup/background");
 
     /**
-     * A panel's background on an options screen. A raised panel (a dialog, say) is
+     * A panel's background in the Default look. A raised panel (a dialog, say) is
      * vanilla's popup frame, the box its own popups use, so white text reads on it;
      * an inset panel is the darker list background, vanilla's recessed surface; a
      * dark panel keeps its dark sprite, which already suits white text.
@@ -98,7 +98,7 @@ public final class VanillaLook {
         }
     }
 
-    // The slot vanilla draws items in on an options screen (the Superflat layer list).
+    // The slot vanilla draws items in in the Default look (the Superflat layer list).
     private static final Identifier SLOT = Identifier.withDefaultNamespace("container/slot");
 
     /** Vanilla's 18 x 18 slot at {@code (x, y)}, faded while disabled as vanilla fades a widget. */

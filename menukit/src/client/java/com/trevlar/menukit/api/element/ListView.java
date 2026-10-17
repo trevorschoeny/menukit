@@ -106,7 +106,7 @@ public final class ListView<T> extends AbstractPanelElement {
     /** Where the rows are attached; a row made while the screen is open attaches at once. */
     private final Attachment attachment = new Attachment();
     /** Handed down to every row, including the ones made later. */
-    private ScreenKind kind = ScreenKind.CONTAINER;
+    private ScreenKind kind = ScreenKind.PANEL;
     private boolean inDialog = false;
     private boolean inBand = false;
 

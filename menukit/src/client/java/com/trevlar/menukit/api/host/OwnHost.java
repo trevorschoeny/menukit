@@ -33,7 +33,7 @@ import java.util.function.Predicate;
  * slots through MenuKit's container-screen layers, with no call from the screen.
  *
  * <pre>{@code
- * host = OwnHost.of(this, ScreenKind.CONTAINER, OwnHost.TitleBand.IN_FRAME)
+ * host = OwnHost.of(this, ScreenKind.PANEL, OwnHost.TitleBand.IN_FRAME)
  *         .slotOwnership(this::ownsSlotAt);
  * for (Panel p : panels) host.add(p, p.getPosition(), p.interiorPadding());
  * }</pre>

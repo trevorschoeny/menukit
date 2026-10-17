@@ -243,7 +243,7 @@ public final class ScreenPanelRegistry {
             }
             hosts.context = context.isEmpty() ? null : context;
         } else {
-            // Any other screen: an options screen when it is vanilla's, the declared
+            // Any other screen: a Default-look screen when it is vanilla's, the declared
             // kind when it is an MKScreen (ScreenKind.of, the one rule).
             PanelHost context = PanelHost.vanillaScreen(ScreenKind.of(screen),
                     () -> new PanelHost.Frame(screen.width, screen.height, null));

@@ -236,7 +236,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         // Background: vanilla's button sprite, or MenuKit's raised panel; pressed
         // while open (the popover is the live surface then, so no hover highlight).
         ScreenKind kind = ctx.kind();
-        if (kind == ScreenKind.OPTIONS) {
+        if (kind == ScreenKind.DEFAULT) {
             VanillaLook.button(g, tx, ty, width, h, !disabled, hovered && !open);
             if (open) VanillaLook.pressedOverlay(g, tx, ty, width, h);
         } else {
@@ -275,7 +275,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         var g = ctx.graphics();
         int[] p = popoverBounds(ctx.originX() + childX, ctx.originY() + childY);
         int px = p[0], py = p[1], pw = p[2], ph = p[3];
-        if (ctx.kind() == ScreenKind.OPTIONS) {
+        if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.popoverBackground(g, px, py, pw, ph);
         } else {
             PanelRendering.renderPanel(g, px, py, pw, ph, PanelStyle.RAISED);
