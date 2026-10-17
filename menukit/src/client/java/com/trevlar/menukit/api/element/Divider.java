@@ -5,7 +5,7 @@ import com.trevlar.menukit.core.VanillaLook;
 
 /**
  * A line between sections of a panel: a solid fill, no texture, no input. On
- * an options screen ({@link ScreenKind#OPTIONS}) it is vanilla's separator instead, the line above and below every
+ * a Default-look screen ({@link ScreenKind#DEFAULT}) it is vanilla's separator instead, the line above and below every
  * Options list: 2 px, a light line over a dark one, drawn from the divider's top
  * whatever its thickness; a vertical one is the same two lines on their side.
  *
@@ -85,7 +85,7 @@ public class Divider extends AbstractPanelElement {
         int x = ctx.originX() + childX;
         int y = ctx.originY() + childY;
         var g = ctx.graphics();
-        if (ctx.kind() == ScreenKind.OPTIONS) {
+        if (ctx.kind() == ScreenKind.DEFAULT) {
             if (horizontal) {
                 VanillaLook.headerSeparator(g, x, y, width);
             } else {
@@ -128,7 +128,7 @@ public class Divider extends AbstractPanelElement {
             return this;
         }
 
-        /** ARGB colour, alpha byte included, on a container screen. Default {@link #DEFAULT_COLOR}. */
+        /** ARGB colour, alpha byte included, in the Panel look. Default {@link #DEFAULT_COLOR}. */
         public Builder color(int argb) {
             this.color = argb;
             return this;

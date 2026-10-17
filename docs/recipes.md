@@ -213,16 +213,16 @@ body.add(Flow.builder().at(0, 50).disabledWhen(off)
 
 Result: the switch sits at the left and Reset at the right edge of the tab body. Each setting's control sits at the right edge beside its label, whatever the window's width. When the window is too narrow the control drops under its label. The divider spans the body. While the feature is off, every setting row is grey and ignores the mouse and keys. `Panel.disabledWhen(...)` greys a whole panel the same way.
 
-## A settings screen in the pause-menu look
+## A settings screen in the Default look
 
-Needs: MenuKit 6.1.0. This follows the shape of Inventory Plus's settings. It has the mod's name at the top, tabs across, sections of settings, items the player picks, and Done at the bottom. It draws as Options, Video Settings and Controls do, not as an inventory. The screen declares once that it is an options screen, and every element on it draws for that kind.
+Needs: MenuKit 6.1.0. This follows the shape of Inventory Plus's settings. It has the mod's name at the top, tabs across, sections of settings, items the player picks, and Done at the bottom. It draws as Options, Video Settings and Controls do, not as an inventory. The screen declares the Default look once, and every element on it draws in that look.
 
 ```java
 public final class ModSettingsScreen extends MKScreen {
     private static String tab = "general";
 
     public ModSettingsScreen(Screen parent) {
-        super(Component.literal("My Mod"), ScreenKind.OPTIONS, List.of(menu(), done(parent)));
+        super(Component.literal("My Mod"), ScreenKind.DEFAULT, List.of(menu(), done(parent)));
         setReturnAction(() -> Minecraft.getInstance().gui.setScreen(parent));
     }
 
@@ -290,7 +290,7 @@ public final class ModSettingsScreen extends MKScreen {
 
 Open it with `Minecraft.getInstance().gui.setScreen(new ModSettingsScreen(Minecraft.getInstance().gui.screen()))`. Result: "My Mod" in white at the top centre, over the blurred world (the panorama on the title screen). Under it, Create World's tab bar runs across the whole width. With more tabs than fit, it scrolls with arrows. The page is the darker list band between two thin lines. The section header is centred as a category on Controls is, and its rows are white text. The toggle is a stone button reading ON or OFF, and the slider and dropdown are vanilla's own. Locked items shows nine slots in vanilla's slot sprite. A click opens the item dialog over the screen, with a search box and every item. A click on an item in the grid fills the selected slot, and a right click on the page empties a slot. The items are setting values, so nothing is taken from the inventory or sent to the server. Done at the bottom and Escape both return to the screen it opened from. Nothing on it picks a look.
 
-A dialog on this screen (a `ConfirmDialog` for Reset to Defaults, for example) is the same kind. A `RAISED` panel draws vanilla's popup frame, with white text, and keeps the same 4 px between that frame and its elements as inside MenuKit's own frame (the popup frame is 3 px thicker, so the panel is 6 px bigger). Keep labels on roles (next recipe) rather than `TextLabel.COLOR_DARK`, which reads only on a container screen's grey. A screen that declares no kind (`super(title, panels)`) stays a container screen, in MenuKit's grey look. Panels injected into vanilla's own screens need nothing, because a panel on Options or Controls is already on an options screen.
+A dialog on this screen (a `ConfirmDialog` for Reset to Defaults, for example) is in the same look. A `RAISED` panel draws vanilla's popup frame, with white text, and keeps the same 4 px between that frame and its elements as inside MenuKit's own frame (the popup frame is 3 px thicker, so the panel is 6 px bigger). Keep labels on roles (next recipe) rather than `TextLabel.COLOR_DARK`, which reads only on the Panel look's grey. A screen that declares no look (`super(title, panels)`) keeps the Panel look, MenuKit's grey. Panels injected into vanilla's own screens need nothing, because a panel on Options or Controls is already in the Default look.
 
 ## Colour text by role
 
@@ -304,7 +304,7 @@ body.add(TextLabel.builder().at(0, 26).text(Component.literal("Applies to chests
         .role(TextRole.MUTED).build());
 ```
 
-Result: the heading and "Rows" are dark grey on a container screen and white on an options screen. The note is mid grey on the first and vanilla's grey on the second. A label without a role is `BODY`. Disabled text takes the kind's disabled grey whatever its role. `color(argb)` and `shadow(b)` fix a value on every kind instead, for text over the world on the HUD. `TextLabel.COLOR_DARK` is right only on a container screen's grey.
+Result: the heading and "Rows" are dark grey in the Panel look and white in the Default look. The note is mid grey on the first and vanilla's grey on the second. A label without a role is `BODY`. Disabled text takes the look's disabled grey whatever its role. `color(argb)` and `shadow(b)` fix a value in both looks instead, for text over the world on the HUD. `TextLabel.COLOR_DARK` is right only on the Panel look's grey.
 
 ## Outline an item in its group's colour
 

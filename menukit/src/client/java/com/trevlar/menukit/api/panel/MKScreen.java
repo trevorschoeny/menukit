@@ -50,13 +50,13 @@ import java.util.List;
  *
  * <h3>Its kind (6.1.0)</h3>
  * A standalone screen declares what kind of screen it is once, when it is created
- * ({@link ScreenKind}): {@code super(title, ScreenKind.OPTIONS, panels)} for a
+ * ({@link ScreenKind}): {@code super(title, ScreenKind.DEFAULT, panels)} for a
  * settings screen that should read like the ones reached from the pause menu.
  * Every element on it draws for that kind, its panels' backgrounds too, and so
  * does anything injected onto it or opened from it (a dialog, an item picker's
- * dialog). Without a kind it is {@link ScreenKind#CONTAINER}, MenuKit's grey
- * look, which is how every standalone screen looked before 6.1.0. On an options
- * screen a panel usually has no background ({@link PanelStyle#NONE}), so
+ * dialog). Without a kind it is {@link ScreenKind#PANEL}, MenuKit's grey
+ * look, which is how every standalone screen looked before 6.1.0. In the Default
+ * look a panel usually has no background ({@link PanelStyle#NONE}), so
  * vanilla's backdrop (the blurred world, or the panorama) shows behind it.
  *
  * @see com.trevlar.menukit.api.panel.ScreenPanelAdapter for panels on vanilla screens
@@ -91,7 +91,7 @@ public class MKScreen extends Screen {
     private @Nullable Runnable returnAction;
 
     /**
-     * A container-kind screen ({@link ScreenKind#CONTAINER}): MenuKit's grey look,
+     * A Panel-look screen ({@link ScreenKind#PANEL}): MenuKit's grey look,
      * the look every standalone screen had before 6.1.0.
      *
      * @param title  the screen title (drawn at the top unless {@link #hideTitle()}; always narrated)
@@ -100,12 +100,12 @@ public class MKScreen extends Screen {
      *         (a second {@code main()}, or a {@code region(...)} with no main)
      */
     protected MKScreen(Component title, List<Panel> panels) {
-        this(title, ScreenKind.CONTAINER, panels);
+        this(title, ScreenKind.PANEL, panels);
     }
 
     /**
-     * A screen of the given kind: {@link ScreenKind#OPTIONS} for a settings screen
-     * in the pause-menu look, {@link ScreenKind#CONTAINER} for MenuKit's own.
+     * A screen of the given kind: {@link ScreenKind#DEFAULT} for a settings screen
+     * in the pause-menu look, {@link ScreenKind#PANEL} for MenuKit's own.
      *
      * @param title  the screen title (drawn at the top unless {@link #hideTitle()}; always narrated)
      * @param kind   what kind of screen this is, which decides how everything on it draws

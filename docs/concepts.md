@@ -48,7 +48,7 @@ Every element is built by its builder and does not change after `build()`: `Butt
 | `opaque(boolean)` | Whether the element is solid on a transparent panel. |
 | `declId(id)` | A stable id for the element's window address. |
 
-No builder picks a look. An element draws for the kind of screen it is on (see Screen kinds).
+No builder picks a look. An element draws in the look of the screen it is on (see Looks).
 
 An instance keeps only what a container needs. That is `setChildPosition(x, y)`, which a `Flow`, `Row` or `Column` uses to place its children, and the layout calls a panel makes every pass. Anything that varies at runtime is read from a supplier.
 
@@ -82,30 +82,30 @@ Some state is the element's own view state, not the consumer's. Examples are whe
 
 `disabledWhen` on an element greys it and makes it inert. `Panel.disabledWhen(supplier)` does the same for every element of the panel, and a container's own `disabledWhen` (a `Section`, `Tabs`, `ScrollContainer` or `Flow`) does it for everything inside. Text greys too. `TextLabel`, `InfoBox` and a section's header draw in the disabled grey, which is the screen kind's `TextRole.DISABLED` colour. A disabled panel still claims its area, so what is behind it stays inert. Its elements take no clicks, wheel or keys. Mouse releases still arrive, so a drag can end.
 
-## Screen kinds
+## Looks
 
-There are two kinds of screen, and every element draws for the kind it is on (since 6.1.0). There is one set of elements, and nothing else picks a look.
+There are two looks, the Panel look and the Default look, and every element draws in the look of the screen it is on (since 6.1.0). There is one set of elements, and nothing else picks a look. Before 7.3.0 the two were `ScreenKind.CONTAINER` and `ScreenKind.OPTIONS`; those names still work, deprecated, until 8.0.0.
 
-| Kind | Screens | Look |
+| Look | Screens | How it draws |
 |---|---|---|
-| `ScreenKind.CONTAINER` | Inventories, chests, anything built on vanilla's `AbstractContainerScreen` | MenuKit's: raised grey controls on a light grey panel, dark text without a shadow |
-| `ScreenKind.OPTIONS` | The screens reached from the pause menu and the title screen: Options, Video Settings, Controls, Create World | Vanilla's: stone buttons, vanilla's checkbox, tab and slot sprites, white text with a shadow, separators and the darker list band, over the blurred world or the panorama |
+| Panel, `ScreenKind.PANEL` | Inventories, chests, anything built on vanilla's `AbstractContainerScreen` | MenuKit's: raised grey controls on a light grey panel, dark text without a shadow |
+| Default, `ScreenKind.DEFAULT` | The screens reached from the pause menu and the title screen: Options, Video Settings, Controls, Create World | Vanilla's: stone buttons, vanilla's checkbox, tab and slot sprites, white text with a shadow, separators and the darker list band, over the blurred world or the panorama |
 
-The kind comes from the screen, by one rule (`ScreenKind.of(screen)`):
+The look comes from the screen, by one rule (`ScreenKind.of(screen)`):
 
-- A panel injected into a vanilla screen. An `AbstractContainerScreen` is a container screen, and any other vanilla screen is an options screen. A panel on Controls draws in the options look with no code.
-- An anchor's panels are the kind of the screen the anchor is on.
-- A standalone `MKScreen` is the kind it declares when it is created, `super(title, ScreenKind.OPTIONS, panels)`. One that declares none is a container screen, which is the look every standalone screen had before 6.1.0. `screenKind()` reads it back. A library's own screen declares its kind to its `OwnHost`.
-- The HUD is a container screen, the look it has always had.
-- A dialog or any other panel on a screen is that screen's kind, and so is the dialog an `ItemPicker` opens.
+- A panel injected into a vanilla screen. An `AbstractContainerScreen` has the Panel look, and any other vanilla screen the Default look. A panel on Controls draws in the Default look with no code.
+- An anchor's panels are in the look of the screen the anchor is on.
+- A standalone `MKScreen` is in the look it declares when it is created, `super(title, ScreenKind.DEFAULT, panels)`. One that declares none has the Panel look, which every standalone screen had before 6.1.0. `screenKind()` reads it back. A library's own screen declares its look to its `OwnHost`.
+- The HUD has the Panel look, the look it has always had.
+- A dialog or any other panel on a screen is in that screen's look, and so is the dialog an `ItemPicker` opens.
 
 The kind travels with the frame in `RenderContext.kind()`, and `at` and `disabledIf` keep it. An element built from other elements passes it on without reading it. The kind changes how an element draws, never its size or behaviour.
 
-Text takes its colour from a role: `TextRole.HEADING`, `BODY`, `MUTED` or `DISABLED`. `ScreenKind.textColor(role)` resolves it. On a container screen the colours are dark grey (`TextLabel.COLOR_DARK`) for headings and body, `ElementConstants.TEXT_MUTED` for muted text and the disabled grey for disabled text, all without a shadow (`textShadow()`). On an options screen they are vanilla's own white, `CommonColors.GRAY` and `CommonColors.LIGHT_GRAY`, with a shadow. A `TextLabel` is `BODY` unless `role(...)` sets another role. The labels of a checkbox, a radio button and a section's header follow the same table. `color(argb)` fixes a colour on every kind. Text on a control (a button's label) is white on both.
+Text takes its colour from a role: `TextRole.HEADING`, `BODY`, `MUTED` or `DISABLED`. `ScreenKind.textColor(role)` resolves it. In the Panel look the colours are dark grey (`TextLabel.COLOR_DARK`) for headings and body, `ElementConstants.TEXT_MUTED` for muted text and the disabled grey for disabled text, all without a shadow (`textShadow()`). In the Default look they are vanilla's own white, `CommonColors.GRAY` and `CommonColors.LIGHT_GRAY`, with a shadow. A `TextLabel` is `BODY` unless `role(...)` sets another role. The labels of a checkbox, a radio button and a section's header follow the same table. `color(argb)` fixes a colour in both looks. Text on a control (a button's label) is white on both.
 
-What each piece draws on an options screen, from vanilla's 26.2 sprites:
+What each piece draws in the Default look, from vanilla's 26.2 sprites:
 
-| Piece | On an options screen |
+| Piece | In the Default look |
 |---|---|
 | A panel's background | `RAISED` is vanilla's popup frame (`popup/background`, the box of its own warning popups), `INSET` the list band, `DARK` unchanged, `NONE` nothing. A dialog reads as vanilla's own. |
 | `Button`, `Dropdown`, `DropdownMulti` | `widget/button`, `button_highlighted` on hover, `button_disabled`; the popover on `button_disabled` |
@@ -114,13 +114,13 @@ What each piece draws on an options screen, from vanilla's 26.2 sprites:
 | `ItemPicker` | `container/slot`, the slot the Superflat layer list draws its blocks in |
 | `Section` | The Controls screen's category header colours: the title white, the summary grey, read from the left as on a container screen |
 | `Divider` | Vanilla's separator, `Screen.HEADER_SEPARATOR` (2 px) |
-| `ScrollContainer` | The list band: `menu_list_background` behind the content, a separator directly outside it above and below, and vanilla's thin list scroller. The content is inset a little more than in vanilla's lists, `OPTIONS_INSET_X` (14) from the left and `OPTIONS_INSET_Y` (10) above and below. It is narrower by that much, as `viewportWidthFor(width, kind)` reports. In a dialog (a modal panel) the inset is the dialog's own gap, `DIALOG_INSET` (4), on every side it insets, because the frame and padding already make the margin |
+| `ScrollContainer` | The list band: `menu_list_background` behind the content, a separator directly outside it above and below, and vanilla's thin list scroller. The content is inset a little more than in vanilla's lists, `DEFAULT_INSET_X` (14) from the left and `DEFAULT_INSET_Y` (10) above and below. It is narrower by that much, as `viewportWidthFor(width, kind)` reports. In a dialog (a modal panel) the inset is the dialog's own gap, `DIALOG_INSET` (4), on every side it insets, because the frame and padding already make the margin |
 | `Tabs` (`WRAP`, `SIDE_SCROLL`) | Create World's tab bar: white labels, the selected one underlined and open into a page of the list background, the separator either side of the tabs. The page insets the body as the list band does, from both sides, and lays it out that much narrower |
-| `Slider`, `TextField` | Vanilla's own widgets on both kinds |
+| `Slider`, `TextField` | Vanilla's own widgets in both looks |
 | `ColorField` | Its swatch is a vanilla button with the colour inside. Its dialog is a dialog of the screen, so its tabs, buttons and hex field draw for the kind |
-| `WidgetHost` | Whatever the hosted widget draws. It draws itself, the same on both kinds |
+| `WidgetHost` | Whatever the hosted widget draws. It draws itself, the same in both looks |
 
-Where vanilla has no counterpart (a radio button, an info box, a progress bar, a consumer's sprite), the element keeps MenuKit's drawing on both kinds. While a world is open the separators and the list band use vanilla's in-world textures, as vanilla does.
+Where vanilla has no counterpart (a radio button, an info box, a progress bar, a consumer's sprite), the element keeps MenuKit's drawing in both looks. While a world is open the separators and the list band use vanilla's in-world textures, as vanilla does.
 
 ## Item picker
 
@@ -159,7 +159,7 @@ The host routes the mouse itself, in screen coordinates, the way vanilla routes 
 
 `overflow()` is for a widget that draws past its box while it has focus, such as a dropdown's open list. While it has focus it draws unclipped on top of every panel on the screen, after the dialogs, and takes clicks anywhere until a click it does not take ends its focus. Under a dialog it does not belong to, it draws in place.
 
-A hosted widget follows the rules of any element. Under another panel's claim it takes no click and shows no hover. Disabled, it takes no input. Its look is its own: it draws itself the same on both kinds of screen.
+A hosted widget follows the rules of any element. Under another panel's claim it takes no click and shows no hover. Disabled, it takes no input. Its look is its own: it draws itself the same in both looks.
 
 ## Color field
 
@@ -213,15 +213,15 @@ Selection is consumer state. `state(get, set)` reads the selected id every frame
 
 `Tabs` has three modes. `WRAP` breaks the strip into the fewest rows the width allows and splits the tabs so the rows are about equally full. A tab keeps its row and place when another is selected. `SIDE_SCROLL` keeps one row. When it overflows, it scrolls from the left with arrows at both ends, and a newly selected tab slides into view. `SIDEBAR` puts the tabs in a column down the left with the body to its right. The selected tab reaches further left and opens into the body. The column is as wide as its widest label, at most a third of the element. When the tabs are taller than the column, a scrollbar runs down its left edge. It is a `ScrollContainer`'s scrollbar, with the same track and handle at the same size. Drag the handle, or click the track to jump there. A newly selected tab slides into view. The tabs narrow to make room for the bar, so the body does not move. Both strips scroll the way a `ScrollContainer` scrolls its content. They move by pixels, 10 per wheel notch, at once under the wheel and the handle. An arrow slides the row one tab along. A selected tab that is partly off the strip slides into view instead of jumping. `sidebarHeader(elements...)` puts elements above the column, such as a Back button, in the column's width. The body beside the column still starts at the top. On a container screen the sidebar is drawn in vanilla's tab colors. Resource packs that restyle vanilla's tabs change the top strip there but not the sidebar.
 
-On an options screen (see Screen kinds), the strip of `WRAP` and `SIDE_SCROLL` is Create World's tab bar. Every label is white, and the selected one is underlined and open into the page below. The page is vanilla's list background down to a separator at the bottom. `SIDEBAR` there is the same tab bar turned on its side. Vanilla's tab sprites are turned a quarter and open toward the body on the right. The selected one opens into a page of the list background that runs from the column's edge to the element's right. Vanilla's separator runs down the column's edge above and below the tabs. Labels stay upright, white, the selected one underlined. Either page insets the body like the list band, `OPTIONS_INSET_X` from its sides and `OPTIONS_INSET_Y` above and below (in a dialog, `DIALOG_INSET` each way). Sizes, arrows and behaviour are the same on both kinds. The sidebar's scrollbar is vanilla's thin list scroller there, as a `ScrollContainer`'s is.
+In the Default look (see Looks), the strip of `WRAP` and `SIDE_SCROLL` is Create World's tab bar. Every label is white, and the selected one is underlined and open into the page below. The page is vanilla's list background down to a separator at the bottom. `SIDEBAR` there is the same tab bar turned on its side. Vanilla's tab sprites are turned a quarter and open toward the body on the right. The selected one opens into a page of the list background that runs from the column's edge to the element's right. Vanilla's separator runs down the column's edge above and below the tabs. Labels stay upright, white, the selected one underlined. Either page insets the body like the list band, `DEFAULT_INSET_X` from its sides and `DEFAULT_INSET_Y` above and below (in a dialog, `DIALOG_INSET` each way). Sizes, arrows and behaviour are the same in both looks. The sidebar's scrollbar is vanilla's thin list scroller there, as a `ScrollContainer`'s is.
 
 `header(elements...)` puts a row across the whole element, above the strip or the sidebar column and above the body, in every mode. It is a menu's own title bar. Its elements get the element's full width, so a `Flow` with a spacer at each end centres a label across it. The strip, the column (with its `sidebarHeader`) and the body start under it after a 4 pixel gap, and the body is that much shorter. The screen's title is separate. A screen whose header names it can call `hideTitle()` so the name shows once.
 
-`tabColumn(false)`, in `SIDEBAR` only, draws no tab column. The column is 0 wide, so the body takes the whole width of the same page the column would sit beside. On an options screen that is the same darker band, the same insets, bottom separator and scrollbar, so a menu with a single page looks like its tabbed siblings without the column. On a container screen the body starts at the left edge. `header(...)` still runs across the top, and clicks where the column would be reach the body. The selected tab is the one shown, so with several tabs the `state` lens still chooses which. It cannot be combined with `sidebarHeader(...)`, which lives in the column. Put those elements in `header(...)` instead.
+`tabColumn(false)`, in `SIDEBAR` only, draws no tab column. The column is 0 wide, so the body takes the whole width of the same page the column would sit beside. In the Default look that is the same darker band, the same insets, bottom separator and scrollbar, so a menu with a single page looks like its tabbed siblings without the column. In the Panel look the body starts at the left edge. `header(...)` still runs across the top, and clicks where the column would be reach the body. The selected tab is the one shown, so with several tabs the `state` lens still chooses which. It cannot be combined with `sidebarHeader(...)`, which lives in the column. Put those elements in `header(...)` instead.
 
 `align(...)` is `LEFT`, `CENTER`, `RIGHT`, or `FILL`, applied per row. In `SIDEBAR` it places each label in its tab, with `FILL` the same as `LEFT`, and labels stay put when the selection changes. `FILL` gives every tab in a row, the last row included, its label width plus an equal share of the leftover space. In `SIDE_SCROLL`, alignment applies only while the row fits. A label wider than its tab is cut short, ending in three dots, and shows in full on hover.
 
-A tab can have an icon left of its label. `icon(texture, textureSize, drawSize)` takes a supplier of a standalone square texture's id, such as a mod's icon read from its jar into a `DynamicTexture`, and its side in texels. The whole texture is drawn shrunk to `drawSize` pixels square. `icon(sprite, drawSize)` takes a GUI sprite instead. The tab is wider by the icon and `ICON_LABEL_GAP` (4 pixels), so the icon never covers the label or cuts it shorter. The icon and label are placed together: centred as one in a strip tab, and aligned as one in a sidebar tab, so a label with an icon starts further right. The selected tab's underline on an options screen stays under the label. A supplier that returns null draws nothing but keeps the room, so the tab does not change width while its texture loads. A tab with no icon is drawn exactly as before. `Icon.builder().texture(id, textureSize)` draws a texture the same way as a standalone element.
+A tab can have an icon left of its label. `icon(texture, textureSize, drawSize)` takes a supplier of a standalone square texture's id, such as a mod's icon read from its jar into a `DynamicTexture`, and its side in texels. The whole texture is drawn shrunk to `drawSize` pixels square. `icon(sprite, drawSize)` takes a GUI sprite instead. The tab is wider by the icon and `ICON_LABEL_GAP` (4 pixels), so the icon never covers the label or cuts it shorter. The icon and label are placed together: centred as one in a strip tab, and aligned as one in a sidebar tab, so a label with an icon starts further right. The selected tab's underline in the Default look stays under the label. A supplier that returns null draws nothing but keeps the room, so the tab does not change width while its texture loads. A tab with no icon is drawn exactly as before. `Icon.builder().texture(id, textureSize)` draws a texture the same way as a standalone element.
 
 By default `Tabs` fills its panel's width and height. Put it in a screen's MAIN panel for a full-screen tabbed menu. `size(width, height)` fixes both, for a panel that has no height to give it. Each tab keeps its body's scroll position while the element exists. `bodyScroll(get, set)` hands it to the consumer in pixels from the top, keyed by tab id. That is the unit `ScrollContainer.state` uses. `get` is read every frame (null is the top), and `set` gets each change. A screen rebuilt on the same lens opens each body where it was, on the first frame, without sliding from the top. An offset past the body's end is clamped. The selected tab is already the consumer's through `state(get, set)`.
 
@@ -233,7 +233,7 @@ Other mods can add tabs to a menu that has a name. The owner names it with `menu
 
 `Section.builder(title)` is a collapsible section. Its header row has an arrow, an optional color swatch, the title, and a grey summary read every frame. Clicking the header opens and closes it. Its children are positioned from the top-left of the content area under the header and laid out to the section's width. They get clicks, keys and overlays as they do directly on the panel. A closed section's children are not drawn and get no input except mouse releases.
 
-Position the row after a section where it sits while the section is closed. When it opens, the panel's reflow pushes later rows down by the content's height and the scroll height follows, the same way a wrapped `Flow` pushes rows. Sections nest. Open state is the element's view state and starts closed. `open(true)` starts it open, and `state(get, set)` hands it to the consumer. A disabled section greys its header and everything in it. On an options screen the header takes the Controls screen's category header colours, with the title in white. It still reads from the left as on a container screen, in line with the content under it.
+Position the row after a section where it sits while the section is closed. When it opens, the panel's reflow pushes later rows down by the content's height and the scroll height follows, the same way a wrapped `Flow` pushes rows. Sections nest. Open state is the element's view state and starts closed. `open(true)` starts it open, and `state(get, set)` hands it to the consumer. A disabled section greys its header and everything in it. In the Default look the header takes the Controls screen's category header colours, with the title in white. It still reads from the left as in the Panel look, in line with the content under it.
 
 ## Layout helpers
 
@@ -241,7 +241,7 @@ Position the row after a section where it sits while the section is closed. When
 
 `Flow` is the runtime row. Its children flow left to right at the panel's width and wrap to new rows. `Flow.spacer()` takes whatever a row's other children leave of that width. A label, a spacer and a control make a settings row with the control pinned to the right edge at any window width, with no width written anywhere. A spacer at each end of a row centres what is between them. When the row wraps, the control drops under its label.
 
-`Flow.builder().boxed()` draws a card behind the children, for a row of a list that reads as one unit (a world in a world list). The children sit `Flow.BOX_PADDING` (6) inside the card. A boxed row fills the width its panel gives it, and its height hugs its rows plus the padding. On an options screen the card is a dark translucent box with a one-pixel light border that brightens while hovered. On a container screen it is the `INSET` panel look. An icon beside a stack of lines is a boxed Flow holding the icon and a vertical Flow.
+`Flow.builder().boxed()` draws a card behind the children, for a row of a list that reads as one unit (a world in a world list). The children sit `Flow.BOX_PADDING` (6) inside the card. A boxed row fills the width its panel gives it, and its height hugs its rows plus the padding. In the Default look the card is a dark translucent box with a one-pixel light border that brightens while hovered. In the Panel look it is the `INSET` panel style. An icon beside a stack of lines is a boxed Flow holding the icon and a vertical Flow.
 
 `Flow.builder().vertical()` is the runtime column. Children flow top to bottom and wrap into a new column to the right. It wraps at the frame band, which is the room from the Flow's top down to the bottom of the screen's frame beside its panel (a container screen's `topPos + imageHeight`). The host hands the band to the panel the way it hands it its width, and the panel hands it to its elements. A panel has a band when it is in a side region (`LEFT_ALIGN_*`, `RIGHT_ALIGN_*`) on a container screen, on an anchor on a container screen, or beside a standalone screen's main panel. On an anchor the band still runs to the container screen's frame, not the anchor's box. Anywhere else the Flow is one column. The band is not where the panel scrolls. The panel still scrolls at the screen's edge. In a column, `gap(horizontal, vertical)` is the gap between columns and the gap between children, and a spacer takes no room. In either direction a hidden child takes no room, so the Flow reflows when one hides.
 

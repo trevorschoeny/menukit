@@ -121,8 +121,8 @@ import java.util.function.Supplier;
  * screen, and nothing is sent to the server: the slots are not real slots, and every
  * stack is a picture of a value.
  *
- * <p>Each slot is 18 x 18, vanilla's slot size, MenuKit's recessed slot on a
- * container screen and vanilla's slot sprite on an options screen.
+ * <p>Each slot is 18 x 18, vanilla's slot size, MenuKit's recessed slot in the
+ * Panel look and vanilla's slot sprite in the Default look.
  */
 public class ItemPicker extends AbstractPanelElement {
 
@@ -133,7 +133,7 @@ public class ItemPicker extends AbstractPanelElement {
     /** A filled slot's remove button: this many pixels square, over the slot's top-right corner. */
     static final int REMOVE_SIZE = 5;
     static final Component REMOVE_TOOLTIP = Component.translatable("menukit.item_picker.remove");
-    // Dark with a white bar, lighter while hovered: reads on both kinds' grey slots.
+    // Dark with a white bar, lighter while hovered: reads in both looks' grey slots.
     private static final int REMOVE_FILL = 0xFF2A2A2A, REMOVE_HOVER = 0xFF5E5E5E, REMOVE_BAR = 0xFFFFFFFF;
     // The add slot's plus: white over vanilla's text shadow for white (a quarter of it).
     private static final int ADD_MARK = 0xFFFFFFFF, ADD_SHADOW = 0xFF3F3F3F;
@@ -319,7 +319,7 @@ public class ItemPicker extends AbstractPanelElement {
      */
     static void drawSlot(GuiGraphicsExtractor g, ScreenKind kind, int x, int y, ItemStack stack,
                          boolean highlighted, boolean disabled) {
-        if (kind == ScreenKind.OPTIONS) VanillaLook.slot(g, x, y, disabled);
+        if (kind == ScreenKind.DEFAULT) VanillaLook.slot(g, x, y, disabled);
         else SlotRendering.drawSlotBackground(g, x, y, SIZE, disabled);
         int ix = x + SlotRendering.ITEM_INSET, iy = y + SlotRendering.ITEM_INSET;
         if (highlighted) g.blitSprite(RenderPipelines.GUI_TEXTURED, HIGHLIGHT_BACK, ix - 4, iy - 4, 24, 24);
@@ -354,7 +354,7 @@ public class ItemPicker extends AbstractPanelElement {
     /**
      * The plus in the empty slot at the end of a list: add one here. White with a dark
      * shadow a pixel down and right, as vanilla draws white text, so it reads at rest
-     * on both kinds' grey slots (the remove button's minus is white too).
+     * in both looks' grey slots (the remove button's minus is white too).
      */
     static void drawAddMark(GuiGraphicsExtractor g, int x, int y) {
         plus(g, x + 1, y + 1, ADD_SHADOW);

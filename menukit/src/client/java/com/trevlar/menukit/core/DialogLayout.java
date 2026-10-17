@@ -20,19 +20,19 @@ import org.jetbrains.annotations.ApiStatus;
  *
  * <p>The rows start at the panel's content origin, so the panel's padding is the
  * only margin and it is the same on all four sides. That padding leaves
- * {@link #GAP} between the frame and the rows on either kind of screen (the host
+ * {@link #GAP} between the frame and the rows in either look (the host
  * widens it where the frame is thicker, {@link Panel#frameExtra}), and the rows are
  * {@link #GAP} apart, so the button row sits centred between the body above it and
  * the frame below it.
  *
  * <p>A row made with {@link #centred} is centred across the dialog at whatever width
  * it ends up (a {@link Flow} with a spacer at each end), so it stays centred when
- * another row's width changes at runtime (a Tabs on an options screen's page is
- * wider than on a container screen). Any other row (a Tabs) is laid out to the
+ * another row's width changes at runtime (a Tabs page in the Default look is
+ * wider than in the Panel look). Any other row (a Tabs) is laid out to the
  * dialog's full width.
  *
  * <p>The panel is a modal, and a modal tells its elements they are in a dialog
- * ({@code PanelElement.inDialog}): on an options screen a list band in it (a Tabs
+ * ({@code PanelElement.inDialog}): in the Default look a list band in it (a Tabs
  * page, a ScrollContainer) insets its content by {@link #GAP}, as everything else
  * here is spaced, not by the full screen's band inset.
  */

@@ -51,7 +51,7 @@ import java.util.Objects;
  * @param mouseX    screen-space mouse X, or {@code -1} if no input dispatch
  * @param mouseY    screen-space mouse Y, or {@code -1} if no input dispatch
  * @param disabled  whether the element's panel or container is disabled
- * @param kind      the kind of screen the element is on ({@link ScreenKind#CONTAINER}
+ * @param kind      the kind of screen the element is on ({@link ScreenKind#PANEL}
  *                  on the HUD and in a context built without one)
  */
 public record RenderContext(
@@ -68,13 +68,13 @@ public record RenderContext(
         Objects.requireNonNull(kind, "kind");
     }
 
-    /** A context on a container screen: the 6.0.0 shape. */
+    /** A context in the Panel look: the 6.0.0 shape. */
     public RenderContext(GuiGraphicsExtractor graphics, int originX, int originY, int mouseX, int mouseY,
                          boolean disabled) {
-        this(graphics, originX, originY, mouseX, mouseY, disabled, ScreenKind.CONTAINER);
+        this(graphics, originX, originY, mouseX, mouseY, disabled, ScreenKind.PANEL);
     }
 
-    /** A context with nothing around it disabled, on a container screen: the common case, and the 5.x shape. */
+    /** A context with nothing around it disabled, in the Panel look: the common case, and the 5.x shape. */
     public RenderContext(GuiGraphicsExtractor graphics, int originX, int originY, int mouseX, int mouseY) {
         this(graphics, originX, originY, mouseX, mouseY, false);
     }
