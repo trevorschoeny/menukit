@@ -1,47 +1,32 @@
 # MenuKit
 
-MenuKit is a UI library for Fabric mods. It provides the parts of a Minecraft interface (buttons, sliders, tabs, panels, HUD readouts) and places them on screen. A mod builds its menus and overlays with it instead of writing vanilla screen code from scratch.
+MenuKit is a UI library for Fabric mods. It has the parts of a Minecraft interface (buttons, sliders, tabs, panels, HUD readouts, and settings controls) and places them on the HUD, on vanilla screens, or on screens a mod opens itself. A mod builds its menus and overlays with it instead of writing vanilla screen code from scratch.
 
-It runs on the client and the server. The UI draws on the client, and libraries built on MenuKit run server code too. A mod that only draws UI can stay client-only. For slots, add [SlotKit](https://modrinth.com/mod/slotkit), which is built on MenuKit. It finds and acts on the slots in any menu, and builds real slots and custom menus.
+I built it for my own mods, then opened it up so other modders can use it too. If you're a player and another mod asked you to install MenuKit, put it in your mods folder alongside that mod and you're done. On its own it changes nothing in the game except a pressed look on buttons while you hold them down.
 
-Components: buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, tooltips, icons, item displays (with an optional coloured outline), progress bars, dividers, scroll containers, runtime rows (`Flow`), collapsible sections and tabs. Every component has a builder with the same vocabulary (`at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state`, `onClick`). Every control that shows a value reads and writes a field the mod owns.
+The UI draws on the client. MenuKit also loads on a server, because libraries built on it run server code, but a mod that only draws UI can stay client-only. For slots, there is [SlotKit](https://modrinth.com/mod/slotkit), a separate library built on MenuKit that finds and acts on the slots in any menu and builds real slots and custom menus.
 
-What it does:
+## Features
 
-- Places UI in five contexts with one set of components: the HUD, container screens, other vanilla screens, anchors, and standalone screens. An anchor is a rectangle a mod names and supplies on any screen, such as the pause menu's row of buttons.
-- Groups components into panels. A panel renders, takes input, and shows or hides as a unit.
-- Takes a panel's placement from one declaration on the panel. Sizes the panel to fit at any GUI scale, wrapping and scrolling as needed.
-- Lets several mods add UI to the same screen. Panels sharing a region stack in priority order instead of overlapping, in the same order on every launch.
-- Makes what a panel covers inert. An opaque panel takes every point of its rectangle, and a see-through one takes only its controls. A slot or widget under a panel does not highlight, click or show a tooltip.
-- Gives its controls vanilla's click sound, narration and keyboard focus, and greys a whole panel at once with one `disabledWhen`.
-- Draws each element for the kind of screen it is on. Inventories and chests get MenuKit's grey look, and Options, Controls and similar screens get vanilla's pause-menu look. A standalone screen declares its kind once, when it is made. Text is coloured by role (heading, body, muted, disabled) so it reads on either kind.
-- Draws a cycle strip beside the hotbar for any mod that turns a ring of stacks through the held slot, with a slide on each turn.
-- Lets a settings page pick items. An item picker holds one item or a list of them as a setting value. Its dialog lists every item and variant the way the creative inventory does, and edits names, counts, enchantments and other components. The picker compares stacks with one shared matcher. Nothing is ever taken from the inventory.
-
-Requires Fabric and Fabric API.
-
-## Install
-
-Minecraft 26.3 is unobfuscated, so MenuKit goes on the plain `implementation` configuration:
-
-```gradle
-repositories {
-    maven { url 'https://api.modrinth.com/maven' }
-}
-dependencies {
-    implementation 'maven.modrinth:menukit:7.1.0+26.3'
-}
-```
-
-Declare it in `fabric.mod.json`, with both bounds ([why](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md)):
-
-```json
-"depends": { "menukit": ">=7.1.0 <8.0.0" }
-```
+- One set of components for five contexts, which are the HUD, container screens, other vanilla screens, anchors, and standalone screens. An anchor is a rectangle a mod names and supplies on any screen, such as the pause menu's column of buttons.
+- Buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, info boxes, tooltips, icons, item displays (with an optional colored outline), progress bars, dividers, scroll containers, runtime rows (`Flow`, plain or drawn as cards), collapsible sections, tabs, color fields, item pickers, and confirm and alert dialogs.
+- Every builder uses the same method names (`at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state`, `onClick`). Every control that shows a value reads and writes a field the mod owns.
+- Components are grouped into panels. A panel renders, takes input, and shows or hides as a unit, and one `disabledWhen` grays the whole panel.
+- A panel's placement is one declaration on the panel. The panel sizes itself to fit at any GUI scale, wrapping and scrolling as needed.
+- Several mods can add UI to the same screen. Panels that share a region stack in priority order instead of overlapping, in the same order on every launch.
+- What a panel covers is inert. An opaque panel takes every point of its rectangle, and a see-through one takes only its controls. A slot or widget under a panel does not highlight, take a click, or show a tooltip.
+- Controls have vanilla's click sound, narration, and keyboard focus.
+- Each element draws for the kind of screen it is on. Inventories and chests get MenuKit's gray look, and Options, Controls, and similar screens get vanilla's pause-menu look. Text is colored by role (heading, body, muted, or disabled), so it reads on either kind.
+- A color field lets a settings page pick a color, from Minecraft's 16 dye colors or from a full picker with a hex field.
+- An item picker holds one item or a list of them as a setting value. Its dialog lists every item and variant the way the creative inventory does, and edits names, counts, enchantments, and other components. One shared matcher compares stacks, and nothing is ever taken from the player's inventory.
+- A widget made by another library, such as a config library's own control, can sit inside a panel. It scrolls and clips with the panel, and gets clicks, typed keys, focus, and narration.
+- Slots clip to the scroll area they sit in, so a slot half past the edge draws, hovers, and takes clicks only where it shows. Slot libraries report their slots to MenuKit, and SlotKit does.
+- A cycle strip beside the hotbar is available to any mod that turns a ring of stacks through the held slot. It slides on each turn.
+- Tooltips can be hidden, docked, wrapped, kept on screen, or scrolled through one shared check.
 
 ## Example
 
-A HUD readout, registered once from the client entry point:
+A HUD readout, registered once from the client entry point.
 
 ```java
 HudPanel.builder("mymod:readout")
@@ -53,75 +38,163 @@ HudPanel.builder("mymod:readout")
         .build();
 ```
 
-## The public API
+The text renders directly below the crosshair during play and disappears while any screen is open.
 
-The API is every type in a package named `api`: `com.trevlar.menukit.api.*`. The version contract covers those. Every other package is internal, marked `@ApiStatus.Internal`, and can change in any release. A task that seems to need an internal type is a gap in the API. [Open an issue](https://github.com/trevorschoeny/menukit/issues) for it.
+## Getting started
+
+Minecraft 26.3 is unobfuscated, so MenuKit goes on the plain `implementation` configuration.
+
+```gradle
+repositories {
+    maven { url 'https://api.modrinth.com/maven' }
+}
+dependencies {
+    implementation 'maven.modrinth:menukit:7.2.0+26.3'
+}
+```
+
+Declare it in `fabric.mod.json` with both bounds, separated by a space ([why](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md)).
+
+```json
+"depends": { "menukit": ">=7.2.0 <8.0.0" }
+```
+
+Players install MenuKit separately. The Trevlar mods list it as a required dependency on their Modrinth pages rather than bundling it.
+
+The sources in the [repository](https://github.com/trevorschoeny/menukit) build as a project of a parent Gradle workspace that is not in the repository, so they don't build on their own yet.
+
+## Requirements
+
+- [Fabric API](https://modrinth.com/mod/fabric-api), which MenuKit uses for its entry points and events.
+
+## Compatibility
+
+- Minecraft 26.3, with Fabric Loader 0.15.0 or newer.
+- Required on the client. Optional on the server, unless a mod built on MenuKit needs it there.
+- Older releases of Inventory Plus, Keybindery, and a few other Trevlar mods built for earlier MenuKit versions are marked incompatible. Update them alongside MenuKit.
+
+## Used by
+
+- [SlotKit](https://modrinth.com/mod/slotkit)
+- [Keybindery](https://modrinth.com/mod/keybindery)
+- [Inventory Plus](https://modrinth.com/mod/inventory-plus-trevlar)
+- [Sandboxes](https://modrinth.com/mod/sandboxes)
+- [Shulker Palette](https://modrinth.com/mod/shulker-palette)
+- [Hotbar Pockets](https://modrinth.com/mod/hotbar-pockets)
+
+## How to use
+
+This guide follows the order a mod usually meets MenuKit, from a first panel to settings screens. Each part links to the full developer docs.
+
+### The public API
+
+The API is every type in a package named `api` (`com.trevlar.menukit.api.*`), and the version contract covers those. Every other package is internal, marked `@ApiStatus.Internal`, and can change in any release. A task that seems to need an internal type is a gap in the API, so [open an issue](https://github.com/trevorschoeny/menukit/issues) for it.
 
 | Package | Holds |
 |---|---|
-| `api` | `MK`, the HUD facade. It registers HUD panels and notifications, sends a notification, and reads or sets the recipe book. `Declarations`, the one freeze that MenuKit and every library built on it declare through. |
+| `api` | `MK`, the HUD facade, which registers HUD panels and notifications, sends a notification, and reads or sets the recipe book. `Declarations`, the one freeze that MenuKit and every library built on it declare through. |
 | `api.element` | Every element, and the contexts they render and take input in |
-| `api.layout`, `api.dialog` | Rows and columns placed once; confirm and alert dialogs |
-| `api.panel` | `Panel`, placement (`PanelPosition` and the regions), the adapters that put panels on vanilla screens and around anchors, `MKScreen` |
-| `api.hud` | HUD panels, notifications and the cycle strip |
-| `api.host` | For a library that ships its own screens: the host of a screen's own panels, and the hook that routes input to slots drawn in panels |
+| `api.layout`, `api.dialog` | Rows and columns placed once, and confirm and alert dialogs |
+| `api.panel` | `Panel`, placement (`PanelPosition` and the regions), the adapters that put panels on vanilla screens and around anchors, and `MKScreen` |
+| `api.hud` | HUD panels, notifications, and the cycle strip |
+| `api.host` | For a library that ships its own screens. It holds the host of a screen's own panels, the hook that routes input to slots drawn in panels, and `SlotClip`, which clips those slots to a scroll area |
 
-## Docs
+### A first panel on the HUD
 
-- [Getting started](https://github.com/trevorschoeny/menukit/blob/main/docs/getting-started.md): the dependency, one HUD panel, one inventory-screen panel.
-- [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md): panels, elements, placement, the five contexts, claims.
-- [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md): the common tasks.
-- [Cycle strip](https://github.com/trevorschoeny/menukit/blob/main/docs/cycle-strip.md): the small hotbar beside the vanilla one that shows a ring of stacks turning through the held slot.
-- [Limits](https://github.com/trevorschoeny/menukit/blob/main/docs/limits.md): what MenuKit does not do, and the open gaps.
-- [Versioning](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md): what a version number promises.
-- [Upgrading to 7.0.0](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading-7.md): moving a mod from MenuKit 6, and finding out whether it needs SlotKit.
-- [Reference](https://trevorschoeny.github.io/menukit/): the generated javadoc for the `api` packages.
+`HudPanel.builder(id)` registers a panel on the game window, as in the example above. It sits on one of nine `InsideRegion` spots, 4 pixels in from the edges it touches. `.offset(dx, dy)` nudges it, and `.priority(n)` orders it among other panels on the same spot. With `.region(OutsideRegion.X)` a HUD panel sits on that side of the vanilla hotbar instead. HUD panels draw only and take no input. Register them from the client initializer, since registration closes when the client finishes starting. [Getting started](https://github.com/trevorschoeny/menukit/blob/main/docs/getting-started.md) walks through it, and [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) has a HUD bar and an icon beside the hotbar.
 
-Every Java sample in this README and in `docs/` is compiled against the release before it ships.
+### Panels and elements on a container screen
 
-## Repository layout
+A `Panel` holds an ordered list of elements, and panels don't nest. Every element is built with `X.builder()`, the settings it needs, and `build()`, and doesn't change after that. A control that shows a value takes `state(get, set)` over the mod's own field and stores nothing itself. A `ScreenPanelAdapter` puts the panel on container screens. With no target it shows on every container screen, and `.on(InventoryScreen.class)` or `.onPlayerInventory()` narrows it. Panel ids are global, so prefix each one with the mod id. To show a panel only some of the time, give it a `visibleWhen` rather than removing its adapter. [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md) lists every element and the shared builder methods.
 
-- `menukit/`: the `menukit` mod.
-- `docs/`: the guides above.
+### Placement and regions
 
-These sources build as a project of a parent Gradle workspace that is not in this repository. They do not build on their own yet.
+A panel declares where it sits once, with `Panel.builder(id).position(...)`. `PanelPosition.region(OutsideRegion)` places it outside the screen's frame along one edge, `screenAnchor(InsideRegion)` on one of nine screen spots, `center()` as an overlay on top, `pixel(...)` at an origin read every frame, and `main()` as a standalone screen's centered frame. `.priority(n)` orders panels that share a region (the default is 100), `.gap(n)` sets the space before a panel, and `.offset(dx, dy)` nudges one panel after it is placed. A panel wraps to the width its placement leaves and scrolls when it is taller than its room. The Placement and Region sections of [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md) have the details.
+
+### Other screens and anchors
+
+`VanillaScreenPanelAdapter` puts a panel on a vanilla screen that isn't a container, such as the pause screen or Options, and needs `.on(...)` or `.onAny()`. An `Anchor` is a rectangle a mod names and supplies per screen with `Anchor.of(id, screen -> box)`, and `AnchorPanelAdapter` places panels around it by the same region rules as a menu frame. A `null` box means the anchor isn't on that screen. Adapters and anchors are declared at init and can't be added or removed during play. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) anchors a row under the pause menu's buttons.
+
+### What a panel covers
+
+A shown panel claims the points it covers, so nothing behind it highlights, takes a click, or shows a tooltip. Panels are opaque by default and claim their whole rectangle. `.opaque(false)` makes a panel see-through, and then only its buttons and other controls block what is behind them. `.popover()` draws a panel above every ordinary panel on the screen, and a modal dialog still opens above that. The Claims section of [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md) covers the order.
+
+### Standalone screens and screen kinds
+
+A mod's own screen subclasses `MKScreen`. Elements draw for the kind of screen they are on. `ScreenKind.CONTAINER` is MenuKit's gray look, and `ScreenKind.OPTIONS` is vanilla's pause-menu look. Panels injected into vanilla screens take the kind from the screen. A standalone screen declares its kind once, with `super(title, ScreenKind.OPTIONS, panels)`, and one that declares nothing is a container screen. Text takes its color from a role (`TextRole.HEADING`, `BODY`, `MUTED`, or `DISABLED`), so it reads on both kinds. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) builds a whole settings screen in the pause-menu look.
+
+### Layout, tabs, and sections
+
+`Row` and `Column` place elements once, at the panel's first layout pass. `Flow` is the runtime row, and `Flow.spacer()` pins a control to the right edge of a settings row at any width. `Flow.builder().boxed()` draws a card behind a row, so a list of them lines up like vanilla's world list. `Tabs` has three modes, `WRAP`, `SIDE_SCROLL`, and `SIDEBAR`, and the selected tab is the mod's own state. `tabColumn(false)` on a `SIDEBAR` menu hides the tab column so a one-page menu looks like its tabbed siblings, and `fitShownTab()` sizes a `Tabs` to the tab it shows. `Section` is a collapsible group. Other mods can add tabs to a named menu with `Tabs.addTo(id, tab)`. The Tabs, Section, and Layout helpers sections of [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md) cover them.
+
+### Color settings
+
+`ColorField` shows a swatch and opens a dialog when clicked. The Basic tab has the 16 dye colors by their dye items, and the Custom tab has a saturation and brightness square, a hue bar, a transparency bar with `alpha(true)`, and a hex field. The value is an int, `0xRRGGBB`, or `0xAARRGGBB` with `alpha(true)`. `label(text)` titles the dialog and defaults to "Color", and the swatch defaults to 20 by 20. Changes are written at once, Done keeps them, and Cancel or Escape puts back the color from before. On the HUD there is no dialog, only the swatch. See the [color setting recipe](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md#a-colour-setting).
+
+### Item settings
+
+`ItemPicker` takes one lens. `state` holds one item by kind, `stack` one stack, `stacks` a list of stacks, and `rule` and `rules` stacks that each carry their own match mode. `match(...)` sets how stacks compare. `ITEM` (the default) compares the kind of item only, `EXACT` the exact stack, and `CONTAINS` the item plus at least the components the rule sets. `playerChoosesMatch()` lets the player pick "Any" or "Exactly this" for each slot and needs `rule` or `rules`. A list shows as a wrapping row of slots, 9 to a row by default (`columns(n)` changes it). The dialog has a Search tab and, for `EXACT` and `CONTAINS`, an Edit tab for the name, count, enchantments, and other components in `/give` syntax. In play, `rule.matches(stack)` or `ItemMatch.matches(...)` does the comparing, and `ItemMatch.CODEC` saves a rule. `ItemMatch` is common code, so it works on a server too. See the [item setting recipe](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md#an-item-setting).
+
+### Widgets from other libraries
+
+`WidgetHost.builder().widget(supplier).size(w, h)` puts any vanilla-style widget in a panel. The host moves it with the panel and its scroll, clips it to its box, and passes it clicks, drags, the wheel, typed keys, focus, and narration. A widget that isn't a vanilla `LayoutElement` needs a `place(...)` hook, and one that opens a list below itself needs `overflow()` to draw it over everything. See the [widget host recipe](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md#host-a-widget-another-library-made).
+
+### Tooltips
+
+`MKTooltip.hideWhen(...)` hides every tooltip, or only item tooltips or only the others, while a condition holds. `wrapWhen`, `clampWhen`, and `avoidCoverWhen` keep tooltips on screen and out of the way, and `onWheel` with `scrollBy` lets a mod scroll a long one. All of them are off unless a mod registers them from client init. The Claims section of [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md) explains each switch.
+
+### The cycle strip
+
+`HudCycleStrip` draws a small hotbar just right of the vanilla one, showing a ring of stacks that turns through the held slot. A mod writes a source that returns the ring for a hotbar slot, registers it once with `HudCycleStrip.register(...)`, and calls `slide` after the ring turns. [Cycle strip](https://github.com/trevorschoeny/menukit/blob/main/docs/cycle-strip.md) has the full guide.
+
+### Slots
+
+MenuKit keeps no slot code. A mod that needs slot groups, created slots, or custom menus depends on SlotKit as well. A slot library that places slots in panels reports each one with `SlotClip.shown`, so the slot clips to its scroll area. SlotKit's slot elements already do this.
+
+### Limits and versioning
+
+[Limits](https://github.com/trevorschoeny/menukit/blob/main/docs/limits.md) lists what MenuKit doesn't do and the open gaps. [Versioning](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md) explains what a version number promises and why both bounds matter. The [reference](https://trevorschoeny.github.io/menukit/) is the generated javadoc for the `api` packages. Every Java sample in the README and in `docs/` is compiled against the release before it ships.
 
 ## Upgrading
 
+### To 7.2.0
+
+One change can affect existing code. `ItemPicker`'s protected constructor changed, so a mod that subclasses `ItemPicker` updates its constructor call. Other mods built for 7.1.0 work as before, and an item picker a mod already has opens the new item dialog with no change. A mod that uses anything new in 7.2.0 declares `"menukit": ">=7.2.0 <8.0.0"`.
+
 ### To 7.1.0
 
-Nothing breaks. Mods built for 7.0.0 work as before. A mod that uses anything new in 7.1.0 declares `"menukit": ">=7.1.0 <8.0.0"`.
+Nothing breaks, and mods built for 7.0.0 work as before. A mod that uses anything new in 7.1.0 declares `"menukit": ">=7.1.0 <8.0.0"`.
 
 ### To 7.0.0
 
 MenuKit keeps no slot code now. Everything about slots moved to SlotKit, a separate library built on MenuKit, and the deprecated parts of 6.x are gone. [Upgrading to 7.0.0](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading-7.md) walks through the move, and the [changelog](https://github.com/trevorschoeny/menukit/blob/main/menukit/changelog.md) has the full list. Declare `"menukit": ">=7.0.0 <8.0.0"`.
 
-- Slot groups, categories, slot operations, vetoes, addresses, the window and `SlotGroupPanelAdapter` are SlotKit's. A mod that uses any of them depends on SlotKit and changes those imports. Nothing else changes for it.
+- Slot groups, categories, slot operations, vetoes, addresses, the window, and `SlotGroupPanelAdapter` are SlotKit's. A mod that uses any of them depends on SlotKit and changes those imports. Nothing else changes for it.
 - `Declarations` moved to `com.trevlar.menukit.api.Declarations`.
-- `ControlStyle`, `style(ControlStyle)` on `Button`, `Dropdown` and `DropdownMulti`, `Tabs.SIDEBAR_SCROLLBAR_WIDTH` and `MKTooltip.MIN_WRAP_WIDTH` are removed. Delete a `style(...)` call; it did nothing since 6.1.0. Use `ScrollContainer.TRACK_WIDTH` (6 on an options screen) for the scrollbar width.
+- `ControlStyle`, `style(ControlStyle)` on `Button`, `Dropdown`, and `DropdownMulti`, `Tabs.SIDEBAR_SCROLLBAR_WIDTH`, and `MKTooltip.MIN_WRAP_WIDTH` are removed. Delete a `style(...)` call, since it has done nothing since 6.1.0. Use `ScrollContainer.TRACK_WIDTH` (6 on an options screen) for the scrollbar width.
 - The window's panel and element handles (`Window.panel`, `Window.element`) and the `VISIBILITY` and `OPACITY` keys are gone. Use the panel's own `visibleWhen` and `opaque`.
-- New: `Anchor` and `AnchorPanelAdapter` place a panel around a rectangle a mod names and supplies on any screen. SlotKit's slot-group panels are built on them.
+- `Anchor` and `AnchorPanelAdapter` are new. They place a panel around a rectangle a mod names and supplies on any screen, and SlotKit's slot-group panels are built on them.
 
 ### To 6.2.0
 
-`MKTooltip.avoidCoverWhen` docks tooltips at the bottom or top centre of the screen instead of choosing a side of the cursor. The method keeps its name, so a mod that registers it needs no change. `MKTooltip.MIN_WRAP_WIDTH` is deprecated and goes in 7.0.0.
+`MKTooltip.avoidCoverWhen` docks tooltips at the bottom or top center of the screen instead of choosing a side of the cursor. The method keeps its name, so a mod that registers it needs no change. `MKTooltip.MIN_WRAP_WIDTH` is deprecated and goes in 7.0.0.
 
 ### To 6.1.0
 
-Elements draw for the kind of screen they are on (`ScreenKind`), and nothing else picks a look. A mod that uses screen kinds, text roles or the item picker declares `"menukit": ">=6.1.0 <7.0.0"`.
+Elements draw for the kind of screen they are on (`ScreenKind`), and nothing else picks a look. A mod that uses screen kinds, text roles, or the item picker declares `"menukit": ">=6.1.0 <7.0.0"`.
 
-- `ControlStyle` and `style(ControlStyle)` on `Button`, `Dropdown` and `DropdownMulti` are deprecated and do nothing, and 7.0.0 removes them. A mod built against 6.0.0 still loads. Delete the call. An element already draws in vanilla's look on Options, Controls and every other vanilla screen that is not a container, and in MenuKit's look on a container screen.
-- Panels injected into a vanilla screen that is not a container (the pause screen, Options, Controls, a config screen) draw in vanilla's look there. Before 6.1.0 they drew MenuKit's grey. Panels on inventories, chests and the HUD are unchanged.
-- To move a standalone screen to the pause-menu look, declare the kind when the screen is made, with `super(title, ScreenKind.OPTIONS, panels)`. Give its panels `PanelStyle.NONE`, and replace hand-set label colours (`TextLabel.COLOR_DARK`, `Section.colors`) with roles, which read on both kinds. A screen that declares nothing stays as it was. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) builds a whole settings screen this way.
+- `ControlStyle` and `style(ControlStyle)` on `Button`, `Dropdown`, and `DropdownMulti` are deprecated and do nothing, and 7.0.0 removes them. A mod built against 6.0.0 still loads. Delete the call. An element already draws in vanilla's look on Options, Controls, and every other vanilla screen that is not a container, and in MenuKit's look on a container screen.
+- Panels injected into a vanilla screen that is not a container (the pause screen, Options, Controls, or a config screen) draw in vanilla's look there. Before 6.1.0 they drew MenuKit's gray. Panels on inventories, chests, and the HUD are unchanged.
+- To move a standalone screen to the pause-menu look, declare the kind when the screen is made, with `super(title, ScreenKind.OPTIONS, panels)`. Give its panels `PanelStyle.NONE`, and replace hand-set label colors (`TextLabel.COLOR_DARK`, `Section.colors`) with roles, which read on both kinds. A screen that declares nothing stays as it was. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) builds a whole settings screen this way.
 
 ### To 6.0.0
 
-6.0.0 is a consolidation release. It adds little, and renames and removes a lot at once, so every mod migrates one time. The [changelog](https://github.com/trevorschoeny/menukit/blob/main/menukit/changelog.md) has the full list. The changes most mods meet:
+6.0.0 is a consolidation release. It adds little and renames and removes a lot at once, so every mod migrates one time. The [changelog](https://github.com/trevorschoeny/menukit/blob/main/menukit/changelog.md) has the full list. These are the changes most mods meet.
 
 - Public types moved into `api` packages, and Containers has its own root, `com.trevlar.menukit.containers`. Every import changes. The classes in the table below were renamed as well.
 - Placement is declared on the panel, as `Panel.builder(id).position(PanelPosition.region(OutsideRegion.X).priority(n).offset(dx, dy))`. The adapters take only `(panel)` or `(panel, padding)`. A HUD panel uses `.region(InsideRegion.X).offset(dx, dy)` where it used `.anchor(MKHudAnchor.X, dx, dy)`.
 - Elements are built by builders, for example `Button.builder().label(text).size(w, h).onClick(run).build()`. A control that shows a value takes `state(get, set)` over a field the mod owns.
-- Declarations happen at init. Adapters, HUD panels, operations, slot groups, channels and menus declared after startup throw.
+- Declarations happen at init. Adapters, HUD panels, operations, slot groups, channels, and menus declared after startup throw.
 - Custom menus split by side. A menu's slots are common code. How its panels look, and its screen class, are declared on the client with `ClientMenu.of(menu)`.
 - A shared slot-state channel names its writers. Without a `canWrite` rule the server refuses every client write to it.
 - Item Tips left MenuKit. Durability and food lines on tooltips are a feature of Inventory Plus.
@@ -140,9 +213,9 @@ Elements draw for the kind of screen they are on (`ScreenKind`), and nothing els
 | `MKCSlots.renderGroup` | `ClientSlots.renderGroup` |
 | `MKCContainerPanel.Builder.chrome(...)`, `.parity(...)` | `ClientContainerPanel.of(id).chrome(...).parity(...)`, on the client |
 | `CreatedSlotAdapter.addressOf(panelId, groupId, index)` | `Address.createdSlot(CreatedSlots.groupId(panelId, groupId), index)` |
-| `SlotSpec.quickMove(...)`, `MKCBehaviorKeys.QUICK_MOVE` | `SlotSpec.shiftClickOut(false)`, `shiftClickIn(false)`; `BehaviorKeys.SHIFT_CLICK_OUT`, `SHIFT_CLICK_IN` |
+| `SlotSpec.quickMove(...)`, `MKCBehaviorKeys.QUICK_MOVE` | `SlotSpec.shiftClickOut(false)`, `shiftClickIn(false)`, and `BehaviorKeys.SHIFT_CLICK_OUT`, `SHIFT_CLICK_IN` |
 | `WORLD_PICKUP` | `INVENTORY_INSERT` |
-| `showWhen(...)` on a panel, a HUD panel or a container panel | `visibleWhen(...)` |
+| `showWhen(...)` on a panel, a HUD panel, or a container panel | `visibleWhen(...)` |
 | `getId()` | `id()` |
 
 ### To 5.1.0
@@ -151,7 +224,7 @@ Nothing breaks. `SlotSpec.quickMove(...)` and `MKCBehaviorKeys.QUICK_MOVE` are d
 
 ### To 5.0.0
 
-Four region enums are two, and two bounds records are one. Replace the type names; the constants inside are unchanged.
+Four region enums are two, and two bounds records are one. Replace the type names. The constants inside are unchanged.
 
 | Was | Is |
 |---|---|
@@ -160,7 +233,7 @@ Four region enums are two, and two bounds records are one. Replace the type name
 | `ScreenBounds`, `SlotGroupBounds` | `Reference` |
 | `HudRegion.CENTER_CROSSHAIR_CLEARANCE` | `RegionConstants.CENTER_CROSSHAIR_CLEARANCE` |
 
-With Containers, every created slot group declares a `SlotGroupCategory`: `SlotSpec.at(id, category)`, `MKCSlots.onto(...).category(...)`, and `PanelBuilder.group(id, category, storage)`. A group without one fails at runtime on the first menu it opens.
+With Containers, every created slot group declares a `SlotGroupCategory`, through `SlotSpec.at(id, category)`, `MKCSlots.onto(...).category(...)`, and `PanelBuilder.group(id, category, storage)`. A group without one fails at runtime on the first menu it opens.
 
 ### To 4.0.0
 
@@ -172,8 +245,4 @@ The Java package moved from `com.trevorschoeny.menukit` to `com.trevlar.menukit`
 
 ## License
 
-MIT. See `LICENSE`.
-
-## Issues
-
-[github.com/trevorschoeny/menukit/issues](https://github.com/trevorschoeny/menukit/issues).
+MIT. See `LICENSE`. Report issues at [github.com/trevorschoeny/menukit/issues](https://github.com/trevorschoeny/menukit/issues).
