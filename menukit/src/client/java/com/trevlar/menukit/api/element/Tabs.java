@@ -1755,8 +1755,10 @@ public final class Tabs extends AbstractPanelElement {
         ChildDispatch.attach(header, screen);
     }
 
+    /** Leaving a screen ends a tab-column scrollbar drag: its release may never reach these tabs. */
     @Override
     public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
+        draggingScroller = false;
         for (Tab t : tabs) ChildDispatch.detach(t.body, screen);
         ChildDispatch.detach(sidebarHeader, screen);
         ChildDispatch.detach(header, screen);

@@ -561,8 +561,10 @@ public class ScrollContainer extends AbstractPanelElement {
         ChildDispatch.attach(content, screen);
     }
 
+    /** Leaving a screen ends a scrollbar drag: its release may never reach this container. */
     @Override
     public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
+        dragging = false;
         ChildDispatch.detach(content, screen);
     }
 
