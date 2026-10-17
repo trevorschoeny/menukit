@@ -35,7 +35,10 @@ Behavior that is incomplete in the current release.
 | Element | Current behavior |
 |---|---|
 | `Row`, `Column` | Build time only. For a row that follows the panel's width at runtime, use `Flow` with `Flow.spacer()`. No grid helper. |
-| `Dropdown` | Fixed item list. No type-to-filter. |
+| `Dropdown` | No type-to-filter. Options from a supplier (`items(() -> list)`) are read as the popover needs them; a picked option that leaves the list stays the consumer's value. |
+| `ListView` | Vertical only. A row must be a MenuKit element (an `AbstractPanelElement`) so the list can place it. The list itself takes no Tab focus; a click in it gives it the arrow keys. A row is built once, from the item as it first appeared. A selected key is scrolled into view only by a `ScrollContainer` around the list or a `Flow` inside one. |
+| `MenuButton` | A label on the trigger, no icon. No submenus, no disabled rows. |
+| `fillHeight` | Fills in a panel, a vertical `Flow` and a `Tabs` page. In a panel the filling element takes the room down to the viewport's bottom, so an element placed under it by `Column` is overlapped: put the two in a vertical `Flow`. |
 | Secondary click and tint | `Button` and `Toggle` only. Other shipped elements take left clicks alone. A custom `PanelElement` handles any button in its own `mouseClicked`. |
 | `ScrollContainer` | Vertical only. No keyboard scrolling. The scrollbar stays visible. |
 | `Slider` | A 0 to 1 fraction, whole numbers (`ofInts`) or an enum's constants (`ofEnum`). No range handle, no vertical orientation. |
@@ -48,7 +51,7 @@ Behavior that is incomplete in the current release.
 
 ## Runtime constraints
 
-- `build()` freezes a panel's element list, and every element is immutable after its own `build()`. Build a new panel to change the list.
+- `build()` freezes a panel's element list, and every element is immutable after its own `build()`. Build a new panel to change the list, or show the changing part in a `ListView`.
 - A `ScreenPanelAdapter` with no target renders on every container screen. An `AnchorPanelAdapter` or `VanillaScreenPanelAdapter` with no `.on(...)` fails at the first screen open with the panel id in the message.
 - Adapters, anchors, HUD panels and notifications are declarations. Constructing, targeting or unregistering one after the client starts throws. Gate a panel at runtime with `visibleWhen`.
 - A panel with no placement is rejected by adapters and the HUD. Only `MKScreen` and a library's own screen (`OwnHost`) place an unplaced panel.

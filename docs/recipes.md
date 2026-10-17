@@ -423,3 +423,63 @@ boolean locked = config.locks().stream().anyMatch(rule -> rule.matches(stack));
 ```
 
 Result: one slot with the item, and two rows of slots, each with an empty slot marked with a plus at the end. Clicking a slot opens a dialog over the screen: the setting's slots at the top, then a search box over every item and variant. Click a slot in the row to select it, then click an item in the grid to put it there. The small minus in a filled slot's corner removes it, on the page and in the dialog. The two lists have an Edit tab for the selected slot: name, count, enchantments that fit the item, the other components in `/give` syntax, and for the locks the choice between Any and Exactly. The first picker never shows a count or an Edit tab. Every change is written at once. Cancel or Escape puts back the value from before. Save a rule with `ItemMatch.CODEC`.
+
+## A list that changes while the screen is open
+
+Needs: MenuKit 7.3.0. For a page of things the player adds, renames and deletes while it is open: worlds, sandboxes, saved groups.
+
+```java
+// A page: a title and a New button pinned above a list that scrolls by itself.
+ListView<Sandbox> list = ListView.<Sandbox>builder()
+        .items(sandboxes::list)
+        .key(Sandbox::id)
+        .row(sandbox -> sandboxRow(sandbox.id()))
+        .selection(() -> selectedId, id -> selectedId = id)
+        .empty(TextLabel.builder().text(Component.literal("No sandboxes yet")).build())
+        .build();
+PanelElement page = Flow.builder().vertical().gap(6)
+        .add(TextLabel.builder().role(TextRole.HEADING).text(Component.literal("Sandboxes")).build())
+        .add(Button.builder().label(Component.literal("+ New")).onClick(sandboxes::create).build())
+        .add(ScrollContainer.builder().fitWidth().fillHeight().content(List.of(list)).build())
+        .build();
+```
+
+Each row reads what can change by its id, renames in place and keeps its actions in a menu:
+
+```java
+static PanelElement sandboxRow(String id) {
+    TextField rename = TextField.builder().size(120, 18)
+            .state(() -> draft, v -> draft = v)
+            .onSubmit(name -> { sandboxes.rename(id, name); renaming = null; })
+            .onCancel(() -> renaming = null)
+            .visibleWhen(() -> id.equals(renaming))
+            .build();
+    return Flow.builder().boxed().gap(4)
+            .add(TextLabel.builder().text(() -> Component.literal(sandboxes.name(id)))
+                    .visibleWhen(() -> !id.equals(renaming)).build())
+            .add(rename)
+            .add(Flow.spacer())
+            .add(Button.builder().label(Component.literal("Rename"))
+                    .visibleWhen(() -> id.equals(selectedId))
+                    .onClick(() -> { draft = sandboxes.name(id); renaming = id; rename.focus(); })
+                    .build())
+            .add(MenuButton.builder().size(20, 20)
+                    .action(Component.literal("Duplicate"), () -> sandboxes.duplicate(id))
+                    .danger(Component.literal("Delete"), () -> sandboxes.delete(id))
+                    .build())
+            .build();
+}
+```
+
+Result: one card per sandbox. Creating, duplicating or deleting one adds or removes its card at once, and the other cards stay as they are, a rename in progress included. Clicking a card's empty space selects it and shows its Rename button; Up and Down move the selection after that. Rename turns the name into a text field that already has the keyboard: Enter keeps the new name, Escape puts the old one back and leaves the screen open. The "..." button opens a menu whose Delete is red. The title and New stay where they are while the cards scroll under them. Put `page` in a standalone screen's main panel or in a `Tabs` page; it looks and works the same in both.
+
+## Show a panel on the screens that hold your slots
+
+Needs: MenuKit 7.3.0. For a panel of slot elements whose slots the server adds to some menus and not others.
+
+```java
+// Show your panel on exactly the screens whose menu holds your slots.
+new ScreenPanelAdapter(panel).onMatching(ScreenMatcher.where(screen -> hasMySlots(screen.getMenu())));
+```
+
+Result: the test runs once as each container screen opens, when its menu already holds every slot, and the panel is on exactly the screens that pass. Gate it further at runtime with `visibleWhen`. A slot element whose slot is not in the menu reports itself hidden and takes no room, and a panel with nothing left to show is not placed at all, so a mismatch shows nothing rather than an empty frame.

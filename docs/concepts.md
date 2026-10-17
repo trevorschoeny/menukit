@@ -175,13 +175,35 @@ Every input method receives an `InputContext`, as `render` receives a `RenderCon
 
 ## Structure does not change after build
 
-`build()` freezes the panel's element list. No method adds an element to a built panel. Visibility, position, and supplier-driven content change at runtime. To change the element list, build a new panel.
+`build()` freezes the panel's element list. No method adds an element to a built panel. Visibility, position, and supplier-driven content change at runtime. To change the element list, build a new panel. The one element whose children change while the screen is open is `ListView` (Live lists, below).
 
 A hidden element or panel is inert on every surface. It does not render, receive clicks or show a tooltip. It takes no room in a panel's layout or a `Flow`. `Row` and `Column` place once, so a hidden element there keeps its gap.
 
 ## Size
 
-Width flows down from the panel to its elements. A label wraps to it and a slider caps to it. Height flows down only to an element whose `fillsHeight()` returns true. Through `fillHeight(int)`, that element gets the room from its top edge to the bottom of the panel's viewport. The viewport is the panel's pinned height or, for a screen's MAIN panel, the screen's height. With no viewport the element gets -1 and takes its natural height. No built-in element but `Tabs` fills height.
+Width flows down from the panel to its elements. A label wraps to it and a slider caps to it. Height flows down only to an element whose `fillsHeight()` returns true. Through `fillHeight(int)`, that element gets the room from its top edge to the bottom of the panel's viewport. The viewport is the panel's pinned height or, for a screen's MAIN panel, the screen's height. With no viewport the element gets -1 and takes its natural height.
+
+Three built-in elements fill. A `Tabs` with no fixed size does. `ScrollContainer.builder().fillHeight()` (7.3.0) takes the height it is given and scrolls its content in it; with none given it is its declared height, or as tall as its content. A vertical `Flow` holding a filling child fills too, and gives that child what is left after its other children and gaps, so a header and a row of buttons sit above a list that takes the rest. A panel gives a filling element the room from its top edge down, so put what goes under it in a vertical `Flow` with it.
+
+A `Tabs` page is handed to a body that fills (7.3.0). The page then does not scroll the body as a whole: the filling element gets the page's height from its top edge down to the band's bottom inset and scrolls itself, so the header above it stays put. The page's inset, band and separators are the same as for any body, and a `ScrollContainer` on the page draws no band of its own (`PanelElement.inBand`). A body with nothing filling scrolls as a whole, as before. The same page looks and works the same as a standalone screen's main panel.
+
+## Live lists
+
+A `ListView` (7.3.0) shows one row element per item of a list the mod owns, and follows it while the screen is open. `items(supplier)` is read every frame, `key(function)` gives each item a stable identity, and `row(factory)` makes a row for a key the first time it appears. A new key's row is attached to the screen at once, exactly as an element present when the screen opened (a `TextField` makes its text box, a button joins the keyboard's focus order). A key that goes has its row detached: keyboard focus it held is let go and an open popover in it closes. A key that stays keeps its row, the same object, so a rename in progress keeps its text and focus while the data refreshes. Rows are in the order of `items()`, stacked top to bottom `gap` apart, each as wide as the list. A row is any element MenuKit can place, usually a boxed `Flow`. It is built once, so it reads what can change through suppliers, by key.
+
+The list's height is its rows', read every frame. A list longer than its room goes in a `ScrollContainer`, usually one that fills (Size).
+
+`selection(get, set)` is a lens onto one selected key. A click on a row where none of its controls takes the click selects it, and the selected row has a thin outline. After a click in the list, Up and Down move the selection, except while a text field has the keyboard. When the selection changes other than by a click, by the mod's code or the arrow keys, the scroll area around the list scrolls the least distance that shows the selected row (`PanelElement.takeRevealRequest`). A selected key whose item is gone clears the selection through the setter. `empty(element)` shows in the list's place while there are no items.
+
+The attach and detach path is shared: `Attachment` remembers the screen a container's children are attached to, so any container that adds a child after build attaches it the way the screen's init does.
+
+## Menu button
+
+A `MenuButton` (7.3.0) is a button that opens a menu of actions: `action(label, runnable)` for each row, `danger(label, runnable)` for one that destroys something, drawn red. A click on a row runs it and closes the menu. The menu is as wide as its widest label and, when wider than the button, ends at the button's right edge, so a small button at the end of a row opens back over the row. It is a dropdown's popover: it draws above everything around it, is not cut off by a scroll area, closes on a click outside it, and Up, Down, Enter and Escape work while it is open. A `Dropdown` can also take its options from a supplier (`items(() -> list)`), for options that change while the screen is open.
+
+## Text field
+
+A `TextField` is vanilla's text box with a lens onto the mod's text. `onSubmit` runs on Enter. Escape on a focused field (7.3.0) cancels the edit: the text goes back to what it was when the field took focus, written through the lens, the field lets go of the keyboard, `onCancel` runs, and the screen stays open. A second Escape is the screen's. `focus()` gives the field the keyboard from code, for a rename field that appears when its button is clicked.
 
 ## Tabs
 
@@ -303,11 +325,13 @@ Vanilla puts a tooltip beside the cursor, so a wide one near an inventory lands 
 
 ## Targeting
 
-A `ScreenPanelAdapter` with no target renders on every container screen. `.on(Class...)` limits it to those screen classes and their subclasses. `.onAny()` states the default explicitly. `.onPlayerInventory()` limits it to the player inventory screen in both game modes.
+A `ScreenPanelAdapter` with no target renders on every container screen. `.on(Class...)` limits it to those screen classes and their subclasses. `.onAny()` states the default explicitly. `.onPlayerInventory()` limits it to the player inventory screen in both game modes. `.onMatching(ScreenMatcher)` takes `all()`, `allExcept(...)`, `only(...)`, or (7.3.0) `where(test)`, a test asked of each container screen as it opens, for a scope known only at runtime, such as the menus a slot group's slots were added to ([recipe](recipes.md#show-a-panel-on-the-screens-that-hold-your-slots)).
 
 A `VanillaScreenPanelAdapter` requires `.on(Class...)` or `.onAny()`.
 
 An `AnchorPanelAdapter` requires `.on(Anchor...)`. It renders once per targeted anchor whose box is on the open screen, and is measured from that box.
+
+A panel an adapter places whose elements are all hidden or empty (7.3.0), and that has no pinned size, is not placed: no empty frame, no claim. A panel of slot elements whose slots are not in the open menu is absent that way.
 
 Adapters and HUD panels are declarations. Declare them from the mod's initializer. Constructing, targeting or unregistering one after the client starts throws, the same as every other MenuKit declaration. A panel that comes and goes at runtime keeps its adapter and gates itself with `visibleWhen(...)`. A hidden panel is not measured, takes no room in its region and claims nothing.
 
@@ -317,7 +341,9 @@ An `Anchor` is a rectangle a mod names and supplies per screen: `Anchor.of(id, s
 
 ## Slot rendering
 
-Vanilla draws every slot. MenuKit runs no slot pass of its own on container screens. It keeps the order a frame is drawn in: FLOW panels, then the slots a slot library adds to panels, then OVERLAY panels. A panel over part of a vanilla slot hides that part and no more, and what a panel covers is inert (Claims).
+Vanilla draws every slot, through its own `extractSlot`, so every other mod's slot hook marks a slot wherever it is drawn. What MenuKit decides is when. The rule (7.3.0): a slot a panel shows draws right after that panel, and a panel above covers the slots of the panels below it. A slot no panel shows is vanilla's, drawn where vanilla draws it, and a panel over it hides it. A panel over part of a slot hides that part and no more, and what a panel covers is inert (Claims). Menu order decides nothing, so a vanilla slot a panel shows draws on the panel, not under it.
+
+To know which slots each panel shows before vanilla draws its slots, MenuKit lays the panels out once at the start of the frame without showing anything, and the slot elements report their slots. Vanilla's slot pass then leaves those slots out, and each panel draws its own right after its elements, with the hover highlights around the hovered one. Overlay panels do the same after the dim. A library's own screen draws its own panels under every slot, as before. A slot library that does not report its slots keeps the order it had before 7.3.0: its slots draw after the panels.
 
 A slot in a `ScrollContainer` (SlotKit's `SlotElement`) scrolls and clips like any element. A slot wholly out of view is not drawn, and its slot library parks it, so nothing hovers or clicks it. A slot across the viewport's top or bottom edge stays where it is, so nothing beside it moves, and is cut at the edge: vanilla draws only the part inside (item, count, durability, highlight), and only that part hovers, shows its tooltip and takes a click. A click on the part past the edge does nothing, so a carried item cannot drop there. The same holds under any other clip, such as a `Tabs` body. A slot library makes this work by calling `SlotClip.shown(ctx, slot)` (in `api.host`) when an element places a slot, which hands MenuKit the clip that element draws under. SlotKit's slot elements do, so a mod that puts slots in a scrolling panel has nothing to do.
 
