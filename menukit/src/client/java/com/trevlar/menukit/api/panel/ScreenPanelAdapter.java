@@ -148,8 +148,10 @@ public final class ScreenPanelAdapter {
 
     /**
      * Every screen a {@link ScreenMatcher} accepts, typically {@code ScreenMatcher.all()}
-     * or an {@code allExcept} opt-out. {@code ContainerPanel} uses this to scope its
-     * chrome.
+     * or an {@code allExcept} opt-out, or a scope only known per screen
+     * ({@link ScreenMatcher#where}, 7.3.0): a slot group's screens, so a mod's own
+     * panel of the group's slots shows on exactly the screens whose menus hold them.
+     * Asked once per screen, as it opens.
      */
     public ScreenPanelAdapter onMatching(ScreenMatcher matcher) {
         requireUndeclared();
@@ -172,7 +174,7 @@ public final class ScreenPanelAdapter {
 
     /** Whether this adapter's panel appears on {@code screen}. */
     public boolean matches(AbstractContainerScreen<?> screen) {
-        if (matcher != null) return matcher.matches(screen.getClass());
+        if (matcher != null) return matcher.matches(screen);
         if (targets == null) return true;
         for (Class<? extends AbstractContainerScreen<?>> target : targets) {
             if (target.isInstance(screen)) return true;

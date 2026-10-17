@@ -39,4 +39,16 @@ public interface AbstractContainerScreenAccessor {
     /** Vanilla's private hovered-slot back highlight, re-issued by {@code ContainerScreenLayers}. */
     @Invoker("extractSlotHighlightBack")
     void mk$extractSlotHighlightBack(GuiGraphicsExtractor graphics);
+
+    /** Vanilla's private hovered-slot front highlight, drawn after a slot a panel shows ({@code PresentedSlots}). */
+    @Invoker("extractSlotHighlightFront")
+    void mk$extractSlotHighlightFront(GuiGraphicsExtractor graphics);
+
+    /**
+     * The screen's own slot draw, for a slot a panel shows, right after that panel
+     * ({@code PresentedSlots}). Virtual, so a screen's override (the crafter's) and
+     * every other mod's {@code extractSlot} mixin still run.
+     */
+    @Invoker("extractSlot")
+    void mk$extractSlot(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY);
 }

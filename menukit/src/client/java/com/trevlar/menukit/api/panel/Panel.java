@@ -1009,6 +1009,22 @@ public class Panel {
         return 0;
     }
 
+    /**
+     * Whether nothing of this panel would show this frame (7.3.0): it has elements, none
+     * of them is shown with any height, and it has no pinned size. A panel placed by an
+     * adapter is then left off the screen entirely (no empty frame, no claim), so a
+     * panel of slot elements whose slots are not in the current menu, each of which
+     * reports itself hidden, is simply absent. A panel built with no elements, and one
+     * pinned to keep its room, are never "nothing".
+     */
+    public boolean showsNothing() {
+        if (elements.isEmpty() || pinnedWidth >= 0 || pinnedHeight >= 0) return false;
+        for (PanelElement e : elements) {
+            if (e.isVisible() && e.getHeight() > 0) return false;
+        }
+        return true;
+    }
+
     // Visibility
 
     /**

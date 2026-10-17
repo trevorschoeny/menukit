@@ -62,6 +62,8 @@ public final class SlotClips {
      */
     public static void record(Slot slot, @Nullable ScreenRectangle clip) {
         SHOWN.add(slot);
+        // The same report says which panel shows the slot (7.3.0): it draws after that panel.
+        PresentedSlots.record(slot);
         if (clip == null) CLIPS.remove(slot);
         else CLIPS.put(slot, clip);
     }

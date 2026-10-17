@@ -422,6 +422,18 @@ public final class ScreenPanelRegistry {
         LayerPlan.render(hostsOn(screen), LayerPlan.Layer.POPOVER, graphics, mouseX, mouseY, pointer);
     }
 
+    /**
+     * Every panel {@link ContainerScreenLayers} draws after vanilla's slot pass, in the
+     * order it draws them: the registry hosts' FLOW, then every host's POPOVER, then
+     * every host's OVERLAY. What its place pass lays out before the slot pass (7.3.0).
+     */
+    public static List<LayerPlan.Drawn> drawnAfterSlots(AbstractContainerScreen<?> screen) {
+        List<LayerPlan.Drawn> out = new ArrayList<>(LayerPlan.drawOrder(routedOn(screen), LayerPlan.Layer.FLOW));
+        out.addAll(LayerPlan.drawOrder(hostsOn(screen), LayerPlan.Layer.POPOVER));
+        out.addAll(LayerPlan.drawOrder(hostsOn(screen), LayerPlan.Layer.OVERLAY));
+        return out;
+    }
+
     /** Layer 4 of {@link ContainerScreenLayers}: the dim, then OVERLAY for every host on the screen. */
     public static void renderOverlay(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
                                      int mouseX, int mouseY) {

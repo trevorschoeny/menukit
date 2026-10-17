@@ -601,6 +601,10 @@ public final class PanelHost {
         Map<Object, Integer> stackEnd = new HashMap<>();
         for (Entry e : entries) {
             if (!isShown(e.panel())) continue;
+            // An adapter's panel with nothing to show (every element hidden or empty,
+            // such as slot elements whose slots this menu lacks) is not placed: no
+            // empty frame, no claim (7.3.0).
+            if (placesAdapters() && e.panel().showsNothing()) continue;
             if (mainPlaced != null && e == mainPlaced.entry()) {
                 out.add(mainPlaced);
                 continue;
@@ -609,6 +613,11 @@ public final class PanelHost {
             if (p != null) out.add(p);
         }
         return new Layout(List.copyOf(out), main);
+    }
+
+    /** Whether this host places panels mods declared through an adapter (a screen's, an anchor's). */
+    private boolean placesAdapters() {
+        return kind == Kind.CONTAINER || kind == Kind.VANILLA_SCREEN || kind == Kind.ANCHOR;
     }
 
     /** Resolves one entry, or {@code null} when it has no place this frame. */
@@ -917,14 +926,19 @@ public final class PanelHost {
         RenderContext ctx = new RenderContext(graphics, p.contentX(), p.contentY(), mx, my, panel.isDisabled(),
                 screenKind);
         if (live) liveRenderDepth++;
+        PresentedSlots.beginPanel(panel);
         try {
-            // Base pass, then the overlay pass (an open dropdown on top of every
-            // sibling), through the one child dispatch.
+            // Base pass, then the slots this panel shows on a container screen (7.3.0:
+            // a panel's slots draw right after it, over its chrome and under the next
+            // panel), then the overlay pass (an open dropdown on top of every sibling
+            // and of the slots), through the one child dispatch.
             List<PanelElement> shown = shownElements(panel);
             ChildDispatch.render(shown, ctx);
+            PresentedSlots.drawAfter(graphics, panel);
             ChildDispatch.renderOverlay(shown, ctx);
             panel.maybeQueueTooltip(graphics, p.x(), p.y(), p.w(), p.h(), mx, my, ctx.hasMouseInput());
         } finally {
+            PresentedSlots.endPanel();
             if (live) liveRenderDepth--;
         }
     }
