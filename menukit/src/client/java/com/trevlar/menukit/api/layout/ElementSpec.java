@@ -44,7 +44,11 @@ public interface ElementSpec {
     static ElementSpec of(PanelElement element) {
         return new ElementSpec() {
             @Override public int width()  { return element.getWidth(); }
-            @Override public int height() { return element.getHeight(); }
+            // The element's baseline height: what it grew by (a wrapped label, a vertical
+            // Flow's stack below its first child) is the panel's reflow to add, so the
+            // layout counts it once, not twice (7.3.0: a vertical Flow in a dialog left a
+            // gap of its own growth under it).
+            @Override public int height() { return element.getHeight() - element.extraLayoutHeight(); }
             @Override public PanelElement at(int x, int y) {
                 if (element instanceof AbstractPanelElement a) {
                     a.setChildPosition(x, y);

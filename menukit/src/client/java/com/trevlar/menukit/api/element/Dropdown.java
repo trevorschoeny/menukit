@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -43,17 +44,23 @@ import java.util.function.Supplier;
  * open, scroll and highlight state are the element's own view state. See
  * {@link PopoverControl} for what both dropdowns share.
  *
+ * <p>{@code triggerLabel(item -> text)} (7.3.0) gives the trigger its own text for the
+ * current item, while the rows keep {@code label}: a sort control's trigger reads
+ * "Sort: Name" over rows that read "Name".
+ *
  * @param <T> the value type; identity by {@code equals}
  */
 public final class Dropdown<T> extends PopoverControl<T> {
 
     private final Supplier<@Nullable T> stateGet;
     private final Consumer<T> stateSet;
+    private final Function<T, Component> triggerLabel;
 
     private Dropdown(Builder<T> b) {
         super(b);
         this.stateGet = b.stateGet;
         this.stateSet = b.stateSet;
+        this.triggerLabel = b.triggerLabel != null ? b.triggerLabel : label;
     }
 
     /** A dropdown over items you give it. */
@@ -77,7 +84,7 @@ public final class Dropdown<T> extends PopoverControl<T> {
     @Override
     protected Component triggerText() {
         T current = stateGet.get();
-        return current != null ? label.apply(current) : Component.empty();
+        return current != null ? triggerLabel.apply(current) : Component.empty();
     }
 
     @Override
@@ -95,6 +102,7 @@ public final class Dropdown<T> extends PopoverControl<T> {
     public static final class Builder<T> extends PopoverControl.Builder<T, Dropdown<T>, Builder<T>> {
         private @Nullable Supplier<@Nullable T> stateGet;
         private @Nullable Consumer<T> stateSet;
+        private @Nullable Function<T, Component> triggerLabel;
 
         private Builder() {}
 
@@ -107,6 +115,12 @@ public final class Dropdown<T> extends PopoverControl<T> {
         public Builder<T> state(Supplier<@Nullable T> get, Consumer<T> set) {
             this.stateGet = Objects.requireNonNull(get, "get");
             this.stateSet = Objects.requireNonNull(set, "set");
+            return this;
+        }
+
+        /** The trigger's text for the current item. Default: its {@code label}, as the rows show it. */
+        public Builder<T> triggerLabel(Function<T, Component> triggerLabel) {
+            this.triggerLabel = Objects.requireNonNull(triggerLabel, "triggerLabel");
             return this;
         }
 

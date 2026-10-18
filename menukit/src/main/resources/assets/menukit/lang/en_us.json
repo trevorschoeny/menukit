@@ -5,5 +5,16 @@
   "menukit.item_picker.remove": "Remove",
   "menukit.item_picker.added": "Added",
   "menukit.item_picker.not_added": "Not Added",
+  "menukit.list.remove": "Remove",
+  "menukit.list.remove_title": "Are you sure?",
+  "menukit.list.move_up": "Move up",
+  "menukit.list.move_down": "Move down",
+  "menukit.list.edit": "Edit",
+  "menukit.list.save": "Save",
+  "menukit.list.search": "Search",
+  "menukit.list.no_matches": "No matches",
+  "menukit.list.sort": "Sort: %s",
+  "menukit.list.ascending": "Ascending",
+  "menukit.list.descending": "Descending",
   "key.category.trevmods.trevmods": "Trev's Mods"
 }
