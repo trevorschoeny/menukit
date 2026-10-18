@@ -604,14 +604,31 @@ public final class Flow extends AbstractPanelElement {
         ChildDispatch.render(children, childContext(ctx));
     }
 
+    /** mockup: set by a list (round-3 variant E) on its selected row's card for this frame: a wash inside the Panel-look card. */
+    boolean mockupSelected = false;
+    /** mockup: the wash, a step brighter than a dropdown's selected row (0x60) so a whole card reads as picked. */
+    private static final int MOCKUP_SELECTED_WASH = 0x80FFFFFF;
+
     /** The card behind a boxed Flow's children, in the look of the screen's kind. */
     private void drawCard(RenderContext ctx) {
-        int x = ctx.originX() + childX, y = ctx.originY() + childY;
-        int w = lastWidth, h = lastHeight;
+        drawCard(ctx, childX, childY, lastWidth, lastHeight);
+        if (mockupSelected && ctx.kind() != ScreenKind.DEFAULT) {
+            int x = ctx.originX() + childX, y = ctx.originY() + childY;
+            ctx.graphics().fill(x + 2, y + 2, x + lastWidth - 2, y + lastHeight - 2, MOCKUP_SELECTED_WASH);
+        }
+    }
+
+    /**
+     * A card at {@code (cx, cy)} from the context's origin, {@code w} by {@code h}: what a
+     * boxed Flow draws behind its children, for another element of the list that needs
+     * the same box (a list row's controls in a box of their own).
+     */
+    static void drawCard(RenderContext ctx, int cx, int cy, int w, int h) {
+        int x = ctx.originX() + cx, y = ctx.originY() + cy;
         var g = ctx.graphics();
         if (ctx.kind() == ScreenKind.DEFAULT) {
             g.fill(x, y, x + w, y + h, CARD_FILL);
-            int border = ctx.isHovered(childX, childY, w, h) ? CARD_BORDER_HOVER : CARD_BORDER;
+            int border = ctx.isHovered(cx, cy, w, h) ? CARD_BORDER_HOVER : CARD_BORDER;
             g.fill(x, y, x + w, y + 1, border);
             g.fill(x, y + h - 1, x + w, y + h, border);
             g.fill(x, y + 1, x + 1, y + h - 1, border);
