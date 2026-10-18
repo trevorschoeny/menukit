@@ -9,6 +9,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.IntSupplier;
 
 /**
  * One row of an editing {@link ListView} (7.3.0): the consumer's row, and the list's
@@ -31,6 +32,11 @@ import java.util.List;
  * controls line up in columns. They are centred on the first line: a Section's
  * header, or a row's height less what it grew by ({@link PanelElement#extraLayoutHeight}).
  * A first line shorter than the controls moves the row down until they fit.
+ *
+ * <p>The toolbar is as wide as the list's rows, whatever room it is given
+ * ({@link #ListRow(PanelElement, List, IntSupplier)}): placed above the list's scroll
+ * area, its right end lines up with the rows' right end whether the scrollbar shows
+ * or not.
  */
 final class ListRow extends AbstractPanelElement {
 
@@ -55,8 +61,19 @@ final class ListRow extends AbstractPanelElement {
 
     /** The width the list gives the row; until the first pass, its natural width. */
     private int budget = -1;
+    /**
+     * The toolbar's: the width of the list's rows ({@code <= 0} until the list is laid
+     * out), which it never passes. Null for a row, which the list lays out itself.
+     */
+    private final @Nullable IntSupplier rowsWidth;
 
     ListRow(PanelElement row, List<PanelElement> controls) {
+        this(row, controls, null);
+    }
+
+    /** The toolbar: never wider than {@code rowsWidth}, the list's rows' width now. */
+    ListRow(PanelElement row, List<PanelElement> controls, @Nullable IntSupplier rowsWidth) {
+        this.rowsWidth = rowsWidth;
         this.row = row;
         this.controls = List.copyOf(controls);
         List<PanelElement> all = new ArrayList<>(controls.size() + 1);
@@ -113,9 +130,19 @@ final class ListRow extends AbstractPanelElement {
         return inside() ? row.naturalWidth() : row.naturalWidth() + LANE_GAP + laneWidth();
     }
 
+    /**
+     * The width it was given; the toolbar no wider than the rows. Read live, so when the
+     * list's scrollbar shows or hides, the toolbar's container sees the change and lays
+     * it out again.
+     */
     @Override
     public int getWidth() {
-        return budget > 0 ? budget : naturalWidth();
+        return budget > 0 ? capped(budget) : naturalWidth();
+    }
+
+    private int capped(int width) {
+        int rows = rowsWidth == null ? 0 : rowsWidth.getAsInt();
+        return rows > 0 ? Math.min(width, rows) : width;
     }
 
     @Override
@@ -133,7 +160,8 @@ final class ListRow extends AbstractPanelElement {
     @Override
     public void layoutWithin(int budget) {
         this.budget = Math.max(1, budget);
-        row.layoutWithin(inside() ? this.budget : Math.max(1, this.budget - LANE_GAP - laneWidth()));
+        int w = getWidth();
+        row.layoutWithin(inside() ? w : Math.max(1, w - LANE_GAP - laneWidth()));
     }
 
     @Override
