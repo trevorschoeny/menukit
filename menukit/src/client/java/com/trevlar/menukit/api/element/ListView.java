@@ -199,8 +199,9 @@ public final class ListView<T> extends AbstractPanelElement {
     /** The toolbar's search field and sort picker widths. */
     static final int SEARCH_WIDTH = 120, SORT_WIDTH = 100;
 
-    // The icons: white with vanilla's text shadow, drawn so the glyph and its shadow sit
-    // pixel-centred in the button. A row's up, down and remove are drawn in its 16 px
+    // The icons: white glyphs with no shadow, drawn in the look's text colour (Button's
+    // glyph), each pixel-centred in its button. Up and down are exact mirrors; remove's
+    // cross has the arrows' ink. A row's up, down and remove are drawn in its 16 px
     // buttons; the toolbar's up and down are the same glyphs padded to 16 px for its
     // 20 px buttons, so they draw 1:1 like the sort direction's.
     private static final Identifier MOVE_UP = icon("move_up"), MOVE_DOWN = icon("move_down"), REMOVE = icon("remove");
@@ -379,7 +380,7 @@ public final class ListView<T> extends AbstractPanelElement {
             // The direction: an icon button showing the order now (an arrow beside bars
             // that lengthen the way the values grow), its tooltip naming it; a click flips it.
             buttons.add(Button.builder().size(ADD_HEIGHT, ADD_HEIGHT)
-                    .icon(() -> sorting().reversed() ? DESCENDING : ASCENDING)
+                    .glyph(() -> sorting().reversed() ? DESCENDING : ASCENDING)
                     .tooltip(() -> Component.translatable(sorting().reversed() ? "menukit.list.descending" : "menukit.list.ascending"))
                     .onClick(() -> setSorting(new Sort(sorting().option(), !sorting().reversed())))
                     .disabledWhen(off)
@@ -408,7 +409,7 @@ public final class ListView<T> extends AbstractPanelElement {
 
     /** A toolbar arrow: a square icon button as tall as the add buttons, moving the selected row {@code by} one place. */
     private PanelElement barArrow(Identifier icon, String tooltip, int by) {
-        return Button.builder().icon(icon).size(ADD_HEIGHT, ADD_HEIGHT)
+        return Button.builder().glyph(() -> icon).size(ADD_HEIGHT, ADD_HEIGHT)
                 .tooltip(Component.translatable(tooltip))
                 .disabledWhen(() -> ownDisabled() || !moveEnabled(by))
                 .onClick(() -> moveSelected(by))
@@ -605,7 +606,7 @@ public final class ListView<T> extends AbstractPanelElement {
      * controls' height, greyed as every disabled button is, hidden on a pinned row.
      */
     private Button.Builder rowIcon(Identifier icon, String tooltip, Object k) {
-        return Button.builder().icon(icon).size(ListRow.CONTROL, ListRow.CONTROL)
+        return Button.builder().glyph(() -> icon).size(ListRow.CONTROL, ListRow.CONTROL)
                 .tooltip(Component.translatable(tooltip))
                 .visibleWhen(() -> !isPinned(k));
     }
