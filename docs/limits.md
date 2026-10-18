@@ -40,7 +40,7 @@ Behavior that is incomplete in the current release.
 | `MenuButton` | A label on the trigger, no icon. No submenus, no disabled rows. |
 | `fillHeight` | Fills in a panel, a vertical `Flow` and a `Tabs` page. In a panel the filling element takes the room down to the viewport's bottom, so an element placed under it by `Column` is overlapped: put the two in a vertical `Flow`. |
 | Secondary click and tint | `Button` and `Toggle` only. Other shipped elements take left clicks alone. A custom `PanelElement` handles any button in its own `mouseClicked`. |
-| `ScrollContainer` | Vertical only. No keyboard scrolling. The scrollbar stays visible. |
+| `ScrollContainer` | Vertical only. No keyboard scrolling. |
 | `Slider` | A 0 to 1 fraction, whole numbers (`ofInts`) or an enum's constants (`ofEnum`). No range handle, no vertical orientation. |
 | `WidgetHost` | A drag reaches the widget once a frame, not once per mouse event. A hosted widget draws itself, so it does not grey when disabled unless it greys itself. `overflow()` knows a widget's popup is open only by its keyboard focus. A hosted widget, like a control, stops being focusable a quarter second after it stops being drawn. |
 | `ColorField` | No eyedropper and no list of recent colours. The dialog opens only on a screen. Hex takes six or eight digits, not the three-digit short form. |

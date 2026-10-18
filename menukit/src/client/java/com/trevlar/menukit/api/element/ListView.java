@@ -13,6 +13,7 @@ import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
@@ -114,7 +115,7 @@ import java.util.function.Supplier;
  *     .items(groups::all).key(LockGroup::id).row(this::groupRow)
  *     .add(Component.literal("+ Slot group"), () -> groups.addSlotGroup())   // one button per kind
  *     .add(Component.literal("+ Item group"), () -> groups.addItemGroup())
- *     .remove(id -> groups.delete(id))                                       // a remove mark on each row
+ *     .remove(id -> groups.delete(id))                                       // a remove button on each row
  *     .confirmRemove(g -> Component.literal("Delete " + g.name() + "?"))     // asks first
  *     .move((id, toIndex) -> groups.move(id, toIndex))                       // up and down on each row
  *     .pinned(LockGroup::isDefault)                                          // no remove, no arrows
@@ -126,15 +127,14 @@ import java.util.function.Supplier;
  *       The action returns the new item's key, or {@code null} and the list finds the
  *       key that appeared; either way the new row is scrolled into view, and a search
  *       query that would hide it is cleared. {@link Builder#addDisabledWhen} greys them.</li>
- *   <li><b>Remove</b> ({@link Builder#remove}): a small remove mark (the item picker's
- *       corner remove, at a row's size) at each row's trailing edge;
- *       {@link Builder#confirmRemove} asks first, in a {@link ConfirmDialog} whose body
+ *   <li><b>Remove</b> ({@link Builder#remove}): a remove button (a cross) at each
+ *       row's trailing edge; {@link Builder#confirmRemove} asks first, in a {@link ConfirmDialog} whose body
  *       names the item, read when it shows.</li>
  *   <li><b>Move</b> ({@link Builder#move}): up and down buttons on each row, the top
  *       row's up and the bottom row's down greyed. {@code toIndex} is the place in
  *       {@code items()}. With a row selected, Alt+Up and Alt+Down move it.</li>
- *   <li><b>Pinned</b> ({@link Builder#pinned}): those rows have no remove mark and no
- *       arrows, and no other row moves past them. Their order is still yours.</li>
+ *   <li><b>Pinned</b> ({@link Builder#pinned}): those rows have no remove button and
+ *       no arrows, and no other row moves past them. Their order is still yours.</li>
  *   <li><b>Edit in a dialog</b> ({@link Builder#editDialog}): an Edit button on each
  *       row opens a dialog on a copy (the draft); Save writes it, Cancel and Escape
  *       drop it. Removing the row closes the dialog without saving.</li>
@@ -146,13 +146,15 @@ import java.util.function.Supplier;
  *       "contains" on the item's text; "No matches" shows when nothing does, distinct
  *       from {@code empty}. A selected row the query hides stays selected. While a
  *       query is typed the arrows are greyed. Two or more sorts get a picker
- *       ("Sort: Name") and a direction toggle; the first is the default. A list can't
+ *       ("Sort: Name") and a direction button (an arrow beside bars, its tooltip
+ *       "Ascending" or "Descending"; a click flips it); the first is the default. A list can't
  *       both sort and move: {@code build()} throws.</li>
  * </ul>
  *
  * <p>The controls sit in a lane at the row's trailing edge, the row given the width
  * less the lane, each control in a slot of its own whether or not it shows, so the
- * columns line up down the list. The lane is centred on the row's first line, so a
+ * columns line up down the list. Every one is the look's own button at one height,
+ * the icon ones (up, down, remove) square, a button's gap apart. The lane is centred on the row's first line, so a
  * section row that opens keeps its controls beside its header.
  *
  * @param <T> the item type
@@ -168,6 +170,15 @@ public final class ListView<T> extends AbstractPanelElement {
     static final int ADD_HEIGHT = Button.DEFAULT_HEIGHT;
     /** The toolbar's search field and sort picker widths. */
     static final int SEARCH_WIDTH = 120, SORT_WIDTH = 100;
+
+    // The icons on the lane's buttons and the sort direction: white with vanilla's text
+    // shadow, drawn so the glyph and its shadow sit pixel-centred in the button.
+    private static final Identifier MOVE_UP = icon("move_up"), MOVE_DOWN = icon("move_down"), REMOVE = icon("remove");
+    private static final Identifier ASCENDING = icon("sort_ascending"), DESCENDING = icon("sort_descending");
+
+    private static Identifier icon(String name) {
+        return Identifier.fromNamespaceAndPath("menukit", "icon/" + name);
+    }
 
     private static final AtomicLong IDS = new AtomicLong();
 
@@ -318,10 +329,12 @@ public final class ListView<T> extends AbstractPanelElement {
                     .triggerLabel(i -> Component.translatable("menukit.list.sort", sorts.get(i).label()))
                     .state(() -> sorting().option(), i -> setSorting(new Sort(i, sorting().reversed())))
                     .build());
-            bar.add(Toggle.builder().size(ADD_HEIGHT, ADD_HEIGHT)
-                    .label(() -> Component.literal(sorting().reversed() ? "↓" : "↑"))
+            // The direction: an icon button showing the order now (an arrow beside bars
+            // that lengthen the way the values grow), its tooltip naming it; a click flips it.
+            bar.add(Button.builder().size(ADD_HEIGHT, ADD_HEIGHT)
+                    .icon(() -> sorting().reversed() ? DESCENDING : ASCENDING)
                     .tooltip(() -> Component.translatable(sorting().reversed() ? "menukit.list.descending" : "menukit.list.ascending"))
-                    .state(() -> sorting().reversed(), v -> setSorting(new Sort(sorting().option(), v)))
+                    .onClick(() -> setSorting(new Sort(sorting().option(), !sorting().reversed())))
                     .build());
         }
         return bar.build();
@@ -488,21 +501,23 @@ public final class ListView<T> extends AbstractPanelElement {
                     .size(0, ListRow.CONTROL).onClick(() -> openEdit(k)).build());
         }
         if (move != null) {
-            controls.add(arrow("▲", "menukit.list.move_up", k, -1));
-            controls.add(arrow("▼", "menukit.list.move_down", k, 1));
+            controls.add(laneIcon(MOVE_UP, "menukit.list.move_up", k)
+                    .disabledWhen(() -> !canMove(k, -1)).onClick(() -> moveBy(k, -1)).build());
+            controls.add(laneIcon(MOVE_DOWN, "menukit.list.move_down", k)
+                    .disabledWhen(() -> !canMove(k, 1)).onClick(() -> moveBy(k, 1)).build());
         }
-        if (remove != null) controls.add(new ListRow.RemoveMark(() -> !isPinned(k), () -> askRemove(k)));
+        if (remove != null) controls.add(laneIcon(REMOVE, "menukit.list.remove", k).onClick(() -> askRemove(k)).build());
         return controls;
     }
 
-    /** An up or down button: hidden on a pinned row, greyed where the row can't go that way. */
-    private PanelElement arrow(String glyph, String tooltip, Object k, int by) {
-        return Button.builder().label(Component.literal(glyph)).size(ListRow.CONTROL, ListRow.CONTROL)
+    /**
+     * A square icon button for the lane (up, down, remove): the look's own button at the
+     * lane's height, greyed as every disabled button is, hidden on a pinned row.
+     */
+    private Button.Builder laneIcon(Identifier icon, String tooltip, Object k) {
+        return Button.builder().icon(icon).size(ListRow.CONTROL, ListRow.CONTROL)
                 .tooltip(Component.translatable(tooltip))
-                .visibleWhen(() -> !isPinned(k))
-                .disabledWhen(() -> !canMove(k, by))
-                .onClick(() -> moveBy(k, by))
-                .build();
+                .visibleWhen(() -> !isPinned(k));
     }
 
     private boolean isPinned(Object k) {
@@ -988,7 +1003,7 @@ public final class ListView<T> extends AbstractPanelElement {
         return focused;
     }
 
-    /** As a click on the remove mark of the row of {@code key}: removes, or opens the confirm. */
+    /** As a click on the remove button of the row of {@code key}: removes, or opens the confirm. */
     @ApiStatus.Internal
     public void clickRemove(Object key) {
         sync();
@@ -1163,7 +1178,7 @@ public final class ListView<T> extends AbstractPanelElement {
             return this;
         }
 
-        /** A remove mark at each row's trailing edge; a click hands the row's key to {@code remove}. */
+        /** A remove button at each row's trailing edge; a click hands the row's key to {@code remove}. */
         @SuppressWarnings("unchecked")
         public Builder<T, K> remove(Consumer<? super K> remove) {
             Objects.requireNonNull(remove, "remove");
@@ -1192,7 +1207,7 @@ public final class ListView<T> extends AbstractPanelElement {
             return this;
         }
 
-        /** Rows that stay put: no remove mark, no arrows, and no other row moves past them. Read every frame. */
+        /** Rows that stay put: no remove button, no arrows, and no other row moves past them. Read every frame. */
         public Builder<T, K> pinned(Predicate<? super T> pinned) {
             this.pinned = Objects.requireNonNull(pinned, "pinned");
             return this;

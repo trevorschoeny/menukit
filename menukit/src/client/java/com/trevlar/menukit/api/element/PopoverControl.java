@@ -260,7 +260,9 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         }
         if (chevron()) {
             Component chevron = Component.literal(open ? "▲" : "▼");
-            int chevX = tx + width - CHEVRON_RESERVED_W + (CHEVRON_RESERVED_W - font.width(chevron)) / 2 - 1;
+            // Its shadow ends TRIGGER_TEXT_PAD_X in from the right edge, as the label starts
+            // that far in from the left, clear of the Panel look's wider bevel.
+            int chevX = tx + width - CHEVRON_RESERVED_W + (CHEVRON_RESERVED_W - font.width(chevron)) / 2 - 2;
             g.text(font, chevron, chevX, firstLineY, color, true);
         }
 
