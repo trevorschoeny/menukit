@@ -269,6 +269,29 @@ public abstract class AbstractPanelElement implements PanelElement {
         return ctx.kind().textColor(disabled(ctx) ? TextRole.DISABLED : role);
     }
 
+    // A list row's controls on the row's own first line (7.3.0). Package-private: only
+    // MenuKit's own elements take part, and ListRow is the one caller.
+
+    /**
+     * Leaves {@code px} free at the trailing edge of this element's first line, inside
+     * its card if it draws one, for controls it does not own (a {@link ListView} row's
+     * Edit, arrows and remove). Returns whether it does; one that does not is narrowed
+     * whole and the controls sit beside it. Called once, before the first layout.
+     */
+    boolean reserveTrailing(int px) {
+        return false;
+    }
+
+    /**
+     * Where the room {@link #reserveTrailing} left is, once it returned {@code true}:
+     * {@code {top, height, right}}, the first line's top and height from this element's
+     * top, and its trailing edge's distance in from the right edge of the width it
+     * was given (a card's padding).
+     */
+    int[] trailingLine() {
+        return new int[]{0, getHeight() - Math.max(0, extraLayoutHeight()), 0};
+    }
+
     /**
      * The builder every MenuKit element's builder extends: the shared vocabulary,
      * in one place, with the same names everywhere. A concrete builder adds its
