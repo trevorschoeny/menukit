@@ -26,7 +26,7 @@ A `PanelElement` is one item inside a panel. Its position is relative to the pan
 |---|---|
 | Render only | `TextLabel`, `Icon`, `Divider`, `ItemDisplay`, `ProgressBar`, `InfoBox` |
 | Interactive | `Button`, `Toggle`, `Checkbox`, `Radio` (with `RadioGroup`), `Slider`, `TextField`, `Dropdown`, `DropdownMulti`, `ItemPicker`, `ColorField` |
-| Composite | `ScrollContainer`, `Flow`, `Section`, `Tabs`, `ConfirmDialog`, `AlertDialog` |
+| Composite | `ScrollContainer`, `Flow`, `Section`, `Tabs`, `ListView`, `ConfirmDialog`, `AlertDialog`, `EditDialog` |
 | Host | `WidgetHost`, for a vanilla-style widget made outside MenuKit |
 | Slot (SlotKit) | `SlotElement`, `SlotFlowElement`, in SlotKit |
 
@@ -193,9 +193,27 @@ A `ListView` (7.3.0) shows one row element per item of a list the mod owns, and 
 
 The list's height is its rows', read every frame. A list longer than its room goes in a `ScrollContainer`, usually one that fills (Size).
 
-`selection(get, set)` is a lens onto one selected key. A click on a row where none of its controls takes the click selects it, and the selected row has a thin outline. After a click in the list, Up and Down move the selection, except while a text field has the keyboard. When the selection changes other than by a click, by the mod's code or the arrow keys, the scroll area around the list scrolls the least distance that shows the selected row (`PanelElement.takeRevealRequest`). A selected key whose item is gone clears the selection through the setter. `empty(element)` shows in the list's place while there are no items.
+`selection(get, set)` is a lens onto one selected key. A click on a row where none of its controls takes the click selects it, and the selected row is marked (List editing, below). After a click in the list, Up and Down move the selection, except while a text field has the keyboard. When the selection changes other than by a click, by the mod's code or the arrow keys, the scroll area around the list scrolls the least distance that shows the selected row (`PanelElement.takeRevealRequest`). A selected key whose item is gone clears the selection through the setter. `empty(element)` shows in the list's place while there are no items.
 
 The attach and detach path is shared: `Attachment` remembers the screen a container's children are attached to, so any container that adds a child after build attaches it the way the screen's init does.
+
+## List editing
+
+Every editing option is optional, and a list with none of them is the list above, exactly. The data stays the mod's: the list only calls back and shows what `items()` returns next, so an add or move the mod refuses changes nothing.
+
+The options share one toolbar, `list.toolbar()`, an ordinary element the mod places above the list's scroll area so it stays put while the rows scroll. Left to right it holds the search field (`search(item -> text)`), taking the free width; the sort picker and its direction (two or more `sort(label, comparator)`, the first the default, `sortState(get, set)` to remember the choice); one add button per `add(label, action)`; then `- Remove item` (`remove(key -> ...)`, its label overridable with `remove(label, ...)`) and up and down arrows (`move((key, toIndex) -> ...)`). Remove and the arrows act on the selected row, and a click anywhere in a row selects it; without `selection(get, set)` the list keeps its own. They are grey while nothing is selected or the row can't do it: a `pinned(predicate)` row, up on the top row and down on the bottom one, a move past a pinned row, remove on a row a search hides, and either arrow while a query is typed. `confirmRemove(item -> body)` asks first in a `ConfirmDialog` whose body names the item. After a remove, the row that took its place is selected (the one before it when it was last), so repeated removes are quick. Alt+Up and Alt+Down move the selected row. An added row is scrolled into view, clearing a query that hides it. A list can't both sort and move: `build()` throws. A list whose toolbar is never asked for draws it at its own top.
+
+For a short list where each row is its own thing to edit, such as a config list of text fields, `controlsInRows()` puts up, down and a remove cross in every row instead, after a thin divider line: inside a card, on a `Section`'s header line, or beside a bare row. No selection is needed. Add stays in the toolbar.
+
+`disabledReason(text)` shows above the rows while the list's `disabledWhen` holds.
+
+The selected row reads in both looks: a white outline in the Default look (grey while the list doesn't have the keyboard), and in the Panel look a card washed lighter inside its border (a row that isn't a card keeps the outline).
+
+A row's own content is the mod's, and the list draws nothing in it beyond the selection and, with `controlsInRows()`, its controls. A mod's own controls in a row (a toggle, an Edit button) sit at the row's right end when a `Flow.spacer()` comes before them, and `crossAlign(CrossAlign.CENTER)` centres the row's labels on their line; any other placement is the row's own `Flow` layout.
+
+## Edit dialog
+
+An `EditDialog` (7.3.0) is a modal dialog for settings that take effect only on Save: a title, the mod's controls, Cancel and Save, laid out as every MenuKit dialog and as wide as its content. It is built and shown like a `ConfirmDialog`, a `Panel` whose visibility reads the mod's state. Its controls are lenses onto a draft, a copy the mod fills when it opens the dialog, so nothing changes behind it while the player edits. `onSave` writes the draft back and closes it; `onCancel`, which Escape also runs, just closes it. A mod opens it from any button of its own, such as an Edit button in a list row.
 
 ## Menu button
 

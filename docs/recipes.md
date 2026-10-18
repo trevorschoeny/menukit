@@ -474,6 +474,139 @@ static PanelElement sandboxRow(String id) {
 
 Result: one card per sandbox. Creating, duplicating or deleting one adds or removes its card at once, and the other cards stay as they are, a rename in progress included. Clicking a card's empty space selects it and shows its Rename button; Up and Down move the selection after that. Rename turns the name into a text field that already has the keyboard: Enter keeps the new name, Escape puts the old one back and leaves the screen open. The "..." button opens a menu whose Delete is red. The title and New stay where they are while the cards scroll under them. Put `page` in a standalone screen's main panel or in a `Tabs` page; it looks and works the same in both.
 
+## A list the player adds to, removes from and reorders
+
+Needs: MenuKit 7.3.0. For a short list of things with their own settings: lock groups, saved layouts, waypoint groups.
+
+```java
+// Three kinds to add, remove and the arrows act on the selected group, the two defaults pinned.
+ListView<LockGroup> groupList = ListView.<LockGroup>builder()
+        .items(groups::all)
+        .key(LockGroup::id)
+        .row(group -> groupRow(group.id()))
+        .add(Component.literal("+ Slot group"), groups::addSlotGroup)
+        .add(Component.literal("+ Item group"), groups::addItemGroup)
+        .add(Component.literal("+ Tag group"), groups::addTagGroup)
+        .remove(Component.literal("- Delete group"), groups::delete)
+        .confirmRemove(g -> Component.literal("Delete " + g.name() + "? Its " + g.locks() + " locks move to Slot lock."))
+        .move(groups::move)
+        .pinned(LockGroup::isDefault)
+        .build();
+// The toolbar above the scroll area stays put while the groups scroll under it.
+return Flow.builder().vertical().gap(2)
+        .add(groupList.toolbar())
+        .add(ScrollContainer.builder().fitWidth().fillHeight().content(List.of(groupList)).build())
+        .build();
+```
+
+Each row is a card holding a section that opens on the group's settings. The row is the mod's own: its toggle sits at the right end because a `Flow.spacer()` comes before it, and `crossAlign(CrossAlign.CENTER)` centres the label on the toggle's line.
+
+```java
+static PanelElement groupRow(String id) {
+    return Flow.builder().boxed()
+            .add(Section.builder(Component.literal(groups.name(id)))
+                    .summary(() -> Component.literal(groups.locks(id) + " locks"))
+                    .add(Flow.builder().crossAlign(CrossAlign.CENTER)
+                            .add(TextLabel.builder().text(Component.literal("Show in tooltips")).build())
+                            .add(Flow.spacer())
+                            .add(Toggle.builder().size(40, 20)
+                                    .label(() -> groups.inTooltips(id) ? CommonComponents.OPTION_ON : CommonComponents.OPTION_OFF)
+                                    .state(() -> groups.inTooltips(id), on -> groups.setInTooltips(id, on))
+                                    .build())
+                            .build())
+                    .build())
+            .build();
+}
+```
+
+Result: a toolbar with + Slot group, + Item group, + Tag group, - Delete group and up and down arrows at its right end, over a list of cards. Clicking anywhere on a card selects it: a white outline in the Default look, a lighter card in the Panel look. Delete and the arrows stay grey until a group is selected, and stay grey for the two default groups, for up on the top movable group and down on the bottom one. Delete asks first, naming the group and its lock count, and then selects the group that took its place, so a second click deletes the next. Alt+Up and Alt+Down move the selected group. An added group appears at the bottom, scrolled into view. A group's card opens in place and stays open through renames and refreshes.
+
+## A config list of values, each its own text field
+
+Needs: MenuKit 7.3.0. For a short list where every row is a value to edit: names, commands, item ids.
+
+```java
+// Each row is a text field; up, down and remove sit in the row, add in the toolbar.
+return ListView.<Entry>builder()
+        .items(names::all)
+        .key(Entry::id)
+        .row(entry -> TextField.builder().size(120, 20).fill()
+                .state(() -> names.text(entry.id()), text -> names.setText(entry.id(), text))
+                .build())
+        .add(Component.literal("+ Add name"), names::add)
+        .remove(names::remove)
+        .move(names::move)
+        .controlsInRows()
+        .build();
+```
+
+Result: one text field per value, each with a thin divider line after it and then up, down and a remove cross. Nothing needs selecting: the first row's up and the last row's down are grey, and the cross removes its row at once. + Add name in the toolbar adds an empty row at the bottom. In a card row the controls sit inside the card after the same divider.
+
+## A list the player searches and sorts
+
+Needs: MenuKit 7.3.0. For a long list the player looks things up in: waypoints, saved worlds, recipes.
+
+```java
+// A search field, and a sort picker with its direction, remembered by the mod.
+return ListView.<Waypoint>builder()
+        .items(waypoints::all)
+        .key(Waypoint::id)
+        .row(w -> Flow.builder().boxed().gap(6).crossAlign(CrossAlign.CENTER)
+                .add(TextLabel.builder().text(Component.literal(w.name())).build())
+                .add(Flow.spacer())
+                .add(TextLabel.builder().role(TextRole.MUTED).text(() -> Component.literal(waypoints.distance(w.id()) + " m")).build())
+                .build())
+        .search(Waypoint::name)
+        .sort(Component.literal("Name"), Comparator.comparing(Waypoint::name, String.CASE_INSENSITIVE_ORDER))
+        .sort(Component.literal("Distance"), Comparator.comparingInt((Waypoint w) -> waypoints.distance(w.id())))
+        .sortState(() -> waypointSort, sort -> waypointSort = sort)
+        .empty(TextLabel.builder().role(TextRole.MUTED).text(Component.literal("No waypoints yet")).build())
+        .build();
+```
+
+Result: a toolbar with a search field taking the free width, a "Sort: Name" picker and a direction button. Typing keeps the rows whose name holds the text, in any case; text nothing holds shows "No matches", and an empty list shows "No waypoints yet". Picking Distance reorders the rows, the direction button reverses them, and the choice is still there the next time the screen opens. Place `list.toolbar()` above the scroll area as in the first recipe. A list can't both sort and move: `build()` throws.
+
+## Edit a row in a dialog from its own button
+
+Needs: MenuKit 7.3.0. For a row whose settings are too many for the row and should only take effect on Save.
+
+```java
+static PanelElement saveRow(String id) {
+    // The row: the save's name, and its own Edit button at the right end.
+    return Flow.builder().boxed().gap(6).crossAlign(CrossAlign.CENTER)
+            .add(TextLabel.builder().text(() -> Component.literal(saves.name(id))).build())
+            .add(Flow.spacer())
+            .add(Button.builder().label(Component.literal("Edit")).size(40, 20)
+                    .onClick(() -> { saveDraft.name = saves.name(id); saveDraft.locked = saves.locked(id); editingSave = id; })
+                    .build())
+            .build();
+}
+```
+
+The dialog is built once and added with the screen's other panels, as a `ConfirmDialog` is:
+
+```java
+static Panel editSaveDialog() {
+    // Its controls are lenses on the draft; Save writes the draft back, Cancel and Escape drop it.
+    return EditDialog.builder()
+            .title(() -> Component.literal("Edit " + saves.name(editingSave)))
+            .content(Flow.builder().vertical().gap(4)
+                    .add(TextLabel.builder().text(Component.literal("Name")).build())
+                    .add(TextField.builder().size(160, 20).state(() -> saveDraft.name, v -> saveDraft.name = v).build())
+                    .add(Toggle.builder().size(160, 20)
+                            .label(() -> Component.literal(saveDraft.locked ? "Locked" : "Not locked"))
+                            .state(() -> saveDraft.locked, v -> saveDraft.locked = v)
+                            .build())
+                    .build())
+            .onSave(() -> { saves.update(editingSave, saveDraft.name, saveDraft.locked); editingSave = null; })
+            .onCancel(() -> editingSave = null)
+            .build()
+            .visibleWhen(() -> editingSave != null);
+}
+```
+
+Result: each card has an Edit button at its right end. Edit opens a dialog over the dimmed screen, titled with the save's name, as wide as its fields, with Cancel and Save centred under them. Changes in the dialog touch only the draft: the card behind it doesn't change until Save, and Cancel or Escape closes it with the save as it was.
+
 ## Show a panel on the screens that hold your slots
 
 Needs: MenuKit 7.3.0. For a panel of slot elements whose slots the server adds to some menus and not others.
