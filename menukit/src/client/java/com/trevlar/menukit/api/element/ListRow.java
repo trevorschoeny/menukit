@@ -2,6 +2,7 @@ package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.DialogLayout;
+import com.trevlar.menukit.core.VanillaLook;
 
 import net.minecraft.client.gui.screens.Screen;
 
@@ -47,6 +48,22 @@ final class ListRow extends AbstractPanelElement {
     /** The row's buttons, all this tall: Edit, and the square icon ones (up, down, remove). */
     static final int CONTROL = 16;
 
+    // mockup: where the controls sit, for the round-3 comparison shots; remove with Lane
+    // once one placement is picked. INSIDE is the shipped behaviour (inside the card,
+    // after its content); DIVIDER the same with a line between content and controls;
+    // BOXED outside the card in a card of their own, the list's gap apart; BARE outside
+    // the card with no box (a row that keeps no room always gets that).
+    enum Lane { INSIDE, DIVIDER, BOXED, BARE }
+
+    /** mockup: the DIVIDER lane's space on each side of its line: a card's padding, so the controls sit in a compartment as padded as the card. */
+    private static final int DIVIDER_PAD = Flow.BOX_PADDING;
+    /** mockup: the DIVIDER lane's line column: the Default look's divider is two lines (light, dark), the Panel look's one. */
+    private static final int DIVIDER_W = 2;
+
+    private final Lane lane;
+    /** mockup: the BOXED lane's space between the row's card and the controls' card: the list's gap between rows. */
+    private final int boxGap;
+
     private final PanelElement row;
     private final List<PanelElement> controls;
     /** Drawn in this order, the controls over the row; input goes the other way, the controls first. */
@@ -71,8 +88,19 @@ final class ListRow extends AbstractPanelElement {
         this(row, controls, null);
     }
 
+    /** mockup: a row whose controls sit in {@code lane}; {@code boxGap} is the list's gap, for BOXED. */
+    ListRow(PanelElement row, List<PanelElement> controls, Lane lane, int boxGap) {
+        this(row, controls, null, lane, boxGap);
+    }
+
     /** The toolbar: never wider than {@code rowsWidth}, the list's rows' width now. */
     ListRow(PanelElement row, List<PanelElement> controls, @Nullable IntSupplier rowsWidth) {
+        this(row, controls, rowsWidth, Lane.INSIDE, 0);
+    }
+
+    private ListRow(PanelElement row, List<PanelElement> controls, @Nullable IntSupplier rowsWidth, Lane lane, int boxGap) {
+        this.lane = lane;
+        this.boxGap = boxGap;
         this.rowsWidth = rowsWidth;
         this.row = row;
         this.controls = List.copyOf(controls);
@@ -84,8 +112,22 @@ final class ListRow extends AbstractPanelElement {
     }
 
     private boolean inside() {
-        if (inside == null) inside = row instanceof AbstractPanelElement r && r.reserveTrailing(LANE_GAP + laneWidth());
+        if (inside == null) {
+            // mockup: the outside lanes never ask the row for room; DIVIDER asks for its line and padding too.
+            int room = lane == Lane.DIVIDER ? DIVIDER_PAD + DIVIDER_W + DIVIDER_PAD + laneWidth() : LANE_GAP + laneWidth();
+            inside = (lane == Lane.INSIDE || lane == Lane.DIVIDER) && row instanceof AbstractPanelElement r && r.reserveTrailing(room);
+        }
         return inside;
+    }
+
+    /** What the controls take beside a row that keeps no room for them: a gap and the lane, or (mockup: BOXED) the list's gap and a padded card. */
+    private int besideWidth() {
+        return lane == Lane.BOXED ? boxGap + boxWidth() : LANE_GAP + laneWidth();
+    }
+
+    /** mockup: the BOXED lane's card: the controls with a card's padding either side. */
+    private int boxWidth() {
+        return Flow.BOX_PADDING + laneWidth() + Flow.BOX_PADDING;
     }
 
     /** The consumer's row inside. */
@@ -127,7 +169,7 @@ final class ListRow extends AbstractPanelElement {
 
     @Override
     public int naturalWidth() {
-        return inside() ? row.naturalWidth() : row.naturalWidth() + LANE_GAP + laneWidth();
+        return inside() ? row.naturalWidth() : row.naturalWidth() + besideWidth();
     }
 
     /**
@@ -161,7 +203,7 @@ final class ListRow extends AbstractPanelElement {
     public void layoutWithin(int budget) {
         this.budget = Math.max(1, budget);
         int w = getWidth();
-        row.layoutWithin(inside() ? w : Math.max(1, w - LANE_GAP - laneWidth()));
+        row.layoutWithin(inside() ? w : Math.max(1, w - besideWidth()));
     }
 
     @Override
@@ -176,7 +218,7 @@ final class ListRow extends AbstractPanelElement {
         int drop = rowDrop();
         if (row instanceof AbstractPanelElement r) r.setChildPosition(x, y + drop);
         int top = y + drop + centred(), laneH = laneHeight();
-        int cx = x + getWidth() - line()[2] - laneWidth();
+        int cx = x + getWidth() - line()[2] - laneWidth() - (lane == Lane.BOXED && !inside() ? Flow.BOX_PADDING : 0);
         for (PanelElement c : controls) {
             if (c instanceof AbstractPanelElement e) e.setChildPosition(cx, top + (laneH - c.getHeight()) / 2);
             cx += c.getWidth() + CONTROL_GAP;
@@ -187,7 +229,42 @@ final class ListRow extends AbstractPanelElement {
 
     @Override
     public void render(RenderContext ctx) {
-        ChildDispatch.render(all, ctx);
+        if (lane == Lane.INSIDE || lane == Lane.BARE) {
+            ChildDispatch.render(all, ctx);
+            return;
+        }
+        // mockup: the DIVIDER line and the BOXED card go over the row and under the controls.
+        ChildDispatch.render(List.of(row), ctx);
+        if (row.isVisible()) {
+            if (lane == Lane.BOXED && !inside()) boxCard(ctx);
+            if (lane == Lane.DIVIDER && inside()) dividerLine(ctx);
+        }
+        ChildDispatch.render(controls, ctx);
+    }
+
+    /** mockup: the controls' own card, beside the row's, as tall as it. */
+    private void boxCard(RenderContext ctx) {
+        int w = boxWidth();
+        Flow.drawCard(ctx, getChildX() + getWidth() - w, row.getChildY(), w, row.getHeight());
+    }
+
+    /**
+     * mockup: the line between the row's content and the controls, the card's inner
+     * height (inside the Default card's 1px border, inside the Panel card's border and
+     * bevel), in MenuKit's divider style for the look: vanilla's light and dark pair in
+     * the Default look, the Panel look's one grey line beside the controls' padding.
+     */
+    private void dividerLine(RenderContext ctx) {
+        var g = ctx.graphics();
+        int cx = ctx.originX() + getChildX() + getWidth() - line()[2] - laneWidth();
+        int x = cx - DIVIDER_PAD - DIVIDER_W;
+        int top = ctx.originY() + row.getChildY(), bottom = top + row.getHeight();
+        if (ctx.kind() == ScreenKind.DEFAULT) {
+            g.fill(x, top + 1, x + 1, bottom - 1, VanillaLook.SEPARATOR_LIGHT);
+            g.fill(x + 1, top + 1, x + 2, bottom - 1, VanillaLook.SEPARATOR_DARK);
+        } else {
+            g.fill(x + 1, top + 2, x + 2, bottom - 2, Divider.DEFAULT_COLOR);
+        }
     }
 
     @Override
