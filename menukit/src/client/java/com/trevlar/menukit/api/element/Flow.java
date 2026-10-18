@@ -151,6 +151,13 @@ public final class Flow extends AbstractPanelElement {
      */
     private int fillTo = -1;
 
+    /**
+     * Room kept free at the content's trailing edge for a list row's controls
+     * ({@link #reserveTrailing}), or 0; and the one child that keeps it instead, or null.
+     */
+    private int trailing = 0;
+    private @Nullable AbstractPanelElement trailingChild;
+
     // The last layout's hug size and the inputs it was computed from, so the
     // several geometry calls a frame makes do not each walk the children.
     private int lastWidth = 0;
@@ -237,7 +244,7 @@ public final class Flow extends AbstractPanelElement {
             total += c.naturalWidth();
             count++;
         }
-        return Math.max(1, total + Math.max(0, count - 1) * gapX + 2 * pad());
+        return Math.max(1, total + Math.max(0, count - 1) * gapX + 2 * pad() + trailing);
     }
 
     private int cap() {
@@ -258,7 +265,7 @@ public final class Flow extends AbstractPanelElement {
         int sig = signature();
         if (laidOut && sig == lastSignature) return;
         // Inside a card the children wrap at the width less the padding on both sides.
-        int cap = Math.max(1, cap() - 2 * pad());
+        int cap = Math.max(1, cap() - 2 * pad() - trailing);
         for (PanelElement c : children) {
             if (c.isVisible() && !(c instanceof Spacer)) c.layoutWithin(cap);
         }
@@ -307,7 +314,7 @@ public final class Flow extends AbstractPanelElement {
         // A boxed row fills the width it was given (each card is a full row of a
         // list); otherwise the Flow hugs its widest row. Either way the card's
         // padding wraps the rows.
-        lastWidth = boxed ? Math.max(cap(), widest + 2 * pad()) : widest;
+        lastWidth = boxed ? Math.max(cap(), widest + 2 * pad() + trailing) : widest;
         lastHeight = bottom + 2 * pad();
         laidOut = true;
         lastSignature = signature(); // after layout: a settled layout does not relayout
@@ -494,6 +501,44 @@ public final class Flow extends AbstractPanelElement {
 
     @Override
     public void fillWidth(int width) {}
+
+    /**
+     * A list row's controls on a row Flow's first row, at its trailing edge, inside the
+     * card when boxed: a Flow around one element that keeps the room itself (a
+     * {@link Section}, whose open content then keeps the whole width) hands it on;
+     * otherwise the Flow's content is that much narrower. A vertical Flow is a column
+     * with no line of its own to share, so it is narrowed whole beside the controls.
+     */
+    @Override
+    boolean reserveTrailing(int px) {
+        if (vertical) return false;
+        PanelElement only = null;
+        int count = 0;
+        for (PanelElement c : children) {
+            if (c instanceof Spacer) continue;
+            only = c;
+            count++;
+        }
+        if (count == 1 && only instanceof AbstractPanelElement a && a.reserveTrailing(px)) {
+            trailingChild = a;
+        } else {
+            trailing = Math.max(0, px);
+        }
+        laidOut = false;
+        return true;
+    }
+
+    /** The first row, inside the padding; or the line of the child that kept the room, where it sits. */
+    @Override
+    int[] trailingLine() {
+        relayout();
+        if (trailingChild != null) {
+            int[] line = trailingChild.trailingLine();
+            int right = cap() - (trailingChild.getChildX() - childX + trailingChild.getWidth());
+            return new int[]{trailingChild.getChildY() - childY + line[0], line[1], right + line[2]};
+        }
+        return new int[]{pad(), lastHeight - 2 * pad() - extraLayoutHeight(), pad()};
+    }
 
     /** A vertical Flow fills when a child of it does (a header over a filling list). */
     @Override
