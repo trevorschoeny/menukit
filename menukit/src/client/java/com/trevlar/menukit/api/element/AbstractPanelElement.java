@@ -275,7 +275,7 @@ public abstract class AbstractPanelElement implements PanelElement {
     /**
      * Leaves {@code px} free at the trailing edge of this element's first line, inside
      * its card if it draws one, for controls it does not own (a {@link ListView} row's
-     * Edit, arrows and remove). Returns whether it does; one that does not is narrowed
+     * arrows and remove, {@code controlsInRows}). Returns whether it does; one that does not is narrowed
      * whole and the controls sit beside it. Called once, before the first layout.
      */
     boolean reserveTrailing(int px) {
