@@ -1,5 +1,6 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.layout.CrossAlign;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.PanelRendering;
@@ -40,6 +41,24 @@ import java.util.Objects;
  * each end of a one-row Flow centres what is between them. When the row is
  * too narrow and wraps, a spacer that ends up at the start or end of a row takes
  * nothing, and the control sits under its label.
+ *
+ * <h3>Vertical alignment in a row (7.3.0)</h3>
+ *
+ * A row top-aligns its children by default. {@link Builder#crossAlign} with
+ * {@link CrossAlign#CENTER} centres each child on its row's line instead, and
+ * {@link CrossAlign#END} sets it on the line's bottom, so a label beside a
+ * 20 px control, or a mod's toggle beside a list's 16 px buttons, sit level with
+ * no pixel offsets. The line is the tallest child's first line: a child that grew
+ * past its baseline (an open {@link Section}, a wrapped label) aligns by its
+ * baseline and grows downward, so its header stays on the line.
+ *
+ * <pre>{@code
+ * Flow.builder().crossAlign(CrossAlign.CENTER)
+ *         .add(nameLabel)                  // centred on the toggle's height
+ *         .add(Flow.spacer())
+ *         .add(toggle)
+ *         .build();
+ * }</pre>
  *
  * <h3>Reactive sizing</h3>
  *
@@ -134,6 +153,8 @@ public final class Flow extends AbstractPanelElement {
     private final boolean vertical;
     /** Draws a card behind the children and insets them ({@link Builder#boxed()}). */
     private final boolean boxed;
+    /** Where a child sits on its row's line ({@link Builder#crossAlign}); START is today's top alignment. */
+    private final CrossAlign crossAlign;
 
     /** The width the panel gives the Flow; until the first pass, one row's worth. */
     private int budget = -1;
@@ -172,6 +193,7 @@ public final class Flow extends AbstractPanelElement {
         this.gapY = b.gapY;
         this.vertical = b.vertical;
         this.boxed = b.boxed;
+        this.crossAlign = b.crossAlign;
     }
 
     /** The card's padding on each side: {@link #BOX_PADDING} when boxed, else none. */
@@ -252,7 +274,7 @@ public final class Flow extends AbstractPanelElement {
     }
 
     /** One row of children, and the spacers in it. */
-    private record RowOf(List<PanelElement> members, int top) {}
+    private record RowOf(List<PanelElement> members) {}
 
     /**
      * Lays the shown children out: each to the Flow's width (a long label wraps),
@@ -278,18 +300,16 @@ public final class Flow extends AbstractPanelElement {
 
         List<RowOf> rows = new ArrayList<>();
         List<PanelElement> row = new ArrayList<>();
-        int x = 0, top = 0, rowH = 0;
+        int x = 0;
         for (PanelElement c : children) {
             if (!c.isVisible()) continue;
             boolean spacer = c instanceof Spacer;
             int w = spacer ? 0 : c.getWidth();
             boolean hasContent = row.stream().anyMatch(e -> !(e instanceof Spacer));
             if (!spacer && hasContent && x + gapX + w > cap) {
-                rows.add(new RowOf(row, top));
-                top += rowH + gapY;
+                rows.add(new RowOf(row));
                 row = new ArrayList<>();
                 x = 0;
-                rowH = 0;
             }
             // The gap sits between two pieces of content only. A spacer spends no gap
             // of its own (it is the stretchable part of one), so this pass counts the
@@ -299,17 +319,17 @@ public final class Flow extends AbstractPanelElement {
             if (!spacer && hasContent) x += gapX;
             row.add(c);
             x += w;
-            if (!spacer) rowH = Math.max(rowH, c.getHeight());
         }
-        if (!row.isEmpty()) rows.add(new RowOf(row, top));
+        if (!row.isEmpty()) rows.add(new RowOf(row));
 
-        int widest = 0, bottom = 0;
+        // Each row starts below the one before, as tall as what it holds once aligned
+        // on its line (top-aligned, that is its tallest child).
+        int widest = 0, top = 0, bottom = 0;
         for (RowOf r : rows) {
-            int w = place(r, cap, rows.size() > 1);
-            widest = Math.max(widest, w);
-            int h = 0;
-            for (PanelElement c : r.members()) h = Math.max(h, c.getHeight());
-            bottom = Math.max(bottom, r.top() + h);
+            int[] placed = place(r, top, cap, rows.size() > 1);
+            widest = Math.max(widest, placed[0]);
+            bottom = top + placed[1];
+            top = bottom + gapY;
         }
         // A boxed row fills the width it was given (each card is a full row of a
         // list); otherwise the Flow hugs its widest row. Either way the card's
@@ -385,12 +405,35 @@ public final class Flow extends AbstractPanelElement {
     }
 
     /**
-     * Places one row: children left to right with the gap between them, each
-     * spacer taking its share of the leftover (a spacer at either end of a row
-     * that wrapped takes nothing). Returns the row's width.
+     * A child's first line: its height, less what it grew by past it (an open
+     * {@link Section}, a wrapped label). A vertical Flow counts whole: what it reports
+     * is its stack, not growth.
      */
-    private int place(RowOf r, int cap, boolean wrapped) {
+    private static int baseline(PanelElement c) {
+        if (c instanceof Flow f && f.vertical) return c.getHeight();
+        return c.getHeight() - Math.max(0, c.extraLayoutHeight());
+    }
+
+    /** How far below the row's top a child sits: by {@link #crossAlign}, on a line {@code line} tall. */
+    private int alignOffset(PanelElement c, int line) {
+        return switch (crossAlign) {
+            case START, FILL -> 0;   // FILL is a Column's; a row treats it as START, as Row does
+            case CENTER -> (line - baseline(c)) / 2;
+            case END -> line - baseline(c);
+        };
+    }
+
+    /**
+     * Places one row at {@code top}: children left to right with the gap between them,
+     * each spacer taking its share of the leftover (a spacer at either end of a row
+     * that wrapped takes nothing), each child set on the row's line by
+     * {@link #crossAlign}. Returns the row's width and height.
+     */
+    private int[] place(RowOf r, int top, int cap, boolean wrapped) {
         List<PanelElement> m = r.members();
+        // The row's line: its tallest child's first line.
+        int line = 0;
+        for (PanelElement c : m) if (!(c instanceof Spacer)) line = Math.max(line, baseline(c));
         // Spacers between content count. One leading or trailing counts only while
         // the Flow is one row, so spacer, label, spacer centres the label; once it
         // wraps, the ends take nothing and a wrapped control sits at the left.
@@ -418,7 +461,7 @@ public final class Flow extends AbstractPanelElement {
         int leftover = Math.max(0, cap - fixed);
         int share = spacers > 0 ? leftover / spacers : 0;
         int odd = spacers > 0 ? leftover % spacers : 0;
-        int x = 0, seen = 0;
+        int x = 0, seen = 0, height = 0;
         contentBefore = false;
         for (int i = 0; i < m.size(); i++) {
             PanelElement c = m.get(i);
@@ -427,16 +470,18 @@ public final class Flow extends AbstractPanelElement {
                 if (live) seen++;
                 s.w = live ? share + (seen == spacers ? odd : 0) : 0;
                 s.x = innerX() + x;
-                s.y = innerY() + r.top();
+                s.y = innerY() + top;
                 x += s.w;
             } else {
                 if (contentBefore) x += gapX;
-                if (c instanceof AbstractPanelElement ape) ape.setChildPosition(innerX() + x, innerY() + r.top());
+                int dy = alignOffset(c, line);
+                if (c instanceof AbstractPanelElement ape) ape.setChildPosition(innerX() + x, innerY() + top + dy);
                 x += c.getWidth();
+                height = Math.max(height, dy + c.getHeight());
                 contentBefore = true;
             }
         }
-        return x;
+        return new int[]{x, height};
     }
 
     /**
@@ -491,10 +536,8 @@ public final class Flow extends AbstractPanelElement {
         int oneRow = 0;
         for (PanelElement c : children) {
             if (!c.isVisible()) continue;
-            // A vertical Flow's extra is its own stack below its first child, not growth: whole.
-            boolean grows = !vertical && !(c instanceof Flow f && f.vertical);
-            int baseline = grows ? c.getHeight() - Math.max(0, c.extraLayoutHeight()) : c.getHeight();
-            oneRow = Math.max(oneRow, baseline);
+            // In a column each child counts whole: what it reports is its stack, not growth.
+            oneRow = Math.max(oneRow, vertical ? c.getHeight() : baseline(c));
         }
         return Math.max(0, lastHeight - (oneRow + 2 * pad()));
     }
@@ -678,6 +721,7 @@ public final class Flow extends AbstractPanelElement {
         private int gapY = DEFAULT_GAP;
         private boolean vertical = false;
         private boolean boxed = false;
+        private CrossAlign crossAlign = CrossAlign.START;
 
         private Builder() {}
 
@@ -730,8 +774,25 @@ public final class Flow extends AbstractPanelElement {
             return this;
         }
 
+        /**
+         * Where each child sits on its row's line, in a row Flow. The default,
+         * {@link CrossAlign#START}, top-aligns them; {@link CrossAlign#CENTER} centres
+         * each on the line (a label level with the middle of its control);
+         * {@link CrossAlign#END} sets each on the line's bottom. {@code FILL} is a
+         * {@code Column}'s and reads as {@code START}. The line is the tallest child's
+         * first line; see the class notes. A vertical Flow throws at build on anything
+         * but {@code START}.
+         */
+        public Builder crossAlign(CrossAlign align) {
+            this.crossAlign = Objects.requireNonNull(align, "align");
+            return this;
+        }
+
         @Override
         public Flow build() {
+            if (vertical && crossAlign != CrossAlign.START) {
+                throw new IllegalStateException("Flow: crossAlign(" + crossAlign + ") is for a row Flow, not vertical()");
+            }
             return new Flow(this);
         }
     }

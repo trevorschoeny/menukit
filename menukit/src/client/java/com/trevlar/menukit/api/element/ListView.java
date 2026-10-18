@@ -156,8 +156,11 @@ import java.util.function.Supplier;
  *
  * Add, search and sort sit in one toolbar the list makes, {@link #toolbar()}: an
  * ordinary element you place above the list's scroll area, so it stays put while the
- * rows scroll. A list whose toolbar you never ask for draws it at its own top, above
- * the rows, and it scrolls with them. It greys with the list.
+ * rows scroll. It is as wide as the rows, so its right end lines up with theirs
+ * whether or not the scrollbar shows; place it at the scroll area's left edge, the
+ * rows' {@code gap} above it, so it reads as part of the list. A list whose toolbar
+ * you never ask for draws it at its own top, that gap above the rows, and it scrolls
+ * with them. It greys with the list.
  *
  * <h3>The row's controls, in the row</h3>
  *
@@ -178,7 +181,7 @@ public final class ListView<T> extends AbstractPanelElement {
     /** Selected outline while the list has the keyboard, and while it does not. */
     private static final int OUTLINE_FOCUSED = 0xFFFFFFFF, OUTLINE = 0xFF808080;
 
-    /** Between the list's parts (the toolbar when it draws it, the reason, the rows): a Flow's gap. */
+    /** Between the reason and the rows: a Flow's gap. The toolbar the list draws sits the rows' own gap above them. */
     static final int PART_GAP = Flow.DEFAULT_GAP;
     /** The toolbar's height: a vanilla button's, as are its add buttons, search field and sort picker. */
     static final int ADD_HEIGHT = Button.DEFAULT_HEIGHT;
@@ -353,8 +356,10 @@ public final class ListView<T> extends AbstractPanelElement {
             buttons.add(Button.builder().label(a.label()).size(0, ADD_HEIGHT)
                     .onClick(() -> runAdd(a.action())).disabledWhen(addOff).build());
         }
-        // The search field and the buttons share one line the way a row and its controls do.
-        return new ListRow(search, buttons);
+        // The search field and the buttons share one line the way a row and its controls
+        // do, the whole as wide as the rows: placed over the scroll area, its right end
+        // is theirs whether or not the scrollbar takes its lane.
+        return new ListRow(search, buttons, () -> budget);
     }
 
     /** The confirm for a remove, built once: its body names the item it is about, read while it shows. */
@@ -658,14 +663,15 @@ public final class ListView<T> extends AbstractPanelElement {
     /**
      * Stacks the parts from the list's own position: the toolbar while the list draws
      * it, the disabled reason, then the shown rows {@code gap} apart (or the empty
-     * element, or "No matches"), {@link #PART_GAP} between the parts.
+     * element, or "No matches"). The toolbar sits {@code gap} above what follows, as
+     * one more row would, so it reads as the list's own; the reason {@link #PART_GAP}.
      */
     private void place() {
         int y = 0;
         PanelElement bar = ownToolbar();
         if (bar != null) {
             ((AbstractPanelElement) bar).setChildPosition(childX, childY);
-            y = bar.getHeight() + PART_GAP;
+            y = bar.getHeight() + gap;
         }
         if (reason != null && reason.isVisible()) {
             ((AbstractPanelElement) reason).setChildPosition(childX, childY + y);
