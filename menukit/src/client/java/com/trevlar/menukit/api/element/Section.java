@@ -108,6 +108,9 @@ public final class Section extends AbstractPanelElement {
 
     private int resolvedWidth = -1;   // from layoutWithin; -1 until the first pass
 
+    /** Room kept free at the header's trailing edge for a list row's controls ({@link #reserveTrailing}). */
+    private int trailing = 0;
+
     // The content's height at one width, and the visibility and geometry signature
     // it was measured at (after layout, so a settled layout does not relayout).
     private int contentHeight = 0;
@@ -144,7 +147,7 @@ public final class Section extends AbstractPanelElement {
     // Layout
 
     private int contentTop() {
-        return childY + HEADER_HEIGHT + CONTENT_GAP;
+        return childY + headerHeight() + CONTENT_GAP;
     }
 
     /** Lays the children out to the current width when it, or any child's size or visibility, changed. */
@@ -191,15 +194,44 @@ public final class Section extends AbstractPanelElement {
     /** The header plus, when open, the content. */
     @Override
     public int getHeight() {
-        if (!isOpen()) return HEADER_HEIGHT;
+        if (!isOpen()) return headerHeight();
         relayout();
-        return contentHeight > 0 ? HEADER_HEIGHT + CONTENT_GAP + contentHeight : HEADER_HEIGHT;
+        return contentHeight > 0 ? headerHeight() + CONTENT_GAP + contentHeight : headerHeight();
     }
 
     /** Everything below the header: the panel pushes later rows down by this much. */
     @Override
     public int extraLayoutHeight() {
-        return getHeight() - HEADER_HEIGHT;
+        return getHeight() - headerHeight();
+    }
+
+    /**
+     * A list row's controls go on the header line, at its trailing edge: the header
+     * (its summary, its hover, its click) stops short of them, and the content under it
+     * keeps the whole width. The header line grows to the controls' height.
+     */
+    @Override
+    boolean reserveTrailing(int px) {
+        trailing = Math.max(0, px);
+        return true;
+    }
+
+    @Override
+    int[] trailingLine() {
+        return new int[]{0, headerHeight(), 0};
+    }
+
+    /**
+     * The header's height: {@link #HEADER_HEIGHT}, or as tall as a list row's controls
+     * when it holds them, so they sit within the header line and clear what opens under it.
+     */
+    private int headerHeight() {
+        return trailing > 0 ? Math.max(HEADER_HEIGHT, ListRow.CONTROL) : HEADER_HEIGHT;
+    }
+
+    /** The header's width: the section's, less the room kept for a list row's controls. */
+    private int headerWidth() {
+        return Math.max(1, getWidth() - trailing);
     }
 
     /** The whole header on one line, or the widest child, whichever is wider. */
@@ -212,7 +244,7 @@ public final class Section extends AbstractPanelElement {
         for (PanelElement e : children) {
             if (e.isVisible()) widest = Math.max(widest, e.getChildX() + e.naturalWidth());
         }
-        return Math.max(header, widest);
+        return Math.max(header + trailing, widest);
     }
 
     @Override public boolean isInteractive() { return true; }
@@ -225,7 +257,7 @@ public final class Section extends AbstractPanelElement {
         Font font = Minecraft.getInstance().font;
         boolean open = isOpen();
         boolean disabled = disabled(ctx);
-        int w = getWidth();
+        int w = headerWidth();
         int hx = ctx.originX() + childX, hy = ctx.originY() + childY;
         ScreenKind kind = ctx.kind();
         boolean vanilla = kind == ScreenKind.DEFAULT;
@@ -233,10 +265,10 @@ public final class Section extends AbstractPanelElement {
         int titleCol = disabled || titleColor == null ? textColor(ctx, TextRole.HEADING) : titleColor;
         int summaryCol = disabled || summaryColor == null ? textColor(ctx, TextRole.MUTED) : summaryColor;
 
-        if (!disabled && ctx.isHovered(childX, childY, w, HEADER_HEIGHT)) {
-            g.fill(hx, hy, hx + w, hy + HEADER_HEIGHT, vanilla ? HOVER_FILL_VANILLA : HOVER_FILL);
+        if (!disabled && ctx.isHovered(childX, childY, w, headerHeight())) {
+            g.fill(hx, hy, hx + w, hy + headerHeight(), vanilla ? HOVER_FILL_VANILLA : HOVER_FILL);
         }
-        int textY = Text.centeredTextY(hy, hy + HEADER_HEIGHT);
+        int textY = Text.centeredTextY(hy, hy + headerHeight());
         String arrow = open ? ARROW_OPEN : ARROW_CLOSED;
         // The header reads from the left in both looks, where the section's content
         // starts. Vanilla's category header is centred (KeyBindsList.CategoryEntry), but
@@ -246,7 +278,7 @@ public final class Section extends AbstractPanelElement {
         g.text(font, arrow, x, textY, titleCol, shadow);
         x += font.width(arrow);
         if (swatch != null) {
-            int sy = hy + (HEADER_HEIGHT - SWATCH) / 2;
+            int sy = hy + (headerHeight() - SWATCH) / 2;
             g.fill(x, sy, x + SWATCH, sy + SWATCH, swatch);
             x += SWATCH + SWATCH_GAP;
         }
@@ -286,7 +318,7 @@ public final class Section extends AbstractPanelElement {
     // Input
 
     private boolean onHeader(InputContext in) {
-        return in.isOver(childX, childY, getWidth(), HEADER_HEIGHT);
+        return in.isOver(childX, childY, headerWidth(), headerHeight());
     }
 
     /** The header, and when open any child under the point. Gaps in the content claim nothing. */

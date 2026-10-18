@@ -123,7 +123,8 @@ import java.util.function.Supplier;
  * }</pre>
  *
  * <ul>
- *   <li><b>Add</b> ({@link Builder#add}): one button per kind, in a row under the rows.
+ *   <li><b>Add</b> ({@link Builder#add}): one button per kind, at the right end of the
+ *       list's {@linkplain #toolbar() toolbar}.
  *       The action returns the new item's key, or {@code null} and the list finds the
  *       key that appeared; either way the new row is scrolled into view, and a search
  *       query that would hide it is cleared. {@link Builder#addDisabledWhen} greys them.</li>
@@ -141,8 +142,8 @@ import java.util.function.Supplier;
  *   <li><b>Disabled, with a reason</b> ({@link Builder#disabledReason}): while the
  *       list's own {@code disabledWhen} holds, the reason shows above the greyed rows.</li>
  *   <li><b>Search</b> ({@link Builder#search}) and <b>sort</b> ({@link Builder#sort}):
- *       in a toolbar the list makes, {@link #toolbar()}, that you place above the scroll
- *       area so it stays put while the rows scroll. Search is case-insensitive
+ *       in the toolbar, the search field on the left taking the free width, the sort
+ *       picker and its direction after it. Search is case-insensitive
  *       "contains" on the item's text; "No matches" shows when nothing does, distinct
  *       from {@code empty}. A selected row the query hides stays selected. While a
  *       query is typed the arrows are greyed. Two or more sorts get a picker
@@ -151,11 +152,24 @@ import java.util.function.Supplier;
  *       both sort and move: {@code build()} throws.</li>
  * </ul>
  *
- * <p>The controls sit in a lane at the row's trailing edge, the row given the width
- * less the lane, each control in a slot of its own whether or not it shows, so the
- * columns line up down the list. Every one is the look's own button at one height,
- * the icon ones (up, down, remove) square, a button's gap apart. The lane is centred on the row's first line, so a
- * section row that opens keeps its controls beside its header.
+ * <h3>The toolbar</h3>
+ *
+ * Add, search and sort sit in one toolbar the list makes, {@link #toolbar()}: an
+ * ordinary element you place above the list's scroll area, so it stays put while the
+ * rows scroll. A list whose toolbar you never ask for draws it at its own top, above
+ * the rows, and it scrolls with them. It greys with the list.
+ *
+ * <h3>The row's controls, in the row</h3>
+ *
+ * Edit, up, down and remove sit inside the row, on its first line at its trailing
+ * edge, and the row's own content has the rest of that line. In a boxed {@link Flow}
+ * (a card) they are inside the card; in a {@link Section}, alone or in a card, they
+ * are on its header line and what opens under it has the whole width. Anything else
+ * (a bare text field) is narrowed and they sit beside it. The list draws nothing of
+ * its own around a row: the row stays yours, whatever is on its first line or under
+ * it. Each control keeps its slot whether or not it shows, so the columns line up
+ * down the list; every one is the look's own button at one height, the icon ones
+ * (up, down, remove) square, a button's gap apart.
  *
  * @param <T> the item type
  */
@@ -164,14 +178,14 @@ public final class ListView<T> extends AbstractPanelElement {
     /** Selected outline while the list has the keyboard, and while it does not. */
     private static final int OUTLINE_FOCUSED = 0xFFFFFFFF, OUTLINE = 0xFF808080;
 
-    /** Between the list's parts (the reason, the rows, the add buttons): a Flow's gap. */
+    /** Between the list's parts (the toolbar when it draws it, the reason, the rows): a Flow's gap. */
     static final int PART_GAP = Flow.DEFAULT_GAP;
-    /** The add buttons' height, a vanilla button's; the toolbar's controls are as tall. */
+    /** The toolbar's height: a vanilla button's, as are its add buttons, search field and sort picker. */
     static final int ADD_HEIGHT = Button.DEFAULT_HEIGHT;
     /** The toolbar's search field and sort picker widths. */
     static final int SEARCH_WIDTH = 120, SORT_WIDTH = 100;
 
-    // The icons on the lane's buttons and the sort direction: white with vanilla's text
+    // The icons on the row's buttons and the sort direction: white with vanilla's text
     // shadow, drawn so the glyph and its shadow sit pixel-centred in the button.
     private static final Identifier MOVE_UP = icon("move_up"), MOVE_DOWN = icon("move_down"), REMOVE = icon("remove");
     private static final Identifier ASCENDING = icon("sort_ascending"), DESCENDING = icon("sort_descending");
@@ -204,11 +218,13 @@ public final class ListView<T> extends AbstractPanelElement {
     private final boolean edits;
 
     // The elements the list makes for those options: null when the option is off.
-    private final @Nullable PanelElement addRow;
     private final @Nullable PanelElement reason;
     private final @Nullable PanelElement noMatches;
     private final @Nullable PanelElement toolbar;
     private final @Nullable Panel confirm;
+    private final List<AddKind> adds;
+    /** Whether the consumer took the toolbar to place ({@link #toolbar()}); until then the list draws it at its top. */
+    private boolean toolbarTaken = false;
 
     // The rows: the keys in items() order, and the row for each key, kept across frames.
     private List<Object> keys = List.of();
@@ -276,12 +292,12 @@ public final class ListView<T> extends AbstractPanelElement {
         this.sortSet = b.sortSet;
         this.edits = !b.adds.isEmpty() || remove != null || move != null || pinned != null || edit != null
                 || searchText != null || !sorts.isEmpty();
-        this.addRow = b.adds.isEmpty() ? null : addRow(b.adds, b.addDisabled);
+        this.adds = List.copyOf(b.adds);
         this.reason = b.disabledReason == null ? null
                 : TextLabel.builder().text(b.disabledReason).visibleWhen(this::ownDisabled).build();
         this.noMatches = searchText == null ? null
                 : TextLabel.builder().role(TextRole.MUTED).text(Component.translatable("menukit.list.no_matches")).build();
-        this.toolbar = searchText == null && sorts.size() < 2 ? null : makeToolbar();
+        this.toolbar = b.adds.isEmpty() && searchText == null && sorts.size() < 2 ? null : makeToolbar(b.adds, b.addDisabled);
         this.confirm = confirmRemove == null ? null : makeConfirm();
     }
 
@@ -295,49 +311,50 @@ public final class ListView<T> extends AbstractPanelElement {
 
     // The elements the editing options add
 
-    /** The add buttons, side by side under the rows, one per kind, greyed while {@code addDisabledWhen} holds. */
-    private PanelElement addRow(List<AddKind> adds, @Nullable BooleanSupplier disabled) {
-        Flow.Builder row = Flow.builder().gap(DialogLayout.BUTTON_GAP);
-        for (AddKind a : adds) {
-            Button.Builder button = Button.builder().label(a.label()).size(0, ADD_HEIGHT).onClick(() -> runAdd(a.action()));
-            if (disabled != null) button.disabledWhen(disabled);
-            row.add(button.build());
-        }
-        return row.build();
-    }
-
     /**
-     * The search field, then with two or more sorts the picker and its direction, side by
-     * side from the left: nothing at the far edge, so the toolbar lines up with the rows
-     * whatever lane a scroll area keeps at their right.
+     * The toolbar: the search field on the left taking the width the rest leaves; then,
+     * at the right end, with two or more sorts the picker and its direction, and the add
+     * buttons, one per kind. Each part only when its option is on; with no search the
+     * buttons alone, at the right. Every part greys with the list, wherever the toolbar
+     * is placed, and the add buttons also while {@code addDisabledWhen} holds.
      */
-    private PanelElement makeToolbar() {
-        Flow.Builder bar = Flow.builder().gap(DialogLayout.BUTTON_GAP);
-        if (searchText != null) {
-            bar.add(TextField.builder().size(SEARCH_WIDTH, ADD_HEIGHT)
-                    .hint(Component.translatable("menukit.list.search"))
-                    .label(Component.translatable("menukit.list.search"))
-                    .state(() -> query, q -> query = q)
-                    .build());
-        }
+    private PanelElement makeToolbar(List<AddKind> adds, @Nullable BooleanSupplier addDisabled) {
+        BooleanSupplier off = this::ownDisabled;
+        PanelElement search = searchText == null
+                ? Flow.builder().build()   // nothing on the left: the buttons keep the right end
+                : TextField.builder().size(SEARCH_WIDTH, ADD_HEIGHT).fill()
+                        .hint(Component.translatable("menukit.list.search"))
+                        .label(Component.translatable("menukit.list.search"))
+                        .state(() -> query, q -> query = q)
+                        .disabledWhen(off)
+                        .build();
+        List<PanelElement> buttons = new ArrayList<>();
         if (sorts.size() >= 2) {
             List<Integer> options = new ArrayList<>();
             for (int i = 0; i < sorts.size(); i++) options.add(i);
-            bar.add(Dropdown.<Integer>builder().size(SORT_WIDTH, ADD_HEIGHT)
+            buttons.add(Dropdown.<Integer>builder().size(SORT_WIDTH, ADD_HEIGHT)
                     .items(options)
                     .label(i -> sorts.get(i).label())
                     .triggerLabel(i -> Component.translatable("menukit.list.sort", sorts.get(i).label()))
                     .state(() -> sorting().option(), i -> setSorting(new Sort(i, sorting().reversed())))
+                    .disabledWhen(off)
                     .build());
             // The direction: an icon button showing the order now (an arrow beside bars
             // that lengthen the way the values grow), its tooltip naming it; a click flips it.
-            bar.add(Button.builder().size(ADD_HEIGHT, ADD_HEIGHT)
+            buttons.add(Button.builder().size(ADD_HEIGHT, ADD_HEIGHT)
                     .icon(() -> sorting().reversed() ? DESCENDING : ASCENDING)
                     .tooltip(() -> Component.translatable(sorting().reversed() ? "menukit.list.descending" : "menukit.list.ascending"))
                     .onClick(() -> setSorting(new Sort(sorting().option(), !sorting().reversed())))
+                    .disabledWhen(off)
                     .build());
         }
-        return bar.build();
+        BooleanSupplier addOff = addDisabled == null ? off : () -> ownDisabled() || addDisabled.getAsBoolean();
+        for (AddKind a : adds) {
+            buttons.add(Button.builder().label(a.label()).size(0, ADD_HEIGHT)
+                    .onClick(() -> runAdd(a.action())).disabledWhen(addOff).build());
+        }
+        // The search field and the buttons share one line the way a row and its controls do.
+        return new ListRow(search, buttons);
     }
 
     /** The confirm for a remove, built once: its body names the item it is about, read while it shows. */
@@ -361,17 +378,25 @@ public final class ListView<T> extends AbstractPanelElement {
     }
 
     /**
-     * The toolbar: the search field and the sort control, an ordinary element to put
-     * above the list's scroll area (it stays put while the rows scroll). The same
-     * element every call.
+     * The toolbar: the add buttons, the search field and the sort control, whichever the
+     * list has, an ordinary element to put above the list's scroll area so it stays put
+     * while the rows scroll. Once this is called the list leaves the toolbar to you; a
+     * list whose toolbar is never asked for draws it at its own top, above the rows (it
+     * then scrolls with them). The same element every call.
      *
-     * @throws IllegalStateException when the list has neither {@code search} nor two or more {@code sort}s
+     * @throws IllegalStateException when the list has no {@code add}, no {@code search} and fewer than two {@code sort}s
      */
     public PanelElement toolbar() {
         if (toolbar == null) {
-            throw new IllegalStateException("ListView: toolbar() is for a list with search(...) or two or more sort(...)");
+            throw new IllegalStateException("ListView: toolbar() is for a list with add(...), search(...) or two or more sort(...)");
         }
+        toolbarTaken = true;
         return toolbar;
+    }
+
+    /** The toolbar while the list draws it itself (nobody took it), or {@code null}. */
+    private @Nullable PanelElement ownToolbar() {
+        return toolbarTaken ? null : toolbar;
     }
 
     // Keyed reconciliation
@@ -493,7 +518,7 @@ public final class ListView<T> extends AbstractPanelElement {
         return row;
     }
 
-    /** The lane's controls for the row of key {@code k}, in order: Edit, up, down, remove. */
+    /** The row's controls for key {@code k}, in order: Edit, up, down, remove. */
     private List<PanelElement> controls(Object k) {
         List<PanelElement> controls = new ArrayList<>(4);
         if (edit != null) {
@@ -501,20 +526,20 @@ public final class ListView<T> extends AbstractPanelElement {
                     .size(0, ListRow.CONTROL).onClick(() -> openEdit(k)).build());
         }
         if (move != null) {
-            controls.add(laneIcon(MOVE_UP, "menukit.list.move_up", k)
+            controls.add(rowIcon(MOVE_UP, "menukit.list.move_up", k)
                     .disabledWhen(() -> !canMove(k, -1)).onClick(() -> moveBy(k, -1)).build());
-            controls.add(laneIcon(MOVE_DOWN, "menukit.list.move_down", k)
+            controls.add(rowIcon(MOVE_DOWN, "menukit.list.move_down", k)
                     .disabledWhen(() -> !canMove(k, 1)).onClick(() -> moveBy(k, 1)).build());
         }
-        if (remove != null) controls.add(laneIcon(REMOVE, "menukit.list.remove", k).onClick(() -> askRemove(k)).build());
+        if (remove != null) controls.add(rowIcon(REMOVE, "menukit.list.remove", k).onClick(() -> askRemove(k)).build());
         return controls;
     }
 
     /**
-     * A square icon button for the lane (up, down, remove): the look's own button at the
-     * lane's height, greyed as every disabled button is, hidden on a pinned row.
+     * A square icon button for a row (up, down, remove): the look's own button at the
+     * controls' height, greyed as every disabled button is, hidden on a pinned row.
      */
-    private Button.Builder laneIcon(Identifier icon, String tooltip, Object k) {
+    private Button.Builder rowIcon(Identifier icon, String tooltip, Object k) {
         return Button.builder().icon(icon).size(ListRow.CONTROL, ListRow.CONTROL)
                 .tooltip(Component.translatable(tooltip))
                 .visibleWhen(() -> !isPinned(k));
@@ -631,15 +656,20 @@ public final class ListView<T> extends AbstractPanelElement {
     }
 
     /**
-     * Stacks the parts from the list's own position: the disabled reason, the shown rows
-     * {@code gap} apart (or the empty element, or "No matches"), then the add buttons,
-     * {@link #PART_GAP} between the parts.
+     * Stacks the parts from the list's own position: the toolbar while the list draws
+     * it, the disabled reason, then the shown rows {@code gap} apart (or the empty
+     * element, or "No matches"), {@link #PART_GAP} between the parts.
      */
     private void place() {
         int y = 0;
+        PanelElement bar = ownToolbar();
+        if (bar != null) {
+            ((AbstractPanelElement) bar).setChildPosition(childX, childY);
+            y = bar.getHeight() + PART_GAP;
+        }
         if (reason != null && reason.isVisible()) {
-            ((AbstractPanelElement) reason).setChildPosition(childX, childY);
-            y = reason.getHeight() + PART_GAP;
+            ((AbstractPanelElement) reason).setChildPosition(childX, childY + y);
+            y += reason.getHeight() + PART_GAP;
         }
         int top = y;
         boolean first = true;
@@ -655,11 +685,6 @@ public final class ListView<T> extends AbstractPanelElement {
         if (stand != null) {
             if (stand instanceof AbstractPanelElement e) e.setChildPosition(childX, childY + y);
             if (stand.isVisible()) y += stand.getHeight();
-        }
-        if (addRow != null) {
-            if (y > 0) y += PART_GAP;
-            ((AbstractPanelElement) addRow).setChildPosition(childX, childY + y);
-            y += addRow.getHeight();
         }
         totalHeight = y;
     }
@@ -695,12 +720,13 @@ public final class ListView<T> extends AbstractPanelElement {
         return all;
     }
 
-    /** The list's own parts besides the rows: the reason and the add buttons. */
+    /** The list's own parts besides the rows: the toolbar while it draws it, and the reason. */
     private List<PanelElement> parts() {
-        if (reason == null && addRow == null) return List.of();
+        PanelElement bar = ownToolbar();
+        if (reason == null && bar == null) return List.of();
         List<PanelElement> parts = new ArrayList<>(2);
+        if (bar != null) parts.add(bar);
         if (reason != null) parts.add(reason);
-        if (addRow != null) parts.add(addRow);
         return parts;
     }
 
@@ -777,7 +803,8 @@ public final class ListView<T> extends AbstractPanelElement {
         RenderContext inner = childContext(ctx);
         // The reason is what explains the grey, so it is not greyed itself.
         if (reason != null && reason.isVisible()) reason.render(ctx);
-        if (addRow != null) addRow.render(inner);
+        PanelElement bar = ownToolbar();
+        if (bar != null) bar.render(inner);
         if (shown.isEmpty()) {
             PanelElement stand = standIn();
             if (stand != null && stand.isVisible()) stand.render(inner);
@@ -853,7 +880,7 @@ public final class ListView<T> extends AbstractPanelElement {
         return null;
     }
 
-    /** Over a row's whole width (its empty area selects it), over the empty element, or over an add button. */
+    /** Over a row's whole width (its empty area selects it), over the empty element, or over the toolbar or the reason. */
     @Override
     public boolean hitTest(InputContext in) {
         settle();
@@ -1017,6 +1044,13 @@ public final class ListView<T> extends AbstractPanelElement {
         openEdit(key);
     }
 
+    /** As a click on the add button of the {@code kind}th {@code add(...)}, from 0. */
+    @ApiStatus.Internal
+    public void clickAdd(int kind) {
+        sync();
+        runAdd(adds.get(kind).action());
+    }
+
     /** As typing in the search field: the query now. */
     @ApiStatus.Internal
     public void typeQuery(String query) {
@@ -1153,7 +1187,7 @@ public final class ListView<T> extends AbstractPanelElement {
         // Editing (7.3.0)
 
         /**
-         * An add button under the rows, labelled {@code label}; call once per kind of
+         * An add button in the {@link ListView#toolbar() toolbar}, labelled {@code label}; call once per kind of
          * item. {@code action} adds to your data and returns the new item's key (or
          * {@code null}: the list finds the key that appeared). The new row is scrolled
          * into view, and a search query that would hide it is cleared.
@@ -1178,7 +1212,7 @@ public final class ListView<T> extends AbstractPanelElement {
             return this;
         }
 
-        /** A remove button at each row's trailing edge; a click hands the row's key to {@code remove}. */
+        /** A remove button on each row's first line, at its trailing edge; a click hands the row's key to {@code remove}. */
         @SuppressWarnings("unchecked")
         public Builder<T, K> remove(Consumer<? super K> remove) {
             Objects.requireNonNull(remove, "remove");
