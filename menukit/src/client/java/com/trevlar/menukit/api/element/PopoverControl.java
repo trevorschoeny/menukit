@@ -13,9 +13,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.util.Util;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -42,6 +45,26 @@ import java.util.function.Supplier;
  * {@link RenderContext} it is asked with (the trigger's origin), not from a
  * position cached at the last render.
  *
+ * <h3>Pinned rows as values (7.3.0)</h3>
+ *
+ * {@code Builder.pinned(items)} pins a handful of {@code T} values above the
+ * scrollable list, picked through the same {@link #pick} and shown with the same
+ * {@link #isSelected} a scrollable row uses: a dropdown's fixed top-level choices
+ * above its many finer-grained ones (five categories above eighty entity types).
+ * Distinct from a subclass's own action rows ({@link DropdownMulti}'s Select all
+ * and Clear all, which pick nothing of type {@code T}); a subclass that overrides
+ * {@link #pinnedRowCount}, {@link #pinnedLabel} and {@link #pickPinned} itself
+ * (as {@link DropdownMulti} does) is unaffected by {@code pinned(items)}.
+ *
+ * <h3>Search (7.3.0)</h3>
+ *
+ * {@code Builder.searchable()} adds a text field at the popover's top, below the
+ * pinned rows and their divider: typing filters the scrollable rows by their
+ * label text, case-insensitive "contains". The pinned rows are never filtered
+ * (there are only a handful, and they are the stable top-level choices). Focused
+ * automatically when the popover opens; the query resets whenever the popover
+ * closes. Arrow keys, Enter and the wheel act on the filtered rows.
+ *
  * @param <T> the item type
  */
 abstract class PopoverControl<T> extends AbstractPanelElement {
@@ -56,6 +79,10 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     private static final int SCROLLBAR_W = 4;
     /** Space under the pinned rows (1px line and 1px air). */
     private static final int SEPARATOR_HEIGHT = 2;
+    /** The search field's height: the same as every other MenuKit search box (ItemDialog's, ListView's toolbar). */
+    private static final int SEARCH_FIELD_HEIGHT = 20;
+    /** Air above and below the search field, between the pinned divider and the scrollable rows. */
+    private static final int SEARCH_PAD = 2;
 
     private static final int COLOR_ROW_HOVER = 0x40FFFFFF;
     private static final int COLOR_ROW_SELECTED = 0x60FFFFFF;
@@ -67,6 +94,11 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     protected final Function<T, Component> label;
     private final int maxVisibleItems;
     private final @Nullable Function<T, Component> itemTooltip;
+    /** The builder's {@code pinned(items)} (7.3.0), empty unless a consumer gave any; see the class doc. */
+    private final List<T> pinnedItems;
+    private final boolean searchable;
+    /** The search field (7.3.0), built once when {@code searchable()} was set, else {@code null}. */
+    private final @Nullable TextField searchField;
 
     // View state
     private boolean open = false;
@@ -75,6 +107,8 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     private int highlighted = -1;
     /** When the popover opened: long row labels start their scroll at the beginning. */
     private long openedAt = 0L;
+    /** The search field's text (7.3.0): filters the scrollable rows only; reset whenever the popover closes. */
+    private String query = "";
 
     protected PopoverControl(Builder<T, ?, ?> b) {
         super(b);
@@ -82,6 +116,17 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         this.label = b.label;
         this.maxVisibleItems = b.maxVisibleItems;
         this.itemTooltip = b.itemTooltip;
+        this.pinnedItems = b.pinnedItems;
+        this.searchable = b.searchable;
+        this.searchField = searchable ? TextField.builder().at(0, 0).size(10, SEARCH_FIELD_HEIGHT).fill()
+                .hint(Component.translatable("menukit.list.search"))
+                .label(Component.translatable("menukit.list.search"))
+                .state(() -> query, q -> {
+                    query = q;
+                    scrollOffset = 0;    // a new search starts at the top of its results
+                    highlighted = -1;
+                })
+                .build() : null;
     }
 
     /** The items now: the build-time list, or what the consumer's supplier returns this time. */
@@ -106,14 +151,30 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     /** A row picked by click, Enter or Space. A single-select also closes. */
     protected abstract void pick(T item);
 
-    /** Rows pinned above the list (a multi-select's Select all); default none. */
-    protected int pinnedRowCount() { return 0; }
+    /**
+     * Rows pinned above the list: the builder's {@code pinned(items)} by default
+     * (see the class doc), none without it. {@link DropdownMulti} overrides this
+     * for its own Select all and Clear all rows instead.
+     */
+    protected int pinnedRowCount() { return pinnedItems.size(); }
 
-    /** A pinned row's label. */
-    protected Component pinnedLabel(int index) { throw new IndexOutOfBoundsException(index); }
+    /** A pinned row's label: the shared {@code label} function, applied to {@code pinned(items)}'s value at {@code index}. */
+    protected Component pinnedLabel(int index) { return label.apply(pinnedItems.get(index)); }
 
-    /** A pinned row picked by click. */
-    protected void pickPinned(int index) {}
+    /** A pinned row picked by click: hands {@code pinned(items)}'s value at {@code index} to {@link #pick}. */
+    protected void pickPinned(int index) { pick(pinnedItems.get(index)); }
+
+    /**
+     * Whether a pinned row shows the selected highlight a scrollable row does;
+     * default {@link #isSelected} of {@code pinned(items)}'s value at {@code index},
+     * so a pinned category reads as picked once it is. An action row (Select all,
+     * Clear all) is never "selected": {@link DropdownMulti} does not call
+     * {@code pinned(...)}, so {@code pinnedItems} stays empty and this is always
+     * false for it, with no override needed.
+     */
+    protected boolean pinnedSelected(int index) {
+        return !pinnedItems.isEmpty() && isSelected(pinnedItems.get(index));
+    }
 
     /** Width kept at the left of each row for a check mark; default none. */
     protected int checkColumnWidth() { return 0; }
@@ -132,7 +193,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
 
     /** Closes the popover (a single-select after a pick). */
     protected final void close() {
-        open = false;
+        closePopover();
     }
 
     // Size: the trigger's, grown when its label wraps.
@@ -146,6 +207,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         Font font = Minecraft.getInstance().font;
         int widest = 0;
         for (T item : items()) widest = Math.max(widest, font.width(label.apply(item)));
+        for (T item : pinnedItems) widest = Math.max(widest, font.width(label.apply(item)));
         return widest + 2 * POPOVER_TEXT_PAD_X + 2 + checkColumnWidth() + (scrollable() ? SCROLLBAR_W : 0);
     }
 
@@ -173,14 +235,45 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
 
     @Override public boolean isInteractive() { return true; }
 
+    // Search filter (7.3.0): the scrollable rows only; the pinned rows are never filtered.
+
+    /**
+     * The scrollable rows after the search filter: every item without
+     * {@code searchable()} or with an empty query, else those whose label
+     * contains the query, case-insensitive.
+     */
+    // ponytail: filters every call; fine for the tens to low hundreds of rows a
+    // dropdown holds (Headcount's ~80), cache on the query if that ever changes.
+    private List<T> visibleItems() {
+        List<T> all = items();
+        if (!searchable || query.isEmpty()) return all;
+        String q = query.toLowerCase(Locale.ROOT);
+        List<T> out = new ArrayList<>();
+        for (T item : all) {
+            if (label.apply(item).getString().toLowerCase(Locale.ROOT).contains(q)) out.add(item);
+        }
+        return out;
+    }
+
+    /** Whether the search found nothing: a query is typed, it matched no row, and there was something to match. */
+    private boolean showsNoMatches() {
+        return searchable && !query.isEmpty() && visibleItems().isEmpty() && !items().isEmpty();
+    }
+
+    /** The search field's band: the field's height with air above and below it; 0 without {@code searchable()}. */
+    private int searchHeight() {
+        return searchable ? SEARCH_PAD + SEARCH_FIELD_HEIGHT + SEARCH_PAD : 0;
+    }
+
     // Popover geometry
 
     private int visibleRowCount() {
-        return Math.min(items().size(), maxVisibleItems);
+        int n = showsNoMatches() ? 1 : visibleItems().size();
+        return Math.min(n, maxVisibleItems);
     }
 
     private boolean scrollable() {
-        return items().size() > maxVisibleItems;
+        return visibleItems().size() > maxVisibleItems;
     }
 
     private int pinnedHeight() {
@@ -189,11 +282,11 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     }
 
     private int popoverHeight() {
-        return 2 + pinnedHeight() + visibleRowCount() * ROW_HEIGHT;
+        return 2 + pinnedHeight() + searchHeight() + visibleRowCount() * ROW_HEIGHT;
     }
 
     private int clampScroll(int offset) {
-        return Mth.clamp(offset, 0, Math.max(0, items().size() - visibleRowCount()));
+        return Mth.clamp(offset, 0, Math.max(0, visibleItems().size() - visibleRowCount()));
     }
 
     /**
@@ -228,7 +321,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         int tx = ctx.originX() + childX;
         int ty = ctx.originY() + childY;
         boolean disabled = disabled(ctx);
-        if (disabled) open = false;
+        if (disabled) closePopover();
         boolean hovered = !disabled && ctx.isHovered(childX, childY, width, getHeight());
         var g = ctx.graphics();
         int h = getHeight();
@@ -286,11 +379,13 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         int textX = px + 1 + POPOVER_TEXT_PAD_X;
         int fullRowRight = px + pw - 1;
 
-        // Pinned rows (italic, no check column), then the separator.
+        // Pinned rows (italic, no check column, but the selected highlight a
+        // pinned value earns like any other), then the separator.
         int pinned = pinnedRowCount();
         for (int i = 0; i < pinned; i++) {
             int rowY = py + 1 + i * ROW_HEIGHT;
             if (rowHovered(ctx, px, fullRowRight, rowY)) g.fill(px + 1, rowY, fullRowRight, rowY + ROW_HEIGHT, COLOR_ROW_HOVER);
+            if (pinnedSelected(i)) g.fill(px + 1, rowY, fullRowRight, rowY + ROW_HEIGHT, COLOR_ROW_SELECTED);
             Component italic = Component.empty().append(pinnedLabel(i)).withStyle(net.minecraft.ChatFormatting.ITALIC);
             Text.renderFromOpenTime(g, italic, TextAlignment.LEFT, textX, fullRowRight - POPOVER_TEXT_PAD_X,
                     rowY, rowY + ROW_HEIGHT, ElementConstants.TEXT_LIGHT, true, openedAt);
@@ -300,16 +395,32 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
             g.fill(px + POPOVER_TEXT_PAD_X, sepY, px + pw - POPOVER_TEXT_PAD_X, sepY + 1, COLOR_SEPARATOR);
         }
 
-        // The items, scrolled.
+        // The search field (7.3.0), below the pinned rows and their divider, above the scrollable rows.
+        if (searchable) {
+            int fx = textX;
+            int fw = fullRowRight - POPOVER_TEXT_PAD_X - fx;
+            int fy = py + 1 + pinnedHeight() + SEARCH_PAD;
+            searchField.layoutWithin(fw);
+            searchField.setChildPosition(fx - ctx.originX(), fy - ctx.originY());
+            searchField.render(childContext(ctx));
+        }
+
+        // The items, scrolled — or "No matches" while the search filters out every row.
+        List<T> visible = visibleItems();
         boolean scrollable = scrollable();
         int rowRight = fullRowRight - (scrollable ? SCROLLBAR_W : 0);
         int check = checkColumnWidth();
+        int rowsTop = py + 1 + pinnedHeight() + searchHeight();
+        if (showsNoMatches()) {
+            Text.render(g, Component.translatable("menukit.list.no_matches"), TextAlignment.LEFT, textX,
+                    rowRight - POPOVER_TEXT_PAD_X, rowsTop, rowsTop + ROW_HEIGHT, ctx.kind().textColor(TextRole.MUTED), true);
+            return;
+        }
         int first = clampScroll(scrollOffset);
-        int last = Math.min(items().size(), first + visibleRowCount());
-        int rowsTop = py + 1 + pinnedHeight();
+        int last = Math.min(visible.size(), first + visibleRowCount());
         for (int i = first; i < last; i++) {
             int rowY = rowsTop + (i - first) * ROW_HEIGHT;
-            T item = items().get(i);
+            T item = visible.get(i);
             boolean hover = rowHovered(ctx, px, fullRowRight, rowY);
             if (hover || i == highlighted) g.fill(px + 1, rowY, rowRight, rowY + ROW_HEIGHT, COLOR_ROW_HOVER);
             if (hover && itemTooltip != null) {
@@ -329,9 +440,9 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
             int trackX = fullRowRight - SCROLLBAR_W;
             int trackH = visibleRowCount() * ROW_HEIGHT;
             PanelRendering.renderInsetRect(g, trackX, rowsTop, SCROLLBAR_W, trackH);
-            int visible = visibleRowCount();
-            int thumbH = Math.max(8, trackH * visible / items().size());
-            int range = items().size() - visible;
+            int visibleCount = visibleRowCount();
+            int thumbH = Math.max(8, trackH * visibleCount / visible.size());
+            int range = visible.size() - visibleCount;
             int thumbY = rowsTop + (range > 0 ? (trackH - thumbH) * first / range : 0);
             g.fill(trackX + 1, thumbY, trackX + SCROLLBAR_W - 1, thumbY + thumbH, COLOR_SCROLLBAR_THUMB);
         }
@@ -357,29 +468,48 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
             return true;
         }
         if (open) {
-            open = false;
+            closePopover();
         } else {
             open = true;
             scrollOffset = 0;
             highlighted = -1;
             openedAt = Util.getMillis();
+            if (searchable) searchField.focus();
         }
         return true;
     }
 
     private void clickPopover(InputContext in, int[] p) {
         int px = p[0], py = p[1], pw = p[2];
-        if (scrollable() && in.mouseX() >= px + pw - 1 - SCROLLBAR_W) return;   // the scrollbar lane: no pick
         int y = (int) (in.mouseY() - py - 1);
         int pinnedRows = pinnedRowCount() * ROW_HEIGHT;
         if (y < pinnedRows) {
             pickPinned(y / ROW_HEIGHT);
             return;
         }
-        int inRows = y - pinnedHeight();
-        if (inRows < 0) return;                                                // the separator
-        int index = clampScroll(scrollOffset) + inRows / ROW_HEIGHT;
-        if (index >= 0 && index < items().size()) pick(items().get(index));
+        int afterPinned = y - pinnedHeight();
+        if (afterPinned < 0) return;                                           // the separator
+        if (searchable) {
+            if (afterPinned < searchHeight()) {
+                clickSearchField(in, px, py, pw);
+                return;
+            }
+            afterPinned -= searchHeight();
+        }
+        if (scrollable() && in.mouseX() >= px + pw - 1 - SCROLLBAR_W) return;   // the scrollbar lane: no pick
+        int index = clampScroll(scrollOffset) + afterPinned / ROW_HEIGHT;
+        List<T> visible = visibleItems();
+        if (index >= 0 && index < visible.size()) pick(visible.get(index));
+    }
+
+    /** Forwards a click inside the search field's band to the field itself: focus, caret, selection. */
+    private void clickSearchField(InputContext in, int px, int py, int pw) {
+        int fx = px + 1 + POPOVER_TEXT_PAD_X;
+        int fw = (px + pw - 1) - POPOVER_TEXT_PAD_X - fx;
+        int fy = py + 1 + pinnedHeight() + SEARCH_PAD;
+        searchField.layoutWithin(fw);
+        searchField.setChildPosition(fx - in.originX(), fy - in.originY());
+        searchField.mouseClicked(in, Click.LEFT);
     }
 
     /** A click outside both the popover and the trigger closes it, as every native popup does. */
@@ -389,7 +519,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         int[] p = getActiveOverlayBounds(in);
         boolean inPopover = p != null && in.isInside(p);
         boolean onTrigger = in.isOver(childX, childY, width, getHeight());
-        if (!inPopover && !onTrigger) open = false;
+        if (!inPopover && !onTrigger) closePopover();
     }
 
     /** The wheel over the open popover scrolls its items one row per notch. */
@@ -410,24 +540,30 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     @Override
     public boolean keyPressed(InputContext in, int keyCode, int scanCode, int modifiers) {
         if (!open || items().isEmpty() || disabled(in)) return false;
+        // Everything else (Backspace, the arrow-within-text keys, paste, ...) is not
+        // claimed here, so it falls through to vanilla's own focused-widget routing,
+        // which is how the search field's own editing keys reach it (see the class doc).
+        List<T> visible = visibleItems();
         switch (keyCode) {
             case InputConstants.KEY_DOWN -> {
-                highlighted = highlighted < 0 ? firstSelected() : Math.min(items().size() - 1, highlighted + 1);
+                if (visible.isEmpty()) return true;   // consumed; nothing to move to while filtered to nothing
+                highlighted = highlighted < 0 ? firstSelected(visible) : Math.min(visible.size() - 1, highlighted + 1);
                 keepHighlightVisible();
                 return true;
             }
             case InputConstants.KEY_UP -> {
-                highlighted = highlighted < 0 ? firstSelected() : Math.max(0, highlighted - 1);
+                if (visible.isEmpty()) return true;
+                highlighted = highlighted < 0 ? firstSelected(visible) : Math.max(0, highlighted - 1);
                 keepHighlightVisible();
                 return true;
             }
             case InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER, InputConstants.KEY_SPACE -> {
-                if (highlighted >= 0 && highlighted < items().size()) pick(items().get(highlighted));
-                else if (keyCode != InputConstants.KEY_SPACE) open = false;
+                if (highlighted >= 0 && highlighted < visible.size()) pick(visible.get(highlighted));
+                else if (keyCode != InputConstants.KEY_SPACE) closePopover();
                 return true;
             }
             case InputConstants.KEY_ESCAPE -> {
-                open = false;
+                closePopover();
                 return true;
             }
             default -> {
@@ -439,11 +575,47 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     /** Leaving the screen (or a list that dropped its row) closes the popover. */
     @Override
     public void onDetach(net.minecraft.client.gui.screens.Screen screen) {
-        open = false;
+        closePopover();
+        if (searchable) searchField.onDetach(screen);
     }
 
-    private int firstSelected() {
-        for (int i = 0; i < items().size(); i++) if (isSelected(items().get(i))) return i;
+    @Override
+    public void onAttach(net.minecraft.client.gui.screens.Screen screen) {
+        if (searchable) searchField.onAttach(screen);
+    }
+
+    @Override
+    public void screenKind(ScreenKind kind) {
+        if (searchable) searchField.screenKind(kind);
+    }
+
+    @Override
+    public void inDialog(boolean inDialog) {
+        if (searchable) searchField.inDialog(inDialog);
+    }
+
+    @Override
+    public void inBand(boolean inBand) {
+        if (searchable) searchField.inBand(inBand);
+    }
+
+    /** Closes the popover and, with {@code searchable()}, resets the query: the next open starts unfiltered. */
+    private void closePopover() {
+        open = false;
+        if (searchable) query = "";
+    }
+
+    /**
+     * As typing in the search field (7.3.0): the query now, for the checks (a real
+     * popover's query comes from the field itself). A no-op without {@code searchable()}.
+     */
+    @ApiStatus.Internal
+    public void typeQuery(String query) {
+        this.query = Objects.requireNonNull(query, "query");
+    }
+
+    private int firstSelected(List<T> visible) {
+        for (int i = 0; i < visible.size(); i++) if (isSelected(visible.get(i))) return i;
         return 0;
     }
 
@@ -467,6 +639,8 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         protected Function<T, Component> label = v -> Component.literal(String.valueOf(v));
         protected int maxVisibleItems = DEFAULT_MAX_VISIBLE;
         protected @Nullable Function<T, Component> itemTooltip;
+        protected List<T> pinnedItems = List.of();
+        protected boolean searchable = false;
 
         protected Builder() {}
 
@@ -509,6 +683,35 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         /** A tooltip for a hovered row; a {@code null} result shows none. */
         public B itemTooltip(Function<T, Component> tooltip) {
             this.itemTooltip = Objects.requireNonNull(tooltip, "tooltip");
+            return self();
+        }
+
+        /**
+         * Rows pinned above the scrollable list, with a 1px divider under them: the
+         * fixed top-level choices of a domain that also has many finer-grained values
+         * below (five categories above eighty entity types). Picked through the same
+         * {@code label}, {@code state} and {@code pick} as a scrollable row (so a
+         * pinned value shows selected once chosen, exactly as one below it would), not
+         * a separate action; for an action row (Select all, Clear all) see
+         * {@link DropdownMulti#selectAllRow} and {@link DropdownMulti#clearAllRow}
+         * instead. Not filtered by {@link #searchable}: there are only a handful, and
+         * they are the stable choices a search over the many finer ones is for.
+         */
+        public B pinned(List<T> items) {
+            this.pinnedItems = List.copyOf(Objects.requireNonNull(items, "items"));
+            return self();
+        }
+
+        /**
+         * Adds a text field at the popover's top, below the pinned rows and their
+         * divider, that filters the scrollable rows by their label text,
+         * case-insensitive "contains"; the pinned rows stay, unfiltered. Opt in, for a
+         * popover whose rows run into the dozens where finding one by eye is not
+         * realistic (Headcount's ~80 entity types). Focused automatically when the
+         * popover opens; the query resets whenever the popover closes.
+         */
+        public B searchable() {
+            this.searchable = true;
             return self();
         }
 
