@@ -198,13 +198,14 @@ body.add(Flow.builder().at(0, 0)
         .build());
 // A rule as wide as the body.
 body.add(Divider.horizontal().at(0, 22).build());
-// A setting: its label at the left, its control at the right, both grey while the feature is off.
-body.add(Flow.builder().at(0, 28).disabledWhen(off)
+// A setting: its label at the left, level with the middle of its control at the right,
+// both grey while the feature is off.
+body.add(Flow.builder().at(0, 28).disabledWhen(off).crossAlign(CrossAlign.CENTER)
         .add(TextLabel.builder().text(Component.literal("Rows")).build())
         .add(Flow.spacer())
         .add(Slider.ofInts(1, 6).size(100, 16).state(config::rows, config::setRows).build())
         .build());
-body.add(Flow.builder().at(0, 50).disabledWhen(off)
+body.add(Flow.builder().at(0, 50).disabledWhen(off).crossAlign(CrossAlign.CENTER)
         .add(TextLabel.builder().text(Component.literal("Speed")).build())
         .add(Flow.spacer())
         .add(Dropdown.ofEnum(Speed.class).size(80, 16).state(config::speed, config::setSpeed).build())
@@ -279,7 +280,7 @@ public final class ModSettingsScreen extends MKScreen {
     }
 
     private static PanelElement setting(int y, String name, PanelElement control) {
-        return Flow.builder().at(0, y)
+        return Flow.builder().at(0, y).crossAlign(CrossAlign.CENTER)
                 .add(TextLabel.builder().text(Component.literal(name)).build())
                 .add(Flow.spacer())
                 .add(control)
