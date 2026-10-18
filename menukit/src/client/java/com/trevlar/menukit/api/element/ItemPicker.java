@@ -134,7 +134,7 @@ public class ItemPicker extends AbstractPanelElement {
     static final int REMOVE_SIZE = 5;
     static final Component REMOVE_TOOLTIP = Component.translatable("menukit.item_picker.remove");
     // Dark with a white bar, lighter while hovered: reads in both looks' grey slots.
-    private static final int REMOVE_FILL = 0xFF2A2A2A, REMOVE_HOVER = 0xFF5E5E5E, REMOVE_BAR = 0xFFFFFFFF;
+    static final int REMOVE_FILL = 0xFF2A2A2A, REMOVE_HOVER = 0xFF5E5E5E, REMOVE_BAR = 0xFFFFFFFF;
     // The add slot's plus: white over vanilla's text shadow for white (a quarter of it).
     private static final int ADD_MARK = 0xFFFFFFFF, ADD_SHADOW = 0xFF3F3F3F;
 
