@@ -292,6 +292,7 @@ public class Button extends AbstractPanelElement {
         private @Nullable Consumer<Click> onSecondaryClick;
         private @Nullable IntSupplier tint;
         private @Nullable Supplier<Identifier> icon;
+        private boolean glyph;
         private @Nullable Supplier<Identifier> sprite;
 
         protected Builder() {
@@ -349,6 +350,18 @@ public class Button extends AbstractPanelElement {
             return this;
         }
 
+        /**
+         * An icon button whose sprite is a white glyph drawn in the look's text colour,
+         * as a label is: dark on the Panel look's light face, white on the Default
+         * look's stone, grey while disabled. No shadow, so a glyph and its mirror weigh
+         * the same. A coloured sprite keeps {@link #icon(Supplier)}.
+         */
+        // ponytail: package-private while the list's glyphs are its only users; open it when a consumer needs one.
+        Builder glyph(Supplier<Identifier> sprite) {
+            glyph = true;
+            return icon(sprite);
+        }
+
         /** A sprite button: {@code sprite} is the whole button, frame included. */
         public Builder sprite(Identifier sprite) {
             Objects.requireNonNull(sprite, "sprite");
@@ -366,7 +379,7 @@ public class Button extends AbstractPanelElement {
             require(icon == null || sprite == null, "icon(...) and sprite(...) are two different faces; pick one");
             if (icon != null) {
                 require(width > 0 && height > 0, "an icon button needs size(n, n)");
-                return new IconButton(this, icon);
+                return new IconButton(this, icon, glyph);
             }
             if (sprite != null) {
                 require(width > 0 && height > 0, "a sprite button needs size(w, h), the sprite's own size");
@@ -381,10 +394,12 @@ public class Button extends AbstractPanelElement {
         private static final int INSET = 2;
         private static final float DISABLED_ALPHA = 0.4f;
         private final Supplier<Identifier> sprite;
+        private final boolean glyph;
 
-        IconButton(Builder b, Supplier<Identifier> sprite) {
+        IconButton(Builder b, Supplier<Identifier> sprite, boolean glyph) {
             super(b);
             this.sprite = sprite;
+            this.glyph = glyph;
         }
 
         @Override public void fillWidth(int width) {}
@@ -395,6 +410,12 @@ public class Button extends AbstractPanelElement {
             Identifier id = sprite.get();
             if (id == null) return;
             int size = getWidth() - INSET * 2;
+            if (glyph) {
+                // A glyph is text: the look's body colour, its disabled colour while disabled.
+                int color = ctx.kind().textColor(look.disabled() ? TextRole.DISABLED : TextRole.BODY);
+                ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx + INSET, sy + INSET, size, size, color);
+                return;
+            }
             ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx + INSET, sy + INSET, size, size,
                     look.disabled() ? DISABLED_ALPHA : 1.0f);
         }
