@@ -5,6 +5,7 @@ import com.trevlar.menukit.api.panel.Focus;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.DialogLayout;
+import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 
 import com.mojang.blaze3d.platform.InputConstants;
@@ -192,6 +193,8 @@ public final class ListView<T> extends AbstractPanelElement {
     // shadow, drawn so the glyph and its shadow sit pixel-centred in the button.
     private static final Identifier MOVE_UP = icon("move_up"), MOVE_DOWN = icon("move_down"), REMOVE = icon("remove");
     private static final Identifier ASCENDING = icon("sort_ascending"), DESCENDING = icon("sort_descending");
+    // mockup: the same glyphs padded to 16 px, for the toolbar's 20 px buttons (E), so they draw 1:1 like the sort icon.
+    private static final Identifier BAR_UP = icon("toolbar_move_up"), BAR_DOWN = icon("toolbar_move_down"), BAR_REMOVE = icon("toolbar_remove");
 
     private static Identifier icon(String name) {
         return Identifier.fromNamespaceAndPath("menukit", "icon/" + name);
@@ -219,6 +222,12 @@ public final class ListView<T> extends AbstractPanelElement {
     private final @Nullable Consumer<Sort> sortSet;
     /** Whether any editing option is on: only then does the list track items by key every frame. */
     private final boolean edits;
+
+    // mockup: the round-3 comparison ("A-inside" ... "F-reorder-mode"), or null for the
+    // shipped list; remove with Builder#mockup once Trev picks one.
+    private final @Nullable String mockup;
+    /** mockup: F's "Reorder" toggle: the rows have their controls only while it is on. */
+    private boolean reorderMode = false;
 
     // The elements the list makes for those options: null when the option is off.
     private final @Nullable PanelElement reason;
@@ -296,6 +305,7 @@ public final class ListView<T> extends AbstractPanelElement {
         this.edits = !b.adds.isEmpty() || remove != null || move != null || pinned != null || edit != null
                 || searchText != null || !sorts.isEmpty();
         this.adds = List.copyOf(b.adds);
+        this.mockup = b.mockup;
         this.reason = b.disabledReason == null ? null
                 : TextLabel.builder().text(b.disabledReason).visibleWhen(this::ownDisabled).build();
         this.noMatches = searchText == null ? null
@@ -356,10 +366,73 @@ public final class ListView<T> extends AbstractPanelElement {
             buttons.add(Button.builder().label(a.label()).size(0, ADD_HEIGHT)
                     .onClick(() -> runAdd(a.action())).disabledWhen(addOff).build());
         }
+        if (isMockup("E")) buttons.addAll(selectionButtons(off));
+        if (isMockup("F")) buttons.add(reorderToggle(off));
         // The search field and the buttons share one line the way a row and its controls
         // do, the whole as wide as the rows: placed over the scroll area, its right end
         // is theirs whether or not the scrollbar takes its lane.
         return new ListRow(search, buttons, () -> budget);
+    }
+
+    /** mockup: whether this list is the round-3 variant starting with {@code letter}. */
+    private boolean isMockup(String letter) {
+        return mockup != null && mockup.startsWith(letter);
+    }
+
+    /**
+     * mockup (E): up, down and remove in the toolbar, acting on the selected row, greyed
+     * with nothing selected or where the action isn't allowed (a pinned row, either end).
+     */
+    private List<PanelElement> selectionButtons(BooleanSupplier off) {
+        Supplier<@Nullable Object> sel = () -> selectedGet == null ? null : selectedGet.get();
+        return List.of(
+                barIcon(BAR_UP, "menukit.list.move_up", off, () -> sel.get() != null && canMove(sel.get(), -1),
+                        () -> moveBy(sel.get(), -1)),
+                barIcon(BAR_DOWN, "menukit.list.move_down", off, () -> sel.get() != null && canMove(sel.get(), 1),
+                        () -> moveBy(sel.get(), 1)),
+                barIcon(BAR_REMOVE, "menukit.list.remove", off,
+                        () -> remove != null && sel.get() != null && rows.containsKey(sel.get()) && !isPinned(sel.get()),
+                        () -> askRemove(sel.get())));
+    }
+
+    /** mockup (E): a square toolbar icon button, as tall as the add button. */
+    private PanelElement barIcon(Identifier icon, String tooltip, BooleanSupplier off, BooleanSupplier allowed, Runnable action) {
+        return Button.builder().icon(icon).size(ADD_HEIGHT, ADD_HEIGHT)
+                .tooltip(Component.translatable(tooltip))
+                .disabledWhen(() -> off.getAsBoolean() || !allowed.getAsBoolean())
+                .onClick(() -> { if (allowed.getAsBoolean()) action.run(); })
+                .build();
+    }
+
+    /**
+     * mockup (F): the "Reorder" toggle. On, every row gets its arrows and remove (as in
+     * A); off, the rows are plain. It reads as pressed while on: the Panel look's inset
+     * face, and in the Default look MenuKit's pressed overlay on vanilla's button.
+     */
+    private PanelElement reorderToggle(BooleanSupplier off) {
+        Toggle.Builder b = Toggle.builder().size(0, ADD_HEIGHT)
+                .label(Component.literal("Reorder"))
+                .state(() -> reorderMode, on -> setReorderMode(on))
+                .disabledWhen(off);
+        return new Toggle(b) {
+            @Override
+            protected void renderBackground(RenderContext ctx, int sx, int sy, boolean on, boolean disabled, boolean hovered) {
+                super.renderBackground(ctx, sx, sy, on, disabled, hovered);
+                if (on && !disabled && ctx.kind() == ScreenKind.DEFAULT) {
+                    VanillaLook.pressedOverlay(ctx.graphics(), sx, sy, getWidth(), getHeight());
+                }
+            }
+        };
+    }
+
+    /** mockup (F): flips the mode and makes every row again, with or without its controls. */
+    private void setReorderMode(boolean on) {
+        reorderMode = on;
+        for (PanelElement row : rows.values()) attachment.removed(row);
+        rows = Map.of();
+        keys = List.of();
+        shown = List.of();
+        shownKeys = List.of();
     }
 
     /** The confirm for a remove, built once: its body names the item it is about, read while it shows. */
@@ -513,14 +586,23 @@ public final class ListView<T> extends AbstractPanelElement {
             throw new IllegalStateException("ListView: a row must be an AbstractPanelElement (a Flow, a Button, ...) "
                     + "so the list can place it; got " + row.getClass().getName());
         }
-        List<PanelElement> controls = controls(k);
-        if (!controls.isEmpty()) row = new ListRow(row, controls);
+        // mockup: E's rows have no controls (they're in the toolbar); F's only in reorder mode.
+        List<PanelElement> controls = isMockup("E") || (isMockup("F") && !reorderMode) ? List.of() : controls(k);
+        if (!controls.isEmpty()) row = new ListRow(row, controls, lane(), gap);
         row.screenKind(kind);
         row.inDialog(inDialog);
         row.inBand(inBand);
         if (budget > 0) row.layoutWithin(budget);
         attachment.added(row);
         return row;
+    }
+
+    /** mockup: where the row's controls go for this variant; the shipped list's is INSIDE. */
+    private ListRow.Lane lane() {
+        if (isMockup("B")) return ListRow.Lane.DIVIDER;
+        if (isMockup("C")) return ListRow.Lane.BOXED;
+        if (isMockup("D")) return ListRow.Lane.BARE;
+        return ListRow.Lane.INSIDE;
     }
 
     /** The row's controls for key {@code k}, in order: Edit, up, down, remove. */
@@ -822,6 +904,8 @@ public final class ListView<T> extends AbstractPanelElement {
         ScreenRectangle clip = g != null && g.scissorStack != null ? g.scissorStack.peek() : null;
         InputContext probe = inner.input();
         PanelElement selectedRow = selectedRow();
+        // mockup (E): the Panel look's selected card gets a wash under its content (the outline alone was lost on its border).
+        if (isMockup("E")) for (PanelElement row : shown) if (row instanceof Flow f) f.mockupSelected = row == selectedRow;
         for (PanelElement row : shown) {
             if (!row.isVisible()) continue;
             int top = ctx.originY() + row.getChildY();
@@ -830,7 +914,7 @@ public final class ListView<T> extends AbstractPanelElement {
             row.render(inner);
         }
         // The selected row's outline, over its card's edge.
-        if (selectedRow != null && selectedRow.isVisible() && g != null) {
+        if (selectedRow != null && selectedRow.isVisible() && g != null && !(isMockup("E") && ctx.kind() != ScreenKind.DEFAULT)) {
             int x = ctx.originX() + childX, y = ctx.originY() + selectedRow.getChildY();
             int w = getWidth(), h = selectedRow.getHeight();
             int c = focused ? OUTLINE_FOCUSED : OUTLINE;
@@ -1050,6 +1134,21 @@ public final class ListView<T> extends AbstractPanelElement {
         openEdit(key);
     }
 
+    /** mockup: as a click on the row of {@code key}: selects it, and the list has the keyboard. */
+    @ApiStatus.Internal
+    public void clickRow(Object key) {
+        sync();
+        focused = true;
+        selectedByClick = true;
+        if (selectedSet != null) selectedSet.accept(key);
+    }
+
+    /** mockup: as a click on F's "Reorder" toggle. */
+    @ApiStatus.Internal
+    public void clickReorder() {
+        setReorderMode(!reorderMode);
+    }
+
     /** As a click on the add button of the {@code kind}th {@code add(...)}, from 0. */
     @ApiStatus.Internal
     public void clickAdd(int kind) {
@@ -1137,8 +1236,20 @@ public final class ListView<T> extends AbstractPanelElement {
         private final List<SortBy<T>> sorts = new ArrayList<>();
         private @Nullable Supplier<Sort> sortGet;
         private @Nullable Consumer<Sort> sortSet;
+        private @Nullable String mockup;
 
         Builder() {}
+
+        /**
+         * mockup: one of the round-3 comparison variants, by its shot name ("A-inside",
+         * "B-divider", "C-outside-boxed", "D-outside-bare", "E-selection-toolbar",
+         * "F-reorder-mode"). Not API: removed once one is picked.
+         */
+        @ApiStatus.Internal
+        public Builder<T, K> mockup(String variant) {
+            this.mockup = Objects.requireNonNull(variant, "variant");
+            return this;
+        }
 
         @Override protected Builder<T, K> self() { return this; }
 
