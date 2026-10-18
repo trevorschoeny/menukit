@@ -1,21 +1,37 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.dialog.ConfirmDialog;
+import com.trevlar.menukit.api.panel.Focus;
+import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.ScreenKind;
+import com.trevlar.menukit.core.DialogLayout;
+import com.trevlar.menukit.inject.ScreenPanelRegistry;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.network.chat.Component;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -56,7 +72,11 @@ import java.util.function.Supplier;
  * place it: rows are stacked top to bottom, {@code gap} apart, each given the list's
  * whole width, a hidden row taking no room. They are drawn, hit-tested, claimed and
  * made inert like any child, through {@link ChildDispatch}, and they draw for the
- * kind of screen they are on.
+ * kind of screen they are on. A row that changes height (a {@link Flow} child that
+ * hides or shows, a {@link Section} that opens) moves the rows below it on the next
+ * frame: the rows are placed from their heights every frame. A row that is a
+ * {@code Section} keeps its open state for as long as its key, through renames and
+ * refreshes, so a list of sections expands in place with no more API.
  *
  * <h3>Height follows the rows</h3>
  *
@@ -82,12 +102,74 @@ import java.util.function.Supplier;
  *
  * {@code empty(element)} is shown, in the list's place, while {@code items()} is empty.
  *
+ * <h3>Editing (7.3.0)</h3>
+ *
+ * Every option below is optional, and a list with none of them is the list above,
+ * exactly. The data stays yours: the list only calls back, and shows what
+ * {@code items()} returns next, so a refused add or move (a cap, a rule) changes
+ * nothing and there is nothing to undo.
+ *
+ * <pre>{@code
+ * ListView.<LockGroup>builder()
+ *     .items(groups::all).key(LockGroup::id).row(this::groupRow)
+ *     .add(Component.literal("+ Slot group"), () -> groups.addSlotGroup())   // one button per kind
+ *     .add(Component.literal("+ Item group"), () -> groups.addItemGroup())
+ *     .remove(id -> groups.delete(id))                                       // a remove mark on each row
+ *     .confirmRemove(g -> Component.literal("Delete " + g.name() + "?"))     // asks first
+ *     .move((id, toIndex) -> groups.move(id, toIndex))                       // up and down on each row
+ *     .pinned(LockGroup::isDefault)                                          // no remove, no arrows
+ *     .build();
+ * }</pre>
+ *
+ * <ul>
+ *   <li><b>Add</b> ({@link Builder#add}): one button per kind, in a row under the rows.
+ *       The action returns the new item's key, or {@code null} and the list finds the
+ *       key that appeared; either way the new row is scrolled into view, and a search
+ *       query that would hide it is cleared. {@link Builder#addDisabledWhen} greys them.</li>
+ *   <li><b>Remove</b> ({@link Builder#remove}): a small remove mark (the item picker's
+ *       corner remove, at a row's size) at each row's trailing edge;
+ *       {@link Builder#confirmRemove} asks first, in a {@link ConfirmDialog} whose body
+ *       names the item, read when it shows.</li>
+ *   <li><b>Move</b> ({@link Builder#move}): up and down buttons on each row, the top
+ *       row's up and the bottom row's down greyed. {@code toIndex} is the place in
+ *       {@code items()}. With a row selected, Alt+Up and Alt+Down move it.</li>
+ *   <li><b>Pinned</b> ({@link Builder#pinned}): those rows have no remove mark and no
+ *       arrows, and no other row moves past them. Their order is still yours.</li>
+ *   <li><b>Edit in a dialog</b> ({@link Builder#editDialog}): an Edit button on each
+ *       row opens a dialog on a copy (the draft); Save writes it, Cancel and Escape
+ *       drop it. Removing the row closes the dialog without saving.</li>
+ *   <li><b>Disabled, with a reason</b> ({@link Builder#disabledReason}): while the
+ *       list's own {@code disabledWhen} holds, the reason shows above the greyed rows.</li>
+ *   <li><b>Search</b> ({@link Builder#search}) and <b>sort</b> ({@link Builder#sort}):
+ *       in a toolbar the list makes, {@link #toolbar()}, that you place above the scroll
+ *       area so it stays put while the rows scroll. Search is case-insensitive
+ *       "contains" on the item's text; "No matches" shows when nothing does, distinct
+ *       from {@code empty}. A selected row the query hides stays selected. While a
+ *       query is typed the arrows are greyed. Two or more sorts get a picker
+ *       ("Sort: Name") and a direction toggle; the first is the default. A list can't
+ *       both sort and move: {@code build()} throws.</li>
+ * </ul>
+ *
+ * <p>The controls sit in a lane at the row's trailing edge, the row given the width
+ * less the lane, each control in a slot of its own whether or not it shows, so the
+ * columns line up down the list. The lane is centred on the row's first line, so a
+ * section row that opens keeps its controls beside its header.
+ *
  * @param <T> the item type
  */
 public final class ListView<T> extends AbstractPanelElement {
 
     /** Selected outline while the list has the keyboard, and while it does not. */
     private static final int OUTLINE_FOCUSED = 0xFFFFFFFF, OUTLINE = 0xFF808080;
+
+    /** Between the list's parts (the reason, the rows, the add buttons): a Flow's gap. */
+    static final int PART_GAP = Flow.DEFAULT_GAP;
+    /** The add buttons' height, a vanilla button's; the toolbar's controls are as tall. */
+    static final int ADD_HEIGHT = Button.DEFAULT_HEIGHT;
+    /** The toolbar's search field and sort picker widths. */
+    static final int SEARCH_WIDTH = 120, SORT_WIDTH = 100;
+
+    private static final AtomicLong IDS = new AtomicLong();
 
     private final Supplier<? extends @Nullable List<? extends T>> items;
     private final Function<? super T, ?> key;
@@ -97,11 +179,50 @@ public final class ListView<T> extends AbstractPanelElement {
     private final int gap;
     private final @Nullable PanelElement empty;
 
+    // Editing (7.3.0): each null or empty when its option is off.
+    private final @Nullable Consumer<Object> remove;
+    private final @Nullable Function<? super T, Component> confirmRemove;
+    private final @Nullable BiConsumer<Object, Integer> move;
+    private final @Nullable Predicate<? super T> pinned;
+    private final @Nullable EditDialog<T, ?> edit;
+    private final @Nullable Function<? super T, String> searchText;
+    private final List<SortBy<T>> sorts;
+    private final @Nullable Supplier<Sort> sortGet;
+    private final @Nullable Consumer<Sort> sortSet;
+    /** Whether any editing option is on: only then does the list track items by key every frame. */
+    private final boolean edits;
+
+    // The elements the list makes for those options: null when the option is off.
+    private final @Nullable PanelElement addRow;
+    private final @Nullable PanelElement reason;
+    private final @Nullable PanelElement noMatches;
+    private final @Nullable PanelElement toolbar;
+    private final @Nullable Panel confirm;
+
     // The rows: the keys in items() order, and the row for each key, kept across frames.
     private List<Object> keys = List.of();
     private Map<Object, PanelElement> rows = Map.of();
     /** The rows in order: what render and input dispatch to. */
     private List<PanelElement> shown = List.of();
+    /** The keys of {@link #shown}, in the same order (the search and sort's view). */
+    private List<Object> shownKeys = List.of();
+
+    // Editing view state: each key's item now, and its place in items().
+    private Map<Object, T> itemByKey = Map.of();
+    private Map<Object, Integer> indexByKey = Map.of();
+    private String query = "";
+    private Sort ownSort = new Sort(0, false);
+    /** The key whose remove is waiting on the confirm dialog, or null. */
+    private @Nullable Object removing;
+    /** The key whose edit dialog is open, and the dialog. */
+    private @Nullable Object editing;
+    private @Nullable Panel editPanel;
+    /** An add just ran: the key it returned, or the keys before it to find the new one. */
+    private boolean adding = false;
+    private @Nullable Object addedKey;
+    private Set<Object> keysBeforeAdd = Set.of();
+    /** A row to scroll into view once (an added row, a moved one), or null. */
+    private @Nullable Object revealKey;
 
     /** Where the rows are attached; a row made while the screen is open attaches at once. */
     private final Attachment attachment = new Attachment();
@@ -114,6 +235,8 @@ public final class ListView<T> extends AbstractPanelElement {
     private int budget = -1;
     /** The rows' total height at the last placing. */
     private int rowsHeight = 0;
+    /** The whole list's height at the last placing: the reason, the rows and the add row. */
+    private int totalHeight = 0;
 
     // Selection view state: whether the list has the keyboard (after a click in it),
     // the selection last seen (to notice a change by code), and a pending reveal.
@@ -131,14 +254,111 @@ public final class ListView<T> extends AbstractPanelElement {
         this.selectedSet = b.selectedSet;
         this.gap = b.gap;
         this.empty = b.empty;
+        this.remove = b.remove;
+        this.confirmRemove = b.confirmRemove;
+        this.move = b.move;
+        this.pinned = b.pinned;
+        this.edit = b.edit;
+        this.searchText = b.searchText;
+        this.sorts = List.copyOf(b.sorts);
+        this.sortGet = b.sortGet;
+        this.sortSet = b.sortSet;
+        this.edits = !b.adds.isEmpty() || remove != null || move != null || pinned != null || edit != null
+                || searchText != null || !sorts.isEmpty();
+        this.addRow = b.adds.isEmpty() ? null : addRow(b.adds, b.addDisabled);
+        this.reason = b.disabledReason == null ? null
+                : TextLabel.builder().text(b.disabledReason).visibleWhen(this::ownDisabled).build();
+        this.noMatches = searchText == null ? null
+                : TextLabel.builder().role(TextRole.MUTED).text(Component.translatable("menukit.list.no_matches")).build();
+        this.toolbar = searchText == null && sorts.size() < 2 ? null : makeToolbar();
+        this.confirm = confirmRemove == null ? null : makeConfirm();
     }
 
     /**
      * Starts a list of {@code T}. Give {@link Builder#items}, {@link Builder#key} (before
-     * {@code selection}: it fixes the key's type) and {@link Builder#row}.
+     * {@code selection} and the editing options: it fixes the key's type) and {@link Builder#row}.
      */
     public static <T> Builder<T, Object> builder() {
         return new Builder<>();
+    }
+
+    // The elements the editing options add
+
+    /** The add buttons, side by side under the rows, one per kind, greyed while {@code addDisabledWhen} holds. */
+    private PanelElement addRow(List<AddKind> adds, @Nullable BooleanSupplier disabled) {
+        Flow.Builder row = Flow.builder().gap(DialogLayout.BUTTON_GAP);
+        for (AddKind a : adds) {
+            Button.Builder button = Button.builder().label(a.label()).size(0, ADD_HEIGHT).onClick(() -> runAdd(a.action()));
+            if (disabled != null) button.disabledWhen(disabled);
+            row.add(button.build());
+        }
+        return row.build();
+    }
+
+    /**
+     * The search field, then with two or more sorts the picker and its direction, side by
+     * side from the left: nothing at the far edge, so the toolbar lines up with the rows
+     * whatever lane a scroll area keeps at their right.
+     */
+    private PanelElement makeToolbar() {
+        Flow.Builder bar = Flow.builder().gap(DialogLayout.BUTTON_GAP);
+        if (searchText != null) {
+            bar.add(TextField.builder().size(SEARCH_WIDTH, ADD_HEIGHT)
+                    .hint(Component.translatable("menukit.list.search"))
+                    .label(Component.translatable("menukit.list.search"))
+                    .state(() -> query, q -> query = q)
+                    .build());
+        }
+        if (sorts.size() >= 2) {
+            List<Integer> options = new ArrayList<>();
+            for (int i = 0; i < sorts.size(); i++) options.add(i);
+            bar.add(Dropdown.<Integer>builder().size(SORT_WIDTH, ADD_HEIGHT)
+                    .items(options)
+                    .label(i -> sorts.get(i).label())
+                    .triggerLabel(i -> Component.translatable("menukit.list.sort", sorts.get(i).label()))
+                    .state(() -> sorting().option(), i -> setSorting(new Sort(i, sorting().reversed())))
+                    .build());
+            bar.add(Toggle.builder().size(ADD_HEIGHT, ADD_HEIGHT)
+                    .label(() -> Component.literal(sorting().reversed() ? "↓" : "↑"))
+                    .tooltip(() -> Component.translatable(sorting().reversed() ? "menukit.list.descending" : "menukit.list.ascending"))
+                    .state(() -> sorting().reversed(), v -> setSorting(new Sort(sorting().option(), v)))
+                    .build());
+        }
+        return bar.build();
+    }
+
+    /** The confirm for a remove, built once: its body names the item it is about, read while it shows. */
+    private Panel makeConfirm() {
+        return ConfirmDialog.builder()
+                .id("menukit:list-remove-" + IDS.incrementAndGet())
+                .title(Component.translatable("menukit.list.remove_title"))
+                .body(() -> {
+                    T item = removing == null ? null : itemByKey.get(removing);
+                    return item == null ? Component.empty() : confirmRemove.apply(item);
+                })
+                .confirmLabel(Component.translatable("menukit.list.remove"))
+                .onConfirm(() -> {
+                    Object k = removing;
+                    removing = null;
+                    if (k != null) remove.accept(k);
+                })
+                .onCancel(() -> removing = null)
+                .build()
+                .visibleWhen(() -> removing != null);
+    }
+
+    /**
+     * The toolbar: the search field and the sort control, an ordinary element to put
+     * above the list's scroll area (it stays put while the rows scroll). The same
+     * element every call.
+     *
+     * @throws IllegalStateException when the list has neither {@code search} nor two or more {@code sort}s
+     */
+    public PanelElement toolbar() {
+        if (toolbar == null) {
+            throw new IllegalStateException("ListView: toolbar() is for a list with search(...) or two or more sort(...)");
+        }
+        return toolbar;
     }
 
     // Keyed reconciliation
@@ -146,15 +366,24 @@ public final class ListView<T> extends AbstractPanelElement {
     /**
      * Brings the rows in line with {@code items()}: a row made and attached for each new
      * key, the row of each vanished key detached, the rest kept. Nothing is made or
-     * moved when the keys are the same as last time.
+     * moved when the keys are the same as last time. With an editing option on, the
+     * items are also read by key every frame, an add's new row found, and the search
+     * and sort's view of the rows made again.
      */
     private void sync() {
         List<? extends T> now = items.get();
         if (now == null) now = List.of();
-        if (sameKeys(now)) {
-            noticeSelection();
-            return;
+        if (!sameKeys(now)) reconcile(now);
+        if (edits) {
+            byKey(now);
+            if (adding) revealAdded();
+            if (searchText != null || !sorts.isEmpty()) view();
         }
+        noticeSelection();
+    }
+
+    /** The rows for a new set of keys, in {@code now}'s order. */
+    private void reconcile(List<? extends T> now) {
         List<Object> nextKeys = new ArrayList<>(now.size());
         Map<Object, PanelElement> nextRows = new HashMap<>(now.size() * 2);
         List<PanelElement> nextShown = new ArrayList<>(now.size());
@@ -162,7 +391,7 @@ public final class ListView<T> extends AbstractPanelElement {
             Object k = key.apply(item);
             if (nextRows.containsKey(k)) continue;   // a repeated key: one row, the first
             PanelElement row = rows.get(k);
-            if (row == null) row = makeRow(item);
+            if (row == null) row = makeRow(item, k);
             nextKeys.add(k);
             nextRows.put(k, row);
             nextShown.add(row);
@@ -174,12 +403,15 @@ public final class ListView<T> extends AbstractPanelElement {
         keys = nextKeys;
         rows = nextRows;
         shown = nextShown;
+        shownKeys = nextKeys;
         // A selected key whose item is gone clears the selection, through the consumer's setter.
         if (selectedGet != null && selectedSet != null) {
             Object selected = selectedGet.get();
             if (selected != null && !rows.containsKey(selected)) selectedSet.accept(null);
         }
-        noticeSelection();
+        // A removed row's dialogs close: its edit without saving, its confirm with nothing to confirm.
+        if (editing != null && !rows.containsKey(editing)) closeEdit();
+        if (removing != null && !rows.containsKey(removing)) removing = null;
     }
 
     /** Whether {@code now}'s keys are exactly the current ones, in order. */
@@ -191,19 +423,182 @@ public final class ListView<T> extends AbstractPanelElement {
         return true;
     }
 
-    /** One new row: from the factory, handed what every row is, attached when the screen is open. */
-    private PanelElement makeRow(T item) {
+    /** Each key's item now (the first with that key) and its place in {@code items()}. */
+    private void byKey(List<? extends T> now) {
+        Map<Object, T> items = new HashMap<>(now.size() * 2);
+        Map<Object, Integer> index = new HashMap<>(now.size() * 2);
+        for (T item : now) {
+            Object k = key.apply(item);
+            if (items.putIfAbsent(k, item) == null) index.put(k, index.size());
+        }
+        itemByKey = items;
+        indexByKey = index;
+    }
+
+    /**
+     * The search and sort's view: the keys whose text holds the query, in the chosen
+     * order. Made every frame (the items, the query and the sort can each change).
+     */
+    // ponytail: filters and sorts every frame; cache on the keys, query and sort if a list of thousands shows it.
+    private void view() {
+        List<Object> view = new ArrayList<>(keys);
+        if (searchText != null && !query.isEmpty()) view.removeIf(k -> !matches(k));
+        if (!sorts.isEmpty()) {
+            Sort s = sorting();
+            Comparator<? super T> order = sorts.get(s.option()).order();
+            Comparator<Object> byItem = (a, b) -> order.compare(itemByKey.get(a), itemByKey.get(b));
+            view.sort(s.reversed() ? byItem.reversed() : byItem);
+        }
+        List<PanelElement> rowsShown = new ArrayList<>(view.size());
+        for (Object k : view) rowsShown.add(rows.get(k));
+        shownKeys = view;
+        shown = rowsShown;
+    }
+
+    /** Whether the item with key {@code k} holds the query: case-insensitive "contains". */
+    private boolean matches(Object k) {
+        T item = itemByKey.get(k);
+        if (item == null || searchText == null) return false;
+        String text = searchText.apply(item);
+        return text != null && text.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT));
+    }
+
+    /** One new row: from the factory, with the list's controls when it has any, attached when the screen is open. */
+    private PanelElement makeRow(T item, Object k) {
         PanelElement row = Objects.requireNonNull(rowFactory.apply(item), "ListView: the row factory returned null");
         if (!(row instanceof AbstractPanelElement)) {
             throw new IllegalStateException("ListView: a row must be an AbstractPanelElement (a Flow, a Button, ...) "
                     + "so the list can place it; got " + row.getClass().getName());
         }
+        List<PanelElement> controls = controls(k);
+        if (!controls.isEmpty()) row = new ListRow(row, controls);
         row.screenKind(kind);
         row.inDialog(inDialog);
         row.inBand(inBand);
         if (budget > 0) row.layoutWithin(budget);
         attachment.added(row);
         return row;
+    }
+
+    /** The lane's controls for the row of key {@code k}, in order: Edit, up, down, remove. */
+    private List<PanelElement> controls(Object k) {
+        List<PanelElement> controls = new ArrayList<>(4);
+        if (edit != null) {
+            controls.add(Button.builder().label(Component.translatable("menukit.list.edit"))
+                    .size(0, ListRow.CONTROL).onClick(() -> openEdit(k)).build());
+        }
+        if (move != null) {
+            controls.add(arrow("▲", "menukit.list.move_up", k, -1));
+            controls.add(arrow("▼", "menukit.list.move_down", k, 1));
+        }
+        if (remove != null) controls.add(new ListRow.RemoveMark(() -> !isPinned(k), () -> askRemove(k)));
+        return controls;
+    }
+
+    /** An up or down button: hidden on a pinned row, greyed where the row can't go that way. */
+    private PanelElement arrow(String glyph, String tooltip, Object k, int by) {
+        return Button.builder().label(Component.literal(glyph)).size(ListRow.CONTROL, ListRow.CONTROL)
+                .tooltip(Component.translatable(tooltip))
+                .visibleWhen(() -> !isPinned(k))
+                .disabledWhen(() -> !canMove(k, by))
+                .onClick(() -> moveBy(k, by))
+                .build();
+    }
+
+    private boolean isPinned(Object k) {
+        if (pinned == null) return false;
+        T item = itemByKey.get(k);
+        return item != null && pinned.test(item);
+    }
+
+    /**
+     * Whether the row of key {@code k} can move {@code by} one place: not past either
+     * end, not past a pinned row, and not while a query is typed (a move in a filtered
+     * view would land somewhere you can't see).
+     */
+    private boolean canMove(Object k, int by) {
+        if (move == null || !query.isEmpty() || isPinned(k)) return false;
+        Integer at = indexByKey.get(k);
+        if (at == null) return false;
+        int to = at + by;
+        return to >= 0 && to < keys.size() && !isPinned(keys.get(to));
+    }
+
+    private void moveBy(Object k, int by) {
+        if (!canMove(k, by)) return;
+        move.accept(k, indexByKey.get(k) + by);
+        revealKey = k;
+    }
+
+    /** A remove: at once, or once the confirm dialog says so. */
+    private void askRemove(Object k) {
+        if (remove == null || isPinned(k)) return;
+        if (confirm == null) remove.accept(k);
+        else removing = k;
+    }
+
+    /** Runs an add and remembers what to look for: the key it returned, or whichever key is new. */
+    private void runAdd(Supplier<?> action) {
+        keysBeforeAdd = new HashSet<>(keys);
+        addedKey = action.get();
+        adding = true;
+    }
+
+    /** The row an add made, found on the next frame: scrolled into view, with a query that hides it cleared. */
+    private void revealAdded() {
+        adding = false;
+        Object k = addedKey != null && itemByKey.containsKey(addedKey) ? addedKey : null;
+        if (k == null) {
+            for (Object candidate : keys) {
+                if (!keysBeforeAdd.contains(candidate)) {
+                    k = candidate;
+                    break;
+                }
+            }
+        }
+        addedKey = null;
+        keysBeforeAdd = Set.of();
+        if (k == null) return;   // the consumer refused it: nothing to show
+        if (searchText != null && !query.isEmpty() && !matches(k)) query = "";
+        revealKey = k;
+    }
+
+    // The edit dialog
+
+    /** Opens the edit dialog for key {@code k} on a fresh draft of its item. Nothing without a screen. */
+    private void openEdit(Object k) {
+        Screen screen = attachment.screen();
+        T item = itemByKey.get(k);
+        if (edit == null || screen == null || item == null) return;
+        closeEdit();
+        editing = k;
+        editPanel = edit.panel(item, k, this::closeEdit, () -> editing != null);
+        ScreenPanelRegistry.attachDialog(screen, editPanel);
+        // Focus leaves the Edit button, so Enter in the dialog is not the button's.
+        Focus.clear(screen);
+    }
+
+    /** Closes the edit dialog, dropping its draft. */
+    private void closeEdit() {
+        Screen screen = attachment.screen();
+        if (editPanel != null && screen != null) ScreenPanelRegistry.detachDialog(screen, editPanel);
+        editPanel = null;
+        editing = null;
+    }
+
+    // Sort
+
+    /** The sort in use: the consumer's, through {@code sortState}, or the list's own; its option kept in range. */
+    private Sort sorting() {
+        Sort s = sortGet != null ? sortGet.get() : ownSort;
+        if (s == null) s = new Sort(0, false);
+        if (s.option() < 0 || s.option() >= sorts.size()) s = new Sort(0, s.reversed());
+        return s;
+    }
+
+    private void setSorting(Sort s) {
+        if (sortSet != null) sortSet.accept(s);
+        else ownSort = s;
     }
 
     /**
@@ -220,9 +615,18 @@ public final class ListView<T> extends AbstractPanelElement {
         selectedByClick = false;
     }
 
-    /** Stacks the shown rows top to bottom from the list's own position, {@code gap} apart. */
+    /**
+     * Stacks the parts from the list's own position: the disabled reason, the shown rows
+     * {@code gap} apart (or the empty element, or "No matches"), then the add buttons,
+     * {@link #PART_GAP} between the parts.
+     */
     private void place() {
         int y = 0;
+        if (reason != null && reason.isVisible()) {
+            ((AbstractPanelElement) reason).setChildPosition(childX, childY);
+            y = reason.getHeight() + PART_GAP;
+        }
+        int top = y;
         boolean first = true;
         for (PanelElement row : shown) {
             if (!row.isVisible()) continue;
@@ -231,8 +635,18 @@ public final class ListView<T> extends AbstractPanelElement {
             y += row.getHeight();
             first = false;
         }
-        rowsHeight = y;
-        if (shown.isEmpty() && empty instanceof AbstractPanelElement e) e.setChildPosition(childX, childY);
+        rowsHeight = y - top;
+        PanelElement stand = standIn();
+        if (stand != null) {
+            if (stand instanceof AbstractPanelElement e) e.setChildPosition(childX, childY + y);
+            if (stand.isVisible()) y += stand.getHeight();
+        }
+        if (addRow != null) {
+            if (y > 0) y += PART_GAP;
+            ((AbstractPanelElement) addRow).setChildPosition(childX, childY + y);
+            y += addRow.getHeight();
+        }
+        totalHeight = y;
     }
 
     /** Syncs and places: the rows as they are this frame. */
@@ -241,14 +655,38 @@ public final class ListView<T> extends AbstractPanelElement {
         place();
     }
 
+    /** What shows in the rows' place when none do: "No matches" while a query hides every row, else the empty element. */
+    private @Nullable PanelElement standIn() {
+        if (!shown.isEmpty()) return null;
+        return !keys.isEmpty() && noMatches != null ? noMatches : empty;
+    }
+
     private boolean showsEmpty() {
         return shown.isEmpty() && empty != null && empty.isVisible();
     }
 
-    /** What render and input reach: the rows, or the empty element while there are none. */
+    /** What render and input reach: the rows, or the empty element while there are none, and the list's own parts. */
     private List<PanelElement> children() {
-        if (!shown.isEmpty()) return shown;
-        return empty != null ? List.of(empty) : List.of();
+        List<PanelElement> parts = parts();
+        PanelElement stand = standIn();
+        if (parts.isEmpty()) {
+            if (!shown.isEmpty()) return shown;
+            return stand != null ? List.of(stand) : List.of();
+        }
+        List<PanelElement> all = new ArrayList<>(shown.size() + parts.size() + 1);
+        all.addAll(shown);
+        if (stand != null) all.add(stand);
+        all.addAll(parts);
+        return all;
+    }
+
+    /** The list's own parts besides the rows: the reason and the add buttons. */
+    private List<PanelElement> parts() {
+        if (reason == null && addRow == null) return List.of();
+        List<PanelElement> parts = new ArrayList<>(2);
+        if (reason != null) parts.add(reason);
+        if (addRow != null) parts.add(addRow);
+        return parts;
     }
 
     // Size: as wide as it is given, as tall as its rows.
@@ -269,8 +707,7 @@ public final class ListView<T> extends AbstractPanelElement {
     @Override
     public int getHeight() {
         settle();
-        if (shown.isEmpty()) return showsEmpty() ? empty.getHeight() : 0;
-        return rowsHeight;
+        return totalHeight;
     }
 
     /** Takes the width it is given and hands it to every row. */
@@ -290,21 +727,30 @@ public final class ListView<T> extends AbstractPanelElement {
     public void screenKind(ScreenKind kind) {
         this.kind = kind;
         ChildDispatch.screenKind(new ArrayList<>(rows.values()), kind);
-        if (empty != null) empty.screenKind(kind);
+        ChildDispatch.screenKind(extras(), kind);
     }
 
     @Override
     public void inDialog(boolean inDialog) {
         this.inDialog = inDialog;
         ChildDispatch.inDialog(new ArrayList<>(rows.values()), inDialog);
-        if (empty != null) empty.inDialog(inDialog);
+        ChildDispatch.inDialog(extras(), inDialog);
     }
 
     @Override
     public void inBand(boolean inBand) {
         this.inBand = inBand;
         ChildDispatch.inBand(new ArrayList<>(rows.values()), inBand);
-        if (empty != null) empty.inBand(inBand);
+        ChildDispatch.inBand(extras(), inBand);
+    }
+
+    /** Every element the list holds besides its rows, shown or not. */
+    private List<PanelElement> extras() {
+        List<PanelElement> all = new ArrayList<>(4);
+        if (empty != null) all.add(empty);
+        if (noMatches != null) all.add(noMatches);
+        all.addAll(parts());
+        return all;
     }
 
     // Render
@@ -314,8 +760,12 @@ public final class ListView<T> extends AbstractPanelElement {
         settle();
         if (ctx.kind() != kind) screenKind(ctx.kind());
         RenderContext inner = childContext(ctx);
+        // The reason is what explains the grey, so it is not greyed itself.
+        if (reason != null && reason.isVisible()) reason.render(ctx);
+        if (addRow != null) addRow.render(inner);
         if (shown.isEmpty()) {
-            if (showsEmpty()) empty.render(inner);
+            PanelElement stand = standIn();
+            if (stand != null && stand.isVisible()) stand.render(inner);
             return;
         }
         // Rows wholly outside the clip they draw under are skipped (a long list in a
@@ -348,17 +798,26 @@ public final class ListView<T> extends AbstractPanelElement {
         ChildDispatch.renderOverlay(children(), childContext(ctx));
     }
 
-    /** The selected row, or {@code null}. */
+    /** The selected row while it shows (a query can hide it), or {@code null}. */
     private @Nullable PanelElement selectedRow() {
         if (selectedGet == null) return null;
         Object selected = selectedGet.get();
-        return selected == null ? null : rows.get(selected);
+        PanelElement row = selected == null ? null : rows.get(selected);
+        return row != null && shown.contains(row) ? row : null;
     }
 
-    /** The selected row's place, once, when the selection changed other than by a click. */
+    /**
+     * Once, the place of a row to scroll into view: one an add made or a move moved, or
+     * the selected row when the selection changed other than by a click.
+     */
     @Override
     public int @Nullable [] takeRevealRequest() {
         settle();
+        if (revealKey != null) {
+            PanelElement row = rows.get(revealKey);
+            revealKey = null;
+            if (row != null && row.isVisible() && shown.contains(row)) return new int[]{row.getChildY(), row.getHeight()};
+        }
         if (!reveal) return ChildDispatch.takeRevealRequest(children());
         reveal = false;
         PanelElement row = selectedRow();
@@ -379,11 +838,15 @@ public final class ListView<T> extends AbstractPanelElement {
         return null;
     }
 
-    /** Over a row's whole width (its empty area selects it), or over the empty element. */
+    /** Over a row's whole width (its empty area selects it), over the empty element, or over an add button. */
     @Override
     public boolean hitTest(InputContext in) {
         settle();
-        if (shown.isEmpty()) return showsEmpty() && empty.hitTest(in);
+        if (ChildDispatch.hitTest(parts(), in)) return true;
+        if (shown.isEmpty()) {
+            PanelElement stand = standIn();
+            return stand != null && stand.isVisible() && stand.hitTest(in);
+        }
         return rowAt(in) != null;
     }
 
@@ -393,6 +856,8 @@ public final class ListView<T> extends AbstractPanelElement {
         InputContext inner = in.disabledIf(ownDisabled());
         if (inner.disabled()) return false;
         if (ChildDispatch.overlayOwner(children(), inner) != null) return ChildDispatch.mouseClicked(children(), inner, button);
+        List<PanelElement> parts = parts();
+        if (ChildDispatch.hitTest(parts, inner)) return ChildDispatch.mouseClicked(parts, inner, button);
         if (shown.isEmpty()) return ChildDispatch.mouseClicked(children(), inner, button);
         PanelElement row = rowAt(inner);
         if (row == null) return false;
@@ -435,7 +900,8 @@ public final class ListView<T> extends AbstractPanelElement {
     /**
      * Keys go to the rows first (a focused field, an open popover). Then, while the list
      * has the keyboard and no text field is capturing it, Up and Down move the selection
-     * one shown row, and the new row is scrolled into view.
+     * one shown row, and the new row is scrolled into view; with {@code move}, Alt+Up and
+     * Alt+Down move the selected row instead.
      */
     @Override
     public boolean keyPressed(InputContext in, int keyCode, int scanCode, int modifiers) {
@@ -444,11 +910,17 @@ public final class ListView<T> extends AbstractPanelElement {
         if (inner.disabled() || !focused || selectedSet == null) return false;
         if (keyCode != InputConstants.KEY_UP && keyCode != InputConstants.KEY_DOWN) return false;
         if (textCaptured()) return false;
+        int by = keyCode == InputConstants.KEY_UP ? -1 : 1;
+        if (move != null && (modifiers & InputConstants.MOD_ALT) != 0) {
+            Object selected = selectedGet.get();
+            if (selected != null) moveBy(selected, by);
+            return true;
+        }
         List<Object> order = new ArrayList<>();
-        for (Object k : keys) if (rows.get(k).isVisible()) order.add(k);
+        for (Object k : shownKeys) if (rows.get(k).isVisible()) order.add(k);
         if (order.isEmpty()) return false;
         int at = order.indexOf(selectedGet.get());
-        int to = at < 0 ? 0 : keyCode == InputConstants.KEY_UP ? Math.max(0, at - 1) : Math.min(order.size() - 1, at + 1);
+        int to = at < 0 ? 0 : by < 0 ? Math.max(0, at - 1) : Math.min(order.size() - 1, at + 1);
         if (to != at) selectedSet.accept(order.get(to));
         return true;
     }
@@ -470,32 +942,45 @@ public final class ListView<T> extends AbstractPanelElement {
         return ChildDispatch.presentsSlotAt(children(), in);
     }
 
-    // Lifecycle: the rows there now attach with the list; later ones as they come.
+    // Lifecycle: the rows there now attach with the list; later ones as they come. The
+    // confirm joins the screen's dialogs; a list moved to another screen starts with its
+    // dialogs closed.
 
     @Override
     public void onAttach(Screen screen) {
         sync();
+        if (attachment.screen() != null && attachment.screen() != screen) {
+            closeEdit();
+            removing = null;
+        }
         attachment.attach(screen, everyChild());
+        if (confirm != null) ScreenPanelRegistry.attachDialog(screen, confirm);
+        if (editPanel != null) ScreenPanelRegistry.attachDialog(screen, editPanel);
     }
 
     @Override
     public void onDetach(Screen screen) {
+        if (confirm != null) ScreenPanelRegistry.detachDialog(screen, confirm);
+        if (editPanel != null) ScreenPanelRegistry.detachDialog(screen, editPanel);
         attachment.detach(screen, everyChild());
         focused = false;
     }
 
+    /** Every row, shown or not (a query hides some), and the list's other elements. */
     private List<PanelElement> everyChild() {
-        List<PanelElement> all = new ArrayList<>(shown);
-        if (empty != null) all.add(empty);
+        List<PanelElement> all = new ArrayList<>(keys.size() + 4);
+        for (Object k : keys) all.add(rows.get(k));
+        all.addAll(extras());
         return all;
     }
 
     // For MenuKit's checks.
 
-    /** The row shown for {@code key} now, or {@code null}. */
+    /** The row shown for {@code key} now (the one the factory made), or {@code null}. */
     public @Nullable PanelElement rowFor(Object key) {
         sync();
-        return rows.get(key);
+        PanelElement row = rows.get(key);
+        return row instanceof ListRow r ? r.row() : row;
     }
 
     /** Whether the list has the keyboard (after a click in it, until a click outside). */
@@ -503,9 +988,76 @@ public final class ListView<T> extends AbstractPanelElement {
         return focused;
     }
 
+    /** As a click on the remove mark of the row of {@code key}: removes, or opens the confirm. */
+    @ApiStatus.Internal
+    public void clickRemove(Object key) {
+        sync();
+        askRemove(key);
+    }
+
+    /** As a click on the Edit button of the row of {@code key}: opens its dialog. */
+    @ApiStatus.Internal
+    public void clickEdit(Object key) {
+        sync();
+        openEdit(key);
+    }
+
+    /** As typing in the search field: the query now. */
+    @ApiStatus.Internal
+    public void typeQuery(String query) {
+        this.query = Objects.requireNonNull(query, "query");
+    }
+
+    /** The keys of the rows shown now, top to bottom (the search and sort's view). */
+    public List<Object> shownKeys() {
+        sync();
+        return List.copyOf(shownKeys);
+    }
+
+    /**
+     * The sort in use (7.3.0): which {@link Builder#sort} option, in the order they were
+     * given, and whether it runs backwards. A record, for {@link Builder#sortState}.
+     *
+     * @param option   the sort's place among the {@code sort(...)} calls, from 0
+     * @param reversed whether the order runs backwards
+     */
+    public record Sort(int option, boolean reversed) {}
+
+    /** One kind of add: its button's label and what it does. */
+    private record AddKind(Component label, Supplier<?> action) {}
+
+    /** One sort: its label in the picker and its order. */
+    private record SortBy<T>(Component label, Comparator<? super T> order) {}
+
+    /** The edit dialog's parts: its title, the draft from an item, the draft's controls, and Save. */
+    private record EditDialog<T, D>(Function<? super T, Component> title, Function<? super T, ? extends D> draft,
+                                    Function<? super D, ? extends PanelElement> controls,
+                                    BiConsumer<Object, ? super D> save) {
+
+        /**
+         * The dialog for one item, every MenuKit dialog's layout: the title, the draft's
+         * controls, Cancel and Save centred. Save writes the draft, then closes; Cancel
+         * and Escape close, dropping it.
+         */
+        Panel panel(T item, Object k, Runnable close, BooleanSupplier shown) {
+            D d = draft.apply(item);
+            return DialogLayout.panel("menukit:list-edit-" + IDS.incrementAndGet(), close,
+                            DialogLayout.centred(TextLabel.builder().text(title.apply(item)).build()),
+                            controls.apply(d),
+                            DialogLayout.buttons(
+                                    DialogLayout.button(CommonComponents.GUI_CANCEL, close),
+                                    DialogLayout.button(Component.translatable("menukit.list.save"), () -> {
+                                        save.accept(k, d);
+                                        close.run();
+                                    })))
+                    .visibleWhen(shown);
+        }
+    }
+
     /**
      * Builds a {@link ListView}. {@link #items}, {@link #key} and {@link #row} are
-     * required; call {@code key} before {@code selection}, since it fixes the key's type.
+     * required; call {@code key} before {@code selection} and the editing options, since
+     * it fixes the key's type.
      *
      * @param <T> the item type
      * @param <K> the key type
@@ -518,6 +1070,18 @@ public final class ListView<T> extends AbstractPanelElement {
         private @Nullable Consumer<@Nullable Object> selectedSet;
         private int gap = 2;
         private @Nullable PanelElement empty;
+        private final List<AddKind> adds = new ArrayList<>();
+        private @Nullable BooleanSupplier addDisabled;
+        private @Nullable Consumer<Object> remove;
+        private @Nullable Function<? super T, Component> confirmRemove;
+        private @Nullable BiConsumer<Object, Integer> move;
+        private @Nullable Predicate<? super T> pinned;
+        private @Nullable EditDialog<T, ?> edit;
+        private @Nullable Component disabledReason;
+        private @Nullable Function<? super T, String> searchText;
+        private final List<SortBy<T>> sorts = new ArrayList<>();
+        private @Nullable Supplier<Sort> sortGet;
+        private @Nullable Consumer<Sort> sortSet;
 
         Builder() {}
 
@@ -571,11 +1135,137 @@ public final class ListView<T> extends AbstractPanelElement {
             return this;
         }
 
+        // Editing (7.3.0)
+
+        /**
+         * An add button under the rows, labelled {@code label}; call once per kind of
+         * item. {@code action} adds to your data and returns the new item's key (or
+         * {@code null}: the list finds the key that appeared). The new row is scrolled
+         * into view, and a search query that would hide it is cleared.
+         */
+        public Builder<T, K> add(Component label, Supplier<? extends @Nullable K> action) {
+            adds.add(new AddKind(Objects.requireNonNull(label, "label"), Objects.requireNonNull(action, "action")));
+            return this;
+        }
+
+        /** An add button whose action returns nothing: the list finds the key that appeared. */
+        public Builder<T, K> add(Component label, Runnable action) {
+            Objects.requireNonNull(action, "action");
+            return add(label, () -> {
+                action.run();
+                return null;
+            });
+        }
+
+        /** Greys every add button while {@code condition} holds, read every frame (a copy running, a cap reached). */
+        public Builder<T, K> addDisabledWhen(BooleanSupplier condition) {
+            this.addDisabled = Objects.requireNonNull(condition, "condition");
+            return this;
+        }
+
+        /** A remove mark at each row's trailing edge; a click hands the row's key to {@code remove}. */
+        @SuppressWarnings("unchecked")
+        public Builder<T, K> remove(Consumer<? super K> remove) {
+            Objects.requireNonNull(remove, "remove");
+            this.remove = k -> remove.accept((K) k);
+            return this;
+        }
+
+        /**
+         * Asks before a remove: a confirm dialog whose body is {@code body} of the item,
+         * read while it shows ("Delete Item 2? Its 3 locks move to Slot lock."). Needs
+         * {@link #remove}.
+         */
+        public Builder<T, K> confirmRemove(Function<? super T, Component> body) {
+            this.confirmRemove = Objects.requireNonNull(body, "body");
+            return this;
+        }
+
+        /**
+         * Up and down buttons on each row: a click hands the row's key and the place it
+         * should go in {@code items()} to {@code move}. Can't be on a list with {@link #sort}.
+         */
+        @SuppressWarnings("unchecked")
+        public Builder<T, K> move(BiConsumer<? super K, Integer> move) {
+            Objects.requireNonNull(move, "move");
+            this.move = (k, to) -> move.accept((K) k, to);
+            return this;
+        }
+
+        /** Rows that stay put: no remove mark, no arrows, and no other row moves past them. Read every frame. */
+        public Builder<T, K> pinned(Predicate<? super T> pinned) {
+            this.pinned = Objects.requireNonNull(pinned, "pinned");
+            return this;
+        }
+
+        /**
+         * An Edit button on each row that opens a dialog on a copy: {@code draft} makes
+         * the copy from the item, {@code controls} the dialog's controls onto it (lenses
+         * on the draft), and Save hands the key and the draft to {@code save}. Cancel and
+         * Escape drop the draft.
+         *
+         * @param title    the dialog's title, from the item ("Edit Item 2")
+         * @param draft    a copy of what the dialog edits, made each time it opens
+         * @param controls the controls, made each time it opens, reading and writing the draft
+         * @param save     what Save does with the key and the draft
+         * @param <D>      the draft's type
+         */
+        @SuppressWarnings("unchecked")
+        public <D> Builder<T, K> editDialog(Function<? super T, Component> title, Function<? super T, ? extends D> draft,
+                                            Function<? super D, ? extends PanelElement> controls,
+                                            BiConsumer<? super K, ? super D> save) {
+            Objects.requireNonNull(save, "save");
+            this.edit = new EditDialog<T, D>(Objects.requireNonNull(title, "title"), Objects.requireNonNull(draft, "draft"),
+                    Objects.requireNonNull(controls, "controls"), (k, d) -> save.accept((K) k, d));
+            return this;
+        }
+
+        /** Shown above the greyed rows while the list's {@code disabledWhen} holds: why it is greyed. */
+        public Builder<T, K> disabledReason(Component reason) {
+            this.disabledReason = Objects.requireNonNull(reason, "reason");
+            return this;
+        }
+
+        /**
+         * A search field in the {@link ListView#toolbar() toolbar}: a row shows while its
+         * item's {@code text} holds the query, case-insensitive. The query is the list's
+         * own view state.
+         */
+        public Builder<T, K> search(Function<? super T, String> text) {
+            this.searchText = Objects.requireNonNull(text, "text");
+            return this;
+        }
+
+        /**
+         * A way to sort the rows, labelled {@code label} in the sort picker; call once per
+         * way. The first is the default. With two or more, the toolbar has a picker and a
+         * direction toggle. Can't be on a list with {@link #move}: a sorted list has no
+         * order of its own to move a row in.
+         */
+        public Builder<T, K> sort(Component label, Comparator<? super T> order) {
+            sorts.add(new SortBy<>(Objects.requireNonNull(label, "label"), Objects.requireNonNull(order, "order")));
+            return this;
+        }
+
+        /** Keeps the sort choice yours (a lens), so it is remembered; otherwise it is the list's view state. */
+        public Builder<T, K> sortState(Supplier<Sort> get, Consumer<Sort> set) {
+            this.sortGet = Objects.requireNonNull(get, "get");
+            this.sortSet = Objects.requireNonNull(set, "set");
+            return this;
+        }
+
         @Override
         public ListView<T> build() {
             require(items != null, "items(supplier) is required");
             require(key != null, "key(function) is required: rows are kept by key, not by index");
             require(row != null, "row(factory) is required");
+            require(sorts.isEmpty() || move == null, "sort(...) and move(...) can't both be on one list: "
+                    + "a sorted list has no order of its own for up and down to change");
+            require(confirmRemove == null || remove != null, "confirmRemove(...) needs remove(...): it asks before one");
+            require(addDisabled == null || !adds.isEmpty(), "addDisabledWhen(...) needs an add(...) to grey");
+            require(sortGet == null || !sorts.isEmpty(), "sortState(...) needs a sort(...)");
+            require(disabledReason == null || disabledWhen != null,
+                    "disabledReason(...) needs disabledWhen(...): the reason shows while it holds");
             return new ListView<>(this);
         }
     }

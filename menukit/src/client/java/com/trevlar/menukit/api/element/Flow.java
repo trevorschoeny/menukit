@@ -471,12 +471,24 @@ public final class Flow extends AbstractPanelElement {
         return lastHeight;
     }
 
-    /** The extra height of the rows past the first: what a wrap adds. */
+    /**
+     * The extra height of the rows past the first: what a wrap adds. In a row Flow a
+     * child that grew past its own baseline (an open {@link Section}, a wrapped label)
+     * counts at its baseline (7.3.0), so its growth is the Flow's too and what is below
+     * is pushed down by it; a list row's controls stay centred on the row's first line.
+     * A vertical Flow child counts whole: what it reports is its stack, not growth.
+     */
     @Override
     public int extraLayoutHeight() {
         relayout();
         int oneRow = 0;
-        for (PanelElement c : children) if (c.isVisible()) oneRow = Math.max(oneRow, c.getHeight());
+        for (PanelElement c : children) {
+            if (!c.isVisible()) continue;
+            // A vertical Flow's extra is its own stack below its first child, not growth: whole.
+            boolean grows = !vertical && !(c instanceof Flow f && f.vertical);
+            int baseline = grows ? c.getHeight() - Math.max(0, c.extraLayoutHeight()) : c.getHeight();
+            oneRow = Math.max(oneRow, baseline);
+        }
         return Math.max(0, lastHeight - (oneRow + 2 * pad()));
     }
 

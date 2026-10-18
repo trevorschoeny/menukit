@@ -9,6 +9,7 @@ import net.minecraft.network.chat.Component;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * Builds a modal confirm/cancel dialog. It is an ordinary {@link Panel} made of
@@ -52,6 +53,19 @@ import java.util.concurrent.atomic.AtomicLong;
  * dialog's buttons. SlotKit's slot groups and the HUD don't apply: one anchors to slots,
  * the other takes no input.
  *
+ * <h3>Text that changes (7.3.0)</h3>
+ *
+ * {@code title} and {@code body} also take a supplier, read every frame the dialog is
+ * shown, so one dialog can name whichever item it is about: build it once, set the
+ * item, then show it.
+ *
+ * <pre>{@code
+ * ConfirmDialog.builder()
+ *     .title(Component.literal("Delete sandbox?"))
+ *     .body(() -> Component.literal("Delete " + pending.name() + "? This cannot be undone."))
+ *     ...
+ * }</pre>
+ *
  * <h3>Multi-line body</h3>
  *
  * The body is a single {@link Component}. For a multi-line body, build the Panel
@@ -86,8 +100,8 @@ public final class ConfirmDialog {
 
     /** Builder for a ConfirmDialog Panel. */
     public static final class Builder {
-        private Component title;
-        private Component body;
+        private Supplier<Component> title;
+        private Supplier<Component> body;
         private Runnable onConfirm;
         private Runnable onCancel;
         private Component confirmLabel = DEFAULT_CONFIRM_LABEL;
@@ -98,6 +112,12 @@ public final class ConfirmDialog {
 
         /** Title text shown at the top of the dialog. Required. */
         public Builder title(Component title) {
+            Objects.requireNonNull(title, "title must not be null");
+            return title(() -> title);
+        }
+
+        /** Title text read every frame the dialog is shown (7.3.0): the item it is about, say. Required (this or the fixed one). */
+        public Builder title(Supplier<Component> title) {
             this.title = Objects.requireNonNull(title, "title must not be null");
             return this;
         }
@@ -109,6 +129,12 @@ public final class ConfirmDialog {
          * class description).
          */
         public Builder body(Component body) {
+            Objects.requireNonNull(body, "body must not be null");
+            return body(() -> body);
+        }
+
+        /** Body text read every frame the dialog is shown (7.3.0). One line, as the fixed one. */
+        public Builder body(Supplier<Component> body) {
             this.body = Objects.requireNonNull(body, "body must not be null");
             return this;
         }
