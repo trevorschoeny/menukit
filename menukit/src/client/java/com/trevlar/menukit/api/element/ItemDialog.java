@@ -138,9 +138,11 @@ final class ItemDialog {
                 // would, so typing a name and Enter fills it.
                 .onSubmit(q -> putFirstMatch())
                 .build();
-        // As wide as the grid's nine columns, the band's inset and the scrollbar lane.
+        // As wide as the grid's nine columns, the band's inset and the scrollbar lane. The
+        // lane stays while a search's results fit, as the creative inventory's does, so the
+        // centred grid never shifts sideways as you type.
         this.grid = new Grid();
-        this.gridBox = ScrollContainer.builder().at(0, FIELD_HEIGHT + GAP).fitWidth().height(ROWS * ItemPicker.SIZE)
+        this.gridBox = ScrollContainer.builder().at(0, FIELD_HEIGHT + GAP).fitWidth().steadyLane().height(ROWS * ItemPicker.SIZE)
                 .content(List.of(grid))
                 .state(() -> gridScroll, v -> gridScroll = v)
                 .build();
@@ -607,7 +609,7 @@ final class ItemDialog {
             int[] gb = rect(gridBox, bx, by);
             if (tabs != null) out.add(box("grid area", gb, body));
             int inset = ScrollContainer.bandInsetX(kind, true);
-            int viewport = gb[2] - ScrollContainer.TRACK_WIDTH - ScrollContainer.SCROLLER_GUTTER;
+            int viewport = gridBox.viewportWidth();
             out.add(box("grid columns", new int[]{gb[0] + inset + grid.left(), gb[1], GRID_WIDTH, gb[3]},
                     new int[]{gb[0], gb[1], viewport, gb[3]}));
             return out;
@@ -625,7 +627,7 @@ final class ItemDialog {
         if (enchantBox.isVisible()) {
             int[] eb = rect(enchantBox, bx, by);
             int insetX = ScrollContainer.bandInsetX(kind, true), insetY = ScrollContainer.bandInsetY(kind, true);
-            int viewport = eb[2] - ScrollContainer.TRACK_WIDTH - ScrollContainer.SCROLLER_GUTTER;
+            int viewport = enchantBox.viewportWidth();
             int ox = eb[0] + insetX, oy = eb[1] + insetY;
             out.add(box("enchantment rows", new int[]{ox, eb[1], enchants.getWidth(), eb[3]},
                     new int[]{eb[0], eb[1], viewport, eb[3]}));

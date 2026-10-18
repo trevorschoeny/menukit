@@ -32,6 +32,17 @@ import java.util.function.DoubleSupplier;
  * the viewport's size is declared. Width reserved for the scrollbar lane is
  * {@link #viewportWidthFor}.
  *
+ * <h3>The scrollbar shows only while there is something to scroll (7.3.0)</h3>
+ *
+ * In both looks the track and handle are drawn only while the content is taller
+ * than the viewport; while everything fits the lane is empty and takes no clicks.
+ * A container that lays its own children out ({@link Builder#fitWidth()}) also gives
+ * them the lane's width back while it is hidden, so rows reach the right edge and
+ * the margins either side match; it lays them out again the frame the content
+ * starts or stops overflowing. A wider layout is never taller, and a narrower one
+ * never shorter, so the choice settles at once and never flips back and forth.
+ * Children placed by hand keep the width they were given.
+ *
  * <h3>Scroll position: view state, or the consumer's</h3>
  *
  * By default the scroll is the container's own view state, as a {@link Tabs}
@@ -141,6 +152,8 @@ public class ScrollContainer extends AbstractPanelElement {
     public static final int TRACK_WIDTH = Scroller.TRACK_WIDTH;
     /** Pixels scrolled per wheel notch. */
     public static final int SCROLL_PIXELS_PER_TICK = Scroller.PIXELS_PER_NOTCH;
+    /** The scrollbar lane: the track and the gutter between it and the content. */
+    private static final int LANE = TRACK_WIDTH + SCROLLER_GUTTER;
 
     /**
      * In the Default look, how far in from the list band's left edge its content
@@ -199,6 +212,19 @@ public class ScrollContainer extends AbstractPanelElement {
     /** The scroll, in pixels, when the consumer does not own it (view state). */
     private double ownScroll = 0;
 
+    /**
+     * Keeps the lane and its (greyed) handle even while everything fits, as vanilla's
+     * creative inventory does: for a grid whose contents a search changes as you type
+     * (the item picker), so it never shifts sideways under the cursor.
+     */
+    private final boolean steadyLane;
+    /**
+     * Fitting its width: the lane the children were last laid out beside, {@link #LANE}
+     * or 0. Layout state, not a frame cache: render lays the children out again when
+     * the content's overflow no longer matches it.
+     */
+    private int laidLane = LANE;
+
     // The handle drag: interaction state from press to release, not a frame cache.
     // While held, how far below the handle's top it is held (Scroller.grab).
     private boolean dragging = false;
@@ -212,6 +238,7 @@ public class ScrollContainer extends AbstractPanelElement {
         this.fitWidth = b.fitWidth;
         this.fitHeight = b.fitHeight;
         this.fill = b.fill;
+        this.steadyLane = b.steadyLane;
         if (fitWidth) this.width = -1;   // its content's until the panel lays it out
         if (b.scrollGet != null) {
             this.scrollGet = b.scrollGet;
@@ -273,8 +300,36 @@ public class ScrollContainer extends AbstractPanelElement {
 
     // Geometry
 
-    private int viewportWidth() {
-        return getWidth() - TRACK_WIDTH - SCROLLER_GUTTER;
+    /**
+     * The width the children see and are clipped to: the whole width less the lane
+     * while it shows. Fitting its width, the lane they were laid out beside; else the
+     * lane as it is now (children placed by hand never reach it either way).
+     */
+    int viewportWidth() {
+        return getWidth() - (fitWidth ? laidLane : laneWidth(measuredKind));
+    }
+
+    /** Whether the scrollbar shows: while the content overflows, or always for a steady lane. */
+    private boolean laneShown(ScreenKind kind) {
+        return steadyLane || canScroll(kind);
+    }
+
+    private int laneWidth(ScreenKind kind) {
+        return laneShown(kind) ? LANE : 0;
+    }
+
+    /**
+     * Fitting its width, lays the children out to the viewport inside the band's inset:
+     * the whole width when they fit without the lane, else less the lane.
+     */
+    private void layoutContent(ScreenKind kind) {
+        int room = Math.max(1, getWidth() - insetX(kind));
+        laidLane = 0;
+        if (!steadyLane) Panel.layoutElementsWithin(content, room);   // without the lane: does it fit?
+        if (laneShown(kind)) {
+            laidLane = LANE;
+            Panel.layoutElementsWithin(content, Math.max(1, room - LANE));
+        }
     }
 
     /** Fitting its content, as wide as it was laid out (its content's before then); else as declared. */
@@ -326,7 +381,9 @@ public class ScrollContainer extends AbstractPanelElement {
         for (PanelElement e : content) {
             if (e.isVisible()) widest = Math.max(widest, e.getChildX() + e.naturalWidth());
         }
-        return widest + insetX(measuredKind) + TRACK_WIDTH + SCROLLER_GUTTER;
+        // The lane counts whether or not it shows, so the container's own width never
+        // changes with its content's height; while hidden, its width goes to the children.
+        return widest + insetX(measuredKind) + LANE;
     }
 
     @Override
@@ -402,19 +459,20 @@ public class ScrollContainer extends AbstractPanelElement {
     /** Column fill widens the viewport; floored so the scrollbar lane always fits. */
     @Override
     public void fillWidth(int width) {
-        super.fillWidth(Math.max(width, TRACK_WIDTH + SCROLLER_GUTTER + 1));
+        super.fillWidth(Math.max(width, LANE + 1));
     }
 
     /**
      * A declared viewport: the panel does not narrow it. Fitting its content's width,
      * it takes the room it is given (never less than the scrollbar lane needs) and
-     * lays its children out to the viewport inside the band's inset.
+     * lays its children out to the viewport inside the band's inset, with the lane's
+     * width while the lane is hidden.
      */
     @Override
     public void layoutWithin(int budget) {
         if (!fitWidth) return;
-        width = Math.max(TRACK_WIDTH + SCROLLER_GUTTER + 1, budget);
-        Panel.layoutElementsWithin(content, Math.max(1, viewportWidth() - insetX(measuredKind)));
+        width = Math.max(LANE + 1, budget);
+        layoutContent(measuredKind);
     }
 
     @Override public boolean isInteractive() { return true; }
@@ -449,6 +507,14 @@ public class ScrollContainer extends AbstractPanelElement {
         // Follow a held handle with the mouse.
         if (dragging && canScroll(kind) && ctx.hasMouseInput()) followDrag(kind, ctx.mouseY() - sy);
 
+        // The content started or stopped overflowing (a row added or removed, a search
+        // typed): fitting its width, lay the children out again beside the lane or across it.
+        boolean shown = laneShown(kind);
+        if (fitWidth && width >= 0 && (shown ? LANE : 0) != laidLane) {
+            layoutContent(kind);
+            shown = laneShown(kind);
+        }
+
         // In the Default look: the list band behind the children, scrolling with them as
         // vanilla's does, and its separators just outside the top and bottom edges.
         boolean vanilla = kind == ScreenKind.DEFAULT;
@@ -474,11 +540,14 @@ public class ScrollContainer extends AbstractPanelElement {
         g.disableScissor();
 
         // The scrollbar at the lane's right, drawn for the kind of screen by the one
-        // scroller: MenuKit's inset track and vanilla's creative handle on a container
-        // screen, vanilla's thin list scroller in the Default look (none while
-        // everything fits). The handle's size, travel and drag are the same on both.
-        Scroller.draw(g, kind, sx + width - Scroller.trackWidth(kind), sy, height, handleTop(kind),
-                canScroll(kind), disabled);
+        // scroller: MenuKit's inset track and vanilla's creative handle in the Panel
+        // look, vanilla's thin list scroller in the Default look. None while everything
+        // fits, in either look (a steady lane keeps its greyed handle in the Panel look).
+        // The handle's size, travel and drag are the same on both.
+        if (shown) {
+            Scroller.draw(g, kind, sx + width - Scroller.trackWidth(kind), sy, height, handleTop(kind),
+                    canScroll(kind), disabled);
+        }
     }
 
     /** The children's overlays, unclipped, at their scrolled positions. */
@@ -580,13 +649,19 @@ public class ScrollContainer extends AbstractPanelElement {
         private @Nullable DoubleSupplier scrollGet;
         private @Nullable DoubleConsumer scrollSet;
         private boolean band = true;
-        private boolean fitWidth, fitHeight, fill;
+        private boolean fitWidth, fitHeight, fill, steadyLane;
 
         protected Builder() {}
 
         /** No list band in the Default look: for a host that draws one around it (a Tabs body). */
         Builder bandless() {
             this.band = false;
+            return this;
+        }
+
+        /** Keeps the scrollbar lane while everything fits ({@link #steadyLane}): the item picker's grid. */
+        Builder steadyLane() {
+            this.steadyLane = true;
             return this;
         }
 

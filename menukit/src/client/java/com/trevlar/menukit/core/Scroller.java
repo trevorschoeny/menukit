@@ -167,9 +167,10 @@ public final class Scroller {
     /**
      * The scrollbar, its track's top-left at {@code (x, y)}, {@link #trackWidth}
      * wide and {@code track} long, the thumb {@code thumbTop} down it. In the
-     * Panel look MenuKit's inset track always shows, the thumb greyed when
-     * nothing scrolls or the owner is disabled; in the Default look vanilla's
-     * list scrollbar shows only while something scrolls, as vanilla's does.
+     * Panel look MenuKit's inset track, the thumb greyed when nothing scrolls or
+     * the owner is disabled (a {@code ScrollContainer} draws it only while
+     * something scrolls, or always for its steady lane); in the Default look
+     * vanilla's list scrollbar, only while something scrolls, as vanilla's does.
      */
     public static void draw(GuiGraphicsExtractor g, ScreenKind kind, int x, int y, int track, double thumbTop,
                             boolean scrollable, boolean disabled) {

@@ -1,20 +1,18 @@
 package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.api.panel.ScreenKind;
+import com.trevlar.menukit.core.DialogLayout;
 
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.Component;
 
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BooleanSupplier;
-import java.util.function.Supplier;
 
 /**
  * One row of an editing {@link ListView} (7.3.0): the consumer's row, and the list's
- * controls for it (Edit, the move arrows, the remove mark) in a lane at its trailing
+ * controls for it (Edit, the move arrows, remove) in a lane at its trailing
  * edge. Package-private: the list makes one per key only when it has a control to put
  * there, so a list with none keeps the consumer's row as it is.
  *
@@ -22,7 +20,7 @@ import java.util.function.Supplier;
  *
  * The consumer's row gets the width less the lane, so its own trailing content
  * (a spacer and a control) ends where the lane starts. Each control keeps its slot
- * whether or not it shows (a pinned row has no arrows and no remove mark), so every
+ * whether or not it shows (a pinned row has no arrows and no remove button), so every
  * row of the list is the same width and the lane's controls line up in columns.
  *
  * <p>The lane is centred on the row's first line, not its whole height: the row's
@@ -34,9 +32,9 @@ final class ListRow extends AbstractPanelElement {
 
     /** Between the consumer's row and the lane: a Flow's gap. */
     static final int LANE_GAP = Flow.DEFAULT_GAP;
-    /** Between two controls in the lane: the list's own row gap. */
-    static final int CONTROL_GAP = 2;
-    /** The lane's buttons (Edit, the arrows): square arrows, this tall. */
+    /** Between two controls in the lane: the gap between any two MenuKit buttons side by side. */
+    static final int CONTROL_GAP = DialogLayout.BUTTON_GAP;
+    /** The lane's buttons, all this tall: Edit, and the square icon ones (up, down, remove). */
     static final int CONTROL = 16;
 
     private final PanelElement row;
@@ -191,61 +189,4 @@ final class ListRow extends AbstractPanelElement {
     @Override public void inBand(boolean inBand) { ChildDispatch.inBand(all, inBand); }
     @Override public void onAttach(Screen screen) { ChildDispatch.attach(all, screen); }
     @Override public void onDetach(Screen screen) { ChildDispatch.detach(all, screen); }
-
-    /**
-     * The remove mark at a row's trailing edge: the item picker's corner remove, at a
-     * row's size. A dark square with a white cross, lighter while hovered, in both
-     * looks; greyed while disabled. Left click (with vanilla's click sound) runs the
-     * list's remove.
-     */
-    static final class RemoveMark extends AbstractPanelElement {
-
-        /** The square's side; the cross is {@link #CROSS} inside it, centred. */
-        static final int SIZE = 11;
-        private static final int CROSS = 5;
-        private static final int DISABLED_FILL = 0xFF555555, DISABLED_CROSS = 0xFF8B8B8B;
-        private static final Supplier<Component> TOOLTIP = () -> Component.translatable("menukit.list.remove");
-
-        private final BooleanSupplier shown;
-        private final Runnable onClick;
-
-        RemoveMark(BooleanSupplier shown, Runnable onClick) {
-            this.shown = shown;
-            this.onClick = onClick;
-            this.width = this.authoredWidth = SIZE;
-            this.height = SIZE;
-        }
-
-        @Override public boolean isVisible() { return shown.getAsBoolean(); }
-        @Override public @Nullable Supplier<Component> tooltipSupplier() { return TOOLTIP; }
-        @Override public void layoutWithin(int budget) {}
-        @Override public void fillWidth(int width) {}
-        @Override public boolean isInteractive() { return true; }
-
-        @Override
-        public void render(RenderContext ctx) {
-            int x = ctx.originX() + childX, y = ctx.originY() + childY;
-            boolean disabled = disabled(ctx);
-            boolean hovered = !disabled && isHovered(ctx);
-            var g = ctx.graphics();
-            g.fill(x, y, x + SIZE, y + SIZE,
-                    disabled ? DISABLED_FILL : hovered ? ItemPicker.REMOVE_HOVER : ItemPicker.REMOVE_FILL);
-            // The cross, one pixel at a time on both diagonals.
-            int c = disabled ? DISABLED_CROSS : ItemPicker.REMOVE_BAR;
-            int ox = x + (SIZE - CROSS) / 2, oy = y + (SIZE - CROSS) / 2;
-            for (int i = 0; i < CROSS; i++) {
-                g.fill(ox + i, oy + i, ox + i + 1, oy + i + 1, c);
-                g.fill(ox + CROSS - 1 - i, oy + i, ox + CROSS - i, oy + i + 1, c);
-            }
-            if (hovered) queueTooltip(ctx);
-        }
-
-        @Override
-        public boolean mouseClicked(InputContext in, int button) {
-            if (button != Click.LEFT || disabled(in)) return false;
-            ElementWidget.playClickSound();
-            onClick.run();
-            return true;
-        }
-    }
 }
