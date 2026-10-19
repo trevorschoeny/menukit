@@ -108,6 +108,11 @@ final class ListRow extends AbstractPanelElement {
         return row;
     }
 
+    /** The controls, left to right. */
+    List<PanelElement> controls() {
+        return controls;
+    }
+
     // Layout
 
     private boolean inside() {

@@ -114,7 +114,8 @@ import java.util.function.Supplier;
  * ListView.<LockGroup>builder()
  *     .items(groups::all).key(LockGroup::id).row(this::groupRow)
  *     .add(Component.literal("+ Slot group"), () -> groups.addSlotGroup())   // one button per kind
- *     .add(Component.literal("+ Item group"), () -> groups.addItemGroup())
+ *     .add(Component.literal("+ Item group"),
+ *          Component.literal("Locks that follow an item"), () -> groups.addItemGroup())   // with a tooltip
  *     .remove(id -> groups.delete(id))                                       // removes the selected row
  *     .confirmRemove(g -> Component.literal("Delete " + g.name() + "?"))     // asks first
  *     .move((id, toIndex) -> groups.move(id, toIndex))                       // moves the selected row
@@ -126,10 +127,11 @@ import java.util.function.Supplier;
  *   <li><b>Add</b> ({@link Builder#add}): one button per kind in the list's
  *       {@linkplain #toolbar() toolbar}. The action returns the new item's key, or
  *       {@code null} and the list finds the key that appeared; either way the new row is
- *       scrolled into view, and a search query that would hide it is cleared.
- *       {@link Builder#addDisabledWhen} greys them.</li>
+ *       scrolled into view, and a search query that would hide it is cleared. A
+ *       tooltip between the label and the action, fixed or read while hovered, says
+ *       what the kind is. {@link Builder#addDisabledWhen} greys them.</li>
  *   <li><b>Remove</b> ({@link Builder#remove}): a "- Remove item" button right of the
- *       add buttons, acting on the selected row. {@link Builder#confirmRemove} asks
+ *       add buttons, acting on the selected row; it can take its own label and tooltip. {@link Builder#confirmRemove} asks
  *       first, in a {@link ConfirmDialog} whose body names the item, read when it
  *       shows. Once the row is gone the row that took its place is selected (the one
  *       before it when it was last), so a second click removes the next.</li>
@@ -333,7 +335,7 @@ public final class ListView<T> extends AbstractPanelElement {
         this.noMatches = searchText == null ? null
                 : TextLabel.builder().role(TextRole.MUTED).text(Component.translatable("menukit.list.no_matches")).build();
         this.toolbar = b.adds.isEmpty() && searchText == null && sorts.size() < 2 && !barActs ? null
-                : makeToolbar(b.addDisabled, b.removeLabel);
+                : makeToolbar(b.addDisabled, b.removeLabel, b.removeTooltip);
         this.confirm = confirmRemove == null ? null : makeConfirm();
     }
 
@@ -356,7 +358,8 @@ public final class ListView<T> extends AbstractPanelElement {
      * placed, the add buttons also while {@code addDisabledWhen} holds, and remove and
      * the arrows while the selected row can't do it.
      */
-    private PanelElement makeToolbar(@Nullable BooleanSupplier addDisabled, Component removeLabel) {
+    private PanelElement makeToolbar(@Nullable BooleanSupplier addDisabled, Component removeLabel,
+                                     @Nullable Supplier<Component> removeTooltip) {
         BooleanSupplier off = this::ownDisabled;
         PanelElement search = searchText == null
                 ? Flow.builder().build()   // nothing on the left: the buttons keep the right end
@@ -388,14 +391,17 @@ public final class ListView<T> extends AbstractPanelElement {
         }
         BooleanSupplier addOff = addDisabled == null ? off : () -> ownDisabled() || addDisabled.getAsBoolean();
         for (AddKind a : adds) {
-            buttons.add(Button.builder().label(a.label()).size(0, ADD_HEIGHT)
-                    .onClick(() -> runAdd(a.action())).disabledWhen(addOff).build());
+            Button.Builder add = Button.builder().label(a.label()).size(0, ADD_HEIGHT)
+                    .onClick(() -> runAdd(a.action())).disabledWhen(addOff);
+            if (a.tooltip() != null) add.tooltip(a.tooltip());
+            buttons.add(add.build());
         }
         if (barActs && remove != null) {
-            buttons.add(Button.builder().label(removeLabel).size(0, ADD_HEIGHT)
+            Button.Builder rm = Button.builder().label(removeLabel).size(0, ADD_HEIGHT)
                     .disabledWhen(() -> ownDisabled() || !removeEnabled())
-                    .onClick(this::removeSelected)
-                    .build());
+                    .onClick(this::removeSelected);
+            if (removeTooltip != null) rm.tooltip(removeTooltip);
+            buttons.add(rm.build());
         }
         if (barActs && move != null) {
             buttons.add(barArrow(BAR_UP, "menukit.list.move_up", -1));
@@ -1210,6 +1216,16 @@ public final class ListView<T> extends AbstractPanelElement {
         runAdd(adds.get(kind).action());
     }
 
+    /** The tooltip on the add button of the {@code kind}th {@code add(...)}, read now; {@code null} for none. */
+    @ApiStatus.Internal
+    public @Nullable Component addTooltip(int kind) {
+        // The toolbar's buttons in order: the sort picker and its direction when there are
+        // two or more sorts, then the add buttons. The field, not toolbar(): asking leaves the toolbar to the caller.
+        PanelElement b = ((ListRow) Objects.requireNonNull(toolbar, "toolbar")).controls().get((sorts.size() >= 2 ? 2 : 0) + kind);
+        Supplier<Component> t = b.tooltipSupplier();
+        return t == null ? null : t.get();
+    }
+
     /** As typing in the search field: the query now. */
     @ApiStatus.Internal
     public void typeQuery(String query) {
@@ -1225,8 +1241,8 @@ public final class ListView<T> extends AbstractPanelElement {
      */
     public record Sort(int option, boolean reversed) {}
 
-    /** One kind of add: its button's label and what it does. */
-    private record AddKind(Component label, Supplier<?> action) {}
+    /** One kind of add: its button's label, its tooltip if any, and what it does. */
+    private record AddKind(Component label, @Nullable Supplier<Component> tooltip, Supplier<?> action) {}
 
     /** One sort: its label in the picker and its order. */
     private record SortBy<T>(Component label, Comparator<? super T> order) {}
@@ -1251,6 +1267,7 @@ public final class ListView<T> extends AbstractPanelElement {
         private @Nullable BooleanSupplier addDisabled;
         private @Nullable Consumer<Object> remove;
         private Component removeLabel = Component.translatable("menukit.list.remove_item");
+        private @Nullable Supplier<Component> removeTooltip;
         private @Nullable Function<? super T, Component> confirmRemove;
         private @Nullable BiConsumer<Object, Integer> move;
         private @Nullable Predicate<? super T> pinned;
@@ -1323,17 +1340,54 @@ public final class ListView<T> extends AbstractPanelElement {
          * into view, and a search query that would hide it is cleared.
          */
         public Builder<T, K> add(Component label, Supplier<? extends @Nullable K> action) {
-            adds.add(new AddKind(Objects.requireNonNull(label, "label"), Objects.requireNonNull(action, "action")));
-            return this;
+            return addKind(label, null, action);
         }
 
         /** An add button whose action returns nothing: the list finds the key that appeared. */
         public Builder<T, K> add(Component label, Runnable action) {
+            return addKind(label, null, keyless(action));
+        }
+
+        /**
+         * {@link #add(Component, Supplier)} with a hover tooltip saying what the kind is,
+         * as {@code Button.Builder.tooltip(Component)}: a {@code \n} starts a new line.
+         */
+        public Builder<T, K> add(Component label, Component tooltip, Supplier<? extends @Nullable K> action) {
+            Objects.requireNonNull(tooltip, "tooltip");
+            return addKind(label, () -> tooltip, action);
+        }
+
+        /** {@link #add(Component, Runnable)} with a fixed hover tooltip. */
+        public Builder<T, K> add(Component label, Component tooltip, Runnable action) {
+            Objects.requireNonNull(tooltip, "tooltip");
+            return addKind(label, () -> tooltip, keyless(action));
+        }
+
+        /**
+         * {@link #add(Component, Supplier)} with a hover tooltip read every frame while
+         * hovered, as {@code Button.Builder.tooltip(Supplier)}: a {@code null} result shows none.
+         */
+        public Builder<T, K> add(Component label, Supplier<Component> tooltip, Supplier<? extends @Nullable K> action) {
+            return addKind(label, Objects.requireNonNull(tooltip, "tooltip"), action);
+        }
+
+        /** {@link #add(Component, Runnable)} with a hover tooltip read while hovered. */
+        public Builder<T, K> add(Component label, Supplier<Component> tooltip, Runnable action) {
+            return addKind(label, Objects.requireNonNull(tooltip, "tooltip"), keyless(action));
+        }
+
+        private Builder<T, K> addKind(Component label, @Nullable Supplier<Component> tooltip, Supplier<? extends @Nullable K> action) {
+            adds.add(new AddKind(Objects.requireNonNull(label, "label"), tooltip, Objects.requireNonNull(action, "action")));
+            return this;
+        }
+
+        /** An action that returns nothing, as one returning no key: the list finds the key that appeared. */
+        private static <K> Supplier<@Nullable K> keyless(Runnable action) {
             Objects.requireNonNull(action, "action");
-            return add(label, () -> {
+            return () -> {
                 action.run();
                 return null;
-            });
+            };
         }
 
         /** Greys every add button while {@code condition} holds, read every frame (a copy running, a cap reached). */
@@ -1358,6 +1412,21 @@ public final class ListView<T> extends AbstractPanelElement {
         public Builder<T, K> remove(Component label, Consumer<? super K> remove) {
             this.removeLabel = Objects.requireNonNull(label, "label");
             return remove(remove);
+        }
+
+        /**
+         * {@link #remove(Component, Consumer)} with a fixed hover tooltip on the toolbar
+         * button (the crosses of {@link #controlsInRows()} keep theirs).
+         */
+        public Builder<T, K> remove(Component label, Component tooltip, Consumer<? super K> remove) {
+            Objects.requireNonNull(tooltip, "tooltip");
+            return remove(label, () -> tooltip, remove);
+        }
+
+        /** {@link #remove(Component, Consumer)} with a hover tooltip on the toolbar button, read while hovered. */
+        public Builder<T, K> remove(Component label, Supplier<Component> tooltip, Consumer<? super K> remove) {
+            this.removeTooltip = Objects.requireNonNull(tooltip, "tooltip");
+            return remove(label, remove);
         }
 
         /**
