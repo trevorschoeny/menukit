@@ -479,14 +479,14 @@ Result: one card per sandbox. Creating, duplicating or deleting one adds or remo
 Needs: MenuKit 7.3.0. For a short list of things with their own settings: lock groups, saved layouts, waypoint groups.
 
 ```java
-// Three kinds to add, remove and the arrows act on the selected group, the two defaults pinned.
+// Three kinds to add, each saying what it is on hover; remove and the arrows act on the selected group, the two defaults pinned.
 ListView<LockGroup> groupList = ListView.<LockGroup>builder()
         .items(groups::all)
         .key(LockGroup::id)
         .row(group -> groupRow(group.id()))
-        .add(Component.literal("+ Slot group"), groups::addSlotGroup)
-        .add(Component.literal("+ Item group"), groups::addItemGroup)
-        .add(Component.literal("+ Tag group"), groups::addTagGroup)
+        .add(Component.literal("+ Slot group"), Component.literal("Locks the slots you pick"), groups::addSlotGroup)
+        .add(Component.literal("+ Item group"), Component.literal("Locks the items you pick"), groups::addItemGroup)
+        .add(Component.literal("+ Tag group"), Component.literal("Locks every item in a tag"), groups::addTagGroup)
         .remove(Component.literal("- Delete group"), groups::delete)
         .confirmRemove(g -> Component.literal("Delete " + g.name() + "? Its " + g.locks() + " locks move to Slot lock."))
         .move(groups::move)
@@ -519,7 +519,7 @@ static PanelElement groupRow(String id) {
 }
 ```
 
-Result: a toolbar with + Slot group, + Item group, + Tag group, - Delete group and up and down arrows at its right end, over a list of cards. Clicking anywhere on a card selects it: a white outline in the Default look, a lighter card in the Panel look. Delete and the arrows stay grey until a group is selected, and stay grey for the two default groups, for up on the top movable group and down on the bottom one. Delete asks first, naming the group and its lock count, and then selects the group that took its place, so a second click deletes the next. Alt+Up and Alt+Down move the selected group. An added group appears at the bottom, scrolled into view. A group's card opens in place and stays open through renames and refreshes.
+Result: a toolbar with + Slot group, + Item group, + Tag group, - Delete group and up and down arrows at its right end, over a list of cards. Hovering an add button shows its tooltip, saying what that kind of group locks; `add(label, () -> tooltip, action)` takes one read while hovered instead. Clicking anywhere on a card selects it: a white outline in the Default look, a lighter card in the Panel look. Delete and the arrows stay grey until a group is selected, and stay grey for the two default groups, for up on the top movable group and down on the bottom one. Delete asks first, naming the group and its lock count, and then selects the group that took its place, so a second click deletes the next. Alt+Up and Alt+Down move the selected group. An added group appears at the bottom, scrolled into view. A group's card opens in place and stays open through renames and refreshes.
 
 ## A config list of values, each its own text field
 
