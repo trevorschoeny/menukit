@@ -40,7 +40,8 @@ import java.util.function.Supplier;
  * recolour in place, with no rebuild:
  * {@code Section.builder(() -> Component.literal(group.name)).swatch(() -> group.color)}.
  * The header measures the title as it is now. The summary takes what room the title
- * leaves; the title itself is drawn whole.
+ * leaves, and a title too long for the header (a long rename) is cut with "..."
+ * before the trailing edge, or a list row's controls, and shown whole in a tooltip.
  *
  * <p>In the Default look ({@link ScreenKind#DEFAULT}) the header takes the
  * category header's colours from vanilla's Controls screen: the title in white
@@ -298,23 +299,38 @@ public final class Section extends AbstractPanelElement {
             g.fill(x, sy, x + SWATCH, sy + SWATCH, swatch.getAsInt());
             x += SWATCH + SWATCH_GAP;
         }
+        // The title and summary share what the header has left after the arrow and
+        // swatch (and short of a list row's controls). The summary gives way first: it
+        // takes only what the whole title leaves, then the title itself is cut.
         Component t = title.get();
-        g.text(font, t.getString(), x, textY, titleCol, shadow);
-        x += font.width(t);
+        int room = hx + w - x;
+        String titleText = fit(font, t.getString(), room);
+        boolean titleCut = !titleText.equals(t.getString());
+        g.text(font, titleText, x, textY, titleCol, shadow);
+        x += font.width(titleText) + SUMMARY_GAP;
         if (summary != null) {
-            x += SUMMARY_GAP;
-            int room = hx + w - x;
-            String text = summary.get().getString();
-            if (room > 0 && font.width(text) > room) {
-                text = font.plainSubstrByWidth(text, Math.max(0, room - font.width(ELLIPSIS))) + ELLIPSIS;
-            }
-            if (room > 0) g.text(font, text, x, textY, summaryCol, shadow);
+            String text = fit(font, summary.get().getString(), hx + w - x);
+            if (!text.isEmpty()) g.text(font, text, x, textY, summaryCol, shadow);
         }
-        queueTooltip(ctx);
+        // A cut title shows whole in a tooltip on the header, as a cut tab label does,
+        // unless the consumer gave the section a tooltip of its own.
+        if (titleCut && tooltipSupplier() == null && ctx.hasMouseInput()
+                && ctx.isHovered(childX, childY, w, headerHeight())) {
+            MKTooltip.queue(g, t, ctx.mouseX(), ctx.mouseY());
+        } else {
+            queueTooltip(ctx);
+        }
 
         if (!open) return;
         relayout();
         ChildDispatch.render(children, contentRender(ctx));
+    }
+
+    /** {@code text} cut with "..." to {@code room}; empty when not even the "..." fits. */
+    private static String fit(Font font, String text, int room) {
+        if (font.width(text) <= room) return text;
+        if (room < font.width(ELLIPSIS)) return "";
+        return font.plainSubstrByWidth(text, room - font.width(ELLIPSIS)) + ELLIPSIS;
     }
 
     @Override
