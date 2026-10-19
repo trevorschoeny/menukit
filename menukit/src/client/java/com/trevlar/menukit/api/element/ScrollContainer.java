@@ -32,6 +32,12 @@ import java.util.function.DoubleSupplier;
  * the viewport's size is declared. Width reserved for the scrollbar lane is
  * {@link #viewportWidthFor}.
  *
+ * <p>A child that grows pushes the children below it down, as on a panel (7.3.0): a
+ * {@link ListView} a row is added to, an open {@link Section}, a wrapped label, by its
+ * {@link PanelElement#extraLayoutHeight()}, and back up as it shrinks, read every frame,
+ * so the scroll range follows in the same frame. A settings page that scrolls (a list,
+ * then more settings) places what follows the list as if it took no room.
+ *
  * <h3>The scrollbar shows only while there is something to scroll (7.3.0)</h3>
  *
  * In both looks the track and handle are drawn only while the content is taller
@@ -49,7 +55,9 @@ import java.util.function.DoubleSupplier;
  * body's is. {@code state(get, set)} hands it to the consumer instead, in pixels
  * from the top: {@code get} is read every frame, {@code set} receives each change.
  * Pixels, not a fraction: when the content changes height while shown (a section
- * opening), what is on screen stays where it is and only the range changes. A
+ * opening), what is on screen stays where it is and only the range changes. That
+ * holds for a child above the window too: one that grows or shrinks there moves the
+ * scroll by as much, so the first child reaching into the window stays put. A
  * position past the new end is clamped, and the clamp written back. Nothing else
  * moves it: no click on a child scrolls it into view, and it never glides (the
  * wheel and the handle move it at once), so a content change has no glide target
@@ -213,6 +221,14 @@ public class ScrollContainer extends AbstractPanelElement {
     private double ownScroll = 0;
 
     /**
+     * The children's visibility, places and heights at the last reflow, and each one's
+     * bottom then: layout state, so the children are re-stacked only when one changed,
+     * and the view kept on the child that reached into it ({@link #reflow}).
+     */
+    private int reflowSig = 0;
+    private final int[] settledBottom;
+
+    /**
      * Keeps the lane and its (greyed) handle even while everything fits, as vanilla's
      * creative inventory does: for a grid whose contents a search changes as you type
      * (the item picker), so it never shifts sideways under the cursor.
@@ -233,6 +249,7 @@ public class ScrollContainer extends AbstractPanelElement {
     protected ScrollContainer(Builder b) {
         super(b);
         this.content = List.copyOf(b.content);
+        this.settledBottom = new int[content.size()];
         this.fixedContentHeight = b.contentHeight;
         this.band = b.band;
         this.fitWidth = b.fitWidth;
@@ -415,8 +432,50 @@ public class ScrollContainer extends AbstractPanelElement {
      * The band's inset above and below is part of it.
      */
     private int contentHeight(ScreenKind kind) {
+        reflow(kind);
         int children = fixedContentHeight >= 0 ? fixedContentHeight : autoContentHeight(content);
         return children + 2 * insetY(kind);
+    }
+
+    /**
+     * Re-stacks the children from their baselines as a panel does its elements
+     * ({@link Panel#reflowForWrap}), when one changed visibility, place or height: one
+     * that grew pushes those below it down by its extra height, one that shrank lets
+     * them back up. Scrolled down, the view stays on the topmost child that reached into
+     * the window before the change: when it moved (something above the window grew or
+     * shrank) the scroll moves by as much. A child across the window's top that grows at
+     * its bottom doesn't move, so neither does the view. At the top it stays at the top.
+     */
+    private void reflow(ScreenKind kind) {
+        if (signature() == reflowSig) return;
+        double scroll = scrollGet.getAsDouble();
+        int top = (int) scroll - insetY(kind);   // the window's top, in the children's coordinates
+        int anchor = -1;
+        for (int i = 0; i < content.size(); i++) {
+            PanelElement e = content.get(i);
+            if (!e.isVisible() || settledBottom[i] <= top) continue;
+            if (anchor < 0 || e.getChildY() < content.get(anchor).getChildY()) anchor = i;
+        }
+        int anchorY = anchor >= 0 ? content.get(anchor).getChildY() : 0;
+        Panel.reflowForWrap(content);
+        for (int i = 0; i < content.size(); i++) {
+            PanelElement e = content.get(i);
+            settledBottom[i] = e.getChildY() + e.getHeight();
+        }
+        reflowSig = signature();
+        if (anchor < 0 || scroll <= 0) return;
+        int moved = content.get(anchor).getChildY() - anchorY;
+        if (moved != 0) setScroll(kind, scroll + moved);   // re-enters with the new signature: no second reflow
+    }
+
+    private int signature() {
+        int sig = 1;
+        for (PanelElement e : content) {
+            boolean vis = e.isVisible();
+            sig = sig * 31 + (vis ? 1 : 0);
+            if (vis) sig = (sig * 31 + e.getChildY()) * 31 + e.getHeight();
+        }
+        return sig;
     }
 
     private boolean canScroll(ScreenKind kind) {
