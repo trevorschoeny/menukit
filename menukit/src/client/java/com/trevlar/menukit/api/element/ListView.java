@@ -83,6 +83,14 @@ import java.util.function.Supplier;
  * belongs in one: put the list in a {@code ScrollContainer.builder().fillHeight()}
  * under a fixed header, and only the list scrolls.
  *
+ * <p>A list in the middle of a page pushes what is below it (7.3.0): it reports its
+ * whole height, the toolbar it draws included, as growth
+ * ({@link #extraLayoutHeight()}), so place the elements after it as if the list took
+ * no room, as after a closed {@link Section}. A panel, a {@link Tabs} page (with or
+ * without a filling element), a {@code Section}'s content, a {@code Column} or
+ * {@code Row} and a {@link Flow} then move them down as rows are added or grow, and up
+ * as they go, in the same frame.
+ *
  * <h3>Selection: the consumer's, by key</h3>
  *
  * With {@code selection(get, set)}, one key is selected, held by you (a lens, read every
@@ -131,7 +139,9 @@ import java.util.function.Supplier;
  *       tooltip between the label and the action, fixed or read while hovered, says
  *       what the kind is. {@link Builder#addDisabledWhen} greys them.</li>
  *   <li><b>Remove</b> ({@link Builder#remove}): a "- Remove item" button right of the
- *       add buttons, acting on the selected row; it can take its own label and tooltip. {@link Builder#confirmRemove} asks
+ *       add buttons, acting on the selected row; it can take its own label and tooltip.
+ *       {@link Builder#removeDisabledWhen} greys it, and every row's cross with
+ *       {@code controlsInRows} (a list at its minimum length). {@link Builder#confirmRemove} asks
  *       first, in a {@link ConfirmDialog} whose body names the item, read when it
  *       shows. Once the row is gone the row that took its place is selected (the one
  *       before it when it was last), so a second click removes the next.</li>
@@ -227,6 +237,8 @@ public final class ListView<T> extends AbstractPanelElement {
 
     // Editing (7.3.0): each null or empty when its option is off.
     private final @Nullable Consumer<Object> remove;
+    /** Greys every remove, the toolbar's and each row's cross, while it holds ({@link Builder#removeDisabledWhen}). */
+    private final @Nullable BooleanSupplier removeDisabled;
     private final @Nullable Function<? super T, Component> confirmRemove;
     private final @Nullable BiConsumer<Object, Integer> move;
     private final @Nullable Predicate<? super T> pinned;
@@ -309,6 +321,7 @@ public final class ListView<T> extends AbstractPanelElement {
         this.gap = b.gap;
         this.empty = b.empty;
         this.remove = b.remove;
+        this.removeDisabled = b.removeDisabled;
         this.confirmRemove = b.confirmRemove;
         this.move = b.move;
         this.pinned = b.pinned;
@@ -355,8 +368,9 @@ public final class ListView<T> extends AbstractPanelElement {
      * then, unless the controls are in the rows, remove, up and down, acting on the
      * selected row. Each part only when its option is on; with no search the buttons
      * alone, at the right. Every part greys with the list, wherever the toolbar is
-     * placed, the add buttons also while {@code addDisabledWhen} holds, and remove and
-     * the arrows while the selected row can't do it.
+     * placed, the add buttons also while {@code addDisabledWhen} holds, remove also while
+     * {@code removeDisabledWhen} does, and remove and the arrows while the selected row
+     * can't do it.
      */
     private PanelElement makeToolbar(@Nullable BooleanSupplier addDisabled, Component removeLabel,
                                      @Nullable Supplier<Component> removeTooltip) {
@@ -603,7 +617,8 @@ public final class ListView<T> extends AbstractPanelElement {
             controls.add(rowIcon(MOVE_DOWN, "menukit.list.move_down", k)
                     .disabledWhen(() -> !canMove(k, 1)).onClick(() -> moveBy(k, 1)).build());
         }
-        if (remove != null) controls.add(rowIcon(REMOVE, "menukit.list.remove", k).onClick(() -> askRemove(k)).build());
+        if (remove != null) controls.add(rowIcon(REMOVE, "menukit.list.remove", k)
+                .disabledWhen(this::removeHeld).onClick(() -> askRemove(k)).build());
         return controls;
     }
 
@@ -642,9 +657,14 @@ public final class ListView<T> extends AbstractPanelElement {
         revealKey = k;
     }
 
-    /** A remove: at once, or once the confirm dialog says so. */
+    /** Whether {@code removeDisabledWhen} holds now: every remove greyed. */
+    private boolean removeHeld() {
+        return removeDisabled != null && removeDisabled.getAsBoolean();
+    }
+
+    /** A remove: at once, or once the confirm dialog says so; nothing while removes are held. */
     private void askRemove(Object k) {
-        if (remove == null || isPinned(k)) return;
+        if (remove == null || isPinned(k) || removeHeld()) return;
         if (confirm == null) doRemove(k);
         else removing = k;
     }
@@ -670,10 +690,10 @@ public final class ListView<T> extends AbstractPanelElement {
         return k != null && rows.containsKey(k) ? k : null;
     }
 
-    /** Whether the toolbar's remove can act: a row selected, shown (no query hides it), not pinned. */
+    /** Whether the toolbar's remove can act: a row selected, shown (no query hides it), not pinned, removes not held. */
     private boolean removeEnabled() {
         Object k = selectedKey();
-        return remove != null && k != null && shownKeys.contains(k) && !isPinned(k);
+        return remove != null && k != null && shownKeys.contains(k) && !isPinned(k) && !removeHeld();
     }
 
     /** Whether the toolbar's up ({@code by} -1) or down (+1) can act on the selected row. */
@@ -839,6 +859,18 @@ public final class ListView<T> extends AbstractPanelElement {
     public int getHeight() {
         settle();
         return totalHeight;
+    }
+
+    /**
+     * All of it: a list's baseline is nothing, so the whole list (the toolbar it draws,
+     * the reason, the rows or what stands in for them) is what the container pushes
+     * the elements below it down by, read every frame. Place what follows a list as if
+     * it took no room, as below a closed {@link Section}; a row added, removed or
+     * grown then moves them in the same frame.
+     */
+    @Override
+    public int extraLayoutHeight() {
+        return getHeight();
     }
 
     /** Takes the width it is given and hands it to every row. */
@@ -1167,7 +1199,7 @@ public final class ListView<T> extends AbstractPanelElement {
         removeSelected();
     }
 
-    /** As a click on the remove cross in the row of {@code key} ({@code controlsInRows}): removes, or opens the confirm. */
+    /** As a click on the remove cross in the row of {@code key} ({@code controlsInRows}): removes, or opens the confirm; nothing while it is greyed. */
     @ApiStatus.Internal
     public void clickRemove(Object key) {
         sync();
@@ -1181,11 +1213,20 @@ public final class ListView<T> extends AbstractPanelElement {
         moveSelected(by);
     }
 
-    /** Whether the toolbar's remove is live (not greyed by the selection; the list's own grey aside). */
+    /** Whether the toolbar's remove is live (not greyed by the selection or {@code removeDisabledWhen}; the list's own grey aside). */
     @ApiStatus.Internal
     public boolean removeLive() {
         sync();
         return removeEnabled();
+    }
+
+    /** Whether the remove cross in the row of {@code key} ({@code controlsInRows}) is live: shown (not pinned) and not greyed. */
+    @ApiStatus.Internal
+    public boolean removeLive(Object key) {
+        sync();
+        if (!(rows.get(key) instanceof ListRow r)) return false;
+        PanelElement cross = r.controls().get(r.controls().size() - 1);
+        return remove != null && cross.isVisible() && !removeHeld();
     }
 
     /** Whether the toolbar's up ({@code by} -1) or down (+1) is live. */
@@ -1266,6 +1307,7 @@ public final class ListView<T> extends AbstractPanelElement {
         private final List<AddKind> adds = new ArrayList<>();
         private @Nullable BooleanSupplier addDisabled;
         private @Nullable Consumer<Object> remove;
+        private @Nullable BooleanSupplier removeDisabled;
         private Component removeLabel = Component.translatable("menukit.list.remove_item");
         private @Nullable Supplier<Component> removeTooltip;
         private @Nullable Function<? super T, Component> confirmRemove;
@@ -1430,6 +1472,17 @@ public final class ListView<T> extends AbstractPanelElement {
         }
 
         /**
+         * Greys the remove while {@code condition} holds, read every frame: the toolbar's
+         * "- Remove item" and, with {@link #controlsInRows()}, every row's cross (a config
+         * list at its minimum length). A click on a greyed remove does nothing. Needs
+         * {@link #remove}.
+         */
+        public Builder<T, K> removeDisabledWhen(BooleanSupplier condition) {
+            this.removeDisabled = Objects.requireNonNull(condition, "condition");
+            return this;
+        }
+
+        /**
          * Asks before a remove: a confirm dialog whose body is {@code body} of the item,
          * read while it shows ("Delete Item 2? Its 3 locks move to Slot lock."). Needs
          * {@link #remove}.
@@ -1515,6 +1568,7 @@ public final class ListView<T> extends AbstractPanelElement {
             require(!controlsInRows || remove != null || move != null,
                     "controlsInRows() needs remove(...) or move(...): they are the controls it puts in the rows");
             require(addDisabled == null || !adds.isEmpty(), "addDisabledWhen(...) needs an add(...) to grey");
+            require(removeDisabled == null || remove != null, "removeDisabledWhen(...) needs remove(...) to grey");
             require(sortGet == null || !sorts.isEmpty(), "sortState(...) needs a sort(...)");
             require(disabledReason == null || disabledWhen != null,
                     "disabledReason(...) needs disabledWhen(...): the reason shows while it holds");
