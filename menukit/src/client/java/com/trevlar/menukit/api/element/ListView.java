@@ -172,11 +172,14 @@ import java.util.function.Supplier;
  *
  * Search, sort, add, remove and the arrows sit in one toolbar the list makes,
  * {@link #toolbar()}, in that order from the left: an ordinary element you place above
- * the list's scroll area, so it stays put while the rows scroll. It is as wide as the
- * rows, so its right end lines up with theirs whether or not the scrollbar shows;
- * place it at the scroll area's left edge, the rows' {@code gap} above it, so it reads
- * as part of the list. A list whose toolbar you never ask for draws it at its own top,
- * that gap above the rows, and it scrolls with them. It greys with the list.
+ * the list's scroll area, so it stays put while the rows scroll. It lines up with the
+ * edges of whatever it is laid out in: placed by you, it is as wide as its container
+ * gives it, like any other element, so beside a scroll area as wide as the page its
+ * right end is the scroll area's outer edge (past the scrollbar and the band's inset),
+ * level with the controls above it. Place it the rows' {@code gap} above the scroll
+ * area so it reads as part of the list. A list whose toolbar you never ask for draws
+ * it at its own top, that gap above the rows, as wide as the rows (inside the band and
+ * clear of the scrollbar), and it scrolls with them. It greys with the list.
  *
  * <h3>Controls in each row, for small lists</h3>
  *
@@ -422,9 +425,9 @@ public final class ListView<T> extends AbstractPanelElement {
             buttons.add(barArrow(BAR_DOWN, "menukit.list.move_down", 1));
         }
         // The search field and the buttons share one line the way a row and its controls
-        // do, the whole as wide as the rows: placed over the scroll area, its right end
-        // is theirs whether or not the scrollbar takes its lane.
-        return new ListRow(search, buttons, () -> budget);
+        // do, the whole as wide as its container gives it: the mod's layout when placed
+        // (the scroll area's outer edge), the list's rows' width when the list draws it.
+        return ListRow.toolbar(search, buttons);
     }
 
     /** A toolbar arrow: a square icon button as tall as the add buttons, moving the selected row {@code by} one place. */

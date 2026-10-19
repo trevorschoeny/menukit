@@ -130,6 +130,11 @@ import java.util.function.DoubleSupplier;
  * children out to it (a child that centres itself stays centred).
  * {@link Builder#fitHeight()} makes the declared height the most it is: as tall as
  * its content up to that, scrolling past it.
+ * Its height then follows its content, so it pushes what is below it as a
+ * {@link ListView} does (7.3.0): its whole height is its
+ * {@link PanelElement#extraLayoutHeight()}, so place what follows as if it took no
+ * room, and that moves down as the content grows and back up as it shrinks, in the
+ * same frame.
  *
  * <h3>Filling its container (7.3.0)</h3>
  *
@@ -359,6 +364,20 @@ public class ScrollContainer extends AbstractPanelElement {
     @Override
     public int getHeight() {
         return viewHeight(measuredKind);
+    }
+
+    /**
+     * While its height follows its content ({@link Builder#fitHeight()}, or filling with
+     * no room given and no declared height), all of it, as a {@link ListView} reports
+     * (7.3.0): its baseline is nothing, so the container pushes the elements below it
+     * down by its whole height, read every frame, and they follow it as it grows toward
+     * its declared height and shrinks back. Place what follows as if it took no room.
+     * At a fixed or given height it doesn't grow: nothing.
+     */
+    @Override
+    public int extraLayoutHeight() {
+        boolean followsContent = !(fill && filled > 0) && (fitHeight || height <= 0);
+        return followsContent ? getHeight() : 0;
     }
 
     /** The viewport's height on a screen of {@code kind}. */
@@ -759,7 +778,10 @@ public class ScrollContainer extends AbstractPanelElement {
             return this;
         }
 
-        /** As tall as its content up to the declared height, scrolling past it. */
+        /**
+         * As tall as its content up to the declared height, scrolling past it. It pushes
+         * what is below it as it grows (7.3.0): place what follows as if it took no room.
+         */
         public Builder fitHeight() {
             this.fitHeight = true;
             return this;
