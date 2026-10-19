@@ -10,7 +10,6 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.IntSupplier;
 
 /**
  * An element and a few controls on its first line, at its trailing edge (7.3.0).
@@ -41,10 +40,10 @@ import java.util.function.IntSupplier;
  * header, or a row's height less what it grew by ({@link PanelElement#extraLayoutHeight}).
  * A first line shorter than the controls moves the row down until they fit.
  *
- * <p>The toolbar is as wide as the list's rows, whatever room it is given
- * ({@link #ListRow(PanelElement, List, IntSupplier)}): placed above the list's scroll
- * area, its right end lines up with the rows' right end whether the scrollbar shows
- * or not.
+ * <p>The toolbar ({@link #toolbar}) is as wide as the room it is given, as any element:
+ * placed by the mod above the list's scroll area, it reaches that area's outer edge,
+ * scrollbar lane and band inset included, as the elements above it do; drawn by the
+ * list at its own top, it is given the rows' width and lines up with them.
  */
 final class ListRow extends AbstractPanelElement {
 
@@ -73,26 +72,20 @@ final class ListRow extends AbstractPanelElement {
      */
     private @Nullable Boolean inside;
 
-    /** The width the list gives the row; until the first pass, its natural width. */
+    /** The width its container gives it (the list, or the mod's layout for a placed toolbar); until the first pass, its natural width. */
     private int budget = -1;
-    /**
-     * The toolbar's: the width of the list's rows ({@code <= 0} until the list is laid
-     * out), which it never passes. Null for a row, which the list lays out itself.
-     */
-    private final @Nullable IntSupplier rowsWidth;
 
     /** A list row and its controls, behind a divider. */
     ListRow(PanelElement row, List<PanelElement> controls) {
-        this(row, controls, null, true);
+        this(row, controls, true);
     }
 
-    /** The toolbar: never wider than {@code rowsWidth}, the list's rows' width now. */
-    ListRow(PanelElement row, List<PanelElement> controls, IntSupplier rowsWidth) {
-        this(row, controls, rowsWidth, false);
+    /** The toolbar: the search field (or an empty Flow) and the buttons a gap after it, no divider. */
+    static ListRow toolbar(PanelElement search, List<PanelElement> buttons) {
+        return new ListRow(search, buttons, false);
     }
 
-    private ListRow(PanelElement row, List<PanelElement> controls, @Nullable IntSupplier rowsWidth, boolean divider) {
-        this.rowsWidth = rowsWidth;
+    private ListRow(PanelElement row, List<PanelElement> controls, boolean divider) {
         this.divider = divider;
         this.row = row;
         this.controls = List.copyOf(controls);
@@ -165,19 +158,10 @@ final class ListRow extends AbstractPanelElement {
         return inside() ? row.naturalWidth() : row.naturalWidth() + room();
     }
 
-    /**
-     * The width it was given; the toolbar no wider than the rows. Read live, so when the
-     * list's scrollbar shows or hides, the toolbar's container sees the change and lays
-     * it out again.
-     */
+    /** The width it was given, as any element: the list's for a row, its container's for a placed toolbar. */
     @Override
     public int getWidth() {
-        return budget > 0 ? capped(budget) : naturalWidth();
-    }
-
-    private int capped(int width) {
-        int rows = rowsWidth == null ? 0 : rowsWidth.getAsInt();
-        return rows > 0 ? Math.min(width, rows) : width;
+        return budget > 0 ? budget : naturalWidth();
     }
 
     @Override
