@@ -524,11 +524,14 @@ public final class Flow extends AbstractPanelElement {
     }
 
     /**
-     * The extra height of the rows past the first: what a wrap adds. In a row Flow a
-     * child that grew past its own baseline (an open {@link Section}, a wrapped label)
-     * counts at its baseline (7.3.0), so its growth is the Flow's too and what is below
-     * is pushed down by it; a list row's controls stay centred on the row's first line.
-     * A vertical Flow child counts whole: what it reports is its stack, not growth.
+     * The extra height of the rows past the first: what a wrap adds. A child that grew
+     * past its own baseline (an open {@link Section}, a wrapped label, a {@link ListView},
+     * whose baseline is nothing) counts at its baseline (7.3.0), so its growth is the
+     * Flow's too and what is below is pushed down by it; a list row's controls stay
+     * centred on the row's first line. In a row Flow a vertical Flow child counts whole:
+     * what it reports is its stack, not growth. A vertical Flow's own extra is its
+     * stack past its tallest child's baseline, which stays put as its children grow,
+     * so a list in a column pushes what is below the column.
      */
     @Override
     public int extraLayoutHeight() {
@@ -536,8 +539,10 @@ public final class Flow extends AbstractPanelElement {
         int oneRow = 0;
         for (PanelElement c : children) {
             if (!c.isVisible()) continue;
-            // In a column each child counts whole: what it reports is its stack, not growth.
-            oneRow = Math.max(oneRow, vertical ? c.getHeight() : baseline(c));
+            // In a column a child counts at its baseline too: counted whole, a list or an open
+            // section that is the tallest child would grow the baseline with it, and the
+            // column's extra would not change, so nothing below the column would move.
+            oneRow = Math.max(oneRow, vertical ? c.getHeight() - Math.max(0, c.extraLayoutHeight()) : baseline(c));
         }
         return Math.max(0, lastHeight - (oneRow + 2 * pad()));
     }

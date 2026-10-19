@@ -536,12 +536,13 @@ return ListView.<Entry>builder()
                 .build())
         .add(Component.literal("+ Add name"), names::add)
         .remove(names::remove)
+        .removeDisabledWhen(() -> names.all().size() <= 1)   // never fewer than one
         .move(names::move)
         .controlsInRows()
         .build();
 ```
 
-Result: one text field per value, each with a thin divider line after it and then up, down and a remove cross. Nothing needs selecting: the first row's up and the last row's down are grey, and the cross removes its row at once. + Add name in the toolbar adds an empty row at the bottom. In a card row the controls sit inside the card after the same divider.
+Result: one text field per value, each with a thin divider line after it and then up, down and a remove cross. Nothing needs selecting: the first row's up and the last row's down are grey, and the cross removes its row at once. With one name left every cross is grey, so the list never empties; `addDisabledWhen` caps the other end the same way. + Add name in the toolbar adds an empty row at the bottom. In a card row the controls sit inside the card after the same divider. Placed in the middle of a page, the list pushes whatever is below it down as rows are added and pulls it back up as they go: place the next element as if the list took no room, as after a closed `Section`.
 
 ## A list the player searches and sorts
 
