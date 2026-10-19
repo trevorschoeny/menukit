@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -30,8 +31,16 @@ import java.util.function.Supplier;
  * <h3>Header</h3>
  *
  * An arrow ({@code ▶} closed, {@code ▼} open), an optional 8x8 colour swatch, the
- * title, and a grey summary read every frame, cut with "..." when it runs out of
- * room. A click anywhere on the header row toggles the section.
+ * title, and a grey summary, cut with "..." when it runs out of room. A click
+ * anywhere on the header row toggles the section.
+ *
+ * <p>The title and swatch are fixed or read every frame ({@code builder(Supplier)},
+ * {@code swatch(IntSupplier)}, 7.3.0), and the summary is always read every frame. So
+ * a section built once, such as a keyed {@link ListView} row, shows a rename or a
+ * recolour in place, with no rebuild:
+ * {@code Section.builder(() -> Component.literal(group.name)).swatch(() -> group.color)}.
+ * The header measures the title as it is now. The summary takes what room the title
+ * leaves; the title itself is drawn whole.
  *
  * <p>In the Default look ({@link ScreenKind#DEFAULT}) the header takes the
  * category header's colours from vanilla's Controls screen: the title in white
@@ -93,8 +102,8 @@ public final class Section extends AbstractPanelElement {
     /** The same, lightening, on vanilla's dark backdrop. */
     private static final int HOVER_FILL_VANILLA = 0x18FFFFFF;
 
-    private final Component title;
-    private final @Nullable Integer swatch;
+    private final Supplier<Component> title;
+    private final @Nullable IntSupplier swatch;
     private final @Nullable Supplier<Component> summary;
     /** Fixed colours from {@code colors(...)}, or null to take the kind's heading and muted colours. */
     private final @Nullable Integer titleColor;
@@ -135,8 +144,15 @@ public final class Section extends AbstractPanelElement {
         }
     }
 
+    /** A section with a fixed title. */
     public static Builder builder(Component title) {
-        return new Builder(title);
+        Objects.requireNonNull(title, "title");
+        return new Builder(() -> title);
+    }
+
+    /** A section whose title is read every frame (7.3.0): a rename shows at once, on the same element. */
+    public static Builder builder(Supplier<Component> title) {
+        return new Builder(Objects.requireNonNull(title, "title"));
     }
 
     /** Whether the section is open right now. */
@@ -238,7 +254,7 @@ public final class Section extends AbstractPanelElement {
     @Override
     public int naturalWidth() {
         Font font = Minecraft.getInstance().font;
-        int header = font.width(ARROW_OPEN) + (swatch != null ? SWATCH + SWATCH_GAP : 0) + font.width(title);
+        int header = font.width(ARROW_OPEN) + (swatch != null ? SWATCH + SWATCH_GAP : 0) + font.width(title.get());
         if (summary != null) header += SUMMARY_GAP + font.width(summary.get());
         int widest = 0;
         for (PanelElement e : children) {
@@ -279,11 +295,12 @@ public final class Section extends AbstractPanelElement {
         x += font.width(arrow);
         if (swatch != null) {
             int sy = hy + (headerHeight() - SWATCH) / 2;
-            g.fill(x, sy, x + SWATCH, sy + SWATCH, swatch);
+            g.fill(x, sy, x + SWATCH, sy + SWATCH, swatch.getAsInt());
             x += SWATCH + SWATCH_GAP;
         }
-        g.text(font, title.getString(), x, textY, titleCol, shadow);
-        x += font.width(title);
+        Component t = title.get();
+        g.text(font, t.getString(), x, textY, titleCol, shadow);
+        x += font.width(t);
         if (summary != null) {
             x += SUMMARY_GAP;
             int room = hx + w - x;
@@ -411,8 +428,8 @@ public final class Section extends AbstractPanelElement {
     }
 
     public static final class Builder extends AbstractPanelElement.Builder<Section, Builder> {
-        private final Component title;
-        private @Nullable Integer swatch;
+        private final Supplier<Component> title;
+        private @Nullable IntSupplier swatch;
         private @Nullable Supplier<Component> summary;
         private @Nullable Integer titleColor;
         private @Nullable Integer summaryColor;
@@ -421,15 +438,20 @@ public final class Section extends AbstractPanelElement {
         private @Nullable BooleanSupplier openGet;
         private @Nullable Consumer<Boolean> openSet;
 
-        private Builder(Component title) {
-            this.title = Objects.requireNonNull(title, "title");
+        private Builder(Supplier<Component> title) {
+            this.title = title;
         }
 
         @Override protected Builder self() { return this; }
 
         /** An 8x8 colour swatch after the arrow (ARGB). */
         public Builder swatch(int argb) {
-            this.swatch = argb;
+            return swatch(() -> argb);
+        }
+
+        /** An 8x8 colour swatch after the arrow (ARGB), read every frame (7.3.0): a recolour shows at once. */
+        public Builder swatch(IntSupplier argb) {
+            this.swatch = Objects.requireNonNull(argb, "argb");
             return this;
         }
 

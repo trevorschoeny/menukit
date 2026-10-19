@@ -499,12 +499,13 @@ return Flow.builder().vertical().gap(2)
         .build();
 ```
 
-Each row is a card holding a section that opens on the group's settings. The row is the mod's own: its toggle sits at the right end because a `Flow.spacer()` comes before it, and `crossAlign(CrossAlign.CENTER)` centres the label on the toggle's line.
+Each row is a card holding a section that opens on the group's settings. The list builds a row once per key, so the section reads its title and swatch every frame: a rename or a recolour shows on the same row, with no rebuild. The row is the mod's own: its toggle sits at the right end because a `Flow.spacer()` comes before it, and `crossAlign(CrossAlign.CENTER)` centres the label on the toggle's line.
 
 ```java
 static PanelElement groupRow(String id) {
     return Flow.builder().boxed()
-            .add(Section.builder(Component.literal(groups.name(id)))
+            .add(Section.builder(() -> Component.literal(groups.name(id)))
+                    .swatch(() -> groups.color(id))
                     .summary(() -> Component.literal(groups.locks(id) + " locks"))
                     .add(Flow.builder().crossAlign(CrossAlign.CENTER)
                             .add(TextLabel.builder().text(Component.literal("Show in tooltips")).build())
