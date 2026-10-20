@@ -215,7 +215,7 @@ public class Button extends AbstractPanelElement {
         } else if (look.pressed()) {
             PanelRendering.renderPanel(ctx.graphics(), sx, sy, w, h, PanelStyle.INSET);
         } else {
-            PanelRendering.renderPanel(ctx.graphics(), sx, sy, w, h, PanelStyle.RAISED);
+            PanelRendering.renderControl(ctx.graphics(), sx, sy, w, h, PanelStyle.RAISED);
             if (look.hovered()) {
                 ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1, ElementConstants.HOVER_OVERLAY);
             }

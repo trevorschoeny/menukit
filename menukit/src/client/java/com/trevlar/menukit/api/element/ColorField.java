@@ -279,7 +279,7 @@ public class ColorField extends AbstractPanelElement {
         if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.button(g, x, y, width, height, !disabled, hot);
         } else {
-            PanelRendering.renderPanel(g, x, y, width, height, disabled ? PanelStyle.DARK : PanelStyle.RAISED);
+            PanelRendering.renderControl(g, x, y, width, height, disabled ? PanelStyle.DARK : PanelStyle.RAISED);
             if (hot) g.fill(x + 1, y + 1, x + width - 1, y + height - 1, ElementConstants.HOVER_OVERLAY);
         }
         int ix = x + INSET, iy = y + INSET, iw = width - 2 * INSET, ih = height - 2 * INSET;
