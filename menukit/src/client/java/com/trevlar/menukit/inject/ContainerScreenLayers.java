@@ -174,6 +174,8 @@ public final class ContainerScreenLayers {
             PresentedSlots.recording(false);
             scratch.reset();
         }
+        // The container region notes where its slots are now (7.4.0), to show a quick move.
+        ContainerRegions.placed(screen);
     }
 
     /**

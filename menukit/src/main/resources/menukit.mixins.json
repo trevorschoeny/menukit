@@ -16,6 +16,7 @@
     "MKItemTooltipMarkMixin",
     "MKListHoverSuppressMixin",
     "MKModalMouseHandlerMixin",
+    "MKQuickMoveRevealMixin",
     "MKRecipeBookAccessor",
     "MKSlotInputMixin",
     "MKTooltipSuppressMixin",
