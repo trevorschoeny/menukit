@@ -53,20 +53,54 @@ public final class VanillaLook {
     }
 
     /**
-     * MenuKit's pressed look on a vanilla button: the 1 px bevel inside the
-     * frame inverted (dark top and left, light grey bottom and right) and a
-     * translucent dark wash over the inside, so the button reads as pushed in. Drawn
-     * over the button sprite; the outer frame is left alone.
+     * MenuKit's pressed look on vanilla's button as it draws under the mouse (its
+     * highlighted sprite): the press on a vanilla, YACL or Default-look MenuKit button.
      */
     public static void pressedOverlay(GuiGraphicsExtractor g, int x, int y, int width, int height) {
-        // Inverted bevel, 1 px inside the outer frame. Light grey, not white, at the
-        // bottom and right: white read as too harsh against the grey button.
-        g.fill(x + 1, y + 1, x + width - 1, y + 2, 0xFF373737);
-        g.fill(x + 1, y + 1, x + 2, y + height - 1, 0xFF373737);
-        g.fill(x + 1, y + height - 2, x + width - 1, y + height - 1, 0xFF888888);
-        g.fill(x + width - 2, y + 1, x + width - 1, y + height - 1, 0xFF888888);
-        // The wash inside the bevel.
-        g.fill(x + 2, y + 2, x + width - 2, y + height - 2, 0x40000000);
+        pressedOverlay(g, x, y, width, height, true);
+    }
+
+    /** MenuKit's pressed look on vanilla's button, highlighted or not (an open dropdown's trigger). */
+    public static void pressedOverlay(GuiGraphicsExtractor g, int x, int y, int width, int height, boolean highlighted) {
+        pressedOverlay(g, x, y, width, height, ControlLook.faceLuma(highlighted ? BUTTON_HIGHLIGHTED : BUTTON));
+    }
+
+    /** The inverted bevel: translucent black over the top and left, translucent white over the bottom and right. */
+    public static final int PRESSED_SHADE = 0xAE000000, PRESSED_LIGHT = 0x45FFFFFF;
+    /** The wash inside it: a quarter of the way to black on a light face, to white on a dark one. */
+    public static final int PRESSED_DARKEN = 0x40000000, PRESSED_LIGHTEN = 0x40FFFFFF;
+    /**
+     * A face whose luma (0 to 255, its fill, {@link ControlLook#faceLuma}) is below this is lit
+     * by the press instead of darkened. Between Default Dark Mode's button (about 80) and
+     * vanilla's (about 110), so vanilla's own darkens as it always has.
+     */
+    public static final int DARK_FACE = 96;
+
+    /**
+     * MenuKit's one pressed transform, for every pressed control in both looks and on every
+     * pack (spec part 12), drawn over the art the control shows under it. It is relative to
+     * that art, so it reads on light, dark and coloured faces alike:
+     * <ul>
+     *   <li>the 1 px bevel inside the outline inverted: translucent black over the top and
+     *       left, translucent white over the bottom and right, so the light edge goes dark
+     *       and the dark edge light whatever the art;</li>
+     *   <li>a wash inside the bevel that darkens a light face by a quarter and lightens a dark
+     *       one by a quarter ({@link #DARK_FACE}), since a near-black face can't be darkened
+     *       any further.</li>
+     * </ul>
+     * The alphas are tuned so vanilla's highlighted button comes out as it did under the
+     * fixed greys drawn before (0xFF373737 top and left, 0xFF888888 bottom and right, the same
+     * wash): the bevel lines within a few levels, the wash exact. The outer outline is left
+     * alone. {@code faceLuma}: the face's luma, {@link ControlLook#faceLuma}.
+     */
+    public static void pressedOverlay(GuiGraphicsExtractor g, int x, int y, int width, int height, int faceLuma) {
+        // Each bevel pixel is washed once: the top row stops short of the right column and the
+        // left column short of the bottom row, which take those corners, as the greys did.
+        g.fill(x + 1, y + 1, x + width - 2, y + 2, PRESSED_SHADE);
+        g.fill(x + 1, y + 2, x + 2, y + height - 2, PRESSED_SHADE);
+        g.fill(x + 1, y + height - 2, x + width - 1, y + height - 1, PRESSED_LIGHT);
+        g.fill(x + width - 2, y + 1, x + width - 1, y + height - 2, PRESSED_LIGHT);
+        g.fill(x + 2, y + 2, x + width - 2, y + height - 2, faceLuma < DARK_FACE ? PRESSED_LIGHTEN : PRESSED_DARKEN);
     }
 
     /**
