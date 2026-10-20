@@ -55,6 +55,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li><b>a slot</b>, at vanilla's first slot position, if it matches its neighbours (else
  *       {@code container/slot} if a pack restyled it, else the fill-drawn slot).</li>
  * </ul>
+ * An inventory part with no clean frame of its own (drawn in pieces: rows hung under the
+ * container's box, the hotbar boxed apart) is drawn as the pack's plain panel ({@link #inventory}).
  * Everything is in the texture's 256-unit coordinates and drawn as blits in them, so a
  * 512 px pack (Faithful 32x) needs nothing extra.
  *
@@ -226,6 +228,22 @@ public final class PackLook {
     public static Look panel() {
         return look(CHEST, Part.CONTAINER);
     }
+
+    /**
+     * The look of the inventory panel on a screen drawn from {@code texture}: that texture's
+     * inventory part, or, where the pack draws the inventory in pieces with no frame of its own
+     * to cut, the pack's plain panel ({@link #panel}). GUI Revision Dark hangs the inventory's
+     * three rows under the container's box with no top border and boxes the hotbar apart, so
+     * no strip of its inventory part is plain fill; its pieces are its plain panel's grey on
+     * every container's screen, as its chest's box is, whatever colour the container's own is.
+     */
+    public static Look inventory(Identifier texture) {
+        Look own = look(texture, Part.INVENTORY);
+        if (own.source() != Source.FALLBACK) return own;
+        Look plain = panel();
+        return plain.source() == Source.PACK ? plain : own;
+    }
+
 
     /** Below this contrast with its fill, body text doesn't read: WCAG's 3:1, its floor for large text. */
     public static final double BODY_MIN = 3.0;

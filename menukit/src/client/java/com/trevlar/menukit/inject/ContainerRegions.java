@@ -1016,7 +1016,7 @@ public final class ContainerRegions {
      */
     public static PackLook.@Nullable SlotLooks slotLooks(Panel p) {
         if (p == inventoryPanel && inventoryPanel != null) {
-            PackLook.Look look = PackLook.look(screenTexture(state.screen.get()), PackLook.Part.INVENTORY);
+            PackLook.Look look = PackLook.inventory(screenTexture(state.screen.get()));
             return (x, y) -> look;
         }
         if (p != panel || panel == null) return null;
@@ -1175,7 +1175,7 @@ public final class ContainerRegions {
             Geometry g = state.geometry;
             if (g == null || !(state.screen.get() instanceof AbstractContainerScreen<?> acs)) return;
             Reference inv = g.inventory();
-            PackLook.Look look = PackLook.look(screenTexture(acs), PackLook.Part.INVENTORY);
+            PackLook.Look look = PackLook.inventory(screenTexture(acs));
             PanelRendering.renderPanelSurface(ctx.graphics(), ctx.originX(), ctx.originY(), inv.imageWidth(), inv.imageHeight(),
                     look);
             AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) acs;
