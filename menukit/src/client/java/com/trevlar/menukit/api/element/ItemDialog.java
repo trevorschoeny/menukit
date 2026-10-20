@@ -315,9 +315,9 @@ final class ItemDialog {
         return !current().isEmpty();
     }
 
-    /** Whether the selected item stacks, so its count can be set. */
+    /** Whether the selected item stacks and the picker compares counts, so its count can be set. */
     private boolean stacks() {
-        return hasItem() && current().getMaxStackSize() > 1;
+        return hasItem() && current().getMaxStackSize() > 1 && !picker.countIgnored();
     }
 
     private Match currentMatch() {

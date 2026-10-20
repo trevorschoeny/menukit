@@ -15,6 +15,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
@@ -26,9 +27,11 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -76,6 +79,13 @@ import java.util.function.Supplier;
  * {@link Builder#playerChoosesMatch} the player picks, per slot, between "Any
  * &lt;item&gt;" ({@code CONTAINS}) and "Exactly this" ({@code EXACT}); the declared
  * mode is a new slot's.
+ *
+ * <p>{@link Builder#ignoring} and {@link Builder#ignoringCount} declare once what the
+ * setting leaves out of the comparison ({@link ItemMatch#ignoring}): every rule the
+ * picker writes carries it, so {@code rule.matches(stack)} honours it, and with
+ * {@code ignoringCount} the Edit tab has no count. A {@code stack} or {@code stacks}
+ * lens stores plain stacks, so test those with a rule that ignores the same:
+ * {@code new ItemMatch(stack, EXACT).ignoring(DataComponents.DAMAGE).matches(candidate)}.
  *
  * <h3>On the page</h3>
  *
@@ -148,6 +158,8 @@ public class ItemPicker extends AbstractPanelElement {
     private final boolean list;
     private final Match match;
     private final boolean playerChoosesMatch;
+    private final Set<DataComponentType<?>> ignored;
+    private final boolean countIgnored;
     private final Component label;
     private final int columns;
 
@@ -166,6 +178,8 @@ public class ItemPicker extends AbstractPanelElement {
         this.list = b.list;
         this.match = b.match;
         this.playerChoosesMatch = b.playerChoosesMatch;
+        this.ignored = Set.copyOf(b.ignored);
+        this.countIgnored = b.countIgnored;
         this.label = b.label != null ? b.label
                 : Component.literal(b.list ? "Choose items" : "Choose an item");
         this.columns = b.columns;
@@ -205,6 +219,11 @@ public class ItemPicker extends AbstractPanelElement {
         return list;
     }
 
+    /** Whether the setting leaves the count out of {@code EXACT} ({@link Builder#ignoringCount}): the Edit tab has no count. */
+    public boolean countIgnored() {
+        return countIgnored;
+    }
+
     /** Whether the player chooses each slot's match between Any and Exactly. */
     public boolean playerChoosesMatch() {
         return playerChoosesMatch;
@@ -212,16 +231,25 @@ public class ItemPicker extends AbstractPanelElement {
 
     /**
      * Writes the slots through the lens: empties dropped, at most one for a single
-     * picker, and in {@code ITEM} mode each the plain item, one of it.
+     * picker, in {@code ITEM} mode each the plain item, one of it, and otherwise each
+     * ignoring what the setting declares.
      */
     void write(List<ItemMatch> slots) {
         List<ItemMatch> out = new ArrayList<>();
         for (ItemMatch m : slots) {
             if (m.stack().isEmpty()) continue;
-            out.add(match == Match.ITEM ? new ItemMatch(new ItemStack(m.stack().getItem()), Match.ITEM) : m);
+            out.add(match == Match.ITEM ? new ItemMatch(new ItemStack(m.stack().getItem()), Match.ITEM) : declared(m));
             if (!list) break;
         }
         stateSet.accept(List.copyOf(out));
+    }
+
+    /** {@code m}, also ignoring what the builder declared. */
+    private ItemMatch declared(ItemMatch m) {
+        if (m.ignored().containsAll(ignored) && (m.countIgnored() || !countIgnored)) return m;
+        Set<DataComponentType<?>> all = new HashSet<>(m.ignored());
+        all.addAll(ignored);
+        return new ItemMatch(m.stack(), m.match(), all, m.countIgnored() || countIgnored);
     }
 
     /** What the setting is called: the dialog's title. */
@@ -606,6 +634,8 @@ public class ItemPicker extends AbstractPanelElement {
         private boolean list = false;
         private Match match = Match.ITEM;
         private boolean playerChoosesMatch = false;
+        private final Set<DataComponentType<?>> ignored = new HashSet<>();
+        private boolean countIgnored = false;
         private @Nullable Component label;
         private int columns = DEFAULT_COLUMNS;
 
@@ -674,6 +704,27 @@ public class ItemPicker extends AbstractPanelElement {
             return this;
         }
 
+        /**
+         * Component types the setting leaves out of the comparison, in {@code EXACT}
+         * and {@code CONTAINS} ({@link ItemMatch#ignoring}): every rule the picker
+         * writes ignores them. {@code ignoring(DataComponents.DAMAGE)} for a rule that
+         * still holds once the item is worn.
+         */
+        public Builder ignoring(DataComponentType<?>... types) {
+            ignored.addAll(List.of(types));
+            return this;
+        }
+
+        /**
+         * The setting leaves the count out of {@code EXACT} ({@link ItemMatch#ignoringCount}):
+         * every rule the picker writes ignores it, and the Edit tab has no count, so a
+         * slot holds one.
+         */
+        public Builder ignoringCount() {
+            this.countIgnored = true;
+            return this;
+        }
+
         /** The dialog's title, and what the narrator reads. Default "Choose an item", or "Choose items" for a list. */
         public Builder label(Component label) {
             this.label = Objects.requireNonNull(label, "label");
@@ -700,6 +751,8 @@ public class ItemPicker extends AbstractPanelElement {
             // A list is a row of slots wide; a single picker one slot.
             if (list) this.width = columns * SIZE;
             Match m = match;
+            Set<DataComponentType<?>> ign = Set.copyOf(ignored);
+            boolean cnt = countIgnored;
             Supplier<List<ItemMatch>> g;
             Consumer<List<ItemMatch>> s;
             switch (lens) {
@@ -717,7 +770,7 @@ public class ItemPicker extends AbstractPanelElement {
                     Consumer<ItemStack> set0 = (Consumer<ItemStack>) set;
                     g = () -> {
                         ItemStack st = get0.get();
-                        return st == null || st.isEmpty() ? List.of() : List.of(new ItemMatch(st, m));
+                        return st == null || st.isEmpty() ? List.of() : List.of(new ItemMatch(st, m, ign, cnt));
                     };
                     s = v -> set0.accept(v.isEmpty() ? ItemStack.EMPTY : v.get(0).stack());
                 }
@@ -728,7 +781,7 @@ public class ItemPicker extends AbstractPanelElement {
                         List<ItemStack> sts = get0.get();
                         if (sts == null) return List.of();
                         List<ItemMatch> out = new ArrayList<>();
-                        for (ItemStack st : sts) if (st != null && !st.isEmpty()) out.add(new ItemMatch(st, m));
+                        for (ItemStack st : sts) if (st != null && !st.isEmpty()) out.add(new ItemMatch(st, m, ign, cnt));
                         return out;
                     };
                     s = v -> set0.accept(v.stream().map(ItemMatch::stack).toList());
