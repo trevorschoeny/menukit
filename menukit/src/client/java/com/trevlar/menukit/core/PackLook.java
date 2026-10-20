@@ -103,6 +103,8 @@ public final class PackLook {
         public static volatile boolean stretch = false;
         /** mockup: draw the cut even where it falls back (a non-uniform fill), to show why it does. */
         public static volatile boolean noFallback = false;
+        /** mockup: where two region sections meet, each closes its own inner ring ({@link #drawCap}). */
+        public static volatile boolean capped = false;
     }
 
     // The analysis
@@ -147,12 +149,14 @@ public final class PackLook {
      *               from a box drawn under another (Recolourful's inventory) leaves out the art of the box above
      * @param texW the texture's width in units, {@code texH} its height (for normalising UVs)
      * @param frame how far in from each side the frame's art ends and the fill begins, {@code [left, top, right, bottom]}
+     * @param ring the frame's inner ring on the left and the right, just inside its outline, next to the fill:
+     *             {@code [left depth, left colour, right depth, right colour]} (depth 0: none)
      */
     public record Cut(int x0, int x1, int top, int bottom, boolean mirror, int l, int r, int t, int b,
                       int sTop, int sBot, int fill, boolean uniform,
                       int topU, int topW, int botU, int botW, int leftV, int leftH, int rightV, int rightH,
                       int sideFrom, int sideTo, int[] sample, int slotV, boolean slotOk, boolean clean, int[] insetL, int[] insetR,
-                      int texW, int texH, int[] frame) {}
+                      int texW, int texH, int[] frame, int[] ring) {}
 
     /**
      * A surface's look: where it comes from, the cut (kept even when it falls back, for the
@@ -195,6 +199,7 @@ public final class PackLook {
     /** A resource reload: every look is cut again from what the new packs supply, on its next use. */
     public static void onReload() {
         CACHE.clear();
+        OptiGuiRules.onReload();
         TEXT_MEMO.clear();
         shaderLightens = 0;
     }
@@ -605,10 +610,27 @@ public final class PackLook {
         int[] frame = {inset(leftM, fill, true), frameTop, inset(rightM, fill, false),
                 mirror ? frameTop : inset(botM, fill, false)};
 
+        int[] ringL = ring(leftM, frame[0], true), ringR = ring(rightM, frame[2], false);
+
         boolean clean = uniform && Math.min(Math.min(topRun[1], botRun[1]), Math.min(leftRun[1], rightRun[1])) >= 2;
         return new Cut(x0, x1, top, bottom, mirror, l, r, t, b, sTop, sBot, fill, uniform,
                 topRun[0], topRun[1], botRun[0], botRun[1], leftRun[0], leftRun[1], rightRun[0], rightRun[1],
-                sideFrom, sideTo, sample, slotV, slotOk, clean, insetL, insetR, p.w, p.h, frame);
+                sideFrom, sideTo, sample, slotV, slotOk, clean, insetL, insetR, p.w, p.h, frame,
+                new int[]{ringL[0], ringL[1], ringR[0], ringR[1]});
+    }
+
+    /**
+     * A side's inner ring: the run of one colour at the frame's inner edge, {@code depth} in
+     * from the outside, back toward the outline but never taking it in (the outermost pixel).
+     * {@code [depth, colour]}; {@code [0, 0]} for a frame of the outline alone.
+     */
+    static int[] ring(int[] profile, int depth, boolean outerFirst) {
+        int n = profile.length;
+        if (depth < 2 || depth > n) return new int[]{0, 0};
+        java.util.function.IntUnaryOperator at = k -> profile[outerFirst ? k : n - 1 - k];   // the k-th pixel in from the outside
+        int colour = at.applyAsInt(depth - 1), count = 1;
+        for (int k = depth - 2; k >= 1 && dist(at.applyAsInt(k), colour) <= TOL; k--) count++;
+        return new int[]{count, colour};
     }
 
     private static int[] rowOf(Pixels p, int y, int x, int n) {
@@ -730,6 +752,30 @@ public final class PackLook {
     }
 
     /**
+     * mockup: where two region sections meet, one closes its inner ring across the list
+     * ({@link Mockup#capped}), {@code rows} deep at {@code y}, the list {@code w} wide at
+     * {@code x}: a section's top in its left side's ring colour, running into that ring and up
+     * to the right side's, its bottom in the right side's, running from the left side's ring
+     * into the right's, as a bevel is lit. The outline, outside the rings, runs on. Nothing
+     * for MenuKit's sprite or a ring-less frame.
+     */
+    public static void drawCap(GuiGraphicsExtractor g, Look look, int x, int w, int y, int rows, boolean top) {
+        if (!look.drawsCut() || rows <= 0) return;
+        Cut c = look.cut();
+        int[] f = c.frame(), ring = c.ring();
+        int depth = top ? ring[0] : ring[2];
+        if (depth <= 0) return;
+        rows = Math.min(rows, depth);
+        int x0 = top ? x + f[0] - ring[0] : x + f[0], x1 = top ? x + w - f[2] : x + w - f[2] + ring[2];
+        g.fill(x0, y, x1, y + rows, top ? ring[1] : ring[3]);
+    }
+
+    /** How deep a section's ring closing at its top ({@code top}) or bottom is in {@code look}: 0 for MenuKit's sprite. */
+    public static int capDepth(Look look, boolean top) {
+        return look.drawsCut() ? look.cut().ring()[top ? 0 : 2] : 0;
+    }
+
+    /**
      * A top corner (or one mirrored to the bottom), {@code s} square, in the shape of the
      * texture's own top corner: each row starts as far in as that corner's rounding, so the
      * pixels outside it are never drawn. Rows with the same inset go in one blit.
@@ -777,7 +823,12 @@ public final class PackLook {
         }
     }
 
-    /** {@code (w x h)} at {@code (x, y)} from the texture's units {@code (u, v, uw, vh)}, mirrored top to bottom if asked. */
+    /**
+     * {@code (w x h)} at {@code (x, y)} from the texture's units {@code (u, v, uw, vh)}, mirrored top to bottom if asked.
+     * Drawn with the float-UV {@code blit}, which OptiGUI's whole-screen texture swap does not hook (it hooks the
+     * 13-argument one), so a piece is always of the texture the look was cut from: a lime box's screen never turns
+     * another section's art lime. Keep every piece on this overload.
+     */
     private static void piece(GuiGraphicsExtractor g, Cut c, Identifier tex, int x, int y, int w, int h,
                               int u, int v, int uw, int vh, boolean flip) {
         if (w <= 0 || h <= 0 || uw <= 0 || vh <= 0) return;
