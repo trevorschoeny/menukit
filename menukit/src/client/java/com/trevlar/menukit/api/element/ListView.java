@@ -181,6 +181,30 @@ import java.util.function.Supplier;
  * it at its own top, that gap above the rows, as wide as the rows (inside the band and
  * clear of the scrollbar), and it scrolls with them. It greys with the list.
  *
+ * <p>{@link Builder#title} puts the list's heading on the toolbar's line, at its left
+ * edge, so a heading and its buttons share one line instead of the heading sitting
+ * alone above them:
+ *
+ * <pre>{@code
+ * ListView.<Range>builder()
+ *     .items(ranges::all).key(Range::id).row(this::rangeRow)
+ *     .title(() -> Component.literal("Range counts  ")                   // read every frame
+ *             .append(Component.literal(ranges.size() + " rows")
+ *                     .withColor(look.textColor(TextRole.MUTED))))         // the screen's look, its grey
+ *     .add(Component.literal("+ Add range"), () -> ranges.add())
+ *     .build();
+ * }</pre>
+ *
+ * The title reads, left to right, before the search field (which then takes the width
+ * between them) or before empty room up to the buttons. It is drawn in the heading
+ * style a {@link Section}'s title has for the look, centred on the buttons' line as a
+ * label in a {@code crossAlign(CENTER)} {@link Flow} is, and greys with the list. A
+ * supplier is read every frame, so a live count changes in place; a title too long for
+ * the line is cut with "..." before the search field or the first button, its styles
+ * kept, and shown whole in a tooltip. A list with a title and nothing else for a
+ * toolbar has one all the same: the title's line. Without a title the toolbar is as
+ * above, exactly.
+ *
  * <h3>Controls in each row, for small lists</h3>
  *
  * {@link Builder#controlsInRows()} puts up, down and a remove cross in every row
@@ -249,6 +273,8 @@ public final class ListView<T> extends AbstractPanelElement {
     private final List<SortBy<T>> sorts;
     private final @Nullable Supplier<Sort> sortGet;
     private final @Nullable Consumer<Sort> sortSet;
+    /** The heading on the toolbar's line ({@link Builder#title}), read every frame, or {@code null}. */
+    private final @Nullable Supplier<Component> title;
     /** Up, down and remove in each row ({@link Builder#controlsInRows}) instead of in the toolbar. */
     private final boolean controlsInRows;
     /** Whether the toolbar's remove or arrows act on the selected row: then a click anywhere in a row selects it. */
@@ -332,6 +358,7 @@ public final class ListView<T> extends AbstractPanelElement {
         this.sorts = List.copyOf(b.sorts);
         this.sortGet = b.sortGet;
         this.sortSet = b.sortSet;
+        this.title = b.title;
         this.controlsInRows = b.controlsInRows;
         this.edits = !b.adds.isEmpty() || remove != null || move != null || pinned != null
                 || searchText != null || !sorts.isEmpty();
@@ -350,7 +377,7 @@ public final class ListView<T> extends AbstractPanelElement {
                 : TextLabel.builder().text(b.disabledReason).visibleWhen(this::ownDisabled).build();
         this.noMatches = searchText == null ? null
                 : TextLabel.builder().role(TextRole.MUTED).text(Component.translatable("menukit.list.no_matches")).build();
-        this.toolbar = b.adds.isEmpty() && searchText == null && sorts.size() < 2 && !barActs ? null
+        this.toolbar = title == null && b.adds.isEmpty() && searchText == null && sorts.size() < 2 && !barActs ? null
                 : makeToolbar(b.addDisabled, b.removeLabel, b.removeTooltip);
         this.confirm = confirmRemove == null ? null : makeConfirm();
     }
@@ -366,7 +393,8 @@ public final class ListView<T> extends AbstractPanelElement {
     // The elements the editing options add
 
     /**
-     * The toolbar, left to right: the search field taking the width the rest leaves;
+     * The toolbar, left to right: the title, when the list has one; the search field
+     * taking the width the rest leaves;
      * with two or more sorts the picker and its direction; the add buttons, one per kind;
      * then, unless the controls are in the rows, remove, up and down, acting on the
      * selected row. Each part only when its option is on; with no search the buttons
@@ -378,8 +406,7 @@ public final class ListView<T> extends AbstractPanelElement {
     private PanelElement makeToolbar(@Nullable BooleanSupplier addDisabled, Component removeLabel,
                                      @Nullable Supplier<Component> removeTooltip) {
         BooleanSupplier off = this::ownDisabled;
-        PanelElement search = searchText == null
-                ? Flow.builder().build()   // nothing on the left: the buttons keep the right end
+        PanelElement search = searchText == null ? null
                 : TextField.builder().size(SEARCH_WIDTH, ADD_HEIGHT).fill()
                         .hint(Component.translatable("menukit.list.search"))
                         .label(Component.translatable("menukit.list.search"))
@@ -424,10 +451,10 @@ public final class ListView<T> extends AbstractPanelElement {
             buttons.add(barArrow(BAR_UP, "menukit.list.move_up", -1));
             buttons.add(barArrow(BAR_DOWN, "menukit.list.move_down", 1));
         }
-        // The search field and the buttons share one line the way a row and its controls
-        // do, the whole as wide as its container gives it: the mod's layout when placed
-        // (the scroll area's outer edge), the list's rows' width when the list draws it.
-        return ListRow.toolbar(search, buttons);
+        // The title, the search field and the buttons share one line the way a row and its
+        // controls do, the whole as wide as its container gives it: the mod's layout when
+        // placed (the scroll area's outer edge), the list's rows' width when the list draws it.
+        return ListRow.toolbar(title, off, search, buttons);
     }
 
     /** A toolbar arrow: a square icon button as tall as the add buttons, moving the selected row {@code by} one place. */
@@ -463,19 +490,19 @@ public final class ListView<T> extends AbstractPanelElement {
     }
 
     /**
-     * The toolbar: search, sort, add, and remove and the arrows, whichever the list has,
+     * The toolbar: the title, search, sort, add, and remove and the arrows, whichever the list has,
      * an ordinary element to put above the list's scroll area so it stays put while the
      * rows scroll. Once this is called the list leaves the toolbar to you; a list whose
      * toolbar is never asked for draws it at its own top, above the rows (it then
      * scrolls with them). The same element every call.
      *
      * @throws IllegalStateException when the list has nothing for a toolbar: no
-     *         {@code add}, no {@code search}, fewer than two {@code sort}s, and no
-     *         {@code remove} or {@code move} outside the rows
+     *         {@code title}, no {@code add}, no {@code search}, fewer than two
+     *         {@code sort}s, and no {@code remove} or {@code move} outside the rows
      */
     public PanelElement toolbar() {
         if (toolbar == null) {
-            throw new IllegalStateException("ListView: toolbar() is for a list with add(...), search(...), two or more sort(...), "
+            throw new IllegalStateException("ListView: toolbar() is for a list with title(...), add(...), search(...), two or more sort(...), "
                     + "or remove(...) or move(...) without controlsInRows()");
         }
         toolbarTaken = true;
@@ -1270,6 +1297,24 @@ public final class ListView<T> extends AbstractPanelElement {
         return t == null ? null : t.get();
     }
 
+    /** The toolbar's title as drawn now, cut with "..." when it doesn't fit; empty without one. */
+    @ApiStatus.Internal
+    public String titleShown() {
+        return toolbar == null ? "" : ((ListRow) toolbar).titleShown().getString();
+    }
+
+    /** The toolbar's title box, {@code {x, y, width, height}} where the toolbar sits, or {@code null} without one. */
+    @ApiStatus.Internal
+    public int @Nullable [] titleBox() {
+        return toolbar == null ? null : ((ListRow) toolbar).titleBox();
+    }
+
+    /** The toolbar's buttons' box, {@code {x, y, width, height}}: the first button's left edge and their line. */
+    @ApiStatus.Internal
+    public int[] toolbarButtons() {
+        return ((ListRow) Objects.requireNonNull(toolbar, "toolbar")).laneBox();
+    }
+
     /** As typing in the search field: the query now. */
     @ApiStatus.Internal
     public void typeQuery(String query) {
@@ -1322,6 +1367,7 @@ public final class ListView<T> extends AbstractPanelElement {
         private final List<SortBy<T>> sorts = new ArrayList<>();
         private @Nullable Supplier<Sort> sortGet;
         private @Nullable Consumer<Sort> sortSet;
+        private @Nullable Supplier<Component> title;
 
         Builder() {}
 
@@ -1550,6 +1596,27 @@ public final class ListView<T> extends AbstractPanelElement {
          */
         public Builder<T, K> sort(Component label, Comparator<? super T> order) {
             sorts.add(new SortBy<>(Objects.requireNonNull(label, "label"), Objects.requireNonNull(order, "order")));
+            return this;
+        }
+
+        /**
+         * The list's heading, on the {@link ListView#toolbar() toolbar}'s line at its left
+         * edge, before the search field and the buttons: one line for both. Drawn in the
+         * look's heading style, centred on the buttons, cut with "..." when it would
+         * reach them. A list with a title and nothing else for a toolbar still has the
+         * title's line.
+         */
+        public Builder<T, K> title(Component title) {
+            Objects.requireNonNull(title, "title");
+            return title(() -> title);
+        }
+
+        /**
+         * {@link #title(Component)} read every frame, so it can show a live count
+         * ({@code "Ranges  4 rows"}, the count styled grey); its styles are kept.
+         */
+        public Builder<T, K> title(Supplier<Component> title) {
+            this.title = Objects.requireNonNull(title, "title");
             return this;
         }
 
