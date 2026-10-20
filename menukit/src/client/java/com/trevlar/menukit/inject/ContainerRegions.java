@@ -14,6 +14,7 @@ import com.trevlar.menukit.api.panel.RegionConstants;
 import com.trevlar.menukit.api.panel.ScreenMatcher;
 import com.trevlar.menukit.api.panel.ScreenOrigin;
 import com.trevlar.menukit.api.panel.ScreenPanelAdapter;
+import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.core.Scroller;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
@@ -24,6 +25,7 @@ import net.fabricmc.fabric.api.event.Event;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
 import net.minecraft.world.entity.player.Inventory;
@@ -183,10 +185,19 @@ public final class ContainerRegions {
 
     /**
      * One declared section (ContainerRegion.section). {@code tint} is its background tint,
-     * ARGB, read every frame; {@code 0} draws none.
+     * ARGB, read every frame; {@code 0} draws none. {@code texture} is the container
+     * texture it stands for (vanilla's chest by default): its block of the list and its
+     * slot frames take that texture's look under the active resource packs.
      */
     public record Section(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen,
-                          IntSupplier tint) {}
+                          IntSupplier tint, Identifier texture) {
+
+        /** A section in vanilla's chest's look. */
+        public Section(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen,
+                       IntSupplier tint) {
+            this(id, content, matcher, order, visibleWhen, tint, PackLook.CHEST);
+        }
+    }
 
     /** A section as placed: what it was declared as, and the element that holds it in the scroll area. */
     private record Placed(Section section, AbstractPanelElement holder) {}
@@ -816,9 +827,59 @@ public final class ContainerRegions {
 
     // The frame
 
+    // Following resource packs (spec "Panel-look panels follow resource packs")
+
     /**
-     * The container list's frame, behind every section: vanilla's raised panel, the
-     * scrollbar lane inside it while it scrolls.
+     * The container texture {@code screen} draws its own image from, whose look the two
+     * panels take (spec part 6): the inventory panel the inventory half, as vanilla does,
+     * and the container list the container half. A shulker box's screen is the shulker
+     * box's; any other the chest's.
+     */
+    static Identifier screenTexture(@Nullable Screen screen) {
+        return screen instanceof ShulkerBoxScreen ? PackLook.SHULKER_BOX : PackLook.CHEST;
+    }
+
+    /** The container list's look: its screen's container texture, the container half. */
+    private static PackLook.Look listLook() {
+        return PackLook.look(screenTexture(state.screen.get()), PackLook.Part.CONTAINER);
+    }
+
+    /** Section {@code i}'s look: the container texture it stands for. */
+    private static PackLook.Look sectionLook(int i) {
+        return PackLook.look(SECTIONS.get(i).section().texture(), PackLook.Part.CONTAINER);
+    }
+
+    /**
+     * Which look a slot frame drawn in one of the region's panels takes: in the inventory
+     * panel, the inventory half's; in the container list, the look of the section it is in
+     * (by where it is drawn), else the list's. {@code null} for any other panel.
+     */
+    public static PackLook.@Nullable SlotLooks slotLooks(Panel p) {
+        if (p == inventoryPanel && inventoryPanel != null) {
+            PackLook.Look look = PackLook.look(screenTexture(state.screen.get()), PackLook.Part.INVENTORY);
+            return (x, y) -> look;
+        }
+        if (p != panel || panel == null) return null;
+        Geometry g = state.geometry;
+        PackLook.Look list = listLook();
+        if (g == null || state.tops.length != SECTIONS.size()) return (x, y) -> list;
+        int[] tops = state.tops, bottoms = state.bottoms;
+        double scroll = state.scroll;
+        return (x, y) -> {
+            for (int i = 0; i < tops.length; i++) {
+                int[] r = tintRect(g, tops[i], bottoms[i], scroll);
+                if (r != null && x >= r[0] && x < r[2] && y >= r[1] && y < r[3]) return sectionLook(i);
+            }
+            return list;
+        };
+    }
+
+    /**
+     * The container list's frame, behind every section: a panel surface in the look of the
+     * screen's container texture under the active resource packs (MenuKit's raised panel
+     * with vanilla's own), the scrollbar lane inside it while it scrolls. A section that
+     * stands for another texture (a shulker box in a chest's list) gets a block of its own
+     * texture's fill over its part, so a pack's purple shulker art shows as purple there.
      */
     private static final class Backdrop implements PanelElement {
         @Override public int getChildX() { return 0; }
@@ -830,7 +891,22 @@ public final class ContainerRegions {
         public void render(RenderContext ctx) {
             Geometry g = state.geometry;
             if (g == null) return;
-            PanelRendering.renderPanel(ctx.graphics(), ctx.originX(), ctx.originY(), g.width(), g.height(), PanelStyle.RAISED);
+            PackLook.Look list = listLook();
+            PanelRendering.renderPanelSurface(ctx.graphics(), ctx.originX(), ctx.originY(), g.width(), g.height(), list);
+            if (state.tops.length != SECTIONS.size()) return;
+            int dx = ctx.originX() - g.x(), dy = ctx.originY() - g.top();
+            boolean clipped = false;
+            for (int i = 0; i < SECTIONS.size(); i++) {
+                if (SECTIONS.get(i).section().texture().equals(list.texture())) continue;
+                int[] r = tintRect(g, state.tops[i], state.bottoms[i], state.scroll);
+                if (r == null) continue;
+                if (!clipped) {
+                    ctx.graphics().enableScissor(g.x() + dx, g.viewTop() + dy, g.x() + g.width() + dx, g.viewBottom() + dy);
+                    clipped = true;
+                }
+                PackLook.drawFill(ctx.graphics(), r[0] + dx, r[1] + dy, r[2] - r[0], r[3] - r[1], sectionLook(i));
+            }
+            if (clipped) ctx.graphics().disableScissor();
         }
     }
 
@@ -854,6 +930,8 @@ public final class ContainerRegions {
      * Each section's tint, over its part of the container list: after the sections drew
      * (their titles and slot frames take the colour) and before the region's slots draw
      * their items (which keep their own), cut at the viewport's edges like the content.
+     * Only over grey art (spec part 4): where the resource pack already coloured the
+     * section's container art, the tint is left out.
      */
     private static final class Tints implements PanelElement {
         @Override public int getChildX() { return 0; }
@@ -870,6 +948,7 @@ public final class ContainerRegions {
             boolean clipped = false;
             for (int i = 0; i < SECTIONS.size(); i++) {
                 int argb = SECTIONS.get(i).section().tint().getAsInt();
+                if (argb != 0 && !PackLook.Mockup.tintAlways && !sectionLook(i).grey()) argb = 0;   // mockup: tintAlways
                 int[] r = argb == 0 ? null : tintRect(g, state.tops[i], state.bottoms[i], state.scroll);
                 if (r == null) continue;
                 if (!clipped) {
@@ -883,9 +962,11 @@ public final class ContainerRegions {
     }
 
     /**
-     * The inventory panel's look: vanilla's raised panel and a slot frame under each of
-     * the player's inventory slots, where vanilla's image had them. The slots themselves
-     * are vanilla's, drawn over it in vanilla's pass.
+     * The inventory panel's look: a panel surface in the look of the inventory half of the
+     * screen's container texture under the active resource packs (MenuKit's raised panel
+     * with vanilla's own), and a slot frame under each of the player's inventory slots,
+     * where vanilla's image had them, in the same look. The slots themselves are vanilla's,
+     * drawn over it in vanilla's pass.
      */
     private static final class InventoryFrame implements PanelElement {
         @Override public int getChildX() { return 0; }
@@ -898,13 +979,13 @@ public final class ContainerRegions {
             Geometry g = state.geometry;
             if (g == null || !(state.screen.get() instanceof AbstractContainerScreen<?> acs)) return;
             Reference inv = g.inventory();
-            PanelRendering.renderPanel(ctx.graphics(), ctx.originX(), ctx.originY(), inv.imageWidth(), inv.imageHeight(),
-                    PanelStyle.RAISED);
+            PackLook.Look look = PackLook.look(screenTexture(acs), PackLook.Part.INVENTORY);
+            PanelRendering.renderPanelSurface(ctx.graphics(), ctx.originX(), ctx.originY(), inv.imageWidth(), inv.imageHeight(),
+                    look);
             AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) acs;
             for (Slot slot : acs.getMenu().slots) {
                 if (stays(slot) && slot.isActive()) {
-                    PanelRendering.renderSlotBackground(ctx.graphics(), acc.mk$getLeftPos() + slot.x - 1,
-                            acc.mk$getTopPos() + slot.y - 1);
+                    PackLook.drawSlot(ctx.graphics(), acc.mk$getLeftPos() + slot.x - 1, acc.mk$getTopPos() + slot.y - 1, look);
                 }
             }
         }

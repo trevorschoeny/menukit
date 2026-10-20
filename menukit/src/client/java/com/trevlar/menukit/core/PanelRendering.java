@@ -56,6 +56,21 @@ public final class PanelRendering {
     }
 
     /**
+     * Draws a Panel-look <b>panel surface</b>: the background of a panel itself (a settings
+     * screen, the container region's two panels), which follows the resource pack's
+     * container art ({@link PackLook}). Not for controls: a button, toggle or popover that
+     * is RAISED keeps {@link #renderPanel}'s sprite, since a frame cut from a chest would be
+     * wrong on a button (spec part 7). With vanilla's own textures it draws exactly what
+     * {@code renderPanel(..., RAISED)} draws.
+     *
+     * @param look the surface's look, from {@link PackLook#look} (cached; cheap per frame)
+     */
+    public static void renderPanelSurface(GuiGraphicsExtractor graphics, int x, int y, int w, int h,
+                                          PackLook.Look look) {
+        PackLook.drawPanel(graphics, x, y, w, h, look);
+    }
+
+    /**
      * Draws a panel background with custom colours and the default black border.
      * Every style except NONE is drawn with fills here: INSET with the shadow at
      * the top left, any other style raised.
