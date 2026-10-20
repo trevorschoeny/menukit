@@ -48,6 +48,11 @@ import java.util.Set;
  * screen draws its own FLOW panels before the slot pass, under every slot, so their
  * slots stay in vanilla's pass as they always were.
  *
+ * <p><b>Background panels</b> (7.4.0, {@link ScreenBackground}) draw before the whole
+ * frame, so their slots stay in vanilla's pass too, over them. Their slots are filed
+ * apart ({@link #placedBelow}, {@link #below}): vanilla's pass draws them, and they are
+ * not the "unreported created slot" that splits layer 2 in {@link ContainerScreenLayers}.
+ *
  * <p>Render thread only, like the slot pass. Cleared at the start of every place pass and
  * at the end of every container screen's frame.
  */
@@ -73,6 +78,16 @@ public final class PresentedSlots {
 
     /** True during the place pass: reports are filed, and nothing is drawn. */
     private static boolean recording = false;
+
+    /**
+     * The slots each background panel placed this frame, and all of them (7.4.0). Filed
+     * while {@link #background} is on; cleared at the start of the background layer and
+     * at the end of the frame.
+     */
+    private static final Map<Panel, List<Slot>> BELOW = new IdentityHashMap<>();
+    private static final Set<Slot> BELOW_ALL = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** True while the background layer draws. */
+    private static boolean background = false;
     /** The panel being laid out or drawn now, or {@code null} between panels. */
     private static @Nullable Panel current;
 
@@ -122,6 +137,8 @@ public final class PresentedSlots {
      * a screen with no slot pass never draws a closed screen's slots.
      */
     public static void endFrame() {
+        BELOW.clear();
+        BELOW_ALL.clear();
         DRAWN.clear();
         BY_PANEL.clear();
         ALL.clear();
@@ -158,8 +175,34 @@ public final class PresentedSlots {
      */
     public static void record(Slot slot) {
         if (current != null) LAST_PANEL.put(slot, current);
+        if (background && current != null) {
+            if (BELOW_ALL.add(slot)) BELOW.computeIfAbsent(current, p -> new ArrayList<>()).add(slot);
+            return;
+        }
         if (!recording || current == null) return;
         if (ALL.add(slot)) BY_PANEL.computeIfAbsent(current, p -> new ArrayList<>()).add(slot);
+    }
+
+    /** The background layer starts ({@code true}, last frame's background slots go) or ends. */
+    static void background(boolean on) {
+        if (on) {
+            BELOW.clear();
+            BELOW_ALL.clear();
+        }
+        background = on;
+    }
+
+    /**
+     * Whether a background panel placed {@code slot} this frame (7.4.0): vanilla's pass
+     * draws it, over its panel, and it is a reported slot, not a layer boundary.
+     */
+    public static boolean placedBelow(@Nullable Slot slot) {
+        return slot != null && BELOW_ALL.contains(slot);
+    }
+
+    /** The slots background panel {@code panel} placed this frame, in placing order (empty for none). */
+    public static List<Slot> below(Panel panel) {
+        return BELOW.getOrDefault(panel, List.of());
     }
 
     /** Whether a panel presents {@code slot} this frame: vanilla's slot pass leaves it out. */

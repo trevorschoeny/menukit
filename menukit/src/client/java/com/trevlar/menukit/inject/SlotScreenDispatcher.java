@@ -73,14 +73,27 @@ public final class SlotScreenDispatcher {
     /**
      * At {@code mouseClicked} HEAD: consumer buttons and blocking clicks in panel gaps.
      * A click on the hidden part of a slot shown in part counts as one in a gap and is
-     * eaten too, so a carried item cannot drop through there.
+     * eaten too, so a carried item cannot drop through there. A click on one of the
+     * screen's widgets (any mod's button) is never eaten here (7.4.0): the screen offers
+     * it to its widgets next, and a slot's gap or hidden part under a widget is not what
+     * was clicked. (A widget under a panel that claims the point never gets this far: the
+     * claim ate the click before the screen saw it.)
      */
     public static boolean fireMouseClicked(AbstractContainerScreen<?> screen,
                                            double mouseX, double mouseY, int button) {
         SlotScreenHook h = hook;
         if (h == null) return false;
+        if (widgetAt(screen, mouseX, mouseY)) return false;
         if (h.mouseClicked(screen, mouseX, mouseY, button)) return true;
         return SlotClips.hides(h.resolveHover(screen, mouseX, mouseY).slot(), mouseX, mouseY);
+    }
+
+    /** Whether one of the screen's widgets (its children, every mod's) is under the point. */
+    private static boolean widgetAt(AbstractContainerScreen<?> screen, double mouseX, double mouseY) {
+        for (var child : screen.children()) {
+            if (child.isMouseOver(mouseX, mouseY)) return true;
+        }
+        return false;
     }
 
     /** At {@code mouseScrolled} HEAD: consumer scrolling over a slot region. */

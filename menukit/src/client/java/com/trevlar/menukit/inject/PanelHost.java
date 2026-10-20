@@ -470,12 +470,18 @@ public final class PanelHost {
      *       nothing with.</li>
      * </ol>
      *
-     * The active overlay of the topmost modal is the one exception, and it is not
+     * A {@link Panel#isBackground() background} panel claims nothing at all: it is
+     * drawn under everything on the screen, so nothing on the screen is beneath it.
+     *
+     * <p>The active overlay of the topmost modal is the one exception, and it is not
      * decided here: a shown modal claims every point on its surface, which
      * {@link ScreenPanelRegistry} applies before it asks any host.
      */
     public boolean claimsPoint(Placed placed, double mouseX, double mouseY) {
         Panel panel = placed.panel();
+        // A background panel (7.4.0) is under everything on the screen, so it takes no
+        // point from anything: whatever lies over it stays live.
+        if (panel.isBackground()) return false;
         InputContext in = input(placed, mouseX, mouseY);
         List<PanelElement> shown = shownElements(panel);
         if (ChildDispatch.overlayOwner(shown, in) != null) return true;
