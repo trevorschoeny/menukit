@@ -48,10 +48,16 @@ import java.util.Set;
  * screen draws its own FLOW panels before the slot pass, under every slot, so their
  * slots stay in vanilla's pass as they always were.
  *
- * <p><b>Background panels</b> (7.4.0, {@link ScreenBackground}) draw before the whole
- * frame, so their slots stay in vanilla's pass too, over them. Their slots are filed
- * apart ({@link #placedBelow}, {@link #below}): vanilla's pass draws them, and they are
- * not the "unreported created slot" that splits layer 2 in {@link ContainerScreenLayers}.
+ * <p><b>Background panels</b> (7.4.0, {@link ScreenBackground}) draw in the screen's
+ * background pass, before anything else of the frame. The same rule holds there: a slot a
+ * background panel shows is placed while the panel renders and drawn right after the
+ * panel's elements, in the background pass ({@link #drawAfter}), so the screen's widgets,
+ * every other mod's, and everything else draw over it, as over its panel. Those slots are
+ * filed apart ({@link #placedBelow}, {@link #below}); vanilla's pass leaves them out, and
+ * they are not the "unreported created slot" that splits layer 2 in
+ * {@link ContainerScreenLayers}. Vanilla has not worked out the hovered slot yet at that
+ * point, so the background draw asks vanilla's own lookup ({@code getHoveredSlot}) itself,
+ * and puts the screen's hovered slot back after.
  *
  * <p>Render thread only, like the slot pass. Cleared at the start of every place pass and
  * at the end of every container screen's frame.
@@ -183,21 +189,43 @@ public final class PresentedSlots {
         if (ALL.add(slot)) BY_PANEL.computeIfAbsent(current, p -> new ArrayList<>()).add(slot);
     }
 
-    /** The background layer starts ({@code true}, last frame's background slots go) or ends. */
-    static void background(boolean on) {
+    /**
+     * The background layer starts ({@code true}, last frame's background slots go) or ends.
+     * {@code s} is the container screen whose background it is, and the mouse, for drawing
+     * its panels' slots; {@code null} on any other screen (and in MenuKit's checks, which
+     * set the hovered slot by hand).
+     */
+    static void background(boolean on, @Nullable AbstractContainerScreen<?> s, int mx, int my) {
         if (on) {
             BELOW.clear();
             BELOW_ALL.clear();
+            screen = s;
+            mouseX = mx;
+            mouseY = my;
         }
         background = on;
     }
 
     /**
-     * Whether a background panel placed {@code slot} this frame (7.4.0): vanilla's pass
-     * draws it, over its panel, and it is a reported slot, not a layer boundary.
+     * Whether a background panel placed {@code slot} this frame (7.4.0): it drew right
+     * after its panel, in the background pass, so vanilla's pass leaves it out, and it is
+     * a reported slot, not a layer boundary.
      */
     public static boolean placedBelow(@Nullable Slot slot) {
         return slot != null && BELOW_ALL.contains(slot);
+    }
+
+    /**
+     * Whether {@code slot} is a background panel's (one that is showing) and one of the
+     * screen's widgets is over it at the point (7.4.0). The slot draws with its panel,
+     * under every widget, so the point is the widget's and the slot is not hovered there.
+     * Asked between frames too (input), so it goes by the panel that last showed the slot,
+     * not this frame's record. A slot vanilla draws (the inventory's) is never one.
+     */
+    public static boolean underWidget(AbstractContainerScreen<?> screen, @Nullable Slot slot, double mouseX, double mouseY) {
+        Panel panel = slot == null ? null : LAST_PANEL.get(slot);
+        return panel != null && panel.isBackground() && panel.isVisible()
+                && SlotScreenDispatcher.widgetAt(screen, mouseX, mouseY);
     }
 
     /** The slots background panel {@code panel} placed this frame, in placing order (empty for none). */
@@ -224,6 +252,10 @@ public final class PresentedSlots {
      */
     public static void drawAfter(GuiGraphicsExtractor graphics, Panel panel) {
         if (recording) return;
+        if (background) {
+            drawBelow(graphics, panel);
+            return;
+        }
         List<Slot> slots = BY_PANEL.get(panel);
         if (slots == null) return;
         Slot hovered = screen == null ? hoveredForChecks : ((AbstractContainerScreenAccessor) screen).mk$getHoveredSlot();
@@ -231,6 +263,42 @@ public final class PresentedSlots {
             // Vanilla's pass draws only an active slot; so does this one.
             if (slot.isActive()) drawer.draw(graphics, slot, slot == hovered);
         }
+    }
+
+    /**
+     * A background panel's slots, right after its elements placed them, in the background
+     * pass (7.4.0): before every widget and renderable of the screen's, so a foreign button
+     * over a slot covers its item, and over the panel, clipped as any presented slot.
+     *
+     * <p>Vanilla works out the hovered slot later in the frame, so this asks vanilla's own
+     * lookup now, with this frame's positions for every background slot: the answer vanilla
+     * gets a moment later, for its tooltip, unless a slot drawn after the slot pass moves
+     * under the mouse in between (then the highlight is a frame late). The screen's
+     * {@code hoveredSlot} is that slot only while these draw (the highlights read it), and
+     * goes back after, so vanilla's own hover bookkeeping ({@code onStopHovering}) is as
+     * before.
+     */
+    private static void drawBelow(GuiGraphicsExtractor graphics, Panel panel) {
+        List<Slot> slots = BELOW.get(panel);
+        if (slots == null) return;
+        AbstractContainerScreen<?> s = screen;
+        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) s;
+        Slot hovered = acc == null ? hoveredForChecks : acc.mk$findHoveredSlot(mouseX, mouseY);
+        Slot vanillaHovered = acc == null ? null : acc.mk$getHoveredSlot();
+        if (acc != null) acc.mk$setHoveredSlot(hovered);
+        try {
+            for (Slot slot : slots) {
+                if (slot.isActive()) drawer.draw(graphics, slot, slot == hovered);
+            }
+        } finally {
+            if (acc != null) acc.mk$setHoveredSlot(vanillaHovered);
+        }
+    }
+
+    /** For MenuKit's checks: the hovered slot a background panel's slots draw with, with no screen. */
+    @VisibleForTesting
+    public static void hoveredForChecks(@Nullable Slot hovered) {
+        hoveredForChecks = hovered;
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.trevlar.menukit.mixin;
 
+import com.trevlar.menukit.inject.PresentedSlots;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 import com.trevlar.menukit.api.host.SlotHoverResult;
 import com.trevlar.menukit.inject.SlotScreenDispatcher;
@@ -67,7 +68,21 @@ public abstract class MKSlotInputMixin {
         if (result.handled()) {
             // A slot claims the point: return its in-menu slot, or null for an
             // in-panel gap (covered vanilla slot inert).
-            cir.setReturnValue(result.slot());
+            Slot slot = result.slot();
+            cir.setReturnValue(PresentedSlots.underWidget((AbstractContainerScreen<?>) (Object) this, slot, mouseX, mouseY)
+                    ? null : slot);
+        }
+    }
+
+    /**
+     * Vanilla's own answer, when nothing above decided: a background panel's slot under one
+     * of the screen's widgets is not hovered (7.4.0). It draws under the widget, so the
+     * point is the widget's: no highlight, tooltip or wheel for the slot it hides.
+     */
+    @Inject(method = "getHoveredSlot", at = @At("RETURN"), cancellable = true)
+    private void mk$slotUnderWidget(double mouseX, double mouseY, CallbackInfoReturnable<Slot> cir) {
+        if (PresentedSlots.underWidget((AbstractContainerScreen<?>) (Object) this, cir.getReturnValue(), mouseX, mouseY)) {
+            cir.setReturnValue(null);
         }
     }
 

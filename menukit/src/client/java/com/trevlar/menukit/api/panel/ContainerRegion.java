@@ -10,8 +10,8 @@ import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
 /**
- * The container region (7.4.0): on a container screen, the player's inventory stays
- * where vanilla puts it, and everything above it is one column that scrolls together.
+ * The container region (7.4.0): on a container screen, the player's inventory never
+ * scrolls, and everything above it is one column that scrolls together.
  * A chest, a shulker box opened below it and another one below that are one region,
  * never a scroll area each. Mods put their containers' slot elements in it as
  * <b>sections</b>, stacked top to bottom; there is one region per screen, however many
@@ -30,14 +30,15 @@ import java.util.function.BooleanSupplier;
  * The containers and the inventory are two panels, each with its own frame: the
  * <b>container list</b> on top, holding every section with its scrollbar inside its
  * frame, and the <b>inventory panel</b> below it, MenuKit's gap between panels apart. The
- * inventory panel is around the player's inventory where vanilla puts it, and never
- * moves. Scrolled content clips at the container list's own bottom edge.
+ * inventory panel is around the player's inventory, and goes down only as the list grows.
+ * Scrolled content clips at the container list's own bottom edge.
  *
  * <p>Both are the screen's background ({@link Panel.Builder#background()}): drawn where
  * the screen draws its own image, under everything else on the screen, vanilla's labels
- * and slots, the region's own slots and every other mod's widgets included, and claiming
- * nothing, so another mod's button on either panel stays live and gets its clicks first.
- * Only the region's own slots are cut at the list's edges.
+ * and slots and every other mod's widgets included, and claiming nothing, so another
+ * mod's button on either panel stays live and gets its clicks first. The region's own
+ * slots draw with the list, right after it, so another mod's button over one covers its
+ * item; they are cut at the list's edges.
  *
  * <h3>The screen's bounds</h3>
  * The screen's {@code leftPos}, {@code topPos}, {@code imageWidth} and {@code imageHeight}
@@ -46,8 +47,9 @@ import java.util.function.BooleanSupplier;
  * scroll. So a panel placed on the menu frame, another mod's buttons by the screen's
  * edges and a recipe viewer keeping clear of the screen all see both panels, and a click
  * in the gap between them with an item held is inside the screen, so it drops nothing.
- * The player's inventory slots and vanilla's labels are moved back by as much as the
- * origin moved, so nothing vanilla placed moves on screen. While the region is up, the
+ * Vanilla's title is moved back by as much as the origin moved, so it stays put on
+ * screen, and the player's inventory slots and "Inventory" label go with the inventory
+ * panel. While the region is up, the
  * screen's own background still runs, every mod's hook in it included, but vanilla's own
  * container texture and the screen's title are left out: the two panels and the sections'
  * titles are in their place.
@@ -65,10 +67,13 @@ import java.util.function.BooleanSupplier;
  *
  * <h3>What the region does</h3>
  * <ul>
- *   <li><b>Grows, then scrolls.</b> The container list runs from the inventory panel up,
- *       as tall as its sections need, into the screen's free height, and scrolls only once
- *       that is used up. It is never shorter than the screen's own container part, so a
- *       tiny window still shows vanilla's height, scrolling.</li>
+ *   <li><b>Grows, then scrolls.</b> The container list starts at the screen's own
+ *       container part, its top where vanilla's is, and grows with its sections: first
+ *       down, the inventory panel moving down below it until it reaches the screen's
+ *       bottom margin; then up into the free height above, to the top margin; only
+ *       then does it scroll. It is never shorter than the screen's own container part,
+ *       so a tiny window still shows vanilla's height, scrolling. A resize lays it out
+ *       again.</li>
  *   <li><b>The wheel, last, from anywhere on the screen.</b> It scrolls the region
  *       only when vanilla and every other handler declined the turn: over a slot, a
  *       mod that moves items with the wheel (Mouse Tweaks, Inventory Profiles Next)

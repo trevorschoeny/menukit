@@ -422,22 +422,29 @@ public final class ScreenPanelRegistry {
     /**
      * The BACKGROUND layer of the registry's hosts (7.4.0), in the screen's background
      * pass ({@link ScreenBackground}): before anything else of the frame, so everything
-     * draws over it. Its slots are placed here and drawn in vanilla's slot pass.
+     * draws over it. Its slots are placed here and drawn here, each panel's right after
+     * the panel ({@link PresentedSlots#drawAfter}), so the screen's widgets draw over them.
      */
     public static void renderBackground(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         List<PanelHost> routed = routedOn(screen);
         if (routed.isEmpty()) return;
-        renderBackground(routed, graphics, mouseX, mouseY, pointerPolicy(screen, mouseX, mouseY));
+        renderBackground(routed, screen instanceof AbstractContainerScreen<?> acs ? acs : null,
+                graphics, mouseX, mouseY, pointerPolicy(screen, mouseX, mouseY));
     }
 
-    /** {@link #renderBackground(Screen, GuiGraphicsExtractor, int, int)} over {@code hosts} (bottom to top). */
-    public static void renderBackground(List<PanelHost> hosts, GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+    /**
+     * {@link #renderBackground(Screen, GuiGraphicsExtractor, int, int)} over {@code hosts}
+     * (bottom to top); {@code screen} is the container screen whose slots they show, or
+     * {@code null} (MenuKit's checks set the hovered slot by hand).
+     */
+    public static void renderBackground(List<PanelHost> hosts, @Nullable AbstractContainerScreen<?> screen,
+                                        GuiGraphicsExtractor graphics, int mouseX, int mouseY,
                                         PanelHost.PointerPolicy pointer) {
-        PresentedSlots.background(true);
+        PresentedSlots.background(true, screen, mouseX, mouseY);
         try {
             LayerPlan.render(hosts, LayerPlan.Layer.BACKGROUND, graphics, mouseX, mouseY, pointer);
         } finally {
-            PresentedSlots.background(false);
+            PresentedSlots.background(false, null, 0, 0);
         }
     }
 
