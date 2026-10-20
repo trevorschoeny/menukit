@@ -37,6 +37,11 @@ import net.minecraft.util.Util;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.Container;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.ItemStack;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -467,6 +472,8 @@ public final class ContainerRegions {
         long lastFrame = -1;
         /** A quick move landed out of view: the slot to show, and how the search for it goes. */
         @Nullable Reveal reveal;
+        /** The container the screen was opened on ({@link #openedContainer}): its own sections' context. */
+        ContainerRegion.@Nullable Context opened;
     }
 
     /**
@@ -526,6 +533,35 @@ public final class ContainerRegions {
         state.cellTops.clear();
         state.lastFrame = -1;
         state.reveal = null;
+        state.opened = openedContainer(screen);
+    }
+
+    /**
+     * The container the player opened {@code screen} on, for the sections that are the
+     * screen's own container (those with no context): the block under the crosshair as the
+     * screen opened, the one the right click used, if it holds a container the size of the
+     * screen's own (the menu's first slot's). So a lime box's own screen knows it is a lime
+     * box, for its name, its dye and the pack's rules. {@code null} for a screen opened from
+     * an item or a key, or on a double chest.
+     */
+    // ponytail: the crosshair at open, no use hook; a screen opened by a key while looking at another container of the same size takes that one.
+    private static ContainerRegion.@Nullable Context openedContainer(@Nullable Screen screen) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null || mc.level == null || !(mc.hitResult instanceof BlockHitResult hit)
+                || hit.getType() != HitResult.Type.BLOCK) return null;
+        if (!(screen instanceof AbstractContainerScreen<?> acs) || acs.getMenu() == null || acs.getMenu().slots.isEmpty()) return null;
+        BlockEntity be = mc.level.getBlockEntity(hit.getBlockPos());
+        Container own = acs.getMenu().getSlot(0).container;
+        if (!(be instanceof Container c) || own instanceof Inventory || c.getContainerSize() != own.getContainerSize()) return null;
+        return ContainerRegion.Context.of(be);
+    }
+
+    /** What a section that is the screen's own container is called: its block's name, or the name the player gave it. */
+    private static @Nullable Component openedName() {
+        ContainerRegion.Context c = state.opened;
+        if (c == null) return null;
+        if (c.customName() != null) return Component.literal(c.customName());
+        return BuiltInRegistries.BLOCK.getValue(c.block()).getName();
     }
 
     /** The region on {@code screen} this frame, or {@code null} when it is not there (no section shown). */
@@ -858,11 +894,12 @@ public final class ContainerRegions {
     /**
      * The texture section {@code s} is drawn from: the container texture it stands for, or
      * with OptiGUI the one OptiGUI's rules give its own container (its {@code context}), or,
-     * without a context, the one OptiGUI gives the open screen's (the screen's own container).
+     * without a context, the container the screen was opened on ({@link #openedContainer}),
+     * else the one OptiGUI gives the open screen's (the screen's own container).
      */
     static Identifier sectionTexture(Section s) {
         if (!OptiGuiRules.LOADED) return s.texture();
-        ContainerRegion.Context c = s.context() == null ? null : s.context().get();
+        ContainerRegion.Context c = s.context() == null ? state.opened : s.context().get();
         if (c == null) return OptiGuiRules.onScreen(s.texture());
         String title = s.title() == null ? "" : s.title().get().getString();
         return OptiGuiRules.forContainer(s.texture(), c.block(), c.customName(), title, c.pos());
@@ -924,7 +961,7 @@ public final class ContainerRegions {
         List<Component> titles = new ArrayList<>(), names = new ArrayList<>();
         for (Section t : shown) {
             titles.add(t.title().get());
-            names.add(t.name() == null ? null : t.name().get());
+            names.add(t.name() != null ? t.name().get() : t.context() == null ? openedName() : null);
         }
         return shownTitles(titles, names).get(at);
     }

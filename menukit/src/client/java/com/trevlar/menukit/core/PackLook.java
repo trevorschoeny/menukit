@@ -244,17 +244,18 @@ public final class PackLook {
         return plain.source() == Source.PACK ? plain : own;
     }
 
-
-    /** Below this contrast with its fill, body text doesn't read: WCAG's 3:1, its floor for large text. */
-    public static final double BODY_MIN = 3.0;
-    /** How far body text that has to change stands out from its fill: WCAG's 4.5:1 for text. */
+    /**
+     * How far body text stands out from its fill: WCAG's 4.5:1 for text. Vanilla's grey stays
+     * wherever it does, and text that has to change is made to: below it vanilla's grey reads
+     * dim (on Recolourful's lime shulker box, 3:1).
+     */
     public static final double BODY_TARGET = 4.5;
     /** How far muted text stands out from MenuKit's own fill: what muted text keeps on any fill. */
     private static final double MUTED_CONTRAST = contrast(MUTED, SPRITE_FILL);
 
     /**
      * Heading and body text {@code text} on {@code fill}, pure. {@code text} itself wherever
-     * it reads ({@link #BODY_MIN}), so vanilla's grey stays on MenuKit's own fill and on any
+     * it reads ({@link #BODY_TARGET}), so vanilla's grey stays on MenuKit's own fill and on any
      * light one. On a fill too dark or too coloured for it, a colour made from the fill: the
      * fill taken toward white (on a dark fill, Touched UI's chest) or black (on a light one,
      * Recolourful's orange) until it stands out by {@link #BODY_TARGET}, so the text keeps
@@ -265,7 +266,7 @@ public final class PackLook {
      * it is, for the pack to repaint as it does on its own screens: lightened once, by the pack.
      */
     public static int textOn(int text, int fill, boolean shaderLightens) {
-        if (contrast(text, fill) >= BODY_MIN) return text;
+        if (contrast(text, fill) >= BODY_TARGET) return text;
         boolean dark = darkFill(fill);
         if (dark && shaderLightens && text == TEXT) return text;
         return standingOut(fill, dark ? WHITE : BLACK, BODY_TARGET);
