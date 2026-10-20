@@ -41,7 +41,9 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 
 /**
  * The container region's machinery (7.4.0; the public face is
@@ -180,8 +182,12 @@ public final class ContainerRegions {
 
     // Declarations
 
-    /** One declared section (ContainerRegion.section). */
-    public record Section(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen) {}
+    /**
+     * One declared section (ContainerRegion.section). {@code tint} is its background tint,
+     * ARGB, read every frame; {@code 0} draws none.
+     */
+    public record Section(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen,
+                          IntSupplier tint) {}
 
     /** A section as placed: what it was declared as, and the element that holds it in the scroll area. */
     private record Placed(Section section, AbstractPanelElement holder) {}
@@ -230,7 +236,7 @@ public final class ContainerRegions {
         // Both panels are the screen's background: under everything, claiming nothing.
         panel = Panel.builder(PANEL_ID).style(PanelStyle.NONE).background()
                 .position(PanelPosition.pixel(ContainerRegions::origin))
-                .add(new Backdrop()).add(view)
+                .add(new Backdrop()).add(view).add(new Tints())
                 .build()
                 .visibleWhen(() -> state.geometry != null);
         adapter = new ScreenPanelAdapter(panel, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
@@ -250,10 +256,15 @@ public final class ContainerRegions {
         return false;
     }
 
-    /** A section shows on the region's screen when it targets it and its own condition holds. */
+    /**
+     * A section shows on the region's screen when it targets it, its own condition holds
+     * and its content is visible. So content that hides itself takes its section with it:
+     * a slot library's element for a group that is not on this menu, or whose slots are
+     * all hidden, shows no section, with no condition of the section's own.
+     */
     private static boolean shownOnCurrentScreen(Section s) {
         return state.screen.get() instanceof AbstractContainerScreen<?> acs
-                && s.matcher().matches(acs) && s.visibleWhen().getAsBoolean();
+                && s.matcher().matches(acs) && s.visibleWhen().getAsBoolean() && s.content().isVisible();
     }
 
     /** The container list's panel, or {@code null} with no section declared. */
@@ -446,14 +457,14 @@ public final class ContainerRegions {
             state.vanilla = new Reference(acc.mk$getLeftPos(), acc.mk$getTopPos(), acc.mk$getImageWidth(), acc.mk$getImageHeight());
             state.vanillaInventoryLabelY = acc.mk$getInventoryLabelY();
             state.screenHeight = screen.height;   // a resize initialises again, so the region re-runs
-            ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> frame(acs, mx, my));
+            ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> frame(acs, mx, my, false));
             ScreenEvents.remove(screen).register(s -> {
                 if (state.screen.get() != s) return;
                 restoreBounds(acs);   // the menu can outlive the screen
                 reset(null);
             });
             // Lay out now, so every other mod's init listener and widget reads the union.
-            frame(acs, -1, -1);
+            frame(acs, -1, -1, true);
         });
     }
 
@@ -509,14 +520,64 @@ public final class ContainerRegions {
      * Before each frame of a screen the region is on (and once at its init): lay the
      * region out from the screen's vanilla bounds, and set the screen's bounds to the two
      * panels' union when that changed, or back to vanilla's when no section is shown.
+     *
+     * <h3>A layout change while the screen is open lays the screen out again</h3>
+     * At init the bounds are simply written: every mod's init listener runs after, and
+     * reads them. A change found on a later frame (a section opening or closing, the list
+     * starting or stopping to scroll) re-runs the screen's layout the way a window resize
+     * does ({@link #relayout}), so every other mod's widget placed at init against the
+     * screen's bounds is placed again, through its own init hook, where it now belongs.
+     * Only on such a change, never on a scroll (scrolling never moves the bounds), and at
+     * most once a frame: however many sections changed since the last frame, this frame
+     * sees one new layout and lays the screen out once.
+     *
+     * @param atInit whether this is the screen's own init (or a resize's), which lays out anyway
      */
-    static void frame(AbstractContainerScreen<?> screen, int mouseX, int mouseY) {
+    static void frame(AbstractContainerScreen<?> screen, int mouseX, int mouseY, boolean atInit) {
         Reference vanilla = state.vanilla;
         if (panel == null || vanilla == null || state.screen.get() != screen) return;
         Geometry g = step(vanilla, state.vanillaInventoryLabelY, !screen.getMenu().getCarried().isEmpty(),
                 mouseX, mouseY, Util.getMillis());
-        if (g == null) restoreBounds(screen);
-        else if (!g.bounds().equals(state.applied)) applyBounds(screen, g.bounds());
+        Reference want = g == null ? null : g.bounds();
+        if (Objects.equals(want, state.applied)) return;
+        if (!atInit) relayout(screen);
+        // A screen whose re-init did not come back through the region (so the bounds are
+        // still not these) gets them written here: never a layout every frame.
+        if (Objects.equals(want, state.applied)) return;
+        if (want == null) restoreBounds(screen);
+        else applyBounds(screen, want);
+    }
+
+    /** How many times the region has laid a screen out again, for the checks. */
+    private static int relayouts = 0;
+
+    /** How many times the region has laid an open screen out again since the game started (for the checks). */
+    public static int relayouts() {
+        return relayouts;
+    }
+
+    /**
+     * Lays {@code screen} out again exactly as a window resize does, at its own size:
+     * {@code Screen.resize}, so Fabric's {@code BEFORE_INIT} and {@code AFTER_INIT} run
+     * around it (the region puts vanilla's bounds back before, and the union after, in
+     * its phase ahead of everyone else's), the screen's widgets are cleared and every mod
+     * adds its own again from its init hook, and whatever a screen keeps across a resize
+     * it keeps here too. What a resize keeps:
+     * <ul>
+     *   <li>the screen itself, so its menu, the item on the cursor, a drag across slots and
+     *       the recipe book's state (its search text included) stay;</li>
+     *   <li>the region's own state, keyed by the screen: the scroll, where each section
+     *       was, a reveal under way. Sections' open state is their mods' own;</li>
+     *   <li>what a screen carries over in its own {@code resize}: the anvil's name, the
+     *       creative inventory's search and its scroll.</li>
+     * </ul>
+     * What a resize does not keep, this does not either: which widget had focus (vanilla
+     * clears it and focuses the screen's first field again), and the text of a field
+     * another mod creates anew at init and does not carry over itself.
+     */
+    public static void relayout(AbstractContainerScreen<?> screen) {
+        relayouts++;
+        screen.resize(screen.width, screen.height);
     }
 
     /**
@@ -759,6 +820,54 @@ public final class ContainerRegions {
             Geometry g = state.geometry;
             if (g == null) return;
             PanelRendering.renderPanel(ctx.graphics(), ctx.originX(), ctx.originY(), g.width(), g.height(), PanelStyle.RAISED);
+        }
+    }
+
+    /** How far a section's tint reaches past its content: to the frame's inner edge at the sides, and into the gaps. */
+    public static final int TINT_SIDE = 3, TINT_TOP = 1, TINT_BOTTOM = 1;
+
+    /**
+     * Where section {@code i}'s tint goes on screen this frame, {@code [x0, y0, x1, y1]}, or
+     * {@code null} while it is hidden: its place in the content, moved by the scroll, from
+     * {@link #TINT_SIDE} left of the content edge to as far right of the nine-slot width
+     * (never over the scrollbar lane), {@link #TINT_TOP} above and {@link #TINT_BOTTOM} below
+     * it, so two tinted sections a {@link #GAP} apart keep a line of the panel between them.
+     */
+    public static int @Nullable [] tintRect(Geometry g, int top, int bottom, double scroll) {
+        if (top < 0) return null;
+        int x = g.x() + INSET_X, y = g.viewTop() - (int) scroll;
+        return new int[]{x - TINT_SIDE, y + top - TINT_TOP, x + CONTENT_WIDTH + TINT_SIDE, y + bottom + TINT_BOTTOM};
+    }
+
+    /**
+     * Each section's tint, over its part of the container list: after the sections drew
+     * (their titles and slot frames take the colour) and before the region's slots draw
+     * their items (which keep their own), cut at the viewport's edges like the content.
+     */
+    private static final class Tints implements PanelElement {
+        @Override public int getChildX() { return 0; }
+        @Override public int getChildY() { return 0; }
+        @Override public int getWidth() { return 0; }
+        @Override public int getHeight() { return 0; }
+
+        @Override
+        public void render(RenderContext ctx) {
+            Geometry g = state.geometry;
+            if (g == null || state.tops.length != SECTIONS.size()) return;
+            // The panel's origin is the list's top-left; the rectangles are from the screen's.
+            int dx = ctx.originX() - g.x(), dy = ctx.originY() - g.top();
+            boolean clipped = false;
+            for (int i = 0; i < SECTIONS.size(); i++) {
+                int argb = SECTIONS.get(i).section().tint().getAsInt();
+                int[] r = argb == 0 ? null : tintRect(g, state.tops[i], state.bottoms[i], state.scroll);
+                if (r == null) continue;
+                if (!clipped) {
+                    ctx.graphics().enableScissor(g.x() + dx, g.viewTop() + dy, g.x() + g.width() + dx, g.viewBottom() + dy);
+                    clipped = true;
+                }
+                ctx.graphics().fill(r[0] + dx, r[1] + dy, r[2] + dx, r[3] + dy, argb);
+            }
+            if (clipped) ctx.graphics().disableScissor();
         }
     }
 

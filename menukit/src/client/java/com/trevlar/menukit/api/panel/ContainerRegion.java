@@ -6,8 +6,13 @@ import com.trevlar.menukit.inject.ContainerRegions;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
+import net.minecraft.world.item.DyeColor;
+
+import org.jspecify.annotations.Nullable;
+
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 
 /**
  * The container region (7.4.0): on a container screen, the player's inventory never
@@ -49,7 +54,16 @@ import java.util.function.BooleanSupplier;
  * in the gap between them with an item held is inside the screen, so it drops nothing.
  * Vanilla's title is moved back by as much as the origin moved, so it stays put on
  * screen, and the player's inventory slots and "Inventory" label go with the inventory
- * panel. While the region is up, the
+ * panel.
+ *
+ * <p>When the layout changes while the screen is open (a section opening or closing, the
+ * list starting to scroll), the screen is laid out again the way a window resize does
+ * ({@code Screen.resize} at its own size): every mod adds its widgets again from its own
+ * init hook, at the new bounds, so a button another mod placed by the screen's edges
+ * follows the panel it was by. Only then, never on a scroll, and once a frame however
+ * many sections changed. What a resize keeps is kept (the item on the cursor, the scroll,
+ * which sections are open, the anvil's name and the creative search); what it drops is
+ * dropped (which widget had focus). While the region is up, the
  * screen's own background still runs, every mod's hook in it included, but vanilla's own
  * container texture and the screen's title are left out: the two panels and the sections'
  * titles are in their place.
@@ -97,6 +111,18 @@ import java.util.function.BooleanSupplier;
  * region on a screen presents that screen's grid in it (SlotKit's
  * {@code SlotElement.slot(Address)}), since what is behind the container list is covered.
  *
+ * <p>A section shows while its own {@link Builder#visibleWhen} holds <b>and its content is
+ * visible</b>: content that hides itself takes its section with it. A slot library's element
+ * for a slot group that is not on the open menu, or whose slots are all hidden, hides
+ * itself, so a section of such a group needs no condition of its own.
+ *
+ * <h3>A section's colour</h3>
+ * {@link Builder#tint} colours the section's part of the container list: a recoloured
+ * shulker box's section in its dye's colour, say. The tint is laid over the section, its
+ * title and slot frames included, and under the items in its slots, from just left of the
+ * content edge to just right of the nine slots (never over the scrollbar), and scrolls and
+ * clips with it. None by default.
+ *
  * <p>Declare from your client initializer: sections freeze with every other declaration.
  */
 public final class ContainerRegion {
@@ -118,6 +144,18 @@ public final class ContainerRegion {
     /** The inventory panel's rectangle on a screen the region is on: for buttons that act on the inventory. */
     public static final Anchor INVENTORY = ContainerRegions.INVENTORY;
 
+    /** How opaque a dye's tint is ({@link #dyeTint}): enough to read as the dye over the panel and its slot frames. */
+    public static final int DYE_TINT_ALPHA = 0x70;
+
+    /**
+     * The tint a section of a box dyed {@code dye} gets ({@link Builder#tint(DyeColor)}): the
+     * dye's colour at {@link #DYE_TINT_ALPHA}, or none ({@code 0}) for {@code null}, an
+     * undyed box. For a {@link Builder#tint(IntSupplier)} that follows the box shown.
+     */
+    public static int dyeTint(@Nullable DyeColor dye) {
+        return dye == null ? 0 : (DYE_TINT_ALPHA << 24) | (dye.getTextureDiffuseColor() & 0xFFFFFF);
+    }
+
     /** Starts a section, its id namespaced and unique ({@code "mymod:opened-shulker"}). */
     public static Builder section(String id) {
         return new Builder(id);
@@ -131,6 +169,7 @@ public final class ContainerRegion {
         private boolean targeted = false;
         private int order = 0;
         private BooleanSupplier visibleWhen = () -> true;
+        private IntSupplier tint = () -> 0;
 
         private Builder(String id) {
             this.id = Objects.requireNonNull(id, "id");
@@ -171,6 +210,25 @@ public final class ContainerRegion {
             return this;
         }
 
+        /** A fixed tint over the section, ARGB (its alpha is how strong it is); {@code 0} for none, the default. */
+        public Builder tint(int argb) {
+            return tint(() -> argb);
+        }
+
+        /** The section in a dye's colour ({@link #dyeTint}); {@code null} for none. */
+        public Builder tint(@Nullable DyeColor dye) {
+            return tint(dyeTint(dye));
+        }
+
+        /**
+         * A tint read every frame, ARGB, {@code 0} for none: for a section that shows
+         * whichever box is open, {@code tint(() -> ContainerRegion.dyeTint(session.color()))}.
+         */
+        public Builder tint(IntSupplier argb) {
+            this.tint = Objects.requireNonNull(argb, "argb");
+            return this;
+        }
+
         /**
          * Declares the section.
          *
@@ -180,7 +238,7 @@ public final class ContainerRegion {
         public void declare() {
             Declarations.requireOpen("ContainerRegion.section(" + id + ")");
             if (content == null) throw new IllegalStateException("ContainerRegion section '" + id + "': content(...) is required");
-            ContainerRegions.declare(new ContainerRegions.Section(id, content, matcher, order, visibleWhen));
+            ContainerRegions.declare(new ContainerRegions.Section(id, content, matcher, order, visibleWhen, tint));
         }
     }
 }
