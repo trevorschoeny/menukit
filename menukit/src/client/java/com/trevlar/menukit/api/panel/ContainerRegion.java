@@ -2,9 +2,11 @@ package com.trevlar.menukit.api.panel;
 
 import com.trevlar.menukit.api.Declarations;
 import com.trevlar.menukit.api.element.PanelElement;
+import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.inject.ContainerRegions;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.resources.Identifier;
 
 import net.minecraft.world.item.DyeColor;
 
@@ -126,6 +128,20 @@ import java.util.function.IntSupplier;
  * content edge to just right of the nine slots (never over the scrollbar), and scrolls and
  * clips with it. None by default.
  *
+ * <h3>Resource packs</h3>
+ * The two panels follow the resource pack's container art, as vanilla's own screen
+ * would under it: the container list takes the look of the screen's container texture,
+ * the inventory panel the inventory half of it. A section names the container it stands
+ * for with {@link Builder#texture} (vanilla's chest by default): its slot frames take that
+ * texture's slots, and where it differs from the list's (a shulker box in a chest's list)
+ * its part of the list takes that texture's fill. A tint colours grey art only; over art
+ * the pack already coloured it is left out.
+ *
+ * <p>Title a section that is a vanilla container's with vanilla's translation key
+ * ({@code Component.translatable("container.shulkerBox")}, or the screen's own title,
+ * which is one) rather than a literal: packs whose art covers the title strip blank those
+ * keys, and the section's title then goes with vanilla's.
+ *
  * <p>Declare from your client initializer: sections freeze with every other declaration.
  */
 public final class ContainerRegion {
@@ -146,6 +162,12 @@ public final class ContainerRegion {
 
     /** The inventory panel's rectangle on a screen the region is on: for buttons that act on the inventory. */
     public static final Anchor INVENTORY = ContainerRegions.INVENTORY;
+
+    /** Vanilla's chest texture: the default look of a section, and of the list on a chest's screen. */
+    public static final Identifier CHEST = PackLook.CHEST;
+
+    /** Vanilla's shulker box texture: for a section that shows a shulker box. */
+    public static final Identifier SHULKER_BOX = PackLook.SHULKER_BOX;
 
     /** How opaque a dye's tint is ({@link #dyeTint}): enough to read as the dye over the panel and its slot frames. */
     public static final int DYE_TINT_ALPHA = 0x70;
@@ -173,6 +195,7 @@ public final class ContainerRegion {
         private int order = 0;
         private BooleanSupplier visibleWhen = () -> true;
         private IntSupplier tint = () -> 0;
+        private Identifier texture = CHEST;
 
         private Builder(String id) {
             this.id = Objects.requireNonNull(id, "id");
@@ -233,6 +256,17 @@ public final class ContainerRegion {
         }
 
         /**
+         * The container texture this section stands for, a full texture path
+         * ({@link #CHEST}, {@link #SHULKER_BOX}, or a mod's own container texture laid out
+         * like vanilla's): under a resource pack that restyles it, the section's slot frames
+         * and its part of the list take its look. Vanilla's chest by default.
+         */
+        public Builder texture(Identifier texture) {
+            this.texture = Objects.requireNonNull(texture, "texture");
+            return this;
+        }
+
+        /**
          * Declares the section.
          *
          * @throws IllegalStateException after declarations froze, or when {@code id} is
@@ -241,7 +275,7 @@ public final class ContainerRegion {
         public void declare() {
             Declarations.requireOpen("ContainerRegion.section(" + id + ")");
             if (content == null) throw new IllegalStateException("ContainerRegion section '" + id + "': content(...) is required");
-            ContainerRegions.declare(new ContainerRegions.Section(id, content, matcher, order, visibleWhen, tint));
+            ContainerRegions.declare(new ContainerRegions.Section(id, content, matcher, order, visibleWhen, tint, texture));
         }
     }
 }

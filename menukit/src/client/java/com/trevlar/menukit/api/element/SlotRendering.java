@@ -1,6 +1,7 @@
 package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.core.ItemOutline;
+import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -34,8 +35,10 @@ public final class SlotRendering {
     public static final int ITEM_INSET = 1;
 
     /**
-     * Slot background. For enabled 18×18 slots, delegates to
-     * {@link PanelRendering#renderSlotBackground} for vanilla-accurate visuals.
+     * Slot background. For enabled 18×18 slots inside a panel surface that follows the
+     * resource pack, the slot cut from the pack's container art (or the pack's own
+     * {@code container/slot}), so it matches the slots the pack drew into vanilla's screens;
+     * elsewhere {@link PanelRendering#renderSlotBackground} for vanilla-accurate visuals.
      * For non-default sizes, falls back to {@link PanelStyle#INSET}. For
      * disabled slots of any size, uses {@link PanelStyle#DARK}.
      */
@@ -46,7 +49,9 @@ public final class SlotRendering {
             return;
         }
         if (size == DEFAULT_SIZE) {
-            PanelRendering.renderSlotBackground(g, sx, sy);
+            PackLook.Look look = PackLook.slotLookAt(sx, sy);
+            if (look != null) PackLook.drawSlot(g, sx, sy, look);
+            else PanelRendering.renderSlotBackground(g, sx, sy);
             return;
         }
         PanelRendering.renderPanel(g, sx, sy, size, size, PanelStyle.INSET);

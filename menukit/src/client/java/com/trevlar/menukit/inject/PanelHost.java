@@ -9,6 +9,7 @@ import com.trevlar.menukit.api.panel.OutsideRegion;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.panel.PanelPosition;
+import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.RegionConstants;
@@ -974,9 +975,21 @@ public final class PanelHost {
         // The panel's background for the kind of screen: MenuKit's sprites in the
         // Panel look, vanilla's popup frame (and friends) in the Default
         // look, so a dialog in the Default look reads as vanilla's own.
+        // A raised panel in the Panel look is a panel surface: it follows the resource
+        // pack's container art, the chest's (spec parts 6 and 7); the HUD's panels and
+        // every other style keep their sprites. Its slot frames follow it too; the
+        // container region's own panels say per section which look a slot takes.
+        boolean surface = screenKind == ScreenKind.PANEL && kind != Kind.HUD && panel.getStyle() == PanelStyle.RAISED;
+        PackLook.SlotLooks slotLooks = ContainerRegions.slotLooks(panel);
+        if (slotLooks == null && surface) {
+            PackLook.Look look = PackLook.panel();
+            slotLooks = (sx, sy) -> look;
+        }
         if (panel.getStyle() != PanelStyle.NONE) {
             if (screenKind == ScreenKind.DEFAULT) {
                 VanillaLook.panelBackground(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
+            } else if (surface) {
+                PanelRendering.renderPanelSurface(graphics, p.x(), p.y(), p.w(), p.h(), PackLook.panel());
             } else {
                 PanelRendering.renderPanel(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
             }
@@ -986,6 +999,7 @@ public final class PanelHost {
                 screenKind);
         if (live) liveRenderDepth++;
         PresentedSlots.beginPanel(panel);
+        PackLook.SlotLooks slotsBefore = PackLook.beginSlots(slotLooks);
         try {
             // Base pass, then the slots this panel shows on a container screen (7.3.0:
             // a panel's slots draw right after it, over its chrome and under the next
@@ -998,6 +1012,7 @@ public final class PanelHost {
             panel.maybeQueueTooltip(graphics, p.x(), p.y(), p.w(), p.h(), mx, my, ctx.hasMouseInput());
         } finally {
             PresentedSlots.endPanel();
+            PackLook.endSlots(slotsBefore);
             if (live) liveRenderDepth--;
         }
     }

@@ -51,6 +51,13 @@ public class MenuKitClient implements ClientModInitializer {
         // The container region's per-screen hooks (7.4.0): its frame, and the wheel, last.
         com.trevlar.menukit.inject.ContainerRegions.init();
 
+        // Panel surfaces follow resource packs: what each container texture's look is cut
+        // into is cached, and cut again from the new packs after every resource reload.
+        net.fabricmc.fabric.api.resource.v1.ResourceLoader.get(net.minecraft.server.packs.PackType.CLIENT_RESOURCES)
+                .registerReloadListener(net.minecraft.resources.Identifier.fromNamespaceAndPath("menukit", "pack_look"),
+                        (net.minecraft.server.packs.resources.ResourceManagerReloadListener) rm ->
+                                com.trevlar.menukit.core.PackLook.onReload());
+
         // A focused MenuKit widget (such as TextField or Keybindery's SearchBox)
         // loses focus when the player clicks outside it. Vanilla only moves focus
         // when something claims the click, and panels eat clicks, so this has to be
