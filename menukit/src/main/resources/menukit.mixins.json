@@ -9,6 +9,7 @@
     "ClientTextTooltipAccessor",
     "MKContainerItemTooltipMixin",
     "MKContainerLayersMixin",
+    "MKContainerRegionBackgroundMixin",
     "MKCreativeTabHoverMixin",
     "MKGuiMixin",
     "MKItemOutlineDrawMixin",
@@ -25,7 +26,8 @@
     "MKYaclControllerOverlayMixin",
     "MKYaclWidgetPressedMixin",
     "MouseHandlerCursorPosAccessor",
-    "ScreenAccessor"
+    "ScreenAccessor",
+    "SlotAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

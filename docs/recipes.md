@@ -650,4 +650,18 @@ ContainerRegion.section("mymod:opened-box")
         .declare();
 ```
 
-Result: while the session is open, the chest's screen shows the chest and the box as one column, the player's inventory fixed below it where vanilla puts it. The column grows into the free height first and scrolls once the screen is full, by the wheel anywhere nothing else wants it, by its scrollbar, and by carrying an item to its top or bottom edge. A shift-click into the box while it is scrolled out of view scrolls to where the item landed. Each grid is a title over nine-wide rows of slot elements, the title 11 pixels above the first row as vanilla's is; `chestGrid` presents the chest's own slots, since the region covers the screen's own grid. Another mod's sections on the same screen join the same column, by their `order`.
+Result: while the session is open, the chest's screen is two panels: the chest and the box as one column in the container list, and the player's inventory in its own panel below it, where vanilla puts it. The column grows into the free height first and scrolls once the screen is full, by the wheel anywhere nothing else wants it, by its scrollbar (inside the list's frame), and by carrying an item to its top or bottom edge. A shift-click into the box while it is scrolled out of view scrolls to where the item landed. Each grid is a title over nine-wide rows of slot elements, the title 11 pixels above the first row as vanilla's is; `chestGrid` presents the chest's own slots, since the container list covers the screen's own grid. Another mod's sections on the same screen join the same column, by their `order`. The screen's bounds are the rectangle around both panels, so panels on the menu frame and other mods' buttons by the screen's edges go around both.
+
+To put a button by one of the two panels rather than by the whole screen, place it on the panel's anchor:
+
+```java
+// A sort button beside the container list's top, and one beside the inventory panel's.
+Panel sortChest = Panel.builder("mymod:sort-chest").style(PanelStyle.RAISED).add(sortChestButton)
+        .position(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)).build();
+new AnchorPanelAdapter(sortChest).on(ContainerRegion.CONTAINERS);
+Panel sortInventory = Panel.builder("mymod:sort-inventory").style(PanelStyle.RAISED).add(sortInventoryButton)
+        .position(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)).build();
+new AnchorPanelAdapter(sortInventory).on(ContainerRegion.INVENTORY);
+```
+
+Result: each button stays by its panel as the container list grows, shrinks and scrolls, and is gone on screens the region is not on.

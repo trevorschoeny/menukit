@@ -5,15 +5,19 @@ import com.trevlar.menukit.api.element.Flow;
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.element.RenderContext;
 import com.trevlar.menukit.api.element.ScrollContainer;
+import com.trevlar.menukit.api.panel.Anchor;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.PanelStyle;
+import com.trevlar.menukit.api.panel.Reference;
+import com.trevlar.menukit.api.panel.RegionConstants;
 import com.trevlar.menukit.api.panel.ScreenMatcher;
 import com.trevlar.menukit.api.panel.ScreenOrigin;
 import com.trevlar.menukit.api.panel.ScreenPanelAdapter;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.core.Scroller;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
+import com.trevlar.menukit.mixin.SlotAccessor;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
@@ -24,6 +28,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -42,23 +47,47 @@ import java.util.function.BooleanSupplier;
 
 /**
  * The container region's machinery (7.4.0; the public face is
- * {@code api.panel.ContainerRegion}). One panel, declared once, holds every section any
- * mod declares; on a container screen it sits from just above the player's inventory up,
- * and its one {@link ScrollContainer} scrolls them together.
+ * {@code api.panel.ContainerRegion}). On a container screen it makes two panels: the
+ * <b>container list</b>, one panel with its own frame holding every section any mod
+ * declares in one {@link ScrollContainer}, and below it, {@link #PANEL_GAP} apart, the
+ * <b>inventory panel</b>, its own frame around the player's inventory, which never moves.
  *
  * <h3>Built from what is there</h3>
  * <ul>
- *   <li><b>The panel</b> is an ordinary container panel ({@link ScreenPanelAdapter}): opaque,
- *       so it claims its rectangle and whatever it covers (vanilla's own grid frame, the
- *       screen's title) is hidden and inert; its slots draw right after it
- *       ({@link PresentedSlots}). Its frame is open at the bottom and meets the inventory
- *       part of vanilla's own texture, whose top edge is where content goes behind.</li>
+ *   <li><b>The container list</b> is an ordinary container panel ({@link ScreenPanelAdapter}):
+ *       opaque, so it claims its rectangle and whatever it covers (the screen's title, a
+ *       container slot nobody presents) is hidden and inert; its slots draw right after it
+ *       ({@link PresentedSlots}). Its scrollbar is inside its frame, and scrolled content
+ *       clips at the frame's own bottom edge.</li>
+ *   <li><b>The inventory panel</b> is drawn in the screen's background, where vanilla drew
+ *       its texture, under vanilla's own inventory slots and "Inventory" label, which stay
+ *       live and where vanilla put them. It claims nothing.</li>
  *   <li><b>The scroll area</b> is a {@link ScrollContainer} built {@code wheelLast()}: its
  *       children still get the wheel, but it never scrolls itself on one. This class
  *       scrolls it, after everyone else ({@link #wheel}).</li>
  *   <li><b>Slots</b> clip at its edges ({@code SlotClip}), and a row out of view is not
  *       rendered at any depth ({@code ChildDispatch.render}), so its library parks it.</li>
  * </ul>
+ *
+ * <h3>The screen's bounds are the two panels' union</h3>
+ * Vanilla's {@code leftPos}, {@code topPos}, {@code imageWidth} and {@code imageHeight}
+ * are set to the rectangle around both panels, scrollbar lane included, whenever that
+ * rectangle changes (screen init, resize, a section opening or closing), never on a
+ * scroll ({@link #applyBounds}). So everything that measures the screen sees both
+ * panels: MenuKit's own menu-frame panels, other mods' buttons by the screen's edges,
+ * a recipe viewer keeping clear of it, and vanilla's outside-click check, so a click in
+ * the gap with an item held stays inside the screen and drops nothing. Moving the
+ * screen's origin would move everything vanilla placed from it; the player's inventory
+ * slots and both labels are moved back by as much, so on screen nothing vanilla placed
+ * moves. The screen's own background texture is not drawn while the bounds are the
+ * union: it would be drawn around the union's centre, and both frames are MenuKit's
+ * ({@link #drawBackground}). Before the screen initialises again (a resize), the bounds
+ * go back to vanilla's, so vanilla centres its own image as always.
+ *
+ * <h3>Anchors</h3>
+ * {@link #CONTAINERS} is the container list's rectangle and {@link #INVENTORY} the
+ * inventory panel's, for an {@code AnchorPanelAdapter}: a mod's buttons go beside the
+ * panel they act on.
  *
  * <h3>The wheel, last</h3>
  * Three places, one rule: the region scrolls on a turn nobody else used.
@@ -84,18 +113,26 @@ public final class ContainerRegions {
 
     private ContainerRegions() {}
 
-    // Layout, in GUI pixels, from the region's own top-left.
+    // Layout, in GUI pixels. The container list's numbers are from its own top-left.
 
-    /** Room left above the region at the screen's top. */
+    /** Room left above the container list at the screen's top. */
     public static final int TOP_MARGIN = 4;
-    /** From the region's left edge to its content: vanilla's grid frame (slot x 8, frame x 7). */
+    /** From the list's left edge to its content: vanilla's grid frame (slot x 8, frame x 7). */
     public static final int INSET_X = 7;
-    /** From the region's top edge to the viewport's: content scrolled up passes under the border here. */
+    /** From the list's top edge to the viewport's: its frame's top border. */
     public static final int VIEW_TOP = 4;
+    /** From the viewport's bottom to the list's bottom edge: its frame's bottom border, where scrolled content clips. */
+    public static final int VIEW_BOTTOM = 4;
     /** The first section's top inside the content, so its title sits where vanilla's does (6 down). */
     public static final int CONTENT_TOP = 2;
+    /** Below the last section, inside the content: with {@link #VIEW_BOTTOM}, vanilla's 7 px from a grid to the frame's edge. */
+    public static final int CONTENT_BOTTOM = 3;
     /** Between sections: vanilla's room from a grid to the "Inventory" label below it. */
     public static final int GAP = 3;
+    /** Between the two panels: MenuKit's gap between panels stacked on a menu. */
+    public static final int PANEL_GAP = RegionConstants.MENU_STACK_GAP;
+    /** From the inventory panel's top edge to vanilla's "Inventory" label: where a container's title sits in its frame. */
+    public static final int INVENTORY_LABEL_TOP = 6;
     /** A section's width before the scrollbar: nine slots. */
     public static final int CONTENT_WIDTH = 9 * 18;
     /** The scrollbar lane at the right: the gutter and the track. */
@@ -112,11 +149,29 @@ public final class ContainerRegions {
     /** Full speed, in pixels a second. */
     public static final double EDGE_SPEED = 120;
 
-    /** The panel's id. */
+    /** The container list's panel id. */
     public static final String PANEL_ID = "menukit:container_region";
 
     /** The after-scroll phase the region's listener runs in: after the default phase. */
     private static final Identifier LAST = Identifier.fromNamespaceAndPath("menukit", "container_region_last");
+    /** The after-init phase the bounds are set in: before the default one, so other mods' init listeners see them. */
+    private static final Identifier FIRST = Identifier.fromNamespaceAndPath("menukit", "container_region_bounds");
+
+    // Anchors: each panel's rectangle on the screen the region is on.
+
+    /** The container list's rectangle, scrollbar lane included while it scrolls. */
+    public static final Anchor CONTAINERS = Anchor.of(Identifier.fromNamespaceAndPath("menukit", "container_region"),
+            screen -> {
+                Geometry g = geometry(screen);
+                return g == null ? null : g.list();
+            });
+
+    /** The inventory panel's rectangle. */
+    public static final Anchor INVENTORY = Anchor.of(Identifier.fromNamespaceAndPath("menukit", "container_region_inventory"),
+            screen -> {
+                Geometry g = geometry(screen);
+                return g == null ? null : g.inventory();
+            });
 
     // Declarations
 
@@ -131,11 +186,13 @@ public final class ContainerRegions {
     private static @Nullable ScreenPanelAdapter adapter;
     /** The column the sections stack in, inside the scroll area. */
     private static @Nullable Flow column;
+    /** The scroll area, for the checks. */
+    private static @Nullable ScrollContainer scrollArea;
 
     /**
-     * {@code ContainerRegion.Builder.declare}: adds a section and builds the region's panel
-     * again around every section so far. Declarations are open (checked by the caller), so
-     * the previous adapter can be withdrawn; no screen is open yet.
+     * {@code ContainerRegion.Builder.declare}: adds a section and builds the container
+     * list's panel again around every section so far. Declarations are open (checked by
+     * the caller), so the previous adapter can be withdrawn; no screen is open yet.
      */
     public static synchronized void declare(Section section) {
         for (Placed p : SECTIONS) {
@@ -152,14 +209,20 @@ public final class ContainerRegions {
         List<PanelElement> holders = new ArrayList<>();
         for (Placed p : SECTIONS) holders.add(p.holder());
         // One column stacks the shown sections, GAP apart; a hidden one takes no room.
-        column = Flow.builder().vertical().gap(0, GAP).addAll(holders).at(0, CONTENT_TOP).build();
-        ScrollContainer scroll = ScrollContainer.builder().at(INSET_X, VIEW_TOP).size(CONTENT_WIDTH + LANE, 1)
+        column = Flow.builder().vertical().gap(0, GAP).addAll(holders).build();
+        // The content: the column, CONTENT_TOP down, with CONTENT_BOTTOM under its last grid.
+        PanelElement content = Flow.builder().vertical().gap(0, 0).at(0, CONTENT_TOP)
+                .add(column).add(new Pad(CONTENT_BOTTOM)).build();
+        scrollArea = ScrollContainer.builder().size(CONTENT_WIDTH + LANE, 1)
                 .fillHeight().wheelLast()
                 .state(() -> state.scroll, v -> state.scroll = v)
-                .content(List.of(column)).build();
+                .content(List.of(content)).build();
+        // The viewport takes the panel's height below VIEW_TOP, less the frame's bottom border.
+        PanelElement view = Flow.builder().vertical().gap(0, 0).at(INSET_X, VIEW_TOP)
+                .add(scrollArea).add(new Pad(VIEW_BOTTOM)).build();
         panel = Panel.builder(PANEL_ID).style(PanelStyle.NONE)
                 .position(PanelPosition.pixel(ContainerRegions::origin))
-                .add(new Backdrop()).add(scroll)
+                .add(new Backdrop()).add(view)
                 .build()
                 .visibleWhen(() -> state.geometry != null);
         adapter = new ScreenPanelAdapter(panel, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
@@ -177,47 +240,78 @@ public final class ContainerRegions {
                 && s.matcher().matches(acs) && s.visibleWhen().getAsBoolean();
     }
 
-    /** The region's panel, or {@code null} with no section declared. */
+    /** The container list's panel, or {@code null} with no section declared. */
     public static @Nullable Panel panel() {
         return panel;
+    }
+
+    /** The container list's scroll area, or {@code null} with no section declared. */
+    public static @Nullable ScrollContainer scrollArea() {
+        return scrollArea;
     }
 
     // Geometry: pure, so the checks can ask it.
 
     /**
-     * Where the region is on a screen this frame.
+     * Where the two panels are on a screen this frame.
      *
-     * @param x          the region's left edge (the screen's {@code leftPos})
+     * @param x          the container list's left edge (the screen's own {@code leftPos})
      * @param top        its top edge
      * @param width      its width: the screen's image width, and the scrollbar lane while it scrolls
      * @param height     its height, from {@code top} to {@code bottom}
-     * @param bottom     its bottom edge: the top of the inventory part, which never moves
+     * @param bottom     its bottom edge, {@link #PANEL_GAP} above the inventory panel
      * @param viewTop    the viewport's top edge
-     * @param viewHeight the viewport's height, down to {@code bottom}
+     * @param viewHeight the viewport's height, down to {@link #VIEW_BOTTOM} above {@code bottom}
      * @param content    the height of everything in it
      * @param scrollable whether the content is taller than the viewport
+     * @param inventory  the inventory panel: where vanilla put the inventory part, from
+     *                   {@link #INVENTORY_LABEL_TOP} above its label to the image's bottom
+     * @param bounds     the screen's bounds: the rectangle around both panels
      */
     public record Geometry(int x, int top, int width, int height, int bottom, int viewTop, int viewHeight,
-                           int content, boolean scrollable) {}
+                           int content, boolean scrollable, Reference inventory, Reference bounds) {
+
+        /** The viewport's bottom edge: where scrolled content clips. */
+        public int viewBottom() { return viewTop + viewHeight; }
+
+        /** The container list's rectangle. */
+        public Reference list() { return new Reference(x, top, width, height); }
+    }
 
     /**
-     * Grow first, then scroll: as tall as its content, up to the screen's top margin; never
-     * shorter than the screen's own container part ({@code bottom - topPos}), even when
-     * that leaves no margin (a tiny window), in which case it scrolls.
+     * Grow first, then scroll, from the screen's own bounds as vanilla laid them out: the
+     * inventory panel stays where vanilla put the inventory part; the container list sits
+     * {@link #PANEL_GAP} above it, as tall as its content, up to the screen's top margin;
+     * never shorter than the screen's own container part (from vanilla's {@code topPos}
+     * down), even when that leaves no margin (a tiny window), in which case it scrolls.
      *
-     * @param leftPos    the screen's left edge
-     * @param topPos     the screen's top edge (vanilla's)
-     * @param imageWidth the screen's width
-     * @param bottom     the top of the inventory part
-     * @param content    the content's height
+     * @param vanilla         the screen's bounds as vanilla computed them
+     * @param inventoryLabelY vanilla's "Inventory" label, from vanilla's {@code topPos}
+     * @param content         the content's height
      */
-    public static Geometry layout(int leftPos, int topPos, int imageWidth, int bottom, int content) {
-        int vanilla = bottom - topPos;
-        int height = Math.max(vanilla, Math.min(VIEW_TOP + content, bottom - TOP_MARGIN));
-        int viewHeight = height - VIEW_TOP;
+    public static Geometry layout(Reference vanilla, int inventoryLabelY, int content) {
+        int left = vanilla.leftPos(), imageWidth = vanilla.imageWidth();
+        int imageBottom = vanilla.topPos() + vanilla.imageHeight();
+        int inventoryTop = vanilla.topPos() + inventoryLabelY - INVENTORY_LABEL_TOP;
+        int bottom = inventoryTop - PANEL_GAP;
+        int ownPart = bottom - vanilla.topPos();
+        int height = Math.max(ownPart, Math.min(VIEW_TOP + content + VIEW_BOTTOM, bottom - TOP_MARGIN));
+        int viewHeight = height - VIEW_TOP - VIEW_BOTTOM;
         boolean scrollable = content > viewHeight;
-        return new Geometry(leftPos, bottom - height, imageWidth + (scrollable ? LANE : 0), height, bottom,
-                bottom - height + VIEW_TOP, viewHeight, content, scrollable);
+        int width = imageWidth + (scrollable ? LANE : 0);
+        int top = bottom - height;
+        return new Geometry(left, top, width, height, bottom, top + VIEW_TOP, viewHeight, content, scrollable,
+                new Reference(left, inventoryTop, imageWidth, imageBottom - inventoryTop),
+                new Reference(left, top, Math.max(width, imageWidth), imageBottom - top));
+    }
+
+    /**
+     * How far vanilla's own placements (the inventory's slots, the labels) move when the
+     * screen's origin goes from {@code vanilla}'s to {@code bounds}'s: back by as much, so
+     * on screen they stay where vanilla put them. {@code [dx, dy]}.
+     */
+    public static int[] counterShift(Reference vanilla, Reference bounds) {
+        return new int[]{vanilla.leftPos() - bounds.leftPos(), vanilla.topPos() - bounds.topPos()};
     }
 
     /**
@@ -229,9 +323,9 @@ public final class ContainerRegions {
      */
     public static double edgeSpeed(Geometry g, double mouseX, double mouseY) {
         if (!g.scrollable() || mouseX < g.x() || mouseX >= g.x() + g.width()) return 0;
-        double intoTop = g.viewTop() + EDGE_IN - mouseY;          // > 0 near and past the top edge
+        double intoTop = g.viewTop() + EDGE_IN - mouseY;              // > 0 near and past the top edge
         if (intoTop > 0 && intoTop <= EDGE_IN + EDGE_PAST) return -EDGE_SPEED * Math.min(1, intoTop / EDGE_IN);
-        double intoBottom = mouseY - (g.bottom() - EDGE_IN);      // > 0 near and past the bottom edge
+        double intoBottom = mouseY - (g.viewBottom() - EDGE_IN);      // > 0 near and past the bottom edge
         if (intoBottom > 0 && intoBottom <= EDGE_IN + EDGE_PAST) return EDGE_SPEED * Math.min(1, intoBottom / EDGE_IN);
         return 0;
     }
@@ -265,6 +359,13 @@ public final class ContainerRegions {
         WeakReference<Screen> screen = new WeakReference<>(null);
         double scroll;
         @Nullable Geometry geometry;
+        /** The screen's own bounds and "Inventory" label as vanilla laid them out at its last init. */
+        @Nullable Reference vanilla;
+        int vanillaInventoryLabelY;
+        /** The union written as the screen's bounds, or {@code null} while they are vanilla's. */
+        @Nullable Reference applied;
+        /** How far vanilla's own placements are moved now ({@link #counterShift}). */
+        int shiftX, shiftY;
         /** Each section's top and bottom in the content last frame, -1 while hidden. */
         int[] tops = new int[0], bottoms = new int[0];
         /** Where each slot the region has shown sits in the content: its cell's top. */
@@ -286,12 +387,27 @@ public final class ContainerRegions {
 
     /** Called once from MenuKit's client init. */
     public static void init() {
-        ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
+        // Before a screen initialises again (a resize), its bounds go back to vanilla's, so
+        // vanilla centres its own image from its own size.
+        ScreenEvents.BEFORE_INIT.register((client, screen, w, h) -> {
+            if (screen instanceof AbstractContainerScreen<?> acs && state.screen.get() == screen) restoreBounds(acs);
+        });
+        ScreenEvents.AFTER_INIT.addPhaseOrdering(FIRST, Event.DEFAULT_PHASE);
+        ScreenEvents.AFTER_INIT.register(FIRST, (client, screen, w, h) -> {
             if (!(screen instanceof AbstractContainerScreen<?> acs) || adapter == null || !adapter.matches(acs)) return;
             if (state.screen.get() != screen) reset(screen);
+            AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) acs;
+            state.vanilla = new Reference(acc.mk$getLeftPos(), acc.mk$getTopPos(), acc.mk$getImageWidth(), acc.mk$getImageHeight());
+            state.vanillaInventoryLabelY = acc.mk$getInventoryLabelY();
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> frame(acs, mx, my));
-            ScreenEvents.remove(screen).register(s -> { if (state.screen.get() == s) reset(null); });
+            ScreenEvents.remove(screen).register(s -> {
+                if (state.screen.get() != s) return;
+                restoreBounds(acs);   // the menu can outlive the screen
+                reset(null);
+            });
             listenLast(ScreenMouseEvents.afterMouseScroll(screen));
+            // Lay out now, so every other mod's init listener and widget reads the union.
+            frame(acs, -1, -1);
         });
     }
 
@@ -305,15 +421,20 @@ public final class ContainerRegions {
         after.register(LAST, (s, x, y, hAmount, vAmount, consumed) -> consumed || wheel(s, vAmount));
     }
 
-    /** For MenuKit's checks: the region as if {@code screen} had just opened. */
-    public static void openForChecks(@Nullable Screen screen) {
+    /** For MenuKit's checks: the region as if {@code screen} had just opened with these vanilla bounds. */
+    public static void openForChecks(@Nullable Screen screen, @Nullable Reference vanilla, int inventoryLabelY) {
         reset(screen);
+        state.vanilla = vanilla;
+        state.vanillaInventoryLabelY = inventoryLabelY;
     }
 
     private static void reset(@Nullable Screen screen) {
         state.screen = new WeakReference<>(screen);
         state.scroll = 0;
         state.geometry = null;
+        state.vanilla = null;
+        state.applied = null;
+        state.shiftX = state.shiftY = 0;
         state.tops = new int[0];
         state.bottoms = new int[0];
         state.cellTops.clear();
@@ -342,26 +463,30 @@ public final class ContainerRegions {
     }
 
     /**
-     * Before each frame of a screen the region is on: stack the shown sections, work out
-     * where the region is, keep the view in place if sections above it changed, then carry
-     * on a reveal and scroll for an item carried to an edge.
+     * Before each frame of a screen the region is on (and once at its init): lay the
+     * region out from the screen's vanilla bounds, and set the screen's bounds to the two
+     * panels' union when that changed, or back to vanilla's when no section is shown.
      */
     static void frame(AbstractContainerScreen<?> screen, int mouseX, int mouseY) {
-        if (panel == null || state.screen.get() != screen) return;
-        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
-        step(acc.mk$getLeftPos(), acc.mk$getTopPos(), acc.mk$getImageWidth(),
-                acc.mk$getTopPos() + acc.mk$getInventoryLabelY() - 3,
-                !screen.getMenu().getCarried().isEmpty(), mouseX, mouseY, Util.getMillis());
+        Reference vanilla = state.vanilla;
+        if (panel == null || vanilla == null || state.screen.get() != screen) return;
+        Geometry g = step(vanilla, state.vanillaInventoryLabelY, !screen.getMenu().getCarried().isEmpty(),
+                mouseX, mouseY, Util.getMillis());
+        if (g == null) restoreBounds(screen);
+        else if (!g.bounds().equals(state.applied)) applyBounds(screen, g.bounds());
     }
 
     /**
-     * One frame of the open region, from the screen's numbers: {@code bottom} is the top of
-     * its inventory part (3 px above vanilla's "Inventory" label, where its texture's
-     * inventory part starts), {@code carrying} whether an item is on the cursor.
+     * One frame of the open region, from the screen's vanilla bounds and label:
+     * stack the shown sections, work out where the panels are, keep the view in place if
+     * sections above it changed, then carry on a reveal and scroll for an item carried to
+     * an edge. {@code carrying} is whether an item is on the cursor.
+     *
+     * @return this frame's geometry, or {@code null} with no section shown
      */
-    public static void step(int leftPos, int topPos, int imageWidth, int bottom, boolean carrying,
-                            int mouseX, int mouseY, long now) {
-        if (panel == null) return;
+    public static @Nullable Geometry step(Reference vanilla, int inventoryLabelY, boolean carrying,
+                                          int mouseX, int mouseY, long now) {
+        if (panel == null) return null;
 
         // Where each shown section sits in the content (the column stacks them).
         int n = SECTIONS.size();
@@ -374,14 +499,14 @@ public final class ContainerRegions {
             tops[i] = CONTENT_TOP + holder.getChildY();
             bottoms[i] = tops[i] + holder.getHeight();
         }
-        if (shown == 0) { state.geometry = null; return; }
-        int y = CONTENT_TOP + columnHeight;
+        if (shown == 0) { state.geometry = null; return null; }
+        int content = CONTENT_TOP + columnHeight + CONTENT_BOTTOM;
 
         if (state.tops.length == n) state.scroll = keepInPlace(state.scroll, state.tops, state.bottoms, tops);
         state.tops = tops;
         state.bottoms = bottoms;
 
-        Geometry g = layout(leftPos, topPos, imageWidth, bottom, y);
+        Geometry g = layout(vanilla, inventoryLabelY, content);
         state.geometry = g;
         if (panel.getPinnedWidth() != g.width() || panel.getPinnedHeight() != g.height()) panel.size(g.width(), g.height());
 
@@ -391,6 +516,83 @@ public final class ContainerRegions {
         stepReveal(g);
         if (carrying) state.scroll += edgeSpeed(g, mouseX, mouseY) * seconds;
         state.scroll = Scroller.clamp(state.scroll, g.content(), g.viewHeight());
+        return g;
+    }
+
+    // The screen's bounds
+
+    /**
+     * Writes {@code bounds} as the screen's own, and moves vanilla's own placements (the
+     * player's inventory slots, the title and "Inventory" labels) back by as much as the
+     * origin moved, so none of them moves on screen. Only on a change of layout.
+     */
+    private static void applyBounds(AbstractContainerScreen<?> screen, Reference bounds) {
+        Reference vanilla = state.vanilla;
+        if (vanilla == null) return;
+        int[] shift = counterShift(vanilla, bounds);
+        int dx = shift[0] - state.shiftX, dy = shift[1] - state.shiftY;
+        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
+        acc.mk$setLeftPos(bounds.leftPos());
+        acc.mk$setTopPos(bounds.topPos());
+        acc.mk$setImageWidth(bounds.imageWidth());
+        acc.mk$setImageHeight(bounds.imageHeight());
+        if (dx != 0 || dy != 0) {
+            for (Slot slot : screen.getMenu().slots) {
+                if (!stays(slot)) continue;
+                SlotAccessor pos = (SlotAccessor) slot;
+                pos.mk$setX(slot.x + dx);
+                pos.mk$setY(slot.y + dy);
+            }
+            acc.mk$setTitleLabelX(acc.mk$getTitleLabelX() + dx);
+            acc.mk$setTitleLabelY(acc.mk$getTitleLabelY() + dy);
+            acc.mk$setInventoryLabelX(acc.mk$getInventoryLabelX() + dx);
+            acc.mk$setInventoryLabelY(acc.mk$getInventoryLabelY() + dy);
+        }
+        state.shiftX = shift[0];
+        state.shiftY = shift[1];
+        state.applied = bounds;
+    }
+
+    /** Back to vanilla's own bounds and placements, if they are not already. */
+    private static void restoreBounds(AbstractContainerScreen<?> screen) {
+        if (state.applied == null || state.vanilla == null) return;
+        applyBounds(screen, state.vanilla);
+        state.applied = null;
+    }
+
+    /**
+     * Whether a slot is one of vanilla's that stays where vanilla put it: the player's
+     * inventory, which never moves. A container's own slots are the region's (whoever put
+     * the region on the screen presents them in a section, and their library places
+     * them); a created slot is its library's.
+     */
+    private static boolean stays(Slot slot) {
+        return slot.container instanceof Inventory && !SlotScreenDispatcher.fireIsCreated(slot);
+    }
+
+    /**
+     * Instead of the screen's own background, while its bounds are the union: the
+     * screen's dim, then the inventory panel's frame and a slot frame under each of the
+     * inventory's slots, all below vanilla's slots and labels. The container list draws
+     * itself, as a panel.
+     *
+     * @return whether it drew the background (the screen's own is then not drawn)
+     */
+    public static boolean drawBackground(Screen screen, GuiGraphicsExtractor graphics) {
+        Geometry g = state.geometry;
+        if (state.applied == null || g == null || state.screen.get() != screen
+                || !(screen instanceof AbstractContainerScreen<?> acs)) return false;
+        screen.extractTransparentBackground(graphics);
+        Minecraft.getInstance().gui.hud.extractDeferredSubtitles();
+        Reference inv = g.inventory();
+        PanelRendering.renderPanel(graphics, inv.leftPos(), inv.topPos(), inv.imageWidth(), inv.imageHeight(), PanelStyle.RAISED);
+        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) acs;
+        for (Slot slot : acs.getMenu().slots) {
+            if (stays(slot) && slot.isActive()) {
+                PanelRendering.renderSlotBackground(graphics, acc.mk$getLeftPos() + slot.x - 1, acc.mk$getTopPos() + slot.y - 1);
+            }
+        }
+        return true;
     }
 
     /**
@@ -509,9 +711,8 @@ public final class ContainerRegions {
     // The frame
 
     /**
-     * The region's frame, behind every section: vanilla's raised panel, open at the bottom,
-     * where it meets the inventory part of the screen's own texture. While it scrolls it is
-     * wider by the scrollbar lane, and the part past the screen's edge closes on its own.
+     * The container list's frame, behind every section: vanilla's raised panel, the
+     * scrollbar lane inside it while it scrolls.
      */
     private static final class Backdrop implements PanelElement {
         @Override public int getChildX() { return 0; }
@@ -523,21 +724,16 @@ public final class ContainerRegions {
         public void render(RenderContext ctx) {
             Geometry g = state.geometry;
             if (g == null) return;
-            GuiGraphicsExtractor gr = ctx.graphics();
-            int x = ctx.originX(), y = ctx.originY();
-            int imageRight = x + g.width() - (g.scrollable() ? LANE : 0);
-            // Drawn taller than the region and cut at its bottom: no bottom edge where the
-            // inventory part continues it.
-            gr.enableScissor(x, y, x + g.width(), y + g.height());
-            PanelRendering.renderPanel(gr, x, y, g.width(), g.height() + 8, PanelStyle.RAISED);
-            gr.disableScissor();
-            if (g.scrollable()) {
-                // The lane hangs past the screen's right edge: give it a bottom edge of its own.
-                gr.enableScissor(imageRight, y + g.height() - 4, x + g.width(), y + g.height());
-                PanelRendering.renderPanel(gr, imageRight - 9, y, x + g.width() - imageRight + 9, g.height(),
-                        PanelStyle.RAISED);
-                gr.disableScissor();
-            }
+            PanelRendering.renderPanel(ctx.graphics(), ctx.originX(), ctx.originY(), g.width(), g.height(), PanelStyle.RAISED);
         }
+    }
+
+    /** Fixed room in a vertical stack: a frame's bottom border, the content's bottom margin. */
+    private record Pad(int height) implements PanelElement {
+        @Override public int getChildX() { return 0; }
+        @Override public int getChildY() { return 0; }
+        @Override public int getWidth() { return 0; }
+        @Override public int getHeight() { return height; }
+        @Override public void render(RenderContext ctx) {}
     }
 }
