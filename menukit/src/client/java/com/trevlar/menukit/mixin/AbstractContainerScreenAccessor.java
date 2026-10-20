@@ -5,6 +5,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
 import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
@@ -33,9 +34,47 @@ public interface AbstractContainerScreenAccessor {
     @Accessor("imageHeight")
     int mk$getImageHeight();
 
-    /** Where vanilla writes "Inventory": the container region ends just above it (7.4.0). */
+    // The container region (7.4.0) sets the screen's bounds to the rectangle around its
+    // two panels, and moves vanilla's labels back by as much as the origin moved.
+
+    @Accessor("leftPos")
+    void mk$setLeftPos(int leftPos);
+
+    @Accessor("topPos")
+    void mk$setTopPos(int topPos);
+
+    @Mutable
+    @Accessor("imageWidth")
+    void mk$setImageWidth(int imageWidth);
+
+    @Mutable
+    @Accessor("imageHeight")
+    void mk$setImageHeight(int imageHeight);
+
+    @Accessor("titleLabelX")
+    int mk$getTitleLabelX();
+
+    @Accessor("titleLabelX")
+    void mk$setTitleLabelX(int x);
+
+    @Accessor("titleLabelY")
+    int mk$getTitleLabelY();
+
+    @Accessor("titleLabelY")
+    void mk$setTitleLabelY(int y);
+
+    @Accessor("inventoryLabelX")
+    int mk$getInventoryLabelX();
+
+    @Accessor("inventoryLabelX")
+    void mk$setInventoryLabelX(int x);
+
+    /** Where vanilla writes "Inventory": the container region's inventory panel is around it. */
     @Accessor("inventoryLabelY")
     int mk$getInventoryLabelY();
+
+    @Accessor("inventoryLabelY")
+    void mk$setInventoryLabelY(int y);
 
     @Accessor("hoveredSlot")
     Slot mk$getHoveredSlot();

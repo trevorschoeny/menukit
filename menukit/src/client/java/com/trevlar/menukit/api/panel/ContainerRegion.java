@@ -26,13 +26,41 @@ import java.util.function.BooleanSupplier;
  *         .declare();
  * }</pre>
  *
+ * <h3>Two panels</h3>
+ * The containers and the inventory are two panels, each with its own frame: the
+ * <b>container list</b> on top, holding every section with its scrollbar inside its
+ * frame, and the <b>inventory panel</b> below it, MenuKit's gap between panels apart. The
+ * inventory panel is around the player's inventory where vanilla puts it, and never
+ * moves. Scrolled content clips at the container list's own bottom edge.
+ *
+ * <h3>The screen's bounds</h3>
+ * The screen's {@code leftPos}, {@code topPos}, {@code imageWidth} and {@code imageHeight}
+ * are the rectangle around both panels, scrollbar lane included, set whenever the layout
+ * changes (the screen opening, a resize, a section opening or closing), never on a
+ * scroll. So a panel placed on the menu frame, another mod's buttons by the screen's
+ * edges and a recipe viewer keeping clear of the screen all see both panels, and a click
+ * in the gap between them with an item held is inside the screen, so it drops nothing.
+ * The player's inventory slots and vanilla's labels are moved back by as much as the
+ * origin moved, so nothing vanilla placed moves on screen. While the region is up, the
+ * screen's own background texture is not drawn: both frames are MenuKit's.
+ *
+ * <h3>Anchors</h3>
+ * To put a button by one panel rather than by the whole screen, place it on
+ * {@link #CONTAINERS} (the container list) or {@link #INVENTORY} (the inventory panel)
+ * with an {@link AnchorPanelAdapter}. Either is absent on a screen the region is not on.
+ *
+ * <pre>{@code
+ * Panel sort = Panel.builder("mymod:sort_chest").add(sortButton)
+ *         .position(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP)).build();
+ * new AnchorPanelAdapter(sort).on(ContainerRegion.CONTAINERS);
+ * }</pre>
+ *
  * <h3>What the region does</h3>
  * <ul>
- *   <li><b>Grows, then scrolls.</b> It runs from just above the inventory up, as tall
- *       as its sections need, into the screen's free height, and scrolls only once
- *       that is used up. It is never shorter than the screen's own container part, so
- *       a tiny window still shows vanilla's height, scrolling. The inventory never
- *       moves; content scrolled down goes behind its top edge.</li>
+ *   <li><b>Grows, then scrolls.</b> The container list runs from the inventory panel up,
+ *       as tall as its sections need, into the screen's free height, and scrolls only once
+ *       that is used up. It is never shorter than the screen's own container part, so a
+ *       tiny window still shows vanilla's height, scrolling.</li>
  *   <li><b>The wheel, last, from anywhere on the screen.</b> It scrolls the region
  *       only when vanilla and every other handler declined the turn: over a slot, a
  *       mod that moves items with the wheel (Mouse Tweaks, Inventory Profiles Next)
@@ -44,18 +72,17 @@ import java.util.function.BooleanSupplier;
  *   <li><b>Carrying an item to an edge scrolls it</b>, faster nearer the edge.</li>
  *   <li><b>Smooth.</b> Pixels, never whole rows; a slot across the edge is drawn, hovered
  *       and clicked only where it shows ({@code SlotClip}).</li>
- *   <li><b>MenuKit's scrollbar</b>, in the screen's look, at the region's right while
- *       anything scrolls.</li>
+ *   <li><b>MenuKit's scrollbar</b>, in the screen's look, inside the container list's
+ *       frame at its right while anything scrolls.</li>
  * </ul>
  *
  * <h3>A section</h3>
  * Its {@link Builder#content} is placed at the region's content edge, where vanilla's
  * grid frame is: an element at {@code (0, 0)} with a title above a nine-wide grid lines
- * up with vanilla's own chest. The region draws one frame behind every section; a
- * section draws its own title and slot frames. Hidden sections take no room. The
- * screen's own container is a section too, if its slots are to scroll with the rest:
- * whoever puts the region on a screen presents that screen's grid in it (SlotKit's
- * {@code SlotElement.slot(Address)}), since what is behind the region is covered.
+ * up with vanilla's own chest. A section draws its own title and slot frames. Hidden
+ * sections take no room. The screen's own container is a section too: whoever puts the
+ * region on a screen presents that screen's grid in it (SlotKit's
+ * {@code SlotElement.slot(Address)}), since what is behind the container list is covered.
  *
  * <p>Declare from your client initializer: sections freeze with every other declaration.
  */
@@ -68,6 +95,15 @@ public final class ContainerRegion {
 
     /** The width a section has before the scrollbar: nine slots. */
     public static final int CONTENT_WIDTH = ContainerRegions.CONTENT_WIDTH;
+
+    /**
+     * The container list's rectangle on a screen the region is on, scrollbar lane
+     * included while it scrolls: for buttons that act on the containers.
+     */
+    public static final Anchor CONTAINERS = ContainerRegions.CONTAINERS;
+
+    /** The inventory panel's rectangle on a screen the region is on: for buttons that act on the inventory. */
+    public static final Anchor INVENTORY = ContainerRegions.INVENTORY;
 
     /** Starts a section, its id namespaced and unique ({@code "mymod:opened-shulker"}). */
     public static Builder section(String id) {
