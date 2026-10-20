@@ -35,7 +35,7 @@ import java.util.function.IntSupplier;
  * The containers and the inventory are two panels, each with its own frame: the
  * <b>container list</b> on top, holding every section with its scrollbar inside its
  * frame, and the <b>inventory panel</b> below it, MenuKit's gap between panels apart. The
- * inventory panel is around the player's inventory, and goes down only as the list grows.
+ * inventory panel is around the player's inventory, and moves only as the list grows.
  * Scrolled content clips at the container list's own bottom edge.
  *
  * <p>Both are the screen's background ({@link Panel.Builder#background()}): drawn where
@@ -81,13 +81,16 @@ import java.util.function.IntSupplier;
  *
  * <h3>What the region does</h3>
  * <ul>
- *   <li><b>Grows, then scrolls.</b> The container list starts at the screen's own
- *       container part, its top where vanilla's is, and grows with its sections: first
- *       down, the inventory panel moving down below it until it reaches the screen's
- *       bottom margin; then up into the free height above, to the top margin; only
- *       then does it scroll. It is never shorter than the screen's own container part,
- *       so a tiny window still shows vanilla's height, scrolling. A resize lays it out
- *       again.</li>
+ *   <li><b>Grows, centred, then scrolls.</b> The container list starts at the screen's
+ *       own container part, where vanilla's is, and grows with its sections. While the
+ *       two panels fit, they stay centred on the screen as one block: the list's top
+ *       moves up and the inventory panel down by half the growth each. Where one side
+ *       has less room (a window too short for vanilla's own margins), that side holds and
+ *       the other moves until the block is centred. Only once the block reaches the top
+ *       and bottom margins does it scroll. Each panel moves at most a pixel per pixel of
+ *       growth, so nothing jumps. It is never shorter than the screen's own container
+ *       part, so a tiny window still shows vanilla's height, scrolling. A resize lays it
+ *       out again.</li>
  *   <li><b>The wheel, last, from anywhere on the screen.</b> It scrolls the region
  *       only when vanilla and every other handler declined the turn: over a slot, a
  *       mod that moves items with the wheel (Mouse Tweaks, Inventory Profiles Next)

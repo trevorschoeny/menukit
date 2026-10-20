@@ -51,9 +51,8 @@ import java.util.function.IntSupplier;
  * <b>container list</b>, one panel with its own frame holding every section any mod
  * declares in one {@link ScrollContainer}, and below it, {@link #PANEL_GAP} apart, the
  * <b>inventory panel</b>, its own frame around the player's inventory, which never scrolls.
- * The list grows first and scrolls only when there is no room left: its top stays at
- * vanilla's, and it pushes the inventory panel down to the screen's bottom margin, then
- * grows up to the top margin ({@link #layout}).
+ * The list grows first and scrolls only when there is no room left; while the two panels
+ * fit, they are centred on the screen as one block ({@link #layout}).
  *
  * <h3>Built from what is there</h3>
  * Both panels are <b>background panels</b> ({@code Panel.Builder.background()}, 7.4.0): they
@@ -311,17 +310,26 @@ public final class ContainerRegions {
     }
 
     /**
-     * Grow first, then scroll (Trev, 2026-10-20, after round 3), from the screen's own
-     * bounds as vanilla laid them out. The container list starts as the screen's own
-     * container part, its top at vanilla's {@code topPos}, and grows with its content:
-     * <ol>
-     *   <li>first <b>downward</b>: its top stays put and the inventory panel moves down
-     *       below it, {@link #PANEL_GAP} apart, until the inventory panel's bottom is
-     *       {@link #BOTTOM_MARGIN} from the screen's;</li>
-     *   <li>then <b>upward</b>: its top moves up into the free height above, to
-     *       {@link #TOP_MARGIN};</li>
-     *   <li>only then does it <b>scroll</b>.</li>
-     * </ol>
+     * Grow first, then scroll, centred while it fits (Trev, 2026-10-20, after rounds 3 and
+     * 5), from the screen's own bounds as vanilla laid them out. The container list starts
+     * as the screen's own container part, its top at vanilla's {@code topPos}, and grows
+     * with its content. The two panels are one block, and the room left free around it is
+     * shared evenly above and below (to {@link #TOP_MARGIN} and {@link #BOTTOM_MARGIN}),
+     * as far as each side has room:
+     * <ul>
+     *   <li>while the block fits centred, it is centred: each pixel the list grows moves
+     *       its top up half a pixel and the inventory panel down half a pixel, rounded as
+     *       vanilla rounds its own centring;</li>
+     *   <li>where one side has less room than the other (a window too short for vanilla's
+     *       own margins, a screen vanilla does not centre), that side's panel holds and the
+     *       other moves until the block is centred: the list's top holds and the inventory
+     *       panel moves down, or the other way round. A side with no room at all never
+     *       moves, so the other takes all the growth up to its margin;</li>
+     *   <li>only when both margins are reached does the list <b>scroll</b>.</li>
+     * </ul>
+     * Each pixel of growth moves each panel by at most one pixel and never back, so a box
+     * opening never makes the block jump, at any window height. With vanilla's image
+     * centred the block stays centred right up to both margins at once.
      * Never shorter than the screen's own container part, and neither panel ever moves the
      * other way from where vanilla put it: on a window with no room (a tiny one) the list
      * keeps vanilla's height and scrolls.
@@ -341,8 +349,11 @@ public final class ContainerRegions {
         int roomBelow = Math.max(0, screenHeight - BOTTOM_MARGIN - imageBottom);
         int roomAbove = Math.max(0, vanilla.topPos() - TOP_MARGIN);
         int grow = Math.max(0, Math.min(VIEW_TOP + content + VIEW_BOTTOM - ownPart, roomBelow + roomAbove));
-        int down = Math.min(grow, roomBelow);   // the inventory panel moves down first
-        int up = grow - down;                   // then the list's top moves up
+        // The room still free once grown, split evenly: the list's top keeps the lower half
+        // above it (floor, as vanilla centres), the inventory the rest below. Clamped so that
+        // neither panel moves back, nor past its margin.
+        int up = Math.max(0, Math.min(grow, roomAbove - Math.floorDiv(roomAbove + roomBelow - grow, 2)));
+        int down = grow - up;
         int height = ownPart + grow;
         int top = vanilla.topPos() - up;
         int inventoryTop = vanillaInventoryTop + down;
