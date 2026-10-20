@@ -3,13 +3,11 @@ package com.trevlar.menukit.api.element;
 import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.api.element.ItemMatch.Match;
 import com.trevlar.menukit.api.panel.Panel;
-import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.DialogLayout;
 import com.trevlar.menukit.core.ItemEditing;
 import com.trevlar.menukit.core.ItemEditing.EnchantChoice;
 import com.trevlar.menukit.core.ItemSources;
-import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.core.VanillaLook;
 
 import net.minecraft.client.Minecraft;
@@ -1056,13 +1054,10 @@ final class ItemDialog {
     /** A control button: vanilla's button in the Default look, MenuKit's raised one (dark when off) in the Panel look. */
     private static void drawControl(GuiGraphicsExtractor g, ScreenKind screen, int x, int y, String glyph, boolean enabled, boolean hovered) {
         ScreenKind kind = ControlLook.kind(screen, ControlLook.Control.BUTTON);   // vanilla's where a pack restyled it (spec part 10)
-        if (kind == ScreenKind.DEFAULT) {
+        if (screen == ScreenKind.DEFAULT) {
             VanillaLook.button(g, x, y, CONTROL, CONTROL, enabled, hovered && enabled);
-        } else if (!enabled) {
-            PanelRendering.renderPanel(g, x, y, CONTROL, CONTROL, PanelStyle.DARK);
         } else {
-            PanelRendering.renderControl(g, x, y, CONTROL, CONTROL, PanelStyle.RAISED);
-            if (hovered) g.fill(x + 1, y + 1, x + CONTROL - 1, y + CONTROL - 1, ElementConstants.HOVER_OVERLAY);
+            ControlLook.drawRaised(g, x, y, CONTROL, CONTROL, enabled, hovered, false);   // spec part 12
         }
         int color = enabled ? ElementConstants.TEXT_LIGHT : kind.textColor(TextRole.DISABLED);
         Text.renderCentered(g, Component.literal(glyph), x, y, CONTROL, CONTROL, color, true);

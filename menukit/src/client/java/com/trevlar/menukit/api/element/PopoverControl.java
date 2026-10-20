@@ -4,7 +4,6 @@ import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.core.PanelRendering;
-import com.trevlar.menukit.api.panel.PanelStyle;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -330,13 +329,14 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         // Background: vanilla's button sprite, or MenuKit's raised panel; pressed
         // while open (the popover is the live surface then, so no hover highlight).
         // Vanilla's in the Default look, and in the Panel look where a pack restyled vanilla's button (spec part 10).
+        // MenuKit's own control art is not pressed while open; vanilla's button is (spec part 12
+        // for every state).
         ScreenKind kind = ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON);
-        if (kind == ScreenKind.DEFAULT) {
+        if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.button(g, tx, ty, width, h, !disabled, hovered && !open);
             if (open) VanillaLook.pressedOverlay(g, tx, ty, width, h);
         } else {
-            PanelRendering.renderControl(g, tx, ty, width, h, disabled ? PanelStyle.DARK : PanelStyle.RAISED);
-            if (hovered && !open) g.fill(tx + 1, ty + 1, tx + width - 1, ty + h - 1, ElementConstants.HOVER_OVERLAY);
+            ControlLook.drawRaised(g, tx, ty, width, h, !disabled, hovered && !open, open && kind == ScreenKind.DEFAULT);
         }
 
         // Label: left, wrapping onto more lines when too long (the trigger grows);
@@ -372,11 +372,13 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         var g = ctx.graphics();
         int[] p = popoverBounds(ctx.originX() + childX, ctx.originY() + childY);
         int px = p[0], py = p[1], pw = p[2], ph = p[3];
+        // The list: vanilla's disabled button, its flatter surface, in the Default look and where a
+        // pack restyled vanilla's (that state's sprite or derived, spec part 12); else MenuKit's control art.
         ScreenKind kind = ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON);
-        if (kind == ScreenKind.DEFAULT) {
+        if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.popoverBackground(g, px, py, pw, ph);
         } else {
-            PanelRendering.renderControl(g, px, py, pw, ph, PanelStyle.RAISED);
+            ControlLook.draw(g, px, py, pw, ph, kind == ScreenKind.DEFAULT ? ControlLook.State.DISABLED : ControlLook.State.NORMAL);
         }
 
         int textX = px + 1 + POPOVER_TEXT_PAD_X;

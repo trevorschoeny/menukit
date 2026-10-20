@@ -4,8 +4,6 @@ import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.core.MKRenderPipelines;
-import com.trevlar.menukit.core.PanelRendering;
-import com.trevlar.menukit.api.panel.PanelStyle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.CommonComponents;
@@ -203,19 +201,14 @@ public class Toggle extends AbstractPanelElement {
     protected void renderBackground(RenderContext ctx, int sx, int sy,
                                     boolean on, boolean disabled, boolean hovered) {
         int w = getWidth(), h = getHeight();
-        // Vanilla's button in the Default look, and in the Panel look where a pack restyled it
-        // (spec part 10). In the Panel look its state is its face, not its text, so on is the
-        // button pressed in, MenuKit's pressed look on vanilla's button.
-        if (ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON) == ScreenKind.DEFAULT) {
+        // Vanilla's button in the Default look, whose text carries the state.
+        if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.button(ctx.graphics(), sx, sy, w, h, !disabled, hovered);
-            if (on && ctx.kind() == ScreenKind.PANEL) VanillaLook.pressedOverlay(ctx.graphics(), sx, sy, w, h);
             return;
         }
-        PanelStyle bg = disabled ? PanelStyle.DARK : on ? PanelStyle.INSET : PanelStyle.RAISED;
-        PanelRendering.renderControl(ctx.graphics(), sx, sy, w, h, bg);
-        if (!disabled && hovered) {
-            ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1, ElementConstants.HOVER_OVERLAY);
-        }
+        // The Panel look (spec parts 10 and 12): its state is its face, not its text, so on is
+        // the control pressed.
+        ControlLook.drawRaised(ctx.graphics(), sx, sy, w, h, !disabled, hovered, on);
     }
 
     @Override

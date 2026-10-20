@@ -61,10 +61,11 @@ public final class PanelRendering {
     }
 
     /**
-     * Draws a <b>control's</b> background (a button, toggle, popover, colour field, info box):
-     * as {@link #renderPanel}, except RAISED, which is MenuKit's {@code menukit:control_raised}
-     * sprite, so a resource pack themes controls and panels ({@code menukit:panel_raised})
-     * each on its own. Unthemed, the two are the same art.
+     * Draws a stateless control surface (an info box): as {@link #renderPanel}, except RAISED,
+     * which is MenuKit's {@code menukit:control_raised} sprite, so a resource pack themes
+     * controls and panels ({@code menukit:panel_raised}) each on its own. Unthemed, the two are
+     * the same art. Controls with states (buttons, toggles, a dropdown, the colour field) draw
+     * through {@link ControlLook#drawRaised}, every state from one source.
      */
     public static void renderControl(GuiGraphicsExtractor graphics, int x, int y, int w, int h, PanelStyle style) {
         if (style == PanelStyle.RAISED && w > 0 && h > 0) {

@@ -3,9 +3,7 @@ package com.trevlar.menukit.api.element;
 import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.api.panel.Focus;
 import com.trevlar.menukit.api.panel.Panel;
-import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.ScreenKind;
-import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 
@@ -277,11 +275,10 @@ public class ColorField extends AbstractPanelElement {
         }
         boolean hot = !disabled && (hovered || (widget != null && widget.focused()));
         GuiGraphicsExtractor g = ctx.graphics();
-        if (ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON) == ScreenKind.DEFAULT) {   // spec part 10
+        if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.button(g, x, y, width, height, !disabled, hot);
         } else {
-            PanelRendering.renderControl(g, x, y, width, height, disabled ? PanelStyle.DARK : PanelStyle.RAISED);
-            if (hot) g.fill(x + 1, y + 1, x + width - 1, y + height - 1, ElementConstants.HOVER_OVERLAY);
+            ControlLook.drawRaised(g, x, y, width, height, !disabled, hot, false);   // spec parts 10 and 12
         }
         int ix = x + INSET, iy = y + INSET, iw = width - 2 * INSET, ih = height - 2 * INSET;
         if (iw > 0 && ih > 0) {
