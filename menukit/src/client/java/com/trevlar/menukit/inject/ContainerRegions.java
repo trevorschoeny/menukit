@@ -7,6 +7,7 @@ import com.trevlar.menukit.api.element.RenderContext;
 import com.trevlar.menukit.api.element.ScrollContainer;
 import com.trevlar.menukit.api.element.TextLabel;
 import com.trevlar.menukit.api.panel.Anchor;
+import com.trevlar.menukit.api.panel.ContainerRegion;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.PanelStyle;
@@ -15,6 +16,7 @@ import com.trevlar.menukit.api.panel.RegionConstants;
 import com.trevlar.menukit.api.panel.ScreenMatcher;
 import com.trevlar.menukit.api.panel.ScreenOrigin;
 import com.trevlar.menukit.api.panel.ScreenPanelAdapter;
+import com.trevlar.menukit.core.OptiGuiRules;
 import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.core.Scroller;
@@ -190,17 +192,19 @@ public final class ContainerRegions {
 
     /**
      * One declared section (ContainerRegion.section). {@code texture} is the container
-     * texture it stands for (vanilla's chest by default): its block of the list and its
-     * slot frames take that texture's look under the active resource packs. {@code title},
-     * if any, is drawn above its content; {@code name} stands in for a blank title while
-     * other sections show ({@link #shownTitles}).
+     * texture it stands for (vanilla's chest by default): its slice of the list and its
+     * slot frames take that texture's look under the active resource packs, or with OptiGUI
+     * the texture its rules give the section's {@code context} (the open screen's, without
+     * one). {@code title}, if any, is drawn above its content; {@code name} stands in for a
+     * blank title while other sections show ({@link #shownTitles}).
      */
     public record Section(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen,
-                          Identifier texture, @Nullable Supplier<Component> title, @Nullable Supplier<Component> name) {
+                          Identifier texture, @Nullable Supplier<Component> title, @Nullable Supplier<Component> name,
+                          @Nullable Supplier<ContainerRegion.@Nullable Context> context) {
 
         /** An untitled section in vanilla's chest's look. */
         public Section(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen) {
-            this(id, content, matcher, order, visibleWhen, PackLook.CHEST, null, null);
+            this(id, content, matcher, order, visibleWhen, PackLook.CHEST, null, null, null);
         }
     }
 
@@ -842,37 +846,61 @@ public final class ContainerRegions {
     // Following resource packs (spec "Panel-look panels follow resource packs")
 
     /**
-     * The container texture {@code screen} draws its own image from, whose look the two
-     * panels take (spec part 6): the inventory panel the inventory half, as vanilla does,
-     * and the container list the container half. A shulker box's screen is the shulker
-     * box's; any other the chest's.
+     * The container texture {@code screen} draws its own image from, whose inventory half
+     * the inventory panel takes (spec part 6), as vanilla does: with OptiGUI, the texture
+     * OptiGUI gives the screen's own container. A shulker box's screen is the shulker box's;
+     * any other the chest's.
      */
     static Identifier screenTexture(@Nullable Screen screen) {
-        return screen instanceof ShulkerBoxScreen ? PackLook.SHULKER_BOX : PackLook.CHEST;
-    }
-
-    /** The container list's look: its screen's container texture, the container half. */
-    private static PackLook.Look listLook() {
-        return PackLook.look(screenTexture(state.screen.get()), PackLook.Part.CONTAINER);
-    }
-
-    /** Section {@code s}'s look: the container texture it stands for. */
-    private static PackLook.Look sectionLook(Section s) {
-        return PackLook.look(s.texture(), PackLook.Part.CONTAINER);
-    }
-
-    /** Whether section {@code s} draws a block of its own over the list: it stands for another texture than the list's. */
-    private static boolean drawsBlock(Section s, PackLook.Look list) {
-        return !s.texture().equals(list.texture());
+        return OptiGuiRules.onScreen(screen instanceof ShulkerBoxScreen ? PackLook.SHULKER_BOX : PackLook.CHEST);
     }
 
     /**
-     * Whether section {@code s} shows as a block of its own on the list (its own texture's
-     * fill, unlike the list's), so its title takes vanilla's room above it ({@link #TITLE_INSET}).
+     * The texture section {@code s} is drawn from: the container texture it stands for, or
+     * with OptiGUI the one OptiGUI's rules give its own container (its {@code context}), or,
+     * without a context, the one OptiGUI gives the open screen's (the screen's own container).
+     */
+    static Identifier sectionTexture(Section s) {
+        if (!OptiGuiRules.LOADED) return s.texture();
+        ContainerRegion.Context c = s.context() == null ? null : s.context().get();
+        if (c == null) return OptiGuiRules.onScreen(s.texture());
+        String title = s.title() == null ? "" : s.title().get().getString();
+        return OptiGuiRules.forContainer(s.texture(), c.block(), c.customName(), title, c.pos());
+    }
+
+    /** Section {@code s}'s look: its texture's container half. */
+    private static PackLook.Look sectionLook(Section s) {
+        return PackLook.look(sectionTexture(s), PackLook.Part.CONTAINER);
+    }
+
+    /** Every section's look this frame, in stacking order, {@code null} while it is hidden. */
+    private static PackLook.@Nullable Look[] looks() {
+        PackLook.Look[] out = new PackLook.Look[SECTIONS.size()];
+        for (int i = 0; i < out.length; i++) {
+            Placed p = SECTIONS.get(i);
+            if (p.holder().isVisible()) out[i] = sectionLook(p.section());
+        }
+        return out;
+    }
+
+    /**
+     * The list's own look, where no section's is: the first shown section's (whose slice
+     * holds the list's top), else the screen's own container texture's.
+     */
+    private static PackLook.Look listLook(PackLook.@Nullable Look[] looks) {
+        for (PackLook.Look l : looks) if (l != null) return l;
+        Screen screen = state.screen.get();
+        return PackLook.look(OptiGuiRules.onScreen(screen instanceof ShulkerBoxScreen ? PackLook.SHULKER_BOX : PackLook.CHEST),
+                PackLook.Part.CONTAINER);
+    }
+
+    /**
+     * Whether section {@code s} shows as a block of its own on the list: its fill unlike the
+     * first shown section's, so its title takes vanilla's room above it ({@link #TITLE_INSET}).
      */
     private static boolean ownsBlock(Section s) {
-        PackLook.Look list = listLook();
-        return drawsBlock(s, list) && sectionLook(s).fill() != list.fill();
+        PackLook.Look list = listLook(looks()), own = sectionLook(s);
+        return own != list && own.fill() != list.fill();
     }
 
     /**
@@ -957,7 +985,7 @@ public final class ContainerRegions {
         for (Placed p : SECTIONS) {
             if (!p.holder().isVisible()) continue;
             if (p.section() != s || blank(shownTitle(s))) return 0;
-            return Math.max(0, listLook().corner() + 1 - (INSET_X + 1));
+            return Math.max(0, listLook(looks()).corner() + 1 - (INSET_X + 1));
         }
         return 0;
     }
@@ -982,7 +1010,7 @@ public final class ContainerRegions {
 
     /**
      * What the surface is at a point in one of the region's panels: in the inventory panel,
-     * the inventory half's look; in the container list, the look of the section whose band
+     * the inventory half's look; in the container list, the look of the section whose slice
      * it is in ({@link #bands}), else the list's. So a slot frame takes its section's look,
      * and text a colour that reads on its section's fill. {@code null} for any other panel.
      */
@@ -993,14 +1021,18 @@ public final class ContainerRegions {
         }
         if (p != panel || panel == null) return null;
         Geometry g = state.geometry;
-        PackLook.Look list = listLook();
+        PackLook.Look[] looks = looks();
+        PackLook.Look list = listLook(looks);
         if (g == null || state.tops.length != SECTIONS.size()) return (x, y) -> list;
-        int[][] bands = bands(g, list.frame(), state.tops, state.scroll);
+        int[][] slices = bands(g, WHOLE, state.tops, state.scroll);
         return (x, y) -> {
-            int i = bandAt(bands, x, y);
-            return i < 0 ? list : sectionLook(SECTIONS.get(i).section());
+            int i = bandAt(slices, x, y);
+            return i < 0 || looks[i] == null ? list : looks[i];
         };
     }
+
+    /** No frame: a section's slice runs out to the list's own edges. */
+    private static final int[] WHOLE = {0, 0, 0, 0};
 
     /** Which band holds {@code (x, y)}, or {@code -1}. */
     private static int bandAt(int[][] bands, int x, int y) {
@@ -1012,13 +1044,14 @@ public final class ContainerRegions {
     }
 
     /**
-     * The container list's frame, behind every section: a panel surface in the look of the
-     * screen's container texture under the active resource packs (MenuKit's raised panel
-     * with vanilla's own), the scrollbar lane inside it while it scrolls. Then, in each
-     * section's band ({@link #bands}), edge to edge inside the frame, a section that stands
-     * for another texture (a shulker box in a chest's list) gets a block of its own texture's
-     * fill, so a pack's purple shulker art shows as purple there. Everything the section draws
-     * goes over it, its text in a colour that reads on that fill.
+     * The container list, each section a slice of its own container's screen (spec part 9):
+     * in each section's slice of the list ({@link #bands} out to the list's edges), the list
+     * drawn whole in that section's look, cut to the slice. So the list's left and right edges
+     * at a section's height are that section's texture's, its fill too; the top is the first
+     * section's, the bottom the last's, and the outline runs on unbroken. Slices next to each
+     * other in one look are one, so with no pack (every look MenuKit's own) the list is drawn
+     * once, exactly as before. The scrollbar lane is inside it while it scrolls; everything
+     * the sections draw goes over it, their text in a colour that reads on their own fill.
      */
     private static final class Backdrop implements PanelElement {
         @Override public int getChildX() { return 0; }
@@ -1030,20 +1063,58 @@ public final class ContainerRegions {
         public void render(RenderContext ctx) {
             Geometry g = state.geometry;
             if (g == null) return;
-            PackLook.Look list = listLook();
-            PanelRendering.renderPanelSurface(ctx.graphics(), ctx.originX(), ctx.originY(), g.width(), g.height(), list);
-            if (state.tops.length != SECTIONS.size()) return;
-            // The panel's origin is the list's top-left; the bands are from the screen's.
-            int dx = ctx.originX() - g.x(), dy = ctx.originY() - g.top();
-            int[][] bands = bands(g, list.frame(), state.tops, state.scroll);
-            for (int i = 0; i < SECTIONS.size(); i++) {
-                int[] r = bands[i];
-                if (r == null) continue;
-                Section s = SECTIONS.get(i).section();
-                if (drawsBlock(s, list)) {
-                    PackLook.drawFill(ctx.graphics(), r[0] + dx, r[1] + dy, r[2] - r[0], r[3] - r[1], sectionLook(s));
-                }
+            var graphics = ctx.graphics();
+            int ox = ctx.originX(), oy = ctx.originY(), w = g.width(), h = g.height();
+            PackLook.Look[] looks = looks();
+            if (state.tops.length != SECTIONS.size()) {
+                PanelRendering.renderPanelSurface(graphics, ox, oy, w, h, listLook(looks));
+                return;
             }
+            // The panel's origin is the list's top-left; the slices are from the screen's.
+            int dy = oy - g.top();
+            int[][] slices = bands(g, WHOLE, state.tops, state.scroll);
+            List<Integer> shown = new ArrayList<>();
+            for (int i = 0; i < slices.length; i++) if (slices[i] != null && looks[i] != null) shown.add(i);
+            if (shown.isEmpty()) {
+                PanelRendering.renderPanelSurface(graphics, ox, oy, w, h, listLook(looks));
+                return;
+            }
+            for (int k = 0; k < shown.size(); ) {
+                PackLook.Look look = looks[shown.get(k)];
+                int y0 = slices[shown.get(k)][1], m = k + 1;
+                while (m < shown.size() && looks[shown.get(m)] == look) m++;
+                int y1 = slices[shown.get(m - 1)][3];
+                if (y0 <= g.top() && y1 >= g.top() + h) {
+                    PanelRendering.renderPanelSurface(graphics, ox, oy, w, h, look);
+                } else {
+                    graphics.enableScissor(ox, y0 + dy, ox + w, y1 + dy);
+                    PanelRendering.renderPanelSurface(graphics, ox, oy, w, h, look);
+                    graphics.disableScissor();
+                }
+                k = m;
+            }
+            if (PackLook.Mockup.capped) caps(graphics, g, ox, oy, looks, slices, shown);   // mockup: capped
+        }
+
+        /**
+         * mockup: where two sections meet, each closes its own inner ring ({@link PackLook#drawCap}):
+         * the one above at its bottom, in the room left under its grid, the one below at its
+         * top, in the room above its title. Cut to the list inside its top and bottom frame.
+         */
+        private static void caps(net.minecraft.client.gui.GuiGraphicsExtractor graphics, Geometry g, int ox, int oy,
+                                 PackLook.@Nullable Look[] looks, int[][] slices, List<Integer> shown) {
+            int dy = oy - g.top();
+            PackLook.Look first = looks[shown.get(0)], last = looks[shown.get(shown.size() - 1)];
+            graphics.enableScissor(ox, oy + first.frame()[1], ox + g.width(), oy + g.height() - last.frame()[3]);
+            for (int k = 0; k + 1 < shown.size(); k++) {
+                int above = shown.get(k), below = shown.get(k + 1), yb = slices[below][1] + dy;
+                int roomBelow = GAP - BAND_ABOVE;
+                int roomAbove = BAND_ABOVE + (ownsBlock(SECTIONS.get(below).section()) ? TITLE_INSET : 0);
+                int down = Math.min(roomBelow, PackLook.capDepth(looks[above], false));
+                PackLook.drawCap(graphics, looks[above], ox, g.width(), yb - down, down, false);
+                PackLook.drawCap(graphics, looks[below], ox, g.width(), yb, roomAbove, true);
+            }
+            graphics.disableScissor();
         }
     }
 
@@ -1056,12 +1127,13 @@ public final class ContainerRegions {
 
     /**
      * Each section's band on screen this frame, {@code [x0, y0, x1, y1]}, or {@code null}
-     * while it is hidden or scrolled out of the frame: its block goes there. The bands
-     * tile the inside of the container list's frame with no gap: across, from the frame's
-     * inner edge to the other ({@code frame}, the list look's {@code [left, top, right,
-     * bottom]}; the scrollbar draws over it); down, each from {@link #BAND_ABOVE} above its
-     * section to where the next shown one's starts, the first from the frame's top and the
-     * last to its bottom. Moved by the scroll and cut at the frame's inner edges. Pure.
+     * while it is hidden or scrolled out of the frame: its slice of the list goes there
+     * (with {@code frame} all 0). The bands tile the inside of the container list's frame
+     * with no gap: across, from the frame's inner edge to the other ({@code frame},
+     * {@code [left, top, right, bottom]}; the scrollbar draws over it); down, each from
+     * {@link #BAND_ABOVE} above its section to where the next shown one's starts, the first
+     * from the frame's top and the last to its bottom. Moved by the scroll and cut at the
+     * frame's inner edges. Pure.
      *
      * @param tops each section's top in the content, {@code -1} while hidden, in stacking order
      */

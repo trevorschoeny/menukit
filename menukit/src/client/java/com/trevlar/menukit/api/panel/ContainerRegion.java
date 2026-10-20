@@ -6,8 +6,17 @@ import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.inject.ContainerRegions;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.Nameable;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.entity.BlockEntity;
+
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
@@ -123,18 +132,33 @@ import java.util.function.Supplier;
  *
  * <h3>Resource packs</h3>
  * The two panels follow the resource pack's container art, as vanilla's own screen
- * would under it: the container list takes the look of the screen's container texture,
- * the inventory panel the inventory half of it. A section names the container it stands
- * for with {@link Builder#texture} (vanilla's chest by default): its slot frames take that
- * texture's slots, and where it differs from the list's (a shulker box in a chest's list)
- * its part of the list takes that texture's fill, edge to edge: across, from the list's
- * frame to the frame on the other side (the frame keeps its own art, and the scrollbar
- * draws over it); down, meeting the parts of the sections above and below with no gap, and
- * the frame's top or bottom when it is first or last. It scrolls with the section. Such a
- * section, a block of its own, has its content moved down 2 px, so its title sits inside
- * the block as vanilla's sits inside its art. MenuKit adds no colour of its own: a
+ * would under it: the container list takes each section's container texture, the
+ * inventory panel the inventory half of the screen's own. A section names the container it
+ * stands for with {@link Builder#texture} (vanilla's chest by default): its slot frames and
+ * its part of the list take that texture's look, down from a pixel above it to
+ * the next section's, the list's top and bottom with the first and last. It scrolls with
+ * the section. A section whose fill differs from the first one's, a block of its own, has
+ * its content moved down 2 px, so its title sits inside the block as vanilla's sits inside
+ * its art. MenuKit adds no colour of its own: a
  * section's colour is the pack's. Text on the list keeps vanilla's colours wherever they
  * read on the pack's fill, and takes one made from the fill where they would not.
+ *
+ * <h3>Each section a slice of its own container's screen</h3>
+ * Each section's part of the list, from its band's top to its bottom, is a slice of its
+ * own texture's panel: the list's left and right edges there are that texture's, and so is
+ * its fill; the list's top is the first section's, its bottom the last's. The outline runs
+ * on unbroken; where two sections meet, the colours simply change. With no pack every
+ * texture is vanilla's grey, and the list is MenuKit's panel as always.
+ *
+ * <h3>Containers whose art a pack picks by block (OptiGUI)</h3>
+ * With OptiGUI installed, a pack's rules can give a container art of its own by its block
+ * (a lime box), its name ("Ores"), its biome or its height. OptiGUI picks that for a whole
+ * screen, from the block that opened it; the region asks for each section's own. A section
+ * that knows its container says so with {@link Builder#context}, from the block entity it
+ * shows or the item it was opened from ({@link Context#of(BlockEntity)},
+ * {@link Context#of(ItemStack)}). One that doesn't (the screen's own container) takes what
+ * OptiGUI picked for the screen, and so does the inventory panel. Without OptiGUI, nothing
+ * changes.
  *
  * <h3>Titles and names</h3>
  * Title a section that is a vanilla container's with vanilla's translation key
@@ -176,6 +200,36 @@ public final class ContainerRegion {
     /** Vanilla's shulker box texture: for a section that shows a shulker box. */
     public static final Identifier SHULKER_BOX = PackLook.SHULKER_BOX;
 
+    /**
+     * The container a section shows, for the packs that pick a container's art by its block,
+     * name and place (OptiGUI's rules): its block's id, its custom name ({@code null} for
+     * none: the section's title is matched instead, as OptiGUI matches a screen's), and
+     * where it is ({@code null} for a container opened from an item: the player's position).
+     */
+    public record Context(Identifier block, @Nullable String customName, @Nullable BlockPos pos) {
+
+        public Context {
+            Objects.requireNonNull(block, "block");
+        }
+
+        /** A placed container: its block, its custom name, its position. */
+        public static Context of(BlockEntity container) {
+            String name = container instanceof Nameable n && n.hasCustomName() ? n.getCustomName().getString() : null;
+            return new Context(BuiltInRegistries.BLOCK.getKey(container.getBlockState().getBlock()), name, container.getBlockPos());
+        }
+
+        /**
+         * A container opened from its item (a shulker box in the inventory): the item's block,
+         * so its dye, and the name the player gave it. Where it is, the player is.
+         */
+        public static Context of(ItemStack item) {
+            Identifier block = item.getItem() instanceof BlockItem b ? BuiltInRegistries.BLOCK.getKey(b.getBlock())
+                    : BuiltInRegistries.ITEM.getKey(item.getItem());
+            Component name = item.get(DataComponents.CUSTOM_NAME);
+            return new Context(block, name == null ? null : name.getString(), null);
+        }
+    }
+
     /** Starts a section, its id namespaced and unique ({@code "mymod:opened-shulker"}). */
     public static Builder section(String id) {
         return new Builder(id);
@@ -190,7 +244,8 @@ public final class ContainerRegion {
         private int order = 0;
         private BooleanSupplier visibleWhen = () -> true;
         private Identifier texture = CHEST;
-        private @org.jspecify.annotations.Nullable Supplier<Component> title, name;
+        private @Nullable Supplier<Component> title, name;
+        private @Nullable Supplier<@Nullable Context> context;
 
         private Builder(String id) {
             this.id = Objects.requireNonNull(id, "id");
@@ -265,6 +320,18 @@ public final class ContainerRegion {
         }
 
         /**
+         * The container this section shows, read every frame, for the packs that pick a
+         * container's art by its block, name and place: with OptiGUI installed, its rules are
+         * evaluated against it, so a lime box's section has the lime art whatever screen it is
+         * on. Without one (or {@code null}), the section takes what OptiGUI picked for the
+         * open screen, right for the screen's own container.
+         */
+        public Builder context(Supplier<@Nullable Context> context) {
+            this.context = Objects.requireNonNull(context, "context");
+            return this;
+        }
+
+        /**
          * Declares the section.
          *
          * @throws IllegalStateException after declarations froze, or when {@code id} is
@@ -273,7 +340,7 @@ public final class ContainerRegion {
         public void declare() {
             Declarations.requireOpen("ContainerRegion.section(" + id + ")");
             if (content == null) throw new IllegalStateException("ContainerRegion section '" + id + "': content(...) is required");
-            ContainerRegions.declare(new ContainerRegions.Section(id, content, matcher, order, visibleWhen, texture, title, name));
+            ContainerRegions.declare(new ContainerRegions.Section(id, content, matcher, order, visibleWhen, texture, title, name, context));
         }
     }
 }
