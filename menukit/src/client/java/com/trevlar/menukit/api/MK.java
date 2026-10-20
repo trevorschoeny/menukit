@@ -6,6 +6,7 @@ import com.trevlar.menukit.api.hud.HudNotification;
 import com.trevlar.menukit.inject.LayerPlan;
 import com.trevlar.menukit.inject.PanelHost;
 import com.trevlar.menukit.api.Declarations;
+import com.trevlar.menukit.core.RegionMath;
 
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -70,6 +71,18 @@ public class MK {
                 drawnOffhandSide(mc));
     });
 
+    // The HUD's status column: panels stacked up from just above the XP level number,
+    // in the gap between the hearts and the hunger bar (HudPanel.Builder.statusColumn).
+    // A host of its own, because its reference is the column's base, not the hotbar.
+    private static final java.util.function.Supplier<PanelHost.@Nullable Frame> STATUS_FRAME = () -> {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null || mc.getWindow() == null) return null;
+        int sw = mc.getWindow().getGuiScaledWidth(), sh = mc.getWindow().getGuiScaledHeight();
+        boolean statusBars = mc.gameMode != null && mc.gameMode.hasExperience();
+        return new PanelHost.Frame(sw, sh, RegionMath.statusColumn(sw, sh, statusBars), null);
+    };
+    private static final PanelHost HUD_STATUS = PanelHost.hud(STATUS_FRAME);
+
     /**
      * The side vanilla draws the offhand slot on beside the hotbar this frame, or
      * {@code null} when it draws none. Mirrors {@code Hud.extractItemHotbar} (26.x):
@@ -118,14 +131,46 @@ public class MK {
      * @throws IllegalArgumentException if the HUD cannot place the panel's position
      */
     public static void registerHud(Panel panel, int padding) {
+        registerHud(HUD, panel, padding);
+    }
+
+    /**
+     * Registers a HUD panel in the status column (since 7.3.0). Called by
+     * {@link com.trevlar.menukit.api.hud.HudPanel.Builder#build()} for a panel built
+     * with {@code statusColumn()}; the panel is positioned {@code region(TOP_CENTER)}
+     * against the column's base.
+     */
+    @ApiStatus.Internal
+    public static void registerHudStatus(Panel panel, int padding) {
+        registerHud(HUD_STATUS, panel, padding);
+    }
+
+    private static void registerHud(PanelHost host, Panel panel, int padding) {
         Declarations.requireOpen("MK.registerHud(" + panel.id() + ")");
-        for (PanelHost.Entry e : HUD.entries()) {
-            if (e.panel().id().equals(panel.id())) {
-                throw new IllegalStateException("MenuKit: a HUD panel '" + panel.id() + "' is already registered.");
+        for (PanelHost h : List.of(HUD, HUD_STATUS)) {
+            for (PanelHost.Entry e : h.entries()) {
+                if (e.panel().id().equals(panel.id())) {
+                    throw new IllegalStateException("MenuKit: a HUD panel '" + panel.id() + "' is already registered.");
+                }
             }
         }
-        HUD.add(panel, panel.getPosition(), padding, PanelHost.captureCallerModId(), PanelHost.nextSeq());
+        host.add(panel, panel.getPosition(), padding, PanelHost.captureCallerModId(), PanelHost.nextSeq());
         LOGGER.info("[MenuKit] Registered HUD panel '{}'", panel.id());
+    }
+
+    /**
+     * How far the status column reaches above its base this frame, in GUI pixels: 0
+     * while nothing in it shows. Vanilla's held-item name and action-bar message move
+     * up by this much ({@code MKHudStatusLiftMixin}), keeping the spacing vanilla gives
+     * them over the level number or the hotbar, so neither lands on the column.
+     */
+    @ApiStatus.Internal
+    public static int statusColumnLift() {
+        PanelHost.Frame frame = STATUS_FRAME.get();
+        if (frame == null || frame.reference() == null) return 0;
+        int top = frame.reference().topPos();
+        for (PanelHost.Placed p : HUD_STATUS.layout().placed()) top = Math.min(top, p.y());
+        return frame.reference().topPos() - top;
     }
 
     /**
@@ -156,7 +201,7 @@ public class MK {
         int screenW = mc.getWindow().getGuiScaledWidth();
         int screenH = mc.getWindow().getGuiScaledHeight();
 
-        LayerPlan.compose(List.of(HUD), graphics, -1, -1, screenW, screenH, (host, placed) -> false);
+        LayerPlan.compose(List.of(HUD, HUD_STATUS), graphics, -1, -1, screenW, screenH, (host, placed) -> false);
 
         renderActiveNotifications(graphics, deltaTracker, screenW, screenH);
     }

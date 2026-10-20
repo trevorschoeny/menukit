@@ -42,6 +42,22 @@ HudPanel.builder("mymod:totem-icon")
 
 Result: a 12 pixel icon sits 2 pixels left of the vanilla hotbar while `totemShown()` holds a stack, its bottom level with the bottom of the hotbar's items: the region puts it on the hotbar's bottom edge, and `.offset(0, -3)` lifts it the 3 pixels vanilla leaves below the item row. On the HUD an `OutsideRegion` is placed around the hotbar, so `.region(OutsideRegion.X)` reads as "on that side of the hotbar". Icons from several mods in one region stack upward 2 pixels apart in `.priority(n)` order, lowest at the bottom (`.gap(n)` sets that space before one icon, off the hotbar for the first): an elytra icon at `.priority(20)` with the same offset sits just above this one. A hidden one takes no room, so the next drops into its place and nothing overlaps or leaves a gap, whichever mods are installed. Use a distinct priority per icon. While vanilla draws the offhand slot beside the hotbar (the offhand holds something: on the left for a right-handed player, on the right for a left-handed one), the regions on that side start 2 pixels beyond the slot instead, so the icons never cover it.
 
+## Stack a status icon between the hearts and the hunger bar
+
+Needs: MenuKit. Call from the client entry point.
+
+```java
+HudPanel.builder("mymod:totem-status")
+        .statusColumn()
+        .priority(10)
+        .visibleWhen(() -> !totemShown().isEmpty())
+        .slot(0, 0).item(() -> totemShown())
+                .hideCount().hideDurability().scale(0.8f).done()
+        .build();
+```
+
+Result: while `totemShown()` holds a stack, the totem sits in a hotbar slot scaled to 16 x 18, centred in the 20 pixel gap between the hearts and the hunger bar, just above the XP level number (just above the hotbar in creative). Icons from several mods in the column stack upward 2 pixels apart in `.priority(n)` order, lowest nearest the number; a hidden one takes no room. While anything shows in the column, vanilla's held-item name and action-bar message move up by its height, so they never land on it. Keep `.scale(0.8f)` so every mod's icons match, and leave durability on (drop `.hideDurability()`) for items that wear, such as an elytra.
+
 ## Put a button on every container screen
 
 Needs: MenuKit. Call from the client entry point.
