@@ -73,8 +73,8 @@ import java.util.function.BooleanSupplier;
  *       after every listener registered in it, whenever registered: an unconsumed turn
  *       scrolls the region, wherever the mouse is.</li>
  * </ol>
- * A mod that takes the wheel before the screen sees it (Mouse Tweaks over a slot) never
- * lets it reach steps 2 and 3, so the region does not move.
+ * A mod that uses the turn in step 2 or in its own {@code afterMouseScroll} listener (Mouse
+ * Tweaks over any slot) answers "used", so the region does not move.
  *
  * <p>Render thread only. One container screen is open at a time; its state is reset when
  * another opens (a resize re-initialises the same screen and keeps it).
