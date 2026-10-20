@@ -33,9 +33,10 @@ import org.jspecify.annotations.Nullable;
  * <h3>The screen's own image, replaced</h3>
  * A panel that takes the place of the screen's image (the container region's two panels)
  * hides it for the rest of the pass: a blit of one of vanilla's own container textures
- * ({@code minecraft:textures/gui/container/...}) is skipped while the region says so
- * ({@link ContainerRegions#replacesImage}). Nothing else is: another mod's textures and
- * every sprite, fill and text still draw.
+ * ({@code minecraft:textures/gui/container/...}), or the texture an OptiGUI rule swaps it
+ * for ({@code OptiGuiRules.isReplacement}: OptiGUI changes the blit's texture before it is
+ * drawn), is skipped while the region says so ({@link ContainerRegions#replacesImage}).
+ * Nothing else is: another mod's textures and every sprite, fill and text still draw.
  *
  * <p>Render thread only. A background pass inside another (a screen drawing its parent's)
  * keeps its own state and puts the outer one back.
@@ -94,9 +95,10 @@ public final class ScreenBackground {
         hidingImage = ContainerRegions.replacesImage(screen);
     }
 
-    /** At a blit: whether it is vanilla's own container image, left out of this pass. */
+    /** At a blit: whether it is vanilla's own container image (or OptiGUI's swap for it), left out of this pass. */
     public static boolean hidesBlit(Identifier texture) {
-        return hidingImage && texture.getNamespace().equals(Identifier.DEFAULT_NAMESPACE)
-                && texture.getPath().startsWith(IMAGE_PATH);
+        if (!hidingImage) return false;
+        return (texture.getNamespace().equals(Identifier.DEFAULT_NAMESPACE) && texture.getPath().startsWith(IMAGE_PATH))
+                || com.trevlar.menukit.core.OptiGuiRules.isReplacement(texture);
     }
 }

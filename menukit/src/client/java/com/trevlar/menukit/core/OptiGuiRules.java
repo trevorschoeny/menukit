@@ -121,11 +121,19 @@ public final class OptiGuiRules {
     /** A set of packs' rules, as OptiGUI loads them: by container, in the order they are tried. */
     public static final class Rules {
         private final Map<@Nullable Identifier, List<Rule>> byContainer;
-        private final Set<Identifier> replaceable;
+        private final Set<Identifier> replaceable, replacements;
 
         Rules(Map<@Nullable Identifier, List<Rule>> byContainer, Set<Identifier> replaceable) {
             this.byContainer = byContainer;
             this.replaceable = replaceable;
+            java.util.HashSet<Identifier> out = new java.util.HashSet<>();
+            byContainer.values().forEach(l -> l.forEach(r -> out.add(r.replacement())));
+            this.replacements = Set.copyOf(out);
+        }
+
+        /** Whether some rule swaps a container texture for {@code texture}. */
+        public boolean replacesWith(Identifier texture) {
+            return replacements.contains(texture);
         }
 
         /** The texture OptiGUI would draw for {@code in}, or {@code null} where no rule replaces it. Pure. */
@@ -546,6 +554,15 @@ public final class OptiGuiRules {
     private static final Map<Key, Identifier> ANSWERS = new ConcurrentHashMap<>();
 
     private record Key(Identifier texture, Identifier block, String name, BlockPos pos, @Nullable Boolean large) {}
+
+    /**
+     * Whether {@code texture} is one OptiGUI may draw in place of a container screen's own
+     * image (a rule's replacement): a screen the region stands in for leaves it out with
+     * vanilla's own ({@code ScreenBackground}). Never without OptiGUI.
+     */
+    public static boolean isReplacement(Identifier texture) {
+        return LOADED && Minecraft.getInstance() != null && rules().replacesWith(texture);
+    }
 
     /** A resource reload: the rules are read again from the new packs on their next use. */
     public static void onReload() {
