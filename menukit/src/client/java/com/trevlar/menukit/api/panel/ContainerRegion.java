@@ -156,9 +156,10 @@ import java.util.function.Supplier;
  * screen, from the block that opened it; the region asks for each section's own. A section
  * that knows its container says so with {@link Builder#context}, from the block entity it
  * shows or the item it was opened from ({@link Context#of(BlockEntity)},
- * {@link Context#of(ItemStack)}). One that doesn't (the screen's own container) takes what
- * OptiGUI picked for the screen, and so does the inventory panel. Without OptiGUI, nothing
- * changes.
+ * {@link Context#of(ItemStack)}). One that doesn't is the screen's own container: it takes
+ * the block the screen was opened on (the one under the crosshair as it opened, when it
+ * holds a container the screen's size), else what OptiGUI picked for the screen, as the
+ * inventory panel does. Without OptiGUI, nothing changes.
  *
  * <h3>Titles and names</h3>
  * Title a section that is a vanilla container's with vanilla's translation key
@@ -167,8 +168,9 @@ import java.util.function.Supplier;
  * keys, and with one container on the screen the section's title goes blank with vanilla's.
  * With two or more sections shown, the player has to tell them apart, so a section whose
  * title comes out blank shows a name instead: its {@link Builder#name} (the box item's own
- * name, which packs don't blank: "Lime Shulker Box", or what the player called it), else
- * what vanilla's own English says for the title's key ("Shulker Box"). Sections that would
+ * name, which packs don't blank: "Lime Shulker Box", or what the player called it); for the
+ * screen's own container, the block it was opened on; else what vanilla's own English says
+ * for the title's key ("Shulker Box"). Sections that would
  * show the same name are numbered ("Lime Shulker Box 1", "Lime Shulker Box 2"). The first
  * section's title moves right, clear of the pack's top corner, where the pack decorates it
  * (Touched UI's brackets).
@@ -301,7 +303,9 @@ public final class ContainerRegion {
          * What the section is called while its {@link #title} comes out blank and other
          * sections show beside it, read every frame: something a pack doesn't blank and that
          * tells this container from the others, such as the box item's
-         * {@code getHoverName()}. Without one, vanilla's own English for the title's key.
+         * {@code getHoverName()}. Without one, a section with no {@link #context} (the screen's
+         * own container) is called by the block the screen was opened on, and any other by
+         * vanilla's own English for the title's key.
          */
         public Builder name(Supplier<Component> name) {
             this.name = Objects.requireNonNull(name, "name");
@@ -323,8 +327,8 @@ public final class ContainerRegion {
          * The container this section shows, read every frame, for the packs that pick a
          * container's art by its block, name and place: with OptiGUI installed, its rules are
          * evaluated against it, so a lime box's section has the lime art whatever screen it is
-         * on. Without one (or {@code null}), the section takes what OptiGUI picked for the
-         * open screen, right for the screen's own container.
+         * on. Without one (or {@code null}), the section is the screen's own container: the
+         * block the screen was opened on, else what OptiGUI picked for the open screen.
          */
         public Builder context(Supplier<@Nullable Context> context) {
             this.context = Objects.requireNonNull(context, "context");
