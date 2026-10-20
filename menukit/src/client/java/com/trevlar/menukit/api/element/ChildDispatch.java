@@ -2,8 +2,11 @@ package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.api.panel.ScreenKind;
 
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.Screen;
 
+import org.joml.Matrix3x2fc;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
@@ -49,11 +52,39 @@ public final class ChildDispatch {
 
     private ChildDispatch() {}
 
-    /** The base pass: renders every shown child. */
+    /**
+     * The base pass: renders every shown child, except one wholly outside the clip in
+     * play (7.4.0). A {@link ScrollContainer} already skipped its own children out of
+     * view; this carries the rule down to every level, so a row inside a {@code Flow}
+     * inside a scroll area is skipped too. That matters for slots: a slot element that
+     * renders places its slot, and a slot placed out of view would sit under whatever
+     * is past the clip's edge (the player's inventory, below a container region),
+     * where its library would otherwise have parked it. A child with an open popover is
+     * rendered anyway, as a {@code ScrollContainer} does, since its popover hangs from it.
+     */
     public static void render(List<? extends PanelElement> children, RenderContext ctx) {
+        GuiGraphicsExtractor g = ctx.graphics();
+        ScreenRectangle clip = g == null || g.scissorStack == null ? null : g.scissorStack.peek();
         for (PanelElement c : children) {
-            if (c.isVisible()) c.render(ctx);
+            if (!c.isVisible()) continue;
+            if (clip != null && outside(c, ctx, clip) && c.getActiveOverlayBounds(ctx.input()) == null) continue;
+            c.render(ctx);
         }
+    }
+
+    /**
+     * Whether {@code c}, at its place from the context's origin, lies wholly outside
+     * {@code clip} (screen space: the child's box goes through the pose as the scissor
+     * did). A child with no height counts as one pixel tall, so a line drawn at its
+     * place inside the clip is not skipped.
+     */
+    private static boolean outside(PanelElement c, RenderContext ctx, ScreenRectangle clip) {
+        ScreenRectangle box = new ScreenRectangle(ctx.originX() + c.getChildX(), ctx.originY() + c.getChildY(),
+                Math.max(1, c.getWidth()), Math.max(1, c.getHeight()));
+        Matrix3x2fc pose = ctx.graphics().pose();
+        if (pose != null) box = box.transformMaxBounds(pose);
+        return box.right() <= clip.left() || box.left() >= clip.right()
+                || box.bottom() <= clip.top() || box.top() >= clip.bottom();
     }
 
     /** The overlay pass: every shown child's {@code renderOverlay}, after every base render. */
