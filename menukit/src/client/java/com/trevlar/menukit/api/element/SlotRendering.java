@@ -52,6 +52,10 @@ public final class SlotRendering {
             PackLook.Look look = PackLook.slotLookAt(sx, sy);
             if (look != null) PackLook.drawSlot(g, sx, sy, look);
             else PanelRendering.renderSlotBackground(g, sx, sy);
+            // A tinted surface (a container region section in a dye's colour) tints its slot
+            // frames as it does its fill; the item drawn in the slot later keeps its own colours.
+            int tint = PackLook.tintAt(sx, sy);
+            if (tint != 0) g.fill(sx, sy, sx + size, sy + size, tint);
             return;
         }
         PanelRendering.renderPanel(g, sx, sy, size, size, PanelStyle.INSET);

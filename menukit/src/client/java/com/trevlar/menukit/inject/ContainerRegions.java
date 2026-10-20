@@ -246,7 +246,7 @@ public final class ContainerRegions {
         // Both panels are the screen's background: under everything, claiming nothing.
         panel = Panel.builder(PANEL_ID).style(PanelStyle.NONE).background()
                 .position(PanelPosition.pixel(ContainerRegions::origin))
-                .add(new Backdrop()).add(view).add(new Tints())
+                .add(new Backdrop()).add(view)
                 .build()
                 .visibleWhen(() -> state.geometry != null);
         adapter = new ScreenPanelAdapter(panel, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
@@ -890,8 +890,8 @@ public final class ContainerRegions {
     }
 
     /**
-     * How far a section's title goes down when the section is a block of its own: with the
-     * block's top {@link #TINT_TOP} above the section, its title sits 3 px inside the block,
+     * How far a section's title goes down when the section is a block of its own: with its
+     * band's top {@link #BAND_ABOVE} above the section, its title sits 3 px inside the block,
      * as vanilla's title sits 3 px inside its art's fill (fill from row 3, title at 6).
      */
     public static final int TITLE_INSET = 2;
@@ -906,9 +906,11 @@ public final class ContainerRegions {
     }
 
     /**
-     * Which look a slot frame drawn in one of the region's panels takes: in the inventory
-     * panel, the inventory half's; in the container list, the look of the section it is in
-     * (by where it is drawn), else the list's. {@code null} for any other panel.
+     * What the surface is at a point in one of the region's panels: in the inventory panel,
+     * the inventory half's look; in the container list, the look and tint of the section
+     * whose band it is in ({@link #bands}), else the list's, untinted. So a slot frame takes
+     * its section's look and colour, and text on a tinted band a colour that reads on it.
+     * {@code null} for any other panel.
      */
     public static PackLook.@Nullable SlotLooks slotLooks(Panel p) {
         if (p == inventoryPanel && inventoryPanel != null) {
@@ -919,25 +921,43 @@ public final class ContainerRegions {
         Geometry g = state.geometry;
         PackLook.Look list = listLook();
         if (g == null || state.tops.length != SECTIONS.size()) return (x, y) -> list;
-        int[] tops = state.tops, bottoms = state.bottoms;
-        double scroll = state.scroll;
-        return (x, y) -> {
-            for (int i = 0; i < tops.length; i++) {
-                int[] r = tintRect(g, tops[i], bottoms[i], scroll);
-                if (r != null && x >= r[0] && x < r[2] && y >= r[1] && y < r[3]) return drawnLook(SECTIONS.get(i).section());
+        int[][] bands = bands(g, list.frame(), state.tops, state.scroll);
+        return new PackLook.SlotLooks() {
+            @Override public PackLook.Look at(int x, int y) {
+                int i = bandAt(bands, x, y);
+                return i < 0 ? list : drawnLook(SECTIONS.get(i).section());
             }
-            return list;
+
+            @Override public int tint(int x, int y) {
+                int i = bandAt(bands, x, y);
+                return i < 0 ? 0 : drawnTint(SECTIONS.get(i).section());
+            }
         };
+    }
+
+    /** Which band holds {@code (x, y)}, or {@code -1}. */
+    private static int bandAt(int[][] bands, int x, int y) {
+        for (int i = 0; i < bands.length; i++) {
+            int[] r = bands[i];
+            if (r != null && x >= r[0] && x < r[2] && y >= r[1] && y < r[3]) return i;
+        }
+        return -1;
     }
 
     /**
      * The container list's frame, behind every section: a panel surface in the look of the
      * screen's container texture under the active resource packs (MenuKit's raised panel
-     * with vanilla's own), the scrollbar lane inside it while it scrolls. A section that
-     * stands for another texture (a shulker box in a chest's list) gets a block of its own
-     * texture's fill over its part, so a pack's purple shulker art shows as purple there.
-     * A tinted section over coloured art gets its block in greys, for the tint to colour
-     * ({@link PackLook.Tint#RECOLOUR}).
+     * with vanilla's own), the scrollbar lane inside it while it scrolls. Then each section's
+     * band ({@link #bands}), edge to edge inside the frame:
+     * <ul>
+     *   <li>a section that stands for another texture (a shulker box in a chest's list) gets
+     *       a block of its own texture's fill, so a pack's purple shulker art shows as purple
+     *       there; a tinted section over coloured art gets its block in greys, for the tint
+     *       to colour ({@link PackLook.Tint#RECOLOUR});</li>
+     *   <li>then its tint. Everything the section draws goes over it: its title and any other
+     *       text in a colour that reads on it, its slot frames tinted with it as they draw
+     *       ({@code SlotRendering}), its items in their own colours.</li>
+     * </ul>
      */
     private static final class Backdrop implements PanelElement {
         @Override public int getChildX() { return 0; }
@@ -952,71 +972,58 @@ public final class ContainerRegions {
             PackLook.Look list = listLook();
             PanelRendering.renderPanelSurface(ctx.graphics(), ctx.originX(), ctx.originY(), g.width(), g.height(), list);
             if (state.tops.length != SECTIONS.size()) return;
+            // The panel's origin is the list's top-left; the bands are from the screen's.
             int dx = ctx.originX() - g.x(), dy = ctx.originY() - g.top();
-            boolean clipped = false;
+            int[][] bands = bands(g, list.frame(), state.tops, state.scroll);
             for (int i = 0; i < SECTIONS.size(); i++) {
+                int[] r = bands[i];
+                if (r == null) continue;
                 Section s = SECTIONS.get(i).section();
-                if (!drawsBlock(s, list)) continue;
-                int[] r = tintRect(g, state.tops[i], state.bottoms[i], state.scroll);
-                if (r == null) continue;
-                if (!clipped) {
-                    ctx.graphics().enableScissor(g.x() + dx, g.viewTop() + dy, g.x() + g.width() + dx, g.viewBottom() + dy);
-                    clipped = true;
+                if (drawsBlock(s, list)) {
+                    PackLook.drawFill(ctx.graphics(), r[0] + dx, r[1] + dy, r[2] - r[0], r[3] - r[1], drawnLook(s));
                 }
-                PackLook.drawFill(ctx.graphics(), r[0] + dx, r[1] + dy, r[2] - r[0], r[3] - r[1], drawnLook(s));
+                int argb = drawnTint(s);
+                if (argb != 0) ctx.graphics().fill(r[0] + dx, r[1] + dy, r[2] + dx, r[3] + dy, argb);
             }
-            if (clipped) ctx.graphics().disableScissor();
         }
     }
 
-    /** How far a section's tint reaches past its content: to the frame's inner edge at the sides, and into the gaps. */
-    public static final int TINT_SIDE = 3, TINT_TOP = 1, TINT_BOTTOM = 1;
+    /**
+     * How far above its content a section's band starts: the rest of the {@link #GAP} above
+     * it is the band of the section above, so the grid above keeps 2 px of its own colour
+     * under it and this section's title sits inside its own.
+     */
+    public static final int BAND_ABOVE = 1;
 
     /**
-     * Where section {@code i}'s tint goes on screen this frame, {@code [x0, y0, x1, y1]}, or
-     * {@code null} while it is hidden: its place in the content, moved by the scroll, from
-     * {@link #TINT_SIDE} left of the content edge to as far right of the nine-slot width
-     * (never over the scrollbar lane), {@link #TINT_TOP} above and {@link #TINT_BOTTOM} below
-     * it, so two tinted sections a {@link #GAP} apart keep a line of the panel between them.
+     * Each section's band on screen this frame, {@code [x0, y0, x1, y1]}, or {@code null}
+     * while it is hidden or scrolled out of the frame: its block and tint go there. The bands
+     * tile the inside of the container list's frame with no gap: across, from the frame's
+     * inner edge to the other ({@code frame}, the list look's {@code [left, top, right,
+     * bottom]}; the scrollbar draws over it); down, each from {@link #BAND_ABOVE} above its
+     * section to where the next shown one's starts, the first from the frame's top and the
+     * last to its bottom. Moved by the scroll and cut at the frame's inner edges. Pure.
+     *
+     * @param tops each section's top in the content, {@code -1} while hidden, in stacking order
      */
-    public static int @Nullable [] tintRect(Geometry g, int top, int bottom, double scroll) {
-        if (top < 0) return null;
-        int x = g.x() + INSET_X, y = g.viewTop() - (int) scroll;
-        return new int[]{x - TINT_SIDE, y + top - TINT_TOP, x + CONTENT_WIDTH + TINT_SIDE, y + bottom + TINT_BOTTOM};
-    }
-
-    /**
-     * Each section's tint, over its part of the container list: after the sections drew
-     * (their titles and slot frames take the colour) and before the region's slots draw
-     * their items (which keep their own), cut at the viewport's edges like the content.
-     * Over grey art, and over coloured art drawn in greys ({@link PackLook.Tint#RECOLOUR}):
-     * the dye's colour in the pack's own shading.
-     */
-    private static final class Tints implements PanelElement {
-        @Override public int getChildX() { return 0; }
-        @Override public int getChildY() { return 0; }
-        @Override public int getWidth() { return 0; }
-        @Override public int getHeight() { return 0; }
-
-        @Override
-        public void render(RenderContext ctx) {
-            Geometry g = state.geometry;
-            if (g == null || state.tops.length != SECTIONS.size()) return;
-            // The panel's origin is the list's top-left; the rectangles are from the screen's.
-            int dx = ctx.originX() - g.x(), dy = ctx.originY() - g.top();
-            boolean clipped = false;
-            for (int i = 0; i < SECTIONS.size(); i++) {
-                int argb = drawnTint(SECTIONS.get(i).section());
-                int[] r = argb == 0 ? null : tintRect(g, state.tops[i], state.bottoms[i], state.scroll);
-                if (r == null) continue;
-                if (!clipped) {
-                    ctx.graphics().enableScissor(g.x() + dx, g.viewTop() + dy, g.x() + g.width() + dx, g.viewBottom() + dy);
-                    clipped = true;
-                }
-                ctx.graphics().fill(r[0] + dx, r[1] + dy, r[2] + dx, r[3] + dy, argb);
-            }
-            if (clipped) ctx.graphics().disableScissor();
+    public static int[][] bands(Geometry g, int[] frame, int[] tops, double scroll) {
+        int n = tops.length;
+        int[][] out = new int[n][];
+        int x0 = g.x() + frame[0], x1 = g.x() + g.width() - frame[2];
+        int innerTop = g.top() + frame[1], innerBottom = g.top() + g.height() - frame[3];
+        // The content's top on screen this frame.
+        int origin = g.viewTop() - (int) scroll;
+        boolean first = true;
+        for (int i = 0; i < n; i++) {
+            if (tops[i] < 0) continue;
+            int next = -1;
+            for (int j = i + 1; j < n && next < 0; j++) if (tops[j] >= 0) next = tops[j];
+            int y0 = first ? innerTop : Math.max(innerTop, origin + tops[i] - BAND_ABOVE);
+            int y1 = next < 0 ? innerBottom : Math.min(innerBottom, origin + next - BAND_ABOVE);
+            first = false;
+            if (y0 < y1) out[i] = new int[]{x0, y0, x1, y1};
         }
+        return out;
     }
 
     /**

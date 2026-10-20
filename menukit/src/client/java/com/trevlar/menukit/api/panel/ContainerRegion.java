@@ -123,12 +123,16 @@ import java.util.function.IntSupplier;
  *
  * <h3>A section's colour</h3>
  * {@link Builder#tint} colours the section's part of the container list: a recoloured
- * shulker box's section in its dye's colour, say. The tint is laid over the section, its
- * title and slot frames included, and under the items in its slots, from just left of the
- * content edge to just right of the nine slots (never over the scrollbar), and scrolls and
- * clips with it. None by default. A section that shows as a block of its own (tinted, or
- * in a fill unlike the list's) has its content moved down 2 px, so its title sits inside the
- * block with room above it, as vanilla's sits inside its art.
+ * shulker box's section in its dye's colour, say. The colour fills the section's band of the
+ * list edge to edge: across, from the list's frame to the frame on the other side (the frame
+ * itself keeps its own colours, and the scrollbar draws over it); down, it meets the bands of
+ * the sections above and below with no gap, and the frame's top or bottom when the section
+ * is first or last. It scrolls with the section. Its slot frames take the colour too; its
+ * title and any other text are drawn over it, never tinted, in their usual colour, or one
+ * that reads on the tinted fill where that would not; the items in its slots keep their own
+ * colours. None by default. A section that shows as a block of its own (tinted, or in a fill
+ * unlike the list's, which goes edge to edge the same way) has its content moved down 2 px,
+ * so its title sits inside the block with room above it, as vanilla's sits inside its art.
  *
  * <h3>Resource packs</h3>
  * The two panels follow the resource pack's container art, as vanilla's own screen

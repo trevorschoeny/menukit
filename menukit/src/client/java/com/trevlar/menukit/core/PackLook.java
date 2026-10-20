@@ -89,6 +89,8 @@ public final class PackLook {
 
     /** MenuKit's sprite's fill, the vanilla grey. */
     private static final int SPRITE_FILL = 0xFFC6C6C6;
+    /** MenuKit's sprite's frame: its outline and its two-pixel bevel, on every side, before the fill. */
+    private static final int[] SPRITE_FRAME = {3, 3, 3, 3};
 
     // ---------------------------------------------------------------------------------
     // Comparison switches for the review shots. Each holds the variant the spec chose by
@@ -164,12 +166,13 @@ public final class PackLook {
      *               (its rounding); {@code insetR} from the right. A top corner is drawn in that shape, so one cut
      *               from a box drawn under another (Recolourful's inventory) leaves out the art of the box above
      * @param texW the texture's width in units, {@code texH} its height (for normalising UVs)
+     * @param frame how far in from each side the frame's art ends and the fill begins, {@code [left, top, right, bottom]}
      */
     public record Cut(int x0, int x1, int top, int bottom, boolean mirror, int l, int r, int t, int b,
                       int sTop, int sBot, int fill, boolean uniform,
                       int topU, int topW, int botU, int botW, int leftV, int leftH, int rightV, int rightH,
                       int sideFrom, int sideTo, int[] sample, int slotV, boolean slotOk, boolean clean, int[] insetL, int[] insetR,
-                      int texW, int texH) {}
+                      int texW, int texH, int[] frame) {}
 
     /**
      * A surface's look: where it comes from, the cut (kept even when it falls back, for the
@@ -179,10 +182,21 @@ public final class PackLook {
      * <p>{@code inGreys} marks the look in greys, for a tinted section ({@link Tint#RECOLOUR}):
      * its {@code texture} is then the greyscale copy of the pack's texture, and its fill the
      * grey of the same lightness. {@code greyVariant} is that variant of this look
-     * ({@code null} for the variant itself).
+     * ({@code null} for the variant itself). {@code spriteFrame} is the frame's inner edge
+     * where the surface is MenuKit's sprite or a pack's override of it ({@link #frame}).
      */
     public record Look(Identifier texture, Part part, Source source, @Nullable Cut cut, int spriteFill,
-                       boolean slotSprite, boolean inGreys, @Nullable Look greyVariant) {
+                       boolean slotSprite, boolean inGreys, @Nullable Look greyVariant, int[] spriteFrame) {
+
+        /**
+         * How far in from each side of a surface in this look its frame ends,
+         * {@code [left, top, right, bottom]} in GUI pixels: where its fill starts. A block
+         * laid inside the surface (a container region section's colour) goes this far out,
+         * so it meets the frame and leaves the frame itself as it is.
+         */
+        public int[] frame() {
+            return drawsCut() ? cut.frame() : spriteFrame;
+        }
 
         /** Whether this surface draws the cut (else MenuKit's sprite, or the pack's override of it). */
         public boolean drawsCut() {
@@ -213,9 +227,9 @@ public final class PackLook {
      */
     private static Look withGrey(Look base, @Nullable Identifier greyTexture) {
         Look grey = new Look(greyTexture != null ? greyTexture : base.texture(), base.part(), base.source(), base.cut(),
-                base.spriteFill(), base.slotSprite(), true, null);
+                base.spriteFill(), base.slotSprite(), true, null, base.spriteFrame());
         return new Look(base.texture(), base.part(), base.source(), base.cut(), base.spriteFill(), base.slotSprite(),
-                false, grey);
+                false, grey, base.spriteFrame());
     }
 
     // ponytail: one cache entry per texture and part, dropped whole on a resource reload.
@@ -285,14 +299,40 @@ public final class PackLook {
     }
 
     /** {@link #mutedText} on {@code fill}, pure. */
-    static int mutedOn(int fill) {
+    public static int mutedOn(int fill) {
         if (contrast(MUTED, fill) >= MUTED_CONTRAST) return MUTED;
-        int toward = contrast(fill, TEXT) >= MUTED_CONTRAST ? TEXT : 0xFFFFFFFF;
+        return standingOut(fill, contrast(fill, TEXT) >= MUTED_CONTRAST ? TEXT : 0xFFFFFFFF, MUTED_CONTRAST);
+    }
+
+    /** How much the Panel look's text stands out from MenuKit's own fill: what text on a tinted fill keeps. */
+    private static final double TEXT_CONTRAST = contrast(TEXT, SPRITE_FILL);
+
+    /**
+     * Heading and body text {@code text} (the Panel look's dark grey) on {@code fill}, a fill
+     * a section's tint made: {@code text} itself wherever it reads ({@link #MIN_CONTRAST},
+     * as {@link #panel()} judges it), so a light tint keeps vanilla's title colour (and a
+     * pack's text shader that repaints it still does). On a fill it would sink into (a dark
+     * tint, or a light one over a dark pack), the way {@link #mutedOn} does it: the fill
+     * blended toward white until it stands out as much as the text does from MenuKit's own
+     * fill, or white where nothing short of it does. Pure.
+     */
+    public static int textOn(int text, int fill) {
+        if (contrast(text, fill) >= MIN_CONTRAST) return text;
+        return standingOut(fill, 0xFFFFFFFF, TEXT_CONTRAST);
+    }
+
+    /** {@code fill} blended toward {@code toward} until it stands out from {@code fill} by {@code target}; {@code toward} if it never does. */
+    private static int standingOut(int fill, int toward, double target) {
         for (int i = 1; i <= 100; i++) {
             int c = mix(fill, toward, i / 100.0);
-            if (contrast(c, fill) >= MUTED_CONTRAST) return c;
+            if (contrast(c, fill) >= target) return c;
         }
         return toward;
+    }
+
+    /** {@code argb} laid over the opaque {@code under}, by its own alpha: what a tint makes of a fill. */
+    public static int over(int under, int argb) {
+        return mix(under, argb, (argb >>> 24) / 255.0);
     }
 
     /** {@code a} blended toward {@code b} by {@code t}, opaque. */
@@ -326,7 +366,7 @@ public final class PackLook {
     private static Look resolve(Identifier texture, Part part) {
         // No game (MenuKit's headless checks draw panels too): MenuKit's own sprite.
         Minecraft mc = Minecraft.getInstance();
-        if (mc == null) return withGrey(new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, false, false, null), null);
+        if (mc == null) return withGrey(new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, false, false, null, SPRITE_FRAME), null);
         ResourceManager rm = mc.getResourceManager();
         boolean slotSprite = fromPack(rm.getResource(SLOT_SPRITE_FILE), VANILLA_PACK);
 
@@ -334,17 +374,19 @@ public final class PackLook {
         Optional<Resource> sprite = rm.getResource(PANEL_SPRITE_FILE);
         if (fromPack(sprite, MENUKIT_PACK)) {
             int centre = SPRITE_FILL;
+            int[] frame = SPRITE_FRAME;
             try (InputStream in = sprite.get().open(); NativeImage img = NativeImage.read(in)) {
                 centre = img.getPixel(img.getWidth() / 2, img.getHeight() / 2);
+                frame = spriteFrame(img, centre);
             } catch (Exception e) {
                 LOG.warn("Couldn't read the overridden {}: {}", PANEL_SPRITE_FILE, e.toString());
             }
-            return withGrey(new Look(texture, part, Source.OVERRIDE, null, centre, slotSprite, false, null), null);
+            return withGrey(new Look(texture, part, Source.OVERRIDE, null, centre, slotSprite, false, null, frame), null);
         }
 
         // 2. Vanilla's own texture (or none at all): MenuKit's sprite, unchanged.
         Optional<Resource> res = rm.getResource(texture);
-        if (!fromPack(res, VANILLA_PACK)) return withGrey(new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, slotSprite, false, null), null);
+        if (!fromPack(res, VANILLA_PACK)) return withGrey(new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, slotSprite, false, null, SPRITE_FRAME), null);
 
         // 3. Cut from the pack's texture, or MenuKit's sprite when it can't be cut cleanly.
         try (InputStream in = res.get().open(); NativeImage img = NativeImage.read(in)) {
@@ -353,10 +395,10 @@ public final class PackLook {
             LOG.debug("{} {} from {}: {}", texture, part, res.get().sourcePackId(), source);
             // The greyscale copy a tinted section is drawn from, made with the cut (RECOLOUR).
             Identifier grey = cut == null ? null : registerGrey(mc, texture, img);
-            return withGrey(new Look(texture, part, source, cut, SPRITE_FILL, slotSprite, false, null), grey);
+            return withGrey(new Look(texture, part, source, cut, SPRITE_FILL, slotSprite, false, null, SPRITE_FRAME), grey);
         } catch (Exception e) {
             LOG.warn("Couldn't cut a panel look from {}: {}", texture, e.toString());
-            return withGrey(new Look(texture, part, Source.FALLBACK, null, SPRITE_FILL, slotSprite, false, null), null);
+            return withGrey(new Look(texture, part, Source.FALLBACK, null, SPRITE_FILL, slotSprite, false, null, SPRITE_FRAME), null);
         }
     }
 
@@ -374,6 +416,35 @@ public final class PackLook {
             for (int x = 0; x < img.getWidth(); x++) grey.setPixel(x, y, greyOf(img.getPixel(x, y)));
         mc.getTextureManager().register(id, new DynamicTexture(() -> "MenuKit grey " + texture, grey));
         return id;
+    }
+
+    /**
+     * A pack's own {@code menukit:panel_raised}'s frame: on each side, across its middle, how
+     * far in its last pixel unlike its centre is, in the sprite's 9 px of GUI.
+     */
+    // ponytail: assumes MenuKit's nine-slice size (9 px); a pack that also replaces the .mcmeta with another size reads off.
+    private static int[] spriteFrame(NativeImage img, int centre) {
+        int w = img.getWidth(), h = img.getHeight();
+        int[] across = new int[w], down = new int[h];
+        for (int x = 0; x < w; x++) across[x] = img.getPixel(x, h / 2);
+        for (int y = 0; y < h; y++) down[y] = img.getPixel(w / 2, y);
+        int[] f = {inset(Arrays.copyOfRange(across, 0, w / 2), centre, true), inset(Arrays.copyOfRange(down, 0, h / 2), centre, true),
+                inset(Arrays.copyOfRange(across, w - w / 2, w), centre, false), inset(Arrays.copyOfRange(down, h - h / 2, h), centre, false)};
+        for (int i = 0; i < 4; i++) f[i] = Math.round(f[i] * 9f / (i % 2 == 0 ? w : h));
+        return f;
+    }
+
+    /**
+     * How deep a border profile's frame is: from its outer end to just past the last pixel
+     * unlike {@code fill}. {@code outerFirst} says which end of {@code profile} is the outside.
+     */
+    static int inset(int[] profile, int fill, boolean outerFirst) {
+        int n = profile.length;
+        for (int k = n - 1; k >= 0; k--) {
+            int i = outerFirst ? k : n - 1 - k;   // the k-th pixel in from the outside
+            if (dist(profile[i], fill) > TOL) return k + 1;
+        }
+        return 0;
     }
 
     /** Whether a resource is present and supplied by a pack other than {@code own}, its owner's. */
@@ -568,10 +639,16 @@ public final class PackLook {
             while (insetR[j] < sTop && !p.opaque(cx1 - 1 - insetR[j], firstY + j)) insetR[j]++;
         }
 
+        // The frame's inner edge on each side, from its usual profile: where the fill starts.
+        // The right and bottom profiles run from the inside out; a mirrored bottom is the top's.
+        int frameTop = inset(topM, fill, true);
+        int[] frame = {inset(leftM, fill, true), frameTop, inset(rightM, fill, false),
+                mirror ? frameTop : inset(botM, fill, false)};
+
         boolean clean = uniform && Math.min(Math.min(topRun[1], botRun[1]), Math.min(leftRun[1], rightRun[1])) >= 2;
         return new Cut(x0, x1, top, bottom, mirror, l, r, t, b, sTop, sBot, fill, uniform,
                 topRun[0], topRun[1], botRun[0], botRun[1], leftRun[0], leftRun[1], rightRun[0], rightRun[1],
-                sideFrom, sideTo, sample, slotV, slotOk, clean, insetL, insetR, p.w, p.h);
+                sideFrom, sideTo, sample, slotV, slotOk, clean, insetL, insetR, p.w, p.h, frame);
     }
 
     private static int[] rowOf(Pixels p, int y, int x, int n) {
@@ -777,10 +854,18 @@ public final class PackLook {
 
     // Which look a slot frame is drawn in
 
-    /** Which look a slot frame drawn at a screen point takes: set while a panel surface renders. */
+    /**
+     * What a panel surface is at a screen point, set while it renders: the look a slot frame
+     * drawn there takes, and the tint laid over the surface there (a container region
+     * section's colour). A slot frame takes the tint over its own art; text on a tint takes
+     * a colour that reads on it ({@link #textOn}). No tint ({@code 0}) by default.
+     */
     @FunctionalInterface
     public interface SlotLooks {
         @Nullable Look at(int x, int y);
+
+        /** The tint over the surface at {@code (x, y)}, ARGB, {@code 0} for none. */
+        default int tint(int x, int y) { return 0; }
     }
 
     private static @Nullable SlotLooks slotLooks;
@@ -804,5 +889,30 @@ public final class PackLook {
     public static @Nullable Look slotLookAt(int x, int y) {
         SlotLooks s = slotLooks;
         return s == null ? null : s.at(x, y);
+    }
+
+    /** The tint over the panel surface at {@code (x, y)} now, ARGB, {@code 0} for none or outside any surface. */
+    public static int tintAt(int x, int y) {
+        SlotLooks s = slotLooks;
+        return s == null ? 0 : s.tint(x, y);
+    }
+
+    /**
+     * The colour heading or body text {@code text} is drawn in at {@code (x, y)} now:
+     * {@code text}, or over a tint one that reads on the tinted fill ({@link #textOn}).
+     */
+    public static int textAt(int text, int x, int y) {
+        SlotLooks s = slotLooks;
+        int tint = s == null ? 0 : s.tint(x, y);
+        Look look = tint == 0 ? null : s.at(x, y);
+        return look == null ? text : textOn(text, over(look.fill(), tint));
+    }
+
+    /** The colour muted text is drawn in at {@code (x, y)} now: {@code muted}, or over a tint one that reads on it. */
+    public static int mutedAt(int muted, int x, int y) {
+        SlotLooks s = slotLooks;
+        int tint = s == null ? 0 : s.tint(x, y);
+        Look look = tint == 0 ? null : s.at(x, y);
+        return look == null ? muted : mutedOn(over(look.fill(), tint));
     }
 }
