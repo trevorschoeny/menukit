@@ -159,18 +159,21 @@ public class MK {
     }
 
     /**
-     * How far the status column reaches above its base this frame, in GUI pixels: 0
-     * while nothing in it shows. Vanilla's held-item name and action-bar message move
-     * up by this much ({@code MKHudStatusLiftMixin}), keeping the spacing vanilla gives
-     * them over the level number or the hotbar, so neither lands on the column.
+     * How far something on the HUD must move up this frame to clear the status column,
+     * in GUI pixels: by how much the column's top rises above {@code bottom}, the thing's
+     * own bottom edge, provided the column and the span {@code left..right} overlap
+     * across. 0 while nothing in the column shows, or while it stays clear. Vanilla's
+     * held-item name, action-bar message and chat move up by this
+     * ({@code MKHudStatusLiftMixin}, {@code MKChatStatusLiftMixin}), so they shift only
+     * when, and only as far as, the column reaches them.
      */
     @ApiStatus.Internal
-    public static int statusColumnLift() {
-        PanelHost.Frame frame = STATUS_FRAME.get();
-        if (frame == null || frame.reference() == null) return 0;
-        int top = frame.reference().topPos();
-        for (PanelHost.Placed p : HUD_STATUS.layout().placed()) top = Math.min(top, p.y());
-        return frame.reference().topPos() - top;
+    public static int statusColumnClearance(int bottom, int left, int right) {
+        int top = Integer.MAX_VALUE;
+        for (PanelHost.Placed p : HUD_STATUS.layout().placed()) {
+            if (p.x() < right && p.x() + p.w() > left) top = Math.min(top, p.y());
+        }
+        return top == Integer.MAX_VALUE ? 0 : Math.max(0, bottom - top);
     }
 
     /**

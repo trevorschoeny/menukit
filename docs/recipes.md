@@ -52,11 +52,11 @@ HudPanel.builder("mymod:totem-status")
         .priority(10)
         .visibleWhen(() -> !totemShown().isEmpty())
         .slot(0, 0).item(() -> totemShown())
-                .hideCount().hideDurability().scale(0.8f).done()
+                .hideCount().hideDurability().scale(HudPanel.STATUS_SCALE).done()
         .build();
 ```
 
-Result: while `totemShown()` holds a stack, the totem sits in a hotbar slot scaled to 16 x 18, centred in the 20 pixel gap between the hearts and the hunger bar, just above the XP level number (just above the hotbar in creative). Icons from several mods in the column stack upward 2 pixels apart in `.priority(n)` order, lowest nearest the number; a hidden one takes no room. While anything shows in the column, vanilla's held-item name and action-bar message move up by its height, so they never land on it. Keep `.scale(0.8f)` so every mod's icons match, and leave durability on (drop `.hideDurability()`) for items that wear, such as an elytra.
+Result: while `totemShown()` holds a stack, the totem sits in a hotbar slot scaled to 11 x 12, centred in the 20 pixel gap between the hearts and the hunger bar, resting on the XP level number, level with the hearts and armour rows (2 pixels above the hotbar in creative). Icons from several mods in the column stack upward 2 pixels apart in `.priority(n)` order, lowest nearest the number; a hidden one takes no room. While the column reaches them, vanilla's held-item name, action-bar message and the chat move up by exactly as far as it rises above their bottom edge, and back down when it no longer does, so none of them lands on it. Keep `.scale(HudPanel.STATUS_SCALE)` so every mod's icons match, and leave durability on (drop `.hideDurability()`) for items that wear, such as an elytra.
 
 ## Put a button on every container screen
 

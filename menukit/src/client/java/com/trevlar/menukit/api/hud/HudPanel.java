@@ -54,6 +54,14 @@ public class HudPanel {
     private HudPanel() {} // static API only
 
     /**
+     * The scale for a {@link SlotBuilder#scale scaled} hotbar slot in the
+     * {@link Builder#statusColumn status column} (since 7.3.0): 6/11, so the 20 x 22
+     * slot takes 11 x 12 and its item is about a heart's size. Use it rather than a
+     * number of your own, so every mod's icons in the column match.
+     */
+    public static final float STATUS_SCALE = 6f / 11f;
+
+    /**
      * Starts a HUD panel builder.
      *
      * @param name unique id for this panel
@@ -120,19 +128,21 @@ public class HudPanel {
 
         /**
          * Places the panel in the status column (since 7.3.0): the 20 px gap between
-         * the hearts and the hunger bar, centred on the hotbar, starting just above
-         * the XP level number. Panels there stack upward in {@link #priority} order
-         * (lowest nearest the number), centred, 2px apart unless {@link #gap} says
-         * otherwise, and a hidden one takes no room. Where the game mode shows no
-         * status bars (creative, spectator) the column starts just above the hotbar.
-         * It stays put at level 0, when vanilla hides the number.
+         * the hearts and the hunger bar, centred on the hotbar, from a fixed origin
+         * pinned to it: the lowest panel rests right on the XP level number, level
+         * with the hearts and armour rows. Panels there stack upward in
+         * {@link #priority} order (lowest nearest the number), centred, 2px apart
+         * unless {@link #gap} says otherwise, and a hidden one takes no room. Where the
+         * game mode shows no status bars (creative, spectator) the column starts 2px
+         * above the hotbar. It stays put at level 0, when vanilla hides the number.
          *
-         * <p>While anything in the column shows, vanilla's held-item name and its
-         * action-bar message move up by the column's height, so they keep the spacing
-         * vanilla gives them and never land on it, whichever mods put panels there.
+         * <p>While the column reaches them, vanilla's held-item name, its action-bar
+         * message and the chat move up by exactly as far as it rises above their
+         * bottom edge, and back when it doesn't, whichever mods put panels there.
          *
          * <p>Meant for small things such as a status icon in a {@link #slot hotbar
-         * slot} scaled to fit: a panel wider than 20 px overlaps the hearts and hunger.
+         * slot} scaled by {@link HudPanel#STATUS_SCALE}: a panel wider than 20 px
+         * overlaps the hearts and hunger.
          */
         public Builder statusColumn() {
             this.statusColumn = true;
@@ -500,8 +510,9 @@ public class HudPanel {
 
         /**
          * Draws the slot, item and decorations together at {@code scale} (since 7.3.0),
-         * 1 by default. The element's size follows, rounded up: at 0.8 the 20 x 22 slot
-         * takes 16 x 18, which fits the {@link Builder#statusColumn status column}.
+         * 1 by default. The element's size follows, rounded up: at
+         * {@link HudPanel#STATUS_SCALE}, the {@link Builder#statusColumn status
+         * column}'s size, the 20 x 22 slot takes 11 x 12.
          *
          * @throws IllegalArgumentException unless {@code scale} is above 0
          */
