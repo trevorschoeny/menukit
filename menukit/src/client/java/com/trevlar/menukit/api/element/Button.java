@@ -3,9 +3,7 @@ package com.trevlar.menukit.api.element;
 import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.core.MKRenderPipelines;
 import com.trevlar.menukit.api.panel.Panel;
-import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.core.PressedTracker;
-import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.VanillaLook;
 import net.minecraft.client.Minecraft;
@@ -206,22 +204,16 @@ public class Button extends AbstractPanelElement {
      */
     protected void renderBackground(RenderContext ctx, int sx, int sy, Look look) {
         int w = getWidth(), h = getHeight();
-        // Vanilla's button in the Default look, and in the Panel look where a pack restyled it (spec part 10).
-        if (ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON) == ScreenKind.DEFAULT) {
+        // Vanilla's button in the Default look.
+        if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.button(ctx.graphics(), sx, sy, w, h, !look.disabled(), look.hovered() || look.pressed());
             if (look.pressed()) VanillaLook.pressedOverlay(ctx.graphics(), sx, sy, w, h);
             return;
         }
-        if (look.disabled()) {
-            PanelRendering.renderPanel(ctx.graphics(), sx, sy, w, h, PanelStyle.DARK);
-        } else if (look.pressed()) {
-            PanelRendering.renderPanel(ctx.graphics(), sx, sy, w, h, PanelStyle.INSET);
-        } else {
-            PanelRendering.renderControl(ctx.graphics(), sx, sy, w, h, PanelStyle.RAISED);
-            if (look.hovered()) {
-                ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1, ElementConstants.HOVER_OVERLAY);
-            }
-        }
+        // The Panel look: MenuKit's control art, or vanilla's button where a pack restyled it,
+        // every state from the normal state's source (spec parts 10 and 12). Held down, it
+        // shows pressed and no hover.
+        ControlLook.drawRaised(ctx.graphics(), sx, sy, w, h, !look.disabled(), look.hovered() && !look.pressed(), look.pressed());
     }
 
     /**
