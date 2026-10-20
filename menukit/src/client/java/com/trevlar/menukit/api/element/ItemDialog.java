@@ -802,7 +802,7 @@ final class ItemDialog {
             List<ItemStack> shown = shown();
             if (shown.isEmpty()) {
                 g.text(Minecraft.getInstance().font, "No items match", gx + 2, gy + 5,
-                        ctx.kind().textColor(TextRole.MUTED), ctx.kind().textShadow());
+                        textColor(ctx, TextRole.MUTED), ctx.kind().textShadow());
                 return;
             }
             // Hover only where the grid shows: the scroll area clips it.
@@ -975,10 +975,10 @@ final class ItemDialog {
                 EnchantChoice c = r.choice();
                 if (c == null) {
                     g.text(font, fit(r.heading(), width - TEXT_PAD, font), x + TEXT_PAD, textY,
-                            kind.textColor(TextRole.MUTED), kind.textShadow());
+                            textColor(ctx, TextRole.MUTED), kind.textShadow());
                     continue;
                 }
-                int color = kind.textColor(c.blocked() ? TextRole.DISABLED : TextRole.BODY);
+                int color = c.blocked() ? kind.textColor(TextRole.DISABLED) : textColor(ctx, TextRole.BODY);
                 int nameRight = nameRight(r.applied(), font);
                 g.text(font, fit(c.name(), nameRight - TEXT_PAD, font), x + TEXT_PAD, textY, color, kind.textShadow());
                 if (mouse && ctx.mouseY() >= ry && ctx.mouseY() < ry + ENCHANT_ROW && ctx.mouseX() >= x + TEXT_PAD
@@ -1059,7 +1059,7 @@ final class ItemDialog {
         } else if (!enabled) {
             PanelRendering.renderPanel(g, x, y, CONTROL, CONTROL, PanelStyle.DARK);
         } else {
-            PanelRendering.renderPanel(g, x, y, CONTROL, CONTROL, PanelStyle.RAISED);
+            PanelRendering.renderControl(g, x, y, CONTROL, CONTROL, PanelStyle.RAISED);
             if (hovered) g.fill(x + 1, y + 1, x + CONTROL - 1, y + CONTROL - 1, ElementConstants.HOVER_OVERLAY);
         }
         int color = enabled ? ElementConstants.TEXT_LIGHT : kind.textColor(TextRole.DISABLED);

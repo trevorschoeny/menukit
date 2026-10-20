@@ -6,15 +6,12 @@ import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.inject.ContainerRegions;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-
-import net.minecraft.world.item.DyeColor;
-
-import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
-import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 /**
  * The container region (7.4.0): on a container screen, the player's inventory never
@@ -26,7 +23,9 @@ import java.util.function.IntSupplier;
  *
  * <pre>{@code
  * ContainerRegion.section("mymod:opened-shulker")
- *         .content(shulkerGrid)            // a title and SlotKit's slot elements, say
+ *         .title(() -> Component.translatable("container.shulkerBox"))
+ *         .name(() -> session.box().getHoverName())   // "Lime Shulker Box", or the player's name for it
+ *         .content(shulkerGrid)            // SlotKit's slot elements, say
  *         .on(ContainerScreen.class)
  *         .order(10)                       // below the chest's own section (order 0)
  *         .visibleWhen(() -> session.isOpen())
@@ -109,10 +108,11 @@ import java.util.function.IntSupplier;
  * </ul>
  *
  * <h3>A section</h3>
- * Its {@link Builder#content} is placed at the region's content edge, where vanilla's
- * grid frame is: an element at {@code (0, 0)} with a title above a nine-wide grid lines
- * up with vanilla's own chest. A section draws its own title and slot frames. Hidden
- * sections take no room. The screen's own container is a section too: whoever puts the
+ * Its {@link Builder#title} is drawn where vanilla draws a container's, and its
+ * {@link Builder#content} below it, at the region's content edge, where vanilla's grid
+ * frame is: a nine-wide grid at {@code (0, 0)} lines up with vanilla's own chest. Without a
+ * title the content starts at the top and draws whatever it likes there. A section draws
+ * its own slot frames. Hidden sections take no room. The screen's own container is a section too: whoever puts the
  * region on a screen presents that screen's grid in it (SlotKit's
  * {@code SlotElement.slot(Address)}), since what is behind the container list is covered.
  *
@@ -121,33 +121,33 @@ import java.util.function.IntSupplier;
  * for a slot group that is not on the open menu, or whose slots are all hidden, hides
  * itself, so a section of such a group needs no condition of its own.
  *
- * <h3>A section's colour</h3>
- * {@link Builder#tint} colours the section's part of the container list: a recoloured
- * shulker box's section in its dye's colour, say. The colour fills the section's band of the
- * list edge to edge: across, from the list's frame to the frame on the other side (the frame
- * itself keeps its own colours, and the scrollbar draws over it); down, it meets the bands of
- * the sections above and below with no gap, and the frame's top or bottom when the section
- * is first or last. It scrolls with the section. Its slot frames take the colour too; its
- * title and any other text are drawn over it, never tinted, in their usual colour, or one
- * that reads on the tinted fill where that would not; the items in its slots keep their own
- * colours. None by default. A section that shows as a block of its own (tinted, or in a fill
- * unlike the list's, which goes edge to edge the same way) has its content moved down 2 px,
- * so its title sits inside the block with room above it, as vanilla's sits inside its art.
- *
  * <h3>Resource packs</h3>
  * The two panels follow the resource pack's container art, as vanilla's own screen
  * would under it: the container list takes the look of the screen's container texture,
  * the inventory panel the inventory half of it. A section names the container it stands
  * for with {@link Builder#texture} (vanilla's chest by default): its slot frames take that
  * texture's slots, and where it differs from the list's (a shulker box in a chest's list)
- * its part of the list takes that texture's fill. Over art the pack coloured, a tinted
- * section is drawn from a greyscale copy of it and tinted, so it takes the tint's colour in
- * the pack's own shading.
+ * its part of the list takes that texture's fill, edge to edge: across, from the list's
+ * frame to the frame on the other side (the frame keeps its own art, and the scrollbar
+ * draws over it); down, meeting the parts of the sections above and below with no gap, and
+ * the frame's top or bottom when it is first or last. It scrolls with the section. Such a
+ * section, a block of its own, has its content moved down 2 px, so its title sits inside
+ * the block as vanilla's sits inside its art. MenuKit adds no colour of its own: a
+ * section's colour is the pack's. Text on the list keeps vanilla's colours wherever they
+ * read on the pack's fill, and takes one made from the fill where they would not.
  *
- * <p>Title a section that is a vanilla container's with vanilla's translation key
+ * <h3>Titles and names</h3>
+ * Title a section that is a vanilla container's with vanilla's translation key
  * ({@code Component.translatable("container.shulkerBox")}, or the screen's own title,
  * which is one) rather than a literal: packs whose art covers the title strip blank those
- * keys, and the section's title then goes with vanilla's.
+ * keys, and with one container on the screen the section's title goes blank with vanilla's.
+ * With two or more sections shown, the player has to tell them apart, so a section whose
+ * title comes out blank shows a name instead: its {@link Builder#name} (the box item's own
+ * name, which packs don't blank: "Lime Shulker Box", or what the player called it), else
+ * what vanilla's own English says for the title's key ("Shulker Box"). Sections that would
+ * show the same name are numbered ("Lime Shulker Box 1", "Lime Shulker Box 2"). The first
+ * section's title moves right, clear of the pack's top corner, where the pack decorates it
+ * (Touched UI's brackets).
  *
  * <p>Declare from your client initializer: sections freeze with every other declaration.
  */
@@ -176,18 +176,6 @@ public final class ContainerRegion {
     /** Vanilla's shulker box texture: for a section that shows a shulker box. */
     public static final Identifier SHULKER_BOX = PackLook.SHULKER_BOX;
 
-    /** How opaque a dye's tint is ({@link #dyeTint}): enough to read as the dye over the panel and its slot frames. */
-    public static final int DYE_TINT_ALPHA = 0x70;
-
-    /**
-     * The tint a section of a box dyed {@code dye} gets ({@link Builder#tint(DyeColor)}): the
-     * dye's colour at {@link #DYE_TINT_ALPHA}, or none ({@code 0}) for {@code null}, an
-     * undyed box. For a {@link Builder#tint(IntSupplier)} that follows the box shown.
-     */
-    public static int dyeTint(@Nullable DyeColor dye) {
-        return dye == null ? 0 : (DYE_TINT_ALPHA << 24) | (dye.getTextureDiffuseColor() & 0xFFFFFF);
-    }
-
     /** Starts a section, its id namespaced and unique ({@code "mymod:opened-shulker"}). */
     public static Builder section(String id) {
         return new Builder(id);
@@ -201,8 +189,8 @@ public final class ContainerRegion {
         private boolean targeted = false;
         private int order = 0;
         private BooleanSupplier visibleWhen = () -> true;
-        private IntSupplier tint = () -> 0;
         private Identifier texture = CHEST;
+        private @org.jspecify.annotations.Nullable Supplier<Component> title, name;
 
         private Builder(String id) {
             this.id = Objects.requireNonNull(id, "id");
@@ -243,22 +231,25 @@ public final class ContainerRegion {
             return this;
         }
 
-        /** A fixed tint over the section, ARGB (its alpha is how strong it is); {@code 0} for none, the default. */
-        public Builder tint(int argb) {
-            return tint(() -> argb);
-        }
-
-        /** The section in a dye's colour ({@link #dyeTint}); {@code null} for none. */
-        public Builder tint(@Nullable DyeColor dye) {
-            return tint(dyeTint(dye));
+        /**
+         * The section's title, read every frame, drawn where vanilla draws a container's
+         * (1 px in, 11 px above the content). Vanilla's key for a vanilla container
+         * ({@code Component.translatable("container.shulkerBox")}), so a pack that blanks
+         * vanilla's titles blanks it too (see "Titles and names").
+         */
+        public Builder title(Supplier<Component> title) {
+            this.title = Objects.requireNonNull(title, "title");
+            return this;
         }
 
         /**
-         * A tint read every frame, ARGB, {@code 0} for none: for a section that shows
-         * whichever box is open, {@code tint(() -> ContainerRegion.dyeTint(session.color()))}.
+         * What the section is called while its {@link #title} comes out blank and other
+         * sections show beside it, read every frame: something a pack doesn't blank and that
+         * tells this container from the others, such as the box item's
+         * {@code getHoverName()}. Without one, vanilla's own English for the title's key.
          */
-        public Builder tint(IntSupplier argb) {
-            this.tint = Objects.requireNonNull(argb, "argb");
+        public Builder name(Supplier<Component> name) {
+            this.name = Objects.requireNonNull(name, "name");
             return this;
         }
 
@@ -282,7 +273,7 @@ public final class ContainerRegion {
         public void declare() {
             Declarations.requireOpen("ContainerRegion.section(" + id + ")");
             if (content == null) throw new IllegalStateException("ContainerRegion section '" + id + "': content(...) is required");
-            ContainerRegions.declare(new ContainerRegions.Section(id, content, matcher, order, visibleWhen, tint, texture));
+            ContainerRegions.declare(new ContainerRegions.Section(id, content, matcher, order, visibleWhen, texture, title, name));
         }
     }
 }
