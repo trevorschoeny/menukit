@@ -57,8 +57,11 @@ import java.util.function.Predicate;
  *       reads as off on every pack (a dark one goes near black, as vanilla's own disabled
  *       button is), where fading would leave a light pack's button barely changed and let what
  *       is under an open list show through it.</li>
- *   <li><b>Pressed</b>: MenuKit's pressed look on the resting or hovered sprite
- *       ({@link VanillaLook#pressedOverlay}), as the Default look presses vanilla's button.</li>
+ *   <li><b>Pressed</b>: MenuKit's one pressed transform ({@link VanillaLook#pressedOverlay})
+ *       on the resting or hovered face, as the Default look presses vanilla's button: an
+ *       inverted bevel in translucent black and white, and a wash darkening a light face and
+ *       lightening a dark one, judged by {@link #faceLuma} of the face it lands on. A toggle
+ *       that is on and disabled is the disabled face pressed, so on and off stay apart.</li>
  * </ul>
  *
  * <h3>The mapping</h3>
@@ -140,6 +143,7 @@ public final class ControlLook {
     /** A resource reload: every control is decided again from what the new packs supply. */
     static void onReload() {
         ART.clear();
+        LUMA.clear();
     }
 
     /**
@@ -208,21 +212,67 @@ public final class ControlLook {
 
     // Drawing: the one path every raised control takes in the Panel look
 
+    // ponytail: one luma per sprite, dropped on a resource reload with ART.
+    private static final Map<Identifier, Integer> LUMA = new ConcurrentHashMap<>();
+
+    /**
+     * A sprite's face luma, 0 to 255: the luma of its centre pixel, the fill a nine-sliced
+     * sprite stretches over most of a control (as {@link PackLook} reads a sprite's fill). An
+     * average over the whole sprite would let a small sprite's frame outweigh its face. Which
+     * way the pressed wash goes on it ({@link VanillaLook#DARK_FACE}). No game, or no such
+     * sprite: 255, a light face, darkened as MenuKit always darkened a press.
+     */
+    public static int faceLuma(Identifier sprite) {
+        return LUMA.computeIfAbsent(sprite, ControlLook::readLuma);
+    }
+
+    private static int readLuma(Identifier sprite) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null) return 255;
+        var res = mc.getResourceManager().getResource(file(sprite));
+        if (res.isEmpty()) return 255;
+        try (java.io.InputStream in = res.get().open();
+             com.mojang.blaze3d.platform.NativeImage img = com.mojang.blaze3d.platform.NativeImage.read(in)) {
+            int p = img.getPixel(img.getWidth() / 2, img.getHeight() / 2);
+            return (int) Math.round(0.2126 * ((p >> 16) & 0xFF) + 0.7152 * ((p >> 8) & 0xFF) + 0.0722 * (p & 0xFF));
+        } catch (java.io.IOException e) {
+            return 255;
+        }
+    }
+
+    /** The luma of the raised control's face in {@code state}: its sprite's, or as derived (see the class doc). */
+    static int faceLuma(State state) {
+        @Nullable Identifier[] sprites = art(Control.BUTTON).sprites();
+        if (sprites[state.ordinal()] != null) return faceLuma(sprites[state.ordinal()]);
+        int normal = faceLuma(sprites[State.NORMAL.ordinal()]);
+        return switch (state) {
+            case DISABLED -> normal * (DISABLED_TINT & 0xFF) / 255;
+            case HIGHLIGHTED -> normal + (255 - normal) * (HOVER_WASH >>> 24) / 255;
+            default -> normal;
+        };
+    }
+
     /**
      * A raised control's background in the Panel look, in its state: disabled wins; then
      * pressed (the pressed sprite, washed while hovered; or derived, MenuKit's pressed look on
-     * the resting or hovered sprite); then hovered; else resting. Buttons, toggles (on is
+     * the resting or hovered sprite); then hovered; else resting. Disabled and pressed (a
+     * toggle on and disabled) is the disabled face pressed. Buttons, toggles (on is
      * pressed), a dropdown's trigger, the colour field and the item dialog's row controls.
      */
     public static void drawRaised(GuiGraphicsExtractor g, int x, int y, int w, int h,
                                   boolean enabled, boolean hovered, boolean pressed) {
         if (w <= 0 || h <= 0) return;
-        if (!enabled) { draw(g, x, y, w, h, State.DISABLED); return; }
+        if (!enabled) {
+            draw(g, x, y, w, h, State.DISABLED);
+            if (pressed) VanillaLook.pressedOverlay(g, x, y, w, h, faceLuma(State.DISABLED));
+            return;
+        }
         if (!pressed) { draw(g, x, y, w, h, hovered ? State.HIGHLIGHTED : State.NORMAL); return; }
         Identifier sprite = art(Control.BUTTON).sprites()[State.PRESSED.ordinal()];
         if (sprite == null) {
-            draw(g, x, y, w, h, hovered ? State.HIGHLIGHTED : State.NORMAL);
-            VanillaLook.pressedOverlay(g, x, y, w, h);
+            State under = hovered ? State.HIGHLIGHTED : State.NORMAL;
+            draw(g, x, y, w, h, under);
+            VanillaLook.pressedOverlay(g, x, y, w, h, faceLuma(under));
             return;
         }
         g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, y, w, h);
@@ -246,7 +296,7 @@ public final class ControlLook {
             }
             default -> {   // PRESSED
                 g.blitSprite(RenderPipelines.GUI_TEXTURED, normal, x, y, w, h);
-                VanillaLook.pressedOverlay(g, x, y, w, h);
+                VanillaLook.pressedOverlay(g, x, y, w, h, faceLuma(State.NORMAL));
             }
         }
     }

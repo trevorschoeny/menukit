@@ -334,7 +334,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         ScreenKind kind = ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON);
         if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.button(g, tx, ty, width, h, !disabled, hovered && !open);
-            if (open) VanillaLook.pressedOverlay(g, tx, ty, width, h);
+            if (open) VanillaLook.pressedOverlay(g, tx, ty, width, h, false);   // over the resting sprite
         } else {
             ControlLook.drawRaised(g, tx, ty, width, h, !disabled, hovered && !open, open && kind == ScreenKind.DEFAULT);
         }
