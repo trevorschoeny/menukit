@@ -89,7 +89,7 @@ public final class SlotScreenDispatcher {
     }
 
     /** Whether one of the screen's widgets (its children, every mod's) is under the point. */
-    private static boolean widgetAt(AbstractContainerScreen<?> screen, double mouseX, double mouseY) {
+    static boolean widgetAt(AbstractContainerScreen<?> screen, double mouseX, double mouseY) {
         for (var child : screen.children()) {
             if (child.isMouseOver(mouseX, mouseY)) return true;
         }

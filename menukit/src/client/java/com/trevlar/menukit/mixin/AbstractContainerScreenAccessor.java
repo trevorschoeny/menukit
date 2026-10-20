@@ -79,6 +79,18 @@ public interface AbstractContainerScreenAccessor {
     @Accessor("hoveredSlot")
     Slot mk$getHoveredSlot();
 
+    /** Set for the length of a background panel's slot draw, then put back ({@code PresentedSlots}). */
+    @Accessor("hoveredSlot")
+    void mk$setHoveredSlot(Slot slot);
+
+    /**
+     * Vanilla's own slot lookup, MenuKit's claim and every mod's hook on it included: the
+     * hovered slot for a background panel's slots, drawn before vanilla works it out
+     * ({@code PresentedSlots}).
+     */
+    @Invoker("getHoveredSlot")
+    Slot mk$findHoveredSlot(double mouseX, double mouseY);
+
     /** Vanilla's private hovered-slot back highlight, re-issued by {@code ContainerScreenLayers}. */
     @Invoker("extractSlotHighlightBack")
     void mk$extractSlotHighlightBack(GuiGraphicsExtractor graphics);

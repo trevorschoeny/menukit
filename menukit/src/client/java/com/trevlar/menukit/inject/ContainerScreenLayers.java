@@ -33,8 +33,8 @@ import java.util.List;
  *
  * <table>
  *   <tr><th>#</th><th>Layer</th><th>Drawn by</th></tr>
- *   <tr><td>0</td><td>screen background: the dim, then <b>background panels</b> (7.4.0) where the container texture goes, then the texture unless a background panel replaces it</td><td>vanilla ({@code extractBackground}, an earlier stratum); MenuKit ({@link ScreenBackground}) at its base method's return</td></tr>
- *   <tr><td>1</td><td><b>slots no panel shows</b>, and background panels' slots: highlight, item, count, durability</td><td>vanilla ({@code extractSlots}; the slots panels show are left out)</td></tr>
+ *   <tr><td>0</td><td>screen background: the dim, then <b>background panels</b> (7.4.0) where the container texture goes, <b>each followed by the slots it shows</b>, then the texture unless a background panel replaces it</td><td>vanilla ({@code extractBackground}, an earlier stratum); MenuKit ({@link ScreenBackground}) at its base method's return, each slot through the screen's own {@code extractSlot}</td></tr>
+ *   <tr><td>1</td><td><b>slots no panel shows</b>: highlight, item, count, durability</td><td>vanilla ({@code extractSlots}; the slots panels show are left out)</td></tr>
  *   <tr><td>2</td><td><b>flow panels</b>, then <b>popover panels</b> of every host, <b>each followed by the slots it shows</b></td><td>MenuKit: {@link #aboveSlots} (or {@link #beforeSlot}, below); each slot through the screen's own {@code extractSlot}</td></tr>
  *   <tr><td>3</td><td>created slots no panel shows (a slot library that does not report its slots)</td><td>vanilla ({@code extractSlots}, after the first such slot)</td></tr>
  *   <tr><td>4</td><td>modal dim, <b>overlay panels</b> of every host, each followed by its slots</td><td>MenuKit: {@link #aboveSlots}</td></tr>
@@ -185,16 +185,18 @@ public final class ContainerScreenLayers {
      * this frame is left out; its panel draws it ({@link PresentedSlots#drawAfter}).
      */
     public static boolean drawsInVanillaPass(Slot slot) {
-        return !PresentedSlots.isPresented(slot);
+        // A background panel's slot drew already, right after its panel (7.4.0).
+        return !PresentedSlots.isPresented(slot) && !PresentedSlots.placedBelow(slot);
     }
 
     /**
      * Vanilla's back and front hover highlights around its slot pass: drawn there
-     * unless the hovered slot is one a panel shows, which gets them around its own
-     * draw, after its panel.
+     * unless the hovered slot is one a panel shows (a background panel's included),
+     * which gets them around its own draw, after its panel.
      */
     public static boolean highlightsInVanillaPass(AbstractContainerScreen<?> screen) {
-        return !PresentedSlots.isPresented(((AbstractContainerScreenAccessor) screen).mk$getHoveredSlot());
+        Slot hovered = ((AbstractContainerScreenAccessor) screen).mk$getHoveredSlot();
+        return !PresentedSlots.isPresented(hovered) && !PresentedSlots.placedBelow(hovered);
     }
 
     /**
@@ -220,7 +222,8 @@ public final class ContainerScreenLayers {
             // it again on top. (Runs translated, like vanilla's own call.) A presented
             // hovered slot had its highlights with its panel.
             Slot hovered = acc.mk$getHoveredSlot();
-            if (hovered != null && SlotScreenDispatcher.fireIsCreated(hovered) && !PresentedSlots.isPresented(hovered)) {
+            if (hovered != null && SlotScreenDispatcher.fireIsCreated(hovered) && !PresentedSlots.isPresented(hovered)
+                    && !PresentedSlots.placedBelow(hovered)) {
                 acc.mk$extractSlotHighlightBack(graphics);
             }
         }

@@ -48,7 +48,10 @@ import java.util.function.BooleanSupplier;
  * {@code api.panel.ContainerRegion}). On a container screen it makes two panels: the
  * <b>container list</b>, one panel with its own frame holding every section any mod
  * declares in one {@link ScrollContainer}, and below it, {@link #PANEL_GAP} apart, the
- * <b>inventory panel</b>, its own frame around the player's inventory, which never moves.
+ * <b>inventory panel</b>, its own frame around the player's inventory, which never scrolls.
+ * The list grows first and scrolls only when there is no room left: its top stays at
+ * vanilla's, and it pushes the inventory panel down to the screen's bottom margin, then
+ * grows up to the top margin ({@link #layout}).
  *
  * <h3>Built from what is there</h3>
  * Both panels are <b>background panels</b> ({@code Panel.Builder.background()}, 7.4.0): they
@@ -59,8 +62,8 @@ import java.util.function.BooleanSupplier;
  * region is up, vanilla's own image ({@link #replacesImage}) and title ({@link #ownsTitle})
  * are left out: the panels and the sections' own titles are in their place.
  * <ul>
- *   <li><b>The container list</b> holds every section; its slots draw in vanilla's slot
- *       pass, over it, clipped to its viewport. Its scrollbar is inside its frame, and
+ *   <li><b>The container list</b> holds every section; its slots draw right after it, in
+ *       the background pass, clipped to its viewport, so other mods' widgets cover them. Its scrollbar is inside its frame, and
  *       scrolled content clips at the frame's own bottom edge.</li>
  *   <li><b>The inventory panel</b> is a frame and a slot frame under each of the player's
  *       inventory slots, where vanilla drew them; vanilla's own inventory slots and
@@ -80,9 +83,9 @@ import java.util.function.BooleanSupplier;
  * panels: MenuKit's own menu-frame panels, other mods' buttons by the screen's edges,
  * a recipe viewer keeping clear of it, and vanilla's outside-click check, so a click in
  * the gap with an item held stays inside the screen and drops nothing. Moving the
- * screen's origin would move everything vanilla placed from it; the player's inventory
- * slots and both labels are moved back by as much, so on screen nothing vanilla placed
- * moves. Before the screen initialises again (a resize), the bounds go back to vanilla's,
+ * screen's origin would move everything vanilla placed from it; the title is moved back by
+ * as much, and the player's inventory slots and "Inventory" label by as much less the
+ * distance the inventory panel went down, so they go with it. Before the screen initialises again (a resize), the bounds go back to vanilla's,
  * so vanilla centres its own image as always.
  *
  * <h3>Anchors</h3>
@@ -116,8 +119,10 @@ public final class ContainerRegions {
 
     // Layout, in GUI pixels. The container list's numbers are from its own top-left.
 
-    /** Room left above the container list at the screen's top. */
+    /** Room left above the container list at the screen's top, once it has grown up to it. */
     public static final int TOP_MARGIN = 4;
+    /** Room left below the inventory panel at the screen's bottom, once the list has pushed it down to it. */
+    public static final int BOTTOM_MARGIN = 4;
     /** From the list's left edge to its content: vanilla's grid frame (slot x 8, frame x 7). */
     public static final int INSET_X = 7;
     /** From the list's top edge to the viewport's: its frame's top border. */
@@ -295,39 +300,62 @@ public final class ContainerRegions {
     }
 
     /**
-     * Grow first, then scroll, from the screen's own bounds as vanilla laid them out: the
-     * inventory panel stays where vanilla put the inventory part; the container list sits
-     * {@link #PANEL_GAP} above it, as tall as its content, up to the screen's top margin;
-     * never shorter than the screen's own container part (from vanilla's {@code topPos}
-     * down), even when that leaves no margin (a tiny window), in which case it scrolls.
+     * Grow first, then scroll (Trev, 2026-10-20, after round 3), from the screen's own
+     * bounds as vanilla laid them out. The container list starts as the screen's own
+     * container part, its top at vanilla's {@code topPos}, and grows with its content:
+     * <ol>
+     *   <li>first <b>downward</b>: its top stays put and the inventory panel moves down
+     *       below it, {@link #PANEL_GAP} apart, until the inventory panel's bottom is
+     *       {@link #BOTTOM_MARGIN} from the screen's;</li>
+     *   <li>then <b>upward</b>: its top moves up into the free height above, to
+     *       {@link #TOP_MARGIN};</li>
+     *   <li>only then does it <b>scroll</b>.</li>
+     * </ol>
+     * Never shorter than the screen's own container part, and neither panel ever moves the
+     * other way from where vanilla put it: on a window with no room (a tiny one) the list
+     * keeps vanilla's height and scrolls.
      *
      * @param vanilla         the screen's bounds as vanilla computed them
      * @param inventoryLabelY vanilla's "Inventory" label, from vanilla's {@code topPos}
      * @param content         the content's height
+     * @param screenHeight    the screen's height, for the room below the inventory panel
      */
-    public static Geometry layout(Reference vanilla, int inventoryLabelY, int content) {
+    public static Geometry layout(Reference vanilla, int inventoryLabelY, int content, int screenHeight) {
         int left = vanilla.leftPos(), imageWidth = vanilla.imageWidth();
         int imageBottom = vanilla.topPos() + vanilla.imageHeight();
-        int inventoryTop = vanilla.topPos() + inventoryLabelY - INVENTORY_LABEL_TOP;
+        int vanillaInventoryTop = vanilla.topPos() + inventoryLabelY - INVENTORY_LABEL_TOP;
+        int ownPart = vanillaInventoryTop - PANEL_GAP - vanilla.topPos();
+        // The room each way, never negative: the inventory down to the bottom margin, the
+        // list's top up to the top margin.
+        int roomBelow = Math.max(0, screenHeight - BOTTOM_MARGIN - imageBottom);
+        int roomAbove = Math.max(0, vanilla.topPos() - TOP_MARGIN);
+        int grow = Math.max(0, Math.min(VIEW_TOP + content + VIEW_BOTTOM - ownPart, roomBelow + roomAbove));
+        int down = Math.min(grow, roomBelow);   // the inventory panel moves down first
+        int up = grow - down;                   // then the list's top moves up
+        int height = ownPart + grow;
+        int top = vanilla.topPos() - up;
+        int inventoryTop = vanillaInventoryTop + down;
         int bottom = inventoryTop - PANEL_GAP;
-        int ownPart = bottom - vanilla.topPos();
-        int height = Math.max(ownPart, Math.min(VIEW_TOP + content + VIEW_BOTTOM, bottom - TOP_MARGIN));
         int viewHeight = height - VIEW_TOP - VIEW_BOTTOM;
         boolean scrollable = content > viewHeight;
         int width = imageWidth + (scrollable ? LANE : 0);
-        int top = bottom - height;
+        int inventoryBottom = imageBottom + down;
         return new Geometry(left, top, width, height, bottom, top + VIEW_TOP, viewHeight, content, scrollable,
-                new Reference(left, inventoryTop, imageWidth, imageBottom - inventoryTop),
-                new Reference(left, top, Math.max(width, imageWidth), imageBottom - top));
+                new Reference(left, inventoryTop, imageWidth, inventoryBottom - inventoryTop),
+                new Reference(left, top, Math.max(width, imageWidth), inventoryBottom - top));
     }
 
     /**
-     * How far vanilla's own placements (the inventory's slots, the labels) move when the
-     * screen's origin goes from {@code vanilla}'s to {@code bounds}'s: back by as much, so
-     * on screen they stay where vanilla put them. {@code [dx, dy]}.
+     * How far vanilla's own placements move, from the screen's origin, when it goes from
+     * {@code vanilla}'s to {@code bounds}'s: back by as much as the origin moved, so on screen
+     * the title stays where vanilla put it ({@code [dx, dy]}); the inventory's slots and its
+     * label also go down with the inventory panel, by as much as the bounds' bottom (the
+     * panel's) moved down from vanilla's ({@code inventoryDy}). {@code [dx, dy, inventoryDy]}.
      */
     public static int[] counterShift(Reference vanilla, Reference bounds) {
-        return new int[]{vanilla.leftPos() - bounds.leftPos(), vanilla.topPos() - bounds.topPos()};
+        int dy = vanilla.topPos() - bounds.topPos();
+        int down = (bounds.topPos() + bounds.imageHeight()) - (vanilla.topPos() + vanilla.imageHeight());
+        return new int[]{vanilla.leftPos() - bounds.leftPos(), dy, dy + down};
     }
 
     /**
@@ -378,10 +406,12 @@ public final class ContainerRegions {
         /** The screen's own bounds and "Inventory" label as vanilla laid them out at its last init. */
         @Nullable Reference vanilla;
         int vanillaInventoryLabelY;
+        /** The screen's height at its last init: the room the region can grow into. */
+        int screenHeight;
         /** The union written as the screen's bounds, or {@code null} while they are vanilla's. */
         @Nullable Reference applied;
-        /** How far vanilla's own placements are moved now ({@link #counterShift}). */
-        int shiftX, shiftY;
+        /** How far vanilla's own placements are moved now ({@link #counterShift}): the title, and the inventory. */
+        int shiftX, shiftY, inventoryShiftY;
         /** Each section's top and bottom in the content last frame, -1 while hidden. */
         int[] tops = new int[0], bottoms = new int[0];
         /** Where each slot the region has shown sits in the content: its cell's top. */
@@ -415,6 +445,7 @@ public final class ContainerRegions {
             AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) acs;
             state.vanilla = new Reference(acc.mk$getLeftPos(), acc.mk$getTopPos(), acc.mk$getImageWidth(), acc.mk$getImageHeight());
             state.vanillaInventoryLabelY = acc.mk$getInventoryLabelY();
+            state.screenHeight = screen.height;   // a resize initialises again, so the region re-runs
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> frame(acs, mx, my));
             ScreenEvents.remove(screen).register(s -> {
                 if (state.screen.get() != s) return;
@@ -426,11 +457,13 @@ public final class ContainerRegions {
         });
     }
 
-    /** For MenuKit's checks: the region as if {@code screen} had just opened with these vanilla bounds. */
-    public static void openForChecks(@Nullable Screen screen, @Nullable Reference vanilla, int inventoryLabelY) {
+    /** For MenuKit's checks: the region as if {@code screen} had just opened with these vanilla bounds, {@code screenHeight} tall. */
+    public static void openForChecks(@Nullable Screen screen, @Nullable Reference vanilla, int inventoryLabelY,
+                                     int screenHeight) {
         reset(screen);
         state.vanilla = vanilla;
         state.vanillaInventoryLabelY = inventoryLabelY;
+        state.screenHeight = screenHeight;
     }
 
     private static void reset(@Nullable Screen screen) {
@@ -439,7 +472,7 @@ public final class ContainerRegions {
         state.geometry = null;
         state.vanilla = null;
         state.applied = null;
-        state.shiftX = state.shiftY = 0;
+        state.shiftX = state.shiftY = state.inventoryShiftY = 0;
         state.tops = new int[0];
         state.bottoms = new int[0];
         state.cellTops.clear();
@@ -516,7 +549,7 @@ public final class ContainerRegions {
         state.tops = tops;
         state.bottoms = bottoms;
 
-        Geometry g = layout(vanilla, inventoryLabelY, content);
+        Geometry g = layout(vanilla, inventoryLabelY, content, state.screenHeight);
         state.geometry = g;
         if (panel.getPinnedWidth() != g.width() || panel.getPinnedHeight() != g.height()) panel.size(g.width(), g.height());
 
@@ -532,34 +565,36 @@ public final class ContainerRegions {
     // The screen's bounds
 
     /**
-     * Writes {@code bounds} as the screen's own, and moves vanilla's own placements (the
-     * player's inventory slots, the title and "Inventory" labels) back by as much as the
-     * origin moved, so none of them moves on screen. Only on a change of layout.
+     * Writes {@code bounds} as the screen's own, and moves vanilla's own placements back by
+     * as much as the origin moved ({@link #counterShift}): the title stays where vanilla put
+     * it on screen, and the player's inventory slots and "Inventory" label go with the
+     * inventory panel. Only on a change of layout.
      */
     private static void applyBounds(AbstractContainerScreen<?> screen, Reference bounds) {
         Reference vanilla = state.vanilla;
         if (vanilla == null) return;
         int[] shift = counterShift(vanilla, bounds);
-        int dx = shift[0] - state.shiftX, dy = shift[1] - state.shiftY;
+        int dx = shift[0] - state.shiftX, dy = shift[1] - state.shiftY, invDy = shift[2] - state.inventoryShiftY;
         AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
         acc.mk$setLeftPos(bounds.leftPos());
         acc.mk$setTopPos(bounds.topPos());
         acc.mk$setImageWidth(bounds.imageWidth());
         acc.mk$setImageHeight(bounds.imageHeight());
-        if (dx != 0 || dy != 0) {
+        if (dx != 0 || invDy != 0) {
             for (Slot slot : screen.getMenu().slots) {
                 if (!stays(slot)) continue;
                 SlotAccessor pos = (SlotAccessor) slot;
                 pos.mk$setX(slot.x + dx);
-                pos.mk$setY(slot.y + dy);
+                pos.mk$setY(slot.y + invDy);
             }
-            acc.mk$setTitleLabelX(acc.mk$getTitleLabelX() + dx);
-            acc.mk$setTitleLabelY(acc.mk$getTitleLabelY() + dy);
             acc.mk$setInventoryLabelX(acc.mk$getInventoryLabelX() + dx);
-            acc.mk$setInventoryLabelY(acc.mk$getInventoryLabelY() + dy);
+            acc.mk$setInventoryLabelY(acc.mk$getInventoryLabelY() + invDy);
         }
+        acc.mk$setTitleLabelX(acc.mk$getTitleLabelX() + dx);
+        acc.mk$setTitleLabelY(acc.mk$getTitleLabelY() + dy);
         state.shiftX = shift[0];
         state.shiftY = shift[1];
+        state.inventoryShiftY = shift[2];
         state.applied = bounds;
     }
 
@@ -571,8 +606,8 @@ public final class ContainerRegions {
     }
 
     /**
-     * Whether a slot is one of vanilla's that stays where vanilla put it: the player's
-     * inventory, which never moves. A container's own slots are the region's (whoever put
+     * Whether a slot is one of vanilla's that MenuKit places with the inventory panel: the
+     * player's inventory, which never scrolls. A container's own slots are the region's (whoever put
      * the region on the screen presents them in a section, and their library places
      * them); a created slot is its library's.
      */

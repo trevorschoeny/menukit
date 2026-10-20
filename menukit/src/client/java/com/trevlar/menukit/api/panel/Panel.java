@@ -396,8 +396,8 @@ public class Panel {
         /**
          * Makes the panel part of the screen's background (7.4.0): it draws right where
          * the screen draws its own image, after the screen's dim, so everything else on
-         * the screen draws over it: vanilla's labels and slots, its own slots, other
-         * mods' widgets and buttons, every other panel, tooltips. It never interferes
+         * the screen draws over it: vanilla's labels and slots, other mods' widgets and
+         * buttons, every other panel, tooltips. It never interferes
          * with anything drawn over it:
          * <ul>
          *   <li><b>It claims nothing</b> (the claim rule, {@code docs/concepts.md}
@@ -407,9 +407,11 @@ public class Panel {
          *       (and so every other mod's) and every panel above have declined it, and
          *       never on a slot it shows, which is vanilla's to click; the wheel once the
          *       screen and every other handler have declined it.</li>
-         *   <li><b>Its slots draw in vanilla's slot pass</b>, over the panel, clipped to
-         *       what the panel shows of them, as a standalone screen's own panels' slots
-         *       do.</li>
+         *   <li><b>Its slots draw with it</b>, right after its elements, over the panel
+         *       and clipped to what it shows of them, and so under the screen's widgets:
+         *       another mod's button over one of its slots covers the item. Each goes
+         *       through the screen's own {@code extractSlot}, so every mod's per-slot hook
+         *       still marks it, and its hover highlight and tooltip are vanilla's.</li>
          * </ul>
          * The container region's two panels are background panels. Not with
          * {@link #popover()}: a panel is above everything or below it.
