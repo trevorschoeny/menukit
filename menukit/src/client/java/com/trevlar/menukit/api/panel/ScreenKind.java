@@ -90,7 +90,8 @@ public enum ScreenKind {
     /**
      * The colour of text in {@code role} in this look. Panel: dark grey
      * ({@link ElementConstants#TEXT_DARK}) for headings and body,
-     * {@link ElementConstants#TEXT_MUTED}, {@link ElementConstants#TEXT_DISABLED}.
+     * {@link ElementConstants#TEXT_MUTED} (on a resource pack's panel fill it would sink
+     * into, one that stands out from it as much), {@link ElementConstants#TEXT_DISABLED}.
      * Default: vanilla's own {@code CommonColors}, white for headings and body (the
      * Options title, a setting's name), {@code GRAY} for secondary lines (the world
      * list's details) and {@code LIGHT_GRAY} for disabled text (an inactive
@@ -100,7 +101,8 @@ public enum ScreenKind {
         return switch (this) {
             case PANEL -> switch (role) {
                 case HEADING, BODY -> ElementConstants.TEXT_DARK;
-                case MUTED -> ElementConstants.TEXT_MUTED;
+                // TEXT_MUTED, or under a resource pack a colour that stands out as much from its panel fill.
+                case MUTED -> com.trevlar.menukit.core.PackLook.mutedText();
                 case DISABLED -> ElementConstants.TEXT_DISABLED;
             };
             case DEFAULT -> switch (role) {

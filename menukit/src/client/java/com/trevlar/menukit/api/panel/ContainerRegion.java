@@ -126,7 +126,9 @@ import java.util.function.IntSupplier;
  * shulker box's section in its dye's colour, say. The tint is laid over the section, its
  * title and slot frames included, and under the items in its slots, from just left of the
  * content edge to just right of the nine slots (never over the scrollbar), and scrolls and
- * clips with it. None by default.
+ * clips with it. None by default. A section that shows as a block of its own (tinted, or
+ * in a fill unlike the list's) has its content moved down 2 px, so its title sits inside the
+ * block with room above it, as vanilla's sits inside its art.
  *
  * <h3>Resource packs</h3>
  * The two panels follow the resource pack's container art, as vanilla's own screen
@@ -134,8 +136,9 @@ import java.util.function.IntSupplier;
  * the inventory panel the inventory half of it. A section names the container it stands
  * for with {@link Builder#texture} (vanilla's chest by default): its slot frames take that
  * texture's slots, and where it differs from the list's (a shulker box in a chest's list)
- * its part of the list takes that texture's fill. A tint colours grey art only; over art
- * the pack already coloured it is left out.
+ * its part of the list takes that texture's fill. Over art the pack coloured, a tinted
+ * section is drawn from a greyscale copy of it and tinted, so it takes the tint's colour in
+ * the pack's own shading.
  *
  * <p>Title a section that is a vanilla container's with vanilla's translation key
  * ({@code Component.translatable("container.shulkerBox")}, or the screen's own title,
