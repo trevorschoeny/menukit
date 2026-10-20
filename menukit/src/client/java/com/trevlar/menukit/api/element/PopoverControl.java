@@ -1,5 +1,6 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.core.PanelRendering;
@@ -328,7 +329,8 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
 
         // Background: vanilla's button sprite, or MenuKit's raised panel; pressed
         // while open (the popover is the live surface then, so no hover highlight).
-        ScreenKind kind = ctx.kind();
+        // Vanilla's in the Default look, and in the Panel look where a pack restyled vanilla's button (spec part 10).
+        ScreenKind kind = ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON);
         if (kind == ScreenKind.DEFAULT) {
             VanillaLook.button(g, tx, ty, width, h, !disabled, hovered && !open);
             if (open) VanillaLook.pressedOverlay(g, tx, ty, width, h);
@@ -370,7 +372,8 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         var g = ctx.graphics();
         int[] p = popoverBounds(ctx.originX() + childX, ctx.originY() + childY);
         int px = p[0], py = p[1], pw = p[2], ph = p[3];
-        if (ctx.kind() == ScreenKind.DEFAULT) {
+        ScreenKind kind = ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON);
+        if (kind == ScreenKind.DEFAULT) {
             VanillaLook.popoverBackground(g, px, py, pw, ph);
         } else {
             PanelRendering.renderControl(g, px, py, pw, ph, PanelStyle.RAISED);
@@ -413,7 +416,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         int rowsTop = py + 1 + pinnedHeight() + searchHeight();
         if (showsNoMatches()) {
             Text.render(g, Component.translatable("menukit.list.no_matches"), TextAlignment.LEFT, textX,
-                    rowRight - POPOVER_TEXT_PAD_X, rowsTop, rowsTop + ROW_HEIGHT, ctx.kind().textColor(TextRole.MUTED), true);
+                    rowRight - POPOVER_TEXT_PAD_X, rowsTop, rowsTop + ROW_HEIGHT, kind.textColor(TextRole.MUTED), true);
             return;
         }
         int first = clampScroll(scrollOffset);

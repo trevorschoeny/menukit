@@ -1,5 +1,6 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.core.MKRenderPipelines;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.core.PanelRendering;
@@ -205,7 +206,8 @@ public class Button extends AbstractPanelElement {
      */
     protected void renderBackground(RenderContext ctx, int sx, int sy, Look look) {
         int w = getWidth(), h = getHeight();
-        if (ctx.kind() == ScreenKind.DEFAULT) {
+        // Vanilla's button in the Default look, and in the Panel look where a pack restyled it (spec part 10).
+        if (ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON) == ScreenKind.DEFAULT) {
             VanillaLook.button(ctx.graphics(), sx, sy, w, h, !look.disabled(), look.hovered() || look.pressed());
             if (look.pressed()) VanillaLook.pressedOverlay(ctx.graphics(), sx, sy, w, h);
             return;
@@ -232,7 +234,9 @@ public class Button extends AbstractPanelElement {
      * the button.
      */
     protected void renderContent(RenderContext ctx, int sx, int sy, Look look) {
-        int color = look.disabled() ? ctx.kind().textColor(TextRole.DISABLED) : ElementConstants.TEXT_LIGHT;
+        // Vanilla's colours on vanilla's button: white, light grey while disabled.
+        int color = look.disabled() ? ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON).textColor(TextRole.DISABLED)
+                : ElementConstants.TEXT_LIGHT;
         if (wrapWidth > 0) {
             int lines = Text.lineCount(label, wrapWidth);
             Text.drawWrapped(ctx.graphics(), label, wrapWidth, sx, Text.centeredBlockY(sy, sy + getHeight(), lines),
@@ -412,7 +416,8 @@ public class Button extends AbstractPanelElement {
             int size = getWidth() - INSET * 2;
             if (glyph) {
                 // A glyph is text: the look's body colour, its disabled colour while disabled.
-                int color = ctx.kind().textColor(look.disabled() ? TextRole.DISABLED : TextRole.BODY);
+                int color = ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON)
+                        .textColor(look.disabled() ? TextRole.DISABLED : TextRole.BODY);
                 ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx + INSET, sy + INSET, size, size, color);
                 return;
             }

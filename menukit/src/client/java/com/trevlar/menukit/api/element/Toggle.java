@@ -1,5 +1,6 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.core.MKRenderPipelines;
@@ -169,7 +170,8 @@ public class Toggle extends AbstractPanelElement {
             text = on ? CommonComponents.OPTION_ON : CommonComponents.OPTION_OFF;
         }
         if (text != null) {
-            int color = disabled ? kind.textColor(TextRole.DISABLED) : ElementConstants.TEXT_LIGHT;
+            int color = disabled ? ControlLook.kind(kind, ControlLook.Control.BUTTON).textColor(TextRole.DISABLED)
+                    : ElementConstants.TEXT_LIGHT;
             if (wrapWidth > 0) {
                 int lines = Text.lineCount(text, wrapWidth);
                 Text.drawWrapped(ctx.graphics(), text, wrapWidth, sx,
@@ -201,8 +203,12 @@ public class Toggle extends AbstractPanelElement {
     protected void renderBackground(RenderContext ctx, int sx, int sy,
                                     boolean on, boolean disabled, boolean hovered) {
         int w = getWidth(), h = getHeight();
-        if (ctx.kind() == ScreenKind.DEFAULT) {
+        // Vanilla's button in the Default look, and in the Panel look where a pack restyled it
+        // (spec part 10). In the Panel look its state is its face, not its text, so on is the
+        // button pressed in, MenuKit's pressed look on vanilla's button.
+        if (ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON) == ScreenKind.DEFAULT) {
             VanillaLook.button(ctx.graphics(), sx, sy, w, h, !disabled, hovered);
+            if (on && ctx.kind() == ScreenKind.PANEL) VanillaLook.pressedOverlay(ctx.graphics(), sx, sy, w, h);
             return;
         }
         PanelStyle bg = disabled ? PanelStyle.DARK : on ? PanelStyle.INSET : PanelStyle.RAISED;
