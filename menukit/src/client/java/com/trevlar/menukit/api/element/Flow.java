@@ -3,6 +3,7 @@ package com.trevlar.menukit.api.element;
 import com.trevlar.menukit.api.layout.CrossAlign;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.panel.ScreenKind;
+import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.PanelRendering;
 
 import net.minecraft.client.gui.screens.Screen;
@@ -605,8 +606,19 @@ public final class Flow extends AbstractPanelElement {
     @Override
     public void render(RenderContext ctx) {
         relayout();
-        if (boxed) drawCard(ctx);
-        ChildDispatch.render(children, childContext(ctx));
+        if (!boxed) {
+            ChildDispatch.render(children, childContext(ctx));
+            return;
+        }
+        drawCard(ctx);
+        // On the card, text and slot frames are the card's, not the panel surface's under it:
+        // vanilla's grey on the card's grey, whatever a resource pack made of the panel.
+        PackLook.SlotLooks before = ctx.kind() == ScreenKind.PANEL ? PackLook.beginSlots(null) : null;
+        try {
+            ChildDispatch.render(children, childContext(ctx));
+        } finally {
+            if (ctx.kind() == ScreenKind.PANEL) PackLook.endSlots(before);
+        }
     }
 
     /**

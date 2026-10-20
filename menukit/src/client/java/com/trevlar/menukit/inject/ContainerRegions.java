@@ -5,6 +5,7 @@ import com.trevlar.menukit.api.element.Flow;
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.element.RenderContext;
 import com.trevlar.menukit.api.element.ScrollContainer;
+import com.trevlar.menukit.api.element.TextLabel;
 import com.trevlar.menukit.api.panel.Anchor;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelPosition;
@@ -26,6 +27,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
+import net.minecraft.locale.Language;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
 import net.minecraft.world.entity.player.Inventory;
@@ -39,13 +43,14 @@ import org.jspecify.annotations.Nullable;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
-import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 /**
  * The container region's machinery (7.4.0; the public face is
@@ -184,18 +189,18 @@ public final class ContainerRegions {
     // Declarations
 
     /**
-     * One declared section (ContainerRegion.section). {@code tint} is its background tint,
-     * ARGB, read every frame; {@code 0} draws none. {@code texture} is the container
+     * One declared section (ContainerRegion.section). {@code texture} is the container
      * texture it stands for (vanilla's chest by default): its block of the list and its
-     * slot frames take that texture's look under the active resource packs.
+     * slot frames take that texture's look under the active resource packs. {@code title},
+     * if any, is drawn above its content; {@code name} stands in for a blank title while
+     * other sections show ({@link #shownTitles}).
      */
     public record Section(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen,
-                          IntSupplier tint, Identifier texture) {
+                          Identifier texture, @Nullable Supplier<Component> title, @Nullable Supplier<Component> name) {
 
-        /** A section in vanilla's chest's look. */
-        public Section(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen,
-                       IntSupplier tint) {
-            this(id, content, matcher, order, visibleWhen, tint, PackLook.CHEST);
+        /** An untitled section in vanilla's chest's look. */
+        public Section(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen) {
+            this(id, content, matcher, order, visibleWhen, PackLook.CHEST, null, null);
         }
     }
 
@@ -223,7 +228,13 @@ public final class ContainerRegions {
                 throw new IllegalStateException("ContainerRegion section '" + section.id() + "' is already declared");
             }
         }
-        AbstractPanelElement holder = Flow.builder().vertical().gap(0, 0).add(new TitleInset(section)).add(section.content())
+        // A titled section: its title where vanilla draws a container's, the content 11 px
+        // below the title's top (vanilla's title at y 6, its grid at 17).
+        PanelElement body = section.title() == null ? section.content() : Flow.builder().vertical().gap(0, 2)
+                .add(Flow.builder().gap(0, 0).add(new TitleIndent(section))
+                        .add(TextLabel.builder().at(1, 0).text(() -> shownTitle(section)).build()).build())
+                .add(section.content()).build();
+        AbstractPanelElement holder = Flow.builder().vertical().gap(0, 0).add(new TitleInset(section)).add(body)
                 .visibleWhen(() -> shownOnCurrentScreen(section)).build();
         SECTIONS.add(new Placed(section, holder));
         SECTIONS.sort(Comparator.comparingInt((Placed p) -> p.section().order()).thenComparing(p -> p.section().id()));
@@ -850,43 +861,18 @@ public final class ContainerRegions {
         return PackLook.look(s.texture(), PackLook.Part.CONTAINER);
     }
 
-    /**
-     * Whether section {@code s} is drawn in greys for its tint to colour
-     * ({@link PackLook.Tint#RECOLOUR}): it is tinted and its art is coloured.
-     */
-    private static boolean recoloured(Section s) {
-        return PackLook.Mockup.tint == PackLook.Tint.RECOLOUR && s.tint().getAsInt() != 0 && !sectionLook(s).grey();
-    }
-
-    /** The look section {@code s}'s block and slot frames are drawn in: its own, or in greys under a recolour. */
-    private static PackLook.Look drawnLook(Section s) {
-        return recoloured(s) ? sectionLook(s).greyed() : sectionLook(s);
-    }
-
-    /**
-     * The tint drawn over section {@code s} this frame, ARGB, {@code 0} for none: over grey
-     * art, and over coloured art drawn in greys; left out over the pack's own colour, unless
-     * a mockup says otherwise ({@code ALWAYS}).
-     */
-    private static int drawnTint(Section s) {
-        int argb = s.tint().getAsInt();
-        if (argb != 0 && PackLook.Mockup.tint != PackLook.Tint.ALWAYS && !drawnLook(s).grey()) return 0;   // mockup: ALWAYS
-        return argb;
-    }
-
-    /** Whether section {@code s} draws a block of its own over the list: its own texture's fill, or its art in greys. */
+    /** Whether section {@code s} draws a block of its own over the list: it stands for another texture than the list's. */
     private static boolean drawsBlock(Section s, PackLook.Look list) {
-        return !s.texture().equals(list.texture()) || recoloured(s);
+        return !s.texture().equals(list.texture());
     }
 
     /**
-     * Whether section {@code s} shows as a block of its own on the list (a tint, or a fill
-     * unlike the list's), so its title takes vanilla's room above it ({@link #TITLE_INSET}).
+     * Whether section {@code s} shows as a block of its own on the list (its own texture's
+     * fill, unlike the list's), so its title takes vanilla's room above it ({@link #TITLE_INSET}).
      */
     private static boolean ownsBlock(Section s) {
-        if (drawnTint(s) != 0) return true;
         PackLook.Look list = listLook();
-        return drawsBlock(s, list) && drawnLook(s).fill() != list.fill();
+        return drawsBlock(s, list) && sectionLook(s).fill() != list.fill();
     }
 
     /**
@@ -895,6 +881,95 @@ public final class ContainerRegions {
      * as vanilla's title sits 3 px inside its art's fill (fill from row 3, title at 6).
      */
     public static final int TITLE_INSET = 2;
+
+    // Titles and names (spec part 5)
+
+    /**
+     * The title section {@code s} draws this frame: its own, or while it comes out blank and
+     * other sections show, its name ({@link #shownTitles}).
+     */
+    private static Component shownTitle(Section s) {
+        List<Section> shown = new ArrayList<>();
+        for (Placed p : SECTIONS) if (p.section().title() != null && p.holder().isVisible()) shown.add(p.section());
+        int at = shown.indexOf(s);
+        if (at < 0) return s.title().get();
+        List<Component> titles = new ArrayList<>(), names = new ArrayList<>();
+        for (Section t : shown) {
+            titles.add(t.title().get());
+            names.add(t.name() == null ? null : t.name().get());
+        }
+        return shownTitles(titles, names).get(at);
+    }
+
+    /**
+     * The titles the shown, titled sections draw, in stacking order, pure. Each its own
+     * title; but with two or more, one that comes out blank (a pack blanked vanilla's key)
+     * takes a name, so the player can tell the containers apart: its own {@code names}
+     * entry where that isn't blank (the box item's name), else vanilla's own English for the
+     * title's translation key. Names that come out the same are numbered in order
+     * ("Lime Shulker Box 1", "Lime Shulker Box 2"). A blank title with nothing to stand in
+     * for it stays blank.
+     */
+    public static List<Component> shownTitles(List<Component> titles, List<@Nullable Component> names) {
+        List<Component> out = new ArrayList<>(titles);
+        if (titles.size() < 2) return out;
+        Map<String, Integer> count = new HashMap<>();
+        for (int i = 0; i < titles.size(); i++) {
+            if (!blank(titles.get(i))) continue;
+            Component name = names.get(i);
+            if (blank(name)) name = vanillaWords(titles.get(i));
+            if (blank(name)) continue;
+            out.set(i, name);
+            count.merge(name.getString(), 1, Integer::sum);
+        }
+        Map<String, Integer> seen = new HashMap<>();
+        for (int i = 0; i < out.size(); i++) {
+            if (out.get(i) == titles.get(i)) continue;   // its own title, not a name
+            String key = out.get(i).getString();
+            if (count.get(key) < 2) continue;
+            out.set(i, Component.empty().append(out.get(i)).append(" " + seen.merge(key, 1, Integer::sum)));
+        }
+        return out;
+    }
+
+    private static boolean blank(@Nullable Component c) {
+        return c == null || c.getString().isBlank();
+    }
+
+    /**
+     * What vanilla's own English says for {@code title}'s translation key, whatever a pack
+     * made of it, or {@code null} when it has none ("container.shulkerBox": "Shulker Box").
+     */
+    // ponytail: vanilla's built-in English, not the player's language; a name from the section covers other languages.
+    private static @Nullable Component vanillaWords(@Nullable Component title) {
+        if (title == null || !(title.getContents() instanceof TranslatableContents t)) return null;
+        String words = Language.DEFAULT_INSTANCE.getOrDefault(t.getKey(), "");
+        return words.isBlank() ? null : Component.literal(words);
+    }
+
+    /**
+     * How far right the first shown section's title goes, so it stays clear of the list's top
+     * corner where the pack decorates it (Touched UI's brackets run past vanilla's title at
+     * x 8): to a pixel past the corner. None for a plain corner, or with no title showing.
+     */
+    private static int titleIndent(Section s) {
+        if (state.screen.get() == null) return 0;
+        for (Placed p : SECTIONS) {
+            if (!p.holder().isVisible()) continue;
+            if (p.section() != s || blank(shownTitle(s))) return 0;
+            return Math.max(0, listLook().corner() + 1 - (INSET_X + 1));
+        }
+        return 0;
+    }
+
+    /** The room left of a section's title: {@link #titleIndent}. */
+    private record TitleIndent(Section section) implements PanelElement {
+        @Override public int getChildX() { return 0; }
+        @Override public int getChildY() { return 0; }
+        @Override public int getWidth() { return titleIndent(section); }
+        @Override public int getHeight() { return 0; }
+        @Override public void render(RenderContext ctx) {}
+    }
 
     /** The room above a section's title while it is a block of its own ({@link #ownsBlock}); none otherwise. */
     private record TitleInset(Section section) implements PanelElement {
@@ -907,10 +982,9 @@ public final class ContainerRegions {
 
     /**
      * What the surface is at a point in one of the region's panels: in the inventory panel,
-     * the inventory half's look; in the container list, the look and tint of the section
-     * whose band it is in ({@link #bands}), else the list's, untinted. So a slot frame takes
-     * its section's look and colour, and text on a tinted band a colour that reads on it.
-     * {@code null} for any other panel.
+     * the inventory half's look; in the container list, the look of the section whose band
+     * it is in ({@link #bands}), else the list's. So a slot frame takes its section's look,
+     * and text a colour that reads on its section's fill. {@code null} for any other panel.
      */
     public static PackLook.@Nullable SlotLooks slotLooks(Panel p) {
         if (p == inventoryPanel && inventoryPanel != null) {
@@ -922,16 +996,9 @@ public final class ContainerRegions {
         PackLook.Look list = listLook();
         if (g == null || state.tops.length != SECTIONS.size()) return (x, y) -> list;
         int[][] bands = bands(g, list.frame(), state.tops, state.scroll);
-        return new PackLook.SlotLooks() {
-            @Override public PackLook.Look at(int x, int y) {
-                int i = bandAt(bands, x, y);
-                return i < 0 ? list : drawnLook(SECTIONS.get(i).section());
-            }
-
-            @Override public int tint(int x, int y) {
-                int i = bandAt(bands, x, y);
-                return i < 0 ? 0 : drawnTint(SECTIONS.get(i).section());
-            }
+        return (x, y) -> {
+            int i = bandAt(bands, x, y);
+            return i < 0 ? list : sectionLook(SECTIONS.get(i).section());
         };
     }
 
@@ -947,17 +1014,11 @@ public final class ContainerRegions {
     /**
      * The container list's frame, behind every section: a panel surface in the look of the
      * screen's container texture under the active resource packs (MenuKit's raised panel
-     * with vanilla's own), the scrollbar lane inside it while it scrolls. Then each section's
-     * band ({@link #bands}), edge to edge inside the frame:
-     * <ul>
-     *   <li>a section that stands for another texture (a shulker box in a chest's list) gets
-     *       a block of its own texture's fill, so a pack's purple shulker art shows as purple
-     *       there; a tinted section over coloured art gets its block in greys, for the tint
-     *       to colour ({@link PackLook.Tint#RECOLOUR});</li>
-     *   <li>then its tint. Everything the section draws goes over it: its title and any other
-     *       text in a colour that reads on it, its slot frames tinted with it as they draw
-     *       ({@code SlotRendering}), its items in their own colours.</li>
-     * </ul>
+     * with vanilla's own), the scrollbar lane inside it while it scrolls. Then, in each
+     * section's band ({@link #bands}), edge to edge inside the frame, a section that stands
+     * for another texture (a shulker box in a chest's list) gets a block of its own texture's
+     * fill, so a pack's purple shulker art shows as purple there. Everything the section draws
+     * goes over it, its text in a colour that reads on that fill.
      */
     private static final class Backdrop implements PanelElement {
         @Override public int getChildX() { return 0; }
@@ -980,10 +1041,8 @@ public final class ContainerRegions {
                 if (r == null) continue;
                 Section s = SECTIONS.get(i).section();
                 if (drawsBlock(s, list)) {
-                    PackLook.drawFill(ctx.graphics(), r[0] + dx, r[1] + dy, r[2] - r[0], r[3] - r[1], drawnLook(s));
+                    PackLook.drawFill(ctx.graphics(), r[0] + dx, r[1] + dy, r[2] - r[0], r[3] - r[1], sectionLook(s));
                 }
-                int argb = drawnTint(s);
-                if (argb != 0) ctx.graphics().fill(r[0] + dx, r[1] + dy, r[2] + dx, r[3] + dy, argb);
             }
         }
     }
@@ -997,7 +1056,7 @@ public final class ContainerRegions {
 
     /**
      * Each section's band on screen this frame, {@code [x0, y0, x1, y1]}, or {@code null}
-     * while it is hidden or scrolled out of the frame: its block and tint go there. The bands
+     * while it is hidden or scrolled out of the frame: its block goes there. The bands
      * tile the inside of the container list's frame with no gap: across, from the frame's
      * inner edge to the other ({@code frame}, the list look's {@code [left, top, right,
      * bottom]}; the scrollbar draws over it); down, each from {@link #BAND_ABOVE} above its

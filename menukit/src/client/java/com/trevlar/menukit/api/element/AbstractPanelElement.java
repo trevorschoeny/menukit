@@ -267,17 +267,16 @@ public abstract class AbstractPanelElement implements PanelElement {
     /**
      * The colour of text in {@code role} on the kind of screen this element is on
      * this frame, the {@link TextRole#DISABLED} colour while it is disabled. In the Panel
-     * look, text over a tinted part of a panel surface (a container region section in a
-     * dye's colour) takes a colour that reads on the tinted fill, where the role's own
-     * would not ({@code PackLook.textAt}); the tint is never laid over text.
+     * look, heading, body and muted text on a panel surface keep the role's own colour
+     * wherever it reads on the surface's fill, and take one made from the fill where a
+     * resource pack's fill is too dark or too coloured for it ({@code PackLook.textAt}).
      */
     protected final int textColor(RenderContext ctx, TextRole role) {
         TextRole r = disabled(ctx) ? TextRole.DISABLED : role;
         int colour = ctx.kind().textColor(r);
         if (ctx.kind() != ScreenKind.PANEL || r == TextRole.DISABLED) return colour;
         int x = ctx.originX() + getChildX(), y = ctx.originY() + getChildY();
-        return r == TextRole.MUTED ? PackLook.mutedAt(colour, x, y)
-                : PackLook.textAt(colour, x, y);
+        return PackLook.textAt(colour, r == TextRole.MUTED, x, y);
     }
 
     // A list row's controls on the row's own first line (7.3.0). Package-private: only

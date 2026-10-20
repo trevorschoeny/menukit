@@ -651,20 +651,23 @@ Needs: MenuKit 7.4.0, and a slot library's elements for the grids (SlotKit's `Sl
 ```java
 // The chest's own grid, then the box the player opened below it: one column above the inventory.
 ContainerRegion.section("mymod:chest")
+        .title(() -> session.screenTitle())                          // the screen's own title
         .content(chestGrid)
         .on(ContainerScreen.class)
         .visibleWhen(() -> session.isOpen())
         .declare();
 ContainerRegion.section("mymod:opened-box")
+        .title(() -> Component.translatable("container.shulkerBox"))
+        .name(() -> session.box().getHoverName())                   // shown where a pack blanks the title
         .content(boxGrid)
         .on(ContainerScreen.class)
         .order(10)
         .visibleWhen(() -> session.isOpen())
-        .tint(() -> ContainerRegion.dyeTint(session.color()))   // the opened box's dye; none undyed
+        .texture(ContainerRegion.SHULKER_BOX)                        // the pack's shulker box art
         .declare();
 ```
 
-Result: while the session is open, the chest's screen is two panels: the chest and the box as one column in the container list, and the player's inventory in its own panel below it. The column grows before it scrolls: the two panels stay centred on the screen as one block while they fit, the column's top moving up and the inventory panel down as it grows, and it scrolls only once the screen is full, by the wheel anywhere nothing else wants it, by its scrollbar (inside the list's frame), and by carrying an item to its top or bottom edge. A shift-click into the box while it is scrolled out of view scrolls to where the item landed. Each grid is a title over nine-wide rows of slot elements, the title 11 pixels above the first row as vanilla's is; `chestGrid` presents the chest's own slots, since the container list takes the place of the screen's own grid. Both panels are the screen's background, and the slots draw with the list, so other mods' buttons on them draw over them, slots included, and keep their clicks. Another mod's sections on the same screen join the same column, by their `order`. The screen's bounds are the rectangle around both panels, so panels on the menu frame and other mods' buttons by the screen's edges go around both; when the box opens or closes while the screen is open, the screen is laid out again as a window resize lays it out, so those buttons follow. The box's section is in its dye's colour, over its title and slot frames and under its items; `tint(DyeColor.PURPLE)` or `tint(argb)` fixes one instead.
+Result: while the session is open, the chest's screen is two panels: the chest and the box as one column in the container list, and the player's inventory in its own panel below it. The column grows before it scrolls: the two panels stay centred on the screen as one block while they fit, the column's top moving up and the inventory panel down as it grows, and it scrolls only once the screen is full, by the wheel anywhere nothing else wants it, by its scrollbar (inside the list's frame), and by carrying an item to its top or bottom edge. A shift-click into the box while it is scrolled out of view scrolls to where the item landed. Each grid is nine-wide rows of slot elements under its section's title, the title 11 pixels above the first row as vanilla's is; `chestGrid` presents the chest's own slots, since the container list takes the place of the screen's own grid. Both panels are the screen's background, and the slots draw with the list, so other mods' buttons on them draw over them, slots included, and keep their clicks. Another mod's sections on the same screen join the same column, by their `order`. The screen's bounds are the rectangle around both panels, so panels on the menu frame and other mods' buttons by the screen's edges go around both; when the box opens or closes while the screen is open, the screen is laid out again as a window resize lays it out, so those buttons follow. Under a resource pack the box's part of the list takes the pack's shulker box art. A pack that blanks vanilla's container titles blanks both titles, so the box shows its item's name instead ("Lime Shulker Box"), and the chest vanilla's word for it.
 
 A grid from a slot library can decide the section by itself: a section shows only while its content is visible, so with content that hides itself when its slot group is not on the open menu, or not revealed (SlotKit's slot elements do), the section needs no `visibleWhen`.
 
