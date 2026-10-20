@@ -5,6 +5,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -99,10 +100,27 @@ public final class PackLook {
         private Mockup() {}
         /** mockup: edges and fill stretched over the side instead of tiled from clean strips. */
         public static volatile boolean stretch = false;
-        /** mockup: a section's tint over any art, not only grey art. */
-        public static volatile boolean tintAlways = false;
+        /** mockup: how a section's tint meets the pack's art; {@link Tint#RECOLOUR} is the pick under review. */
+        public static volatile Tint tint = Tint.RECOLOUR;
         /** mockup: draw the cut even where it falls back (a non-uniform fill), to show why it does. */
         public static volatile boolean noFallback = false;
+    }
+
+    /**
+     * How a section's tint meets the pack's art (Trev's rule: a recoloured shulker's section
+     * turns that colour, whatever the pack's own colour).
+     */
+    public enum Tint {
+        /**
+         * The section's art is drawn from a greyscale copy of the pack's texture (cut at the
+         * same time as the look), and the tint goes over that: the dye's colour in the
+         * pack's own shading. Over grey art this is the same as {@link #GREY_ONLY}.
+         */
+        RECOLOUR,
+        /** mockup: the tint over grey art only; over coloured art it is left out. */
+        GREY_ONLY,
+        /** mockup: the tint over whatever art is there (lime over pink goes muddy). */
+        ALWAYS
     }
 
     // The analysis
@@ -151,21 +169,20 @@ public final class PackLook {
                       int sTop, int sBot, int fill, boolean uniform,
                       int topU, int topW, int botU, int botW, int leftV, int leftH, int rightV, int rightH,
                       int sideFrom, int sideTo, int[] sample, int slotV, boolean slotOk, boolean clean, int[] insetL, int[] insetR,
-                      int texW, int texH) {
-
-        /** Whether the fill is grey: a section's tint colours grey art only (spec part 4). */
-        public boolean grey() {
-            return isGrey(fill);
-        }
-    }
+                      int texW, int texH) {}
 
     /**
      * A surface's look: where it comes from, the cut (kept even when it falls back, for the
      * comparison shots), its fill and whether it is grey, and whether vanilla's slot sprite
      * was restyled by a pack.
+     *
+     * <p>{@code inGreys} marks the look in greys, for a tinted section ({@link Tint#RECOLOUR}):
+     * its {@code texture} is then the greyscale copy of the pack's texture, and its fill the
+     * grey of the same lightness. {@code greyVariant} is that variant of this look
+     * ({@code null} for the variant itself).
      */
     public record Look(Identifier texture, Part part, Source source, @Nullable Cut cut, int spriteFill,
-                       boolean slotSprite) {
+                       boolean slotSprite, boolean inGreys, @Nullable Look greyVariant) {
 
         /** Whether this surface draws the cut (else MenuKit's sprite, or the pack's override of it). */
         public boolean drawsCut() {
@@ -174,13 +191,31 @@ public final class PackLook {
 
         /** Whether the art behind a section is grey, so its tint goes over it. */
         public boolean grey() {
-            return drawsCut() ? cut.grey() : isGrey(spriteFill);
+            return isGrey(fill());
         }
 
         /** The surface's fill colour, for a block of it inside another surface (a section in the region). */
         public int fill() {
-            return drawsCut() ? cut.fill() : spriteFill;
+            int f = drawsCut() ? cut.fill() : spriteFill;
+            return inGreys ? greyOf(f) : f;
         }
+
+        /** This look in greys, for a tint to colour ({@link Tint#RECOLOUR}). */
+        public Look greyed() {
+            return greyVariant == null ? this : greyVariant;
+        }
+    }
+
+    /**
+     * {@code base} with its greyed variant: drawn from {@code greyTexture} (the greyscale
+     * copy of base's texture), or from base's own where it draws no cut (MenuKit's sprite
+     * is grey already; a pack's override of it keeps its art and only its fill is greyed).
+     */
+    private static Look withGrey(Look base, @Nullable Identifier greyTexture) {
+        Look grey = new Look(greyTexture != null ? greyTexture : base.texture(), base.part(), base.source(), base.cut(),
+                base.spriteFill(), base.slotSprite(), true, null);
+        return new Look(base.texture(), base.part(), base.source(), base.cut(), base.spriteFill(), base.slotSprite(),
+                false, grey);
     }
 
     // ponytail: one cache entry per texture and part, dropped whole on a resource reload.
@@ -223,6 +258,52 @@ public final class PackLook {
         return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
     }
 
+    /** MenuKit's muted text, and the contrast it has with MenuKit's own fill: what muted text on a pack's fill keeps. */
+    private static final int MUTED = 0xFF8B8B8B;
+    private static final double MUTED_CONTRAST = contrast(MUTED, SPRITE_FILL);
+
+    // ponytail: one remembered fill; a screen draws on one panel fill at a time.
+    private static volatile long mutedMemo = -1;
+
+    /**
+     * The colour of muted text ({@code TextRole.MUTED}) in the Panel look, against the fill a
+     * plain panel takes under the active packs ({@link #panel()}). MenuKit's own muted grey
+     * wherever it still stands out from the fill as much as it does from MenuKit's own fill
+     * (so exactly as before with no pack, and on any grey fill: Default Dark Mode's dark one,
+     * whose text shader repaints only exact 0x404040 and so leaves this alone). On a fill it
+     * would sink into (Recolourful's orange), the fill blended toward the panel's text colour
+     * until it stands out as much: muted text that keeps the fill's hue, between the fill and
+     * the body text. Toward white instead on a fill the text colour can't stand out from.
+     */
+    public static int mutedText() {
+        int fill = panel().fill();
+        long memo = mutedMemo;
+        if (memo != -1 && (int) (memo >>> 32) == fill) return (int) memo;
+        int muted = mutedOn(fill);
+        mutedMemo = ((long) fill << 32) | (muted & 0xFFFFFFFFL);
+        return muted;
+    }
+
+    /** {@link #mutedText} on {@code fill}, pure. */
+    static int mutedOn(int fill) {
+        if (contrast(MUTED, fill) >= MUTED_CONTRAST) return MUTED;
+        int toward = contrast(fill, TEXT) >= MUTED_CONTRAST ? TEXT : 0xFFFFFFFF;
+        for (int i = 1; i <= 100; i++) {
+            int c = mix(fill, toward, i / 100.0);
+            if (contrast(c, fill) >= MUTED_CONTRAST) return c;
+        }
+        return toward;
+    }
+
+    /** {@code a} blended toward {@code b} by {@code t}, opaque. */
+    private static int mix(int a, int b, double t) {
+        int out = 0xFF000000;
+        for (int s = 0; s < 24; s += 8) {
+            out |= (int) Math.round(((a >> s) & 0xFF) * (1 - t) + ((b >> s) & 0xFF) * t) << s;
+        }
+        return out;
+    }
+
     private static double luminance(int argb) {
         double r = channel((argb >> 16) & 0xFF), g = channel((argb >> 8) & 0xFF), b = channel(argb & 0xFF);
         return 0.2126 * r + 0.7152 * g + 0.0722 * b;
@@ -233,11 +314,19 @@ public final class PackLook {
         return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
     }
 
+    /** The grey of the same lightness as {@code argb} (its relative luminance), alpha kept: the recolour's base. */
+    static int greyOf(int argb) {
+        double l = luminance(argb);
+        double v = l <= 0.0031308 ? 12.92 * l : 1.055 * Math.pow(l, 1 / 2.4) - 0.055;
+        int g = (int) Math.round(Math.max(0, Math.min(1, v)) * 255);
+        return (argb & 0xFF000000) | g << 16 | g << 8 | g;
+    }
+
     /** Works out one look (spec part 1's order). Never throws: anything unreadable is MenuKit's sprite. */
     private static Look resolve(Identifier texture, Part part) {
         // No game (MenuKit's headless checks draw panels too): MenuKit's own sprite.
         Minecraft mc = Minecraft.getInstance();
-        if (mc == null) return new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, false);
+        if (mc == null) return withGrey(new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, false, false, null), null);
         ResourceManager rm = mc.getResourceManager();
         boolean slotSprite = fromPack(rm.getResource(SLOT_SPRITE_FILE), VANILLA_PACK);
 
@@ -250,23 +339,41 @@ public final class PackLook {
             } catch (Exception e) {
                 LOG.warn("Couldn't read the overridden {}: {}", PANEL_SPRITE_FILE, e.toString());
             }
-            return new Look(texture, part, Source.OVERRIDE, null, centre, slotSprite);
+            return withGrey(new Look(texture, part, Source.OVERRIDE, null, centre, slotSprite, false, null), null);
         }
 
         // 2. Vanilla's own texture (or none at all): MenuKit's sprite, unchanged.
         Optional<Resource> res = rm.getResource(texture);
-        if (!fromPack(res, VANILLA_PACK)) return new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, slotSprite);
+        if (!fromPack(res, VANILLA_PACK)) return withGrey(new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, slotSprite, false, null), null);
 
         // 3. Cut from the pack's texture, or MenuKit's sprite when it can't be cut cleanly.
         try (InputStream in = res.get().open(); NativeImage img = NativeImage.read(in)) {
             Cut cut = analyse(new Pixels(img), part == Part.INVENTORY);
             Source source = cut != null && cut.clean() ? Source.PACK : Source.FALLBACK;
             LOG.debug("{} {} from {}: {}", texture, part, res.get().sourcePackId(), source);
-            return new Look(texture, part, source, cut, SPRITE_FILL, slotSprite);
+            // The greyscale copy a tinted section is drawn from, made with the cut (RECOLOUR).
+            Identifier grey = cut == null ? null : registerGrey(mc, texture, img);
+            return withGrey(new Look(texture, part, source, cut, SPRITE_FILL, slotSprite, false, null), grey);
         } catch (Exception e) {
             LOG.warn("Couldn't cut a panel look from {}: {}", texture, e.toString());
-            return new Look(texture, part, Source.FALLBACK, null, SPRITE_FILL, slotSprite);
+            return withGrey(new Look(texture, part, Source.FALLBACK, null, SPRITE_FILL, slotSprite, false, null), null);
         }
+    }
+
+    /**
+     * Registers a greyscale copy of {@code img} (each pixel the grey of its lightness, alpha
+     * kept) as a texture of MenuKit's own, and returns its id: a tinted section's art is drawn
+     * from it ({@link Tint#RECOLOUR}). Both parts of a texture share one; a later reload
+     * registers it again under the same id, which frees the one before.
+     */
+    private static Identifier registerGrey(Minecraft mc, Identifier texture, NativeImage img) {
+        Identifier id = Identifier.fromNamespaceAndPath("menukit",
+                "pack_look_grey/" + texture.getNamespace() + "/" + texture.getPath());
+        NativeImage grey = new NativeImage(img.getWidth(), img.getHeight(), false);
+        for (int y = 0; y < img.getHeight(); y++)
+            for (int x = 0; x < img.getWidth(); x++) grey.setPixel(x, y, greyOf(img.getPixel(x, y)));
+        mc.getTextureManager().register(id, new DynamicTexture(() -> "MenuKit grey " + texture, grey));
+        return id;
     }
 
     /** Whether a resource is present and supplied by a pack other than {@code own}, its owner's. */
@@ -627,6 +734,8 @@ public final class PackLook {
         if (look.drawsCut() && c.slotOk()) {
             piece(g, c, look.texture(), x, y, 18, 18, GRID_X0, c.slotV(), 18, 18, false);
         } else if (look.slotSprite()) {
+            // ponytail: a greyed look still draws a pack's restyled slot sprite in its colours;
+            // grey that too if a pack's coloured slot sprite ever shows under a tint.
             g.blitSprite(RenderPipelines.GUI_TEXTURED, SLOT_SPRITE, x, y, 18, 18);
         } else {
             PanelRendering.renderSlotBackground(g, x, y);

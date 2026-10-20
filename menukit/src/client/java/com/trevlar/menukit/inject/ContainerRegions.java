@@ -223,7 +223,7 @@ public final class ContainerRegions {
                 throw new IllegalStateException("ContainerRegion section '" + section.id() + "' is already declared");
             }
         }
-        AbstractPanelElement holder = Flow.builder().vertical().gap(0, 0).add(section.content())
+        AbstractPanelElement holder = Flow.builder().vertical().gap(0, 0).add(new TitleInset(section)).add(section.content())
                 .visibleWhen(() -> shownOnCurrentScreen(section)).build();
         SECTIONS.add(new Placed(section, holder));
         SECTIONS.sort(Comparator.comparingInt((Placed p) -> p.section().order()).thenComparing(p -> p.section().id()));
@@ -622,7 +622,8 @@ public final class ContainerRegions {
             AbstractPanelElement holder = SECTIONS.get(i).holder();
             if (!holder.isVisible()) { tops[i] = bottoms[i] = -1; continue; }
             shown++;
-            tops[i] = CONTENT_TOP + holder.getChildY();
+            // The holder is placed in the content's coordinates, CONTENT_TOP included.
+            tops[i] = holder.getChildY();
             bottoms[i] = tops[i] + holder.getHeight();
         }
         if (shown == 0) { state.geometry = null; return null; }
@@ -844,9 +845,64 @@ public final class ContainerRegions {
         return PackLook.look(screenTexture(state.screen.get()), PackLook.Part.CONTAINER);
     }
 
-    /** Section {@code i}'s look: the container texture it stands for. */
-    private static PackLook.Look sectionLook(int i) {
-        return PackLook.look(SECTIONS.get(i).section().texture(), PackLook.Part.CONTAINER);
+    /** Section {@code s}'s look: the container texture it stands for. */
+    private static PackLook.Look sectionLook(Section s) {
+        return PackLook.look(s.texture(), PackLook.Part.CONTAINER);
+    }
+
+    /**
+     * Whether section {@code s} is drawn in greys for its tint to colour
+     * ({@link PackLook.Tint#RECOLOUR}): it is tinted and its art is coloured.
+     */
+    private static boolean recoloured(Section s) {
+        return PackLook.Mockup.tint == PackLook.Tint.RECOLOUR && s.tint().getAsInt() != 0 && !sectionLook(s).grey();
+    }
+
+    /** The look section {@code s}'s block and slot frames are drawn in: its own, or in greys under a recolour. */
+    private static PackLook.Look drawnLook(Section s) {
+        return recoloured(s) ? sectionLook(s).greyed() : sectionLook(s);
+    }
+
+    /**
+     * The tint drawn over section {@code s} this frame, ARGB, {@code 0} for none: over grey
+     * art, and over coloured art drawn in greys; left out over the pack's own colour, unless
+     * a mockup says otherwise ({@code ALWAYS}).
+     */
+    private static int drawnTint(Section s) {
+        int argb = s.tint().getAsInt();
+        if (argb != 0 && PackLook.Mockup.tint != PackLook.Tint.ALWAYS && !drawnLook(s).grey()) return 0;   // mockup: ALWAYS
+        return argb;
+    }
+
+    /** Whether section {@code s} draws a block of its own over the list: its own texture's fill, or its art in greys. */
+    private static boolean drawsBlock(Section s, PackLook.Look list) {
+        return !s.texture().equals(list.texture()) || recoloured(s);
+    }
+
+    /**
+     * Whether section {@code s} shows as a block of its own on the list (a tint, or a fill
+     * unlike the list's), so its title takes vanilla's room above it ({@link #TITLE_INSET}).
+     */
+    private static boolean ownsBlock(Section s) {
+        if (drawnTint(s) != 0) return true;
+        PackLook.Look list = listLook();
+        return drawsBlock(s, list) && drawnLook(s).fill() != list.fill();
+    }
+
+    /**
+     * How far a section's title goes down when the section is a block of its own: with the
+     * block's top {@link #TINT_TOP} above the section, its title sits 3 px inside the block,
+     * as vanilla's title sits 3 px inside its art's fill (fill from row 3, title at 6).
+     */
+    public static final int TITLE_INSET = 2;
+
+    /** The room above a section's title while it is a block of its own ({@link #ownsBlock}); none otherwise. */
+    private record TitleInset(Section section) implements PanelElement {
+        @Override public int getChildX() { return 0; }
+        @Override public int getChildY() { return 0; }
+        @Override public int getWidth() { return 0; }
+        @Override public int getHeight() { return state.screen.get() != null && ownsBlock(section) ? TITLE_INSET : 0; }
+        @Override public void render(RenderContext ctx) {}
     }
 
     /**
@@ -868,7 +924,7 @@ public final class ContainerRegions {
         return (x, y) -> {
             for (int i = 0; i < tops.length; i++) {
                 int[] r = tintRect(g, tops[i], bottoms[i], scroll);
-                if (r != null && x >= r[0] && x < r[2] && y >= r[1] && y < r[3]) return sectionLook(i);
+                if (r != null && x >= r[0] && x < r[2] && y >= r[1] && y < r[3]) return drawnLook(SECTIONS.get(i).section());
             }
             return list;
         };
@@ -880,6 +936,8 @@ public final class ContainerRegions {
      * with vanilla's own), the scrollbar lane inside it while it scrolls. A section that
      * stands for another texture (a shulker box in a chest's list) gets a block of its own
      * texture's fill over its part, so a pack's purple shulker art shows as purple there.
+     * A tinted section over coloured art gets its block in greys, for the tint to colour
+     * ({@link PackLook.Tint#RECOLOUR}).
      */
     private static final class Backdrop implements PanelElement {
         @Override public int getChildX() { return 0; }
@@ -897,14 +955,15 @@ public final class ContainerRegions {
             int dx = ctx.originX() - g.x(), dy = ctx.originY() - g.top();
             boolean clipped = false;
             for (int i = 0; i < SECTIONS.size(); i++) {
-                if (SECTIONS.get(i).section().texture().equals(list.texture())) continue;
+                Section s = SECTIONS.get(i).section();
+                if (!drawsBlock(s, list)) continue;
                 int[] r = tintRect(g, state.tops[i], state.bottoms[i], state.scroll);
                 if (r == null) continue;
                 if (!clipped) {
                     ctx.graphics().enableScissor(g.x() + dx, g.viewTop() + dy, g.x() + g.width() + dx, g.viewBottom() + dy);
                     clipped = true;
                 }
-                PackLook.drawFill(ctx.graphics(), r[0] + dx, r[1] + dy, r[2] - r[0], r[3] - r[1], sectionLook(i));
+                PackLook.drawFill(ctx.graphics(), r[0] + dx, r[1] + dy, r[2] - r[0], r[3] - r[1], drawnLook(s));
             }
             if (clipped) ctx.graphics().disableScissor();
         }
@@ -930,8 +989,8 @@ public final class ContainerRegions {
      * Each section's tint, over its part of the container list: after the sections drew
      * (their titles and slot frames take the colour) and before the region's slots draw
      * their items (which keep their own), cut at the viewport's edges like the content.
-     * Only over grey art (spec part 4): where the resource pack already coloured the
-     * section's container art, the tint is left out.
+     * Over grey art, and over coloured art drawn in greys ({@link PackLook.Tint#RECOLOUR}):
+     * the dye's colour in the pack's own shading.
      */
     private static final class Tints implements PanelElement {
         @Override public int getChildX() { return 0; }
@@ -947,8 +1006,7 @@ public final class ContainerRegions {
             int dx = ctx.originX() - g.x(), dy = ctx.originY() - g.top();
             boolean clipped = false;
             for (int i = 0; i < SECTIONS.size(); i++) {
-                int argb = SECTIONS.get(i).section().tint().getAsInt();
-                if (argb != 0 && !PackLook.Mockup.tintAlways && !sectionLook(i).grey()) argb = 0;   // mockup: tintAlways
+                int argb = drawnTint(SECTIONS.get(i).section());
                 int[] r = argb == 0 ? null : tintRect(g, state.tops[i], state.bottoms[i], state.scroll);
                 if (r == null) continue;
                 if (!clipped) {
