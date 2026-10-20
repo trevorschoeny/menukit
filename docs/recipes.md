@@ -396,7 +396,7 @@ Result: a swatch of the colour, over a checkerboard because it has alpha. Clicki
 
 ## An item setting
 
-Needs: MenuKit 7.2.0.
+Needs: MenuKit 7.2.0, and 7.3.0 for `ignoring` and `ignoringCount`.
 
 ```java
 // One item, the kind only.
@@ -419,11 +419,20 @@ PanelElement locks = ItemPicker.builder()
         .playerChoosesMatch()
         .build();
 
+// Exact items that still match once worn, in any count (7.3.0).
+PanelElement exactLocks = ItemPicker.builder()
+        .label(Component.literal("Exact locks"))
+        .rules(config::exactLocks, config::setExactLocks)
+        .match(ItemMatch.Match.EXACT)
+        .ignoring(DataComponents.DAMAGE)
+        .ignoringCount()
+        .build();
+
 // In play, one matcher for every mode.
 boolean locked = config.locks().stream().anyMatch(rule -> rule.matches(stack));
 ```
 
-Result: one slot with the item, and two rows of slots, each with an empty slot marked with a plus at the end. Clicking a slot opens a dialog over the screen: the setting's slots at the top, then a search box over every item and variant. Click a slot in the row to select it, then click an item in the grid to put it there. The small minus in a filled slot's corner removes it, on the page and in the dialog. The two lists have an Edit tab for the selected slot: name, count, enchantments that fit the item, the other components in `/give` syntax, and for the locks the choice between Any and Exactly. The first picker never shows a count or an Edit tab. Every change is written at once. Cancel or Escape puts back the value from before. Save a rule with `ItemMatch.CODEC`.
+Result: one slot with the item, and three rows of slots, each with an empty slot marked with a plus at the end. Clicking a slot opens a dialog over the screen: the setting's slots at the top, then a search box over every item and variant. Click a slot in the row to select it, then click an item in the grid to put it there. The small minus in a filled slot's corner removes it, on the page and in the dialog. The two lists have an Edit tab for the selected slot: name, count, enchantments that fit the item, the other components in `/give` syntax, and for the locks the choice between Any and Exactly. The exact locks have no count, and their rules leave damage out, so a locked sword stays locked as it wears. The first picker never shows a count or an Edit tab. Every change is written at once. Cancel or Escape puts back the value from before. Save a rule with `ItemMatch.CODEC`.
 
 ## A list that changes while the screen is open
 
