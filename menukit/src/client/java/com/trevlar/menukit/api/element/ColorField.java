@@ -1,5 +1,6 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.api.panel.Focus;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelStyle;
@@ -276,7 +277,7 @@ public class ColorField extends AbstractPanelElement {
         }
         boolean hot = !disabled && (hovered || (widget != null && widget.focused()));
         GuiGraphicsExtractor g = ctx.graphics();
-        if (ctx.kind() == ScreenKind.DEFAULT) {
+        if (ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON) == ScreenKind.DEFAULT) {   // spec part 10
             VanillaLook.button(g, x, y, width, height, !disabled, hot);
         } else {
             PanelRendering.renderControl(g, x, y, width, height, disabled ? PanelStyle.DARK : PanelStyle.RAISED);

@@ -84,7 +84,7 @@ public final class PackLook {
             Identifier.withDefaultNamespace("textures/gui/sprites/container/slot.png");
 
     /** The pack ids of vanilla's own resources and of MenuKit's own (a Fabric mod's pack is its mod id). */
-    private static final String VANILLA_PACK = "vanilla", MENUKIT_PACK = "menukit";
+    static final String VANILLA_PACK = "vanilla", MENUKIT_PACK = "menukit";
 
     /** MenuKit's sprite's fill, the vanilla grey. */
     private static final int SPRITE_FILL = 0xFFC6C6C6;
@@ -200,6 +200,7 @@ public final class PackLook {
     public static void onReload() {
         CACHE.clear();
         OptiGuiRules.onReload();
+        ControlLook.onReload();
         TEXT_MEMO.clear();
         shaderLightens = 0;
     }
@@ -418,7 +419,7 @@ public final class PackLook {
     }
 
     /** Whether a resource is present and supplied by a pack other than {@code own}, its owner's. */
-    private static boolean fromPack(Optional<Resource> res, String own) {
+    static boolean fromPack(Optional<Resource> res, String own) {
         return res.isPresent() && !own.equals(res.get().sourcePackId());
     }
 

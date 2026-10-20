@@ -1,5 +1,6 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.api.element.ItemMatch.Match;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelStyle;
@@ -1053,7 +1054,8 @@ final class ItemDialog {
     }
 
     /** A control button: vanilla's button in the Default look, MenuKit's raised one (dark when off) in the Panel look. */
-    private static void drawControl(GuiGraphicsExtractor g, ScreenKind kind, int x, int y, String glyph, boolean enabled, boolean hovered) {
+    private static void drawControl(GuiGraphicsExtractor g, ScreenKind screen, int x, int y, String glyph, boolean enabled, boolean hovered) {
+        ScreenKind kind = ControlLook.kind(screen, ControlLook.Control.BUTTON);   // vanilla's where a pack restyled it (spec part 10)
         if (kind == ScreenKind.DEFAULT) {
             VanillaLook.button(g, x, y, CONTROL, CONTROL, enabled, hovered && enabled);
         } else if (!enabled) {
