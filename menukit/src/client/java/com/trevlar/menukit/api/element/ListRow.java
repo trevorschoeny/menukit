@@ -60,7 +60,9 @@ import java.util.function.Supplier;
  * between the title and the buttons is empty. The title is read every frame, so a live
  * count grows in place, and one too long for the room (the buttons', and the search
  * field's own width when there is one) is cut with "..." keeping its styles, and shown
- * whole in a tooltip. A title with nothing else is a line of its own, the text's height.
+ * whole in a tooltip. A title given a tooltip of its own shows that one while hovered,
+ * cut or not, as a {@link Section} with a tooltip does. A title with nothing else is a
+ * line of its own, the text's height.
  */
 final class ListRow extends AbstractPanelElement {
 
@@ -91,6 +93,8 @@ final class ListRow extends AbstractPanelElement {
 
     /** The toolbar's title, read every frame, or {@code null}: rows and a toolbar without one. */
     private final @Nullable Supplier<Component> title;
+    /** The title's own hover tooltip, read while hovered, or {@code null}: then a cut title shows whole. */
+    private final @Nullable Supplier<Component> titleTooltip;
     /** Greys the title with the list. */
     private final BooleanSupplier titleOff;
     /** Whether the toolbar's row is a search field (it keeps its own width from the title) rather than an empty stand-in. */
@@ -103,23 +107,26 @@ final class ListRow extends AbstractPanelElement {
 
     /** A list row and its controls, behind a divider. */
     ListRow(PanelElement row, List<PanelElement> controls) {
-        this(row, controls, true, null, () -> false, false);
+        this(row, controls, true, null, null, () -> false, false);
     }
 
     /**
      * The toolbar: the title if any, the search field if any (else an empty Flow), and
-     * the buttons a gap after them, no divider. {@code off} greys the title with the list.
+     * the buttons a gap after them, no divider. {@code off} greys the title with the list;
+     * {@code titleTooltip} is the title's own hover tooltip, if any.
      */
-    static ListRow toolbar(@Nullable Supplier<Component> title, BooleanSupplier off,
-                           @Nullable PanelElement search, List<PanelElement> buttons) {
+    static ListRow toolbar(@Nullable Supplier<Component> title, @Nullable Supplier<Component> titleTooltip,
+                           BooleanSupplier off, @Nullable PanelElement search, List<PanelElement> buttons) {
         PanelElement row = search != null ? search : Flow.builder().build();   // nothing there: the buttons keep the right end
-        return new ListRow(row, buttons, false, title, off, search != null);
+        return new ListRow(row, buttons, false, title, titleTooltip, off, search != null);
     }
 
     private ListRow(PanelElement row, List<PanelElement> controls, boolean divider,
-                    @Nullable Supplier<Component> title, BooleanSupplier titleOff, boolean searched) {
+                    @Nullable Supplier<Component> title, @Nullable Supplier<Component> titleTooltip,
+                    BooleanSupplier titleOff, boolean searched) {
         this.divider = divider;
         this.title = title;
+        this.titleTooltip = titleTooltip;
         this.titleOff = titleOff;
         this.searched = searched;
         this.row = row;
@@ -225,6 +232,18 @@ final class ListRow extends AbstractPanelElement {
         return new int[]{getChildX(), getChildY() + (getHeight() - h) / 2, font.width(titleShown()), h};
     }
 
+    /**
+     * What hovering the title shows now: its own tooltip when it has one, cut or not (a
+     * {@code null} result shows none), as a {@link Section} with a tooltip does; else the
+     * whole title when it is cut; else nothing.
+     */
+    @Nullable Component titleHover() {
+        if (title == null) return null;
+        if (titleTooltip != null) return titleTooltip.get();
+        Component whole = title.get();
+        return whole != null && !titleShown().getString().equals(whole.getString()) ? whole : null;
+    }
+
     /** The buttons' box, {@code {x, y, width, height}}: their left edge, the line they share. */
     int[] laneBox() {
         int top = getChildY() + rowDrop() + centred();
@@ -309,8 +328,8 @@ final class ListRow extends AbstractPanelElement {
 
     /**
      * The toolbar's title at its left edge, centred on the line, in a heading's colour
-     * and shadow for the look (a {@link Section}'s title), greyed with the list. A cut
-     * title shows whole in a tooltip while hovered.
+     * and shadow for the look (a {@link Section}'s title), greyed with the list. Hovered,
+     * it shows {@link #titleHover()}: its own tooltip, or the whole title when cut.
      */
     private void titleLine(RenderContext ctx) {
         int[] box = titleBox();
@@ -321,10 +340,9 @@ final class ListRow extends AbstractPanelElement {
         int col = textColor(ctx.disabledIf(titleOff.getAsBoolean()), TextRole.HEADING);
         g.text(font, Language.getInstance().getVisualOrder(shown), ctx.originX() + box[0], ctx.originY() + box[1],
                 col, ctx.kind().textShadow());
-        Component whole = title.get();
-        if (whole != null && !shown.getString().equals(whole.getString()) && ctx.hasMouseInput()
-                && ctx.isHovered(box[0], box[1], box[2], box[3])) {
-            MKTooltip.queue(g, whole, ctx.mouseX(), ctx.mouseY());
+        if (ctx.hasMouseInput() && ctx.isHovered(box[0], box[1], box[2], box[3])) {
+            Component tip = titleHover();
+            if (tip != null) MKTooltip.queue(g, tip, ctx.mouseX(), ctx.mouseY());
         }
     }
 
