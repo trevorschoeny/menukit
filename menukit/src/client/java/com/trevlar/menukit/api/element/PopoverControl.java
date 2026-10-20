@@ -333,7 +333,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
             VanillaLook.button(g, tx, ty, width, h, !disabled, hovered && !open);
             if (open) VanillaLook.pressedOverlay(g, tx, ty, width, h);
         } else {
-            PanelRendering.renderPanel(g, tx, ty, width, h, disabled ? PanelStyle.DARK : PanelStyle.RAISED);
+            PanelRendering.renderControl(g, tx, ty, width, h, disabled ? PanelStyle.DARK : PanelStyle.RAISED);
             if (hovered && !open) g.fill(tx + 1, ty + 1, tx + width - 1, ty + h - 1, ElementConstants.HOVER_OVERLAY);
         }
 
@@ -373,7 +373,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.popoverBackground(g, px, py, pw, ph);
         } else {
-            PanelRendering.renderPanel(g, px, py, pw, ph, PanelStyle.RAISED);
+            PanelRendering.renderControl(g, px, py, pw, ph, PanelStyle.RAISED);
         }
 
         int textX = px + 1 + POPOVER_TEXT_PAD_X;

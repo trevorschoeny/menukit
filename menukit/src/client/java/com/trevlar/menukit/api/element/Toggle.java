@@ -206,7 +206,7 @@ public class Toggle extends AbstractPanelElement {
             return;
         }
         PanelStyle bg = disabled ? PanelStyle.DARK : on ? PanelStyle.INSET : PanelStyle.RAISED;
-        PanelRendering.renderPanel(ctx.graphics(), sx, sy, w, h, bg);
+        PanelRendering.renderControl(ctx.graphics(), sx, sy, w, h, bg);
         if (!disabled && hovered) {
             ctx.graphics().fill(sx + 1, sy + 1, sx + w - 1, sy + h - 1, ElementConstants.HOVER_OVERLAY);
         }

@@ -27,6 +27,11 @@ public final class PanelRendering {
     private static final Identifier PANEL_RAISED_SPRITE =
             Identifier.fromNamespaceAndPath("menukit", "panel_raised");
 
+    // MenuKit's RAISED control sprite (buttons, toggles, popovers): today's panel art, a file
+    // of its own so a resource pack can theme controls apart from panels (spec part 7).
+    private static final Identifier CONTROL_RAISED_SPRITE =
+            Identifier.fromNamespaceAndPath("menukit", "control_raised");
+
     // Vanilla's dark panel sprite, the one behind status effects.
     private static final Identifier PANEL_DARK_SPRITE =
             Identifier.withDefaultNamespace("container/inventory/effect_background");
@@ -56,11 +61,25 @@ public final class PanelRendering {
     }
 
     /**
+     * Draws a <b>control's</b> background (a button, toggle, popover, colour field, info box):
+     * as {@link #renderPanel}, except RAISED, which is MenuKit's {@code menukit:control_raised}
+     * sprite, so a resource pack themes controls and panels ({@code menukit:panel_raised})
+     * each on its own. Unthemed, the two are the same art.
+     */
+    public static void renderControl(GuiGraphicsExtractor graphics, int x, int y, int w, int h, PanelStyle style) {
+        if (style == PanelStyle.RAISED && w > 0 && h > 0) {
+            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, CONTROL_RAISED_SPRITE, x, y, w, h);
+            return;
+        }
+        renderPanel(graphics, x, y, w, h, style);
+    }
+
+    /**
      * Draws a Panel-look <b>panel surface</b>: the background of a panel itself (a settings
      * screen, the container region's two panels), which follows the resource pack's
      * container art ({@link PackLook}). Not for controls: a button, toggle or popover that
-     * is RAISED keeps {@link #renderPanel}'s sprite, since a frame cut from a chest would be
-     * wrong on a button (spec part 7). With vanilla's own textures it draws exactly what
+     * is RAISED draws {@link #renderControl}'s sprite, since a frame cut from a chest would
+     * be wrong on a button (spec part 7). With vanilla's own textures it draws exactly what
      * {@code renderPanel(..., RAISED)} draws.
      *
      * @param look the surface's look, from {@link PackLook#look} (cached; cheap per frame)

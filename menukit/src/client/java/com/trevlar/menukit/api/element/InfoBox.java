@@ -79,7 +79,7 @@ public class InfoBox extends AbstractPanelElement {
         if (t == null) return;
         int sx = ctx.originX() + childX;
         int sy = ctx.originY() + childY;
-        PanelRendering.renderPanel(ctx.graphics(), sx, sy, getWidth(), getHeight(), PanelStyle.RAISED);
+        PanelRendering.renderControl(ctx.graphics(), sx, sy, getWidth(), getHeight(), PanelStyle.RAISED);
         int color = disabled(ctx) ? ElementConstants.TEXT_DISABLED : ElementConstants.TEXT_DARK;
         Text.drawWrapped(ctx.graphics(), t, wrapWidth, sx + PADDING, sy + PADDING, 0, color, false);
         queueTooltip(ctx);
