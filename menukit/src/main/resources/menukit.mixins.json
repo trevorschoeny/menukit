@@ -8,6 +8,7 @@
     "AbstractContainerScreenAccessor",
     "ClientTextTooltipAccessor",
     "MKContainerItemTooltipMixin",
+    "MKChatStatusLiftMixin",
     "MKContainerLayersMixin",
     "MKCreativeTabHoverMixin",
     "MKGuiMixin",

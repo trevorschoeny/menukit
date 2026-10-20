@@ -415,19 +415,21 @@ public final class RegionMath {
 
     /**
      * The base of the HUD's status column on an {@code sw x sh} GUI: a rectangle
-     * {@link #STATUS_COLUMN_WIDTH} wide, centred on the hotbar, whose top is where the
-     * column's first panel stands ({@code TOP_CENTER} stacks up from it).
+     * {@link #STATUS_COLUMN_WIDTH} wide, centred on the hotbar: the column's fixed
+     * origin. {@code TOP_CENTER} stacks its panels up from the top, the first one
+     * {@link RegionConstants#MENU_STACK_GAP} (2 px) above it.
      *
      * <p>With the status bars shown ({@code statusBars}: survival and adventure, where
-     * {@code Hud} draws hearts, hunger and the XP bar), the top is the top of the XP
-     * level number's outline: the number is drawn at {@code sh - 24 - 9 - 2} with a
-     * 1 px outline, so its top is {@code sh - 36}. The column starts there whether the
-     * number shows or not (it hides at level 0), so the column doesn't jump when the
-     * player's first level arrives. Without them (creative, spectator) the top is the
-     * hotbar's own.
+     * {@code Hud} draws hearts, hunger and the XP bar), the first panel rests right on
+     * the XP level number, level with the hearts and armour rows: the number is drawn
+     * at {@code sh - 24 - 9 - 2} with a 1 px outline, so its top is {@code sh - 36}, and
+     * the base sits the default gap below that. The column stays there whether the
+     * number shows or not (it hides at level 0), so it doesn't jump when the player's
+     * first level arrives. Without them (creative, spectator) the base is the hotbar's
+     * top.
      */
     public static Reference statusColumn(int sw, int sh, boolean statusBars) {
-        int top = statusBars ? sh - 36 : sh - HOTBAR_HEIGHT;
+        int top = statusBars ? sh - 36 + RegionConstants.MENU_STACK_GAP : sh - HOTBAR_HEIGHT;
         return new Reference(sw / 2 - STATUS_COLUMN_WIDTH / 2, top, STATUS_COLUMN_WIDTH, sh - top);
     }
 
