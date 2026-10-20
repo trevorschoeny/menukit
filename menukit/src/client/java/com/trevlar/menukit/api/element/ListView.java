@@ -201,7 +201,10 @@ import java.util.function.Supplier;
  * label in a {@code crossAlign(CENTER)} {@link Flow} is, and greys with the list. A
  * supplier is read every frame, so a live count changes in place; a title too long for
  * the line is cut with "..." before the search field or the first button, its styles
- * kept, and shown whole in a tooltip. A list with a title and nothing else for a
+ * kept, and shown whole in a tooltip. A title can carry a hover tooltip of its own,
+ * {@code title(title, tooltip)} (a config option's description, say), fixed or read
+ * while hovered as a button's is; it shows instead, cut or not, as a {@link Section}
+ * with a tooltip does. A list with a title and nothing else for a
  * toolbar has one all the same: the title's line. Without a title the toolbar is as
  * above, exactly.
  *
@@ -275,6 +278,8 @@ public final class ListView<T> extends AbstractPanelElement {
     private final @Nullable Consumer<Sort> sortSet;
     /** The heading on the toolbar's line ({@link Builder#title}), read every frame, or {@code null}. */
     private final @Nullable Supplier<Component> title;
+    /** The title's own hover tooltip ({@code title(title, tooltip)}), read while hovered, or {@code null}. */
+    private final @Nullable Supplier<Component> titleTooltip;
     /** Up, down and remove in each row ({@link Builder#controlsInRows}) instead of in the toolbar. */
     private final boolean controlsInRows;
     /** Whether the toolbar's remove or arrows act on the selected row: then a click anywhere in a row selects it. */
@@ -359,6 +364,7 @@ public final class ListView<T> extends AbstractPanelElement {
         this.sortGet = b.sortGet;
         this.sortSet = b.sortSet;
         this.title = b.title;
+        this.titleTooltip = b.titleTooltip;
         this.controlsInRows = b.controlsInRows;
         this.edits = !b.adds.isEmpty() || remove != null || move != null || pinned != null
                 || searchText != null || !sorts.isEmpty();
@@ -454,7 +460,7 @@ public final class ListView<T> extends AbstractPanelElement {
         // The title, the search field and the buttons share one line the way a row and its
         // controls do, the whole as wide as its container gives it: the mod's layout when
         // placed (the scroll area's outer edge), the list's rows' width when the list draws it.
-        return ListRow.toolbar(title, off, search, buttons);
+        return ListRow.toolbar(title, titleTooltip, off, search, buttons);
     }
 
     /** A toolbar arrow: a square icon button as tall as the add buttons, moving the selected row {@code by} one place. */
@@ -1303,6 +1309,12 @@ public final class ListView<T> extends AbstractPanelElement {
         return toolbar == null ? "" : ((ListRow) toolbar).titleShown().getString();
     }
 
+    /** What hovering the toolbar's title shows now: its own tooltip, else the whole title when cut; {@code null} for nothing. */
+    @ApiStatus.Internal
+    public @Nullable Component titleHover() {
+        return toolbar == null ? null : ((ListRow) toolbar).titleHover();
+    }
+
     /** The toolbar's title box, {@code {x, y, width, height}} where the toolbar sits, or {@code null} without one. */
     @ApiStatus.Internal
     public int @Nullable [] titleBox() {
@@ -1368,6 +1380,7 @@ public final class ListView<T> extends AbstractPanelElement {
         private @Nullable Supplier<Sort> sortGet;
         private @Nullable Consumer<Sort> sortSet;
         private @Nullable Supplier<Component> title;
+        private @Nullable Supplier<Component> titleTooltip;
 
         Builder() {}
 
@@ -1616,7 +1629,45 @@ public final class ListView<T> extends AbstractPanelElement {
          * ({@code "Ranges  4 rows"}, the count styled grey); its styles are kept.
          */
         public Builder<T, K> title(Supplier<Component> title) {
+            return titled(title, null);
+        }
+
+        /**
+         * {@link #title(Component)} with a hover tooltip of its own (a config option's
+         * description, say), as {@code Button.Builder.tooltip(Component)}: a {@code \n}
+         * starts a new line. It shows instead of the whole title when the title is cut,
+         * as a {@link Section} with a tooltip does.
+         */
+        public Builder<T, K> title(Component title, Component tooltip) {
+            Objects.requireNonNull(title, "title");
+            Objects.requireNonNull(tooltip, "tooltip");
+            return titled(() -> title, () -> tooltip);
+        }
+
+        /**
+         * {@link #title(Component, Component)} with the tooltip read every frame while
+         * hovered, as {@code Button.Builder.tooltip(Supplier)}: a {@code null} result shows none.
+         */
+        public Builder<T, K> title(Component title, Supplier<Component> tooltip) {
+            Objects.requireNonNull(title, "title");
+            return titled(() -> title, Objects.requireNonNull(tooltip, "tooltip"));
+        }
+
+        /** {@link #title(Supplier)}, read every frame, with a fixed hover tooltip. */
+        public Builder<T, K> title(Supplier<Component> title, Component tooltip) {
+            Objects.requireNonNull(tooltip, "tooltip");
+            return titled(Objects.requireNonNull(title, "title"), () -> tooltip);
+        }
+
+        /** {@link #title(Supplier)}, read every frame, with a hover tooltip read while hovered. */
+        public Builder<T, K> title(Supplier<Component> title, Supplier<Component> tooltip) {
+            return titled(Objects.requireNonNull(title, "title"), Objects.requireNonNull(tooltip, "tooltip"));
+        }
+
+        /** The title and its own tooltip, if any: the last {@code title(...)} wins, tooltip and all. */
+        private Builder<T, K> titled(Supplier<Component> title, @Nullable Supplier<Component> tooltip) {
             this.title = Objects.requireNonNull(title, "title");
+            this.titleTooltip = tooltip;
             return this;
         }
 
