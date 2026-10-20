@@ -1,5 +1,8 @@
 package com.trevlar.menukit.api.element;
 
+import com.trevlar.menukit.api.panel.ScreenKind;
+import com.trevlar.menukit.core.PackLook;
+
 import org.jetbrains.annotations.ApiStatus;
 
 import net.minecraft.network.chat.Component;
@@ -263,10 +266,18 @@ public abstract class AbstractPanelElement implements PanelElement {
 
     /**
      * The colour of text in {@code role} on the kind of screen this element is on
-     * this frame, the {@link TextRole#DISABLED} colour while it is disabled.
+     * this frame, the {@link TextRole#DISABLED} colour while it is disabled. In the Panel
+     * look, text over a tinted part of a panel surface (a container region section in a
+     * dye's colour) takes a colour that reads on the tinted fill, where the role's own
+     * would not ({@code PackLook.textAt}); the tint is never laid over text.
      */
     protected final int textColor(RenderContext ctx, TextRole role) {
-        return ctx.kind().textColor(disabled(ctx) ? TextRole.DISABLED : role);
+        TextRole r = disabled(ctx) ? TextRole.DISABLED : role;
+        int colour = ctx.kind().textColor(r);
+        if (ctx.kind() != ScreenKind.PANEL || r == TextRole.DISABLED) return colour;
+        int x = ctx.originX() + getChildX(), y = ctx.originY() + getChildY();
+        return r == TextRole.MUTED ? PackLook.mutedAt(colour, x, y)
+                : PackLook.textAt(colour, x, y);
     }
 
     // A list row's controls on the row's own first line (7.3.0). Package-private: only
