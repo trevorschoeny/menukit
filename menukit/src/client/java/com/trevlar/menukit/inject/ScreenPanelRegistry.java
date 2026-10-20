@@ -15,6 +15,7 @@ import com.trevlar.menukit.mixin.ScreenAccessor;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
+import net.fabricmc.fabric.api.event.Event;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -67,7 +68,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * dispatcher asks: a shown modal claims everything; otherwise the topmost claiming
  * panel in the one draw order read top down ({@link LayerPlan#topDown}: OVERLAY,
  * then POPOVER, then FLOW, upper host before lower), by
- * {@link PanelHost#claimsPoint}. Slot hover, widget hover, list and tab hover,
+ * {@link PanelHost#claimsPoint}. A background panel (7.4.0) is never in that order: it
+ * claims nothing, and its input comes last ({@link #dispatchBackgroundClick},
+ * {@link #listenLast}). Slot hover, widget hover, list and tab hover,
  * tooltips and the MouseHandler-level input eat all reduce to it, so a new host (an
  * anchor host, a standalone host) cannot fall through a per-site gap.
  *
@@ -303,6 +306,15 @@ public final class ScreenPanelRegistry {
         });
         ScreenMouseEvents.allowMouseScroll(screen).register((s, mouseX, mouseY, hAmount, vAmount) ->
                 !PanelHost.mouseScrolled(routed, mouseX, mouseY, hAmount, vAmount, modalUpOn(s)));
+        // Last of all (7.4.0): a turn nobody used goes to the background panels' elements,
+        // then scrolls the container region. A click the screen's widgets declined goes to
+        // the background panels too: on a container screen from its own mouseClicked
+        // (MKBackgroundClickMixin, which always answers "used"), elsewhere here.
+        listenLast(ScreenMouseEvents.afterMouseScroll(screen));
+        if (!(screen instanceof AbstractContainerScreen<?>)) {
+            ScreenMouseEvents.afterMouseClick(screen).register((s, event, consumed) ->
+                    consumed || dispatchBackgroundClick(s, event.x(), event.y(), event.button()));
+        }
         ScreenMouseEvents.allowMouseRelease(screen).register((s, event) -> {
             for (PanelHost host : routed) host.mouseReleased(event.x(), event.y(), event.button());
             return true;
@@ -405,6 +417,28 @@ public final class ScreenPanelRegistry {
     private static void renderAll(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         LayerPlan.compose(hostsOn(screen), graphics, mouseX, mouseY, screen.width, screen.height,
                 pointerPolicy(screen, mouseX, mouseY));
+    }
+
+    /**
+     * The BACKGROUND layer of the registry's hosts (7.4.0), in the screen's background
+     * pass ({@link ScreenBackground}): before anything else of the frame, so everything
+     * draws over it. Its slots are placed here and drawn in vanilla's slot pass.
+     */
+    public static void renderBackground(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
+        List<PanelHost> routed = routedOn(screen);
+        if (routed.isEmpty()) return;
+        renderBackground(routed, graphics, mouseX, mouseY, pointerPolicy(screen, mouseX, mouseY));
+    }
+
+    /** {@link #renderBackground(Screen, GuiGraphicsExtractor, int, int)} over {@code hosts} (bottom to top). */
+    public static void renderBackground(List<PanelHost> hosts, GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+                                        PanelHost.PointerPolicy pointer) {
+        PresentedSlots.background(true);
+        try {
+            LayerPlan.render(hosts, LayerPlan.Layer.BACKGROUND, graphics, mouseX, mouseY, pointer);
+        } finally {
+            PresentedSlots.background(false);
+        }
     }
 
     /**
@@ -602,11 +636,10 @@ public final class ScreenPanelRegistry {
     }
 
     /**
-     * Scroll: routed to the claiming panel and eaten, under the same rule as a press, with
-     * one exception for a turn nobody used (7.4.0, {@link ContainerRegions}). Over the
-     * container region itself an unused turn goes on to the screen and every other mod's
-     * handler, and the region scrolls on it last; over any other panel it is eaten, as
-     * before, and offered to the region straight away.
+     * Scroll: routed to the claiming panel and eaten, under the same rule as a press. A
+     * turn the claimant's elements do not use is offered to the container region straight
+     * away (7.4.0, {@link ContainerRegions}); the region's own panels claim nothing, so over
+     * them a turn goes on to the screen and every other handler first ({@link #listenLast}).
      */
     public static boolean dispatchCoveredScroll(Screen screen, double mouseX, double mouseY,
                                                 double scrollX, double scrollY) {
@@ -614,9 +647,64 @@ public final class ScreenPanelRegistry {
         if (claim == null || claim.host() == ownHost(screen) || claim.yieldsToSlot()) return false;
         if (claim.placed() != null) {
             boolean used = claim.host().mouseScrolled(claim.placed(), mouseX, mouseY, scrollX, scrollY);
-            if (!used && ContainerRegions.isRegion(claim.placed().panel())) return false;
             if (!used) ContainerRegions.wheel(screen, scrollY);
         }
         return true;
+    }
+
+    // Background panels' input (7.4.0): last
+
+    /** The after-scroll phase the last listener runs in: after the default one. */
+    private static final Identifier LAST = Identifier.fromNamespaceAndPath("menukit", "after_everyone");
+
+    /**
+     * A screen's last wheel listener, in a phase after Fabric's default one, so it hears
+     * every other listener's answer whenever that listener registered: a turn neither the
+     * screen nor any of them used goes to the background panels' elements, then scrolls
+     * the container region ({@link ContainerRegions#wheel}).
+     */
+    public static void listenLast(Event<ScreenMouseEvents.AfterMouseScroll> after) {
+        after.addPhaseOrdering(Event.DEFAULT_PHASE, LAST);
+        after.register(LAST, (s, x, y, hAmount, vAmount, consumed) ->
+                consumed || dispatchBackgroundScroll(s, x, y, hAmount, vAmount) || ContainerRegions.wheel(s, vAmount));
+    }
+
+    /**
+     * A click nothing on the screen took (its widgets, every other mod's, every panel
+     * above), offered to the background panels, topmost first. On a slot a background
+     * panel shows it stays vanilla's (the slot is clicked as any slot is). With a modal
+     * up they take nothing.
+     *
+     * @return whether an element took it
+     */
+    public static boolean dispatchBackgroundClick(Screen screen, double mouseX, double mouseY, int button) {
+        if (!dispatchBackgroundClick(routedOn(screen), mouseX, mouseY, button, modalUpOn(screen))) return false;
+        Focus.blurOnOutsideBounds(screen, mouseX, mouseY);
+        return true;
+    }
+
+    /** {@link #dispatchBackgroundClick(Screen, double, double, int)} over {@code hosts} (bottom to top). */
+    public static boolean dispatchBackgroundClick(List<PanelHost> hosts, double mouseX, double mouseY, int button,
+                                                  boolean modalUp) {
+        if (modalUp) return false;
+        List<LayerPlan.Drawn> order = LayerPlan.drawOrder(hosts, LayerPlan.Layer.BACKGROUND);
+        for (int i = order.size() - 1; i >= 0; i--) {
+            LayerPlan.Drawn d = order.get(i);
+            if (d.host().yieldsToSlot(d.placed(), mouseX, mouseY)) return false;
+            if (d.host().mouseClicked(d.placed(), mouseX, mouseY, button)) return true;
+        }
+        return false;
+    }
+
+    /** A turn of the wheel nobody used, offered to the background panels, topmost first. */
+    public static boolean dispatchBackgroundScroll(Screen screen, double mouseX, double mouseY,
+                                                   double scrollX, double scrollY) {
+        if (modalUpOn(screen)) return false;
+        List<LayerPlan.Drawn> order = LayerPlan.drawOrder(routedOn(screen), LayerPlan.Layer.BACKGROUND);
+        for (int i = order.size() - 1; i >= 0; i--) {
+            LayerPlan.Drawn d = order.get(i);
+            if (d.host().mouseScrolled(d.placed(), mouseX, mouseY, scrollX, scrollY)) return true;
+        }
+        return false;
     }
 }

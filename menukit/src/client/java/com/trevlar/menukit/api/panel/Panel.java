@@ -204,6 +204,11 @@ public class Panel {
     // the screen, below the modal overlay: the LayerPlan's POPOVER layer.
     private boolean popover = false;
 
+    // Background layer (7.4.0), declared once on the builder (Builder.background()): the
+    // panel draws as the screen's own background, under everything else on the screen,
+    // and claims nothing. The LayerPlan's BACKGROUND layer.
+    private boolean background = false;
+
     // Optional Escape action. When this is the topmost visible tracksAsModal panel
     // and the player presses Escape, the host (MKScreen, or ScreenPanelRegistry's
     // key listener for injected panels) runs it to dismiss the modal instead of
@@ -294,6 +299,7 @@ public class Panel {
         private @Nullable BooleanSupplier disabledWhen;
         private @Nullable BooleanSupplier visibleWhen;
         private boolean popover = false;
+        private boolean background = false;
 
         private Builder(String id) {
             this.id = id;
@@ -387,11 +393,41 @@ public class Panel {
             return this;
         }
 
+        /**
+         * Makes the panel part of the screen's background (7.4.0): it draws right where
+         * the screen draws its own image, after the screen's dim, so everything else on
+         * the screen draws over it: vanilla's labels and slots, its own slots, other
+         * mods' widgets and buttons, every other panel, tooltips. It never interferes
+         * with anything drawn over it:
+         * <ul>
+         *   <li><b>It claims nothing</b> (the claim rule, {@code docs/concepts.md}
+         *       "Claims"): what lies over it stays live, including another mod's widget
+         *       anywhere on it.</li>
+         *   <li><b>Its elements get input last</b>: a click once the screen's own widgets
+         *       (and so every other mod's) and every panel above have declined it, and
+         *       never on a slot it shows, which is vanilla's to click; the wheel once the
+         *       screen and every other handler have declined it.</li>
+         *   <li><b>Its slots draw in vanilla's slot pass</b>, over the panel, clipped to
+         *       what the panel shows of them, as a standalone screen's own panels' slots
+         *       do.</li>
+         * </ul>
+         * The container region's two panels are background panels. Not with
+         * {@link #popover()}: a panel is above everything or below it.
+         */
+        public Builder background() {
+            this.background = true;
+            return this;
+        }
+
         /** Builds the configured Panel. */
         public Panel build() {
+            if (background && popover) {
+                throw new IllegalStateException("Panel '" + id + "' is both background() and popover(); pick one layer");
+            }
             Panel panel = new Panel(id, elements, visible, style, position, toggleKey);
             panel.disabledSupplier = disabledWhen;
             panel.popover = popover;
+            panel.background = background;
             if (visibleWhen != null) panel.visibleWhen(visibleWhen);
             return panel;
         }
@@ -1280,6 +1316,14 @@ public class Panel {
      */
     public boolean isPopover() {
         return popover;
+    }
+
+    /**
+     * Whether this panel is part of the screen's background ({@link Builder#background()}):
+     * it draws under everything else on the screen and claims nothing.
+     */
+    public boolean isBackground() {
+        return background;
     }
 
     /**

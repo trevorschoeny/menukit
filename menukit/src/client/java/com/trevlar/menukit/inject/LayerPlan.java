@@ -11,10 +11,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The one frame-composition plan every panel surface follows: FLOW, then
- * POPOVER, then the modal dim, then OVERLAY.
+ * The one frame-composition plan every panel surface follows: BACKGROUND, then
+ * FLOW, then POPOVER, then the modal dim, then OVERLAY.
  *
  * <ul>
+ *   <li><b>BACKGROUND</b> (7.4.0): every {@link Panel#isBackground() background}
+ *       panel, drawn as part of the screen's own background, where the screen draws
+ *       its image ({@link ScreenBackground}), before anything else of the screen's:
+ *       its widgets, labels and slots, every other mod's widgets, every other layer.
+ *       It is not part of the claim order: a background panel claims nothing, and
+ *       pointer input reaches it last ({@link ScreenPanelRegistry#dispatchBackgroundClick},
+ *       {@link ScreenPanelRegistry#dispatchBackgroundScroll}), never through
+ *       {@link #topDown}.</li>
  *   <li><b>FLOW</b>: every placed panel that is neither a popover nor an overlay, in
  *       host order (the host's sorted z-order, topmost last), host by host, bottom
  *       host first.</li>
@@ -57,20 +65,25 @@ public final class LayerPlan {
     private LayerPlan() {}
 
     /** The panel layers of a frame, bottom to top. */
-    public enum Layer { FLOW, POPOVER, OVERLAY }
+    public enum Layer { BACKGROUND, FLOW, POPOVER, OVERLAY }
 
-    /** The layers top to bottom: the order claims and pointer input test them in. */
+    /**
+     * The layers top to bottom: the order claims and pointer input test them in.
+     * BACKGROUND is not in it: a background panel claims nothing and takes input only
+     * after everything on the screen has declined it.
+     */
     public static final List<Layer> TOP_DOWN = List.of(Layer.OVERLAY, Layer.POPOVER, Layer.FLOW);
 
     /** About 75% black: the dim fill, tuned to vanilla's confirm-screen darkening. */
     public static final int DIM_COLOR = 0xC0000000;
 
     /**
-     * Which layer a panel draws (and claims) in. An overlay wins over a popover: a
-     * popover that is also a modal (or centred) is a modal, and draws with the
-     * modals above the dim.
+     * Which layer a panel draws (and claims) in. A background panel is in the
+     * background whatever else it is. An overlay wins over a popover: a popover that
+     * is also a modal (or centred) is a modal, and draws with the modals above the dim.
      */
     public static Layer layerOf(Panel panel) {
+        if (panel.isBackground()) return Layer.BACKGROUND;
         if (panel.isOverlayPositioned()) return Layer.OVERLAY;
         return panel.isPopover() ? Layer.POPOVER : Layer.FLOW;
     }

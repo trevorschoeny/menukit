@@ -33,8 +33,8 @@ import java.util.List;
  *
  * <table>
  *   <tr><th>#</th><th>Layer</th><th>Drawn by</th></tr>
- *   <tr><td>0</td><td>screen background, container texture</td><td>vanilla ({@code extractBackground}, an earlier stratum)</td></tr>
- *   <tr><td>1</td><td><b>slots no panel shows</b>: highlight, item, count, durability</td><td>vanilla ({@code extractSlots}; the slots panels show are left out)</td></tr>
+ *   <tr><td>0</td><td>screen background: the dim, then <b>background panels</b> (7.4.0) where the container texture goes, then the texture unless a background panel replaces it</td><td>vanilla ({@code extractBackground}, an earlier stratum); MenuKit ({@link ScreenBackground}) at its base method's return</td></tr>
+ *   <tr><td>1</td><td><b>slots no panel shows</b>, and background panels' slots: highlight, item, count, durability</td><td>vanilla ({@code extractSlots}; the slots panels show are left out)</td></tr>
  *   <tr><td>2</td><td><b>flow panels</b>, then <b>popover panels</b> of every host, <b>each followed by the slots it shows</b></td><td>MenuKit: {@link #aboveSlots} (or {@link #beforeSlot}, below); each slot through the screen's own {@code extractSlot}</td></tr>
  *   <tr><td>3</td><td>created slots no panel shows (a slot library that does not report its slots)</td><td>vanilla ({@code extractSlots}, after the first such slot)</td></tr>
  *   <tr><td>4</td><td>modal dim, <b>overlay panels</b> of every host, each followed by its slots</td><td>MenuKit: {@link #aboveSlots}</td></tr>
@@ -162,6 +162,10 @@ public final class ContainerScreenLayers {
     public static void frameStart(AbstractContainerScreen<?> screen, int mouseX, int mouseY) {
         flowDrawn = false;
         PresentedSlots.beginFrame(screen, mouseX, mouseY);
+        // The container region notes where its slots are now (7.4.0), to show a quick
+        // move: its panels are background panels, placed already in this frame's
+        // background pass.
+        ContainerRegions.placed(screen);
         List<LayerPlan.Drawn> order = ScreenPanelRegistry.drawnAfterSlots(screen);
         if (order.isEmpty()) return;
         if (scratch == null) scratch = new GuiRenderState();
@@ -174,8 +178,6 @@ public final class ContainerScreenLayers {
             PresentedSlots.recording(false);
             scratch.reset();
         }
-        // The container region notes where its slots are now (7.4.0), to show a quick move.
-        ContainerRegions.placed(screen);
     }
 
     /**
@@ -206,7 +208,8 @@ public final class ContainerScreenLayers {
      */
     public static void beforeSlot(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
                                   Slot slot, int mouseX, int mouseY) {
-        if (!flowDrawn && SlotScreenDispatcher.fireIsCreated(slot) && !PresentedSlots.isPresented(slot)) {
+        if (!flowDrawn && SlotScreenDispatcher.fireIsCreated(slot) && !PresentedSlots.isPresented(slot)
+                && !PresentedSlots.placedBelow(slot)) {
             AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
             graphics.pose().pushMatrix();
             graphics.pose().translate(-acc.mk$getLeftPos(), -acc.mk$getTopPos());

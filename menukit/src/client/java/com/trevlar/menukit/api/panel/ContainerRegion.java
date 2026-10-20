@@ -33,6 +33,12 @@ import java.util.function.BooleanSupplier;
  * inventory panel is around the player's inventory where vanilla puts it, and never
  * moves. Scrolled content clips at the container list's own bottom edge.
  *
+ * <p>Both are the screen's background ({@link Panel.Builder#background()}): drawn where
+ * the screen draws its own image, under everything else on the screen, vanilla's labels
+ * and slots, the region's own slots and every other mod's widgets included, and claiming
+ * nothing, so another mod's button on either panel stays live and gets its clicks first.
+ * Only the region's own slots are cut at the list's edges.
+ *
  * <h3>The screen's bounds</h3>
  * The screen's {@code leftPos}, {@code topPos}, {@code imageWidth} and {@code imageHeight}
  * are the rectangle around both panels, scrollbar lane included, set whenever the layout
@@ -42,7 +48,9 @@ import java.util.function.BooleanSupplier;
  * in the gap between them with an item held is inside the screen, so it drops nothing.
  * The player's inventory slots and vanilla's labels are moved back by as much as the
  * origin moved, so nothing vanilla placed moves on screen. While the region is up, the
- * screen's own background texture is not drawn: both frames are MenuKit's.
+ * screen's own background still runs, every mod's hook in it included, but vanilla's own
+ * container texture and the screen's title are left out: the two panels and the sections'
+ * titles are in their place.
  *
  * <h3>Anchors</h3>
  * To put a button by one panel rather than by the whole screen, place it on

@@ -631,6 +631,19 @@ new ScreenPanelAdapter(panel).onMatching(ScreenMatcher.where(screen -> hasMySlot
 
 Result: the test runs once as each container screen opens, when its menu already holds every slot, and the panel is on exactly the screens that pass. Gate it further at runtime with `visibleWhen`. A slot element whose slot is not in the menu reports itself hidden and takes no room, and a panel with nothing left to show is not placed at all, so a mismatch shows nothing rather than an empty frame.
 
+## A panel behind everything on a container screen
+
+Needs: MenuKit 7.4.0. For a panel that stands in for part of the screen and must never get in another mod's way.
+
+```java
+// A panel drawn as the screen's background: the screen's slots, other mods' buttons and every other panel draw over it, and it blocks none of them.
+Panel tray = Panel.builder("mymod:tray").style(PanelStyle.RAISED).background().add(trayLabel)
+        .position(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)).build();
+new ScreenPanelAdapter(tray).on(ContainerScreen.class);
+```
+
+Result: the tray draws right where the chest screen draws its own image, before the screen's widgets, labels and slots, so all of them, and every other mod's widgets and panels, draw over it. It claims nothing: a button another mod puts on it stays live and takes its own clicks. Its own elements get a click only when nothing on the screen took it, and the wheel only when nothing else used it. Slots it shows draw over it in vanilla's slot pass. The container region's two panels are built this way.
+
 ## Stack containers in one scrolling column above the inventory
 
 Needs: MenuKit 7.4.0, and a slot library's elements for the grids (SlotKit's `SlotElement`). For a mod that opens more containers on a chest's screen, the way Shulkers in Inventory opens a shulker box below the chest.
@@ -650,7 +663,7 @@ ContainerRegion.section("mymod:opened-box")
         .declare();
 ```
 
-Result: while the session is open, the chest's screen is two panels: the chest and the box as one column in the container list, and the player's inventory in its own panel below it, where vanilla puts it. The column grows into the free height first and scrolls once the screen is full, by the wheel anywhere nothing else wants it, by its scrollbar (inside the list's frame), and by carrying an item to its top or bottom edge. A shift-click into the box while it is scrolled out of view scrolls to where the item landed. Each grid is a title over nine-wide rows of slot elements, the title 11 pixels above the first row as vanilla's is; `chestGrid` presents the chest's own slots, since the container list covers the screen's own grid. Another mod's sections on the same screen join the same column, by their `order`. The screen's bounds are the rectangle around both panels, so panels on the menu frame and other mods' buttons by the screen's edges go around both.
+Result: while the session is open, the chest's screen is two panels: the chest and the box as one column in the container list, and the player's inventory in its own panel below it, where vanilla puts it. The column grows into the free height first and scrolls once the screen is full, by the wheel anywhere nothing else wants it, by its scrollbar (inside the list's frame), and by carrying an item to its top or bottom edge. A shift-click into the box while it is scrolled out of view scrolls to where the item landed. Each grid is a title over nine-wide rows of slot elements, the title 11 pixels above the first row as vanilla's is; `chestGrid` presents the chest's own slots, since the container list takes the place of the screen's own grid. Both panels are the screen's background, so other mods' buttons on them draw over them and keep their clicks. Another mod's sections on the same screen join the same column, by their `order`. The screen's bounds are the rectangle around both panels, so panels on the menu frame and other mods' buttons by the screen's edges go around both.
 
 To put a button by one of the two panels rather than by the whole screen, place it on the panel's anchor:
 

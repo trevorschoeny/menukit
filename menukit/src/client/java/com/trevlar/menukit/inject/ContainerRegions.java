@@ -20,10 +20,8 @@ import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevlar.menukit.mixin.SlotAccessor;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
-import net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents;
 import net.fabricmc.fabric.api.event.Event;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.resources.Identifier;
@@ -53,15 +51,20 @@ import java.util.function.BooleanSupplier;
  * <b>inventory panel</b>, its own frame around the player's inventory, which never moves.
  *
  * <h3>Built from what is there</h3>
+ * Both panels are <b>background panels</b> ({@code Panel.Builder.background()}, 7.4.0): they
+ * draw as the screen's own background, where vanilla draws the screen's image, so
+ * everything else on the screen draws over them (vanilla's labels and slots, the region's
+ * own slots, every other mod's widgets, every other panel), and they claim nothing, so
+ * another mod's widget anywhere on them stays live and takes its clicks first. While the
+ * region is up, vanilla's own image ({@link #replacesImage}) and title ({@link #ownsTitle})
+ * are left out: the panels and the sections' own titles are in their place.
  * <ul>
- *   <li><b>The container list</b> is an ordinary container panel ({@link ScreenPanelAdapter}):
- *       opaque, so it claims its rectangle and whatever it covers (the screen's title, a
- *       container slot nobody presents) is hidden and inert; its slots draw right after it
- *       ({@link PresentedSlots}). Its scrollbar is inside its frame, and scrolled content
- *       clips at the frame's own bottom edge.</li>
- *   <li><b>The inventory panel</b> is drawn in the screen's background, where vanilla drew
- *       its texture, under vanilla's own inventory slots and "Inventory" label, which stay
- *       live and where vanilla put them. It claims nothing.</li>
+ *   <li><b>The container list</b> holds every section; its slots draw in vanilla's slot
+ *       pass, over it, clipped to its viewport. Its scrollbar is inside its frame, and
+ *       scrolled content clips at the frame's own bottom edge.</li>
+ *   <li><b>The inventory panel</b> is a frame and a slot frame under each of the player's
+ *       inventory slots, where vanilla drew them; vanilla's own inventory slots and
+ *       "Inventory" label stay live and where vanilla put them.</li>
  *   <li><b>The scroll area</b> is a {@link ScrollContainer} built {@code wheelLast()}: its
  *       children still get the wheel, but it never scrolls itself on one. This class
  *       scrolls it, after everyone else ({@link #wheel}).</li>
@@ -79,10 +82,8 @@ import java.util.function.BooleanSupplier;
  * the gap with an item held stays inside the screen and drops nothing. Moving the
  * screen's origin would move everything vanilla placed from it; the player's inventory
  * slots and both labels are moved back by as much, so on screen nothing vanilla placed
- * moves. The screen's own background texture is not drawn while the bounds are the
- * union: it would be drawn around the union's centre, and both frames are MenuKit's
- * ({@link #drawBackground}). Before the screen initialises again (a resize), the bounds
- * go back to vanilla's, so vanilla centres its own image as always.
+ * moves. Before the screen initialises again (a resize), the bounds go back to vanilla's,
+ * so vanilla centres its own image as always.
  *
  * <h3>Anchors</h3>
  * {@link #CONTAINERS} is the container list's rectangle and {@link #INVENTORY} the
@@ -93,14 +94,14 @@ import java.util.function.BooleanSupplier;
  * Three places, one rule: the region scrolls on a turn nobody else used.
  * <ol>
  *   <li>{@code MouseHandler} HEAD ({@link ScreenPanelRegistry#dispatchCoveredScroll}): over a
- *       panel that claims the point, that panel's elements get the turn. Over the region
- *       itself an unused turn is not eaten but passed on, so vanilla and every other mod see
- *       it next; over any other panel it is eaten (what the panel covers stays inert) and
- *       offered to the region straight away.</li>
+ *       panel that claims the point, that panel's elements get the turn, and one they do not
+ *       use is eaten (what the panel covers stays inert) and offered to the region straight
+ *       away. The region's own panels claim nothing, so over them the turn goes on.</li>
  *   <li>The screen's own {@code mouseScrolled}, and every other mod's handler on it.</li>
  *   <li>Fabric's {@code afterMouseScroll}, in a phase ordered after the default one, so
- *       after every listener registered in it, whenever registered: an unconsumed turn
- *       scrolls the region, wherever the mouse is.</li>
+ *       after every listener registered in it, whenever registered
+ *       ({@link ScreenPanelRegistry#listenLast}): an unconsumed turn goes to the background
+ *       panels' elements, then scrolls the region, wherever the mouse is.</li>
  * </ol>
  * A mod that uses the turn in step 2 or in its own {@code afterMouseScroll} listener (Mouse
  * Tweaks over any slot) answers "used", so the region does not move.
@@ -151,9 +152,8 @@ public final class ContainerRegions {
 
     /** The container list's panel id. */
     public static final String PANEL_ID = "menukit:container_region";
-
-    /** The after-scroll phase the region's listener runs in: after the default phase. */
-    private static final Identifier LAST = Identifier.fromNamespaceAndPath("menukit", "container_region_last");
+    /** The inventory panel's panel id. */
+    public static final String INVENTORY_PANEL_ID = "menukit:container_region_inventory";
     /** The after-init phase the bounds are set in: before the default one, so other mods' init listeners see them. */
     private static final Identifier FIRST = Identifier.fromNamespaceAndPath("menukit", "container_region_bounds");
 
@@ -184,6 +184,8 @@ public final class ContainerRegions {
     private static final List<Placed> SECTIONS = new CopyOnWriteArrayList<>();
     private static @Nullable Panel panel;
     private static @Nullable ScreenPanelAdapter adapter;
+    /** The inventory panel: made with the first section, on the same screens. */
+    private static @Nullable Panel inventoryPanel;
     /** The column the sections stack in, inside the scroll area. */
     private static @Nullable Flow column;
     /** The scroll area, for the checks. */
@@ -220,12 +222,21 @@ public final class ContainerRegions {
         // The viewport takes the panel's height below VIEW_TOP, less the frame's bottom border.
         PanelElement view = Flow.builder().vertical().gap(0, 0).at(INSET_X, VIEW_TOP)
                 .add(scrollArea).add(new Pad(VIEW_BOTTOM)).build();
-        panel = Panel.builder(PANEL_ID).style(PanelStyle.NONE)
+        // Both panels are the screen's background: under everything, claiming nothing.
+        panel = Panel.builder(PANEL_ID).style(PanelStyle.NONE).background()
                 .position(PanelPosition.pixel(ContainerRegions::origin))
                 .add(new Backdrop()).add(view)
                 .build()
                 .visibleWhen(() -> state.geometry != null);
         adapter = new ScreenPanelAdapter(panel, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
+        if (inventoryPanel == null) {
+            inventoryPanel = Panel.builder(INVENTORY_PANEL_ID).style(PanelStyle.NONE).background()
+                    .position(PanelPosition.pixel(ContainerRegions::inventoryOrigin))
+                    .add(new InventoryFrame())
+                    .build()
+                    .visibleWhen(() -> state.geometry != null && state.applied != null);
+            new ScreenPanelAdapter(inventoryPanel, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
+        }
     }
 
     /** Whether any section is declared for {@code screen}: the region's panel is put on it. */
@@ -243,6 +254,11 @@ public final class ContainerRegions {
     /** The container list's panel, or {@code null} with no section declared. */
     public static @Nullable Panel panel() {
         return panel;
+    }
+
+    /** The inventory panel, or {@code null} with no section declared. */
+    public static @Nullable Panel inventoryPanel() {
+        return inventoryPanel;
     }
 
     /** The container list's scroll area, or {@code null} with no section declared. */
@@ -405,20 +421,9 @@ public final class ContainerRegions {
                 restoreBounds(acs);   // the menu can outlive the screen
                 reset(null);
             });
-            listenLast(ScreenMouseEvents.afterMouseScroll(screen));
             // Lay out now, so every other mod's init listener and widget reads the union.
             frame(acs, -1, -1);
         });
-    }
-
-    /**
-     * The region's wheel listener on a screen's {@code afterMouseScroll}: in a phase after
-     * the default one, so it hears every other listener's answer whenever that listener
-     * registered, and scrolls only on a turn none of them (nor the screen) used.
-     */
-    public static void listenLast(Event<ScreenMouseEvents.AfterMouseScroll> after) {
-        after.addPhaseOrdering(Event.DEFAULT_PHASE, LAST);
-        after.register(LAST, (s, x, y, hAmount, vAmount, consumed) -> consumed || wheel(s, vAmount));
     }
 
     /** For MenuKit's checks: the region as if {@code screen} had just opened with these vanilla bounds. */
@@ -460,6 +465,11 @@ public final class ContainerRegions {
     private static @Nullable ScreenOrigin origin() {
         Geometry g = state.geometry;
         return g == null ? null : new ScreenOrigin(g.x(), g.top());
+    }
+
+    private static @Nullable ScreenOrigin inventoryOrigin() {
+        Geometry g = state.geometry;
+        return g == null ? null : new ScreenOrigin(g.inventory().leftPos(), g.inventory().topPos());
     }
 
     /**
@@ -571,40 +581,34 @@ public final class ContainerRegions {
     }
 
     /**
-     * Instead of the screen's own background, while its bounds are the union: the
-     * screen's dim, then the inventory panel's frame and a slot frame under each of the
-     * inventory's slots, all below vanilla's slots and labels. The container list draws
-     * itself, as a panel.
-     *
-     * @return whether it drew the background (the screen's own is then not drawn)
+     * Whether the region's panels stand in for {@code screen}'s own image now: while its
+     * bounds are the union, vanilla's container texture would be drawn around the union's
+     * centre, so the background pass leaves it out ({@link ScreenBackground}). Everything
+     * else in the screen's background still draws, every other mod's included.
      */
-    public static boolean drawBackground(Screen screen, GuiGraphicsExtractor graphics) {
-        Geometry g = state.geometry;
-        if (state.applied == null || g == null || state.screen.get() != screen
-                || !(screen instanceof AbstractContainerScreen<?> acs)) return false;
-        screen.extractTransparentBackground(graphics);
-        Minecraft.getInstance().gui.hud.extractDeferredSubtitles();
-        Reference inv = g.inventory();
-        PanelRendering.renderPanel(graphics, inv.leftPos(), inv.topPos(), inv.imageWidth(), inv.imageHeight(), PanelStyle.RAISED);
-        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) acs;
-        for (Slot slot : acs.getMenu().slots) {
-            if (stays(slot) && slot.isActive()) {
-                PanelRendering.renderSlotBackground(graphics, acc.mk$getLeftPos() + slot.x - 1, acc.mk$getTopPos() + slot.y - 1);
-            }
-        }
-        return true;
+    public static boolean replacesImage(Screen screen) {
+        return state.applied != null && state.geometry != null && state.screen.get() == screen;
     }
 
     /**
-     * Right after the place pass ({@link ContainerScreenLayers#frameStart}): every slot the
-     * region placed this frame, and where its cell sits in the content, is noted, so a
-     * quick move into it later can be shown at once. Positions and scroll are this frame's.
+     * Whether the region titles {@code screen}'s containers now, so vanilla's own title is
+     * left out: it would draw over the container list, where the first section's title is.
+     */
+    public static boolean ownsTitle(Screen screen) {
+        return replacesImage(screen);
+    }
+
+    /**
+     * At the head of the frame's contents ({@link ContainerScreenLayers#frameStart}), after
+     * the background pass placed the region's slots: every slot the region placed this
+     * frame, and where its cell sits in the content, is noted, so a quick move into it
+     * later can be shown at once. Positions and scroll are this frame's.
      */
     static void placed(AbstractContainerScreen<?> screen) {
         Geometry g = state.geometry;
         if (panel == null || g == null || state.screen.get() != screen) return;
         int topPos = ((AbstractContainerScreenAccessor) screen).mk$getTopPos();
-        for (Slot slot : PresentedSlots.of(panel)) state.cellTops.put(slot, cellTop(topPos, slot.y, g, state.scroll));
+        for (Slot slot : PresentedSlots.below(panel)) state.cellTops.put(slot, cellTop(topPos, slot.y, g, state.scroll));
     }
 
     /** Where a slot placed at {@code slotY} (vanilla's, from {@code topPos}) sits in the content: its cell's top. */
@@ -625,11 +629,6 @@ public final class ContainerRegions {
         double before = Scroller.clamp(state.scroll, g.content(), g.viewHeight());
         state.scroll = Scroller.wheel(before, scrollY, g.content(), g.viewHeight());
         return state.scroll != before;
-    }
-
-    /** Whether {@code p} is the region's panel. */
-    static boolean isRegion(Panel p) {
-        return p == panel;
     }
 
     // Quick moves
@@ -725,6 +724,34 @@ public final class ContainerRegions {
             Geometry g = state.geometry;
             if (g == null) return;
             PanelRendering.renderPanel(ctx.graphics(), ctx.originX(), ctx.originY(), g.width(), g.height(), PanelStyle.RAISED);
+        }
+    }
+
+    /**
+     * The inventory panel's look: vanilla's raised panel and a slot frame under each of
+     * the player's inventory slots, where vanilla's image had them. The slots themselves
+     * are vanilla's, drawn over it in vanilla's pass.
+     */
+    private static final class InventoryFrame implements PanelElement {
+        @Override public int getChildX() { return 0; }
+        @Override public int getChildY() { return 0; }
+        @Override public int getWidth() { Geometry g = state.geometry; return g == null ? 0 : g.inventory().imageWidth(); }
+        @Override public int getHeight() { Geometry g = state.geometry; return g == null ? 0 : g.inventory().imageHeight(); }
+
+        @Override
+        public void render(RenderContext ctx) {
+            Geometry g = state.geometry;
+            if (g == null || !(state.screen.get() instanceof AbstractContainerScreen<?> acs)) return;
+            Reference inv = g.inventory();
+            PanelRendering.renderPanel(ctx.graphics(), ctx.originX(), ctx.originY(), inv.imageWidth(), inv.imageHeight(),
+                    PanelStyle.RAISED);
+            AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) acs;
+            for (Slot slot : acs.getMenu().slots) {
+                if (stays(slot) && slot.isActive()) {
+                    PanelRendering.renderSlotBackground(ctx.graphics(), acc.mk$getLeftPos() + slot.x - 1,
+                            acc.mk$getTopPos() + slot.y - 1);
+                }
+            }
         }
     }
 
