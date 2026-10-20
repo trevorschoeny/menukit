@@ -601,13 +601,21 @@ public final class ScreenPanelRegistry {
         return true;
     }
 
-    /** Scroll: routed to the claiming panel and eaten, under the same rule as a press. */
+    /**
+     * Scroll: routed to the claiming panel and eaten, under the same rule as a press, with
+     * one exception for a turn nobody used (7.4.0, {@link ContainerRegions}). Over the
+     * container region itself an unused turn goes on to the screen and every other mod's
+     * handler, and the region scrolls on it last; over any other panel it is eaten, as
+     * before, and offered to the region straight away.
+     */
     public static boolean dispatchCoveredScroll(Screen screen, double mouseX, double mouseY,
                                                 double scrollX, double scrollY) {
         Claim claim = claimAt(screen, mouseX, mouseY);
         if (claim == null || claim.host() == ownHost(screen) || claim.yieldsToSlot()) return false;
         if (claim.placed() != null) {
-            claim.host().mouseScrolled(claim.placed(), mouseX, mouseY, scrollX, scrollY);
+            boolean used = claim.host().mouseScrolled(claim.placed(), mouseX, mouseY, scrollX, scrollY);
+            if (!used && ContainerRegions.isRegion(claim.placed().panel())) return false;
+            if (!used) ContainerRegions.wheel(screen, scrollY);
         }
         return true;
     }

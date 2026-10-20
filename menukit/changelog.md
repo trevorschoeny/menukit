@@ -1,3 +1,13 @@
+## 7.4.0 (unreleased)
+
+### Added
+
+- One scrolling column above the inventory on container screens. `ContainerRegion.section(id)` adds a section to the screen's container region: the chest's own grid, a box opened below it, another below that, stacked in one column above the player's inventory, which stays where vanilla puts it. There is one region per screen, however many mods add to it. It grows into the screen's free height first and scrolls once that is used up, by pixels, with the shared scrollbar; it is never shorter than the screen's own container part. The wheel scrolls it from anywhere on the screen, but only on a turn nothing else used: over a slot a mod that moves items with the wheel keeps it, and so does a recipe viewer's list. A shift-click into one of its slots scrolled out of view scrolls there, and carrying an item to its top or bottom edge scrolls it, faster nearer the edge. [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md#container-region), [recipe](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md#stack-containers-in-one-scrolling-column-above-the-inventory).
+
+### Changed
+
+- An element wholly outside the clip it is drawn in is skipped at every depth, not only a `ScrollContainer`'s own children: a row of slots in a `Flow` inside a scroll area is not drawn while it is out of view, so its slot library parks it and nothing scrolled away sits over what is past the edge, such as the inventory below a scrolling grid. An element with an open popover is still drawn.
+
 ## 7.3.0
 
 This release is additions, new names for the two looks, and one change to when slots shown in a panel are drawn. Nothing was removed, and mods built for 7.2.0 work as before.

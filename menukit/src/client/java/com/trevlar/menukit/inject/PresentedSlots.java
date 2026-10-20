@@ -138,6 +138,15 @@ public final class PresentedSlots {
         return panel != null && DRAWN.contains(panel);
     }
 
+    /**
+     * The panel that last showed {@code slot}, on any frame, or {@code null} when none
+     * ever did: how the container region knows a slot is one of its own while it is
+     * scrolled out of view (7.4.0).
+     */
+    public static @Nullable Panel lastPanel(Slot slot) {
+        return LAST_PANEL.get(slot);
+    }
+
     /** The host has drawn the panel's elements. */
     public static void endPanel() {
         current = null;

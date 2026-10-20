@@ -630,3 +630,24 @@ new ScreenPanelAdapter(panel).onMatching(ScreenMatcher.where(screen -> hasMySlot
 ```
 
 Result: the test runs once as each container screen opens, when its menu already holds every slot, and the panel is on exactly the screens that pass. Gate it further at runtime with `visibleWhen`. A slot element whose slot is not in the menu reports itself hidden and takes no room, and a panel with nothing left to show is not placed at all, so a mismatch shows nothing rather than an empty frame.
+
+## Stack containers in one scrolling column above the inventory
+
+Needs: MenuKit 7.4.0, and a slot library's elements for the grids (SlotKit's `SlotElement`). For a mod that opens more containers on a chest's screen, the way Shulkers in Inventory opens a shulker box below the chest.
+
+```java
+// The chest's own grid, then the box the player opened below it: one column above the inventory.
+ContainerRegion.section("mymod:chest")
+        .content(chestGrid)
+        .on(ContainerScreen.class)
+        .visibleWhen(() -> session.isOpen())
+        .declare();
+ContainerRegion.section("mymod:opened-box")
+        .content(boxGrid)
+        .on(ContainerScreen.class)
+        .order(10)
+        .visibleWhen(() -> session.isOpen())
+        .declare();
+```
+
+Result: while the session is open, the chest's screen shows the chest and the box as one column, the player's inventory fixed below it where vanilla puts it. The column grows into the free height first and scrolls once the screen is full, by the wheel anywhere nothing else wants it, by its scrollbar, and by carrying an item to its top or bottom edge. A shift-click into the box while it is scrolled out of view scrolls to where the item landed. Each grid is a title over nine-wide rows of slot elements, the title 11 pixels above the first row as vanilla's is; `chestGrid` presents the chest's own slots, since the region covers the screen's own grid. Another mod's sections on the same screen join the same column, by their `order`.

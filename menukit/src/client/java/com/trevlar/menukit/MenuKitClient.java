@@ -48,6 +48,8 @@ public class MenuKitClient implements ClientModInitializer {
         // One ScreenEvents.AFTER_INIT listener for every panel adapter, so
         // consumers don't each register their own.
         ScreenPanelRegistry.init();
+        // The container region's per-screen hooks (7.4.0): its frame, and the wheel, last.
+        com.trevlar.menukit.inject.ContainerRegions.init();
 
         // A focused MenuKit widget (such as TextField or Keybindery's SearchBox)
         // loses focus when the player clicks outside it. Vanilla only moves focus

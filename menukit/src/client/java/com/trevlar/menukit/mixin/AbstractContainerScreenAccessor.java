@@ -33,6 +33,10 @@ public interface AbstractContainerScreenAccessor {
     @Accessor("imageHeight")
     int mk$getImageHeight();
 
+    /** Where vanilla writes "Inventory": the container region ends just above it (7.4.0). */
+    @Accessor("inventoryLabelY")
+    int mk$getInventoryLabelY();
+
     @Accessor("hoveredSlot")
     Slot mk$getHoveredSlot();
 
