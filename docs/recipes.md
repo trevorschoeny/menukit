@@ -484,6 +484,8 @@ ListView<LockGroup> groupList = ListView.<LockGroup>builder()
         .items(groups::all)
         .key(LockGroup::id)
         .row(group -> groupRow(group.id()))
+        .title(() -> Component.literal("Lock groups  ")   // the heading, on the toolbar's line
+                .append(Component.literal(groups.all().size() + " groups").withStyle(ChatFormatting.GRAY)))
         .add(Component.literal("+ Slot group"), Component.literal("Locks the slots you pick"), groups::addSlotGroup)
         .add(Component.literal("+ Item group"), Component.literal("Locks the items you pick"), groups::addItemGroup)
         .add(Component.literal("+ Tag group"), Component.literal("Locks every item in a tag"), groups::addTagGroup)
@@ -520,7 +522,7 @@ static PanelElement groupRow(String id) {
 }
 ```
 
-Result: a toolbar with + Slot group, + Item group, + Tag group, - Delete group and up and down arrows at its right end, over a list of cards. Hovering an add button shows its tooltip, saying what that kind of group locks; `add(label, () -> tooltip, action)` takes one read while hovered instead. Clicking anywhere on a card selects it: a white outline in the Default look, a lighter card in the Panel look. Delete and the arrows stay grey until a group is selected, and stay grey for the two default groups, for up on the top movable group and down on the bottom one. Delete asks first, naming the group and its lock count, and then selects the group that took its place, so a second click deletes the next. Alt+Up and Alt+Down move the selected group. An added group appears at the bottom, scrolled into view. A group's card opens in place and stays open through renames and refreshes.
+Result: one line with "Lock groups" and a grey count at its left and + Slot group, + Item group, + Tag group, - Delete group and up and down arrows at its right end, over a list of cards. The count changes as groups come and go, and a heading too long for the line is cut with "..." before the first button. Without `title(...)` the buttons sit alone at the right. Hovering an add button shows its tooltip, saying what that kind of group locks; `add(label, () -> tooltip, action)` takes one read while hovered instead. Clicking anywhere on a card selects it: a white outline in the Default look, a lighter card in the Panel look. Delete and the arrows stay grey until a group is selected, and stay grey for the two default groups, for up on the top movable group and down on the bottom one. Delete asks first, naming the group and its lock count, and then selects the group that took its place, so a second click deletes the next. Alt+Up and Alt+Down move the selected group. An added group appears at the bottom, scrolled into view. A group's card opens in place and stays open through renames and refreshes.
 
 ## A config list of values, each its own text field
 
