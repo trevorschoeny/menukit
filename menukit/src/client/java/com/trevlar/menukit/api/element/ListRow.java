@@ -4,12 +4,19 @@ import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.DialogLayout;
 import com.trevlar.menukit.core.VanillaLook;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.locale.Language;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
 
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * An element and a few controls on its first line, at its trailing edge (7.3.0).
@@ -20,8 +27,9 @@ import java.util.List;
  *       consumer's row, then a vertical divider line, then up, down and remove. The
  *       list makes one per key only when the list has controls in its rows, so any
  *       other list keeps the consumer's row as it is.</li>
- *   <li><b>The toolbar</b>: the search field, then the sort, add, remove and arrow
- *       buttons as its controls, a button's gap after it, no divider.</li>
+ *   <li><b>The toolbar</b>: the list's title if it has one, then the search field,
+ *       then the sort, add, remove and arrow buttons as its controls, a button's gap
+ *       after it, no divider.</li>
  * </ul>
  *
  * <h3>Inside the row</h3>
@@ -44,6 +52,15 @@ import java.util.List;
  * placed by the mod above the list's scroll area, it reaches that area's outer edge,
  * scrollbar lane and band inset included, as the elements above it do; drawn by the
  * list at its own top, it is given the rows' width and lines up with them.
+ *
+ * <p>A toolbar with a title ({@link ListView.Builder#title}) starts with it at its left
+ * edge, in the heading style a {@link Section}'s title has, centred on the buttons'
+ * line as a label in a {@code crossAlign(CENTER)} {@link Flow} is. The search field
+ * follows a button's gap after it and takes what is left; with no search the room
+ * between the title and the buttons is empty. The title is read every frame, so a live
+ * count grows in place, and one too long for the room (the buttons', and the search
+ * field's own width when there is one) is cut with "..." keeping its styles, and shown
+ * whole in a tooltip. A title with nothing else is a line of its own, the text's height.
  */
 final class ListRow extends AbstractPanelElement {
 
@@ -72,21 +89,39 @@ final class ListRow extends AbstractPanelElement {
      */
     private @Nullable Boolean inside;
 
+    /** The toolbar's title, read every frame, or {@code null}: rows and a toolbar without one. */
+    private final @Nullable Supplier<Component> title;
+    /** Greys the title with the list. */
+    private final BooleanSupplier titleOff;
+    /** Whether the toolbar's row is a search field (it keeps its own width from the title) rather than an empty stand-in. */
+    private final boolean searched;
+    /** The title's slot at the last placing, so a title that changes width moves the search field with it. */
+    private int placedLead = -1;
+
     /** The width its container gives it (the list, or the mod's layout for a placed toolbar); until the first pass, its natural width. */
     private int budget = -1;
 
     /** A list row and its controls, behind a divider. */
     ListRow(PanelElement row, List<PanelElement> controls) {
-        this(row, controls, true);
+        this(row, controls, true, null, () -> false, false);
     }
 
-    /** The toolbar: the search field (or an empty Flow) and the buttons a gap after it, no divider. */
-    static ListRow toolbar(PanelElement search, List<PanelElement> buttons) {
-        return new ListRow(search, buttons, false);
+    /**
+     * The toolbar: the title if any, the search field if any (else an empty Flow), and
+     * the buttons a gap after them, no divider. {@code off} greys the title with the list.
+     */
+    static ListRow toolbar(@Nullable Supplier<Component> title, BooleanSupplier off,
+                           @Nullable PanelElement search, List<PanelElement> buttons) {
+        PanelElement row = search != null ? search : Flow.builder().build();   // nothing there: the buttons keep the right end
+        return new ListRow(row, buttons, false, title, off, search != null);
     }
 
-    private ListRow(PanelElement row, List<PanelElement> controls, boolean divider) {
+    private ListRow(PanelElement row, List<PanelElement> controls, boolean divider,
+                    @Nullable Supplier<Component> title, BooleanSupplier titleOff, boolean searched) {
         this.divider = divider;
+        this.title = title;
+        this.titleOff = titleOff;
+        this.searched = searched;
         this.row = row;
         this.controls = List.copyOf(controls);
         List<PanelElement> all = new ArrayList<>(controls.size() + 1);
@@ -153,9 +188,64 @@ final class ListRow extends AbstractPanelElement {
         return getWidth() - line()[2] - laneWidth();
     }
 
+    // The title (toolbar only)
+
+    private static final String ELLIPSIS = "...";
+
+    /** The widest the title may be: the width less the buttons' room, and the search field's own width when there is one. */
+    private int titleRoom() {
+        int room = getWidth() - (controls.isEmpty() ? 0 : room());
+        return searched ? room - row.naturalWidth() - LANE_GAP : room;
+    }
+
+    /** The title as drawn now: whole when it fits, else cut with "..." keeping its styles (a grey count stays grey). */
+    FormattedText titleShown() {
+        if (title == null) return FormattedText.EMPTY;
+        Component t = title.get();
+        if (t == null) return FormattedText.EMPTY;
+        Font font = Minecraft.getInstance().font;
+        int room = titleRoom();
+        if (font.width(t) <= room) return t;
+        int dots = font.width(ELLIPSIS);
+        if (room < dots) return FormattedText.EMPTY;
+        return FormattedText.composite(font.substrByWidth(t, room - dots), FormattedText.of(ELLIPSIS));
+    }
+
+    /** What the title takes from the left of the line: its width and a button's gap, or nothing. */
+    private int lead() {
+        int w = title == null ? 0 : Minecraft.getInstance().font.width(titleShown());
+        return w > 0 ? w + LANE_GAP : 0;
+    }
+
+    /** The title's box, {@code {x, y, width, height}} in the toolbar's coordinates, or {@code null} without one. */
+    int @Nullable [] titleBox() {
+        if (title == null) return null;
+        Font font = Minecraft.getInstance().font;
+        int h = font.lineHeight;
+        return new int[]{getChildX(), getChildY() + (getHeight() - h) / 2, font.width(titleShown()), h};
+    }
+
+    /** The buttons' box, {@code {x, y, width, height}}: their left edge, the line they share. */
+    int[] laneBox() {
+        int top = getChildY() + rowDrop() + centred();
+        return new int[]{getChildX() + laneX(), top, laneWidth(), laneHeight()};
+    }
+
+    /**
+     * A title that changed width since the toolbar was placed (a live count) moves the
+     * search field after it and gives it what is left; nothing when it is the same.
+     */
+    private void refit() {
+        if (title == null || budget <= 0 || lead() == placedLead) return;
+        layoutWithin(budget);
+        setChildPosition(getChildX(), getChildY());
+    }
+
     @Override
     public int naturalWidth() {
-        return inside() ? row.naturalWidth() : row.naturalWidth() + room();
+        int titleW = title == null || title.get() == null ? 0 : Minecraft.getInstance().font.width(title.get());
+        int lead = titleW > 0 ? titleW + LANE_GAP : 0;
+        return lead + (inside() ? row.naturalWidth() : row.naturalWidth() + room());
     }
 
     /** The width it was given, as any element: the list's for a row, its container's for a placed toolbar. */
@@ -164,10 +254,12 @@ final class ListRow extends AbstractPanelElement {
         return budget > 0 ? budget : naturalWidth();
     }
 
+    /** The row and the controls on its line; a title alone is a line of its own, the text's height. */
     @Override
     public int getHeight() {
         int drop = rowDrop();
-        return Math.max(drop + row.getHeight(), drop + centred() + laneHeight());
+        int h = Math.max(drop + row.getHeight(), drop + centred() + laneHeight());
+        return title == null ? h : Math.max(h, Minecraft.getInstance().font.lineHeight);
     }
 
     /** What the consumer's row grew by, so a row inside a row still reports it. */
@@ -180,7 +272,7 @@ final class ListRow extends AbstractPanelElement {
     public void layoutWithin(int budget) {
         this.budget = Math.max(1, budget);
         int w = getWidth();
-        row.layoutWithin(inside() ? w : Math.max(1, w - room()));
+        row.layoutWithin(Math.max(1, (inside() ? w : w - room()) - lead()));
     }
 
     @Override
@@ -193,7 +285,8 @@ final class ListRow extends AbstractPanelElement {
     public void setChildPosition(int x, int y) {
         super.setChildPosition(x, y);
         int drop = rowDrop();
-        if (row instanceof AbstractPanelElement r) r.setChildPosition(x, y + drop);
+        placedLead = lead();
+        if (row instanceof AbstractPanelElement r) r.setChildPosition(x + placedLead, y + drop);
         int top = y + drop + centred(), laneH = laneHeight();
         int cx = x + laneX();
         for (PanelElement c : controls) {
@@ -204,12 +297,35 @@ final class ListRow extends AbstractPanelElement {
 
     // Render and input: the row and its controls share the list's origin.
 
-    /** The row, then its divider over it, then the controls. */
+    /** The title, the row, then its divider over it, then the controls. */
     @Override
     public void render(RenderContext ctx) {
+        refit();
+        if (title != null) titleLine(ctx);
         ChildDispatch.render(List.of(row), ctx);
         if (divider && row.isVisible()) dividerLine(ctx);
         ChildDispatch.render(controls, ctx);
+    }
+
+    /**
+     * The toolbar's title at its left edge, centred on the line, in a heading's colour
+     * and shadow for the look (a {@link Section}'s title), greyed with the list. A cut
+     * title shows whole in a tooltip while hovered.
+     */
+    private void titleLine(RenderContext ctx) {
+        int[] box = titleBox();
+        FormattedText shown = titleShown();
+        if (box == null || box[2] == 0) return;
+        var g = ctx.graphics();
+        Font font = Minecraft.getInstance().font;
+        int col = textColor(ctx.disabledIf(titleOff.getAsBoolean()), TextRole.HEADING);
+        g.text(font, Language.getInstance().getVisualOrder(shown), ctx.originX() + box[0], ctx.originY() + box[1],
+                col, ctx.kind().textShadow());
+        Component whole = title.get();
+        if (whole != null && !shown.getString().equals(whole.getString()) && ctx.hasMouseInput()
+                && ctx.isHovered(box[0], box[1], box[2], box[3])) {
+            MKTooltip.queue(g, whole, ctx.mouseX(), ctx.mouseY());
+        }
     }
 
     /**
