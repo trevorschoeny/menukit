@@ -251,12 +251,14 @@ public final class PanelEditing {
 
     private static void drawEditing(Screen s, GuiGraphicsExtractor g, int mouseX, int mouseY) {
         if (s != editing) return;
-        PanelHost.Placed hover = drag == null ? panelAt(s, mouseX, mouseY) : null;
+        // The panel under the cursor, or the one being dragged, is lit. By panel, not by the
+        // Placed record: panelAt walks its own read of the layout, a record apart from this one.
+        PanelHost.Placed hit = drag == null ? panelAt(s, mouseX, mouseY) : null;
+        @Nullable Panel lit = drag != null ? drag.panel() : hit == null ? null : hit.panel();
         for (LayerPlan.Drawn d : LayerPlan.topDown(hostsOf(s))) {
             PanelHost.Placed p = d.placed();
             if (!PanelHost.movable(p.entry())) continue;
-            boolean lit = p == hover || (drag != null && p.panel() == drag.panel());
-            g.outline(p.x() - 1, p.y() - 1, p.w() + 2, p.h() + 2, lit ? OUTLINE_LIT : OUTLINE);
+            g.outline(p.x() - 1, p.y() - 1, p.w() + 2, p.h() + 2, p.panel() == lit ? OUTLINE_LIT : OUTLINE);
         }
         Font font = Minecraft.getInstance().font;
         Component hint = Component.translatable("menukit.move_panels.hint");
