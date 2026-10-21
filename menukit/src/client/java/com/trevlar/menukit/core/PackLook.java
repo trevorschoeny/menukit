@@ -10,6 +10,7 @@ import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,7 +61,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * An inventory part with no clean frame of its own (drawn in pieces: rows hung under the
  * container's box, the hotbar boxed apart) is drawn as the pack's plain panel ({@link #inventory}).
  * Everything is in the texture's 256-unit coordinates and drawn as blits in them, so a
- * 512 px (32x) pack needs nothing extra.
+ * 512 px (32x) pack, or a 128 px or 384 px one, needs nothing extra.
  *
  * <h3>Cached, never read per frame</h3>
  * A texture is read and cut once, on its first use after a resource reload; the cache is
@@ -84,7 +85,7 @@ public final class PackLook {
     private static final Identifier SLOT_SPRITE = ControlLook.Control.SLOT.vanilla(0);
 
     /** MenuKit's sprite's fill, the vanilla grey. */
-    private static final int SPRITE_FILL = 0xFFC6C6C6;
+    static final int SPRITE_FILL = 0xFFC6C6C6;
 
     // The analysis
 
@@ -156,35 +157,26 @@ public final class PackLook {
         }
     }
 
+    /** A cache key: one part of one texture. */
+    private record Key(Identifier texture, Part part) {}
+
     // ponytail: one cache entry per texture and part, dropped whole on a resource reload.
-    private static final Map<String, Look> CACHE = new ConcurrentHashMap<>();
+    private static final Map<Key, Look> CACHE = new ConcurrentHashMap<>();
 
     /** A resource reload: every look is cut again from what the new packs supply, on its next use. */
     public static void onReload() {
         CACHE.clear();
-        OptiGuiRules.onReload();
-        ControlLook.onReload();
-        TEXT_MEMO.clear();
-        shaderLightens = 0;
     }
 
     /** The look of {@code part} of {@code texture} under the active packs, cut on first use after a reload. */
     public static Look look(Identifier texture, Part part) {
-        return CACHE.computeIfAbsent(texture + "#" + part, k -> resolve(texture, part));
+        return CACHE.computeIfAbsent(new Key(texture, part), k -> resolve(texture, part));
     }
-
-    // Text that reads on the fill
-
-    /** The Panel look's heading and body text, vanilla's label grey ({@code ElementConstants.TEXT_DARK}). */
-    private static final int TEXT = 0xFF404040;
-    /** MenuKit's muted text ({@code ElementConstants.TEXT_MUTED}). */
-    private static final int MUTED = 0xFF8B8B8B;
-    private static final int WHITE = 0xFFFFFFFF, BLACK = 0xFF000000;
 
     /**
      * The look of a plain Panel-look panel (a settings screen): the chest's container part,
      * whatever its fill, so a settings screen matches the pack's most familiar container. A
-     * dark chest keeps its look; its text turns light instead ({@link #textOn}).
+     * dark chest keeps its look; its text turns light instead ({@link PackText#textOn}).
      */
     public static Look panel() {
         return look(CHEST, Part.CONTAINER);
@@ -203,131 +195,6 @@ public final class PackLook {
         if (own.source() != Source.FALLBACK) return own;
         Look plain = panel();
         return plain.source() == Source.PACK ? plain : own;
-    }
-
-    /**
-     * How far body text stands out from its fill: WCAG's 4.5:1 for text. Vanilla's grey stays
-     * wherever it does, and text that has to change is made to: below it vanilla's grey reads
-     * dim (on a lime shulker box, about 3:1).
-     */
-    public static final double BODY_TARGET = 4.5;
-    /** How far muted text stands out from MenuKit's own fill: what muted text keeps on any fill. */
-    private static final double MUTED_CONTRAST = contrast(MUTED, SPRITE_FILL);
-
-    /**
-     * Heading and body text {@code text} on {@code fill}, pure. {@code text} itself wherever
-     * it reads ({@link #BODY_TARGET}), so vanilla's grey stays on MenuKit's own fill and on any
-     * light one. On a fill too dark or too coloured for it, a colour made from the fill: the
-     * fill taken toward white (on a dark fill) or black (on a light or coloured one, an orange
-     * chest) until it stands out by {@link #BODY_TARGET}, so the text keeps the fill's hue.
-     *
-     * <p>{@code shaderLightens} says the pack's text shader repaints vanilla's exact grey in
-     * a light colour (as dark-mode packs do). Then on a dark fill vanilla's grey is left as
-     * it is, for the pack to repaint as it does on its own screens: lightened once, by the pack.
-     */
-    public static int textOn(int text, int fill, boolean shaderLightens) {
-        if (contrast(text, fill) >= BODY_TARGET) return text;
-        boolean dark = darkFill(fill);
-        if (dark && shaderLightens && text == TEXT) return text;
-        return standingOut(fill, dark ? WHITE : BLACK, BODY_TARGET);
-    }
-
-    /**
-     * Muted text on {@code fill}, pure: MenuKit's muted grey wherever it stands out from the
-     * fill as much as it does from MenuKit's own fill (so exactly as before with no pack, and
-     * on a dark-mode pack's dark grey), else the fill taken toward white or black until it
-     * does: between the fill and the body text, in the fill's hue.
-     */
-    public static int mutedOn(int fill) {
-        if (contrast(MUTED, fill) >= MUTED_CONTRAST) return MUTED;
-        return standingOut(fill, darkFill(fill) ? WHITE : BLACK, MUTED_CONTRAST);
-    }
-
-    /** Whether text reads better light than dark on {@code fill}. */
-    static boolean darkFill(int fill) {
-        return contrast(fill, WHITE) > contrast(fill, BLACK);
-    }
-
-    /** The GUI text shader, which a dark-mode pack replaces to repaint vanilla's text. */
-    private static final Identifier TEXT_SHADER = Identifier.withDefaultNamespace("shaders/core/text.fsh");
-    /** {@link #shaderLightens}, read once per reload: {@code 0} unread, {@code 1} no, {@code 2} yes. */
-    private static volatile int shaderLightens = 0;
-
-    /**
-     * Whether a pack's GUI text shader repaints vanilla's exact label grey: its {@code text.fsh}
-     * names 0x404040 (a dark-mode pack's turns it a light grey). Read once per reload.
-     */
-    // ponytail: a text match on the shader's source; a pack that spells the grey another way reads as "no", and its text is lightened by MenuKit instead.
-    public static boolean shaderLightens() {
-        int known = shaderLightens;
-        if (known != 0) return known == 2;
-        boolean yes = false;
-        Minecraft mc = Minecraft.getInstance();
-        if (mc != null) {
-            Optional<Resource> res = mc.getResourceManager().getResource(TEXT_SHADER);
-            if (PackArt.fromPack(res, PackArt.VANILLA_PACK)) {
-                try (InputStream in = res.get().open()) {
-                    String src = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).toLowerCase(java.util.Locale.ROOT);
-                    yes = src.contains("0x404040") || src.contains("4210752");
-                } catch (Exception e) {
-                    LOG.warn("Couldn't read {}: {}", TEXT_SHADER, e.toString());
-                }
-            }
-        }
-        shaderLightens = yes ? 2 : 1;
-        return yes;
-    }
-
-    // ponytail: one memo of each fill's text colours, dropped on a reload; a screen shows a handful of fills.
-    private static final Map<Long, Integer> TEXT_MEMO = new ConcurrentHashMap<>();
-
-    /**
-     * The colour text in a role is drawn in at {@code (x, y)} now ({@code colour}, the role's
-     * own: the Panel look's body grey, or its muted grey when {@code muted}). On a panel
-     * surface, one that reads on that surface's fill ({@link #textOn}, {@link #mutedOn}: in
-     * the container region, the fill of the section under it); anywhere else (no surface, a
-     * card drawn over one) {@code colour} as given.
-     */
-    public static int textAt(int colour, boolean muted, int x, int y) {
-        Look look = slotLookAt(x, y);
-        if (look == null) return colour;
-        int fill = look.fill();
-        long key = ((long) fill << 32) | ((colour & 0xFFFFFFFFL) ^ (muted ? 1L << 31 : 0));
-        return TEXT_MEMO.computeIfAbsent(key, k -> muted ? mutedOn(fill) : textOn(colour, fill, shaderLightens()));
-    }
-
-    /** WCAG's contrast ratio of two colours, 1 to 21. */
-    public static double contrast(int a, int b) {
-        double la = luminance(a), lb = luminance(b);
-        return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-    }
-
-    /** {@code fill} blended toward {@code toward} until it stands out from {@code fill} by {@code target}; {@code toward} if it never does. */
-    private static int standingOut(int fill, int toward, double target) {
-        for (int i = 1; i <= 100; i++) {
-            int c = mix(fill, toward, i / 100.0);
-            if (contrast(c, fill) >= target) return c;
-        }
-        return toward;
-    }
-
-    /** {@code a} blended toward {@code b} by {@code t}, opaque. */
-    private static int mix(int a, int b, double t) {
-        int out = 0xFF000000;
-        for (int s = 0; s < 24; s += 8) {
-            out |= (int) Math.round(((a >> s) & 0xFF) * (1 - t) + ((b >> s) & 0xFF) * t) << s;
-        }
-        return out;
-    }
-
-    private static double luminance(int argb) {
-        double r = channel((argb >> 16) & 0xFF), g = channel((argb >> 8) & 0xFF), b = channel(argb & 0xFF);
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    }
-
-    private static double channel(int c) {
-        double v = c / 255.0;
-        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
     }
 
     /** Works out one look, in the order the class doc gives. Never throws: anything unreadable is MenuKit's sprite. */
@@ -375,25 +242,46 @@ public final class PackLook {
     /** The rows vanilla gives the player's inventory part, at the bottom of a container texture. */
     private static final int INVENTORY_PART = 96;
 
-    /** A texture's pixels, read in its 256-unit coordinates (one sample per unit). */
+    /**
+     * A texture's pixels, read in its 256-unit coordinates, one sample per unit: the first
+     * pixel of the unit, where its top-left corner falls (rounded to the nearest pixel edge
+     * on art finer than the units). So a 512 px (32x) texture reads every other pixel, a
+     * 384 px one two pixels in every three, and a 128 px one each pixel twice.
+     */
     static final class Pixels {
-        final int k, w, h;
+        final int w, h;
         private final int[] argb;
-        private final int nativeW;
+        private final int nativeW, nativeH;
+        /** Pixels per unit. */
+        private final double scale;
 
         Pixels(NativeImage img) {
-            this.nativeW = img.getWidth();
-            this.k = Math.max(1, img.getWidth() / 256);
-            this.w = img.getWidth() / k;
-            this.h = img.getHeight() / k;
-            this.argb = new int[img.getWidth() * img.getHeight()];
+            this(img.getWidth(), img.getHeight(), copy(img));
+        }
+
+        /** Pixels from {@code argb}, {@code nativeW} wide and {@code nativeH} tall: for the headless checks. */
+        Pixels(int nativeW, int nativeH, int[] argb) {
+            this.nativeW = nativeW;
+            this.nativeH = nativeH;
+            this.argb = argb;
+            this.scale = nativeW / 256.0;
+            this.w = 256;
+            this.h = (int) Math.round(nativeH / scale);
+        }
+
+        // ponytail: a copy of the whole texture, read once per texture and reload; a 4096 px (256x) pack's is 64 MB for the moment it takes. Sample the image in place if that ever matters.
+        private static int[] copy(NativeImage img) {
+            int[] out = new int[img.getWidth() * img.getHeight()];
             for (int y = 0; y < img.getHeight(); y++)
-                for (int x = 0; x < img.getWidth(); x++) argb[x + y * nativeW] = img.getPixel(x, y);
+                for (int x = 0; x < img.getWidth(); x++) out[x + y * img.getWidth()] = img.getPixel(x, y);
+            return out;
         }
 
         int at(int x, int y) {
             if (x < 0 || y < 0 || x >= w || y >= h) return 0;
-            return argb[x * k + y * k * nativeW];
+            double edge = scale > 1 ? 0.5 : 0;
+            int px = Math.min(nativeW - 1, (int) (x * scale + edge)), py = Math.min(nativeH - 1, (int) (y * scale + edge));
+            return argb[px + py * nativeW];
         }
 
         boolean opaque(int x, int y) {
@@ -424,6 +312,15 @@ public final class PackLook {
             if (n > bestN) { bestN = n; best = it; }
         }
         return best;
+    }
+
+    /**
+     * The cut of one part of a texture given as pixels ({@code width x height} ARGB, row by
+     * row), as {@link #look} cuts a pack's: for the headless checks.
+     */
+    @VisibleForTesting
+    public static @Nullable Cut cut(int width, int height, int[] argb, Part part) {
+        return analyse(new Pixels(width, height, argb), part == Part.INVENTORY);
     }
 
     /**
@@ -727,7 +624,7 @@ public final class PackLook {
 
     /**
      * What a panel surface is at a screen point, set while it renders: the look a slot frame
-     * drawn there takes, and whose fill text there is read against ({@link #textAt}).
+     * drawn there takes, and whose fill text there is read against ({@link PackText#on}).
      * {@code null} where there is no surface (a card drawn over one).
      */
     @FunctionalInterface
