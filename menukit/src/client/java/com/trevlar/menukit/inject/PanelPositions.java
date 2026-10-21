@@ -15,11 +15,14 @@ import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Where the player has moved panels (7.4.0): {@code config/menukit/panel-positions.json}, read
@@ -44,7 +47,8 @@ import java.util.TreeMap;
  * back.
  *
  * <p>A position only says where a panel sits. Whether it shows is still its declaration's call
- * ({@link PanelHost#layout()}). A corrupt or missing file starts empty and never crashes.
+ * ({@link PanelHost#layout()}). A missing file starts empty; a bad entry is skipped, an
+ * unreadable file set aside ({@link #load}); none of it crashes.
  */
 @ApiStatus.Internal
 public final class PanelPositions {
@@ -111,6 +115,8 @@ public final class PanelPositions {
     // The store. Render thread only: read by every layout, written by edit mode.
 
     private static final Map<String, Map<ModeScope, Spot>> STORED = new HashMap<>();
+    /** Per panel id, the scopes a newer MenuKit wrote that this one doesn't know: kept as read, written back. */
+    private static final Map<String, JsonObject> FOREIGN = new HashMap<>();
     /** Where the store is written, or {@code null} before {@link #load} (MenuKit's headless checks). */
     private static @Nullable Path file;
 
@@ -125,32 +131,80 @@ public final class PanelPositions {
 
     /**
      * Reads {@code path} into the store, replacing what it held, and writes there from now on.
-     * A missing file is an empty store; a corrupt one is too, with a warning, and is replaced
-     * on the next drop or reset.
+     * A missing file is an empty store. An entry that is off (a panel that isn't an object, a
+     * position missing a field or with an edge we don't know) is skipped with a warning, and
+     * the rest is read. A scope this MenuKit doesn't know (a newer one's) is no error: it is
+     * kept as it was and written back with the rest. A file that isn't a JSON object at all is
+     * moved aside to {@code panel-positions.json.corrupt}, so the next write doesn't put an
+     * empty store over it unseen, and the store starts empty.
      */
     public static void load(Path path) {
         file = path;
         STORED.clear();
+        FOREIGN.clear();
         if (!Files.exists(path)) {
             LOGGER.info("[MenuKit] No moved panels yet ({} doesn't exist)", path);
             return;
         }
+        JsonObject root;
         try (Reader in = Files.newBufferedReader(path)) {
-            JsonObject root = JsonParser.parseReader(in).getAsJsonObject();
-            for (var panel : root.entrySet()) {
-                Map<ModeScope, Spot> scopes = new EnumMap<>(ModeScope.class);
-                for (var scope : panel.getValue().getAsJsonObject().entrySet()) {
-                    JsonObject o = scope.getValue().getAsJsonObject();
-                    scopes.put(ModeScope.valueOf(scope.getKey().toUpperCase(Locale.ROOT)),
-                            new Spot(edge(o, "x"), o.get("dx").getAsInt(), edge(o, "y"), o.get("dy").getAsInt()));
-                }
-                if (!scopes.isEmpty()) STORED.put(panel.getKey(), scopes);
-            }
+            root = JsonParser.parseReader(in).getAsJsonObject();
         } catch (Exception e) {
-            // Anything off in the file (not JSON, the wrong shape, a scope or edge we don't know):
-            // nothing moved rather than half of it, and never a crash.
-            STORED.clear();
-            LOGGER.warn("[MenuKit] Couldn't read moved panels from {} ({}); every panel starts where its mod puts it", path, e.toString());
+            // Not JSON, or not an object: nothing in it can be told apart. Keep it for the player.
+            setAside(path, e);
+            return;
+        }
+        List<String> skipped = new ArrayList<>();
+        for (var panel : root.entrySet()) {
+            if (!panel.getValue().isJsonObject()) {
+                skipped.add(panel.getKey());
+                continue;
+            }
+            Map<ModeScope, Spot> scopes = new EnumMap<>(ModeScope.class);
+            for (var scope : panel.getValue().getAsJsonObject().entrySet()) {
+                ModeScope known = scopeOf(scope.getKey());
+                if (known == null) {
+                    // A newer MenuKit's scope: not ours to read, but ours to keep.
+                    FOREIGN.computeIfAbsent(panel.getKey(), k -> new JsonObject()).add(scope.getKey(), scope.getValue());
+                    continue;
+                }
+                try {
+                    JsonObject o = scope.getValue().getAsJsonObject();
+                    scopes.put(known, new Spot(edge(o, "x"), o.get("dx").getAsInt(), edge(o, "y"), o.get("dy").getAsInt()));
+                } catch (RuntimeException e) {
+                    skipped.add(panel.getKey() + "/" + scope.getKey());
+                }
+            }
+            if (!scopes.isEmpty()) STORED.put(panel.getKey(), scopes);
+        }
+        if (!skipped.isEmpty()) {
+            LOGGER.warn("[MenuKit] Skipped {} unreadable moved-panel entries in {}: {}; those panels start where their mods put them",
+                    skipped.size(), path, skipped);
+        }
+    }
+
+    /** {@code both}, {@code survival} or {@code creative}, or {@code null} for a key this MenuKit doesn't know. */
+    private static @Nullable ModeScope scopeOf(String key) {
+        for (ModeScope s : ModeScope.values()) {
+            if (s.name().equalsIgnoreCase(key)) return s;
+        }
+        return null;
+    }
+
+    /**
+     * Moves an unreadable store to {@code <name>.corrupt}, replacing an older one. If even that
+     * fails, nothing is written this session: a write would replace the player's file unseen.
+     */
+    private static void setAside(Path path, Exception why) {
+        Path aside = path.resolveSibling(path.getFileName() + ".corrupt");
+        try {
+            Files.move(path, aside, StandardCopyOption.REPLACE_EXISTING);
+            LOGGER.warn("[MenuKit] Couldn't read moved panels from {} ({}); moved it to {}, and every panel starts where its mod puts it",
+                    path, why.toString(), aside);
+        } catch (IOException e) {
+            file = null;
+            LOGGER.warn("[MenuKit] Couldn't read moved panels from {} ({}), nor move it aside ({}); "
+                    + "every panel starts where its mod puts it, and moves aren't saved this session", path, why.toString(), e.toString());
         }
     }
 
@@ -185,9 +239,10 @@ public final class PanelPositions {
         save();
     }
 
-    /** Forgets {@code id} in every mode, back to its declaration, and writes the file. */
+    /** Forgets {@code id} in every mode (a newer MenuKit's too), back to its declaration, and writes the file. */
     public static void reset(String id) {
-        if (STORED.remove(id) != null) save();
+        boolean had = STORED.remove(id) != null;
+        if (FOREIGN.remove(id) != null || had) save();
     }
 
     /** Shows {@code id} at {@code spot} while it is dragged; {@code null} ends the drag. Never written. */
@@ -200,9 +255,11 @@ public final class PanelPositions {
     private static void save() {
         if (file == null) return;
         JsonObject root = new JsonObject();
-        for (var panel : new TreeMap<>(STORED).entrySet()) {
+        Set<String> ids = new TreeSet<>(STORED.keySet());
+        ids.addAll(FOREIGN.keySet());
+        for (String id : ids) {
             JsonObject scopes = new JsonObject();
-            panel.getValue().forEach((scope, spot) -> {
+            STORED.getOrDefault(id, Map.of()).forEach((scope, spot) -> {
                 JsonObject o = new JsonObject();
                 o.addProperty("x", spot.edgeX().name().toLowerCase(Locale.ROOT));
                 o.addProperty("dx", spot.dx());
@@ -210,7 +267,9 @@ public final class PanelPositions {
                 o.addProperty("dy", spot.dy());
                 scopes.add(scope.name().toLowerCase(Locale.ROOT), o);
             });
-            root.add(panel.getKey(), scopes);
+            JsonObject foreign = FOREIGN.get(id);
+            if (foreign != null) foreign.entrySet().forEach(e -> scopes.add(e.getKey(), e.getValue()));
+            root.add(id, scopes);
         }
         try {
             Files.createDirectories(file.getParent());
