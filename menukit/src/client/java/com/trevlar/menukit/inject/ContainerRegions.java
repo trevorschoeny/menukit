@@ -31,6 +31,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
 import net.minecraft.world.Container;
+import net.minecraft.world.Nameable;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -375,11 +376,17 @@ public final class ContainerRegions {
      * The container the player opened {@code screen} on, for the sections that are the
      * screen's own container (those with no source): the block under the crosshair as the
      * screen opened, the one the right click used, if it holds a container the size of the
-     * screen's own (the menu's first slot's). So a lime box's own screen knows it is a lime
-     * box, for its name, its dye and the pack's rules. {@code null} for a screen opened from
-     * an item or a key, or on a double chest.
+     * screen's own (the menu's first slot's) and the screen has its title. So a lime box's own
+     * screen knows it is a lime box, for its name, its dye and the pack's rules. {@code null}
+     * for a screen opened from an item, or by a key while looking at a container of another
+     * size or title (a backpack's screen in front of a chest), and on a double chest.
+     *
+     * <p>The title is the container's default name: the client's block entity never knows the
+     * name a player gave it, so a named container is not found, and its section takes what
+     * OptiGUI picked for the screen, which is the same art; its title is its name, so it never
+     * needs another.
      */
-    // ponytail: the crosshair at open, no use hook; a screen opened by a key while looking at another container of the same size takes that one.
+    // ponytail: the crosshair at open, no use hook; a screen opened by a key while looking at another unnamed container of the same size and kind takes that one.
     private static ContainerRegion.@Nullable Source openedContainer(@Nullable Screen screen) {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.level == null || !(mc.hitResult instanceof BlockHitResult hit)
@@ -388,6 +395,7 @@ public final class ContainerRegions {
         BlockEntity be = mc.level.getBlockEntity(hit.getBlockPos());
         Container own = acs.getMenu().getSlot(0).container;
         if (!(be instanceof Container c) || own instanceof Inventory || c.getContainerSize() != own.getContainerSize()) return null;
+        if (be instanceof Nameable n && !n.getDisplayName().getContents().equals(screen.getTitle().getContents())) return null;
         return ContainerRegion.Source.of(be);
     }
 
