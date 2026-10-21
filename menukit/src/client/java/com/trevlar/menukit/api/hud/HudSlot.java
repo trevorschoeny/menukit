@@ -14,7 +14,8 @@ import java.util.function.Supplier;
 /**
  * A HUD element that draws an item in a hotbar slot. The background is a slice of
  * vanilla's {@code hud/hotbar} sprite, and the item is drawn at 16x16 inside the
- * 20x22 slot.
+ * 20x22 slot. A scaled slot ({@code HudPanel.SlotBuilder.scale}) draws all of it
+ * at that scale.
  *
  * <p>Display only. For a slot the player can use, put a {@code CreatedSlot} in a
  * {@code Panel} on a {@code CustomContainerMenu}.
@@ -36,30 +37,37 @@ public class HudSlot implements PanelElement {
     private final boolean showCount;
     private final boolean showDurability;
     private final @Nullable Runnable onRender;
+    private final float scale;
 
     HudSlot(int childX, int childY, Supplier<ItemStack> itemSupplier,
               boolean showCount, boolean showDurability,
-              @Nullable Runnable onRender) {
+              @Nullable Runnable onRender, float scale) {
         this.childX = childX;
         this.childY = childY;
         this.itemSupplier = itemSupplier;
         this.showCount = showCount;
         this.showDurability = showDurability;
         this.onRender = onRender;
+        this.scale = scale;
     }
 
     @Override public int getChildX() { return childX; }
     @Override public int getChildY() { return childY; }
-    @Override public int getWidth() { return SLOT_WIDTH; }
-    @Override public int getHeight() { return SLOT_HEIGHT; }
+    @Override public int getWidth() { return (int) Math.ceil(SLOT_WIDTH * scale); }
+    @Override public int getHeight() { return (int) Math.ceil(SLOT_HEIGHT * scale); }
 
     @Override
     public void render(RenderContext ctx) {
         if (onRender != null) onRender.run();
 
         var graphics = ctx.graphics();
-        int slotX = ctx.originX() + childX;
-        int slotY = ctx.originY() + childY;
+        // Draw in the slot's own space, scaled about its top-left corner: everything
+        // below is laid out at 1x from (0, 0).
+        graphics.pose().pushMatrix();
+        graphics.pose().translate(ctx.originX() + childX, ctx.originY() + childY);
+        if (scale != 1f) graphics.pose().scale(scale, scale);
+        int slotX = 0;
+        int slotY = 0;
 
         // A 20x22 slice of the 182x22 hotbar sprite from (1, 0), skipping the
         // hotbar's 1 px left border.
@@ -82,5 +90,6 @@ public class HudSlot implements PanelElement {
                         Minecraft.getInstance().font, stack, itemX, itemY);
             }
         }
+        graphics.pose().popMatrix();
     }
 }
