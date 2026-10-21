@@ -604,7 +604,8 @@ public class ScrollContainer extends AbstractPanelElement {
 
         // The children, clipped to the viewport, at their scrolled positions. A
         // child entirely outside the window is skipped, unless its popover is open
-        // (the popover draws on the overlay pass from the same origin).
+        // (the popover draws on the overlay pass from the same origin); a skipped one
+        // is told it is held out of view (renderCulled), not hidden.
         g.enableScissor(sx, sy, sx + viewportWidth(), sy + height);
         RenderContext inner = childRender(ctx);
         int top = (int) scroll(kind) - insetY(kind);  // the window's top, in the children's coordinates
@@ -612,7 +613,10 @@ public class ScrollContainer extends AbstractPanelElement {
         for (PanelElement e : content) {
             if (!e.isVisible()) continue;
             boolean open = e.getActiveOverlayBounds(probe) != null;
-            if (!open && (e.getChildY() + e.getHeight() <= top || e.getChildY() >= top + height)) continue;
+            if (!open && (e.getChildY() + e.getHeight() <= top || e.getChildY() >= top + height)) {
+                e.renderCulled(inner);
+                continue;
+            }
             e.render(inner);
         }
         g.disableScissor();
@@ -626,6 +630,12 @@ public class ScrollContainer extends AbstractPanelElement {
             Scroller.draw(g, kind, sx + width - Scroller.trackWidth(kind), sy, height, handleTop(kind),
                     canScroll(kind), disabled);
         }
+    }
+
+    /** Culled itself: every shown child is held out of view with it. */
+    @Override
+    public void renderCulled(RenderContext ctx) {
+        ChildDispatch.renderCulled(content, childRender(ctx));
     }
 
     /** The children's overlays, unclipped, at their scrolled positions. */

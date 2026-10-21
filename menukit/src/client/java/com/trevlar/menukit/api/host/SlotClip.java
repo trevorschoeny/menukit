@@ -31,7 +31,9 @@ import org.jspecify.annotations.Nullable;
  * The slot keeps its real position, so nothing beside it moves. A slot wholly inside
  * its clip looks and behaves exactly as before. One wholly outside should not be
  * placed at all: a {@code ScrollContainer} does not render a child out of view, so its
- * slot stays where its library parks it.
+ * slot stays where its library parks it. Such a child gets
+ * {@code PanelElement.renderCulled} instead of {@code render} (7.4.0), so the element
+ * can tell a slot held out of view (park it) from one whose element is hidden.
  */
 public final class SlotClip {
 

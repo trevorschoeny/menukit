@@ -969,7 +969,8 @@ public final class ListView<T> extends AbstractPanelElement {
             return;
         }
         // Rows wholly outside the clip they draw under are skipped (a long list in a
-        // scroll area), unless a popover of theirs is open.
+        // scroll area), unless a popover of theirs is open; a skipped row is told it is
+        // held out of view (renderCulled), not hidden.
         var g = ctx.graphics();
         ScreenRectangle clip = g != null && g.scissorStack != null ? g.scissorStack.peek() : null;
         InputContext probe = inner.input();
@@ -985,7 +986,10 @@ public final class ListView<T> extends AbstractPanelElement {
             if (!row.isVisible()) continue;
             int top = ctx.originY() + row.getChildY();
             boolean open = row.getActiveOverlayBounds(probe) != null;
-            if (!open && clip != null && (top + row.getHeight() <= clip.top() || top >= clip.bottom())) continue;
+            if (!open && clip != null && (top + row.getHeight() <= clip.top() || top >= clip.bottom())) {
+                row.renderCulled(inner);
+                continue;
+            }
             row.render(inner);
         }
         // The selected row's outline, over its card's edge: every row in the Default look, a row that isn't a card in the Panel look.
@@ -1004,6 +1008,11 @@ public final class ListView<T> extends AbstractPanelElement {
     private static @Nullable Flow card(PanelElement row) {
         PanelElement own = row instanceof ListRow r ? r.row() : row;
         return own instanceof Flow f && f.isBoxed() ? f : null;
+    }
+
+    @Override
+    public void renderCulled(RenderContext ctx) {
+        ChildDispatch.renderCulled(children(), childContext(ctx));
     }
 
     @Override

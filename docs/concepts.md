@@ -32,6 +32,8 @@ A `PanelElement` is one item inside a panel. Its position is relative to the pan
 
 A consumer implements `PanelElement` for a custom element, or extends `AbstractPanelElement`.
 
+An element wholly outside the clip it is drawn in, such as a row scrolled out of a `ScrollContainer` or a container region section out of view, is not rendered. It gets `renderCulled(ctx)` instead of `render(ctx)` each frame, so it can tell being out of view from being hidden: a slot element keeps its slot parked rather than handing it back to the menu's layout. A hidden element (its `visibleWhen` false, or inside a hidden or collapsed parent) gets neither call. The default does nothing. A custom element that holds other elements forwards `renderCulled` to its shown children with `ChildDispatch.renderCulled`, as MenuKit's own containers do, so the call reaches every element under a culled one.
+
 ## Builders and one vocabulary
 
 Every element is built by its builder and does not change after `build()`: `Button.builder()...build()`. The same idea has the same name on every builder:

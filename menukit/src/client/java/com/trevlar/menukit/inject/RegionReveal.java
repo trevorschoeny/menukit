@@ -134,7 +134,8 @@ public final class RegionReveal {
 
     /**
      * Whether a slot is the region's: one it showed, or one no panel ever showed that is not
-     * on screen either (a section below the fold, never drawn; its library keeps it parked).
+     * on screen either (a section below the fold, never drawn; its elements get
+     * {@code renderCulled}, so its library keeps it parked, a vanilla slot too, not sent home).
      * The player's inventory is on screen where vanilla put it, so it is never the region's.
      */
     private static boolean regionsOwn(AbstractContainerScreen<?> screen, Slot slot, @Nullable Panel panel) {

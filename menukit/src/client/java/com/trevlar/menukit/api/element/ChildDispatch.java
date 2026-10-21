@@ -26,7 +26,9 @@ import java.util.List;
  *       whatever the declaration order. A host runs both passes; a container runs
  *       the base pass from its {@code render} and forwards the overlay pass from
  *       its own {@code renderOverlay}, so the host's second pass reaches its
- *       children after every base render.</li>
+ *       children after every base render. A shown child skipped because it lies
+ *       wholly outside the clip gets {@code renderCulled} in place of
+ *       {@code render} ({@link #renderCulled}), which a container forwards.</li>
  *   <li><b>Click and wheel:</b> a child whose open overlay (a Dropdown popover)
  *       contains the point gets the event exclusively. Otherwise the first child
  *       whose hit test contains the point and that consumes it.</li>
@@ -61,14 +63,32 @@ public final class ChildDispatch {
      * is past the clip's edge (the player's inventory, below a container region),
      * where its library would otherwise have parked it. A child with an open popover is
      * rendered anyway, as a {@code ScrollContainer} does, since its popover hangs from it.
+     * A shown child skipped for the clip gets {@link PanelElement#renderCulled} instead,
+     * so a slot element under it knows it is held out of view, not hidden.
      */
     public static void render(List<? extends PanelElement> children, RenderContext ctx) {
         GuiGraphicsExtractor g = ctx.graphics();
         ScreenRectangle clip = g == null || g.scissorStack == null ? null : g.scissorStack.peek();
         for (PanelElement c : children) {
             if (!c.isVisible()) continue;
-            if (clip != null && outside(c, ctx, clip) && c.getActiveOverlayBounds(ctx.input()) == null) continue;
+            if (clip != null && outside(c, ctx, clip) && c.getActiveOverlayBounds(ctx.input()) == null) {
+                c.renderCulled(ctx);
+                continue;
+            }
             c.render(ctx);
+        }
+    }
+
+    /**
+     * The culled pass (7.4.0): every shown child's {@link PanelElement#renderCulled}. A
+     * container whose own box is culled forwards it to its children through this, with
+     * the context it would have rendered them with, so the call reaches every shown
+     * element under it, at any depth. A hidden child, and so everything under it, gets
+     * nothing.
+     */
+    public static void renderCulled(List<? extends PanelElement> children, RenderContext ctx) {
+        for (PanelElement c : children) {
+            if (c.isVisible()) c.renderCulled(ctx);
         }
     }
 

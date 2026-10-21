@@ -373,6 +373,11 @@ final class ListRow extends AbstractPanelElement {
     }
 
     @Override
+    public void renderCulled(RenderContext ctx) {
+        ChildDispatch.renderCulled(all, ctx);
+    }
+
+    @Override
     public void renderOverlay(RenderContext ctx) {
         ChildDispatch.renderOverlay(all, ctx);
     }
