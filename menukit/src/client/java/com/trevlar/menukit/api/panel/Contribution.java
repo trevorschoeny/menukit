@@ -3,6 +3,7 @@ package com.trevlar.menukit.api.panel;
 import com.trevlar.menukit.api.element.Flow;
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.inject.PanelHost;
+import com.trevlar.menukit.inject.SharedPanelRegistry;
 
 import org.jspecify.annotations.Nullable;
 
@@ -31,6 +32,12 @@ import java.util.function.BooleanSupplier;
  * }</pre>
  */
 public final class Contribution {
+
+    // How a shared panel is built is this package's (it reads the fields below); the registry
+    // that runs the build is internal. Handed over as the class loads, so before any join.
+    static {
+        SharedPanelRegistry.builder(SharedPanels::build);
+    }
 
     final int order;
     final ModeScope scope;
@@ -90,7 +97,7 @@ public final class Contribution {
         Map<ModeScope, Placement> out = new EnumMap<>(ModeScope.class);
         placements.forEach((scope, p) -> {
             PanelPosition at = p.position();
-            if (at.pixelOrigin() != null && !Placement.fromBox(at)) {
+            if (at.pixelOrigin() != null && !PanelHost.fromBox(at)) {
                 at = new PanelPosition(at.mode(), at.screenAnchor(), at.region(), null, at.dx(), at.dy(), at.priority(), at.gap());
             }
             out.put(scope, new Placement(p.anchor(), at));
