@@ -29,7 +29,9 @@ import java.util.function.Supplier;
  * A chest, a shulker box opened below it and another one below that are one region,
  * never a scroll area each. Mods put their containers' slot elements in it as
  * <b>sections</b>, stacked top to bottom; there is one region per screen, however many
- * mods add to it.
+ * mods add to it. It is never on the player's own inventory, survival's
+ * ({@code InventoryScreen}) or creative's ({@code CreativeModeInventoryScreen}), whatever a
+ * section's targeting says.
  *
  * <pre>{@code
  * ContainerRegion.section("mymod:opened-shulker")
@@ -65,7 +67,9 @@ import java.util.function.Supplier;
  * in the gap between them with an item held is inside the screen, so it drops nothing.
  * Vanilla's title is moved back by as much as the origin moved, so it stays put on
  * screen, and the player's inventory slots and "Inventory" label go with the inventory
- * panel.
+ * panel. The slots are placed every frame from the slots the menu holds then, so one another
+ * mod puts in while the screen is open goes with the panel too, and putting the bounds back
+ * moves exactly the slots that were moved.
  *
  * <p>When the layout changes while the screen is open (a section opening or closing, the
  * list starting to scroll), the screen is laid out again the way a window resize does

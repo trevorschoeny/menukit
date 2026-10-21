@@ -27,6 +27,8 @@ import net.fabricmc.fabric.api.event.Event;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
@@ -46,7 +48,9 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
@@ -105,9 +109,15 @@ import java.util.function.Supplier;
  * the gap with an item held stays inside the screen and drops nothing. Moving the
  * screen's origin would move everything vanilla placed from it; the title is moved back by
  * as much, and the player's inventory slots and "Inventory" label by as much less the
- * distance the inventory panel went down, so they go with it. Before the screen
- * initialises again (a resize), the bounds go back to vanilla's, so vanilla centres its own
- * image as always.
+ * distance the inventory panel went down, so they go with it. The slots are placed every
+ * frame from the slots the menu holds then ({@link #placeSlots}), so one another mod puts in
+ * while the screen is open goes with the panel too, and putting the bounds back moves exactly
+ * the slots that were moved. Before the screen initialises again (a resize), the bounds go
+ * back to vanilla's, so vanilla centres its own image as always.
+ *
+ * <h3>Never the player's own inventory</h3>
+ * The region is never put on {@code InventoryScreen} or {@code CreativeModeInventoryScreen},
+ * whatever a section's matcher says ({@link #targets}).
  *
  * <h3>Anchors</h3>
  * {@link #CONTAINERS} is the container list's rectangle and {@link #INVENTORY} the
@@ -250,8 +260,18 @@ public final class ContainerRegions {
         }
     }
 
-    /** Whether any section is declared for {@code screen}: the region's panel is put on it. */
-    private static boolean targets(AbstractContainerScreen<?> screen) {
+    /**
+     * Whether any section is declared for {@code screen}: the region's panel is put on it.
+     * Never the player's own inventory, survival's or creative's: the region is for screens
+     * that hold a container, and the inventory screens are the player's own (creative swaps
+     * its slots on every tab, so no container list could stand there). Checked by class, not
+     * by slot: the survival inventory's first slot is its crafting result, not the player's.
+     * The after-init gate and both panels' adapters all ask here, so this one test keeps the
+     * region off those screens entirely.
+     */
+    @VisibleForTesting
+    public static boolean targets(AbstractContainerScreen<?> screen) {
+        if (screen instanceof InventoryScreen || screen instanceof CreativeModeInventoryScreen) return false;
         for (Placed p : SECTIONS) if (p.section().matcher().matches(screen)) return true;
         return false;
     }
@@ -443,6 +463,9 @@ public final class ContainerRegions {
      * @param atInit whether this is the screen's own init (or a resize's), which lays out anyway
      */
     static void frame(AbstractContainerScreen<?> screen, int mouseX, int mouseY, boolean atInit) {
+        // The player's slots first, every frame, before anything below can return: a slot
+        // another mod put into the menu since the last frame goes where the inventory is now.
+        if (state.screen.get() == screen) placeSlots(screen.getMenu().slots, state.shiftX, state.inventoryShiftY);
         Reference vanilla = state.vanilla;
         if (panel == null || vanilla == null || state.screen.get() != screen) return;
         Geometry g = step(vanilla, state.vanillaInventoryLabelY, !screen.getMenu().getCarried().isEmpty(),
@@ -614,7 +637,8 @@ public final class ContainerRegions {
      * Writes {@code bounds} as the screen's own, and moves vanilla's own placements back by
      * as much as the origin moved ({@link RegionLayout#counterShift}): the title stays where
      * vanilla put it on screen, and the player's inventory slots and "Inventory" label go with
-     * the inventory panel. Only on a change of layout.
+     * the inventory panel. Only on a change of layout. The labels move here, by the change;
+     * the slots are placed from the new shift ({@link #placeSlots}), here and every frame.
      */
     private static void applyBounds(AbstractContainerScreen<?> screen, Reference bounds) {
         Reference vanilla = state.vanilla;
@@ -626,29 +650,82 @@ public final class ContainerRegions {
         acc.mk$setTopPos(bounds.topPos());
         acc.mk$setImageWidth(bounds.imageWidth());
         acc.mk$setImageHeight(bounds.imageHeight());
-        if (dx != 0 || invDy != 0) {
-            for (Slot slot : screen.getMenu().slots) {
-                if (!stays(slot)) continue;
-                SlotAccessor pos = (SlotAccessor) slot;
-                pos.mk$setX(slot.x + dx);
-                pos.mk$setY(slot.y + invDy);
-            }
-            acc.mk$setInventoryLabelX(acc.mk$getInventoryLabelX() + dx);
-            acc.mk$setInventoryLabelY(acc.mk$getInventoryLabelY() + invDy);
-        }
+        acc.mk$setInventoryLabelX(acc.mk$getInventoryLabelX() + dx);
+        acc.mk$setInventoryLabelY(acc.mk$getInventoryLabelY() + invDy);
         acc.mk$setTitleLabelX(acc.mk$getTitleLabelX() + dx);
         acc.mk$setTitleLabelY(acc.mk$getTitleLabelY() + dy);
         state.shiftX = shift[0];
         state.shiftY = shift[1];
         state.inventoryShiftY = shift[2];
         state.applied = bounds;
+        // So every mod's init listener after this one reads the slots where they now are.
+        placeSlots(screen.getMenu().slots, state.shiftX, state.inventoryShiftY);
     }
 
-    /** Back to vanilla's own bounds and placements, if they are not already. */
+    /**
+     * Back to vanilla's own bounds and placements, if they are not already. Every slot the
+     * region moved goes back by exactly what it got, whether or not it is still in the menu.
+     */
     private static void restoreBounds(AbstractContainerScreen<?> screen) {
+        unplaceSlots();
         if (state.applied == null || state.vanilla == null) return;
         applyBounds(screen, state.vanilla);
         state.applied = null;
+    }
+
+    // The player's slots, placed every frame
+
+    /**
+     * How far the region has moved each of the player's slots, {@code {dx, dy}}. Weak and
+     * keyed by the slot object (a slot keeps its identity; a closed menu's slots go with it).
+     * Slots come and go while a screen is open (another mod puts its own into the menu), so
+     * each frame moves every slot by what it lacks, and a restore takes back exactly what was
+     * given: never a slot that was not moved, never twice.
+     */
+    private static final Map<Slot, int[]> MOVED = new WeakHashMap<>();
+
+    /** Moves a slot by {@code (dx, dy)}. Swapped by MenuKit's checks, which have no mixins. */
+    @FunctionalInterface
+    public interface SlotMover {
+        void move(Slot slot, int dx, int dy);
+    }
+
+    private static final SlotMover WRITE = (slot, dx, dy) -> {
+        SlotAccessor pos = (SlotAccessor) slot;
+        pos.mk$setX(slot.x + dx);
+        pos.mk$setY(slot.y + dy);
+    };
+    private static SlotMover mover = WRITE;
+
+    /** For MenuKit's checks: swaps how a slot is moved, and back with {@code null}. */
+    @VisibleForTesting
+    public static void moverForChecks(@Nullable SlotMover m) {
+        mover = m == null ? WRITE : m;
+    }
+
+    /**
+     * Puts every slot of {@code slots} that stays with the inventory ({@link #stays}) at
+     * {@code (shiftX, shiftY)} from where vanilla placed it, by moving it the difference from
+     * what it already got.
+     */
+    @VisibleForTesting
+    public static void placeSlots(List<Slot> slots, int shiftX, int shiftY) {
+        for (Slot slot : slots) {
+            if (!stays(slot)) continue;
+            int[] got = MOVED.get(slot);
+            int gx = got == null ? 0 : got[0], gy = got == null ? 0 : got[1];
+            if (gx == shiftX && gy == shiftY) continue;
+            mover.move(slot, shiftX - gx, shiftY - gy);
+            if (shiftX == 0 && shiftY == 0) MOVED.remove(slot);
+            else MOVED.put(slot, new int[]{shiftX, shiftY});
+        }
+    }
+
+    /** Moves every slot the region moved back by what it got, and forgets them. */
+    @VisibleForTesting
+    public static void unplaceSlots() {
+        for (Map.Entry<Slot, int[]> e : MOVED.entrySet()) mover.move(e.getKey(), -e.getValue()[0], -e.getValue()[1]);
+        MOVED.clear();
     }
 
     /**
