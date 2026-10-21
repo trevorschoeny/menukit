@@ -42,6 +42,7 @@ def mapped_jar(ver):
 
 _declared_cache = {}
 _members_cache = {}
+_interfaces_cache = {}  # cls -> the vanilla interfaces it directly implements (or extends, for an interface)
 
 
 def declared(jar, cls):
@@ -57,6 +58,15 @@ def declared(jar, cls):
     decl_line = re.sub(r"<[^<>]*>", "", re.sub(r"<[^<>]*>", "", lines[1] if len(lines) > 1 else ""))  # drop generics (2 levels)
     sup = re.search(r"\bextends\s+([\w.$]+)", decl_line)
     superclass = sup.group(1) if sup and sup.group(1).startswith("net.minecraft") and sup.group(1) != cls else None
+    # An interface's supertypes follow "extends"; a class's follow "implements". Default methods
+    # live there (Screen.mouseClicked is ContainerEventHandler's), so members() walks them too.
+    is_interface = re.search(r"\binterface\s", decl_line) is not None
+    supers = re.search(r"\b(?:implements|extends)\s+([\w.$,\s]+?)\s*\{" if is_interface
+                       else r"\bimplements\s+([\w.$,\s]+?)\s*\{", decl_line)
+    _interfaces_cache[cls] = [n.strip() for n in supers.group(1).split(",")
+                              if n.strip().startswith("net.minecraft")] if supers else []
+    if is_interface:
+        superclass = None
     for i, line in enumerate(lines):
         line = line.strip()
         m = re.match(r"descriptor: (.*)", line)
@@ -90,8 +100,8 @@ def members(jar, cls):
     methods = {n: list(ds) for n, ds in own[0].items()}
     fields = dict(own[1])
     _members_cache[cls] = (methods, fields)  # placeholder first so a cyclic chain can never recurse forever
-    if own[2]:
-        parent = members(jar, own[2])
+    for sup in ([own[2]] if own[2] else []) + _interfaces_cache.get(cls, []):
+        parent = members(jar, sup)
         if parent:
             for n, ds in parent[0].items():
                 if n != "<init>":
