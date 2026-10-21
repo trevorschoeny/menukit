@@ -604,7 +604,7 @@ public final class ListView<T> extends AbstractPanelElement {
      * The search and sort's view: the keys whose text holds the query, in the chosen
      * order. Made every frame (the items, the query and the sort can each change).
      */
-    // ponytail: filters and sorts every frame; cache on the keys, query and sort if a list of thousands shows it.
+    // Filters and sorts every frame; cache on the keys, query and sort if a list of thousands shows it.
     private void view() {
         List<Object> view = new ArrayList<>(keys);
         if (searchText != null && !query.isEmpty()) view.removeIf(k -> !matches(k));

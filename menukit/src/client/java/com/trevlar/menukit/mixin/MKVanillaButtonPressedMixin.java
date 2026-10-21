@@ -16,10 +16,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * <b>MenuKit's one exception to its rule of not restyling vanilla UI.</b>
  *
- * <p>Applies MenuKit's vanilla-style pressed visual (inverted bevel and a dark
- * overlay) to every vanilla {@link AbstractButton} in the game (title screen,
- * Options, Pause, world select, Controls), so a vanilla button looks pushed in
- * while pressed, the same as MenuKit's own VANILLA-styled controls. With the two
+ * <p>Applies MenuKit's pressed visual (an inverted bevel and a wash that darkens a
+ * light face and lightens a dark one) to every vanilla {@link AbstractButton} in the
+ * game (title screen, Options, Pause, world select, Controls), so a vanilla button
+ * looks pushed in while pressed, the same as MenuKit's own controls. With the two
  * YACL mixins it is library-wide and always on, and it changes how buttons MenuKit
  * did not create look. It stays because players see it as part of MenuKit's feel,
  * and it is meant to stay the only one: a second styling change to vanilla would

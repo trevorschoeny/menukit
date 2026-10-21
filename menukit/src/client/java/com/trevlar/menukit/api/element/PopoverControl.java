@@ -241,8 +241,8 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
      * {@code searchable()} or with an empty query, else those whose label
      * contains the query, case-insensitive.
      */
-    // ponytail: filters every call; fine for the tens to low hundreds of rows a
-    // dropdown holds (Headcount's ~80), cache on the query if that ever changes.
+    // Filters on every call: fine for the tens to low hundreds of rows a dropdown
+    // holds (Headcount's ~80). Cache on the query if that ever changes.
     private List<T> visibleItems() {
         List<T> all = items();
         if (!searchable || query.isEmpty()) return all;
@@ -396,7 +396,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
             searchField.render(childContext(ctx));
         }
 
-        // The items, scrolled — or "No matches" while the search filters out every row.
+        // The items, scrolled, or "No matches" while the search filters out every row.
         List<T> visible = visibleItems();
         boolean scrollable = scrollable();
         int rowRight = fullRowRight - (scrollable ? SCROLLBAR_W : 0);

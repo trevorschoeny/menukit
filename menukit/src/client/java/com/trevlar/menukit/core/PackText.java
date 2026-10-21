@@ -155,7 +155,7 @@ public final class PackText {
      * 0 to 1. A shader that names the grey only to paint it dark, or to test it, is no repaint
      * MenuKit can leave its text to.
      */
-    // ponytail: a text match on the shader's source; a pack that spells either colour another way reads as "no", and MenuKit lightens its text itself.
+    // A text match on the shader's source: a pack that spells either colour another way reads as "no", and MenuKit lightens its text itself.
     public static boolean repaintsLight(String source) {
         String src = source.toLowerCase(Locale.ROOT);
         if (!src.contains("0x404040") && !src.contains("4210752")) return false;
@@ -186,7 +186,7 @@ public final class PackText {
     /** A memo key: text in {@code colour} (muted or not) on {@code fill}. */
     record Key(int colour, boolean muted, int fill) {}
 
-    // ponytail: one memo of each fill's text colours, dropped on a reload; a screen shows a handful of fills.
+    // One memo of each fill's text colours, dropped on a reload; a screen shows a handful of fills.
     private static final Map<Key, Integer> MEMO = new ConcurrentHashMap<>();
 
     /**

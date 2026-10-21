@@ -300,7 +300,6 @@ public final class OptiGuiRules {
      * {@code trapped=} and {@code ender=}. Entities, the beacon and the player inventory are
      * left out: no region section is one.
      */
-    // ponytail: the block containers only (OptiGUI's horse, villager, beacon and inventory rules carry selectors no section has).
     private static List<String> containers(String container, Map<String, String> p) {
         List<String> out = new ArrayList<>();
         switch (container) {
@@ -521,7 +520,7 @@ public final class OptiGuiRules {
      * {@code ~/}, or a full id with a colon; {@code null} for one it can't resolve. OptiGUI
      * uses {@code java.nio.file.Path} (sibling, then normalised); this does the same with
      * strings, so a value no file system accepts ({@code * ? " < > |} on Windows, a NUL)
-     * is simply no id rather than a throw.
+     * is no id rather than a throw.
      */
     static @Nullable Identifier resolvePath(String path, Identifier resource, @Nullable String tilde) {
         boolean fromTilde = tilde != null && path.startsWith("~/");
@@ -558,7 +557,7 @@ public final class OptiGuiRules {
     // The two file formats (ini4j's readings, the parts packs use)
 
     /** {@code key=value} (or {@code key: value}) lines, trimmed, {@code #} and {@code !} comments. */
-    // ponytail: no line continuations or escapes; no published pack's rules use them.
+    // No line continuations or escapes; no published pack's rules use them.
     static Map<String, String> properties(String text) {
         Map<String, String> out = new LinkedHashMap<>();
         for (String line : text.split("\\R")) {
@@ -597,7 +596,7 @@ public final class OptiGuiRules {
     // In the game
 
     private static volatile @Nullable Rules rules;
-    // ponytail: one answer per section context, kept while a screen is open (the key leaves out where the player is, the biome and the date, which don't change under an open screen) and dropped when it closes.
+    // One answer per section context, kept while a screen is open (the key leaves out where the player is, the biome and the date, which don't change under an open screen) and dropped when it closes.
     private static final Map<Key, Identifier> ANSWERS = new ConcurrentHashMap<>();
 
     private record Key(Identifier texture, @Nullable Identifier block, String name, BlockPos pos, @Nullable Boolean large) {}

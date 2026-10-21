@@ -164,7 +164,7 @@ public final class ControlLook {
     /** One set as drawn now: vanilla's or MenuKit's, and each state's sprite ({@code null}: derived). */
     private record Art(boolean vanilla, @Nullable Identifier @Nullable [] sprites) {}
 
-    // ponytail: one answer per control and look, dropped whole on a resource reload.
+    // One answer per control and look, dropped whole on a resource reload.
     private static final Map<Control, Art> PANEL_ART = new ConcurrentHashMap<>(), DEFAULT_ART = new ConcurrentHashMap<>();
 
     /** A resource reload: every control is decided again from what the new packs supply. */
@@ -341,7 +341,7 @@ public final class ControlLook {
 
     /** How a sprite reads when it can't be read (no game, no such sprite, a broken file): light, so a press darkens it. */
     private static final int LIGHT_FACE = 0xFFFFFFFF;
-    // ponytail: one face colour per sprite, failures included, dropped on a resource reload.
+    // One face colour per sprite, failures included, dropped on a resource reload.
     private static final Map<Identifier, Integer> FACES = new ConcurrentHashMap<>();
 
     /** The luminance of a set's face in {@code state}: its sprite's, or as derived from the normal one. */

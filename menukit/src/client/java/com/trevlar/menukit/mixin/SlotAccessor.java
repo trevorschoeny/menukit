@@ -10,8 +10,8 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 /**
  * Writes a slot's place, from its screen's origin (7.4.0). Only the container region
  * uses it: when it moves a screen's origin to the rectangle around its two panels, the
- * player's inventory slots move back by as much, so on screen they stay where vanilla
- * put them ({@code ContainerRegions}).
+ * player's inventory slots move back by as much, less how far the inventory panel went
+ * down, so on screen they go with that panel ({@code ContainerRegions}).
  */
 @ApiStatus.Internal
 @Mixin(Slot.class)

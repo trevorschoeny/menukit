@@ -64,7 +64,7 @@ public final class RegionTitles {
      * What vanilla's own English says for {@code title}'s translation key, whatever a pack
      * made of it, or {@code null} when it has none ("container.shulkerBox": "Shulker Box").
      */
-    // ponytail: vanilla's built-in English, not the player's language: only a section with no name and no block to name it by gets here.
+    // Vanilla's built-in English, not the player's language: only a section with no name and no block to name it by gets here.
     private static @Nullable Component vanillaWords(@Nullable Component title) {
         if (title == null || !(title.getContents() instanceof TranslatableContents t)) return null;
         String words = Language.DEFAULT_INSTANCE.getOrDefault(t.getKey(), "");

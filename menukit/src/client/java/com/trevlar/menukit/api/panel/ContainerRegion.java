@@ -150,7 +150,7 @@ import java.util.function.Supplier;
  * Each section's part of the list, from its band's top to its bottom, is a slice of its
  * own texture's panel: the list's left and right edges there are that texture's, and so is
  * its fill; the list's top is the first section's, its bottom the last's. The outline runs
- * on unbroken; where two sections meet, the colours simply change. With no pack every
+ * on unbroken; where two sections meet, the colours change. With no pack every
  * texture is vanilla's grey, and the list is MenuKit's panel as always.
  *
  * <h3>Containers whose art a pack picks by block (OptiGUI)</h3>

@@ -166,10 +166,9 @@ public final class PackLook {
         }
     }
 
-    /** A cache key: one part of one texture. */
     private record Key(Identifier texture, Part part) {}
 
-    // ponytail: one cache entry per texture and part, dropped whole on a resource reload.
+    // One cache entry per texture and part, dropped whole on a resource reload.
     private static final Map<Key, Look> CACHE = new ConcurrentHashMap<>();
 
     /** A resource reload: every look is cut again from what the new packs supply, on its next use. */
@@ -278,7 +277,7 @@ public final class PackLook {
             this.h = (int) Math.round(nativeH / scale);
         }
 
-        // ponytail: a copy of the whole texture, read once per texture and reload; a 4096 px (256x) pack's is 64 MB for the moment it takes. Sample the image in place if that ever matters.
+        // A copy of the whole texture, read once per texture and reload; a 4096 px (256x) pack's is 64 MB for the moment it takes. Sample the image in place if that ever matters.
         private static int[] copy(NativeImage img) {
             int[] out = new int[img.getWidth() * img.getHeight()];
             for (int y = 0; y < img.getHeight(); y++)
@@ -640,7 +639,7 @@ public final class PackLook {
         @Nullable Look at(int x, int y);
     }
 
-    // ponytail: the surface being drawn on, a render-thread scope set around each panel and card; SlotRendering.drawSlotBackground (public, called by slot libraries) has no context to carry it in.
+    // The surface being drawn on, a render-thread scope set around each panel and card, because SlotRendering.drawSlotBackground (public, called by slot libraries) has no context to carry it in.
     private static @Nullable SurfaceLooks surface;
 
     /**
