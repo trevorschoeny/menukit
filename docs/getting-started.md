@@ -36,10 +36,11 @@ Call this once from the client entry point. The panel renders every frame while 
 ```java
 import com.trevlar.menukit.api.hud.HudPanel;
 import com.trevlar.menukit.api.panel.InsideRegion;
+import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import net.minecraft.client.Minecraft;
 
-HudPanel.builder("mymod:readout")
+HudPanel.builder("mymod:readout", ModeScope.BOTH)
         .region(InsideRegion.CENTER)
         .padding(4)
         .style(PanelStyle.NONE)
@@ -50,6 +51,8 @@ HudPanel.builder("mymod:readout")
 
 Result: the text renders directly below the crosshair during play and disappears while any screen is open.
 
+The second argument is the game mode the panel shows in: `ModeScope.SURVIVAL`, `ModeScope.CREATIVE`, or `ModeScope.BOTH`. Every declaration that says where a panel goes picks one ([Mode scope](concepts.md#mode-scope)).
+
 A HUD panel sits on one of nine `InsideRegion` spots of the game window, 4 pixels in from the edges it touches. `.offset(dx, dy)` nudges it and `.priority(n)` orders it among other panels on the same spot. `build()` registers the panel and returns it. Register from your client initializer. Registration closes when the client finishes starting. There is no unregister. Gate a panel with `visibleWhen` instead.
 
 ## 3. Register a panel on the inventory screen
@@ -58,16 +61,18 @@ Call this once from the client entry point. The adapter registers itself when it
 
 ```java
 import com.trevlar.menukit.api.element.Button;
+import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.menukit.api.panel.OutsideRegion;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelPosition;
+import com.trevlar.menukit.api.panel.Placement;
 import com.trevlar.menukit.api.panel.ScreenPanelAdapter;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
 
 Panel panel = Panel.builder("mymod:controls")
         .add(Button.builder().label(Component.literal("Press")).size(90, 16).onClick(() -> {}).build())
-        .position(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP).priority(10))
+        .in(ModeScope.BOTH, Placement.screen(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP).priority(10)))
         .build();
 
 new ScreenPanelAdapter(panel).on(InventoryScreen.class);

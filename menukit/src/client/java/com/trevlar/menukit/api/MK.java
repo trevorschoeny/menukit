@@ -125,7 +125,7 @@ public class MK {
      * Registers a HUD panel into the HUD's host. Called by
      * {@link com.trevlar.menukit.api.hud.HudPanel.Builder#build()}.
      *
-     * @param panel   a panel positioned {@code screenAnchor(region)} (or {@code pixel})
+     * @param panel   a panel placed {@code screenAnchor(region)} (or {@code pixel}), in each mode scope it shows in
      * @param padding content padding inside the panel's edge
      * @throws IllegalStateException    after MenuKit's declarations froze
      * @throws IllegalArgumentException if the HUD cannot place the panel's position
@@ -154,7 +154,14 @@ public class MK {
                 }
             }
         }
-        host.add(panel, panel.getPosition(), padding, PanelHost.captureCallerModId(), PanelHost.nextSeq());
+        for (var p : panel.placements().values()) {
+            if (p.anchor() != null) {
+                throw new IllegalArgumentException("MenuKit: HUD panel '" + panel.id() + "' is placed on "
+                        + p.anchor() + "; the HUD has no anchors.");
+            }
+        }
+        // Each mode scope's placement (7.4.0); it shows in the mode it is for.
+        host.addPlacements(panel, padding, PanelHost.captureCallerModId(), PanelHost.nextSeq());
         LOGGER.info("[MenuKit] Registered HUD panel '{}'", panel.id());
     }
 

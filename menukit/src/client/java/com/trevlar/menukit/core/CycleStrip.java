@@ -99,7 +99,7 @@ public final class CycleStrip {
     }
 
     private static void declarePanel() {
-        HudPanel.builder("menukit:cycle-strip")
+        HudPanel.builder("menukit:cycle-strip", com.trevlar.menukit.api.panel.ModeScope.BOTH)
                 .region(InsideRegion.BOTTOM_CENTER)
                 .visibleWhen(CycleStrip::shouldShow)
                 // A zero-size element that draws the strip. render places it from the

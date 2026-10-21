@@ -30,7 +30,8 @@ import java.util.List;
  * The screen's panels go into a standalone {@link PanelHost}, attached to
  * {@link ScreenPanelRegistry} so global questions (what claims a point, is a modal
  * up) see them alongside anything injected onto this screen. The host places each
- * panel by its {@link PanelPosition}:
+ * panel by its placements ({@link Panel#placements()}), one per mode scope, each frame the
+ * one for the current mode (else {@code BOTH}), by its {@link PanelPosition}:
  * <ul>
  *   <li>{@code main()}: the screen's frame, centred (one per screen);</li>
  *   <li>{@code region(OutsideRegion)}: around the main panel;</li>
@@ -39,8 +40,8 @@ import java.util.List;
  *   <li>{@code pixel(...)}: exact coordinates.</li>
  * </ul>
  * An unplaced panel takes the standalone default
- * ({@link PanelPosition#standaloneDefaults}): the first becomes {@code main()}, later
- * ones stack below it. A {@code region(...)} panel with no main to anchor to is
+ * ({@link PanelPosition#standaloneDefaults}), in both modes: the first becomes {@code main()},
+ * later ones stack below it. A {@code region(...)} panel with no main to anchor to is
  * rejected at construction.
  *
  * <p>Rendering follows the {@link LayerPlan} (FLOW, POPOVER, dim, OVERLAY), composed by the
@@ -122,19 +123,44 @@ public class MKScreen extends Screen {
                 PanelHost.TitleBand.SCREEN_TOP);
         // An element-only main is always safe to auto-fit its height (it scrolls
         // instead of running off a small screen): the host's default.
-        List<PanelPosition> positions = PanelPosition.standaloneDefaults(
-                this.panels.stream().map(Panel::getPosition).toList());
-        boolean hasMain = positions.stream().anyMatch(p -> p.mode() == PanelPosition.Mode.MAIN);
+        // Each panel's placements, one per mode scope (7.4.0). A panel with none takes the
+        // standalone default, and is BOTH by nature: the first becomes main() unless a panel
+        // declares one (in any scope), the rest stack below it.
+        List<PanelPosition> declared = new java.util.ArrayList<>();
+        for (Panel panel : this.panels) declared.add(representative(panel));
+        List<PanelPosition> defaults = PanelPosition.standaloneDefaults(declared);
+        boolean hasMain = defaults.stream().anyMatch(p -> p.mode() == PanelPosition.Mode.MAIN);
         for (int i = 0; i < this.panels.size(); i++) {
             Panel panel = this.panels.get(i);
-            PanelPosition position = positions.get(i);
-            if (position.mode() == PanelPosition.Mode.REGION && !hasMain) {
-                throw new IllegalArgumentException("MenuKit: panel '" + panel.id()
-                        + "' is " + position.describe() + " on a screen with no main() panel to anchor to.");
+            java.util.Map<ModeScope, PanelPosition> positions = new java.util.EnumMap<>(ModeScope.class);
+            if (panel.placements().isEmpty()) positions.put(ModeScope.BOTH, defaults.get(i));
+            for (var p : panel.placements().entrySet()) {
+                if (p.getValue().anchor() != null) {
+                    throw new IllegalArgumentException("MenuKit: panel '" + panel.id() + "' is placed on "
+                            + p.getValue().anchor() + " for " + p.getKey() + "; an MKScreen places its own panels "
+                            + "against the screen. Put an anchored panel on with an AnchorPanelAdapter.");
+                }
+                positions.put(p.getKey(), p.getValue().position());
             }
-            // One author, one screen: declaration order is the sequence tie-break.
-            host.add(panel, position, panel.interiorPadding(), "", i);
+            for (var p : positions.entrySet()) {
+                if (p.getValue().mode() == PanelPosition.Mode.REGION && !hasMain) {
+                    throw new IllegalArgumentException("MenuKit: panel '" + panel.id()
+                            + "' is " + p.getValue().describe() + " on a screen with no main() panel to anchor to.");
+                }
+                // One author, one screen: declaration order is the sequence tie-break.
+                host.add(panel, p.getKey(), p.getValue(), panel.interiorPadding(), "", i);
+            }
         }
+    }
+
+    /** What {@link PanelPosition#standaloneDefaults} reads for a panel: unplaced, else main() if any scope is, else any. */
+    private static PanelPosition representative(Panel panel) {
+        PanelPosition any = PanelPosition.UNPLACED;
+        for (Placement p : panel.placements().values()) {
+            if (p.position().mode() == PanelPosition.Mode.MAIN) return p.position();
+            any = p.position();
+        }
+        return any;
     }
 
     /**

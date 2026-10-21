@@ -25,17 +25,18 @@ import java.util.Optional;
  * <pre>{@code
  * Panel panel = Panel.builder("mymod:controls")
  *         .add(new Button(0, 0, 90, 16, Component.literal("Press"), b -> {}))
- *         .position(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP).priority(10))
+ *         .in(ModeScope.BOTH, Placement.screen(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP).priority(10)))
  *         .build();
  * new ScreenPanelAdapter(panel).on(InventoryScreen.class);
  * }</pre>
  *
  * <h3>Placement is the panel's</h3>
- * Where the panel sits is its {@link com.trevlar.menukit.api.panel.PanelPosition}:
- * {@code region(OutsideRegion)} around the menu frame (extended by the
- * screen's chrome: creative tab rows, an open recipe book),
- * {@code screenAnchor(InsideRegion)} on the screen, {@code center()} as an overlay,
- * or {@code pixel(...)}. The adapter only says which screens it appears on. An
+ * Where the panel sits in each mode is its {@link Panel#placements()}. A screen placement
+ * ({@link Placement#screen}) is {@code region(OutsideRegion)} around the menu frame
+ * (extended by the screen's chrome: creative tab rows, an open recipe book),
+ * {@code screenAnchor(InsideRegion)} on the screen, {@code center()} as an overlay, or
+ * {@code pixel(...)}. A placement on an {@link Anchor} goes in that anchor's host on the
+ * screens this adapter targets. The adapter only says which screens it appears on. An
  * unplaced panel, or a {@code main()} one, is rejected at construction.
  *
  * <h3>Targeting</h3>
@@ -92,7 +93,7 @@ public final class ScreenPanelAdapter {
      */
     public ScreenPanelAdapter(Panel panel, int padding) {
         Declarations.requireOpen("ScreenPanelAdapter(" + panel.id() + ")");
-        PanelHost.requireSupported(PanelHost.Kind.CONTAINER, panel, panel.getPosition());
+        PanelHost.requirePlacements(PanelHost.Kind.CONTAINER, panel);
         this.panel = panel;
         this.padding = padding;
         this.modId = PanelHost.captureCallerModId();

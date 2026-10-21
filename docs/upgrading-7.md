@@ -114,6 +114,19 @@ Nothing here is needed to upgrade.
 - `api.host` is for a library that ships its own screens. `OwnHost` lays out a screen's own panels and joins them to MenuKit's claims and draw order. `SlotScreenHook` routes hover and clicks to slots drawn in panels.
 - `Declarations.requireOpen` is public, so a library built on MenuKit freezes its own declarations with MenuKit's.
 
+## To 7.4.0
+
+Nothing breaks: a mod built for 7.3.0 works as before. 7.4.0 adds the game mode a declaration is for ([Mode scope](concepts.md#mode-scope)), and deprecates the forms that don't say it. They keep working, mean `ModeScope.BOTH`, and are removed at 8.0.0.
+
+| Deprecated (means `BOTH`) | Use |
+|---|---|
+| `Panel.Builder.position(position)` | `in(ModeScope.BOTH, Placement.screen(position))` |
+| `new AnchorPanelAdapter(panel).on(anchor)` with `position(position)` | `in(ModeScope.BOTH, Placement.around(anchor, position))` and `new AnchorPanelAdapter(panel)` |
+| `HudPanel.builder(id)` | `HudPanel.builder(id, ModeScope.BOTH)` |
+| `OwnHost.add(panel, position, padding)` | the panel's own placements, and `OwnHost.add(panel, padding)` |
+
+Where a panel used to check `instanceof CreativeModeInventoryScreen`, or build a second panel for creative, give it one placement per mode instead: `in(ModeScope.SURVIVAL, ...)` and `in(ModeScope.CREATIVE, ...)` ([recipe](recipes.md#put-a-panel-somewhere-else-in-creative)). `in` and `position` don't mix on one panel, and each scope is declared once; either mistake throws at build.
+
 ## Errors you may see
 
 | Error | Cause | Fix |

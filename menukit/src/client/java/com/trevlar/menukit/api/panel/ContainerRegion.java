@@ -4,6 +4,7 @@ import com.trevlar.menukit.api.Declarations;
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.inject.ContainerRegions;
+import com.trevlar.menukit.inject.PanelHost;
 import com.trevlar.menukit.inject.RegionLayout;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -34,7 +35,7 @@ import java.util.function.Supplier;
  * section's targeting says.
  *
  * <pre>{@code
- * ContainerRegion.section("mymod:opened-shulker")
+ * ContainerRegion.section("mymod:opened-shulker", ModeScope.BOTH)
  *         .title(() -> Component.translatable("container.shulkerBox"))
  *         .source(() -> ContainerRegion.Source.of(session.box()))   // its texture and its name: "Lime Shulker Box"
  *         .content(shulkerGrid)            // SlotKit's slot elements, say
@@ -90,8 +91,9 @@ import java.util.function.Supplier;
  *
  * <pre>{@code
  * Panel sort = Panel.builder("mymod:sort_chest").add(sortButton)
- *         .position(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP)).build();
- * new AnchorPanelAdapter(sort).on(ContainerRegion.CONTAINERS);
+ *         .in(ModeScope.BOTH, Placement.around(ContainerRegion.CONTAINERS,
+ *                 PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP))).build();
+ * new AnchorPanelAdapter(sort);
  * }</pre>
  *
  * <h3>What the region does</h3>
@@ -237,14 +239,19 @@ public final class ContainerRegion {
         }
     }
 
-    /** Starts a section, its id namespaced and unique ({@code "mymod:opened-shulker"}). */
-    public static Builder section(String id) {
-        return new Builder(id);
+    /**
+     * Starts a section, its id namespaced and unique ({@code "mymod:opened-shulker"}), for
+     * one mode scope: it shows only while the player is in that mode ({@link ModeScope#BOTH}
+     * for either), read every frame, as its {@link Builder#visibleWhen} is.
+     */
+    public static Builder section(String id, ModeScope scope) {
+        return new Builder(id, Objects.requireNonNull(scope, "scope"));
     }
 
     /** Builds one section of the container region. {@link #content} is required. */
     public static final class Builder {
         private final String id;
+        private final ModeScope scope;
         private PanelElement content;
         private ScreenMatcher matcher = ScreenMatcher.all();
         private boolean targeted = false;
@@ -254,8 +261,9 @@ public final class ContainerRegion {
         private @Nullable Supplier<Component> title, name;
         private @Nullable Supplier<@Nullable Source> source;
 
-        private Builder(String id) {
+        private Builder(String id, ModeScope scope) {
             this.id = Objects.requireNonNull(id, "id");
+            this.scope = scope;
         }
 
         /** Required: what the section shows, placed from the region's content edge. */
@@ -356,7 +364,10 @@ public final class ContainerRegion {
         public void declare() {
             Declarations.requireOpen("ContainerRegion.section(" + id + ")");
             if (content == null) throw new IllegalStateException("ContainerRegion section '" + id + "': content(...) is required");
-            ContainerRegions.declare(new ContainerRegions.Declared(id, content, matcher, order, visibleWhen, texture, title, name, source));
+            // The mode scope is one more condition, read every frame with the section's own.
+            BooleanSupplier own = visibleWhen;
+            BooleanSupplier shown = scope == ModeScope.BOTH ? own : () -> PanelHost.inScope(scope) && own.getAsBoolean();
+            ContainerRegions.declare(new ContainerRegions.Declared(id, content, matcher, order, shown, texture, title, name, source));
         }
     }
 }

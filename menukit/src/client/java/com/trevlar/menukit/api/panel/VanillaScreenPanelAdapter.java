@@ -25,7 +25,7 @@ import java.util.Objects;
  * <pre>{@code
  * Panel panel = Panel.builder("mymod:options-help")
  *         .add(...)
- *         .position(PanelPosition.screenAnchor(InsideRegion.TOP_RIGHT))
+ *         .in(ModeScope.BOTH, Placement.screen(PanelPosition.screenAnchor(InsideRegion.TOP_RIGHT)))
  *         .build();
  * new VanillaScreenPanelAdapter(panel, 0).on(OptionsScreen.class);
  * }</pre>
@@ -34,7 +34,9 @@ import java.util.Objects;
  * A non-container screen has no frame, so the panel declares
  * {@code screenAnchor(InsideRegion)} (4px in from the edges it touches; siblings on
  * one spot stack 4px apart), {@code center()}, or {@code pixel(...)}. A
- * {@code region(...)}, {@code main()} or unplaced panel is rejected at construction.
+ * {@code region(...)}, {@code main()} or unplaced panel is rejected at construction. A
+ * placement on an {@link Anchor} goes in that anchor's host on the screens this adapter
+ * targets.
  *
  * <h3>Targeting is required</h3>
  * Call {@link #on} or {@link #onAny} exactly once. An adapter with no targeting fails
@@ -84,7 +86,7 @@ public final class VanillaScreenPanelAdapter {
     public VanillaScreenPanelAdapter(Panel panel, int padding) {
         Objects.requireNonNull(panel, "panel must not be null");
         Declarations.requireOpen("VanillaScreenPanelAdapter(" + panel.id() + ")");
-        PanelHost.requireSupported(PanelHost.Kind.VANILLA_SCREEN, panel, panel.getPosition());
+        PanelHost.requirePlacements(PanelHost.Kind.VANILLA_SCREEN, panel);
         this.panel = panel;
         this.padding = padding;
         this.modId = PanelHost.captureCallerModId();

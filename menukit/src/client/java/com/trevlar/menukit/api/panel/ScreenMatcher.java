@@ -89,9 +89,11 @@ public final class ScreenMatcher {
      * (its init, when its menu already holds every slot). For a scope that is not a
      * set of screen classes: a slot library's group, say, whose slots the server adds
      * to some menus and not others, so a panel showing them belongs on exactly those
-     * screens ({@code adapter.onMatching(group.screens())}). What changes while the
-     * screen is open is the panel's {@code visibleWhen}, not this. The test runs on
-     * the render thread; it must not throw.
+     * screens ({@code adapter.onMatching(group.screens())}). It is decided when the
+     * screen opens and not asked again while it stays open: a creative tab switch, which
+     * swaps the menu's slots on the same screen, doesn't ask it again. What changes while
+     * the screen is open is the panel's mode scope ({@link Panel.Builder#in}) or its
+     * {@code visibleWhen}, not this. The test runs on the render thread; it must not throw.
      */
     public static ScreenMatcher where(Predicate<? super AbstractContainerScreen<?>> test) {
         return new ScreenMatcher(Mode.WHERE, List.of(), Objects.requireNonNull(test, "test"));

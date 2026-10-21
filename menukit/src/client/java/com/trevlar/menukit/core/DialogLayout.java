@@ -85,7 +85,7 @@ public final class DialogLayout {
                 .elements(column.build())
                 .visible(false)
                 .style(PanelStyle.RAISED)
-                .position(PanelPosition.center())
+                .in(com.trevlar.menukit.api.panel.ModeScope.BOTH, com.trevlar.menukit.api.panel.Placement.screen(PanelPosition.center()))
                 .build()
                 .modal()
                 .onEscape(onEscape);
