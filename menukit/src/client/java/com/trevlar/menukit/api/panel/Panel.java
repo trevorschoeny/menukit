@@ -18,7 +18,10 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
@@ -29,8 +32,9 @@ import java.util.function.Supplier;
  * menus dynamic.
  *
  * <p>A Panel holds an ordered list of {@link PanelElement}s (buttons, text labels,
- * anything implementing the interface), plus a style, a position, a toggle key and
- * a visibility flag. Visibility can change; the element list is fixed once built.
+ * anything implementing the interface), plus a style, where it goes in each game mode
+ * ({@link #placements()}), a toggle key and a visibility flag. Visibility can change; the
+ * element list is fixed once built.
  *
  * <p>The same Panel type is used in inventory menus, on the HUD and on standalone
  * screens. What is specific to each (anchors, HUD anchoring, a standalone
@@ -68,7 +72,10 @@ public class Panel {
     private final String id;
     private final List<PanelElement> elements;
     private final PanelStyle style;
-    private final PanelPosition position;
+    /** Where it goes in each mode it shows in (7.4.0); empty for a panel that declares none. */
+    private final Map<ModeScope, Placement> placements;
+    /** Whether the player can't move it (7.4.0, {@link Builder#fixed()}). */
+    private boolean fixed = false;
     private final int toggleKey; // InputConstants.KEY_* code that toggles visibility, or -1 for none
     private boolean visible;
 
@@ -227,18 +234,27 @@ public class Panel {
      * @param elements  panel elements, buttons, text labels, etc. (immutable after construction)
      * @param visible   initial visibility state
      * @param style     visual style for panel background rendering
-     * @param position  how this panel is positioned in the layout
+     * @param position  how this panel is positioned in the layout, in both modes
+     *                  ({@link PanelPosition#UNPLACED} for none)
      * @param toggleKey key code ({@code InputConstants.KEY_*}) that toggles this panel's visibility, or -1 for none
      */
     @ApiStatus.Internal
     public Panel(String id, List<PanelElement> elements,
                  boolean visible, PanelStyle style, PanelPosition position,
                  int toggleKey) {
+        this(id, elements, visible, style,
+                position.isPlaced() ? Map.of(ModeScope.BOTH, Placement.screen(position)) : Map.of(), toggleKey);
+    }
+
+    private Panel(String id, List<PanelElement> elements, boolean visible, PanelStyle style,
+                  Map<ModeScope, Placement> placements, int toggleKey) {
         this.id = id;
         this.elements = List.copyOf(elements);
         this.visible = visible;
         this.style = style;
-        this.position = position;
+        EnumMap<ModeScope, Placement> copy = new EnumMap<>(ModeScope.class);
+        copy.putAll(placements);
+        this.placements = Collections.unmodifiableMap(copy);
         this.toggleKey = toggleKey;
     }
 
@@ -273,7 +289,7 @@ public class Panel {
      *     .add(Button.builder().label(Component.literal("OK")).onClick(this::ok).build())
      *     .add(Toggle.builder().state(cfg::on, cfg::setOn).label(Component.literal("On")).build())
      *     .style(PanelStyle.RAISED)
-     *     .position(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP))
+     *     .in(ModeScope.BOTH, Placement.screen(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP)))
      *     .build();
      * }</pre>
      *
@@ -285,16 +301,18 @@ public class Panel {
     }
 
     /**
-     * Builds a {@link Panel}. Defaults: visible, {@link PanelStyle#RAISED},
-     * {@link PanelPosition#UNPLACED}, and no toggle key unless
-     * {@link #toggleKey(int)} is called.
+     * Builds a {@link Panel}. Defaults: visible, {@link PanelStyle#RAISED}, no placement,
+     * and no toggle key unless {@link #toggleKey(int)} is called.
      */
     public static final class Builder {
         private final String id;
         private final List<PanelElement> elements = new java.util.ArrayList<>();
         private boolean visible = true;
         private PanelStyle style = PanelStyle.RAISED;
-        private PanelPosition position = PanelPosition.UNPLACED;
+        private final EnumMap<ModeScope, Placement> placements = new EnumMap<>(ModeScope.class);
+        /** Whether {@link #position} was called: it and {@link #in} don't mix. */
+        private boolean positioned = false;
+        private boolean fixed = false;
         private int toggleKey = NO_TOGGLE_KEY;
         private @Nullable BooleanSupplier disabledWhen;
         private @Nullable BooleanSupplier visibleWhen;
@@ -344,13 +362,69 @@ public class Panel {
         }
 
         /**
-         * Sets where the panel sits; every host reads this.
-         * Default {@link PanelPosition#UNPLACED}: adapters and the HUD reject an
-         * unplaced panel; {@code MKScreen} and {@code CustomContainerMenu} make the first
-         * unplaced panel their {@code main()} and stack later ones below it.
+         * Where the panel goes in {@code scope} (7.4.0): {@link ModeScope#SURVIVAL},
+         * {@link ModeScope#CREATIVE} or {@link ModeScope#BOTH}, once each. Each frame the
+         * panel takes the current mode's placement, else its {@code BOTH} one; with neither
+         * it doesn't show in that mode, and with no player only {@code BOTH} applies. The
+         * two modes' placements can be anything: a screen region in one, beside an anchor in
+         * the other.
+         *
+         * <pre>{@code
+         * Panel.builder("mymod:sort")
+         *         .in(ModeScope.SURVIVAL, Placement.screen(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP)))
+         *         .in(ModeScope.CREATIVE, Placement.at(MY_ANCHOR, 0, -18))
+         *         .add(sortButton)
+         *         .build();
+         * }</pre>
+         *
+         * A panel with no placement at all (a nested panel, a dialog, a standalone screen's
+         * default stack) is {@code BOTH} by nature.
+         *
+         * @throws IllegalStateException when {@code scope} already has a placement, or with
+         *         {@link #position}
          */
+        public Builder in(ModeScope scope, Placement placement) {
+            Objects.requireNonNull(scope, "scope");
+            Objects.requireNonNull(placement, "placement");
+            if (positioned) {
+                throw new IllegalStateException("Panel '" + id + "': in(...) and position(...) don't mix; "
+                        + "position(p) is in(ModeScope.BOTH, Placement.screen(p))");
+            }
+            if (placements.putIfAbsent(scope, placement) != null) {
+                throw new IllegalStateException("Panel '" + id + "' already has a placement for " + scope
+                        + "; declare each scope once");
+            }
+            return this;
+        }
+
+        /**
+         * Sets where the panel sits in both modes; every host reads this. Unplaced by
+         * default: adapters and the HUD reject an unplaced panel; {@code MKScreen} and
+         * {@code CustomContainerMenu} make the first unplaced panel their {@code main()} and
+         * stack later ones below it.
+         *
+         * @deprecated since 7.4.0, every declaration picks its mode scope:
+         *             {@code in(ModeScope.BOTH, Placement.screen(position))} is this call.
+         * @throws IllegalStateException with {@link #in}
+         */
+        @Deprecated(since = "7.4.0", forRemoval = true)
         public Builder position(PanelPosition position) {
-            this.position = position;
+            if (!placements.isEmpty() && !positioned) {
+                throw new IllegalStateException("Panel '" + id + "': in(...) and position(...) don't mix; "
+                        + "position(p) is in(ModeScope.BOTH, Placement.screen(p))");
+            }
+            positioned = true;
+            placements.clear();
+            if (position.isPlaced()) placements.put(ModeScope.BOTH, Placement.screen(position));
+            return this;
+        }
+
+        /**
+         * The player can't move this panel (7.4.0): it stays where its placements put it.
+         * Without it a player may move the panel with MenuKit's edit mode, once that ships.
+         */
+        public Builder fixed() {
+            this.fixed = true;
             return this;
         }
 
@@ -426,7 +500,8 @@ public class Panel {
             if (background && popover) {
                 throw new IllegalStateException("Panel '" + id + "' is both background() and popover(); pick one layer");
             }
-            Panel panel = new Panel(id, elements, visible, style, position, toggleKey);
+            Panel panel = new Panel(id, elements, visible, style, placements, toggleKey);
+            panel.fixed = fixed;
             panel.disabledSupplier = disabledWhen;
             panel.popover = popover;
             panel.background = background;
@@ -490,8 +565,21 @@ public class Panel {
         return style == PanelStyle.RAISED && kind == ScreenKind.DEFAULT ? POPUP_FRAME_EXTRA : 0;
     }
 
-    /** Where this panel sits. */
-    public PanelPosition getPosition() { return position; }
+    /**
+     * Where this panel sits now: the position of its placement for the current mode, else
+     * of its {@code BOTH} one ({@link Builder#in}), read on every call so it follows the
+     * mode; {@link PanelPosition#UNPLACED} when it has none that applies (or none at all).
+     */
+    public PanelPosition getPosition() {
+        Placement p = placements.get(PanelHost.effectiveScope(this));
+        return p == null ? PanelPosition.UNPLACED : p.position();
+    }
+
+    /** Where this panel goes in each mode it declared (7.4.0), unmodifiable; empty for none. */
+    public Map<ModeScope, Placement> placements() { return placements; }
+
+    /** Whether the player can't move this panel ({@link Builder#fixed()}, 7.4.0). */
+    public boolean isFixed() { return fixed; }
 
     /**
      * This panel's own rectangle on the current screen, in screen coordinates
@@ -509,11 +597,11 @@ public class Panel {
      * Panel close = Panel.builder("mymod:item_close")
      *         .style(PanelStyle.NONE)
      *         .add(Button.builder()...)
-     *         .position(PanelPosition.pixel(() -> {
+     *         .in(ModeScope.BOTH, Placement.screen(PanelPosition.pixel(() -> {
      *             Reference r = itemPanel.placedBounds();
      *             return r == null ? new ScreenOrigin(0, 0)
      *                     : new ScreenOrigin(r.leftPos() + r.imageWidth() - 4, r.topPos() - 4);
-     *         }))
+     *         })))
      *         .build();
      * close.visibleWhen(itemPanel::isVisible);
      * new ScreenPanelAdapter(close, 0).onMatching(...);

@@ -6,7 +6,9 @@ import com.trevlar.menukit.api.panel.OutsideRegion;
 import com.trevlar.menukit.api.element.ItemDisplay;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.element.PanelElement;
+import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.menukit.api.panel.PanelPosition;
+import com.trevlar.menukit.api.panel.Placement;
 import com.trevlar.menukit.api.panel.PanelStyle;
 import com.trevlar.menukit.api.element.ProgressBar;
 import com.trevlar.menukit.api.element.RenderContext;
@@ -40,7 +42,7 @@ import java.util.function.Supplier;
  *
  * <p>Usage:
  * <pre>{@code
- * HudPanel.builder("coords")
+ * HudPanel.builder("mymod:coords", ModeScope.BOTH)
  *     .region(InsideRegion.TOP_LEFT)
  *     .padding(4)
  *     .style(PanelStyle.RAISED)
@@ -62,16 +64,32 @@ public class HudPanel {
     public static final float STATUS_SCALE = 6f / 11f;
 
     /**
-     * Starts a HUD panel builder.
+     * Starts a HUD panel builder for one mode scope (7.4.0): the panel shows only in that
+     * mode ({@link ModeScope#BOTH} for either), read every frame, so it comes and goes with
+     * {@code /gamemode}.
+     *
+     * @param name  unique id for this panel, namespaced ({@code "mymod:coords"})
+     * @param scope the mode it shows in
+     */
+    public static Builder builder(String name, ModeScope scope) {
+        return new Builder(name, java.util.Objects.requireNonNull(scope, "scope"));
+    }
+
+    /**
+     * Starts a HUD panel builder, for both modes.
      *
      * @param name unique id for this panel
+     * @deprecated since 7.4.0, every declaration picks its mode scope:
+     *             {@code builder(name, ModeScope.BOTH)} is this call.
      */
+    @Deprecated(since = "7.4.0", forRemoval = true)
     public static Builder builder(String name) {
-        return new Builder(name);
+        return new Builder(name, ModeScope.BOTH);
     }
 
     public static class Builder {
         private final String name;
+        private final ModeScope scope;
         // Required, exactly one: a spot on the window, or a region around the hotbar.
         private @Nullable InsideRegion region;
         private @Nullable OutsideRegion aroundHotbar;
@@ -85,8 +103,9 @@ public class HudPanel {
         private BooleanSupplier visibleWhen = () -> true;
         private final List<PanelElement> elements = new ArrayList<>();
 
-        Builder(String name) {
+        Builder(String name, ModeScope scope) {
             this.name = name;
+            this.scope = scope;
         }
 
         /**
@@ -356,7 +375,7 @@ public class HudPanel {
             Panel panel = Panel.builder(name)
                     .elements(elements)
                     .style(style)
-                    .position(where.offset(offsetX, offsetY).priority(priority))
+                    .in(scope, Placement.screen(where.offset(offsetX, offsetY).priority(priority)))
                     .build();
             panel.visibleWhen(visibleWhen);
             if (width >= 0 && height >= 0) {

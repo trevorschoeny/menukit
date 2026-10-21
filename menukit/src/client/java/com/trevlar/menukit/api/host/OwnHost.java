@@ -1,6 +1,8 @@
 package com.trevlar.menukit.api.host;
 
 import com.trevlar.menukit.api.panel.Panel;
+import com.trevlar.menukit.api.panel.ModeScope;
+import com.trevlar.menukit.api.panel.OutsideRegion;
 import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.Reference;
 import com.trevlar.menukit.api.panel.ScreenKind;
@@ -35,7 +37,7 @@ import java.util.function.Predicate;
  * <pre>{@code
  * host = OwnHost.of(this, ScreenKind.PANEL, OwnHost.TitleBand.IN_FRAME)
  *         .slotOwnership(this::ownsSlotAt);
- * for (Panel p : panels) host.add(p, p.getPosition(), p.interiorPadding());
+ * for (Panel p : panels) host.add(p, p.interiorPadding());
  * }</pre>
  */
 public final class OwnHost {
@@ -140,14 +142,57 @@ public final class OwnHost {
     }
 
     /**
-     * Adds a panel. Panels order by their priority, then by the order they were added.
+     * Adds a panel by its own placements ({@link Panel#placements()}, 7.4.0), one per mode
+     * scope; each frame it takes the current mode's, else its {@code BOTH} one. Panels order
+     * by their priority, then by the order they were added. A panel with no placement takes
+     * the standalone default in both modes: the main panel when this host has none yet,
+     * else {@code region(BOTTOM_CENTER)} {@link PanelPosition#STANDALONE_STACK_GAP} below the
+     * one before (add a declared {@code main()} first).
+     *
+     * @param padding content padding between the panel's edge and its elements
+     * @throws IllegalArgumentException for a placement on an anchor (put an anchored panel on
+     *         with an {@code AnchorPanelAdapter}), or one this host can't place
+     */
+    public void add(Panel panel, int padding) {
+        int seq = order++;
+        if (panel.placements().isEmpty()) {
+            host.add(panel, ModeScope.BOTH, mainAdded ? PanelPosition.region(OutsideRegion.BOTTOM_CENTER)
+                    .gap(PanelPosition.STANDALONE_STACK_GAP) : PanelPosition.main(), padding, "", seq);
+            mainAdded = true;
+            return;
+        }
+        for (var p : panel.placements().entrySet()) {
+            if (p.getValue().anchor() != null) {
+                throw new IllegalArgumentException("MenuKit: panel '" + panel.id() + "' is placed on "
+                        + p.getValue().anchor() + " for " + p.getKey() + "; a screen's own host places against "
+                        + "the screen. Put an anchored panel on with an AnchorPanelAdapter.");
+            }
+        }
+        for (var p : panel.placements().entrySet()) {
+            host.add(panel, p.getKey(), p.getValue().position(), padding, "", seq);
+            if (p.getValue().position().mode() == PanelPosition.Mode.MAIN) mainAdded = true;
+        }
+    }
+
+    /** Whether a main panel was added: an unplaced panel then stacks below it. */
+    private boolean mainAdded = false;
+
+    /**
+     * Adds a panel at {@code position}, in both modes. Panels order by their priority, then
+     * by the order they were added.
      *
      * @param position the position to place it at (the panel's own, or a default the
      *                 screen picks for an unplaced one)
      * @param padding  content padding between the panel's edge and its elements
+     * @deprecated since 7.4.0, the panel's placements say where it goes in each mode:
+     *             {@link #add(Panel, int)}. This is {@code position} in both modes, whatever
+     *             placements the panel declares.
      */
+    @Deprecated(since = "7.4.0", forRemoval = true)
     public void add(Panel panel, PanelPosition position, int padding) {
+        // The caller's own position: shown in every mode, whatever placements the panel has.
         host.add(panel, position, padding, "", order++);
+        if (position.mode() == PanelPosition.Mode.MAIN) mainAdded = true;
     }
 
     /** This frame's placements and main rectangle. Cheap: call it every frame. */

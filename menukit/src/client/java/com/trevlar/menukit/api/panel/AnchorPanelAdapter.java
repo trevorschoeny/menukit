@@ -10,29 +10,32 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 
 /**
- * Places a {@link Panel} around an {@link Anchor}: a rectangle another library names
- * and supplies per screen (a slot group's box, the pause menu's button column). On
- * every open screen where the anchor's box is present, the anchor's host places its
- * panels around that box this frame.
+ * Places a {@link Panel} on {@link Anchor}s: rectangles another library names and
+ * supplies per screen (a slot group's box, the pause menu's button column). On every open
+ * screen where an anchor's box is present, the anchor's host places its panels against that
+ * box this frame.
  *
  * <pre>{@code
  * Panel row = Panel.builder("mymod:pause_row")
  *         .add(...)
- *         .position(PanelPosition.region(OutsideRegion.BOTTOM_CENTER))
+ *         .in(ModeScope.BOTH, Placement.around(PAUSE_BUTTONS, PanelPosition.region(OutsideRegion.BOTTOM_CENTER)))
  *         .build();
- * new AnchorPanelAdapter(row).on(PAUSE_BUTTONS);
+ * new AnchorPanelAdapter(row);
  * }</pre>
  *
  * <h3>Placement is the panel's</h3>
- * The panel declares {@code region(OutsideRegion)} (around the anchor's box),
- * {@code center()} or {@code pixel(...)}. An anchor has no screen spots, so
- * {@code screenAnchor}, {@code main()} and unplaced panels are rejected at
- * construction.
+ * The panel's placements name their anchors ({@link Placement#around},
+ * {@link Placement#at}), one per mode scope, and the panel shows wherever the anchor its
+ * current mode's placement names is on the open screen. Around an anchor it declares
+ * {@code region(OutsideRegion)} (stacking with the anchor's other panels), {@code center()}
+ * or {@code pixel(...)}. An anchor has no screen spots, so {@code screenAnchor},
+ * {@code main()} and unplaced panels are rejected at construction.
  *
- * <h3>Targeting is required</h3>
- * {@link #on}, exactly once, with at least one anchor. An adapter with no targeting
- * fails loudly at the first screen open. The panel appears once per targeted anchor
- * present on the screen, and panels on one anchor stack in its regions.
+ * <h3>Targeting</h3>
+ * The anchors are in the placements; nothing else is needed. The deprecated {@link #on}
+ * puts the panel's screen placements around each anchor it names instead. An adapter
+ * whose panel names no anchor and that never called {@code on} fails loudly at the first
+ * screen open.
  *
  * <h3>Claims</h3>
  * An anchored panel claims points by the same rule as every other panel: an opaque
@@ -74,7 +77,7 @@ public final class AnchorPanelAdapter {
      */
     public AnchorPanelAdapter(Panel panel, int padding) {
         Declarations.requireOpen("AnchorPanelAdapter(" + panel.id() + ")");
-        PanelHost.requireSupported(PanelHost.Kind.ANCHOR, panel, panel.getPosition());
+        PanelHost.requirePlacements(PanelHost.Kind.ANCHOR, panel);
         this.panel = panel;
         this.padding = padding;
         this.modId = PanelHost.captureCallerModId();
@@ -82,7 +85,15 @@ public final class AnchorPanelAdapter {
         ScreenPanelRegistry.declare(this);
     }
 
-    /** Places the panel around each of {@code anchors}. Call exactly once. */
+    /**
+     * Places the panel's screen placements ({@link Placement#screen}) around each of
+     * {@code anchors}, in their own mode scopes. Call at most once.
+     *
+     * @deprecated since 7.4.0, the anchor is part of the placement:
+     *             {@code in(ModeScope.BOTH, Placement.around(anchor, position))} on the panel
+     *             is {@code position(position)} with this call, and needs no {@code on}.
+     */
+    @Deprecated(since = "7.4.0", forRemoval = true)
     public AnchorPanelAdapter on(Anchor... anchors) {
         Declarations.requireOpen("AnchorPanelAdapter(" + panel.id() + ") targeting");
         if (targets != null) {
@@ -112,10 +123,10 @@ public final class AnchorPanelAdapter {
     /** The content padding inside the panel's edge. */
     public int getPadding() { return padding; }
 
-    /** The declared target anchors, or {@code null} before targeting. */
+    /** The anchors {@link #on} named, or {@code null} without it. */
     public @Nullable List<Anchor> getTargets() { return targets; }
 
-    /** Whether targeting was declared. */
+    /** Whether {@link #on} was called. */
     public boolean isTargetingDeclared() { return targets != null; }
 
     @ApiStatus.Internal

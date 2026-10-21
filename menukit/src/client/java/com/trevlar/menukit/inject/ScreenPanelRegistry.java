@@ -7,6 +7,8 @@ import com.trevlar.menukit.api.panel.ScreenPanelAdapter;
 import com.trevlar.menukit.api.panel.VanillaScreenPanelAdapter;
 import com.trevlar.menukit.api.panel.Reference;
 import com.trevlar.menukit.api.panel.Focus;
+import com.trevlar.menukit.api.panel.ModeScope;
+import com.trevlar.menukit.api.panel.Placement;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
@@ -57,8 +59,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *       ({@link #attachOwnHost});</li>
  *   <li><b>context</b>: the adapters targeting this screen (container adapters on a
  *       container screen, vanilla-screen adapters on any other);</li>
- *   <li><b>anchors</b> (any screen): one host per targeted {@link Anchor} whose box is
- *       on the screen;</li>
+ *   <li><b>anchors</b> (any screen): one host per {@link Anchor} a declared panel is
+ *       placed on (a placement's anchor, or the deprecated {@code on(...)}), placing while
+ *       its box is on the screen;</li>
  *   <li><b>dialogs</b> (7.2.0): the dialogs elements on the screen own, attached by
  *       the elements themselves ({@link #attachDialog}).</li>
  * </ol>
@@ -158,7 +161,7 @@ public final class ScreenPanelRegistry {
         }
         PanelHost host = hosts.dialogs;
         boolean present = host.entries().stream().anyMatch(e -> e.panel() == dialog);
-        if (!present) host.add(dialog, dialog.getPosition(), dialog.interiorPadding(), "menukit", PanelHost.nextSeq());
+        if (!present) host.addPlacements(dialog, dialog.interiorPadding(), "menukit", PanelHost.nextSeq());
         ChildDispatch.detach(dialog.getElements(), screen);
         ChildDispatch.attach(dialog.getElements(), screen);
     }
@@ -239,10 +242,19 @@ public final class ScreenPanelRegistry {
 
         ScreenHosts hosts = HOSTS.computeIfAbsent(screen, s -> new ScreenHosts());
         hosts.anchors.clear();
+        // Anchors, on any screen: one host per anchor a panel is placed on, placed around
+        // (or at) the box its library supplies this frame (none while the box is absent).
+        ScreenKind kind = ScreenKind.of(screen);
+        java.util.function.Function<Anchor, PanelHost> anchorHost = anchor -> hosts.anchors.computeIfAbsent(anchor.id(),
+                id -> PanelHost.anchor(kind, () -> anchorFrame(screen, anchor)));
+        // A screen adapter's panel: its screen placements in the screen's host, each anchored
+        // placement in its anchor's host, every one for its own mode scope.
         if (screen instanceof AbstractContainerScreen<?> acs) {
             PanelHost context = PanelHost.container(() -> containerFrame(acs));
             for (ScreenPanelAdapter a : CONTAINER) {
-                if (a.matches(acs)) context.add(a.getPanel(), a.getPanel().getPosition(), a.getPadding(), a.modId(), a.seq());
+                if (!a.matches(acs)) continue;
+                context.addPlacements(a.getPanel(), a.getPadding(), a.modId(), a.seq());
+                addAnchored(anchorHost, a.getPanel(), a.getPadding(), a.modId(), a.seq());
             }
             hosts.context = context.isEmpty() ? null : context;
         } else {
@@ -251,19 +263,23 @@ public final class ScreenPanelRegistry {
             PanelHost context = PanelHost.vanillaScreen(ScreenKind.of(screen),
                     () -> new PanelHost.Frame(screen.width, screen.height, null));
             for (VanillaScreenPanelAdapter a : VANILLA) {
-                if (a.matches(screen)) context.add(a.getPanel(), a.getPanel().getPosition(), a.getPadding(), a.modId(), a.seq());
+                if (!a.matches(screen)) continue;
+                context.addPlacements(a.getPanel(), a.getPadding(), a.modId(), a.seq());
+                addAnchored(anchorHost, a.getPanel(), a.getPadding(), a.modId(), a.seq());
             }
             hosts.context = context.isEmpty() ? null : context;
         }
-        // Anchors, on any screen: one host per targeted anchor, placed around the box
-        // its library supplies this frame (none while the box is absent).
-        ScreenKind kind = ScreenKind.of(screen);
+        // An anchor adapter's panel, on every screen: its anchored placements in their
+        // anchors' hosts, and (the deprecated on(...)) its screen placements around each
+        // anchor it names.
         for (AnchorPanelAdapter a : ANCHORED) {
+            addAnchored(anchorHost, a.getPanel(), a.getPadding(), a.modId(), a.seq());
             if (a.getTargets() == null) continue;
             for (Anchor anchor : a.getTargets()) {
-                PanelHost host = hosts.anchors.computeIfAbsent(anchor.id(),
-                        id -> PanelHost.anchor(kind, () -> anchorFrame(screen, anchor)));
-                host.add(a.getPanel(), a.getPanel().getPosition(), a.getPadding(), a.modId(), a.seq());
+                PanelHost host = anchorHost.apply(anchor);
+                for (Map.Entry<ModeScope, Placement> p : a.getPanel().placements().entrySet()) {
+                    if (p.getValue().anchor() == null) host.add(a.getPanel(), p.getKey(), p.getValue().position(), a.getPadding(), a.modId(), a.seq());
+                }
             }
         }
 
@@ -348,6 +364,14 @@ public final class ScreenPanelRegistry {
         });
     }
 
+    /** Each of {@code panel}'s anchored placements, in its anchor's host on this screen. */
+    private static void addAnchored(java.util.function.Function<Anchor, PanelHost> anchorHost, Panel panel,
+                                    int padding, String modId, int seq) {
+        for (Placement p : panel.placements().values()) {
+            if (p.anchor() != null) anchorHost.apply(p.anchor()).addAnchored(panel, p.anchor(), padding, modId, seq);
+        }
+    }
+
     /**
      * Vanilla-screen and anchor adapters must name their targets (an everywhere
      * default makes no sense on the title screen, and "any anchor" is not a target).
@@ -359,13 +383,19 @@ public final class ScreenPanelRegistry {
             if (!a.isTargetingDeclared()) missing.add("VanillaScreenPanelAdapter " + a.getPanel().id());
         }
         for (AnchorPanelAdapter a : ANCHORED) {
-            if (!a.isTargetingDeclared()) missing.add("AnchorPanelAdapter " + a.getPanel().id());
+            if (!a.isTargetingDeclared() && !anchored(a.getPanel())) missing.add("AnchorPanelAdapter " + a.getPanel().id());
         }
         if (missing.isEmpty()) return;
-        String message = "MenuKit: adapters constructed but never targeted (.on(...)): "
+        String message = "MenuKit: adapters constructed but never targeted (.on(...), or for an anchor adapter a placement on an anchor): "
                 + String.join(", ", missing) + ". Add the missing .on(...) call(s).";
         LOGGER.error("[ScreenPanelRegistry] {}", message);
         throw new IllegalStateException(message);
+    }
+
+    /** Whether any of {@code panel}'s placements is on an anchor. */
+    private static boolean anchored(Panel panel) {
+        for (Placement p : panel.placements().values()) if (p.anchor() != null) return true;
+        return false;
     }
 
     // Frames

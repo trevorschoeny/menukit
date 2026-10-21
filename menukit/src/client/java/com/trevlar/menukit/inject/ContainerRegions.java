@@ -8,9 +8,11 @@ import com.trevlar.menukit.api.element.ScrollContainer;
 import com.trevlar.menukit.api.element.TextLabel;
 import com.trevlar.menukit.api.panel.Anchor;
 import com.trevlar.menukit.api.panel.ContainerRegion;
+import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.PanelStyle;
+import com.trevlar.menukit.api.panel.Placement;
 import com.trevlar.menukit.api.panel.Reference;
 import com.trevlar.menukit.api.panel.ScreenMatcher;
 import com.trevlar.menukit.api.panel.ScreenOrigin;
@@ -243,7 +245,7 @@ public final class ContainerRegions {
         // Both panels are the screen's background: under everything, claiming nothing. Each
         // says what its surface is at a point, for its slot frames and text (RegionLooks).
         panel = Panel.builder(PANEL_ID).style(PanelStyle.NONE).background()
-                .position(PanelPosition.pixel(ContainerRegions::origin))
+                .in(ModeScope.BOTH, Placement.screen(PanelPosition.pixel(ContainerRegions::origin)))
                 .add(new RegionLooks.Backdrop()).add(view)
                 .build()
                 .visibleWhen(() -> state.geometry != null);
@@ -251,7 +253,7 @@ public final class ContainerRegions {
         adapter = new ScreenPanelAdapter(panel, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
         if (inventoryPanel == null) {
             inventoryPanel = Panel.builder(INVENTORY_PANEL_ID).style(PanelStyle.NONE).background()
-                    .position(PanelPosition.pixel(ContainerRegions::inventoryOrigin))
+                    .in(ModeScope.BOTH, Placement.screen(PanelPosition.pixel(ContainerRegions::inventoryOrigin)))
                     .add(new RegionLooks.InventoryFrame())
                     .build()
                     .visibleWhen(() -> state.geometry != null && state.applied != null);

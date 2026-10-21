@@ -7,7 +7,7 @@ One task per section. Each names the artifact it needs. [concepts.md](concepts.m
 Needs: MenuKit. Call from the client entry point.
 
 ```java
-HudPanel.builder("offshore:boat-health")
+HudPanel.builder("offshore:boat-health", ModeScope.BOTH)
         .region(InsideRegion.BOTTOM_CENTER)
         .offset(0, -46)
         .padding(0)
@@ -30,7 +30,7 @@ Result: a 7 pixel tall bar renders 50 pixels above the bottom centre of the wind
 Needs: MenuKit. Call from the client entry point.
 
 ```java
-HudPanel.builder("mymod:totem-icon")
+HudPanel.builder("mymod:totem-icon", ModeScope.BOTH)
         .region(OutsideRegion.LEFT_ALIGN_BOTTOM)
         .priority(10)
         .offset(0, -3)
@@ -47,7 +47,7 @@ Result: a 12 pixel icon sits 2 pixels left of the vanilla hotbar while `totemSho
 Needs: MenuKit. Call from the client entry point.
 
 ```java
-HudPanel.builder("mymod:totem-status")
+HudPanel.builder("mymod:totem-status", ModeScope.BOTH)
         .statusColumn()
         .priority(10)
         .visibleWhen(() -> !totemShown().isEmpty())
@@ -70,7 +70,7 @@ Panel p = Panel.builder("mymod:region-everywhere")
         .add(Button.builder().label(Component.literal("Click me")).at(0, 14).size(70, 14)
                 .onClick(() -> {})
                 .tooltip(Component.literal("A button inside a region panel.")).build())
-        .position(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP).priority(20))
+        .in(ModeScope.BOTH, Placement.screen(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP).priority(20)))
         .build();
 new ScreenPanelAdapter(p);
 ```
@@ -92,9 +92,9 @@ static void pauseRow(List<PanelElement> rowButtons) {
     Panel row = Panel.builder("mymod:pause_row")
             .style(PanelStyle.NONE)
             .elements(rowButtons)
-            .position(PanelPosition.region(OutsideRegion.BOTTOM_CENTER))
+            .in(ModeScope.BOTH, Placement.around(PAUSE_BUTTONS, PanelPosition.region(OutsideRegion.BOTTOM_CENTER)))
             .build();
-    new AnchorPanelAdapter(row).on(PAUSE_BUTTONS);
+    new AnchorPanelAdapter(row);
 }
 
 // The box around every widget on the screen, or null when it has none.
@@ -113,6 +113,23 @@ static Reference buttonsBox(Screen screen) {
 
 Result: on the pause screen the row sits centred under the button column, and moves with it when the window resizes. On every other screen the box is `null`, so the row takes no place and claims nothing. Declare an anchor once and pass it to every adapter that places against it; panels on one anchor stack in its regions. SlotKit's slot-group panels are anchors built this way.
 
+## Put a panel somewhere else in creative
+
+Needs: MenuKit 7.4.0. Declare from the client entry point. `MY_BOX` is an `Anchor` of yours, as in the recipe above.
+
+```java
+// Survival: right of the inventory's frame. Creative: just above your anchor's box, at its left edge.
+Panel sort = Panel.builder("mymod:sort")
+        .style(PanelStyle.RAISED)
+        .add(sortButton)
+        .in(ModeScope.SURVIVAL, Placement.screen(PanelPosition.region(OutsideRegion.RIGHT_ALIGN_TOP)))
+        .in(ModeScope.CREATIVE, Placement.at(MY_BOX, 0, -22))
+        .build();
+new ScreenPanelAdapter(sort).onPlayerInventory();
+```
+
+Result: in survival the panel sits right of the inventory, stacked with any other panel there. Switch to creative with the inventory open and on the next frame it is 22 pixels above the box, at its natural size: `at` doesn't stack, budget or keep a panel on the screen, so two panels at one spot overlap, which is for the player to sort out. Where the box isn't on the screen (the anchor gives `null`), the panel isn't either. A mode the panel declares nothing for leaves it out, and `ModeScope.BOTH` covers whichever mode has no placement of its own. The adapter puts the screen placement on the screens it targets and the anchored one in its anchor's host on those screens.
+
 ## Pop a panel up over the others
 
 Needs: MenuKit.
@@ -121,7 +138,7 @@ Needs: MenuKit.
 Panel row = Panel.builder("mymod:popup_row")
         .popover()
         .elements(rowSlots)
-        .position(PanelPosition.pixel(() -> aboveHoveredSlot()))
+        .in(ModeScope.BOTH, Placement.screen(PanelPosition.pixel(() -> aboveHoveredSlot())))
         .build();
 new ScreenPanelAdapter(row).onPlayerInventory();
 ```
@@ -150,7 +167,7 @@ Tabs tabs = Tabs.builder()
 
 Panel main = Panel.builder("mymod:settings")
         .style(PanelStyle.RAISED)
-        .position(PanelPosition.main())
+        .in(ModeScope.BOTH, Placement.screen(PanelPosition.main()))
         .add(tabs)
         .build();
 ```
@@ -191,7 +208,7 @@ List<PanelElement> buttonRow = Row.at(20, 30).spacing(4)
         .add(Button.builder().label(Component.literal("Cancel")).size(60, 20).onClick(() -> cancel()).build())
         .build();
 
-Panel p = Panel.builder("mymod:confirm").elements(buttonRow).position(PanelPosition.center()).build();
+Panel p = Panel.builder("mymod:confirm").elements(buttonRow).in(ModeScope.BOTH, Placement.screen(PanelPosition.center())).build();
 ```
 
 Result: two 60 by 20 buttons at y 30, starting at x 20, with a 4 pixel gap. `Column` has the same shape on the vertical axis. `.crossAlign(CrossAlign.CENTER)` centres children on the cross axis. A hidden element keeps its space. `Row` places once, on the panel's first layout, and does not follow the panel after that. For a row that follows the panel's width, use a `Flow` (next recipe).
@@ -253,7 +270,7 @@ public final class ModSettingsScreen extends MKScreen {
                 .build();
         return Panel.builder("mymod:settings")
                 .style(PanelStyle.NONE)
-                .position(PanelPosition.main())
+                .in(ModeScope.BOTH, Placement.screen(PanelPosition.main()))
                 .add(tabs)
                 .build();
     }
@@ -262,7 +279,7 @@ public final class ModSettingsScreen extends MKScreen {
     private static Panel done(Screen parent) {
         return Panel.builder("mymod:settings-done")
                 .style(PanelStyle.NONE)
-                .position(PanelPosition.region(OutsideRegion.BOTTOM_CENTER))
+                .in(ModeScope.BOTH, Placement.screen(PanelPosition.region(OutsideRegion.BOTTOM_CENTER)))
                 .add(Button.builder().label(CommonComponents.GUI_DONE).size(200, 20)
                         .onClick(() -> Minecraft.getInstance().gui.setScreen(parent)).build())
                 .build();
@@ -654,7 +671,7 @@ Needs: MenuKit 7.4.0. For a panel that stands in for part of the screen and must
 ```java
 // A panel drawn as the screen's background: the screen's slots, other mods' buttons and every other panel draw over it, and it blocks none of them.
 Panel tray = Panel.builder("mymod:tray").style(PanelStyle.RAISED).background().add(trayLabel)
-        .position(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)).build();
+        .in(ModeScope.BOTH, Placement.screen(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP))).build();
 new ScreenPanelAdapter(tray).on(ContainerScreen.class);
 ```
 
@@ -666,13 +683,13 @@ Needs: MenuKit 7.4.0, and a slot library's elements for the grids (SlotKit's `Sl
 
 ```java
 // The chest's own grid, then the box the player opened below it: one column above the inventory.
-ContainerRegion.section("mymod:chest")
+ContainerRegion.section("mymod:chest", ModeScope.BOTH)
         .title(() -> session.screenTitle())                          // the screen's own title
         .content(chestGrid)
         .on(ContainerScreen.class)
         .visibleWhen(() -> session.isOpen())
         .declare();
-ContainerRegion.section("mymod:opened-box")
+ContainerRegion.section("mymod:opened-box", ModeScope.BOTH)
         .title(() -> Component.translatable("container.shulkerBox"))
         .source(() -> ContainerRegion.Source.of(session.box()))      // the box: its art and its name
         .content(boxGrid)
@@ -708,11 +725,13 @@ To put a button by one of the two panels rather than by the whole screen, place 
 ```java
 // A sort button beside the container list's top, and one beside the inventory panel's.
 Panel sortChest = Panel.builder("mymod:sort-chest").style(PanelStyle.RAISED).add(sortChestButton)
-        .position(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)).build();
-new AnchorPanelAdapter(sortChest).on(ContainerRegion.CONTAINERS);
+        .in(ModeScope.BOTH, Placement.around(ContainerRegion.CONTAINERS, PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)))
+        .build();
+new AnchorPanelAdapter(sortChest);
 Panel sortInventory = Panel.builder("mymod:sort-inventory").style(PanelStyle.RAISED).add(sortInventoryButton)
-        .position(PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)).build();
-new AnchorPanelAdapter(sortInventory).on(ContainerRegion.INVENTORY);
+        .in(ModeScope.BOTH, Placement.around(ContainerRegion.INVENTORY, PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)))
+        .build();
+new AnchorPanelAdapter(sortInventory);
 ```
 
 Result: each button stays by its panel as the container list grows, shrinks and scrolls, and is gone on screens the region is not on.
@@ -723,7 +742,7 @@ Needs: MenuKit 7.4.0. For sections that show a particular container, so that wit
 
 ```java
 // A box the player opened from its item, and a box placed in the world, each named for what it is.
-ContainerRegion.section("mymod:held-box")
+ContainerRegion.section("mymod:held-box", ModeScope.BOTH)
         .title(() -> Component.translatable("container.shulkerBox"))
         .source(() -> ContainerRegion.Source.of(session.box()))      // its dye and its name; where it is, the player is
         .content(heldBoxGrid)
@@ -731,7 +750,7 @@ ContainerRegion.section("mymod:held-box")
         .order(10)
         .visibleWhen(() -> session.isOpen())
         .declare();
-ContainerRegion.section("mymod:placed-box")
+ContainerRegion.section("mymod:placed-box", ModeScope.BOTH)
         .title(() -> Component.translatable("container.shulkerBox"))
         .source(() -> ContainerRegion.Source.of(session.placedBox()))  // its block, its custom name, its biome and height
         .content(placedBoxGrid)

@@ -4,11 +4,14 @@ import com.trevlar.menukit.api.panel.Reference;
 import com.trevlar.menukit.api.panel.ScreenOrigin;
 import com.trevlar.menukit.api.element.ChildDispatch;
 import com.trevlar.menukit.api.element.InputContext;
+import com.trevlar.menukit.api.panel.Anchor;
 import com.trevlar.menukit.api.panel.InsideRegion;
+import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.menukit.api.panel.OutsideRegion;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.panel.PanelPosition;
+import com.trevlar.menukit.api.panel.Placement;
 import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.api.panel.PanelStyle;
@@ -20,6 +23,7 @@ import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.api.element.RenderContext;
 
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.entity.HumanoidArm;
@@ -56,11 +60,15 @@ import java.util.function.Supplier;
  *
  * <h2>What a host owns</h2>
  * <ul>
- *   <li><b>Entries, sorted.</b> One {@link Entry} per (panel, host): the panel, the
- *       position the host resolves, the content padding, and the sort key
- *       {@code (priority, modId, registration sequence)}. Sorted order is both the
- *       stacking order within a region and the z-order, topmost last. Nothing
+ *   <li><b>Entries, sorted.</b> One {@link Entry} per (panel, host, mode scope): the
+ *       panel, the mode it is for, the position the host resolves, the content padding,
+ *       and the sort key {@code (priority, modId, registration sequence)}. Sorted order is
+ *       both the stacking order within a region and the z-order, topmost last. Nothing
  *       depends on which mod loaded first.</li>
+ *   <li><b>The mode, every frame</b> (7.4.0): an entry shows only while its scope is the
+ *       panel's effective one ({@link #effectiveScope}): the current mode's placement if the
+ *       panel has one, else its {@code BOTH} one. So a panel with a survival placement here
+ *       and a creative one in an anchor's host is in exactly one of them at a time.</li>
  *   <li><b>Origin resolution</b> ({@link #layout}): each shown entry's position is
  *       resolved against this frame's {@link Frame}: the reference rectangle (menu
  *       frame, anchor box, the HUD's hotbar, or the standalone screen's own main panel) and the
@@ -140,18 +148,24 @@ public final class PanelHost {
     }
 
     /**
-     * One panel in this host. The same {@link Panel} may sit in several hosts (an
-     * anchor adapter targeting two anchors is in two anchor hosts), each with
-     * its own entry: registries are keyed by (panel, host), not by panel identity.
+     * One panel in this host for one mode scope. The same {@link Panel} may sit in several
+     * hosts (an anchor adapter targeting two anchors is in two anchor hosts, a panel with a
+     * survival screen placement and a creative anchor placement is in the screen's host and
+     * the anchor's), each with its own entry: registries are keyed by (panel, host), not by
+     * panel identity. A panel may have an entry per scope in one host; at most one of them
+     * shows at a time ({@link #isShown(Entry)}).
      *
      * @param panel    the panel
+     * @param scope    the mode this entry is the panel's placement for, or {@code null} for a
+     *                 position the caller gave rather than one of the panel's placements (the
+     *                 7.3.0 forms), which shows in every mode as it always did
      * @param position the position this host resolves (the panel's own, or the
      *                 standalone normalisation of an unplaced one)
      * @param padding  content padding between the panel's outer edge and its elements
      * @param modId    the registering mod: the tie-break after priority
      * @param seq      registration sequence: the last tie-break
      */
-    public record Entry(Panel panel, PanelPosition position, int padding, String modId, int seq) {}
+    public record Entry(Panel panel, @Nullable ModeScope scope, PanelPosition position, int padding, String modId, int seq) {}
 
     /**
      * Where an entry landed this frame: its outer rectangle (padding-inclusive) in
@@ -397,15 +411,48 @@ public final class PanelHost {
      *
      * @throws IllegalArgumentException if this context cannot place the position
      */
-    public synchronized Entry add(Panel panel, PanelPosition position, int padding, String modId, int seq) {
+    public Entry add(Panel panel, PanelPosition position, int padding, String modId, int seq) {
+        return add(panel, null, position, padding, modId, seq);
+    }
+
+    /**
+     * Adds a panel's screen placements (those with no anchor), one entry per mode scope; a
+     * panel that declares no placement at all is added unplaced, which this host rejects as
+     * {@link #add(Panel, ModeScope, PanelPosition, int, String, int)} does.
+     */
+    public void addPlacements(Panel panel, int padding, String modId, int seq) {
+        if (panel.placements().isEmpty()) {
+            add(panel, ModeScope.BOTH, PanelPosition.UNPLACED, padding, modId, seq);
+            return;
+        }
+        for (Map.Entry<ModeScope, Placement> p : panel.placements().entrySet()) {
+            if (p.getValue().anchor() == null) add(panel, p.getKey(), p.getValue().position(), padding, modId, seq);
+        }
+    }
+
+    /** Adds a panel's placements on {@code anchor}, one entry per mode scope: this must be that anchor's host. */
+    public void addAnchored(Panel panel, Anchor anchor, int padding, String modId, int seq) {
+        for (Map.Entry<ModeScope, Placement> p : panel.placements().entrySet()) {
+            if (p.getValue().anchor() == anchor) add(panel, p.getKey(), p.getValue().position(), padding, modId, seq);
+        }
+    }
+
+    /**
+     * Adds a panel for one mode scope ({@code null}: a position the caller gave, shown in
+     * every mode), in sorted place.
+     *
+     * @throws IllegalArgumentException if this context cannot place the position
+     */
+    public synchronized Entry add(Panel panel, @Nullable ModeScope scope, PanelPosition position, int padding,
+                                  String modId, int seq) {
         requireSupported(kind, panel, position);
-        if (position.mode() == PanelPosition.Mode.MAIN && mainEntry() != null) {
+        if (position.mode() == PanelPosition.Mode.MAIN && hasMain(scope)) {
             throw new IllegalArgumentException("MenuKit: panel '" + panel.id()
                     + "' is a second main() on one screen; a screen has one frame.");
         }
         // The padding is measured against MenuKit's own frame; a thicker frame on this
         // kind of screen (vanilla's popup frame) widens it by the difference.
-        Entry entry = new Entry(panel, position, padding + panel.frameExtra(screenKind), modId, seq);
+        Entry entry = new Entry(panel, scope, position, padding + panel.frameExtra(screenKind), modId, seq);
         List<Entry> next = new ArrayList<>(entries);
         next.add(entry);
         next.sort(ORDER);
@@ -425,6 +472,21 @@ public final class PanelHost {
 
     /** Whether this host holds no panels. */
     public boolean isEmpty() { return entries.isEmpty(); }
+
+    /**
+     * {@link #requireSupported} for each of {@code panel}'s placements: its screen placements
+     * by {@code kind}, its anchored ones by an anchor's rule. A panel with no placement is
+     * unplaced, which no adapter's context takes.
+     */
+    public static void requirePlacements(Kind kind, Panel panel) {
+        if (panel.placements().isEmpty()) {
+            requireSupported(kind, panel, PanelPosition.UNPLACED);
+            return;
+        }
+        for (Placement p : panel.placements().values()) {
+            requireSupported(p.anchor() == null ? kind : Kind.ANCHOR, panel, p.position());
+        }
+    }
 
     /**
      * The placement rule per context. Every context takes PIXEL and CENTER (an
@@ -453,7 +515,7 @@ public final class PanelHost {
             };
             throw new IllegalArgumentException("MenuKit: panel '" + panel.id() + "' is "
                     + position.describe() + ", which a " + kind.label() + " cannot place. "
-                    + "Declare .position(PanelPosition." + hint + ") on the panel.");
+                    + "Declare .in(ModeScope, Placement.screen(PanelPosition." + hint + ")) on the panel.");
         }
     }
 
@@ -466,6 +528,52 @@ public final class PanelHost {
      */
     public static boolean isShown(Panel panel) {
         return panel.isVisible();
+    }
+
+    /** The "is this entry shown" answer: its panel is, and the entry is for the mode now ({@link #forNow}). */
+    public static boolean isShown(Entry e) {
+        return forNow(e) && isShown(e.panel());
+    }
+
+    /** Whether an entry is for the mode now: its scope is its panel's effective one, or it has none (a caller's position). */
+    private static boolean forNow(Entry e) {
+        return e.scope() == null || e.scope() == effectiveScope(e.panel());
+    }
+
+    // The mode (7.4.0)
+
+    private static final java.util.function.Supplier<@Nullable ModeScope> PLAYER_MODE = () -> {
+        Minecraft mc = Minecraft.getInstance();
+        return mc == null ? null : ModeScope.of(mc.player);
+    };
+    /** The current mode, read on every call. Swapped by MenuKit's checks, like {@code PresentedSlots}' drawer. */
+    private static java.util.function.Supplier<@Nullable ModeScope> mode = PLAYER_MODE;
+
+    /** For MenuKit's checks: swaps where the current mode comes from, and back with {@code null}. */
+    @org.jetbrains.annotations.VisibleForTesting
+    public static void modeForChecks(java.util.function.@Nullable Supplier<@Nullable ModeScope> m) {
+        mode = m == null ? PLAYER_MODE : m;
+    }
+
+    /** The mode now: the player's ({@link ModeScope#of}), or {@code null} with no player. */
+    public static @Nullable ModeScope currentMode() {
+        return mode.get();
+    }
+
+    /** Whether {@code scope} covers the mode now: {@link ModeScope#BOTH} always, otherwise the mode is it. */
+    public static boolean inScope(ModeScope scope) {
+        return scope == ModeScope.BOTH || scope == currentMode();
+    }
+
+    /**
+     * Which of {@code panel}'s placements applies now: the current mode's if it declared
+     * one, else {@link ModeScope#BOTH}, which is also the answer for a panel with no
+     * placements at all (it is {@code BOTH} by nature). A panel whose only placements are
+     * for another mode gets {@code BOTH} too, which it has no entry for, so it doesn't show.
+     */
+    public static ModeScope effectiveScope(Panel panel) {
+        ModeScope now = currentMode();
+        return now != null && panel.placements().containsKey(now) ? now : ModeScope.BOTH;
     }
 
     /**
@@ -575,7 +683,7 @@ public final class PanelHost {
     /** Whether any shown panel matches ({@code Panel::dimsBehind}, {@code Panel::tracksAsModal}). */
     public boolean anyShown(Predicate<Panel> test) {
         for (Entry e : entries) {
-            if (isShown(e.panel()) && test.test(e.panel())) return true;
+            if (isShown(e) && test.test(e.panel())) return true;
         }
         return false;
     }
@@ -585,7 +693,7 @@ public final class PanelHost {
         List<Entry> es = entries;
         for (int i = es.size() - 1; i >= 0; i--) {
             Panel p = es.get(i).panel();
-            if (isShown(p) && p.tracksAsModal()) return p;
+            if (isShown(es.get(i)) && p.tracksAsModal()) return p;
         }
         return null;
     }
@@ -642,7 +750,7 @@ public final class PanelHost {
                     main = mf.frame();
                     reference = main;
                     screenFrame = main;
-                    if (isShown(mainEntry.panel())) mainPlaced = mf.placed();
+                    if (isShown(mainEntry)) mainPlaced = mf.placed();
                 }
             }
 
@@ -651,7 +759,7 @@ public final class PanelHost {
             // entry has nothing stacked in it yet, so its next panel is the first.
             Map<Object, Integer> stackEnd = new HashMap<>();
             for (Entry e : entries) {
-                if (!isShown(e.panel())) continue;
+                if (!isShown(e)) continue;
                 // An adapter's panel with nothing to show (every element hidden or empty,
                 // such as slot elements whose slots this menu lacks) is not placed: no
                 // empty frame, no claim (7.3.0).
@@ -718,8 +826,16 @@ public final class PanelHost {
             switch (pos.mode()) {
                 case PIXEL -> {
                     // The consumer owns the geometry: natural size, no budget, the
-                    // supplier's point verbatim. Null = no anchor this frame.
-                    ScreenOrigin o = Objects.requireNonNull(pos.pixelOrigin()).get();
+                    // supplier's point verbatim. Null = no anchor this frame. A
+                    // Placement.at position takes its point from the reference (its
+                    // anchor's box), the same way: no stacking, no budget, no clamp.
+                    ScreenOrigin o;
+                    if (Placement.fromBox(pos)) {
+                        if (reference == null) return null;
+                        o = new ScreenOrigin(reference.leftPos(), reference.topPos());
+                    } else {
+                        o = Objects.requireNonNull(pos.pixelOrigin()).get();
+                    }
                     if (o == null) return null;
                     panel.setFrameHeight(-1);
                     size = measure(panel, pad);
@@ -790,12 +906,30 @@ public final class PanelHost {
         return new Placed(e, x + pos.dx(), y + pos.dy(), size[0], size[1]);
     }
 
-    /** The first MAIN entry of a standalone host (there is at most one; see {@link #add}). */
+    /**
+     * The MAIN entry of a standalone host for the mode now: one per scope at most (see
+     * {@link #add}), the first whose scope is its panel's effective one, else the first.
+     */
     private @Nullable Entry mainEntry() {
+        Entry first = null;
         for (Entry e : entries) {
-            if (e.position().mode() == PanelPosition.Mode.MAIN) return e;
+            if (e.position().mode() != PanelPosition.Mode.MAIN) continue;
+            if (forNow(e)) return e;
+            if (first == null) first = e;
         }
-        return null;
+        return first;
+    }
+
+    /**
+     * Whether a MAIN entry that would show alongside one for {@code scope} is here already:
+     * one frame a screen, in each mode. An entry with no scope shows in every mode.
+     */
+    private boolean hasMain(@Nullable ModeScope scope) {
+        for (Entry e : entries) {
+            if (e.position().mode() != PanelPosition.Mode.MAIN) continue;
+            if (scope == null || e.scope() == null || e.scope() == scope) return true;
+        }
+        return false;
     }
 
     private record MainFrame(Reference frame, Placed placed) {}
@@ -866,7 +1000,7 @@ public final class PanelHost {
         Map<OutsideRegion, Integer> need = new HashMap<>();
         for (Entry e : entries) {
             Panel p = e.panel();
-            if (e.position().mode() != PanelPosition.Mode.REGION || !isShown(p) || p.isOverlayPositioned()) continue;
+            if (e.position().mode() != PanelPosition.Mode.REGION || !isShown(e) || p.isOverlayPositioned()) continue;
             OutsideRegion r = Objects.requireNonNull(e.position().region());
             if (r == OutsideRegion.CENTER) continue;
             boolean sideways = switch (r) {
@@ -1181,8 +1315,8 @@ public final class PanelHost {
      * which clears widgets without calling {@code removed()}.
      */
     public void attach(Screen screen) {
-        for (Entry e : entries) {
-            List<PanelElement> elements = e.panel().getElements();
+        for (Panel panel : panels()) {
+            List<PanelElement> elements = panel.getElements();
             ChildDispatch.detach(elements, screen);
             ChildDispatch.attach(elements, screen);
         }
@@ -1190,7 +1324,14 @@ public final class PanelHost {
 
     /** Element lifecycle on close. */
     public void detach(Screen screen) {
-        for (Entry e : entries) ChildDispatch.detach(e.panel().getElements(), screen);
+        for (Panel panel : panels()) ChildDispatch.detach(panel.getElements(), screen);
+    }
+
+    /** Each panel once, though it may have an entry per mode scope. */
+    private Set<Panel> panels() {
+        Set<Panel> out = Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (Entry e : entries) out.add(e.panel());
+        return out;
     }
 
     // Registering mod, the tie-break after priority

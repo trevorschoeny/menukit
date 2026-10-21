@@ -16,7 +16,7 @@ A `Panel` is a bounded rectangle that holds an ordered list of elements. It rend
 
 Panels do not nest. A panel holds elements. It does not hold other panels.
 
-Panel ids are global. Prefix every id with the mod id: `"mymod:controls"`.
+Panel ids are global. Prefix every id with the mod id: `"mymod:controls"`. Namespaced ids matter more from 7.4.0 on, since what keys on a panel id (a player's stored position for a panel, a panel several mods share) keys across every mod installed.
 
 ## Element
 
@@ -271,9 +271,33 @@ Position the row after a section where it sits while the section is closed. When
 
 `Row.width(px)` declares the row's overall pixel budget. `.addSpacer()` adds a flexible gap that expands to fill whatever the other children and spacing leave over. One thing then pins to the row's left edge and another to its right (`Back .... Reset`). Several spacers split the leftover evenly, with the odd pixel going to the last one. `addSpacer()` without `width(px)` throws, since a spacer with nothing to expand into is a mistake in the layout.
 
+## Mode scope
+
+Every declaration that says where a panel goes picks the game mode it is for (7.4.0): `ModeScope.SURVIVAL`, `ModeScope.CREATIVE`, or `ModeScope.BOTH`. There is no default. `CREATIVE` is a player with infinite materials (`Player.hasInfiniteMaterials()`, the switch vanilla reads), `SURVIVAL` every other player, adventure and spectator included. A container a creative player opens is `CREATIVE`. `ModeScope.of(player)` says which a player is in, and `scope.includes(player)` whether a scope covers it.
+
+The mode is read where it is used, every frame, never kept from when a screen opened, so `/gamemode` with a screen open takes effect on the next frame. With no player (the title screen, a world loading) there is no mode, and only `BOTH` declarations apply.
+
+The scoped forms are `Panel.Builder.in(scope, placement)`, `HudPanel.builder(id, scope)`, and `ContainerRegion.section(id, scope)`. The 7.3.0 forms with no scope (`position(...)`, `HudPanel.builder(id)`, `AnchorPanelAdapter.on(...)`, `OwnHost.add(panel, position, padding)`) keep working, mean `BOTH`, and are deprecated ([upgrading](upgrading-7.md#to-740)). A panel that declares no placement at all, a nested one, a dialog or a standalone screen's default stack, is `BOTH` by nature.
+
+A screen's targeting is not per frame: `ScreenMatcher.where(test)` is asked once, as the screen opens, and a creative tab switch does not ask it again. Decide what changes while a screen is open with the mode scope or `visibleWhen(...)`.
+
 ## Placement
 
-Where a panel sits is declared once, on the panel: `Panel.builder(id).position(PanelPosition...)`. Every host reads it. An adapter only says which screens the panel appears on.
+Where a panel sits is declared once, on the panel, for each mode it shows in: `Panel.builder(id).in(ModeScope, Placement)`, once per scope. Every host reads it. An adapter only says which screens the panel appears on. Each frame the panel takes the current mode's placement, else its `BOTH` one; with neither it does not show in that mode. The two modes' placements can be entirely different, a screen region in one and beside an anchor in the other, and `Panel.placements()` lists them. `getPosition()` is the position in effect now.
+
+A `Placement` is what the panel is placed against and its position there:
+
+| Placement | Against |
+|---|---|
+| `Placement.screen(PanelPosition)` | The host's own reference: the menu frame, the screen, the game window or the hotbar, a standalone screen's main panel. |
+| `Placement.around(Anchor, PanelPosition)` | The regions around an anchor's box, stacking with the anchor's other panels. |
+| `Placement.at(Anchor, dx, dy)` | The anchor's box's top-left plus the offset, at the panel's natural size. It does not stack, gets no room budget and is not kept on the screen: two panels at one spot overlap, and a negative offset goes left of or above the box. |
+
+A placement on an anchor shows wherever that anchor's box is on the open screen, so the box is its presence. A screen adapter puts a panel's screen placements in the screen's host and each anchored one in its anchor's host on the screens it targets; an `AnchorPanelAdapter` needs no targeting when the placements name their anchors.
+
+`Panel.Builder.fixed()` says the player can't move the panel. Players moving panels comes in a later release; the flag is kept from now.
+
+The positions:
 
 | Placement | Where |
 |---|---|
@@ -316,7 +340,7 @@ A context answers one question: what is this panel placed against? Each context 
 |---|---|---|---|---|
 | Container screen | The menu frame | `ScreenPanelAdapter` | region, screenAnchor, center, pixel | Yes |
 | Other vanilla screen | The screen | `VanillaScreenPanelAdapter` | screenAnchor, center, pixel | Yes |
-| Anchor | A rectangle a mod supplies on any screen | `AnchorPanelAdapter` | region, center, pixel | Yes |
+| Anchor | A rectangle a mod supplies on any screen | A placement on it (`Placement.around`, `Placement.at`), through any adapter | region, center, pixel, and `at` | Yes |
 | HUD | The game window during play, and the vanilla hotbar | `HudPanel` | screenAnchor (`.region(InsideRegion)`), region around the hotbar (`.region(OutsideRegion)`), pixel | No |
 | Standalone | A screen the consumer opens | `MKScreen` (subclass), or a library's own screen through `api.host.OwnHost` | main, region, screenAnchor, center, pixel | Yes |
 
@@ -356,7 +380,9 @@ A `ScreenPanelAdapter` with no target renders on every container screen. `.on(Cl
 
 A `VanillaScreenPanelAdapter` requires `.on(Class...)` or `.onAny()`.
 
-An `AnchorPanelAdapter` requires `.on(Anchor...)`. It renders once per targeted anchor whose box is on the open screen, and is measured from that box.
+An `AnchorPanelAdapter` places a panel by its anchored placements (`Placement.around`, `Placement.at`): it renders in each mode on the anchor that mode's placement names, whenever that anchor's box is on the open screen, and is measured from that box. The deprecated `.on(Anchor...)` puts the panel's screen placements around each anchor it names instead. An anchor adapter whose panel names no anchor and that never called `.on(...)` fails at the first screen open.
+
+`.onMatching(ScreenMatcher.where(test))` is decided when the screen opens. A creative tab switch keeps the same screen and does not ask again; what changes while a screen is open belongs to the mode scope or `visibleWhen(...)`.
 
 A panel an adapter places whose elements are all hidden or empty (7.3.0), and that has no pinned size, is not placed: no empty frame, no claim. A panel of slot elements whose slots are not in the open menu is absent that way.
 
@@ -380,7 +406,7 @@ A slot in a `ScrollContainer` (SlotKit's `SlotElement`) scrolls and clips like a
 
 ## Container region
 
-On a container screen the player's inventory never scrolls, and everything above it can be one column that scrolls together: the chest, a box opened below it, another below that (7.4.0). That column is the container region. There is one per screen, however many mods add to it, and never a scroll area per container. Mods add **sections** to it with `ContainerRegion.section(id)`: a section's `content` is any element, usually a grid of slot elements, placed where vanilla's own grid frame is, so a nine-wide grid lines up with vanilla's chest, and its `title`, if it has one, is drawn above it where vanilla draws a container's. Sections stack in their `order` (ties by id), each `GAP` below the last, and a hidden one takes no room. Like an adapter, a section is on every container screen unless `on(...)` or `onMatching(...)` narrows it, and gates itself with `visibleWhen`. It also shows only while its content is visible, so content that hides itself takes its section with it: a slot library's element for a slot group that is not on the open menu, or whose slots are all hidden, shows no section with no condition of the section's own. The region is only there while one of its sections shows, and never on the player's own inventory, survival's or creative's, whatever a section's targeting says. Sections are declarations and freeze with the rest.
+On a container screen the player's inventory never scrolls, and everything above it can be one column that scrolls together: the chest, a box opened below it, another below that (7.4.0). That column is the container region. There is one per screen, however many mods add to it, and never a scroll area per container. Mods add **sections** to it with `ContainerRegion.section(id, scope)`, each for a mode scope (a section for `SURVIVAL` shows only in survival, read every frame): a section's `content` is any element, usually a grid of slot elements, placed where vanilla's own grid frame is, so a nine-wide grid lines up with vanilla's chest, and its `title`, if it has one, is drawn above it where vanilla draws a container's. Sections stack in their `order` (ties by id), each `GAP` below the last, and a hidden one takes no room. Like an adapter, a section is on every container screen unless `on(...)` or `onMatching(...)` narrows it, and gates itself with `visibleWhen`. It also shows only while its content is visible, so content that hides itself takes its section with it: a slot library's element for a slot group that is not on the open menu, or whose slots are all hidden, shows no section with no condition of the section's own. The region is only there while one of its sections shows, and never on the player's own inventory, survival's or creative's, whatever a section's targeting says. Sections are declarations and freeze with the rest.
 
 - **Two panels.** The region makes the screen two panels, each with its own frame: the **container list**, holding every section, and below it the **inventory panel**, around the player's inventory, 2 pixels apart (MenuKit's gap between panels on a menu). The inventory panel moves only as the list grows (below); its slots and its "Inventory" label are vanilla's, live as always, and go with it.
 - **Behind everything, in nobody's way.** Both panels are background panels (Placement, Claims): drawn where the screen draws its own image, so vanilla's labels and slots, every other mod's widgets and buttons, recipe viewers, every other panel and tooltips draw over them, and claiming nothing, so another mod's button on either panel stays live and gets its clicks first, wherever it sits. The region's own slots draw with the list, right after it, so another mod's button over a slot scrolled under it hides the slot, and over the button the slot is not hovered. They are cut at the list's edges. While the region is up, the screen's background pass still runs, every mod's hook in it included, but vanilla's own container texture and the screen's title are left out: the panels and the sections' own titles are in their place. Whoever puts the region on a screen presents that screen's own grid in a section; a container slot no section shows is vanilla's and draws where vanilla's numbers put it.
