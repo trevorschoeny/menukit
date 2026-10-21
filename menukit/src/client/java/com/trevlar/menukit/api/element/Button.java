@@ -341,7 +341,7 @@ public class Button extends AbstractPanelElement {
          * look's stone, grey while disabled. No shadow, so a glyph and its mirror weigh
          * the same. A coloured sprite keeps {@link #icon(Supplier)}.
          */
-        // ponytail: package-private while the list's glyphs are its only users; open it when a consumer needs one.
+        // Package-private while the list's glyphs are its only users; open it when a consumer needs one.
         Builder glyph(Supplier<Identifier> sprite) {
             glyph = true;
             return icon(sprite);

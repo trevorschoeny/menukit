@@ -80,7 +80,7 @@ import java.util.function.Supplier;
  *       edge.</li>
  *   <li><b>The inventory panel</b> is a frame and a slot frame under each of the player's
  *       inventory slots, where vanilla drew them; vanilla's own inventory slots and
- *       "Inventory" label stay live and where vanilla put them.</li>
+ *       "Inventory" label stay live and move with the panel.</li>
  *   <li><b>The scroll area</b> is a {@link ScrollContainer} in a background panel, so it
  *       gets the wheel only after everyone else, like every background panel's elements
  *       (step 3 below): over it, it scrolls itself; anywhere else this class scrolls it
@@ -386,7 +386,7 @@ public final class ContainerRegions {
      * OptiGUI picked for the screen, which is the same art; its title is its name, so it never
      * needs another.
      */
-    // ponytail: the crosshair at open, no use hook; a screen opened by a key while looking at another unnamed container of the same size and kind takes that one.
+    // Read from the crosshair at open, not from a use hook, so a screen opened by a key while looking at another unnamed container of the same size and kind takes that one.
     private static ContainerRegion.@Nullable Source openedContainer(@Nullable Screen screen) {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.level == null || !(mc.hitResult instanceof BlockHitResult hit)
@@ -431,7 +431,7 @@ public final class ContainerRegions {
      * panels' union when that changed, or back to vanilla's when no section is shown.
      *
      * <h3>A layout change while the screen is open lays the screen out again</h3>
-     * At init the bounds are simply written: every mod's init listener runs after, and
+     * At init the bounds are just written: every mod's init listener runs after, and
      * reads them. A change found on a later frame (a section opening or closing, the list
      * starting or stopping to scroll) re-runs the screen's layout the way a window resize
      * does ({@link #relayout}), so every other mod's widget placed at init against the
@@ -457,7 +457,6 @@ public final class ContainerRegions {
         else applyBounds(screen, want);
     }
 
-    /** How many times the region has laid a screen out again, for the checks. */
     private static int relayouts = 0;
 
     /** How many times the region has laid an open screen out again since the game started (for the checks). */

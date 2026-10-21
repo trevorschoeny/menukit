@@ -47,7 +47,7 @@ public final class RegionLooks {
      * a hopper's screen is the hopper's), and with OptiGUI the art OptiGUI gives the screen's
      * own container for it.
      */
-    // ponytail: the chest's until a screen of its kind has drawn its image once, so the first frame of the first such screen opened may show the chest's look.
+    // The chest's until a screen of its kind has drawn its image once, so the first frame of the first such screen opened may show the chest's look.
     static Identifier screenTexture(@Nullable Screen screen) {
         Identifier own = screen == null ? null : ScreenBackground.image(screen);
         return OptiGuiRules.onScreen(own == null ? PackLook.CHEST : own);
@@ -77,7 +77,7 @@ public final class RegionLooks {
      * box, the chest's for chests, ender chests and barrels. Vanilla keeps each screen's
      * texture inside its screen class, with no table from a block to it, so these are named.
      */
-    // ponytail: the two textures laid out like the chest's, the only ones a section's look can be cut from; any other block's section takes its texture(...).
+    // Only the two textures laid out like the chest's, the only ones a section's look can be cut from; any other block's section takes its texture(...).
     @VisibleForTesting
     public static @Nullable Identifier blockTexture(ContainerRegion.@Nullable Source source) {
         if (source == null || source.block() == null) return null;
@@ -137,7 +137,7 @@ public final class RegionLooks {
 
     /**
      * The container list, each section a slice of its own container's screen, so a box in the
-     * list looks as its own screen does under the pack, and where two meet the colours simply
+     * list looks as its own screen does under the pack, and where two meet the colours just
      * change, with no seam drawn between them: in each section's slice of the list ({@link
      * RegionLayout#bands} out to the list's edges), the list drawn whole in that section's
      * look, cut to the slice. So the list's left and right edges at a section's height are

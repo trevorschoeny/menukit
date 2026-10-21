@@ -35,7 +35,8 @@ public interface AbstractContainerScreenAccessor {
     int mk$getImageHeight();
 
     // The container region (7.4.0) sets the screen's bounds to the rectangle around its
-    // two panels, and moves vanilla's labels back by as much as the origin moved.
+    // two panels, moves vanilla's title back by as much as the origin moved, and moves the
+    // "Inventory" label with the inventory panel.
 
     @Accessor("leftPos")
     void mk$setLeftPos(int leftPos);

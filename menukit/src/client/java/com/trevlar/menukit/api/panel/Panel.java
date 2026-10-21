@@ -1091,7 +1091,7 @@ public class Panel {
      * of them is shown with any height, and it has no pinned size. A panel placed by an
      * adapter is then left off the screen entirely (no empty frame, no claim), so a
      * panel of slot elements whose slots are not in the current menu, each of which
-     * reports itself hidden, is simply absent. A panel built with no elements, and one
+     * reports itself hidden, is absent. A panel built with no elements, and one
      * pinned to keep its room, are never "nothing".
      */
     public boolean showsNothing() {

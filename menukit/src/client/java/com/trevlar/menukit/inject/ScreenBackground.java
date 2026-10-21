@@ -60,7 +60,7 @@ public final class ScreenBackground {
     /** The screen's own image in this pass once it is seen, or {@code null} before. */
     private static @Nullable Identifier passImage;
 
-    // ponytail: by screen class, so a screen knows its image from its first frame on every opening after the first; a class that blits a different image per instance is right from its second frame.
+    // Kept by screen class, so a screen knows its image from its first frame on every opening after the first; a class that blits a different image per instance is right from its second frame.
     private static final Map<Class<?>, Identifier> IMAGES = new ConcurrentHashMap<>();
 
     /**

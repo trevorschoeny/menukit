@@ -273,8 +273,8 @@ public final class PanelHost {
      * has made so far. A panel's position can read another panel's {@link
      * Panel#placedBounds()} (that method's own example: a close button pinned to an
      * item panel's corner), which calls back into this same host's layout mid-pass. A
-     * re-entrant call must never start a second pass — that pass would reach the same
-     * panel, ask the same question, and recurse without end — so it answers from this
+     * re-entrant call must never start a second pass (that pass would reach the same
+     * panel, ask the same question, and recurse without end), so it answers from this
      * field instead of recomputing.
      */
     private @Nullable List<Placed> layoutInProgress;
@@ -674,7 +674,7 @@ public final class PanelHost {
 
     /**
      * {@code pass}, the placements made so far in an in-progress {@link #layout()}
-     * call, plus — for any panel {@code pass} hasn't reached yet — that panel's
+     * call, plus, for any panel {@code pass} hasn't reached yet, that panel's
      * placement from the last completed pass, so a re-entrant {@link
      * Panel#placedBounds()} reads a real rectangle from a frame ago rather than
      * {@code null}, for every panel but the one asking (which has none yet either way).
