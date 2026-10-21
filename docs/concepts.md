@@ -321,15 +321,15 @@ On a standalone screen, the `main()` panel makes room for the `region(...)` pane
 
 Mods that deliberately work together can put their elements in one panel (7.4.0). A shared panel is named by an id that belongs to no single mod, a plain string such as `trevlar:gear`, with no registry. Each mod joins it from its client initializer with `SharedPanels.join(id, contribution)`. No mod creates the panel and no mod depends on another. Unrelated mods that happen to share a spot don't need this: panels in one region already stack.
 
-A `Contribution` is one mod's part: its elements (`add(...)`), an order number and a mode scope (`Contribution.builder(order, scope)`), and its own `visibleWhen(...)`. It is a list of elements, not a layout of its own. It also carries the panel's own declaration: its placement per mode (`in(scope, placement)`, at least one), its `style(...)`, its axis (`vertical()`, a row by default) and its `gap(px)` (`Flow`'s default; `0` keeps slots on vanilla's 18 pixel pitch). Every contribution carries the whole declaration, so whichever mods are installed can build the panel.
+A `Contribution` is one mod's part: its elements (`add(...)`), an order number and a mode scope (`Contribution.builder(order, scope)`), and its own `visibleWhen(...)`. It is a list of elements, not a layout of its own. It also carries the panel's own declaration: its placement per mode (`in(scope, placement)`, at least one), its `style(...)`, its axis (`vertical()`, a row by default), its `gap(px)` (`Flow`'s default; `0` keeps slots on vanilla's 18 pixel pitch) and whether it is `fixed()`. Every contribution carries the whole declaration, so whichever mods are installed can build the panel.
 
 MenuKit builds each shared panel once, at client start, after every client entrypoint has run and before declarations freeze, from whatever contributions joined. A `join` after that throws. The panel's id is the shared id.
 
 - **One flow.** The contributions are laid out in one `Flow` along the panel's axis, by order number, ties by mod id, so the result doesn't depend on load order. A contribution out of its mode scope, or whose `visibleWhen` is false, takes no room: the next one moves into its place.
 - **All hidden.** With every contribution hidden the panel isn't placed, so it draws nothing and claims nothing.
-- **Disagreement.** If contributions declare the panel differently (placements, style, axis or gap), the lowest order's declaration is used and MenuKit logs a warning naming both mods. Nothing crashes, so a player with mismatched versions still gets a panel.
+- **Disagreement.** If contributions declare the panel differently (placements, style, axis, gap or `fixed()`), the lowest order's declaration is used and MenuKit logs a warning naming both mods. Nothing crashes, so a player with mismatched versions still gets a panel. A `pixel(...)` origin is a lambda, and two lambdas can't be compared, so two placements that differ only there count as the same.
 - **One mod installed.** The panel is that mod's contribution alone, an ordinary panel. With no contribution there is no panel.
-- **Registration.** It goes where an ordinary panel with the same placements would. With a screen placement it is on every container screen through a screen adapter, which puts its anchored placements in their anchors' hosts there. With only anchored placements it goes through an `AnchorPanelAdapter`, on any screen where the anchor is. In a shared region it is credited to the mod whose declaration won.
+- **Registration.** It goes where an ordinary panel with the same placements would. With a screen placement it shows on every container screen, chests and furnaces as well as the inventory, since no contribution says which screens; it goes through a screen adapter, which puts its anchored placements in their anchors' hosts there. To keep a shared panel to the screens an anchor is on, give it only anchored placements. With only anchored placements it goes through an `AnchorPanelAdapter`, on any screen where the anchor is. In a shared region it is credited to the mod whose declaration won.
 
 ## Moving panels
 
@@ -338,7 +338,7 @@ Players can move panels themselves (7.4.0). Mods have nothing to do: every panel
 - **The key.** "Move panels", in MenuKit's category of the Controls screen, is unbound until the player binds it. On a screen it turns edit mode on and off. In game, with no screen open, it opens a clear screen over the HUD where HUD panels can be moved.
 - **Edit mode.** Every panel the player can move gets an outline, and a hint line sits at the top of the screen. Nothing else on the screen takes a click: not the panels' elements, vanilla's slots or another mod's widgets. Keys reach the screen as usual, except Esc and the key, which both leave edit mode. Esc doesn't also close the screen.
 - **Moving.** Drag a panel to move it. A plain drop places it in both game modes; with Shift held at the drop, only in the current one. A right-click puts the panel back where its mod declared it, in both modes.
-- **Where it lands.** The place is kept on each axis from the third of the screen the panel is nearest (its start edge, its centre or its end edge), so a panel dropped by the right edge stays by it when the window is resized or the GUI scale changes. It is kept in `config/menukit/panel-positions.json`, by panel id and game mode.
+- **Where it lands.** The place is kept on each axis from the third of the screen the panel is nearest (its start edge, its centre or its end edge), so a panel dropped by the right edge stays by it when the window is resized or the GUI scale changes. It is kept in `config/menukit/panel-positions.json`, by panel id and game mode. An entry MenuKit can't read is skipped and the others kept; a file that isn't JSON at all is moved to `panel-positions.json.corrupt`, so it isn't lost, and every panel starts where its mod put it.
 - **What a move changes.** Where the panel sits, not whether it shows. A moved panel still shows only where its declaration would place it: its screen targeted, its anchor present, its own `visibleWhen`. It leaves its region's flow, so the panels after it close up.
 
 To keep a panel where you put it, mark it `fixed()`. Use it for a panel whose place is part of what it means, such as one lined up against vanilla's own art:
@@ -351,7 +351,7 @@ Panel tabs = Panel.builder("mymod:tab_strip")
         .build();
 ```
 
-Some panels are never movable, `fixed()` or not: background panels, overlays (centred, dimming or modal, which every MenuKit dialog is), popovers, and a standalone screen's `main()` panel.
+`HudPanel.Builder.fixed()` does the same for a HUD panel, and `Contribution.Builder.fixed()` for a shared panel, where the winning declaration decides. Some panels are never movable, `fixed()` or not: background panels, overlays (centred, dimming or modal, which every MenuKit dialog is), popovers, and a standalone screen's `main()` panel.
 
 A player's position is stored under the panel's id, and a shared panel's under its shared id, so moving it moves every mod's part together. Ids key across every mod the player has, so namespace them: `mymod:elytra`, not `elytra`. Two panels with one id share one position.
 
