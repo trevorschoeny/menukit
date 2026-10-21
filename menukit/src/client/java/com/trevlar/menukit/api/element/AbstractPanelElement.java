@@ -2,6 +2,7 @@ package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.PackLook;
+import com.trevlar.menukit.core.PackText;
 
 import org.jetbrains.annotations.ApiStatus;
 
@@ -269,14 +270,14 @@ public abstract class AbstractPanelElement implements PanelElement {
      * this frame, the {@link TextRole#DISABLED} colour while it is disabled. In the Panel
      * look, heading, body and muted text on a panel surface keep the role's own colour
      * wherever it reads on the surface's fill, and take one made from the fill where a
-     * resource pack's fill is too dark or too coloured for it ({@code PackLook.textAt}).
+     * resource pack's fill is too dark or too coloured for it ({@code PackText}).
      */
     protected final int textColor(RenderContext ctx, TextRole role) {
         TextRole r = disabled(ctx) ? TextRole.DISABLED : role;
         int colour = ctx.kind().textColor(r);
         if (ctx.kind() != ScreenKind.PANEL || r == TextRole.DISABLED) return colour;
-        int x = ctx.originX() + getChildX(), y = ctx.originY() + getChildY();
-        return PackLook.textAt(colour, r == TextRole.MUTED, x, y);
+        PackLook.Look surface = PackLook.slotLookAt(ctx.originX() + getChildX(), ctx.originY() + getChildY());
+        return surface == null ? colour : PackText.on(surface, colour, r == TextRole.MUTED);
     }
 
     // A list row's controls on the row's own first line (7.3.0). Package-private: only

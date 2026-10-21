@@ -2,6 +2,11 @@ package com.trevlar.menukit;
 
 import com.trevlar.menukit.api.MK;
 import com.trevlar.menukit.api.panel.Focus;
+import com.trevlar.menukit.core.ControlLook;
+import com.trevlar.menukit.core.OptiGuiRules;
+import com.trevlar.menukit.core.PackLook;
+import com.trevlar.menukit.core.PackText;
+import com.trevlar.menukit.inject.ContainerRegions;
 import com.trevlar.menukit.inject.MenuChrome;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 import com.trevlar.menukit.input.CursorContinuity;
@@ -9,11 +14,15 @@ import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevlar.menukit.mixin.MKRecipeBookAccessor;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
 import net.minecraft.client.gui.screens.inventory.CraftingScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 
 import org.jetbrains.annotations.ApiStatus;
 
@@ -49,14 +58,18 @@ public class MenuKitClient implements ClientModInitializer {
         // consumers don't each register their own.
         ScreenPanelRegistry.init();
         // The container region's per-screen hooks (7.4.0): its frame, and the wheel, last.
-        com.trevlar.menukit.inject.ContainerRegions.init();
+        ContainerRegions.init();
 
-        // Panel surfaces follow resource packs: what each container texture's look is cut
-        // into is cached, and cut again from the new packs after every resource reload.
-        net.fabricmc.fabric.api.resource.v1.ResourceLoader.get(net.minecraft.server.packs.PackType.CLIENT_RESOURCES)
-                .registerReloadListener(net.minecraft.resources.Identifier.fromNamespaceAndPath("menukit", "pack_look"),
-                        (net.minecraft.server.packs.resources.ResourceManagerReloadListener) rm ->
-                                com.trevlar.menukit.core.PackLook.onReload());
+        // MenuKit's looks follow resource packs: what each reads from the packs (the panels'
+        // container art, the controls' sprites, the text shader, OptiGUI's rules) is cached,
+        // and read again from the new packs after every resource reload.
+        ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(
+                Identifier.fromNamespaceAndPath("menukit", "pack_look"), (ResourceManagerReloadListener) rm -> {
+                    PackLook.onReload();
+                    PackText.onReload();
+                    ControlLook.onReload();
+                    OptiGuiRules.onReload();
+                });
 
         // A focused MenuKit widget (such as TextField or Keybindery's SearchBox)
         // loses focus when the player clicks outside it. Vanilla only moves focus
