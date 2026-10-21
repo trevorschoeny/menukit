@@ -235,6 +235,9 @@ public final class ContainerRegions {
         // The content: the column, CONTENT_TOP down, with CONTENT_BOTTOM under its last grid.
         PanelElement content = Flow.builder().vertical().gap(0, 0).at(0, RegionLayout.CONTENT_TOP)
                 .add(column).add(new Spacer(() -> 0, () -> RegionLayout.CONTENT_BOTTOM)).build();
+        // A section is nine slots wide, so its content wraps there. The scroll area has a
+        // declared width and lays no children out, so nothing else hands the content its width.
+        content.layoutWithin(RegionLayout.CONTENT_WIDTH);
         scrollArea = ScrollContainer.builder().size(RegionLayout.CONTENT_WIDTH + RegionLayout.LANE, 1)
                 .fillHeight()
                 .state(() -> state.scroll, v -> state.scroll = v)
