@@ -69,7 +69,7 @@ Packs whose art covers the title strip blank vanilla's container titles, and a s
 
 ## Per-section art through OptiGUI
 
-Many packs give each dyed shulker box (or a chest named "Ores") its own art through OptiGUI rules. OptiGUI picks one texture for a whole screen, from the block that opened it. The container region asks for each section's own, so a lime box in a chest's list has the lime art and the chest keeps its own.
+Many packs give each dyed shulker box (or a chest named "Ores") its own art through OptiGUI rules. OptiGUI picks one texture for a whole screen, from the block that opened it. The container region looks up each section's own, so a lime box in a chest's list has the lime art and the chest keeps its own.
 
 This only happens while OptiGUI 2.x is installed. Without it, or with another major version, nothing changes. MenuKit reads the pack's rules itself and evaluates them per section against that section's container (its `source`, see [Container region](concepts.md#container-region)), following OptiGUI 2.3's own loading and order:
 
