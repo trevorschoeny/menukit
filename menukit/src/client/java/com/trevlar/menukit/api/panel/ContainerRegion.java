@@ -130,8 +130,9 @@ import java.util.function.Supplier;
  * title the content starts at the top and draws whatever it likes there. A section draws
  * its own slot frames. Hidden sections take no room. The screen's own container is a
  * section too: whoever puts the region on a screen presents that screen's grid in it
- * (SlotKit's {@code SlotElement.slot(Address)}), since what is behind the container list is
- * covered.
+ * (SlotKit's {@code SlotGroupElement.of(SlotGroupId)} for a slot group, or
+ * {@code SlotElement.builder().slot(address).build()} for a single slot), since what is
+ * behind the container list is covered.
  *
  * <p>A section shows while its own {@link Builder#visibleWhen} holds <b>and its content is
  * visible</b>: content that hides itself takes its section with it. A slot library's element
