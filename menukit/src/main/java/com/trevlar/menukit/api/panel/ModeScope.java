@@ -8,7 +8,7 @@ import org.jspecify.annotations.Nullable;
  * Which game mode a declaration is for (7.4.0): {@link #SURVIVAL}, {@link #CREATIVE} or
  * {@link #BOTH}. Every declaration that says where a panel goes picks one; there is no
  * default. A panel can be somewhere else entirely in each mode
- * ({@link Panel.Builder#in(ModeScope, Placement)}): a screen region in survival, beside a
+ * ({@code Panel.Builder.in(ModeScope, Placement)}, client side): a screen region in survival, beside a
  * slot in creative.
  *
  * <h3>The axis is vanilla's own switch</h3>
@@ -16,6 +16,11 @@ import org.jspecify.annotations.Nullable;
  * the switch vanilla itself reads); {@code SURVIVAL} is every other player, adventure and
  * spectator included, which have the same screens. A container a creative player opens is
  * {@code CREATIVE}.
+ *
+ *
+ * <p>A plain value in MenuKit's common code, so a library that judges on the server (SlotKit's
+ * scoped slot declarations) uses the same type. It does nothing on its own; MenuKit reads it
+ * only on the client.
  *
  * <h3>Read where it is used</h3>
  * The mode is read on every call, every frame, never kept from when a screen opened, so
