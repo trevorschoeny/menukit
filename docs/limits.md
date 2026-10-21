@@ -35,7 +35,7 @@ Behavior that is incomplete in the current release.
 | Area | Current behavior |
 |---|---|
 | Mods that work out slot positions themselves | A mod that computes where a container's slot is (`leftPos + 8 + column * 18`) instead of reading the slot's `x` and `y`, or hit-tests slots itself instead of asking vanilla, can point at the wrong place, since the slots are where the list puts them and the screen's bounds are both panels'. |
-| The screen's own container | A section with no `source` is the block under the crosshair as the screen opened, when that block holds a container the screen's size. A screen opened by a key while looking at another container of that size takes that container's art and name. Give such a section a `source`. |
+| The screen's own container | A section with no `source` is the block under the crosshair as the screen opened, when that block holds a container the screen's size and the screen has its title. A screen opened by a key while looking at another unnamed container of that size and kind (a remote chest's screen in front of a chest) takes that container's art and name. Give such a section a `source`. |
 
 ## Resource packs
 
@@ -44,7 +44,7 @@ Behavior that is incomplete in the current release.
 | Fully textured art | A container texture whose fill isn't one flat color (wood grain, a picture over the inventory), or whose edges have no plain stretch to tile, can't be cut, and the panel keeps MenuKit's look. |
 | Per-color art | Art per dye or per name comes only through OptiGUI rules, and MenuKit follows them only while OptiGUI 2.x is installed. Without it, every shulker box section takes the pack's one shulker box texture. |
 | OptiGUI selectors | Selectors no section can meet never match, so a rule that uses one never applies to a section: `comparator.output`, `beacon.levels`, `book.page.count`, `book.page.current`, and the horse, donkey, llama and villager selectors. Rules for entities, the beacon and the player inventory never apply to a section. `interaction.hand` always reads as the main hand. |
-| Fallback names | A section whose title a pack blanks, with no `name(...)`, is called by vanilla's built-in English for its title's key ("Shulker Box"), whatever the player's language. Give it a `name(...)`, such as the item's own name, to have it translated. |
+| Fallback names | A section whose title a pack blanks is called by its source's or its block's name, in the player's language. One with nothing to name it by (no `name(...)`, no source with a block or custom name, or for the screen's own container no block found) is called by vanilla's built-in English for its title's key ("Shulker Box"), whatever the player's language. Give it a `name(...)` to have it translated. |
 | HUD panels | They keep MenuKit's art and follow only a pack's override of `menukit:panel_raised`, not container art. |
 
 ## Element gaps

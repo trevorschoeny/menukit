@@ -674,16 +674,17 @@ ContainerRegion.section("mymod:chest")
         .declare();
 ContainerRegion.section("mymod:opened-box")
         .title(() -> Component.translatable("container.shulkerBox"))
-        .name(() -> session.box().getHoverName())                   // shown where a pack blanks the title
+        .source(() -> ContainerRegion.Source.of(session.box()))      // the box: its art and its name
         .content(boxGrid)
         .on(ContainerScreen.class)
         .order(10)
         .visibleWhen(() -> session.isOpen())
-        .texture(ContainerRegion.SHULKER_BOX)                        // the pack's shulker box art
         .declare();
 ```
 
-Result: while the session is open, the chest's screen is two panels: the chest and the box as one column in the container list, and the player's inventory in its own panel below it. The column grows before it scrolls: the two panels stay centred on the screen as one block while they fit, the column's top moving up and the inventory panel down as it grows, and it scrolls only once the screen is full, by the wheel anywhere nothing else wants it, by its scrollbar (inside the list's frame), and by carrying an item to its top or bottom edge. A shift-click into the box while it is scrolled out of view scrolls to where the item landed. Each grid is nine-wide rows of slot elements under its section's title, the title 11 pixels above the first row as vanilla's is; `chestGrid` presents the chest's own slots, since the container list takes the place of the screen's own grid. Both panels are the screen's background, and the slots draw with the list, so other mods' buttons on them draw over them, slots included, and keep their clicks. Another mod's sections on the same screen join the same column, by their `order`. The screen's bounds are the rectangle around both panels, so panels on the menu frame and other mods' buttons by the screen's edges go around both; when the box opens or closes while the screen is open, the screen is laid out again as a window resize lays it out, so those buttons follow. Under a resource pack the box's part of the list takes the pack's shulker box art. A pack that blanks vanilla's container titles blanks both titles, so the box shows its item's name instead ("Lime Shulker Box"), and the chest vanilla's word for it.
+Result: while the session is open, the chest's screen is two panels: the chest and the box as one column in the container list, and the player's inventory in its own panel below it. The column grows before it scrolls: the two panels stay centred on the screen as one block while they fit, the column's top moving up and the inventory panel down as it grows, and it scrolls only once the screen is full, by the wheel anywhere nothing else wants it, by its scrollbar (inside the list's frame), and by carrying an item to its top or bottom edge. A shift-click into the box while it is scrolled out of view scrolls to where the item landed. Each grid is nine-wide rows of slot elements under its section's title, the title 11 pixels above the first row as vanilla's is; `chestGrid` presents the chest's own slots, since the container list takes the place of the screen's own grid. Both panels are the screen's background, and the slots draw with the list, so other mods' buttons on them draw over them, slots included, and keep their clicks. Another mod's sections on the same screen join the same column, by their `order`. The screen's bounds are the rectangle around both panels, so panels on the menu frame and other mods' buttons by the screen's edges go around both; when the box opens or closes while the screen is open, the screen is laid out again as a window resize lays it out, so those buttons follow. The box's `source` is the box item, so under a resource pack its part of the list takes the pack's shulker box art, and a pack that blanks vanilla's container titles blanks both titles, so the box shows its name instead ("Lime Shulker Box", or what the player called it), and the chest the name of the block the screen was opened on ("Chest"), both in the player's language.
+
+A section with no block behind it, such as a mod's own slot group, has no `source` to take its art from. `texture(...)` names the container texture it stands for, `ContainerRegion.CHEST` by default, and `name(...)` what it is called where a pack blanks its title.
 
 A slot group can decide its section by itself. A section shows only while its content is visible, and SlotKit's slot elements hide themselves while their group is not on the open menu, not revealed or past its active count. A `Flow` holding them still counts as visible when every slot in it is hidden, so give the grid a `visibleWhen` that asks its slots, and the section needs none of its own:
 
@@ -724,9 +725,7 @@ Needs: MenuKit 7.4.0. For sections that show a particular container, so that wit
 // A box the player opened from its item, and a box placed in the world, each named for what it is.
 ContainerRegion.section("mymod:held-box")
         .title(() -> Component.translatable("container.shulkerBox"))
-        .name(() -> session.box().getHoverName())                    // "Lime Shulker Box", or the player's name for it
         .source(() -> ContainerRegion.Source.of(session.box()))      // its dye and its name; where it is, the player is
-        .texture(ContainerRegion.SHULKER_BOX)
         .content(heldBoxGrid)
         .on(ContainerScreen.class)
         .order(10)
@@ -734,9 +733,7 @@ ContainerRegion.section("mymod:held-box")
         .declare();
 ContainerRegion.section("mymod:placed-box")
         .title(() -> Component.translatable("container.shulkerBox"))
-        .name(() -> session.placedBox().getBlockState().getBlock().getName())
         .source(() -> ContainerRegion.Source.of(session.placedBox()))  // its block, its custom name, its biome and height
-        .texture(ContainerRegion.SHULKER_BOX)
         .content(placedBoxGrid)
         .on(ContainerScreen.class)
         .order(20)
@@ -744,6 +741,6 @@ ContainerRegion.section("mymod:placed-box")
         .declare();
 ```
 
-Result: on a chest's screen, the held box and the placed box stack below the chest in the container list. With OptiGUI 2.x and a pack that colors shulker boxes, each box's part of the list takes its own dye's art, whatever screen it is on, and the chest keeps the chest's. Without OptiGUI, both take the pack's plain shulker box art, and `source` changes nothing. `texture` must be the texture of the container the source names, since OptiGUI's rules replace that texture and no other. Where a pack blanks vanilla's titles, the held box shows its item's name and the placed box its block's ("Lime Shulker Box"), since both are names packs leave alone. A `source` read while its container isn't known can return `null`, and the section then takes what OptiGUI picked for the open screen.
+Result: on a chest's screen, the held box and the placed box stack below the chest in the container list. With OptiGUI 2.x and a pack that colors shulker boxes, each box's part of the list takes its own dye's art, whatever screen it is on, and the chest keeps the chest's. Without OptiGUI, both take the pack's plain shulker box art, and `source` changes nothing. Each section takes its texture from its source's block, the shulker box's, and where a pack blanks vanilla's titles its name from it too, in the player's language: the held box the name the player gave the item, else its block's ("Lime Shulker Box"), and the placed box its block's, names packs leave alone. Neither needs `texture(...)` or `name(...)`. A `source` read while its container isn't known can return `null`, and the section then takes what OptiGUI picked for the open screen.
 
-A section with no `source` is the screen's own container. It takes the art and the name of the block the screen was opened on, so the chest's own section in the recipe above needs none.
+A section with no `source` is the screen's own container. It takes the art and the name of the block the screen was opened on, the one under the crosshair as it opened when that block holds a container of the screen's size and the screen has its title, so the chest's own section in the recipe above needs none. Its texture is its `texture(...)`, the chest's by default.
