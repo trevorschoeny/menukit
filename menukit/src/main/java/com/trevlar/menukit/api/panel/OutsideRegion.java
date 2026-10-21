@@ -2,7 +2,7 @@ package com.trevlar.menukit.api.panel;
 
 /**
  * A region <b>outside</b> a reference rectangle: pick a side, pick which end to
- * align to, and stack away from that end. Eleven of them.
+ * align to, and stack away from that end. Thirteen of them.
  *
  * <p>This names the <em>vocabulary</em>, not the reference. The reference, which
  * rectangle you are measured against, is decided by the call site: a
@@ -21,9 +21,10 @@ package com.trevlar.menukit.api.panel;
  * "outside the top-left corner" is not well defined.
  *
  * <p>There are eight edge regions, each of the four sides with two alignment
- * ends, plus three centered anchors. {@code SIDE_ALIGN_END} reads
+ * ends, four centered on a side, and {@link #CENTER}. {@code SIDE_ALIGN_END} reads
  * as: "on {@code SIDE} of the reference, aligned to {@code END}, stacking away
- * from {@code END}."
+ * from {@code END}." {@code SIDE_CENTER} is centered along that side and stacks
+ * straight away from the reference.
  *
  * <p>{@link #CENTER} is the exception: it centers a panel inside the reference
  * rather than outside it, as a modal dialog needs. It stays on this enum because
@@ -37,6 +38,8 @@ package com.trevlar.menukit.api.panel;
  *   <li>{@link #TOP_ALIGN_RIGHT} / {@link #BOTTOM_ALIGN_RIGHT}, flow left
  *   <li>{@link #TOP_CENTER}, flow up, above the reference, centered
  *   <li>{@link #BOTTOM_CENTER}, flow down, below the reference, centered
+ *   <li>{@link #LEFT_CENTER}, flow left, left of the reference, centered vertically
+ *   <li>{@link #RIGHT_CENTER}, flow right, right of the reference, centered vertically
  *   <li>{@link #CENTER}, no stacking
  * </ul>
  */
@@ -72,6 +75,27 @@ public enum OutsideRegion {
     BOTTOM_CENTER,
 
     /**
+     * Left of the reference, centered vertically on it (since 7.4.0): a column beside
+     * a box, its middle level with the box's middle. The panel renders at
+     * {@code (leftPos - panelWidth - gap - prefix,
+     *         topPos + (imageHeight - panelHeight) / 2)}, so stacking grows left,
+     * away from the reference, each sibling staying centered.
+     *
+     * <p>{@link #TOP_CENTER} turned on its side.
+     */
+    LEFT_CENTER,
+
+    /**
+     * Right of the reference, centered vertically on it (since 7.4.0). The panel
+     * renders at {@code (leftPos + imageWidth + gap + prefix,
+     *         topPos + (imageHeight - panelHeight) / 2)}, so stacking grows right,
+     * away from the reference, each sibling staying centered.
+     *
+     * <p>{@link #BOTTOM_CENTER} turned on its side.
+     */
+    RIGHT_CENTER,
+
+    /**
      * Centered within the menu's container frame, the usual anchor for modal
      * dialogs. The panel renders at
      * {@code (leftPos + (imageWidth - panelWidth) / 2,
@@ -98,7 +122,8 @@ public enum OutsideRegion {
     public boolean isHorizontalFlow() {
         return switch (this) {
             case TOP_ALIGN_LEFT, TOP_ALIGN_RIGHT,
-                 BOTTOM_ALIGN_LEFT, BOTTOM_ALIGN_RIGHT -> true;
+                 BOTTOM_ALIGN_LEFT, BOTTOM_ALIGN_RIGHT,
+                 LEFT_CENTER, RIGHT_CENTER -> true;
             case LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM,
                  RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM -> false;
             case TOP_CENTER, BOTTOM_CENTER -> false;

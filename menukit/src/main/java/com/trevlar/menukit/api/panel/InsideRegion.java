@@ -22,7 +22,7 @@ import com.trevlar.menukit.core.RegionMath;
  * <p>Stacking order among siblings on one spot is the panel's
  * {@link PanelPosition#priority(int)}.
  *
- * <p>Its counterpart is {@link OutsideRegion}, the eleven placements
+ * <p>Its counterpart is {@link OutsideRegion}, the thirteen placements
  * <em>outside</em> a rectangle. The two are shaped differently and do not merge.
  */
 public enum InsideRegion {

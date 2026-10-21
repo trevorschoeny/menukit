@@ -203,7 +203,7 @@ public record PanelPosition(Mode mode,
      *       region, and the sibling before it along the stack, for every panel but the
      *       first. So {@code region(RIGHT_ALIGN_TOP).gap(0)} sits flush against the
      *       frame's right edge, and a second {@code gap(0)} panel sits flush under the
-     *       first. For {@code TOP_CENTER} and {@code BOTTOM_CENTER} the two are the
+     *       first. For the four side-centred regions ({@code TOP_CENTER}, {@code RIGHT_CENTER}, ...) the two are the
      *       same axis: the first panel is {@code gap} off the frame, each later one
      *       {@code gap} off the one before. Unset: {@link RegionConstants#MENU_STACK_GAP}.</li>
      *   <li>{@link Mode#SCREEN_ANCHOR}: the space between this panel and the sibling
