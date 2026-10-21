@@ -458,13 +458,10 @@ public final class PanelHost {
     public synchronized Entry add(Panel panel, @Nullable ModeScope scope, PanelPosition position, int padding,
                                   String modId, int seq) {
         requireSupported(kind, panel, position);
-        if (position.mode() == PanelPosition.Mode.MAIN && hasMain(panel, scope)) {
-            throw new IllegalArgumentException("MenuKit: panel '" + panel.id()
-                    + "' is a second main() on one screen; a screen has one frame.");
-        }
         // The padding is measured against MenuKit's own frame; a thicker frame on this
         // kind of screen (vanilla's popup frame) widens it by the difference.
         Entry entry = new Entry(panel, scope, position, padding + panel.frameExtra(screenKind), modId, seq);
+        if (position.mode() == PanelPosition.Mode.MAIN) requireOneMain(entry);
         List<Entry> next = new ArrayList<>(entries);
         next.add(entry);
         next.sort(ORDER);
@@ -547,9 +544,18 @@ public final class PanelHost {
         return forNow(e) && isShown(e.panel());
     }
 
-    /** Whether an entry is for the mode now: its scope is its panel's effective one, or it has none (a caller's position). */
+    /** Whether an entry is for the mode now: {@link #shownIn} the current mode. */
     private static boolean forNow(Entry e) {
-        return e.scope() == null || e.scope() == effectiveScope(e.panel());
+        return shownIn(e, currentMode());
+    }
+
+    /**
+     * Whether an entry shows in {@code mode} ({@code null}: no player): its scope is its panel's
+     * placement for that mode ({@link #effectiveScope(Panel, ModeScope)}), or it has none (a
+     * caller's position, shown in every mode).
+     */
+    private static boolean shownIn(Entry e, @Nullable ModeScope mode) {
+        return e.scope() == null || e.scope() == effectiveScope(e.panel(), mode);
     }
 
     // The mode (7.4.0)
@@ -583,8 +589,12 @@ public final class PanelHost {
      * for another mode gets {@code BOTH} too, which it has no entry for, so it doesn't show.
      */
     public static ModeScope effectiveScope(Panel panel) {
-        ModeScope now = currentMode();
-        return now != null && panel.placements().containsKey(now) ? now : ModeScope.BOTH;
+        return effectiveScope(panel, currentMode());
+    }
+
+    /** {@link #effectiveScope(Panel)} in {@code mode} ({@code null}: no player): that mode's placement if declared, else BOTH. */
+    private static ModeScope effectiveScope(Panel panel, @Nullable ModeScope mode) {
+        return mode != null && panel.placements().containsKey(mode) ? mode : ModeScope.BOTH;
     }
 
     // Player-moved panels (7.4.0)
@@ -944,8 +954,8 @@ public final class PanelHost {
     }
 
     /**
-     * The MAIN entry of a standalone host for the mode now: one per scope at most (see
-     * {@link #add}), the first whose scope is its panel's effective one, else the first.
+     * The MAIN entry of a standalone host for the mode now: one a mode at most (see
+     * {@link #requireOneMain}), the first whose scope is its panel's effective one, else the first.
      */
     private @Nullable Entry mainEntry() {
         Entry first = null;
@@ -958,19 +968,27 @@ public final class PanelHost {
     }
 
     /**
-     * Whether a MAIN entry that would show alongside {@code panel}'s for {@code scope} is here
-     * already: one frame a screen, in each mode. An entry with no scope shows in every mode,
-     * and {@code BOTH} in every mode another panel has no placement of its own for, so it
-     * overlaps every scope. Two scopes of one panel never show together ({@link #forNow}).
+     * One main panel a mode. Refuses {@code added}, a MAIN entry, when some concrete mode
+     * (SURVIVAL or CREATIVE) would show both it and a MAIN entry already here ({@link #shownIn}:
+     * each panel's own placement for that mode first, then its BOTH one). So two BOTH mains
+     * clash, and a BOTH main clashes with another panel's SURVIVAL main unless the BOTH one's
+     * panel has a SURVIVAL placement of its own; one panel's mains never clash with each other,
+     * since one panel shows one placement at a time. Only the two modes count: with no player
+     * the first main in order frames the screen.
+     *
+     * @throws IllegalArgumentException naming both panels and the mode
      */
-    private boolean hasMain(Panel panel, @Nullable ModeScope scope) {
-        for (Entry e : entries) {
-            if (e.position().mode() != PanelPosition.Mode.MAIN) continue;
-            if (e.panel() == panel && scope != null && e.scope() != null && e.scope() != scope) continue;
-            if (scope == null || e.scope() == null || scope == ModeScope.BOTH || e.scope() == ModeScope.BOTH
-                    || e.scope() == scope) return true;
+    private void requireOneMain(Entry added) {
+        for (ModeScope mode : List.of(ModeScope.SURVIVAL, ModeScope.CREATIVE)) {
+            if (!shownIn(added, mode)) continue;
+            for (Entry e : entries) {
+                if (e.position().mode() != PanelPosition.Mode.MAIN || !shownIn(e, mode)) continue;
+                throw new IllegalArgumentException("MenuKit: panels '" + e.panel().id() + "' and '" + added.panel().id()
+                        + "' are both main() in " + mode + " (each panel's " + mode + " placement, else its BOTH one); "
+                        + "a screen has one main panel in each mode. Give one of them a placement of its own for " + mode
+                        + " that isn't main().");
+            }
         }
-        return false;
     }
 
     private record MainFrame(Reference frame, Placed placed) {}
