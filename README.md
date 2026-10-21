@@ -16,12 +16,15 @@ The UI draws on the client. MenuKit also loads on a server, because libraries bu
 - Several mods can add UI to the same screen. Panels that share a region stack in priority order instead of overlapping, in the same order on every launch.
 - What a panel covers is inert. An opaque panel takes every point of its rectangle, and a see-through one takes only its controls. A slot or widget under a panel does not highlight, take a click, or show a tooltip.
 - Controls have vanilla's click sound, narration, and keyboard focus.
-- Each element draws in the look of the screen it is on. Inventories and chests get the Panel look, MenuKit's gray, and Options, Controls, and similar screens get the Default look, vanilla's pause-menu look. Text is colored by role (heading, body, muted, or disabled), so it reads in either look.
+- Each element draws for the kind of screen it is on. Inventories and chests get the Panel look, and Options, Controls, and similar screens get the Default look, which is vanilla's pause-menu look. Text is colored by role (heading, body, muted, or disabled), so it reads on either kind.
 - A color field lets a settings page pick a color, from Minecraft's 16 dye colors or from a full picker with a hex field.
 - An item picker holds one item or a list of them as a setting value. Its dialog lists every item and variant the way the creative inventory does, and edits names, counts, enchantments, and other components. One shared matcher compares stacks, and nothing is ever taken from the player's inventory.
 - A widget made by another library, such as a config library's own control, can sit inside a panel. It scrolls and clips with the panel, and gets clicks, typed keys, focus, and narration.
 - Slots clip to the scroll area they sit in, so a slot half past the edge draws, hovers, and takes clicks only where it shows. Slot libraries report their slots to MenuKit, and SlotKit does.
+- Lists that follow a list the mod owns as it changes, with optional add, remove, reorder, search, and sort controls, and a button that opens a menu of actions for a row.
+- Text fields cancel an edit with Escape, without closing the screen.
 - A cycle strip beside the hotbar is available to any mod that turns a ring of stacks through the held slot. It slides on each turn.
+- A status column on the HUD, between the hearts and the hunger bar, holds small icons from several mods, stacked.
 - Tooltips can be hidden, docked, wrapped, kept on screen, or scrolled through one shared check.
 
 ## Example
@@ -49,14 +52,14 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    implementation 'maven.modrinth:menukit:7.2.0+26.3'
+    implementation 'maven.modrinth:menukit:7.3.0+26.3'
 }
 ```
 
 Declare it in `fabric.mod.json` with both bounds, separated by a space ([why](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md)).
 
 ```json
-"depends": { "menukit": ">=7.2.0 <8.0.0" }
+"depends": { "menukit": ">=7.3.0 <8.0.0" }
 ```
 
 Players install MenuKit separately. The Trevlar mods list it as a required dependency on their Modrinth pages rather than bundling it.
@@ -81,6 +84,9 @@ The sources in the [repository](https://github.com/trevorschoeny/menukit) build 
 - [Sandboxes](https://modrinth.com/mod/sandboxes)
 - [Shulker Palette](https://modrinth.com/mod/shulker-palette)
 - [Hotbar Pockets](https://modrinth.com/mod/hotbar-pockets)
+- [Simple Elytra Slot](https://modrinth.com/mod/simple-elytra-slot)
+- [Simple Totem Slot](https://modrinth.com/mod/simple-totem-slot)
+- [Headcount](https://modrinth.com/mod/headcount)
 
 ## How to use
 
@@ -91,7 +97,7 @@ This guide follows the order a mod usually meets MenuKit, from a first panel to 
 The API is every type in a package named `api` (`com.trevlar.menukit.api.*`), and the version contract covers those. Every other package is internal, marked `@ApiStatus.Internal`, and can change in any release. A task that seems to need an internal type is a gap in the API, so [open an issue](https://github.com/trevorschoeny/menukit/issues) for it.
 
 | Package | Holds |
-|---|---|
+| --- | --- |
 | `api` | `MK`, the HUD facade, which registers HUD panels and notifications, sends a notification, and reads or sets the recipe book. `Declarations`, the one freeze that MenuKit and every library built on it declare through. |
 | `api.element` | Every element, and the contexts they render and take input in |
 | `api.layout`, `api.dialog` | Rows and columns placed once, and confirm and alert dialogs |
@@ -119,9 +125,9 @@ A panel declares where it sits once, with `Panel.builder(id).position(...)`. `Pa
 
 A shown panel claims the points it covers, so nothing behind it highlights, takes a click, or shows a tooltip. Panels are opaque by default and claim their whole rectangle. `.opaque(false)` makes a panel see-through, and then only its buttons and other controls block what is behind them. `.popover()` draws a panel above every ordinary panel on the screen, and a modal dialog still opens above that. The Claims section of [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md) covers the order.
 
-### Standalone screens and looks
+### Standalone screens and screen kinds
 
-A mod's own screen subclasses `MKScreen`. Elements draw in the look of the screen they are on. `ScreenKind.PANEL` is the Panel look, MenuKit's gray, and `ScreenKind.DEFAULT` is the Default look, vanilla's pause-menu look. Panels injected into vanilla screens take the look from the screen. A standalone screen declares its look once, with `super(title, ScreenKind.DEFAULT, panels)`, and one that declares nothing has the Panel look. Before 7.3.0 the two were `ScreenKind.CONTAINER` and `ScreenKind.OPTIONS`, which still work, deprecated, until 8.0.0. Text takes its color from a role (`TextRole.HEADING`, `BODY`, `MUTED`, or `DISABLED`), so it reads in both looks. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) builds a whole settings screen in the Default look.
+A mod's own screen subclasses `MKScreen`. Elements draw for the kind of screen they are on. `ScreenKind.PANEL` is the Panel look, MenuKit's gray, and `ScreenKind.DEFAULT` is the Default look, vanilla's pause-menu look. Panels injected into vanilla screens take the kind from the screen. A standalone screen declares its kind once, with `super(title, ScreenKind.DEFAULT, panels)`, and one that declares nothing is a Panel screen. Text takes its color from a role (`TextRole.HEADING`, `BODY`, `MUTED`, or `DISABLED`), so it reads on both kinds. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) builds a whole settings screen in the pause-menu look.
 
 ### Layout, tabs, and sections
 
@@ -159,7 +165,7 @@ MenuKit keeps no slot code. A mod that needs slot groups, created slots, or cust
 
 ### To 7.3.0
 
-The two looks have new names. `ScreenKind.OPTIONS` is now `ScreenKind.DEFAULT` (the Default look), and `ScreenKind.CONTAINER` is now `ScreenKind.PANEL` (the Panel look). `ScrollContainer.OPTIONS_INSET_X` and `OPTIONS_INSET_Y` are now `DEFAULT_INSET_X` and `DEFAULT_INSET_Y`. The old names still work, deprecated, so mods built for 7.2.0 run as before; they go in 8.0.0. A `switch` over `ScreenKind` names the new constants. A mod that uses anything new in 7.3.0 declares `"menukit": ">=7.3.0 <8.0.0"`.
+Nothing breaks, and mods built for 7.2.0 work as before. The looks have new names: `ScreenKind.OPTIONS` is now `DEFAULT` and `CONTAINER` is now `PANEL`. The old names still work and go in 8.0.0, but a `switch` over `ScreenKind` must name the new ones. Slots shown in a panel now draw on top of it, so a mod that hooks vanilla's whole slot pass sees those slots drawn after it. A mod that uses anything new in 7.3.0 declares `"menukit": ">=7.3.0 <8.0.0"`.
 
 ### To 7.2.0
 
@@ -175,7 +181,7 @@ MenuKit keeps no slot code now. Everything about slots moved to SlotKit, a separ
 
 - Slot groups, categories, slot operations, vetoes, addresses, the window, and `SlotGroupPanelAdapter` are SlotKit's. A mod that uses any of them depends on SlotKit and changes those imports. Nothing else changes for it.
 - `Declarations` moved to `com.trevlar.menukit.api.Declarations`.
-- `ControlStyle`, `style(ControlStyle)` on `Button`, `Dropdown`, and `DropdownMulti`, `Tabs.SIDEBAR_SCROLLBAR_WIDTH`, and `MKTooltip.MIN_WRAP_WIDTH` are removed. Delete a `style(...)` call, since it has done nothing since 6.1.0. Use `ScrollContainer.TRACK_WIDTH` (6 in the Default look) for the scrollbar width.
+- `ControlStyle`, `style(ControlStyle)` on `Button`, `Dropdown`, and `DropdownMulti`, `Tabs.SIDEBAR_SCROLLBAR_WIDTH`, and `MKTooltip.MIN_WRAP_WIDTH` are removed. Delete a `style(...)` call, since it has done nothing since 6.1.0. Use `ScrollContainer.TRACK_WIDTH` (6 on an options screen) for the scrollbar width.
 - The window's panel and element handles (`Window.panel`, `Window.element`) and the `VISIBILITY` and `OPACITY` keys are gone. Use the panel's own `visibleWhen` and `opaque`.
 - `Anchor` and `AnchorPanelAdapter` are new. They place a panel around a rectangle a mod names and supplies on any screen, and SlotKit's slot-group panels are built on them.
 
@@ -189,7 +195,7 @@ Elements draw for the kind of screen they are on (`ScreenKind`), and nothing els
 
 - `ControlStyle` and `style(ControlStyle)` on `Button`, `Dropdown`, and `DropdownMulti` are deprecated and do nothing, and 7.0.0 removes them. A mod built against 6.0.0 still loads. Delete the call. An element already draws in vanilla's look on Options, Controls, and every other vanilla screen that is not a container, and in MenuKit's look on a container screen.
 - Panels injected into a vanilla screen that is not a container (the pause screen, Options, Controls, or a config screen) draw in vanilla's look there. Before 6.1.0 they drew MenuKit's gray. Panels on inventories, chests, and the HUD are unchanged.
-- To move a standalone screen to the Default look, vanilla's pause-menu look, declare it when the screen is made, with `super(title, ScreenKind.DEFAULT, panels)`. Give its panels `PanelStyle.NONE`, and replace hand-set label colors (`TextLabel.COLOR_DARK`, `Section.colors`) with roles, which read in both looks. A screen that declares nothing stays as it was. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) builds a whole settings screen this way.
+- To move a standalone screen to the pause-menu look, declare the kind when the screen is made, with `super(title, ScreenKind.OPTIONS, panels)`. Give its panels `PanelStyle.NONE`, and replace hand-set label colors (`TextLabel.COLOR_DARK`, `Section.colors`) with roles, which read on both kinds. A screen that declares nothing stays as it was. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) builds a whole settings screen this way.
 
 ### To 6.0.0
 
@@ -204,7 +210,7 @@ Elements draw for the kind of screen they are on (`ScreenKind`), and nothing els
 - Item Tips left MenuKit. Durability and food lines on tooltips are a feature of Inventory Plus.
 
 | 5.x | 6.0.0 |
-|---|---|
+| --- | --- |
 | `MKHudPanel`, `MKHudNotification`, `MKHudIcon`, `MKHudSlot` | `HudPanel`, `HudNotification`, `HudIcon`, `HudSlot` |
 | `MKFocus`, `MKText` | `Focus`, `Text` |
 | `MKCContainerPanel` | `ContainerPanel` |
@@ -231,7 +237,7 @@ Nothing breaks. `SlotSpec.quickMove(...)` and `MKCBehaviorKeys.QUICK_MOVE` are d
 Four region enums are two, and two bounds records are one. Replace the type names. The constants inside are unchanged.
 
 | Was | Is |
-|---|---|
+| --- | --- |
 | `MenuRegion`, `SlotGroupRegion` | `OutsideRegion` |
 | `HudRegion`, `ScreenRegion` | `InsideRegion` |
 | `ScreenBounds`, `SlotGroupBounds` | `Reference` |
