@@ -13,9 +13,8 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -38,7 +37,8 @@ import java.util.List;
  * ({@link PanelPositions}). A right-click resets it in every mode. Esc or the key leaves; Esc
  * doesn't also close the screen. Every other key reaches the screen as usual.
  *
- * <p>Edit mode belongs to one screen: when that screen closes, or another opens, it is over.
+ * <p>Edit mode belongs to one screen: when that screen closes, or another opens, it is over,
+ * and a drag under way is dropped where it started, unsaved.
  */
 @ApiStatus.Internal
 public final class PanelEditing {
@@ -98,6 +98,12 @@ public final class PanelEditing {
             ScreenKeyboardEvents.allowKeyPress(screen).register(PanelEditing::allowKey);
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, t) -> follow(s, mx, my));
             ScreenEvents.afterExtract(screen).register((s, g, mx, my, t) -> drawEditing(s, g, mx, my));
+            // Closed under a drag or in edit mode (E, the server closing the container, another
+            // screen opening over it): edit mode ends with it, so a screen made again or reused
+            // (a parent screen coming back) starts out of it. setScreen is under way: end only.
+            ScreenEvents.remove(screen).register(s -> {
+                if (s == editing) end();
+            });
         });
     }
 
@@ -114,17 +120,21 @@ public final class PanelEditing {
             leave();
             return false;
         }
-        if (key == null || !key.matches(event) || typing(s)) return true;
+        if (key == null || !key.matches(event) || assigningKey(s) || s.isInputCaptured()) return true;
         toggle(s);
         return false;
     }
 
-    /** Whether a text box on {@code s} takes typing now: then the key is a letter, as vanilla treats its own keys. */
-    private static boolean typing(Screen s) {
-        for (GuiEventListener child : s.children()) {
-            if (child instanceof EditBox box && box.isFocused() && box.canConsumeInput()) return true;
-        }
-        return false;
+    /*
+     * Typing is vanilla's own answer, Screen.isInputCaptured: the focus chain down to its
+     * innermost widget, which says whether it takes text (an EditBox, a MultiLineEditBox such as
+     * the book's page, a sign's lines, creative's search, MenuKit's TextField through its
+     * stand-in). Vanilla's own screen keys stand down the same way.
+     */
+
+    /** Whether {@code s} is waiting for a key or button to bind: vanilla's Controls list, once a binding was clicked. */
+    private static boolean assigningKey(Screen s) {
+        return s instanceof KeyBindsScreen k && k.selectedKey != null;
     }
 
     private static void toggle(Screen s) {
@@ -136,13 +146,19 @@ public final class PanelEditing {
         }
     }
 
+    /** Leaves edit mode (Esc, the key); on the HUD screen that closes it. */
     private static void leave() {
         Screen s = editing;
+        end();
+        Minecraft mc = Minecraft.getInstance();
+        if (s instanceof HudScreen && mc.gui.screen() == s) mc.gui.setScreen(null);
+    }
+
+    /** Edit mode is over: an unfinished drag goes with it, never stored, and the panel is back where it was. */
+    private static void end() {
         editing = null;
         drag = null;
         PanelPositions.dragging(null, null);
-        Minecraft mc = Minecraft.getInstance();
-        if (s instanceof HudScreen && mc.gui.screen() == s) mc.gui.setScreen(null);
     }
 
     // The mouse, from MouseHandler.onButton before any screen sees it
@@ -158,7 +174,7 @@ public final class PanelEditing {
     public static boolean onButton(int button, int action, boolean shift, double x, double y) {
         Screen s = Minecraft.getInstance().gui.screen();
         if (s == null) return false;
-        if (action == 1 && boundTo(button)) {
+        if (action == 1 && boundTo(button) && !assigningKey(s)) {
             toggle(s);
             return true;
         }
