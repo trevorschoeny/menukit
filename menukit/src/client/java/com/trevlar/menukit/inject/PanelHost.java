@@ -538,7 +538,7 @@ public final class PanelHost {
      * {@code visibleWhen}). A hidden panel is skipped before layout, so it is never
      * measured, never placed, and its pixel supplier never runs.
      */
-    public static boolean isShown(Panel panel) {
+    private static boolean isShown(Panel panel) {
         return panel.isVisible();
     }
 
@@ -567,14 +567,13 @@ public final class PanelHost {
         mode = m == null ? PLAYER_MODE : m;
     }
 
-    /** The mode now: the player's ({@link ModeScope#of}), or {@code null} with no player. */
+    /**
+     * The mode now: the player's ({@link ModeScope#of}), or {@code null} with no player. Ask a
+     * scope about it with {@link ModeScope#covers}: the one place the mode is read, so the
+     * checks swap it here.
+     */
     public static @Nullable ModeScope currentMode() {
         return mode.get();
-    }
-
-    /** Whether {@code scope} covers the mode now: {@link ModeScope#BOTH} always, otherwise the mode is it. */
-    public static boolean inScope(ModeScope scope) {
-        return scope == ModeScope.BOTH || scope == currentMode();
     }
 
     /**

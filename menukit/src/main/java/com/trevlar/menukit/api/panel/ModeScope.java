@@ -47,6 +47,14 @@ public enum ModeScope {
 
     /** Whether this scope covers {@code player} now: {@link #BOTH} always, otherwise its mode is this one. */
     public boolean includes(@Nullable Player player) {
-        return this == BOTH || of(player) == this;
+        return covers(of(player));
+    }
+
+    /**
+     * Whether this scope covers {@code mode} ({@code null}: no player): {@link #BOTH} always,
+     * otherwise {@code mode} is this one. {@link #includes} for a mode already read.
+     */
+    public boolean covers(@Nullable ModeScope mode) {
+        return this == BOTH || mode == this;
     }
 }
