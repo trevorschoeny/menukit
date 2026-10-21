@@ -533,6 +533,7 @@ public final class ContainerRegions {
         state.lastFrame = -1;
         state.reveal = null;
         state.opened = openedContainer(screen);
+        OptiGuiRules.screenClosed();   // its answers were for the screen before
     }
 
     /**

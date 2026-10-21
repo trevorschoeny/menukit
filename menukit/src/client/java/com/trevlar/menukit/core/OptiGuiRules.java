@@ -2,6 +2,7 @@ package com.trevlar.menukit.core;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
+import net.fabricmc.loader.api.SemanticVersion;
 import net.fabricmc.loader.api.metadata.CustomValue;
 import net.fabricmc.loader.api.metadata.version.VersionPredicate;
 import net.minecraft.client.Minecraft;
@@ -13,6 +14,7 @@ import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.state.properties.ChestType;
 
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -23,18 +25,22 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.Month;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -46,8 +52,9 @@ import java.util.regex.Pattern;
  * MenuKit evaluates the pack's rules itself, once per section, against that section's own
  * container: its block (and so its dye), its custom name, its biome and its height.
  *
- * <p><b>Only while OptiGUI is installed</b> ({@link #LOADED}). Without it, every texture
- * is returned as it was given, so nothing changes.
+ * <p><b>Only while OptiGUI 2 is installed</b> ({@link #LOADED}): what is followed here is
+ * its 2.x loader. Without it (or with another major version), every texture is returned as
+ * it was given, so nothing changes.
  *
  * <h3>What OptiGUI does, followed here</h3>
  * Ported from OptiGUI 2.3.0-beta.10+26.3's source (its {@code FilterLoader},
@@ -88,8 +95,18 @@ public final class OptiGuiRules {
 
     private static final Logger LOG = LoggerFactory.getLogger("MenuKit/OptiGUI");
 
-    /** Whether OptiGUI is installed: the only case anything here changes a texture. */
-    public static final boolean LOADED = FabricLoader.getInstance().isModLoaded("optigui");
+    /** Whether OptiGUI 2 is installed: the only case anything here changes a texture. */
+    public static final boolean LOADED = optiGui2();
+
+    /** Whether OptiGUI is installed at major version 2, the loader this follows; another one is left alone, said once. */
+    private static boolean optiGui2() {
+        var mod = FabricLoader.getInstance().getModContainer("optigui");
+        if (mod.isEmpty()) return false;
+        var version = mod.get().getMetadata().getVersion();
+        boolean two = version instanceof SemanticVersion v && v.getVersionComponent(0) == 2;
+        if (!two) LOG.info("OptiGUI {} is not 2.x; region sections keep their own container art", version.getFriendlyString());
+        return two;
+    }
 
     // The input
 
@@ -119,13 +136,16 @@ public final class OptiGuiRules {
 
     /** A set of packs' rules, as OptiGUI loads them: by container, in the order they are tried. */
     public static final class Rules {
+        /** No rules at all: what a set of packs whose rules can't be read gives. */
+        static final Rules NONE = new Rules(Map.of(), Set.of());
+
         private final Map<@Nullable Identifier, List<Rule>> byContainer;
         private final Set<Identifier> replaceable, replacements;
 
         Rules(Map<@Nullable Identifier, List<Rule>> byContainer, Set<Identifier> replaceable) {
             this.byContainer = byContainer;
             this.replaceable = replaceable;
-            java.util.HashSet<Identifier> out = new java.util.HashSet<>();
+            HashSet<Identifier> out = new HashSet<>();
             byContainer.values().forEach(l -> l.forEach(r -> out.add(r.replacement())));
             this.replacements = Set.copyOf(out);
         }
@@ -155,17 +175,17 @@ public final class OptiGuiRules {
      * Loads the rules from {@code ini} (OptiGUI's {@code .ini} files) and {@code properties}
      * (OptiFine's), as OptiGUI does. {@code defaults} is each container's own texture (OptiGUI
      * reads it from every mod's {@code optigui:container_default_gui_textures}); {@code exists}
-     * says whether a texture is in the packs; {@code modLoaded} answers {@code if.mods}.
+     * says whether a texture is in the packs; {@code modLoaded} answers {@code if.mods}. A
+     * file that can't be read is left out whole, with a warning, and the rest still load.
      */
     public static Rules load(List<Source> ini, List<Source> properties, Map<Identifier, Identifier> defaults,
                              Predicate<Identifier> exists, Predicate<String> modLoaded) {
         List<Raw> raws = new ArrayList<>();
-        ini.stream().sorted(Comparator.comparing(s -> s.id().toString())).forEach(s -> loadIni(s, defaults, raws));
-        properties.stream().sorted(Comparator.comparing(s -> s.id().toString()))
-                .forEach(s -> loadProperties(s, defaults, exists, raws));
+        for (Source s : byPath(ini)) loadFile(s, raws, mine -> loadIni(s, defaults, mine));
+        for (Source s : byPath(properties)) loadFile(s, raws, mine -> loadProperties(s, defaults, exists, mine));
 
         Map<@Nullable Identifier, List<Rule>> by = new LinkedHashMap<>();
-        java.util.HashSet<Identifier> replaceable = new java.util.HashSet<>();
+        HashSet<Identifier> replaceable = new HashSet<>();
         for (Raw raw : raws) {
             if (skippedOnLoad(raw, modLoaded) || raw.replaceable().isEmpty() || !exists.test(raw.replacement())) continue;
             List<Predicate<Input>> selectors = new ArrayList<>();
@@ -185,6 +205,21 @@ public final class OptiGuiRules {
         // Highest priority first; List.sort is stable, so equals keep their load order.
         by.values().forEach(l -> l.sort(Comparator.comparingInt(Rule::priority).reversed()));
         return new Rules(by, Set.copyOf(replaceable));
+    }
+
+    private static List<Source> byPath(List<Source> files) {
+        return files.stream().sorted(Comparator.comparing(s -> s.id().toString())).toList();
+    }
+
+    /** One file's rules into {@code raws}, all of them or, when reading it throws, none (said once, per reload). */
+    private static void loadFile(Source s, List<Raw> raws, Consumer<List<Raw>> read) {
+        List<Raw> mine = new ArrayList<>();
+        try {
+            read.accept(mine);
+            raws.addAll(mine);
+        } catch (RuntimeException e) {
+            LOG.warn("Leaving out the OptiGUI rules in {}: {}", s.id(), e.toString());
+        }
     }
 
     /** A rule as read, before its selectors are built. */
@@ -279,7 +314,7 @@ public final class OptiGuiRules {
             case "dispenser" -> {
                 String v = p.get("variants");
                 if (v == null || split(v).isEmpty()) out.add("dispenser");
-                else for (String s : new java.util.LinkedHashSet<>(split(v))) if (s.equals("dispenser") || s.equals("dropper")) out.add(s);
+                else for (String s : new LinkedHashSet<>(split(v))) if (s.equals("dispenser") || s.equals("dropper")) out.add(s);
             }
             case "chest" -> {
                 Boolean large = looseBoolean(p.get("large")), trapped = looseBoolean(p.get("trapped")), ender = looseBoolean(p.get("ender"));
@@ -295,7 +330,7 @@ public final class OptiGuiRules {
                 String colors = p.get("colors");
                 List<String> dyes = colors == null ? List.of() : split(colors);
                 if (colors == null || dyes.isEmpty()) out.add("shulker_box");
-                else for (String d : new java.util.LinkedHashSet<>(dyes)) if (DYES.contains(d)) out.add(d + "_shulker_box");
+                else for (String d : new LinkedHashSet<>(dyes)) if (DYES.contains(d)) out.add(d + "_shulker_box");
             }
             default -> {}
         }
@@ -402,7 +437,7 @@ public final class OptiGuiRules {
     /** Commons' Java unescape, as OptiGUI applies it to wildcard and regex names (a lone backslash is dropped). */
     @SuppressWarnings("deprecation")
     private static String unescapeJava(String s) {
-        return org.apache.commons.lang3.StringEscapeUtils.unescapeJava(s);
+        return StringEscapeUtils.unescapeJava(s);
     }
 
     private static final Pattern RANGE = Pattern.compile("^(?:(?<start>\\d+|\\(-?\\d+\\))-(?<end>\\d+|\\(-?\\d+\\))?|(?<value>-?\\d+))$");
@@ -452,7 +487,7 @@ public final class OptiGuiRules {
     }
 
     /** A space- or tab-separated list, every item parsed; one that doesn't parse throws, as OptiGUI's does. */
-    private static <T> List<T> list(String value, java.util.function.Function<String, @Nullable T> parse) {
+    private static <T> List<T> list(String value, Function<String, @Nullable T> parse) {
         List<String> items = split(value);
         if (items.isEmpty()) throw new IllegalArgumentException("empty");
         List<T> out = new ArrayList<>();
@@ -478,13 +513,19 @@ public final class OptiGuiRules {
 
     private static @Nullable Boolean looseBoolean(@Nullable String s) {
         if (s == null) return null;
-        String l = s.toLowerCase(java.util.Locale.ROOT);
+        String l = s.toLowerCase(Locale.ROOT);
         return l.equals("true") ? Boolean.TRUE : l.equals("false") ? Boolean.FALSE : null;
     }
 
     // Paths
 
-    /** OptiGUI's path resolution: beside {@code resource}, or from {@code optifine/} for {@code ~/}, or a full id with a colon. */
+    /**
+     * OptiGUI's path resolution: beside {@code resource}, or from {@code optifine/} for
+     * {@code ~/}, or a full id with a colon; {@code null} for one it can't resolve. OptiGUI
+     * uses {@code java.nio.file.Path} (sibling, then normalised); this does the same with
+     * strings, so a value no file system accepts ({@code * ? " < > |} on Windows, a NUL)
+     * is simply no id rather than a throw.
+     */
     static @Nullable Identifier resolvePath(String path, Identifier resource, @Nullable String tilde) {
         boolean fromTilde = tilde != null && path.startsWith("~/");
         String rest = fromTilde ? path.substring(2) : path;
@@ -492,8 +533,18 @@ public final class OptiGuiRules {
         long colons = rest.chars().filter(c -> c == ':').count();
         if (colons == 1) return Identifier.tryParse(rest);
         if (colons > 1) return null;
-        Path root = Path.of(fromTilde ? tilde + "/." : resource.getPath());
-        String resolved = root.resolveSibling(rest).normalize().toString().replace('\\', '/');
+        // The sibling: the folder the root is in, then the path.
+        String root = fromTilde ? tilde + "/." : resource.getPath();
+        String joined = root.substring(0, root.lastIndexOf('/') + 1) + rest;
+        // Normalised as Path.normalize does: "." and empty names dropped, a name and the ".."
+        // after it cancelled; a ".." with nothing before it is kept (and refused below).
+        List<String> names = new ArrayList<>();
+        for (String name : joined.split("/")) {
+            if (name.isEmpty() || name.equals(".")) continue;
+            if (name.equals("..") && !names.isEmpty() && !names.getLast().equals("..")) names.removeLast();
+            else names.add(name);
+        }
+        String resolved = String.join("/", names).replace('\\', '/');
         if (resolved.contains("..")) return null;
         return Identifier.tryBuild(resource.getNamespace(), resolved);
     }
@@ -549,7 +600,7 @@ public final class OptiGuiRules {
     // In the game
 
     private static volatile @Nullable Rules rules;
-    // ponytail: one answer per section context, dropped on a reload; a screen shows a handful of containers.
+    // ponytail: one answer per section context, kept while a screen is open (the key leaves out where the player is, the biome and the date, which don't change under an open screen) and dropped when it closes.
     private static final Map<Key, Identifier> ANSWERS = new ConcurrentHashMap<>();
 
     private record Key(Identifier texture, Identifier block, String name, BlockPos pos, @Nullable Boolean large) {}
@@ -566,6 +617,11 @@ public final class OptiGuiRules {
     /** A resource reload: the rules are read again from the new packs on their next use. */
     public static void onReload() {
         rules = null;
+        ANSWERS.clear();
+    }
+
+    /** The screen the answers were for closed: the next one works its sections out afresh. */
+    public static void screenClosed() {
         ANSWERS.clear();
     }
 
@@ -600,16 +656,25 @@ public final class OptiGuiRules {
         });
     }
 
-    /** The rules of the active packs, read on first use after a reload. */
+    /**
+     * The rules of the active packs, read on first use after a reload. Never throws: rules
+     * that can't be read at all are none, said once and kept until the next reload, so a
+     * frame never tries again.
+     */
     private static Rules rules() {
         Rules r = rules;
         if (r != null) return r;
-        ResourceManager rm = Minecraft.getInstance().getResourceManager();
-        List<Source> ini = read(rm.listResources("gui", id -> id.getNamespace().equals("optigui") && id.getPath().endsWith(".ini")));
-        List<Source> props = read(rm.listResources("optifine/gui/container",
-                id -> id.getNamespace().equals(Identifier.DEFAULT_NAMESPACE) && id.getPath().endsWith(".properties")));
-        r = load(ini, props, defaultTextures(), id -> rm.getResource(id).isPresent(), OptiGuiRules::modLoaded);
-        LOG.debug("{} OptiGUI rules from {} files", r.size(), ini.size() + props.size());
+        try {
+            ResourceManager rm = Minecraft.getInstance().getResourceManager();
+            List<Source> ini = read(rm.listResources("gui", id -> id.getNamespace().equals("optigui") && id.getPath().endsWith(".ini")));
+            List<Source> props = read(rm.listResources("optifine/gui/container",
+                    id -> id.getNamespace().equals(Identifier.DEFAULT_NAMESPACE) && id.getPath().endsWith(".properties")));
+            r = load(ini, props, defaultTextures(), id -> rm.getResource(id).isPresent(), OptiGuiRules::modLoaded);
+            LOG.debug("{} OptiGUI rules from {} files", r.size(), ini.size() + props.size());
+        } catch (Exception e) {
+            LOG.warn("Couldn't read the packs' OptiGUI rules; region sections keep their own container art: {}", e.toString());
+            r = Rules.NONE;
+        }
         rules = r;
         return r;
     }
@@ -683,11 +748,16 @@ public final class OptiGuiRules {
                 LOG.warn("OptiGUI has no TextureReplacer.replaceTexture; the open screen's own container keeps its texture: {}", e.toString());
             }
         }
-        if (replaceTexture == null) return texture;
+        MethodHandle replace = replaceTexture;
+        if (replace == null) return texture;
         try {
-            Identifier out = (Identifier) replaceTexture.invokeExact(texture);
+            Identifier out = (Identifier) replace.invokeExact(texture);
             return out == null ? texture : out;
         } catch (Throwable t) {
+            // Said once; OptiGUI isn't asked again, so the open screen's own container keeps
+            // its texture from here on.
+            LOG.warn("OptiGUI's TextureReplacer.replaceTexture threw; the open screen's own container keeps its texture", t);
+            replaceTexture = null;
             return texture;
         }
     }
