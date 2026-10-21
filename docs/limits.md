@@ -9,7 +9,7 @@ These are not planned. Use vanilla or another library.
 - A config framework (option types, save files, a generated screen). MenuKit provides the controls, tabs and settings rows. Where a value lives and how it saves is up to the mod. For a generated config screen, use YACL or Cloth Config.
 - Chat and the F3 overlay. Both render outside the `Screen` system `VanillaScreenPanelAdapter` targets.
 - Nested panels. A panel holds elements only.
-- Themes and skins. `PanelStyle` and the two looks (`ScreenKind.PANEL` and `ScreenKind.DEFAULT`) are the full set. An element's look follows its screen's and cannot be picked per element, panel or screen. MenuKit restyles nothing of vanilla's except the pressed look of buttons ([concepts](concepts.md#one-styling-change)).
+- Themes and skins. `PanelStyle` and the two looks (`ScreenKind.PANEL` and `ScreenKind.DEFAULT`) are the full set. An element's look follows its screen's and cannot be picked per element, panel or screen. A resource pack can restyle the Panel look ([resource packs](resource-packs.md)), but a mod can't. MenuKit restyles nothing of vanilla's except the pressed look of buttons ([concepts](concepts.md#one-styling-change)).
 - Tooltip content. Item Tips (durability and food lines) left MenuKit in 6.0.0 and is a feature of Inventory Plus.
 - Animation beyond HUD notifications and the cycle strip's slide.
 - A cross-mod event bus.
@@ -29,6 +29,23 @@ Behavior that is incomplete in the current release.
 | Offsets and stacking | `.offset(dx, dy)` moves one panel after placement, and siblings stack on its un-nudged size. An offset that pushes a panel over its sibling overlaps it. `.gap(n)` takes 0 or more pixels, so stacked panels can touch but a gap cannot overlap them. |
 | Item picker | The components box offers no suggestions while the player types, although vanilla's `/give` does. Its errors are vanilla's. Search reads names, ids and tooltips, not `#tags` or `@mods`. No quick-move with the number keys or a double click to collect. The dialog opens only on a screen. Emptying from the keyboard is not supported. With no world open, the first picker shown loads vanilla's data once (a short pause), and enchantments and stacks are vanilla's own. |
 | A look per element | None since 6.1.0, and 7.0.0 removed `ControlStyle`. No switch makes a control differ from its screen's look (a MenuKit-grey button in the Default look). Draw such a control with a sprite of your own (`Button.builder().sprite(...)`). |
+
+## Container region
+
+| Area | Current behavior |
+|---|---|
+| Mods that work out slot positions themselves | A mod that computes where a container's slot is (`leftPos + 8 + column * 18`) instead of reading the slot's `x` and `y`, or hit-tests slots itself instead of asking vanilla, can point at the wrong place, since the slots are where the list puts them and the screen's bounds are both panels'. |
+| The screen's own container | A section with no `source` is the block under the crosshair as the screen opened, when that block holds a container the screen's size. A screen opened by a key while looking at another container of that size takes that container's art and name. Give such a section a `source`. |
+
+## Resource packs
+
+| Area | Current behavior |
+|---|---|
+| Fully textured art | A container texture whose fill isn't one flat color (wood grain, a picture over the inventory), or whose edges have no plain stretch to tile, can't be cut, and the panel keeps MenuKit's look. |
+| Per-color art | Art per dye or per name comes only through OptiGUI rules, and MenuKit follows them only while OptiGUI 2.x is installed. Without it, every shulker box section takes the pack's one shulker box texture. |
+| OptiGUI selectors | Selectors no section can meet never match, so a rule that uses one never applies to a section: `comparator.output`, `beacon.levels`, `book.page.count`, `book.page.current`, and the horse, donkey, llama and villager selectors. Rules for entities, the beacon and the player inventory never apply to a section. `interaction.hand` always reads as the main hand. |
+| Fallback names | A section whose title a pack blanks, with no `name(...)`, is called by vanilla's built-in English for its title's key ("Shulker Box"), whatever the player's language. Give it a `name(...)`, such as the item's own name, to have it translated. |
+| HUD panels | They keep MenuKit's art and follow only a pack's override of `menukit:panel_raised`, not container art. |
 
 ## Element gaps
 

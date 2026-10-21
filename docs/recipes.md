@@ -685,7 +685,22 @@ ContainerRegion.section("mymod:opened-box")
 
 Result: while the session is open, the chest's screen is two panels: the chest and the box as one column in the container list, and the player's inventory in its own panel below it. The column grows before it scrolls: the two panels stay centred on the screen as one block while they fit, the column's top moving up and the inventory panel down as it grows, and it scrolls only once the screen is full, by the wheel anywhere nothing else wants it, by its scrollbar (inside the list's frame), and by carrying an item to its top or bottom edge. A shift-click into the box while it is scrolled out of view scrolls to where the item landed. Each grid is nine-wide rows of slot elements under its section's title, the title 11 pixels above the first row as vanilla's is; `chestGrid` presents the chest's own slots, since the container list takes the place of the screen's own grid. Both panels are the screen's background, and the slots draw with the list, so other mods' buttons on them draw over them, slots included, and keep their clicks. Another mod's sections on the same screen join the same column, by their `order`. The screen's bounds are the rectangle around both panels, so panels on the menu frame and other mods' buttons by the screen's edges go around both; when the box opens or closes while the screen is open, the screen is laid out again as a window resize lays it out, so those buttons follow. Under a resource pack the box's part of the list takes the pack's shulker box art. A pack that blanks vanilla's container titles blanks both titles, so the box shows its item's name instead ("Lime Shulker Box"), and the chest vanilla's word for it.
 
-A grid from a slot library can decide the section by itself: a section shows only while its content is visible, so with content that hides itself when its slot group is not on the open menu, or not revealed (SlotKit's slot elements do), the section needs no `visibleWhen`.
+A slot group can decide its section by itself. A section shows only while its content is visible, and SlotKit's slot elements hide themselves while their group is not on the open menu, not revealed or past its active count. A `Flow` holding them still counts as visible when every slot in it is hidden, so give the grid a `visibleWhen` that asks its slots, and the section needs none of its own:
+
+```java
+static PanelElement groupGrid(List<PanelElement> slots) {
+    // Nine-wide rows of the group's slots, shown while any one of them is.
+    Flow.Builder grid = Flow.builder().vertical().gap(0, 0);
+    for (int row = 0; row * 9 < slots.size(); row++) {
+        Flow.Builder line = Flow.builder().gap(0, 0);
+        for (PanelElement slot : slots.subList(row * 9, Math.min(slots.size(), row * 9 + 9))) line.add(slot);
+        grid.add(line.build());
+    }
+    return grid.visibleWhen(() -> slots.stream().anyMatch(PanelElement::isVisible)).build();
+}
+```
+
+Fill `slots` with SlotKit's `SlotElement.builder().slot(group, i).build()`, one for each slot of a created group, and the screen's own grid with `slot(Address.menuSlot(menuType, i))`. On a menu without the group (a double chest, say) there is then no section, and when the group is revealed or hidden while the screen is open, the section opens or closes with it.
 
 To put a button by one of the two panels rather than by the whole screen, place it on the panel's anchor:
 
@@ -700,3 +715,35 @@ new AnchorPanelAdapter(sortInventory).on(ContainerRegion.INVENTORY);
 ```
 
 Result: each button stays by its panel as the container list grows, shrinks and scrolls, and is gone on screens the region is not on.
+
+## A shulker box from an item, and one placed in the world, each in its own art
+
+Needs: MenuKit 7.4.0. For sections that show a particular container, so that with OptiGUI installed a pack's rules give each one the art it would have on its own screen (a lime box's lime art, a box the player named "Ores" its named art).
+
+```java
+// A box the player opened from its item, and a box placed in the world, each named for what it is.
+ContainerRegion.section("mymod:held-box")
+        .title(() -> Component.translatable("container.shulkerBox"))
+        .name(() -> session.box().getHoverName())                    // "Lime Shulker Box", or the player's name for it
+        .source(() -> ContainerRegion.Source.of(session.box()))      // its dye and its name; where it is, the player is
+        .texture(ContainerRegion.SHULKER_BOX)
+        .content(heldBoxGrid)
+        .on(ContainerScreen.class)
+        .order(10)
+        .visibleWhen(() -> session.isOpen())
+        .declare();
+ContainerRegion.section("mymod:placed-box")
+        .title(() -> Component.translatable("container.shulkerBox"))
+        .name(() -> session.placedBox().getBlockState().getBlock().getName())
+        .source(() -> ContainerRegion.Source.of(session.placedBox()))  // its block, its custom name, its biome and height
+        .texture(ContainerRegion.SHULKER_BOX)
+        .content(placedBoxGrid)
+        .on(ContainerScreen.class)
+        .order(20)
+        .visibleWhen(() -> session.placedBox() != null)
+        .declare();
+```
+
+Result: on a chest's screen, the held box and the placed box stack below the chest in the container list. With OptiGUI 2.x and a pack that colors shulker boxes, each box's part of the list takes its own dye's art, whatever screen it is on, and the chest keeps the chest's. Without OptiGUI, both take the pack's plain shulker box art, and `source` changes nothing. `texture` must be the texture of the container the source names, since OptiGUI's rules replace that texture and no other. Where a pack blanks vanilla's titles, the held box shows its item's name and the placed box its block's ("Lime Shulker Box"), since both are names packs leave alone. A `source` read while its container isn't known can return `null`, and the section then takes what OptiGUI picked for the open screen.
+
+A section with no `source` is the screen's own container. It takes the art and the name of the block the screen was opened on, so the chest's own section in the recipe above needs none.
