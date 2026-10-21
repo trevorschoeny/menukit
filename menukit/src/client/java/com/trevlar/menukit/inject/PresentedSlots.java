@@ -5,6 +5,7 @@ import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.world.Container;
 import net.minecraft.world.inventory.Slot;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -13,10 +14,12 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 
 /**
  * Which slots each panel shows this frame on a container screen, and the draw of
@@ -106,12 +109,26 @@ public final class PresentedSlots {
     private static Drawer drawer = PresentedSlots::drawOnScreen;
 
     /**
+     * Which slot a {@link #LAST_PANEL} entry is, inside its container: the container's own
+     * index and the slot's class, all vanilla fields. A slot object made again for the same
+     * place (creative makes a fresh wrapper of every inventory slot on every tab switch, with
+     * the same container, the same index and the same class) is the same key, so it keeps its
+     * panel; a slot of another class at that index (the wrapped slot itself) is not.
+     */
+    record SlotKey(int containerSlot, Class<?> type) {
+        static SlotKey of(Slot slot) {
+            return new SlotKey(slot.getContainerSlot(), slot.getClass());
+        }
+    }
+
+    /**
      * The panel that last showed each slot, whatever the frame, and the panels drawn this
      * frame: so a slot library can tell a slot whose panel is hidden (hand a vanilla slot
-     * back to its place) from one scrolled out of a shown panel (park it). Weak and
-     * identity-keyed: a slot and a panel are objects, and a closed screen's go with it.
+     * back to its place) from one scrolled out of a shown panel (park it). Keyed by the
+     * slot's container, weakly (a closed container's entries go with it), then by
+     * {@link SlotKey}, so the answer survives the slot object being made again.
      */
-    private static final Map<Slot, Panel> LAST_PANEL = new java.util.WeakHashMap<>();
+    private static final Map<Container, Map<SlotKey, Panel>> LAST_PANEL = new WeakHashMap<>();
     private static final Set<Panel> DRAWN = Collections.newSetFromMap(new IdentityHashMap<>());
 
     // The frame
@@ -157,7 +174,7 @@ public final class PresentedSlots {
      * panel ever showed the slot.
      */
     public static boolean panelShowing(Slot slot) {
-        Panel panel = LAST_PANEL.get(slot);
+        Panel panel = lastPanel(slot);
         return panel != null && DRAWN.contains(panel);
     }
 
@@ -167,7 +184,8 @@ public final class PresentedSlots {
      * scrolled out of view (7.4.0).
      */
     public static @Nullable Panel lastPanel(Slot slot) {
-        return LAST_PANEL.get(slot);
+        Map<SlotKey, Panel> panels = LAST_PANEL.get(slot.container);
+        return panels == null ? null : panels.get(SlotKey.of(slot));
     }
 
     /** The host has drawn the panel's elements. */
@@ -180,7 +198,7 @@ public final class PresentedSlots {
      * during the place pass; a slot two panels report belongs to the first.
      */
     public static void record(Slot slot) {
-        if (current != null) LAST_PANEL.put(slot, current);
+        if (current != null) LAST_PANEL.computeIfAbsent(slot.container, c -> new HashMap<>()).put(SlotKey.of(slot), current);
         if (background && current != null) {
             if (BELOW_ALL.add(slot)) BELOW.computeIfAbsent(current, p -> new ArrayList<>()).add(slot);
             return;
@@ -223,7 +241,7 @@ public final class PresentedSlots {
      * not this frame's record. A slot vanilla draws (the inventory's) is never one.
      */
     public static boolean underWidget(AbstractContainerScreen<?> screen, @Nullable Slot slot, double mouseX, double mouseY) {
-        Panel panel = slot == null ? null : LAST_PANEL.get(slot);
+        Panel panel = slot == null ? null : lastPanel(slot);
         return panel != null && panel.isBackground() && panel.isVisible()
                 && SlotScreenDispatcher.widgetAt(screen, mouseX, mouseY);
     }
