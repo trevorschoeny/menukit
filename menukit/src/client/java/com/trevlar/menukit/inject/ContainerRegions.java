@@ -28,7 +28,6 @@ import net.fabricmc.fabric.api.event.Event;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.gui.screens.inventory.ShulkerBoxScreen;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
@@ -884,11 +883,14 @@ public final class ContainerRegions {
     /**
      * The container texture {@code screen} draws its own image from, whose inventory half
      * the inventory panel takes, so it matches the inventory vanilla would draw on that
-     * screen under the pack: with OptiGUI, the texture OptiGUI gives the screen's own
-     * container. A shulker box's screen is the shulker box's; any other the chest's.
+     * screen under the pack: the texture its background pass blits ({@link ScreenBackground#image}:
+     * a hopper's screen is the hopper's), and with OptiGUI the art OptiGUI gives the screen's
+     * own container for it.
      */
+    // ponytail: the chest's until a screen of its kind has drawn its image once, so the first frame of the first such screen opened may show the chest's look.
     static Identifier screenTexture(@Nullable Screen screen) {
-        return OptiGuiRules.onScreen(screen instanceof ShulkerBoxScreen ? PackLook.SHULKER_BOX : PackLook.CHEST);
+        Identifier own = screen == null ? null : ScreenBackground.image(screen);
+        return OptiGuiRules.onScreen(own == null ? PackLook.CHEST : own);
     }
 
     /**

@@ -7,6 +7,9 @@ import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * The screen's background pass, and where the {@link LayerPlan.Layer#BACKGROUND
  * BACKGROUND} layer draws in it (7.4.0).
@@ -30,13 +33,15 @@ import org.jspecify.annotations.Nullable;
  * A screen whose background never reaches the base method gets the layer once its
  * background pass is done.
  *
- * <h3>The screen's own image, replaced</h3>
- * A panel that takes the place of the screen's image (the container region's two panels)
- * hides it for the rest of the pass: a blit of one of vanilla's own container textures
- * ({@code minecraft:textures/gui/container/...}), or the texture an OptiGUI rule swaps it
- * for ({@code OptiGuiRules.isReplacement}: OptiGUI changes the blit's texture before it is
- * drawn), is skipped while the region says so ({@link ContainerRegions#replacesImage}).
- * Nothing else is: another mod's textures and every sprite, fill and text still draw.
+ * <h3>The screen's own image</h3>
+ * The first texture the pass blits after the layer has drawn is the screen's own image
+ * ({@link #image}): what its override blits once the base method returns. It is seen at the
+ * head of the texture blit, before OptiGUI swaps the texture for a pack's rule
+ * ({@code MKContainerImageMixin}), so it is the screen's own texture, whatever OptiGUI later
+ * draws in its place. A panel that takes the place of the image (the container region's two
+ * panels) hides exactly that texture for the rest of the pass, while the region says so
+ * ({@link ContainerRegions#replacesImage}); every other blit, sprite, fill and text in the
+ * pass still draws, another mod's container texture included.
  *
  * <p>Render thread only. A background pass inside another (a screen drawing its parent's)
  * keeps its own state and puts the outer one back.
@@ -48,13 +53,23 @@ public final class ScreenBackground {
 
     /** The screen whose background pass is running, or {@code null}. */
     private static @Nullable Screen pass;
-    /** Whether the background layer has drawn in this pass. */
-    private static boolean drawn;
-    /** Whether the rest of this pass leaves out vanilla's own container image. */
+    /** Whether the background layer has drawn in this pass; whether it is done, so the screen's image comes next. */
+    private static boolean drawn, watching;
+    /** Whether the rest of this pass leaves out the screen's own image. */
     private static boolean hidingImage;
+    /** The screen's own image in this pass once it is seen, or {@code null} before. */
+    private static @Nullable Identifier passImage;
 
-    /** The namespace and path every vanilla container screen's own image is under. */
-    private static final String IMAGE_PATH = "textures/gui/container/";
+    // ponytail: by screen class, so a screen knows its image from its first frame on every opening after the first; a class that blits a different image per instance is right from its second frame.
+    private static final Map<Class<?>, Identifier> IMAGES = new ConcurrentHashMap<>();
+
+    /**
+     * The texture {@code screen}'s background pass blits as its own image, as it gave it
+     * (before any OptiGUI swap), or {@code null} before a screen of its kind has drawn one.
+     */
+    public static @Nullable Identifier image(Screen screen) {
+        return IMAGES.get(screen.getClass());
+    }
 
     /**
      * Around the screen's {@code extractBackground} call: runs it ({@code vanilla}), with
@@ -63,17 +78,21 @@ public final class ScreenBackground {
      */
     public static void around(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY, Runnable vanilla) {
         Screen outerPass = pass;
-        boolean outerDrawn = drawn, outerHiding = hidingImage;
+        boolean outerDrawn = drawn, outerWatching = watching, outerHiding = hidingImage;
+        Identifier outerImage = passImage;
         pass = screen;
-        drawn = false;
+        drawn = watching = false;
         hidingImage = false;
+        passImage = null;
         try {
             vanilla.run();
             if (!drawn) draw(screen, graphics, mouseX, mouseY);
         } finally {
             pass = outerPass;
             drawn = outerDrawn;
+            watching = outerWatching;
             hidingImage = outerHiding;
+            passImage = outerImage;
         }
     }
 
@@ -90,15 +109,24 @@ public final class ScreenBackground {
     private static void draw(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         drawn = true;
         ScreenPanelRegistry.renderBackground(screen, graphics, mouseX, mouseY);
-        // From here to the pass's end the screen's own image would be drawn over the
-        // panels that replace it.
+        // From here to the pass's end the screen's own image comes, and would be drawn over
+        // the panels that replace it. The layer's own blits above are not the image: it is
+        // only looked for from here.
+        watching = true;
         hidingImage = ContainerRegions.replacesImage(screen);
     }
 
-    /** At a blit: whether it is vanilla's own container image (or OptiGUI's swap for it), left out of this pass. */
+    /**
+     * At the head of a texture blit, before OptiGUI's swap: notes the screen's own image (the
+     * first blit after the layer drew) and says whether this blit is it, left out of this pass.
+     */
     public static boolean hidesBlit(Identifier texture) {
-        if (!hidingImage) return false;
-        return (texture.getNamespace().equals(Identifier.DEFAULT_NAMESPACE) && texture.getPath().startsWith(IMAGE_PATH))
-                || com.trevlar.menukit.core.OptiGuiRules.isReplacement(texture);
+        Screen screen = pass;
+        if (screen == null || !watching) return false;
+        if (passImage == null) {
+            passImage = texture;
+            if (!texture.equals(IMAGES.get(screen.getClass()))) IMAGES.put(screen.getClass(), texture);
+        }
+        return hidingImage && texture.equals(passImage);
     }
 }

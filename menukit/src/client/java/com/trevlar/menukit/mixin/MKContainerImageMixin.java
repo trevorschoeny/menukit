@@ -13,19 +13,21 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Leaves vanilla's own container image out of a background pass whose panels replace it
- * (7.4.0; {@link ScreenBackground#hidesBlit}): the chest texture of a screen the container
- * region is on. Every textured blit by location goes through this one method; outside such
- * a pass, and for any other texture, it draws as always.
+ * The screen's own image in its background pass (7.4.0; {@link ScreenBackground#hidesBlit}):
+ * noted, and left out while panels replace it (the container region's). Every texture blit
+ * by location reaches this overload. Priority 800: its head runs before OptiGUI's (priority
+ * 900) swap of the texture, so the screen's own texture is what is seen, and a hidden image
+ * is never swapped at all. Outside such a pass, and for any other texture, it draws as always.
  */
 @ApiStatus.Internal
-@Mixin(GuiGraphicsExtractor.class)
+@Mixin(value = GuiGraphicsExtractor.class, priority = 800)
 public abstract class MKContainerImageMixin {
 
-    @Inject(method = "innerBlit(Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIIIFFFFI)V",
+    @Inject(method = "blit(Lcom/mojang/renderpearl/api/pipeline/RenderPipeline;Lnet/minecraft/resources/Identifier;IIFFIIIIIII)V",
             at = @At("HEAD"), cancellable = true, require = 1)
-    private void mk$hideContainerImage(RenderPipeline pipeline, Identifier location, int x0, int x1, int y0, int y1,
-                                       float u0, float u1, float v0, float v1, int color, CallbackInfo ci) {
+    private void mk$screenImage(RenderPipeline pipeline, Identifier location, int x, int y, float u, float v, int width,
+                                int height, int uWidth, int vHeight, int textureWidth, int textureHeight, int color,
+                                CallbackInfo ci) {
         if (ScreenBackground.hidesBlit(location)) ci.cancel();
     }
 }
