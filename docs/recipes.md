@@ -704,7 +704,7 @@ Result: the tray draws right where the chest screen draws its own image, before 
 
 ## Stack containers in one scrolling column above the inventory
 
-Needs: MenuKit 7.4.0, and a slot library's elements for the grids (SlotKit's `SlotElement`). For a mod that opens more containers on a chest's screen, the way Shulkers in Inventory opens a shulker box below the chest.
+Needs: MenuKit 7.4.0, and a slot library's elements for the grids (SlotKit's `SlotGroupElement`). For a mod that opens more containers on a chest's screen, the way Shulkers in Inventory opens a shulker box below the chest.
 
 ```java
 // The chest's own grid, then the box the player opened below it: one column above the inventory.
@@ -728,22 +728,7 @@ Result: while the session is open, the chest's screen is two panels: the chest a
 
 A section with no block behind it, such as a mod's own slot group, has no `source` to take its art from. `texture(...)` names the container texture it stands for, `ContainerRegion.CHEST` by default, and `name(...)` what it is called where a pack blanks its title.
 
-A slot group can show and hide its section by itself. A section shows only while its content is visible, and SlotKit's slot elements hide themselves while their group is not on the open menu, not revealed or past its active count. A `Flow` holding them still counts as visible when every slot in it is hidden, so give the grid a `visibleWhen` that checks its slots, and the section needs none of its own:
-
-```java
-static PanelElement groupGrid(List<PanelElement> slots) {
-    // Nine-wide rows of the group's slots, shown while any one of them is.
-    Flow.Builder grid = Flow.builder().vertical().gap(0, 0);
-    for (int row = 0; row * 9 < slots.size(); row++) {
-        Flow.Builder line = Flow.builder().gap(0, 0);
-        for (PanelElement slot : slots.subList(row * 9, Math.min(slots.size(), row * 9 + 9))) line.add(slot);
-        grid.add(line.build());
-    }
-    return grid.visibleWhen(() -> slots.stream().anyMatch(PanelElement::isVisible)).build();
-}
-```
-
-Fill `slots` with SlotKit's `SlotElement.builder().slot(group, i).build()`, one for each slot of a created group, and the screen's own grid with `slot(Address.menuSlot(menuType, i))`. On a menu without the group (a double chest, say) there is then no section, and when the group is revealed or hidden while the screen is open, the section opens or closes with it.
+A slot group can show and hide its section by itself. A section shows only while its content is visible, so give it SlotKit's `SlotGroupElement.of(groupId)` as its content: one element that lays the group's slots out in rows of nine, as vanilla's grid, and hides itself while its group is not on the open menu or not revealed, or while every one of its slots is past its active count. The section then needs no `visibleWhen` of its own. On a menu without the group (a double chest, say) there is no section, and when the group is revealed or hidden while the screen is open, the section opens or closes with it. `SlotGroupId.category(SlotGroupCategory.CHEST_STORAGE)` is the screen's own chest grid, and a created group's `id()` is that group. For a single slot, use `SlotElement.builder().slot(address).build()`.
 
 To put a button by one of the two panels rather than by the whole screen, place it on the panel's anchor:
 
