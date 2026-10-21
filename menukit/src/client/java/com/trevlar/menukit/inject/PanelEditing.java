@@ -22,6 +22,7 @@ import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
+import java.util.BitSet;
 import java.util.List;
 
 /**
@@ -30,9 +31,10 @@ import java.util.List;
  * with no screen open, it opens a clear screen over the HUD where HUD panels can be moved.
  *
  * <p>While editing, every movable placed panel ({@link PanelHost#movable}) has an outline and a
- * hint line sits at the top of the screen. Nothing else takes a click: every mouse button is
+ * hint line sits at the top of the screen. Nothing else takes a click: every mouse press is
  * eaten at the {@code MouseHandler}, before any screen, widget, slot or other mod sees it
- * ({@code MKModalMouseHandlerMixin}). A left-drag moves the panel under the cursor; dropping it
+ * ({@code MKModalMouseHandlerMixin}), and so is its release. A release whose press edit mode
+ * never saw (a button held as edit mode came on) goes on, so whatever took the press ends it. A left-drag moves the panel under the cursor; dropping it
  * stores its place for both modes, or with Shift held for the current mode only
  * ({@link PanelPositions}). A right-click resets it in every mode. Esc or the key leaves; Esc
  * doesn't also close the screen. Every other key reaches the screen as usual.
@@ -59,6 +61,14 @@ public final class PanelEditing {
     private record Drag(Panel panel, int grabX, int grabY, int startX, int startY) {}
 
     private static @Nullable Drag drag;
+
+    /**
+     * The buttons whose press edit mode ate (the key's own included) and whose release it eats
+     * too, so the two match: vanilla never sees half of a click. Any other release goes on, as
+     * the modal path's does ({@code ScreenPanelRegistry.dispatchCoveredRelease}), else vanilla's
+     * active button and a quick-craft or an element's drag begun before edit mode never end.
+     */
+    private static final BitSet EATEN = new BitSet();
 
     /** The clear screen over the HUD that HUD panels are moved on: no background, no pause. */
     public static final class HudScreen extends Screen {
@@ -164,31 +174,47 @@ public final class PanelEditing {
     // The mouse, from MouseHandler.onButton before any screen sees it
 
     /**
-     * One mouse button event on the open screen at {@code (x, y)} (GUI pixels). In edit mode
-     * every one is taken: a left press picks up the panel under it, its release drops it, and a
-     * right press resets it. A press of the key, when it is bound to a mouse button, toggles
-     * edit mode. {@code action}: 1 press, 0 release.
+     * One mouse button event at {@code (x, y)} (GUI pixels), with or without a screen open. In
+     * edit mode every press on its screen is taken: a left press picks up the panel under it
+     * and a right press resets it. A press of the key, when it is bound to a mouse button,
+     * toggles edit mode. A release is taken exactly when its press was, and a left one drops
+     * the panel being dragged. {@code action}: 1 press, 0 release.
      *
      * @return whether to eat the event, so nothing else on the screen sees it
      */
     public static boolean onButton(int button, int action, boolean shift, double x, double y) {
         Screen s = Minecraft.getInstance().gui.screen();
+        if (action == 0) return release(s, button, x, y, shift);
         if (s == null) return false;
-        if (action == 1 && boundTo(button) && !assigningKey(s)) {
+        if (boundTo(button) && !assigningKey(s)) {
             toggle(s);
-            return true;
+            return eat(button);
         }
         if (s != editing) return false;
-        if (action == 1) {
-            PanelHost.Placed hit = panelAt(s, x, y);
-            if (hit != null && button == LEFT) {
-                drag = new Drag(hit.panel(), (int) x - hit.x(), (int) y - hit.y(), hit.x(), hit.y());
-            } else if (hit != null && button == RIGHT) {
-                PanelPositions.reset(hit.panel().id());
-            }
-        } else if (action == 0 && button == LEFT && drag != null) {
-            drop(s, x, y, shift);
+        PanelHost.Placed hit = panelAt(s, x, y);
+        if (hit != null && button == LEFT) {
+            drag = new Drag(hit.panel(), (int) x - hit.x(), (int) y - hit.y(), hit.x(), hit.y());
+        } else if (hit != null && button == RIGHT) {
+            PanelPositions.reset(hit.panel().id());
         }
+        return eat(button);
+    }
+
+    /** Notes that edit mode ate {@code button}'s press, so it eats the release too. Always true. */
+    private static boolean eat(int button) {
+        EATEN.set(button);
+        return true;
+    }
+
+    /**
+     * A release: eaten only when its press was ({@link #EATEN}), whatever happened in between
+     * (edit mode left, the screen closed), and then a left one drops a drag in progress. Any
+     * other goes on to vanilla and the screen.
+     */
+    private static boolean release(@Nullable Screen s, int button, double x, double y, boolean shift) {
+        if (!EATEN.get(button)) return false;
+        EATEN.clear(button);
+        if (button == LEFT && drag != null && s != null && s == editing) drop(s, x, y, shift);
         return true;
     }
 
