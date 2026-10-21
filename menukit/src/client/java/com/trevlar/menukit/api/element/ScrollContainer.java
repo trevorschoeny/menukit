@@ -240,11 +240,6 @@ public class ScrollContainer extends AbstractPanelElement {
      */
     private final boolean steadyLane;
     /**
-     * The wheel never scrolls it ({@link Builder#wheelLast}): whoever built it scrolls it
-     * once every other handler declined the turn (the container region, 7.4.0).
-     */
-    private final boolean wheelLast;
-    /**
      * Fitting its width: the lane the children were last laid out beside, {@link #LANE}
      * or 0. Layout state, not a frame cache: render lays the children out again when
      * the content's overflow no longer matches it.
@@ -266,7 +261,6 @@ public class ScrollContainer extends AbstractPanelElement {
         this.fitHeight = b.fitHeight;
         this.fill = b.fill;
         this.steadyLane = b.steadyLane;
-        this.wheelLast = b.wheelLast;
         if (fitWidth) this.width = -1;   // its content's until the panel lays it out
         if (b.scrollGet != null) {
             this.scrollGet = b.scrollGet;
@@ -697,7 +691,6 @@ public class ScrollContainer extends AbstractPanelElement {
         // mouse is inside the viewport.
         double lx = in.mouseX() - (in.originX() + childX);
         if (lx < viewportWidth() && ChildDispatch.mouseScrolled(content, inner, scrollX, scrollY)) return true;
-        if (wheelLast) return false;   // its owner scrolls it, last (Builder.wheelLast)
         ScreenKind kind = in.kind();
         if (!canScroll(kind)) return false;
         setScroll(kind, Scroller.wheel(scroll(kind), scrollY, contentHeight(kind), viewHeight(kind)));
@@ -734,7 +727,7 @@ public class ScrollContainer extends AbstractPanelElement {
         private @Nullable DoubleSupplier scrollGet;
         private @Nullable DoubleConsumer scrollSet;
         private boolean band = true;
-        private boolean fitWidth, fitHeight, fill, steadyLane, wheelLast;
+        private boolean fitWidth, fitHeight, fill, steadyLane;
 
         protected Builder() {}
 
@@ -747,18 +740,6 @@ public class ScrollContainer extends AbstractPanelElement {
         /** Keeps the scrollbar lane while everything fits ({@link #steadyLane}): the item picker's grid. */
         Builder steadyLane() {
             this.steadyLane = true;
-            return this;
-        }
-
-        /**
-         * The wheel does not scroll this container (its children still get the wheel):
-         * its owner, which holds the scroll through {@link #state}, scrolls it once vanilla
-         * and every other handler have declined the turn. The container region's own
-         * scroll area (7.4.0); not for a consumer's container.
-         */
-        @org.jetbrains.annotations.ApiStatus.Internal
-        public Builder wheelLast() {
-            this.wheelLast = true;
             return this;
         }
 

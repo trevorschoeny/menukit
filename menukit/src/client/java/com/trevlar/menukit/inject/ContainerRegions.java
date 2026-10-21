@@ -80,9 +80,10 @@ import java.util.function.Supplier;
  *   <li><b>The inventory panel</b> is a frame and a slot frame under each of the player's
  *       inventory slots, where vanilla drew them; vanilla's own inventory slots and
  *       "Inventory" label stay live and where vanilla put them.</li>
- *   <li><b>The scroll area</b> is a {@link ScrollContainer} built {@code wheelLast()}: its
- *       children still get the wheel, but it never scrolls itself on one. This class
- *       scrolls it, after everyone else ({@link #wheel}).</li>
+ *   <li><b>The scroll area</b> is a {@link ScrollContainer} in a background panel, so it
+ *       gets the wheel only after everyone else, like every background panel's elements
+ *       (step 3 below): over it, it scrolls itself; anywhere else this class scrolls it
+ *       ({@link #wheel}). Both move the same scroll ({@code state.scroll}) the same step.</li>
  *   <li><b>Slots</b> clip at its edges ({@code SlotClip}), and a row out of view is not
  *       rendered at any depth ({@code ChildDispatch.render}), so its library parks it.</li>
  * </ul>
@@ -123,7 +124,8 @@ import java.util.function.Supplier;
  *   <li>Fabric's {@code afterMouseScroll}, in a phase ordered after the default one, so
  *       after every listener registered in it, whenever registered
  *       ({@link ScreenPanelRegistry#listenLast}): an unconsumed turn goes to the background
- *       panels' elements, then scrolls the region, wherever the mouse is.</li>
+ *       panels' elements (over the list, its own scroll area), then scrolls the region,
+ *       wherever the mouse is.</li>
  * </ol>
  * A mod that uses the turn in step 2 or in its own {@code afterMouseScroll} listener (Mouse
  * Tweaks over any slot) answers "used", so the region does not move.
@@ -221,7 +223,7 @@ public final class ContainerRegions {
         PanelElement content = Flow.builder().vertical().gap(0, 0).at(0, RegionLayout.CONTENT_TOP)
                 .add(column).add(new Spacer(() -> 0, () -> RegionLayout.CONTENT_BOTTOM)).build();
         scrollArea = ScrollContainer.builder().size(RegionLayout.CONTENT_WIDTH + RegionLayout.LANE, 1)
-                .fillHeight().wheelLast()
+                .fillHeight()
                 .state(() -> state.scroll, v -> state.scroll = v)
                 .content(List.of(content)).build();
         // The viewport takes the panel's height below VIEW_TOP, less the frame's bottom border.
@@ -233,16 +235,16 @@ public final class ContainerRegions {
                 .position(PanelPosition.pixel(ContainerRegions::origin))
                 .add(new RegionLooks.Backdrop()).add(view)
                 .build()
-                .visibleWhen(() -> state.geometry != null)
-                .surfaceLooks(RegionLooks::listSurfaceAt);
+                .visibleWhen(() -> state.geometry != null);
+        PanelHost.surfaceLooks(panel, RegionLooks::listSurfaceAt);
         adapter = new ScreenPanelAdapter(panel, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
         if (inventoryPanel == null) {
             inventoryPanel = Panel.builder(INVENTORY_PANEL_ID).style(PanelStyle.NONE).background()
                     .position(PanelPosition.pixel(ContainerRegions::inventoryOrigin))
                     .add(new RegionLooks.InventoryFrame())
                     .build()
-                    .visibleWhen(() -> state.geometry != null && state.applied != null)
-                    .surfaceLooks(RegionLooks::inventorySurfaceAt);
+                    .visibleWhen(() -> state.geometry != null && state.applied != null);
+            PanelHost.surfaceLooks(inventoryPanel, RegionLooks::inventorySurfaceAt);
             new ScreenPanelAdapter(inventoryPanel, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
         }
     }

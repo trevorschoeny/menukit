@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -89,6 +90,20 @@ import java.util.function.Supplier;
 public final class PanelHost {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("menukit");
+
+    /**
+     * Panels with surface looks of their own (7.4.0): what each point of the panel is, for its
+     * slot frames and its text, in place of the host's (one look for a whole Panel-look raised
+     * panel). Only MenuKit's own panels have them, the container region's two, set from this
+     * package ({@link #surfaceLooks(Panel, PackLook.SurfaceLooks)}), so they are no part of
+     * {@code Panel}'s API. Weak: a panel built again lets the old one go.
+     */
+    private static final Map<Panel, PackLook.SurfaceLooks> SURFACE_LOOKS = Collections.synchronizedMap(new WeakHashMap<>());
+
+    /** Gives {@code panel} its own surface looks ({@link #SURFACE_LOOKS}). */
+    static void surfaceLooks(Panel panel, PackLook.SurfaceLooks looks) {
+        SURFACE_LOOKS.put(panel, Objects.requireNonNull(looks, "looks"));
+    }
 
     // Types
 
@@ -981,7 +996,7 @@ public final class PanelHost {
         // panel with surface looks of its own (the container region's, per section) says
         // which look each point takes.
         boolean surface = screenKind == ScreenKind.PANEL && kind != Kind.HUD && panel.getStyle() == PanelStyle.RAISED;
-        PackLook.SurfaceLooks surfaceLooks = panel.surfaceLooks();
+        PackLook.SurfaceLooks surfaceLooks = SURFACE_LOOKS.get(panel);
         if (surfaceLooks == null && surface) {
             PackLook.Look look = PackLook.panel();
             surfaceLooks = (sx, sy) -> look;
