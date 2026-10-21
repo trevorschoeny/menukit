@@ -116,7 +116,7 @@ Nothing here is needed to upgrade.
 
 ## To 7.4.0
 
-Nothing breaks: a mod built for 7.3.0 compiles and works as before, with no code change. Nothing was removed. 7.4.0 adds the game mode a declaration is for ([Mode scope](concepts.md#mode-scope)), and deprecates the forms that don't say it. They keep working, mean `ModeScope.BOTH`, and are removed at 8.0.0.
+Nothing was removed, and a mod built for 7.3.0 compiles and works as before with no code change, except in the two cases under [Two things to check](#two-things-to-check). 7.4.0 adds the game mode a declaration is for ([Mode scope](concepts.md#mode-scope)), and deprecates the forms that don't say it. They keep working, mean `ModeScope.BOTH`, and are removed at 8.0.0.
 
 ### The dependency
 
@@ -155,6 +155,11 @@ A panel on an anchor:
 
 Where a panel used to check `instanceof CreativeModeInventoryScreen`, or build a second panel for creative, give it one placement per mode instead: `in(ModeScope.SURVIVAL, ...)` and `in(ModeScope.CREATIVE, ...)` ([recipe](recipes.md#put-a-panel-somewhere-else-in-creative)). `in` and `position` don't mix on one panel, and each scope is declared once; either mistake throws at build. A screen keeps one `main()` panel in each mode ([Placement](concepts.md#placement)).
 
+### Two things to check
+
+- **A custom element that draws outside its own box.** `ChildDispatch.render` now skips a child whose box is wholly outside the current scissor, at any depth (inside a scroll area, a `Tabs` body, any clipping container), so a slot row scrolled away is not drawn over what lies past the edge. A custom element that draws past its own box (a glow, a badge over its edge) is now not drawn at all while its box is out of the clip, even where that overhang would have reached into view. Make its box cover what it draws. An element with an open popover is still drawn.
+- **A `switch` over `OutsideRegion`.** `OutsideRegion` gained `LEFT_CENTER` and `RIGHT_CENTER`. A `switch` expression over `PanelPosition.region()`, or any `OutsideRegion`, with no `default` that compiled against 7.3.0 doesn't compile against 7.4.0: add cases for the two, or a `default`. Built against 7.3.0 and not rebuilt, the same switch throws `MatchException` if it meets one of them.
+
 ### What players see
 
 - **Panels they can move.** Every panel a mod places can be moved by the player, once they bind MenuKit's Move panels key (unbound by default). A mod has nothing to do. Mark a panel `fixed()` where its place is part of what it means, such as one lined up against vanilla's art ([Moving panels](concepts.md#moving-panels)). Namespace panel ids (`mymod:sort`), since a stored position is kept by id across every mod installed.
@@ -173,5 +178,6 @@ Neither changes what a mod's code does: a moved panel still shows only where its
 | A deprecation warning on `position`, `on`, `HudPanel.builder(id)` or `OwnHost.add(panel, position, padding)` (7.4.0) | The form says no game mode. It still works. | See [To 7.4.0](#to-740). |
 | `in(...) and position(...) don't mix` (7.4.0) | A panel calls both. | Use `in` alone: `position(p)` is `in(ModeScope.BOTH, Placement.screen(p))`. |
 | `already has a placement for` a scope (7.4.0) | `in` is called twice with one scope. | Declare each scope once. |
-| `is a second main() on one screen` | Two panels' `main()` placements share a mode. | Give each mode one main. |
+| `are both main() in SURVIVAL` (or `CREATIVE`) (7.4.0) | In that mode both panels show a `main()` placement: each its placement for the mode, else its `BOTH` one. | Give one of them a placement of its own for that mode that isn't a main. |
+| `AnchorPanelAdapter ... has a Placement.screen(...) for` a scope (7.4.0) | An anchor adapter's panel has a screen placement and the adapter has no `on(...)`, so that mode had nothing to place against. | Use `Placement.around(anchor, position)` or `Placement.at(anchor, dx, dy)`. |
 | `SharedPanels.join(...) after the shared panels were built` (7.4.0) | A join after client start. | Join from the client initializer. |
