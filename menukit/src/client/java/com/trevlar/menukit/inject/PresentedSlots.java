@@ -11,11 +11,14 @@ import net.minecraft.world.inventory.Slot;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +73,8 @@ import java.util.WeakHashMap;
 public final class PresentedSlots {
 
     private PresentedSlots() {}
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
     /** Draws one presented slot; the default asks the screen. Swapped by MenuKit's checks. */
     @FunctionalInterface
@@ -216,17 +221,50 @@ public final class PresentedSlots {
 
     /**
      * {@code SlotClip.shown}: the panel being laid out presents {@code slot}. Filed only
-     * during the place pass; a slot two panels report belongs to the first.
+     * during the place pass (and the background pass, for a background panel).
+     *
+     * <p>A slot two panels show in one frame is the <b>last</b> one's, in everything: it draws
+     * after that panel, {@link #LAST_PANEL} names it, and its clip ({@code SlotClips}) and its
+     * {@code Slot.x/y} are the ones that panel's element gave it, both written last. Panels lay
+     * out in draw order, bottom to top, so the last is the topmost: the one that claims the
+     * point over both ({@code ScreenPanelRegistry.claimAt}), so where the slot draws, where it
+     * hovers and who takes its click all agree. The clash is logged once per pair of panels.
      */
     public static void record(Slot slot) {
-        if (current != null) LAST_PANEL.computeIfAbsent(slot.container, c -> new HashMap<>()).put(SlotKey.of(slot), current);
-        if (background && current != null) {
-            if (BELOW_ALL.add(slot)) BELOW.computeIfAbsent(current, p -> new ArrayList<>()).add(slot);
+        if (current == null) return;
+        LAST_PANEL.computeIfAbsent(slot.container, c -> new HashMap<>()).put(SlotKey.of(slot), current);
+        if (background) {
+            file(slot, BELOW, BELOW_ALL);
             return;
         }
-        if (!recording || current == null) return;
-        if (ALL.add(slot)) BY_PANEL.computeIfAbsent(current, p -> new ArrayList<>()).add(slot);
+        if (recording) file(slot, BY_PANEL, ALL);
     }
+
+    /** Files {@code slot} under the current panel; one shown by a panel below it this frame is taken from that panel. */
+    private static void file(Slot slot, Map<Panel, List<Slot>> byPanel, Set<Slot> all) {
+        Panel panel = current;
+        if (panel == null) return;
+        List<Slot> mine = byPanel.computeIfAbsent(panel, p -> new ArrayList<>());
+        if (all.add(slot)) {
+            mine.add(slot);
+            return;
+        }
+        // Shown already this frame: by this panel (nothing to do), or by one below it, whose it no longer is.
+        if (mine.contains(slot)) return;
+        for (Map.Entry<Panel, List<Slot>> e : byPanel.entrySet()) {
+            if (e.getValue().remove(slot)) {
+                if (CLASHED.add(List.of(e.getKey(), panel))) {
+                    LOGGER.warn("[MenuKit] Panels '{}' and '{}' both show one slot in a frame; it goes with '{}', the panel on top",
+                            e.getKey().id(), panel.id(), panel.id());
+                }
+                break;
+            }
+        }
+        mine.add(slot);
+    }
+
+    /** The pairs of panels (below, above) already logged as showing one slot, so a clash is logged once, not every frame. */
+    private static final Set<List<Panel>> CLASHED = new HashSet<>();
 
     /**
      * The background layer starts ({@code true}, last frame's background slots go) or ends.
