@@ -122,6 +122,8 @@ public final class RegionMath {
             // Pinned at the frame bottom: grows up toward the top margin.
             case RIGHT_ALIGN_BOTTOM, LEFT_ALIGN_BOTTOM ->
                     growUpHeight(frameBottom, margin);
+            // Beside the frame, centred on it: clear of both margins.
+            case LEFT_CENTER, RIGHT_CENTER -> centeredHeight(centerY, sh, margin);
             // CENTER stays within the frame; frame height is the safe ceiling.
             case CENTER -> Math.min(imageHeight, centeredHeight(centerY, sh, margin));
         };
@@ -138,6 +140,9 @@ public final class RegionMath {
      *       the frame's bottom ({@code topPos + imageHeight}).</li>
      *   <li>{@code RIGHT_ALIGN_BOTTOM}, {@code LEFT_ALIGN_BOTTOM}: the mirror image,
      *       from the panel's bottom up to the frame's top.</li>
+     *   <li>{@code RIGHT_CENTER}, {@code LEFT_CENTER}: centred on the reference's middle,
+     *       as far as both of the frame's ends allow, so a wrapped column stays centred
+     *       and inside the frame.</li>
      *   <li>Every other region is above, below or inside the frame, with no frame
      *       beside it: {@code -1}.</li>
      * </ul>
@@ -163,6 +168,10 @@ public final class RegionMath {
                     Math.max(0, frameBottom - (reference.topPos() + prefix));
             case RIGHT_ALIGN_BOTTOM, LEFT_ALIGN_BOTTOM ->
                     Math.max(0, reference.topPos() + reference.imageHeight() - prefix - frameTop);
+            case RIGHT_CENTER, LEFT_CENTER -> {
+                int middle = reference.topPos() + reference.imageHeight() / 2;
+                yield Math.max(0, 2 * Math.min(middle - frameTop, frameBottom - middle));
+            }
             default -> -1;
         };
     }
@@ -188,9 +197,9 @@ public final class RegionMath {
         int imageWidth = b.imageWidth();
         int centerX = leftPos + imageWidth / 2;
         return switch (region) {
-            case RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM ->
+            case RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM, RIGHT_CENTER ->
                     growRightWidth(leftPos + imageWidth + gap, sw, margin);
-            case LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM ->
+            case LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM, LEFT_CENTER ->
                     growLeftWidth(leftPos - gap, margin);
             case TOP_ALIGN_LEFT, BOTTOM_ALIGN_LEFT ->
                     growRightWidth(leftPos, sw, margin);
@@ -298,15 +307,19 @@ public final class RegionMath {
 
     /**
      * Whether {@code region}'s gap off the reference lies along its stacking axis
-     * (since 7.1.0). True only for TOP_CENTER and BOTTOM_CENTER, which stack straight
-     * away from the frame: their first panel's gap off the frame and every later
-     * panel's gap off its sibling are the same axis. Every other region stacks
-     * along the frame edge, so its gap off the frame is across the stack (a
-     * RIGHT_ALIGN_TOP panel's x) and its first panel starts flush with the aligned
-     * end. CENTER does not stack.
+     * (since 7.1.0). True only for the four regions centred on a side (TOP_CENTER,
+     * BOTTOM_CENTER, LEFT_CENTER, RIGHT_CENTER), which stack straight away from the
+     * frame: their first panel's gap off the frame and every later panel's gap off its
+     * sibling are the same axis, so the room they need beside the frame is their sum.
+     * Every other region stacks along the frame edge, so its gap off the frame is
+     * across the stack (a RIGHT_ALIGN_TOP panel's x) and its first panel starts flush
+     * with the aligned end. CENTER does not stack.
      */
-    private static boolean gapAlongStack(OutsideRegion region) {
-        return region == OutsideRegion.TOP_CENTER || region == OutsideRegion.BOTTOM_CENTER;
+    public static boolean gapAlongStack(OutsideRegion region) {
+        return switch (region) {
+            case TOP_CENTER, BOTTOM_CENTER, LEFT_CENTER, RIGHT_CENTER -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -318,7 +331,7 @@ public final class RegionMath {
      * ({@code stackEnd} null) the prefix is 0: the resolver itself puts the gap
      * between the panel and the reference. For a later panel the gap goes between
      * it and the sibling before it: added here for the regions that stack along
-     * the frame edge, and by the resolver for TOP_CENTER and BOTTOM_CENTER, whose
+     * the frame edge, and by the resolver for the four side-centred regions, whose
      * frame gap is already on the stacking axis (which is why
      * {@link #stackEnd} counts their gap into the stack instead).
      *
@@ -334,8 +347,8 @@ public final class RegionMath {
     /**
      * Where {@code region}'s stack ends once a panel {@code axial} pixels long on the
      * stacking axis has been placed at {@code prefix} with {@code gap} (since 7.1.0):
-     * the {@code stackEnd} the next {@link #stackPrefix} call takes. For TOP_CENTER and
-     * BOTTOM_CENTER it includes the panel's gap, because the resolver adds that gap on
+     * the {@code stackEnd} the next {@link #stackPrefix} call takes. For the four
+     * side-centred regions it includes the panel's gap, because the resolver adds that gap on
      * the stacking axis and the next panel must start beyond it.
      */
     public static int stackEnd(OutsideRegion region, int prefix, int axial, int gap) {
@@ -485,8 +498,14 @@ public final class RegionMath {
      */
     private static int offhandShift(OutsideRegion region, @Nullable HumanoidArm offhand) {
         if (offhand == null) return 0;
-        boolean leftRegion = region == OutsideRegion.LEFT_ALIGN_TOP || region == OutsideRegion.LEFT_ALIGN_BOTTOM;
-        boolean rightRegion = region == OutsideRegion.RIGHT_ALIGN_TOP || region == OutsideRegion.RIGHT_ALIGN_BOTTOM;
+        boolean leftRegion = switch (region) {
+            case LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM, LEFT_CENTER -> true;
+            default -> false;
+        };
+        boolean rightRegion = switch (region) {
+            case RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM, RIGHT_CENTER -> true;
+            default -> false;
+        };
         if (leftRegion && offhand == HumanoidArm.LEFT) return -OFFHAND_SLOT_WIDTH;
         if (rightRegion && offhand == HumanoidArm.RIGHT) return OFFHAND_SLOT_WIDTH;
         return 0;
@@ -496,7 +515,7 @@ public final class RegionMath {
      * Where a {@code pw x ph} panel sits around {@code bounds} in {@code region},
      * {@code prefix} pixels along its stacking axis from the aligned end and
      * {@code gap} pixels off the reference, before any clamping: the one geometry
-     * every outside placement shares. For TOP_CENTER and BOTTOM_CENTER the gap and
+     * every outside placement shares. For the four side-centred regions the gap and
      * the prefix are on the same axis, so both add up (see {@link #stackPrefix}).
      */
     private static ScreenOrigin outsideOrigin(OutsideRegion region, Reference bounds,
@@ -541,6 +560,14 @@ public final class RegionMath {
             case BOTTOM_CENTER -> new ScreenOrigin(
                     leftPos + (imageWidth - pw) / 2,
                     topPos + imageHeight + gap + prefix);
+            // LEFT_CENTER and RIGHT_CENTER: the same turned on their side, centred
+            // vertically and stacking horizontally away from the frame.
+            case LEFT_CENTER -> new ScreenOrigin(
+                    leftPos - pw - gap - prefix,
+                    topPos + (imageHeight - ph) / 2);
+            case RIGHT_CENTER -> new ScreenOrigin(
+                    leftPos + imageWidth + gap + prefix,
+                    topPos + (imageHeight - ph) / 2);
             // CENTER: centered in the menu's frame. One position, so several CENTER
             // panels overlap; the consumer shows one at a time (modal dialogs).
             case CENTER -> new ScreenOrigin(

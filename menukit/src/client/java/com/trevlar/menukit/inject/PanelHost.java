@@ -1016,8 +1016,8 @@ public final class PanelHost {
      * The room the shown {@link OutsideRegion} panels need beside the main frame, as
      * {top, bottom, left, right} including the frame gap. A region that flows along
      * the frame edge (TOP_ALIGN_*, LEFT_ALIGN_*, ...) needs its tallest (or widest)
-     * panel; TOP_CENTER and BOTTOM_CENTER stack away from the frame and need their
-     * sum plus gaps. Each side takes its largest region. Overlays and in-frame CENTER
+     * panel; the side-centred regions (TOP_CENTER, LEFT_CENTER, ...) stack away from the
+     * frame and need their sum plus gaps. Each side takes its largest region. Overlays and in-frame CENTER
      * panels need no band.
      *
      * <p>Known limit: panels are measured against the screen-wide budget here, before
@@ -1035,16 +1035,17 @@ public final class PanelHost {
             OutsideRegion r = Objects.requireNonNull(e.position().region());
             if (r == OutsideRegion.CENTER) continue;
             boolean sideways = switch (r) {
-                case LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM, RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM -> true;
+                case LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM, LEFT_CENTER,
+                     RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM, RIGHT_CENTER -> true;
                 default -> false;
             };
             feedWidth(p, RegionMath.availableScreenEdgeWidth(sw, m), e.padding());
             int[] size = measure(p, e.padding());
             int across = sideways ? size[0] : size[1];
             // Each panel's own gap, as place() will put it: off the frame, and for
-            // TOP_CENTER and BOTTOM_CENTER also off the panel before it.
+            // a side-centred region also off the panel before it.
             int gap = e.position().gapOr(RegionConstants.MENU_STACK_GAP);
-            if (r == OutsideRegion.TOP_CENTER || r == OutsideRegion.BOTTOM_CENTER) {
+            if (RegionMath.gapAlongStack(r)) {
                 need.merge(r, across + gap, Integer::sum);
             } else {
                 need.merge(r, across + gap, Math::max);
@@ -1056,8 +1057,8 @@ public final class PanelHost {
             switch (n.getKey()) {
                 case TOP_ALIGN_LEFT, TOP_ALIGN_RIGHT, TOP_CENTER -> top = Math.max(top, v);
                 case BOTTOM_ALIGN_LEFT, BOTTOM_ALIGN_RIGHT, BOTTOM_CENTER -> bottom = Math.max(bottom, v);
-                case LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM -> left = Math.max(left, v);
-                case RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM -> right = Math.max(right, v);
+                case LEFT_ALIGN_TOP, LEFT_ALIGN_BOTTOM, LEFT_CENTER -> left = Math.max(left, v);
+                case RIGHT_ALIGN_TOP, RIGHT_ALIGN_BOTTOM, RIGHT_CENTER -> right = Math.max(right, v);
                 default -> { }
             }
         }
