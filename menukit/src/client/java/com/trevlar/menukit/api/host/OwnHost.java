@@ -184,9 +184,9 @@ public final class OwnHost {
      * @param position the position to place it at (the panel's own, or a default the
      *                 screen picks for an unplaced one)
      * @param padding  content padding between the panel's edge and its elements
-     * @deprecated since 7.4.0, the panel's placements say where it goes in each mode:
-     *             {@link #add(Panel, int)}. This is {@code position} in both modes, whatever
-     *             placements the panel declares.
+     * @deprecated Replaced in 7.4.0 by {@link #add(Panel, int)}, which reads where the panel
+     *             goes in each mode from its placements; removed in 8.0.0. This is
+     *             {@code position} in both modes, whatever placements the panel declares.
      */
     @Deprecated(since = "7.4.0", forRemoval = true)
     public void add(Panel panel, PanelPosition position, int padding) {

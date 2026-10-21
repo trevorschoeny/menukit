@@ -174,6 +174,8 @@ public final class Contribution {
         }
 
         /**
+         * Builds the contribution, to hand to {@link SharedPanels#join}.
+         *
          * @throws IllegalStateException with no element, or with no placement (every
          *         contribution carries the panel's placement)
          */
