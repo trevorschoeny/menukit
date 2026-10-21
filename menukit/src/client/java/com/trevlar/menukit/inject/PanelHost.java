@@ -976,7 +976,7 @@ public final class PanelHost {
         // Panel look, vanilla's popup frame (and friends) in the Default
         // look, so a dialog in the Default look reads as vanilla's own.
         // A raised panel in the Panel look is a panel surface: it follows the resource
-        // pack's container art, the chest's (spec parts 6 and 7); the HUD's panels and
+        // pack's container art, the chest's (controls keep their own sprite); the HUD's panels and
         // every other style keep their sprites. Its slot frames follow it too; the
         // container region's own panels say per section which look a slot takes.
         boolean surface = screenKind == ScreenKind.PANEL && kind != Kind.HUD && panel.getStyle() == PanelStyle.RAISED;

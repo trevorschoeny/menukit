@@ -19,11 +19,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 /**
- * Which art a Panel-look control draws under the active resource packs (spec part 10,
- * "every Panel-look element follows its vanilla equivalent"). The Panel look draws
- * MenuKit's own art, which no pack touches; the Default look draws vanilla's widget
- * sprites, which nearly every pack restyles. So each control is mapped, once, here, to its
- * vanilla equivalent, and per control (spec part 1's order, as for panels):
+ * Which art a Panel-look control draws under the active resource packs: every Panel-look
+ * element follows its vanilla equivalent. The Panel look draws MenuKit's own art, which no
+ * pack touches; the Default look draws vanilla's widget sprites, which nearly every pack
+ * restyles. So each control is mapped, once, here, to its vanilla equivalent, and per
+ * control (in the same order as a panel's look, {@link PackLook}):
  * <ol>
  *   <li>a pack overrides MenuKit's own sprite for it: MenuKit's drawing, with that sprite;</li>
  *   <li>otherwise, a pack restyled any of its vanilla sprites: it draws as in the Default
@@ -34,7 +34,7 @@ import java.util.function.Predicate;
  * </ol>
  * Any one sprite of a control's set being a pack's makes the whole set that control draws.
  *
- * <h3>Every state follows the normal state's source (spec part 12)</h3>
+ * <h3>Every state follows the normal state's source</h3>
  * A raised control's sprites come in a set named as vanilla names its button's:
  * {@code menukit:control_raised}, {@code _highlighted}, {@code _pressed}, {@code _disabled}
  * (vanilla's {@code widget/button} set has no pressed sprite). Per state, in the set drawn:
@@ -171,7 +171,7 @@ public final class ControlLook {
         return ART.computeIfAbsent(control, ControlLook::decide);
     }
 
-    /** Spec part 10's order for one control, then part 12's per state; no game (the headless checks): MenuKit's art. */
+    /** One control's art, in the class doc's order, then each state's; no game (the headless checks): MenuKit's art. */
     private static Art decide(Control c) {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null) return new Art(false, c.own);
@@ -190,7 +190,7 @@ public final class ControlLook {
     }
 
     /**
-     * Spec part 12 for one set of state sprites, by {@link State}: per state, its sprite where
+     * Each state's sprite for one set, by {@link State}: per state, its sprite where
      * a pack supplies it or where the normal sprite is the set's own; {@code null} (derived
      * from the normal sprite) where a pack supplied the normal one and not this, or where the
      * set has no sprite for it. {@code fromPack}: whether a pack, not the set's own, supplies a

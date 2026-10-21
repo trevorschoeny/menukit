@@ -143,7 +143,7 @@ public class Checkbox extends AbstractPanelElement {
 
         boolean highlighted = !disabled && (hovered || (widget != null && widget.focused()));
         ScreenKind kind = ctx.kind();
-        // Vanilla's checkbox in the Default look, and in the Panel look where a pack restyled it (spec part 10).
+        // Vanilla's checkbox in the Default look, and in the Panel look where a pack restyled it (ControlLook).
         if (ControlLook.kind(kind, ControlLook.Control.CHECKBOX) == ScreenKind.DEFAULT) {
             // Vanilla's checkbox: one sprite per (checked, highlighted), the check drawn in it.
             Identifier box = checked

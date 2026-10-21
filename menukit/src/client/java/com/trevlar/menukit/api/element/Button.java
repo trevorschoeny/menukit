@@ -211,8 +211,8 @@ public class Button extends AbstractPanelElement {
             return;
         }
         // The Panel look: MenuKit's control art, or vanilla's button where a pack restyled it,
-        // every state from the normal state's source (spec parts 10 and 12). Held down, it
-        // shows pressed and no hover.
+        // every state from the normal state's source (ControlLook). Held down, it shows
+        // pressed and no hover.
         ControlLook.drawRaised(ctx.graphics(), sx, sy, w, h, !look.disabled(), look.hovered() && !look.pressed(), look.pressed());
     }
 

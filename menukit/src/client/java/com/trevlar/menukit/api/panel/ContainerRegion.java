@@ -121,9 +121,10 @@ import java.util.function.Supplier;
  * {@link Builder#content} below it, at the region's content edge, where vanilla's grid
  * frame is: a nine-wide grid at {@code (0, 0)} lines up with vanilla's own chest. Without a
  * title the content starts at the top and draws whatever it likes there. A section draws
- * its own slot frames. Hidden sections take no room. The screen's own container is a section too: whoever puts the
- * region on a screen presents that screen's grid in it (SlotKit's
- * {@code SlotElement.slot(Address)}), since what is behind the container list is covered.
+ * its own slot frames. Hidden sections take no room. The screen's own container is a
+ * section too: whoever puts the region on a screen presents that screen's grid in it
+ * (SlotKit's {@code SlotElement.slot(Address)}), since what is behind the container list is
+ * covered.
  *
  * <p>A section shows while its own {@link Builder#visibleWhen} holds <b>and its content is
  * visible</b>: content that hides itself takes its section with it. A slot library's element
@@ -135,13 +136,13 @@ import java.util.function.Supplier;
  * would under it: the container list takes each section's container texture, the
  * inventory panel the inventory half of the screen's own. A section names the container it
  * stands for with {@link Builder#texture} (vanilla's chest by default): its slot frames and
- * its part of the list take that texture's look, down from a pixel above it to
- * the next section's, the list's top and bottom with the first and last. It scrolls with
- * the section. A section whose fill differs from the first one's, a block of its own, has
- * its content moved down 2 px, so its title sits inside the block as vanilla's sits inside
- * its art. MenuKit adds no colour of its own: a
- * section's colour is the pack's. Text on the list keeps vanilla's colours wherever they
- * read on the pack's fill, and takes one made from the fill where they would not.
+ * its part of the list take that texture's look, down from a pixel above it to the next
+ * section's, the list's top and bottom with the first and last. It scrolls with the
+ * section. A section whose fill differs from the first one's, a block of its own, has its
+ * content moved down 2 px, so its title sits inside the block as vanilla's sits inside its
+ * art. MenuKit adds no colour of its own: a section's colour is the pack's. Text on the
+ * list keeps vanilla's colours wherever they read on the pack's fill, and takes one made
+ * from the fill where they would not.
  *
  * <h3>Each section a slice of its own container's screen</h3>
  * Each section's part of the list, from its band's top to its bottom, is a slice of its
@@ -170,10 +171,9 @@ import java.util.function.Supplier;
  * title comes out blank shows a name instead: its {@link Builder#name} (the box item's own
  * name, which packs don't blank: "Lime Shulker Box", or what the player called it); for the
  * screen's own container, the block it was opened on; else what vanilla's own English says
- * for the title's key ("Shulker Box"). Sections that would
- * show the same name are numbered ("Lime Shulker Box 1", "Lime Shulker Box 2"). The first
- * section's title moves right, clear of the pack's top corner, where the pack decorates it
- * (Touched UI's brackets).
+ * for the title's key ("Shulker Box"). Sections that would show the same name are numbered
+ * ("Lime Shulker Box 1", "Lime Shulker Box 2"). The first section's title moves right,
+ * clear of the pack's top corner, where the pack decorates it.
  *
  * <p>Declare from your client initializer: sections freeze with every other declaration.
  */

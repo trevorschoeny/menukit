@@ -278,7 +278,7 @@ public class ColorField extends AbstractPanelElement {
         if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.button(g, x, y, width, height, !disabled, hot);
         } else {
-            ControlLook.drawRaised(g, x, y, width, height, !disabled, hot, false);   // spec parts 10 and 12
+            ControlLook.drawRaised(g, x, y, width, height, !disabled, hot, false);
         }
         int ix = x + INSET, iy = y + INSET, iw = width - 2 * INSET, ih = height - 2 * INSET;
         if (iw > 0 && ih > 0) {

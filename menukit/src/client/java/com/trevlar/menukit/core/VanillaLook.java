@@ -71,14 +71,14 @@ public final class VanillaLook {
     public static final int PRESSED_DARKEN = 0x40000000, PRESSED_LIGHTEN = 0x40FFFFFF;
     /**
      * A face whose luma (0 to 255, its fill, {@link ControlLook#faceLuma}) is below this is lit
-     * by the press instead of darkened. Between Default Dark Mode's button (about 80) and
-     * vanilla's (about 110), so vanilla's own darkens as it always has.
+     * by the press instead of darkened. Between a typical dark-mode pack's button (about 80)
+     * and vanilla's (about 110), so vanilla's own darkens as it always has.
      */
     public static final int DARK_FACE = 96;
 
     /**
      * MenuKit's one pressed transform, for every pressed control in both looks and on every
-     * pack (spec part 12), drawn over the art the control shows under it. It is relative to
+     * pack, drawn over the art the control shows under it. It is relative to
      * that art, so it reads on light, dark and coloured faces alike:
      * <ul>
      *   <li>the 1 px bevel inside the outline inverted: translucent black over the top and
