@@ -11,7 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -47,8 +48,9 @@ import java.util.TreeSet;
  * back.
  *
  * <p>A position only says where a panel sits. Whether it shows is still its declaration's call
- * ({@link PanelHost#layout()}). A missing file starts empty; a bad entry is skipped, an
- * unreadable file set aside ({@link #load}); none of it crashes.
+ * ({@link PanelHost#layout()}). A missing file starts empty; a bad entry is skipped, a file
+ * that isn't JSON set aside, one that can't be read left alone ({@link #load}); none of it
+ * crashes.
  */
 @ApiStatus.Internal
 public final class PanelPositions {
@@ -136,7 +138,9 @@ public final class PanelPositions {
      * the rest is read. A scope this MenuKit doesn't know (a newer one's) is no error: it is
      * kept as it was and written back with the rest. A file that isn't a JSON object at all is
      * moved aside to {@code panel-positions.json.corrupt}, so the next write doesn't put an
-     * empty store over it unseen, and the store starts empty.
+     * empty store over it unseen, and the store starts empty. A file that can't be read at all
+     * (locked, no permission) is no sign it is bad: it is left where it is, the store starts
+     * empty, and nothing is written this session.
      */
     public static void load(Path path) {
         file = path;
@@ -146,10 +150,21 @@ public final class PanelPositions {
             LOGGER.info("[MenuKit] No moved panels yet ({} doesn't exist)", path);
             return;
         }
+        byte[] bytes;
+        try {
+            bytes = Files.readAllBytes(path);
+        } catch (IOException e) {
+            // There but unreadable now (locked, no permission): nothing says the file is bad, so
+            // it stays where it is, and nothing is written over it this session.
+            file = null;
+            LOGGER.warn("[MenuKit] Couldn't read moved panels from {} ({}); the file is left as it is, every panel "
+                    + "starts where its mod puts it, and moves aren't saved this session", path, e.toString());
+            return;
+        }
         JsonObject root;
-        try (Reader in = Files.newBufferedReader(path)) {
-            root = JsonParser.parseReader(in).getAsJsonObject();
-        } catch (Exception e) {
+        try {
+            root = JsonParser.parseString(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject();
+        } catch (RuntimeException e) {
             // Not JSON, or not an object: nothing in it can be told apart. Keep it for the player.
             setAside(path, e);
             return;
@@ -271,14 +286,24 @@ public final class PanelPositions {
             if (foreign != null) foreign.entrySet().forEach(e -> scopes.add(e.getKey(), e.getValue()));
             root.add(id, scopes);
         }
+        // Written whole beside it, then moved over it, so a crash mid-write never leaves half a file.
+        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
         try {
             Files.createDirectories(file.getParent());
-            // Written whole beside it, then moved over it, so a crash mid-write never leaves half a file.
-            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
             Files.writeString(tmp, new GsonBuilder().setPrettyPrinting().create().toJson(root));
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            try {
+                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                // A file system that can't swap it in one step: replace it the plain way.
+                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
             LOGGER.warn("[MenuKit] Couldn't write moved panels to {} ({})", file, e.toString());
+            try {
+                Files.deleteIfExists(tmp);
+            } catch (IOException ignored) {
+                // a stray .tmp beside the store is read by nothing
+            }
         }
     }
 }
