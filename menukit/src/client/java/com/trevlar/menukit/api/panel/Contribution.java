@@ -71,9 +71,17 @@ public final class Contribution {
         return new Builder(order, Objects.requireNonNull(scope, "scope"));
     }
 
-    /** Whether its elements show now: its scope covers the mode, and its own condition holds. */
+    /**
+     * Whether its elements show now: its scope covers the mode, its own condition holds, and
+     * at least one of its elements is visible. One whose elements all hide themselves takes no
+     * room in the panel (no stray gap) and doesn't keep the panel placed on its own.
+     */
     boolean shown() {
-        return scope.covers(PanelHost.currentMode()) && (visibleWhen == null || visibleWhen.getAsBoolean());
+        if (!scope.covers(PanelHost.currentMode()) || (visibleWhen != null && !visibleWhen.getAsBoolean())) return false;
+        for (PanelElement e : elements) {
+            if (e.isVisible()) return true;
+        }
+        return false;
     }
 
     /** What of the panel's declaration differs from {@code other}'s, for the warning; empty when they agree. */
