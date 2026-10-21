@@ -33,9 +33,10 @@ import java.util.List;
  *
  * <h3>Targeting</h3>
  * The anchors are in the placements; nothing else is needed. The deprecated {@link #on}
- * puts the panel's screen placements around each anchor it names instead. An adapter
- * whose panel names no anchor and that never called {@code on} fails loudly at the first
- * screen open.
+ * puts the panel's screen placements around each anchor it names instead. Without
+ * {@code on}, a {@link Placement#screen} on the panel has no anchor to be placed against:
+ * the first screen open fails loudly, naming the panel and the scope, rather than the panel
+ * never showing in that mode.
  *
  * <h3>Claims</h3>
  * An anchored panel claims points by the same rule as every other panel: an opaque
