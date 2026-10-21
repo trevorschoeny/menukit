@@ -14,10 +14,16 @@ import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.level.block.AbstractChestBlock;
+import net.minecraft.world.level.block.BarrelBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
 
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -48,17 +54,37 @@ public final class RegionLooks {
     }
 
     /**
-     * The texture section {@code s} is drawn from: the container texture it stands for, or
-     * with OptiGUI the one OptiGUI's rules give its own container (its source), or, without
-     * a source, the container the screen was opened on ({@code opened}), else the one
-     * OptiGUI gives the open screen's (the screen's own container).
+     * The texture section {@code s} is drawn from. Its own container's texture first: with a
+     * source, the one its block's screen draws ({@link #blockTexture}), so a source and
+     * {@code texture(...)} never disagree; else its {@code texture(...)} (a section with no
+     * block behind it, or the screen's own container). With OptiGUI, the one OptiGUI's rules
+     * give that container: its source, or without one the container the screen was opened
+     * on ({@code opened}), else the one OptiGUI gives the open screen's.
      */
     static Identifier sectionTexture(Declared s, ContainerRegion.@Nullable Source opened) {
-        if (!OptiGuiRules.LOADED) return s.texture();
         ContainerRegion.Source c = s.source() == null ? opened : s.source().get();
-        if (c == null) return OptiGuiRules.onScreen(s.texture());
+        Identifier own = s.source() == null ? null : blockTexture(c);
+        if (own == null) own = s.texture();
+        if (!OptiGuiRules.LOADED) return own;
+        if (c == null) return OptiGuiRules.onScreen(own);
         String title = s.title() == null ? "" : s.title().get().getString();
-        return OptiGuiRules.forContainer(s.texture(), c.block(), c.customName(), title, c.pos());
+        return OptiGuiRules.forContainer(own, c.block(), c.customName(), title, c.pos());
+    }
+
+    /**
+     * The container texture {@code source}'s block's own screen draws, or {@code null} for no
+     * block or one whose texture the region doesn't know: a shulker box's for every shulker
+     * box, the chest's for chests, ender chests and barrels. Vanilla keeps each screen's
+     * texture inside its screen class, with no table from a block to it, so these are named.
+     */
+    // ponytail: the two textures laid out like the chest's, the only ones a section's look can be cut from; any other block's section takes its texture(...).
+    @VisibleForTesting
+    public static @Nullable Identifier blockTexture(ContainerRegion.@Nullable Source source) {
+        if (source == null || source.block() == null) return null;
+        Block block = BuiltInRegistries.BLOCK.getValue(source.block());
+        if (block instanceof ShulkerBoxBlock) return PackLook.SHULKER_BOX;
+        if (block instanceof AbstractChestBlock<?> || block instanceof BarrelBlock) return PackLook.CHEST;
+        return null;
     }
 
     /** Every shown section's look this frame, in stacking order, {@code null} while it is hidden. */

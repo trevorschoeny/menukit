@@ -34,7 +34,7 @@ import java.util.function.Supplier;
  * <pre>{@code
  * ContainerRegion.section("mymod:opened-shulker")
  *         .title(() -> Component.translatable("container.shulkerBox"))
- *         .name(() -> session.box().getHoverName())   // "Lime Shulker Box", or the player's name for it
+ *         .source(() -> ContainerRegion.Source.of(session.box()))   // its texture and its name: "Lime Shulker Box"
  *         .content(shulkerGrid)            // SlotKit's slot elements, say
  *         .on(ContainerScreen.class)
  *         .order(10)                       // below the chest's own section (order 0)
@@ -135,9 +135,10 @@ import java.util.function.Supplier;
  * <h3>Resource packs</h3>
  * The two panels follow the resource pack's container art, as vanilla's own screen
  * would under it: the container list takes each section's container texture, the
- * inventory panel the inventory half of the screen's own. A section names the container it
- * stands for with {@link Builder#texture} (vanilla's chest by default): its slot frames and
- * its part of the list take that texture's look, down from a pixel above it to the next
+ * inventory panel the inventory half of the screen's own. A section's container texture is
+ * its {@link Builder#source}'s block's (a shulker box's for a shulker box, the chest's for a
+ * chest, ender chest or barrel), else its {@link Builder#texture} (vanilla's chest by
+ * default): its slot frames and its part of the list take that texture's look, down from a pixel above it to the next
  * section's, the list's top and bottom with the first and last. It scrolls with the
  * section. A section whose fill differs from the first one's, a block of its own, has its
  * content moved down 2 px, so its title sits inside the block as vanilla's sits inside its
@@ -169,9 +170,10 @@ import java.util.function.Supplier;
  * which is one) rather than a literal: packs whose art covers the title strip blank those
  * keys, and with one container on the screen the section's title goes blank with vanilla's.
  * With two or more sections shown, the player has to tell them apart, so a section whose
- * title comes out blank shows a name instead: its {@link Builder#name} (the box item's own
- * name, which packs don't blank: "Lime Shulker Box", or what the player called it); for the
- * screen's own container, the block it was opened on; else what vanilla's own English says
+ * title comes out blank shows a name instead, one packs don't blank: its {@link Builder#name}
+ * if it has one; else its container's, from its {@link Builder#source} (or, for the screen's
+ * own container, the block it was opened on): the name the player gave it, else its block's
+ * name in the player's language ("Lime Shulker Box"); else what vanilla's own English says
  * for the title's key ("Shulker Box"). Sections that would show the same name are numbered
  * ("Lime Shulker Box 1", "Lime Shulker Box 2"). The first section's title moves right,
  * clear of the pack's top corner, where the pack decorates it.
@@ -300,11 +302,11 @@ public final class ContainerRegion {
 
         /**
          * What the section is called while its {@link #title} comes out blank and other
-         * sections show beside it, read every frame: something a pack doesn't blank and that
-         * tells this container from the others, such as the box item's
-         * {@code getHoverName()}. Without one, a section with no {@link #source} (the screen's
-         * own container) is called by the block the screen was opened on, and any other by
-         * vanilla's own English for the title's key.
+         * sections show, read every frame, in place of its container's own name. Only needed
+         * where that falls short: a section's {@link #source} names it already (the name the
+         * player gave it, else its block's, "Lime Shulker Box"), and a section with no source is
+         * called by the block the screen was opened on. With neither, vanilla's own English for
+         * the title's key.
          */
         public Builder name(Supplier<Component> name) {
             this.name = Objects.requireNonNull(name, "name");
@@ -312,12 +314,15 @@ public final class ContainerRegion {
         }
 
         /**
-         * The container texture this section stands for, a full texture path
-         * ({@link #CHEST}, {@link #SHULKER_BOX}, or a mod's own container texture laid out
-         * like vanilla's): under a resource pack that restyles it, the section's slot frames
-         * and its part of the list take its look. Vanilla's chest by default. It must be the
-         * texture of the container the section shows ({@link #source}, or the screen's own
-         * without one): OptiGUI's rules for that container replace this texture, and only it.
+         * The container texture this section stands for where no block says so, a full
+         * texture path ({@link #CHEST}, {@link #SHULKER_BOX}, or a mod's own container texture
+         * laid out like vanilla's): under a resource pack that restyles it, the section's slot
+         * frames and its part of the list take its look. Vanilla's chest by default. A section
+         * with a {@link #source} takes its block's texture instead (a shulker box's for a
+         * shulker box, the chest's for a chest, ender chest or barrel), so the two can't
+         * disagree; this is for a section with no block behind it (a mod's own slot group, a
+         * source from an item that isn't a block, a block of another kind) and for the screen's
+         * own container. In that order: the source's block, then this, then the chest.
          */
         public Builder texture(Identifier texture) {
             this.texture = Objects.requireNonNull(texture, "texture");
@@ -325,13 +330,13 @@ public final class ContainerRegion {
         }
 
         /**
-         * The container this section shows, read every frame, for the packs that pick a
-         * container's art by its block, name and place: with OptiGUI installed, its rules are
-         * evaluated against it, so a lime box's section has the lime art whatever screen it is
-         * on. Its container's texture is the section's {@link #texture}. Without a source, the
-         * section is the screen's own container: the block the screen was opened on, else what
-         * OptiGUI picked for the open screen. A source that gives {@code null} (its container
-         * not known this frame) takes what OptiGUI picked for the open screen.
+         * The container this section shows, read every frame. The section takes its texture
+         * from its block (see {@link #texture}) and its name from it (see {@link #name}), and
+         * with OptiGUI installed the pack's rules are evaluated against it, so a lime box's
+         * section has the lime art whatever screen it is on. Without a source, the section is
+         * the screen's own container: the block the screen was opened on, else what OptiGUI
+         * picked for the open screen. A source that gives {@code null} (its container not known
+         * this frame) takes its {@link #texture} and what OptiGUI picked for the open screen.
          */
         public Builder source(Supplier<@Nullable Source> source) {
             this.source = Objects.requireNonNull(source, "source");

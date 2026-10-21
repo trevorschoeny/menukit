@@ -8,6 +8,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 
 import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -28,8 +29,8 @@ public final class RegionTitles {
      * The titles the shown, titled sections draw, in stacking order, pure. Each its own
      * title; but with two or more, one that comes out blank (a pack blanked vanilla's key)
      * takes a name, so the player can tell the containers apart: its own {@code names}
-     * entry where that isn't blank (the box item's name), else vanilla's own English for the
-     * title's translation key. Names that come out the same are numbered in order
+     * entry where that isn't blank (its {@code name(...)}, else its container's name,
+     * {@link #sourceName}), else vanilla's own English for the title's translation key. Names that come out the same are numbered in order
      * ("Lime Shulker Box 1", "Lime Shulker Box 2"). A blank title with nothing to stand in
      * for it stays blank.
      */
@@ -63,18 +64,24 @@ public final class RegionTitles {
      * What vanilla's own English says for {@code title}'s translation key, whatever a pack
      * made of it, or {@code null} when it has none ("container.shulkerBox": "Shulker Box").
      */
-    // ponytail: vanilla's built-in English, not the player's language; a name from the section covers other languages.
+    // ponytail: vanilla's built-in English, not the player's language: only a section with no name and no block to name it by gets here.
     private static @Nullable Component vanillaWords(@Nullable Component title) {
         if (title == null || !(title.getContents() instanceof TranslatableContents t)) return null;
         String words = Language.DEFAULT_INSTANCE.getOrDefault(t.getKey(), "");
         return words.isBlank() ? null : Component.literal(words);
     }
 
-    /** What a section that is the screen's own container is called: its block's name, or the name the player gave it. */
-    static @Nullable Component openedName(ContainerRegion.@Nullable Source opened) {
-        if (opened == null) return null;
-        if (opened.customName() != null) return Component.literal(opened.customName());
-        return opened.block() == null ? null : BuiltInRegistries.BLOCK.getValue(opened.block()).getName();
+    /**
+     * What a section is called by its container ({@code source}: its own, or for the screen's
+     * own container the block it was opened on): the name the player gave it, else its block's
+     * name in the player's language ("Lime Shulker Box"), which packs don't blank. {@code null}
+     * with neither.
+     */
+    @VisibleForTesting
+    public static @Nullable Component sourceName(ContainerRegion.@Nullable Source source) {
+        if (source == null) return null;
+        if (source.customName() != null) return Component.literal(source.customName());
+        return source.block() == null ? null : BuiltInRegistries.BLOCK.getValue(source.block()).getName();
     }
 
     /**

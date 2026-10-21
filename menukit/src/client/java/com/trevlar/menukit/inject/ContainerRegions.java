@@ -163,11 +163,12 @@ public final class ContainerRegions {
 
     /**
      * One declared section ({@code ContainerRegion.section}). {@code texture} is the
-     * container texture it stands for (vanilla's chest by default): its slice of the list and
+     * container texture it stands for where its source has no block that gives one
+     * ({@link RegionLooks#sectionTexture}; vanilla's chest by default): its slice of the list and
      * its slot frames take that texture's look under the active resource packs, or with
      * OptiGUI the texture its rules give the section's {@code source} (the open screen's,
      * without one). {@code title}, if any, is drawn above its content; {@code name} stands in
-     * for a blank title while other sections show ({@link RegionTitles#shownTitles}).
+     * for a blank title while other sections show, ahead of its source's name ({@link RegionTitles#shownTitles}).
      */
     public record Declared(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen,
                            Identifier texture, @Nullable Supplier<Component> title, @Nullable Supplier<Component> name,
@@ -559,7 +560,8 @@ public final class ContainerRegions {
             if (s.title() == null) continue;
             titled.add(i);
             titles.add(s.title().get());
-            names.add(s.name() != null ? s.name().get() : s.source() == null ? RegionTitles.openedName(state.opened) : null);
+            // Its name(...), else its container's: its source, or the block the screen was opened on.
+            names.add(s.name() != null ? s.name().get() : RegionTitles.sourceName(s.source() == null ? state.opened : s.source().get()));
         }
         Component[] shownTitles = new Component[sections.size()];
         List<Component> out = RegionTitles.shownTitles(titles, names);
