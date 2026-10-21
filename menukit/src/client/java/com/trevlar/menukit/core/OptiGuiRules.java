@@ -82,11 +82,13 @@ import java.util.regex.Pattern;
  * that doesn't, and for the inventory panel: what OptiGUI itself resolves for the open
  * screen's own container. MenuKit's own blits never go through OptiGUI's whole-screen swap:
  * every cut piece is drawn with the float-UV {@code blit(Identifier, int x4, float x4)},
- * which OptiGUI's hook (on the 13-argument {@code blit}) never sees ({@link PackLook}).
+ * which OptiGUI's hook (on the 13-argument {@code blit}) never sees ({@link PackLook}); and
+ * the screen's own image, which the region hides, is left out before OptiGUI swaps it
+ * ({@code ScreenBackground}).
  *
  * <h3>Cached</h3>
- * The rules are read once per resource reload, on first use; each section context's answer
- * is kept until the next reload. Nothing is read per frame.
+ * The rules are read once per resource reload, on first use; each section's answer is kept
+ * while its screen is open ({@link #screenClosed}). Nothing is read per frame.
  */
 @ApiStatus.Internal
 public final class OptiGuiRules {
