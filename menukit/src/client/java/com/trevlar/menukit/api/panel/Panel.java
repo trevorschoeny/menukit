@@ -403,7 +403,8 @@ public class Panel {
          * {@code CustomContainerMenu} make the first unplaced panel their {@code main()} and
          * stack later ones below it.
          *
-         * @deprecated since 7.4.0, every declaration picks its mode scope:
+         * @deprecated Replaced in 7.4.0 by {@link #in(ModeScope, Placement)}, which picks the
+         *             mode scope; removed in 8.0.0.
          *             {@code in(ModeScope.BOTH, Placement.screen(position))} is this call.
          * @throws IllegalStateException with {@link #in}
          */
@@ -1391,7 +1392,7 @@ public class Panel {
      * layer on top. Counting {@code dimsBehind} and {@code tracksAsModal} means a
      * dialog made with {@code modal()} is centred without calling
      * {@code center()}, while a non-dim, non-modal overlay opts in with
-     * {@code position(PanelPosition.center())}.
+     * {@code in(ModeScope.BOTH, Placement.screen(PanelPosition.center()))}.
      *
      * <p>This is about position only. The dim is still drawn only for
      * {@link #dimsBehind()}, so an overlay can be centred on top without
