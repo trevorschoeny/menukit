@@ -421,7 +421,10 @@ public class Panel {
 
         /**
          * The player can't move this panel (7.4.0): it stays where its placements put it.
-         * Without it a player may move the panel with MenuKit's edit mode, once that ships.
+         * Without it a player may move the panel with MenuKit's edit mode (the "Move panels"
+         * key), and the place they put it is kept under the panel's id, for both modes or
+         * one. Background panels, overlays, popovers and a screen's main panel are never
+         * movable, with or without this.
          */
         public Builder fixed() {
             this.fixed = true;

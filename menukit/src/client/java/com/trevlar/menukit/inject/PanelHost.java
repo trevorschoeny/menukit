@@ -576,6 +576,25 @@ public final class PanelHost {
         return now != null && panel.placements().containsKey(now) ? now : ModeScope.BOTH;
     }
 
+    // Player-moved panels (7.4.0)
+
+    /**
+     * Whether the player may move this entry's panel: not one marked {@code fixed()}, nor one
+     * that isn't part of the screen's layout: a background panel, an overlay (centred, dim or
+     * modal, which every MenuKit dialog is), a popover, or a standalone screen's main panel.
+     */
+    public static boolean movable(Entry e) {
+        Panel p = e.panel();
+        PanelPosition.Mode mode = e.position().mode();
+        return !p.isFixed() && !p.isBackground() && !p.isPopover() && !p.isOverlayPositioned()
+                && mode != PanelPosition.Mode.MAIN && mode != PanelPosition.Mode.CENTER;
+    }
+
+    /** Where the player put this entry's panel ({@link PanelPositions#lookup}), or {@code null}: its declaration, or not movable. */
+    public static PanelPositions.@Nullable Spot movedTo(Entry e) {
+        return movable(e) ? PanelPositions.lookup(e.panel().id()) : null;
+    }
+
     /**
      * The claim rule: does this placed panel take the point, so whatever lies
      * beneath it is inert?
@@ -768,7 +787,14 @@ public final class PanelHost {
                     out.add(mainPlaced);
                     continue;
                 }
-                Placed p = place(e, sw, sh, reference, screenFrame, frame.offhand(), stackEnd);
+                // A panel the player moved (7.4.0) sits where they put it, but only where its
+                // declaration would place it this frame (its anchor present, room for it), and
+                // out of its region's flow: its declared place is worked out against a copy of
+                // the stacks, so the siblings after it close up.
+                PanelPositions.Spot moved = movedTo(e);
+                Placed p = place(e, sw, sh, reference, screenFrame, frame.offhand(),
+                        moved == null ? stackEnd : new HashMap<>(stackEnd));
+                if (p != null && moved != null) p = new Placed(e, moved.left(p.w(), sw), moved.top(p.h(), sh), p.w(), p.h());
                 if (p != null) out.add(p);
             }
         } finally {
@@ -1001,6 +1027,7 @@ public final class PanelHost {
         for (Entry e : entries) {
             Panel p = e.panel();
             if (e.position().mode() != PanelPosition.Mode.REGION || !isShown(e) || p.isOverlayPositioned()) continue;
+            if (movedTo(e) != null) continue; // moved by the player: it needs no room beside the frame
             OutsideRegion r = Objects.requireNonNull(e.position().region());
             if (r == OutsideRegion.CENTER) continue;
             boolean sideways = switch (r) {

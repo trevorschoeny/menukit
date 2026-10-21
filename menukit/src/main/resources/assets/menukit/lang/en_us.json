@@ -16,5 +16,9 @@
   "menukit.list.ascending": "Ascending",
   "menukit.list.descending": "Descending",
   "menukit.dialog.save": "Save",
-  "key.category.trevmods.trevmods": "Trev's Mods"
+  "key.category.trevmods.trevmods": "Trev's Mods",
+  "key.category.menukit.menukit": "MenuKit",
+  "key.menukit.move_panels": "Move panels",
+  "menukit.move_panels.title": "Move panels",
+  "menukit.move_panels.hint": "Drag to move. Shift: this game mode only. Right-click: reset. Esc: done."
 }
