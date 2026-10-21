@@ -1,10 +1,14 @@
 package com.trevlar.menukit.api.host;
 
 import com.trevlar.menukit.api.element.RenderContext;
+import com.trevlar.menukit.api.panel.Reference;
 import com.trevlar.menukit.inject.PresentedSlots;
 import com.trevlar.menukit.inject.SlotClips;
 
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.world.inventory.Slot;
+
+import org.jspecify.annotations.Nullable;
 
 /**
  * Part of the created-slot contract, beside {@link SlotScreenHook}: a slot library
@@ -54,5 +58,22 @@ public final class SlotClip {
      */
     public static boolean panelShowing(Slot slot) {
         return PresentedSlots.panelShowing(slot);
+    }
+
+    /**
+     * The rectangle {@code slot} is shown within, in screen space (GUI pixels), or {@code null}
+     * when nothing clips it (7.4.0): what {@link #shown} was handed, every clipping ancestor's
+     * scissor intersected. A slot library can tell from it whether a slot is wholly in view,
+     * cut by a scroll edge, or out of it, say to hide a panel anchored on a slot whose slot is
+     * cut.
+     *
+     * <p>It changes when the slot's element places it, with its {@code Slot.x/y}, so the two
+     * always agree: during a frame, before the element renders, it is last frame's; after, this
+     * frame's. A slot no panel showed last frame has none. Where two panels show one slot in a
+     * frame, it is the clip of the one on top. Render thread only.
+     */
+    public static @Nullable Reference clipOf(Slot slot) {
+        ScreenRectangle clip = SlotClips.clipOf(slot);
+        return clip == null ? null : new Reference(clip.left(), clip.top(), clip.width(), clip.height());
     }
 }
