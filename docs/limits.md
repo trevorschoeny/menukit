@@ -29,6 +29,8 @@ Behavior that is incomplete in the current release.
 | Offsets and stacking | `.offset(dx, dy)` moves one panel after placement, and siblings stack on its un-nudged size. An offset that pushes a panel over its sibling overlaps it. `.gap(n)` takes 0 or more pixels, so stacked panels can touch but a gap cannot overlap them. |
 | Item picker | The components box offers no suggestions while the player types, although vanilla's `/give` does. Its errors are vanilla's. Search reads names, ids and tooltips, not `#tags` or `@mods`. No quick-move with the number keys or a double click to collect. The dialog opens only on a screen. Emptying from the keyboard is not supported. With no world open, the first picker shown loads vanilla's data once (a short pause), and enchantments and stacks are vanilla's own. |
 | Moved panels | A position the player stores is not kept on the screen: a panel dropped by an edge of a large window can be partly off a smaller one. A right-click in edit mode is the way back. |
+| Creative tabs | No scope or value per creative tab. A panel follows the game mode (`ModeScope`) and its own `visibleWhen`; a screen's targeting (`ScreenMatcher.where`) is decided when the screen opens and not asked again on a tab switch. |
+| Shared panel ids | A shared id is a plain string with no registry. Two mods that use one id by accident share a panel, so namespace it as for any panel id. |
 | A look per element | None since 6.1.0, and 7.0.0 removed `ControlStyle`. No switch makes a control differ from its screen's look (a MenuKit-grey button in the Default look). Draw such a control with a sprite of your own (`Button.builder().sprite(...)`). |
 
 ## Container region

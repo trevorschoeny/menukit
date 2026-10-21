@@ -116,7 +116,23 @@ Nothing here is needed to upgrade.
 
 ## To 7.4.0
 
-Nothing breaks: a mod built for 7.3.0 works as before. 7.4.0 adds the game mode a declaration is for ([Mode scope](concepts.md#mode-scope)), and deprecates the forms that don't say it. They keep working, mean `ModeScope.BOTH`, and are removed at 8.0.0.
+Nothing breaks: a mod built for 7.3.0 compiles and works as before, with no code change. Nothing was removed. 7.4.0 adds the game mode a declaration is for ([Mode scope](concepts.md#mode-scope)), and deprecates the forms that don't say it. They keep working, mean `ModeScope.BOTH`, and are removed at 8.0.0.
+
+### The dependency
+
+Raise the floor only when the mod calls something 7.4.0 added, a scoped form included. A mod that does must say so, or it loads on 7.3.0 and fails the first time it calls the new method ([Versioning](versioning.md#what-to-declare)).
+
+```diff
+-    implementation 'maven.modrinth:menukit:7.3.0+26.3'
++    implementation 'maven.modrinth:menukit:7.4.0+26.3'
+```
+
+```diff
+-"depends": { "menukit": ">=7.3.0 <8.0.0" }
++"depends": { "menukit": ">=7.4.0 <8.0.0" }
+```
+
+### Deprecations
 
 | Deprecated (means `BOTH`) | Use |
 |---|---|
@@ -125,7 +141,26 @@ Nothing breaks: a mod built for 7.3.0 works as before. 7.4.0 adds the game mode 
 | `HudPanel.builder(id)` | `HudPanel.builder(id, ModeScope.BOTH)` |
 | `OwnHost.add(panel, position, padding)` | the panel's own placements, and `OwnHost.add(panel, padding)` |
 
-Where a panel used to check `instanceof CreativeModeInventoryScreen`, or build a second panel for creative, give it one placement per mode instead: `in(ModeScope.SURVIVAL, ...)` and `in(ModeScope.CREATIVE, ...)` ([recipe](recipes.md#put-a-panel-somewhere-else-in-creative)). `in` and `position` don't mix on one panel, and each scope is declared once; either mistake throws at build.
+A panel on an anchor:
+
+```diff
+ Panel row = Panel.builder("mymod:pause_row")
+         .elements(rowButtons)
+-        .position(PanelPosition.region(OutsideRegion.BOTTOM_CENTER))
++        .in(ModeScope.BOTH, Placement.around(PAUSE_BUTTONS, PanelPosition.region(OutsideRegion.BOTTOM_CENTER)))
+         .build();
+-new AnchorPanelAdapter(row).on(PAUSE_BUTTONS);
++new AnchorPanelAdapter(row);
+```
+
+Where a panel used to check `instanceof CreativeModeInventoryScreen`, or build a second panel for creative, give it one placement per mode instead: `in(ModeScope.SURVIVAL, ...)` and `in(ModeScope.CREATIVE, ...)` ([recipe](recipes.md#put-a-panel-somewhere-else-in-creative)). `in` and `position` don't mix on one panel, and each scope is declared once; either mistake throws at build. A screen keeps one `main()` panel in each mode ([Placement](concepts.md#placement)).
+
+### What players see
+
+- **Panels they can move.** Every panel a mod places can be moved by the player, once they bind MenuKit's Move panels key (unbound by default). A mod has nothing to do. Mark a panel `fixed()` where its place is part of what it means, such as one lined up against vanilla's art ([Moving panels](concepts.md#moving-panels)). Namespace panel ids (`mymod:sort`), since a stored position is kept by id across every mod installed.
+- **Resource packs.** Panel-look panels and controls follow the active resource pack, as vanilla's screens do. With no pack, nothing looks different. A pack that themed MenuKit's buttons through `menukit:panel_raised` themes them through `menukit:control_raised` now ([Resource packs](resource-packs.md)).
+
+Neither changes what a mod's code does: a moved panel still shows only where its declaration would place it, and a pack changes only how a panel draws.
 
 ## Errors you may see
 
@@ -135,3 +170,8 @@ Where a panel used to check `instanceof CreativeModeInventoryScreen`, or build a
 | A mod does not load, with a malformed version in its `menukit` range | The two bounds are joined with a comma. | Separate them with a space. |
 | `cannot find symbol` on `ControlStyle`, `SIDEBAR_SCROLLBAR_WIDTH` or `MIN_WRAP_WIDTH` | Removed in 7.0.0. | See the table in step 2. |
 | `package com.trevlar.menukit.api.slot does not exist`, or the same for `api.window` | The class moved to SlotKit, or it is `Declarations`. | Import `com.trevlar.menukit.api.Declarations`, or add SlotKit and follow its upgrading page. |
+| A deprecation warning on `position`, `on`, `HudPanel.builder(id)` or `OwnHost.add(panel, position, padding)` (7.4.0) | The form says no game mode. It still works. | See [To 7.4.0](#to-740). |
+| `in(...) and position(...) don't mix` (7.4.0) | A panel calls both. | Use `in` alone: `position(p)` is `in(ModeScope.BOTH, Placement.screen(p))`. |
+| `already has a placement for` a scope (7.4.0) | `in` is called twice with one scope. | Declare each scope once. |
+| `is a second main() on one screen` | Two panels' `main()` placements share a mode. | Give each mode one main. |
+| `SharedPanels.join(...) after the shared panels were built` (7.4.0) | A join after client start. | Join from the client initializer. |

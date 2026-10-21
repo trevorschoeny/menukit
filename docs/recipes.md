@@ -132,7 +132,7 @@ Result: in survival the panel sits right of the inventory, stacked with any othe
 
 ## Share one panel with another mod
 
-Needs: MenuKit 7.4.0, in each mod. Join from each mod's client entry point. `OFFHAND` and `ARMOUR` are anchors on the offhand slot's box and the armour column's box (with SlotKit, its slot anchors); `elytraSlot` and `totemSlot` are each mod's own element.
+Needs: MenuKit 7.4.0, in each mod. Join from each mod's client entry point. `OFFHAND` and `ARMOUR` are anchors on the offhand slot's box and the armor column's box (with SlotKit, its slot anchors, see [SlotKit's recipes](https://github.com/trevorschoeny/slotkit/blob/main/docs/recipes.md#put-a-slot-above-the-offhand)); `elytraSlot` and `totemSlot` are each mod's own element.
 
 ```java
 // Simple Elytra Slot's client initializer: the elytra slot, first.
@@ -153,7 +153,7 @@ SharedPanels.join("trevlar:gear", Contribution.builder(20, ModeScope.BOTH)
         .build());
 ```
 
-Result: with both mods installed there is one gear panel, the elytra slot then the totem slot in one frame, above the offhand in survival and beside the armour in creative, on vanilla's 18 pixel pitch. Turn the totem slot off and the panel narrows to the elytra slot alone; turn both off and there is no panel. With only one of the mods installed, its slot is an ordinary panel in the same place. Neither mod depends on the other: the id is just a string both use. Each carries the whole declaration, so if a later version of one changes it, the lower order's wins and the log names both mods ([concepts](concepts.md#shared-panels)).
+Result: with both mods installed there is one gear panel, the elytra slot then the totem slot in one frame, above the offhand in survival and beside the armor in creative, on vanilla's 18 pixel pitch. Turn the totem slot off and the panel narrows to the elytra slot alone; turn both off and there is no panel. With only one of the mods installed, its slot is an ordinary panel in the same place. Neither mod depends on the other: the id is just a string both use. Each carries the whole declaration, so if a later version of one changes it, the lower order's wins and the log names both mods ([concepts](concepts.md#shared-panels)). The scope in `Contribution.builder(order, scope)` is the contribution's own: one built for `ModeScope.CREATIVE` takes no room in survival, while the panel's placements stay what the `in(...)` calls say. Join from the client initializer; MenuKit builds the panel at client start, after every client initializer has run, and a `join` after that throws. A player who moves the panel moves it under `trevlar:gear`, so both slots move together.
 
 ## Pop a panel up over the others
 
