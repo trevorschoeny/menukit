@@ -17,8 +17,6 @@ The UI draws on the client. MenuKit also loads on a server, because libraries bu
 - What a panel covers is inert. An opaque panel takes every point of its rectangle, and a see-through one takes only its controls. A slot or widget under a panel does not highlight, take a click, or show a tooltip.
 - Controls have vanilla's click sound, narration, and keyboard focus.
 - Each element draws in the look of the screen it is on. Inventories and chests get the Panel look, MenuKit's gray, and Options, Controls, and similar screens get the Default look, vanilla's pause-menu look. Text is colored by role (heading, body, muted, or disabled), so it reads in either look.
-- The Panel look follows the active resource pack. Panels take the pack's container art and controls its restyled buttons, with no code in the mod, and a pack can theme MenuKit's own sprites directly.
-- On a container screen, several containers can scroll as one list above a fixed inventory, such as a chest with a shulker box or two opened below it. The slots stay vanilla's, and other mods' buttons and recipe viewers keep working around both panels.
 - A color field lets a settings page pick a color, from Minecraft's 16 dye colors or from a full picker with a hex field.
 - An item picker holds one item or a list of them as a setting value. Its dialog lists every item and variant the way the creative inventory does, and edits names, counts, enchantments, and other components. One shared matcher compares stacks, and nothing is ever taken from the player's inventory.
 - A widget made by another library, such as a config library's own control, can sit inside a panel. It scrolls and clips with the panel, and gets clicks, typed keys, focus, and narration.
@@ -121,17 +119,9 @@ A panel declares where it sits once, with `Panel.builder(id).position(...)`. `Pa
 
 A shown panel claims the points it covers, so nothing behind it highlights, takes a click, or shows a tooltip. Panels are opaque by default and claim their whole rectangle. `.opaque(false)` makes a panel see-through, and then only its buttons and other controls block what is behind them. `.popover()` draws a panel above every ordinary panel on the screen, and a modal dialog still opens above that. The Claims section of [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md) covers the order.
 
-### Containers above the inventory
-
-`ContainerRegion.section(id)` adds a section to a container screen's container region: the chest's own grid, a box opened below it, another below that, all one list above the player's inventory. The list grows, stays centered with the inventory panel while both fit, and scrolls only once the screen is full. The wheel scrolls it from anywhere nothing else wants the wheel, a shift-click into a section scrolled out of view scrolls to it, and carrying an item to its edge scrolls it. The slots are the menu's own, and the screen's bounds are the rectangle around both panels, so other mods' buttons and recipe viewers go around them. A section's `source`, the placed container or item it shows, gives it that container's art under a resource pack and its name. `ContainerRegion.CONTAINERS` and `ContainerRegion.INVENTORY` are anchors for a button by either panel. The Container region section of [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md#container-region) covers it, and [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md#stack-containers-in-one-scrolling-column-above-the-inventory) builds one.
-
 ### Standalone screens and looks
 
 A mod's own screen subclasses `MKScreen`. Elements draw in the look of the screen they are on. `ScreenKind.PANEL` is the Panel look, MenuKit's gray, and `ScreenKind.DEFAULT` is the Default look, vanilla's pause-menu look. Panels injected into vanilla screens take the look from the screen. A standalone screen declares its look once, with `super(title, ScreenKind.DEFAULT, panels)`, and one that declares nothing has the Panel look. Before 7.3.0 the two were `ScreenKind.CONTAINER` and `ScreenKind.OPTIONS`, which still work, deprecated, until 8.0.0. Text takes its color from a role (`TextRole.HEADING`, `BODY`, `MUTED`, or `DISABLED`), so it reads in both looks. [Recipes](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md) builds a whole settings screen in the Default look.
-
-### Resource packs
-
-A Panel-look panel follows the active resource pack the way vanilla's screens do. Its frame, fill, and slots are cut from the pack's container art, its controls draw the pack's restyled vanilla buttons and checkboxes, and its text changes color only where the pack's fill would make it hard to read. A mod has nothing to do. Pack authors can theme MenuKit directly by overriding `menukit:panel_raised` and the `menukit:control_raised` sprites. [Resource packs](https://github.com/trevorschoeny/menukit/blob/main/docs/resource-packs.md) has the full list.
 
 ### Layout, tabs, and sections
 
@@ -166,10 +156,6 @@ MenuKit keeps no slot code. A mod that needs slot groups, created slots, or cust
 [Limits](https://github.com/trevorschoeny/menukit/blob/main/docs/limits.md) lists what MenuKit doesn't do and the open gaps. [Versioning](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md) explains what a version number promises and why both bounds matter. The [reference](https://trevorschoeny.github.io/menukit/) is the generated javadoc for the `api` packages. Every Java sample in the README and in `docs/` is compiled against the release before it ships.
 
 ## Upgrading
-
-### To 7.4.0
-
-Nothing breaks, and mods built for 7.3.0 work as before. Panel-look panels and controls now follow the active resource pack, so under a pack that restyles containers they may no longer be MenuKit's gray. Art a mod draws itself beside them stays as it is. A mod that uses anything new in 7.4.0 declares `"menukit": ">=7.4.0 <8.0.0"`.
 
 ### To 7.3.0
 
