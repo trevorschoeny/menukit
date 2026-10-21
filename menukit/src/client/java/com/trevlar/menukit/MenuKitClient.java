@@ -50,7 +50,7 @@ public class MenuKitClient implements ClientModInitializer {
         var started = net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED;
         started.addPhaseOrdering(net.fabricmc.fabric.api.event.Event.DEFAULT_PHASE, sharedPanels);
         started.addPhaseOrdering(sharedPanels, freeze);
-        started.register(sharedPanels, client -> com.trevlar.menukit.api.panel.SharedPanels.buildAll());
+        started.register(sharedPanels, client -> com.trevlar.menukit.inject.SharedPanelRegistry.buildAll());
         started.register(freeze, client -> com.trevlar.menukit.api.Declarations.freeze("client started"));
 
         MK.initClient();

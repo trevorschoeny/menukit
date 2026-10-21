@@ -2,20 +2,15 @@ package com.trevlar.menukit.api.panel;
 
 import com.trevlar.menukit.api.element.Flow;
 import com.trevlar.menukit.inject.PanelHost;
+import com.trevlar.menukit.inject.SharedPanelRegistry;
+import com.trevlar.menukit.inject.SharedPanelRegistry.Joined;
 
-import org.jetbrains.annotations.ApiStatus;
-import org.jetbrains.annotations.VisibleForTesting;
-import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 /**
  * Panels several mods share (7.4.0). Mods that work together put their elements in one
@@ -55,14 +50,6 @@ public final class SharedPanels {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
-    private record Joined(String modId, Contribution contribution) {}
-
-    /** Contributions by shared id, in join order (the stable sort keeps it within one mod and order). */
-    private static final Map<String, List<Joined>> JOINED = new LinkedHashMap<>();
-    private static final Map<String, Panel> BUILT = new HashMap<>();
-    private static boolean built = false;
-    private static int warnings = 0;
-
     /**
      * Adds {@code contribution} to the shared panel {@code id}, for the calling mod. Call from
      * your client initializer.
@@ -70,45 +57,15 @@ public final class SharedPanels {
      * @throws IllegalStateException after the shared panels were built at client start
      */
     public static void join(String id, Contribution contribution) {
-        join(id, contribution, PanelHost.captureCallerModId());
-    }
-
-    /** {@link #join(String, Contribution)} for a named mod: MenuKit's checks, and the join above. */
-    @ApiStatus.Internal
-    public static void join(String id, Contribution contribution, String modId) {
-        Objects.requireNonNull(id, "id");
-        Objects.requireNonNull(contribution, "contribution");
-        if (built) {
-            throw new IllegalStateException("SharedPanels.join(\"" + id + "\") from " + modId
-                    + " after the shared panels were built at client start. Join from your client initializer.");
-        }
-        JOINED.computeIfAbsent(id, k -> new ArrayList<>()).add(new Joined(modId, contribution));
+        SharedPanelRegistry.join(id, contribution, PanelHost.captureCallerModId());
     }
 
     /**
-     * Builds and registers every shared panel, once. MenuKit runs it at client start, in a
-     * phase after the default one and before declarations freeze.
+     * Builds one shared panel from its contributions and registers it ({@link SharedPanelRegistry}
+     * runs it at client start): here, where a contribution's declaration and the adapters'
+     * crediting constructors can be read.
      */
-    @ApiStatus.Internal
-    public static void buildAll() {
-        if (built) return;
-        built = true;
-        JOINED.forEach(SharedPanels::buildAndRegister);
-    }
-
-    /** The shared panel built for {@code id}, or {@code null} before the build or with no contribution. */
-    @ApiStatus.Internal
-    public static @Nullable Panel panel(String id) {
-        return BUILT.get(id);
-    }
-
-    /** How many disagreement warnings were logged, for MenuKit's checks. */
-    @VisibleForTesting
-    public static int warningsForChecks() {
-        return warnings;
-    }
-
-    private static void buildAndRegister(String id, List<Joined> joined) {
+    static Panel build(String id, List<Joined> joined) {
         List<Joined> sorted = new ArrayList<>(joined);
         sorted.sort(Comparator.<Joined>comparingInt(j -> j.contribution().order).thenComparing(Joined::modId));
         Joined winner = sorted.get(0);
@@ -118,7 +75,7 @@ public final class SharedPanels {
         for (Joined j : sorted.subList(1, sorted.size())) {
             List<String> diff = j.contribution().differences(decl);
             if (diff.isEmpty()) continue;
-            warnings++;
+            SharedPanelRegistry.warned();
             LOGGER.warn("[SharedPanels] '{}': {}'s contribution (order {}) differs from {}'s (order {}) in {}; "
                             + "{}'s declaration is used", id, j.modId(), j.contribution().order,
                     winner.modId(), decl.order, String.join(", ", diff), winner.modId());
@@ -145,7 +102,6 @@ public final class SharedPanels {
         decl.placements.forEach(panel::in);
         if (decl.fixed) panel.fixed();
         Panel built = panel.build();
-        BUILT.put(id, built);
 
         // Registered as an ordinary panel with these placements would be: with a screen placement,
         // the screen adapter on every container screen (it also hosts the anchored placements
@@ -154,5 +110,6 @@ public final class SharedPanels {
         boolean onScreen = decl.placements.values().stream().anyMatch(p -> p.anchor() == null);
         if (onScreen) new ScreenPanelAdapter(built, built.interiorPadding(), winner.modId());
         else new AnchorPanelAdapter(built, built.interiorPadding(), winner.modId());
+        return built;
     }
 }

@@ -1,7 +1,6 @@
 package com.trevlar.menukit.inject;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import com.trevlar.menukit.api.MK;
 import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.menukit.api.panel.Panel;
 
@@ -270,7 +269,7 @@ public final class PanelEditing {
 
     /** The hosts whose panels are edited on {@code s}: the HUD's on the HUD screen, else the screen's own. */
     private static List<PanelHost> hostsOf(Screen s) {
-        return s instanceof HudScreen ? MK.hudHosts() : ScreenPanelRegistry.hostsOn(s);
+        return s instanceof HudScreen ? HudHosts.all() : ScreenPanelRegistry.hostsOn(s);
     }
 
     // Drawing, after the screen and its tooltips: the outlines and the hint line.

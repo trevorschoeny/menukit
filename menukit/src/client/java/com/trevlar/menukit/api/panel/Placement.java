@@ -1,10 +1,10 @@
 package com.trevlar.menukit.api.panel;
 
-import org.jetbrains.annotations.ApiStatus;
+import com.trevlar.menukit.inject.PanelHost;
+
 import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /**
  * Where a panel goes in one mode (7.4.0): what it is placed against, and its position there.
@@ -37,13 +37,6 @@ import java.util.function.Supplier;
 public record Placement(@Nullable Anchor anchor, PanelPosition position) {
 
     /**
-     * The origin an {@link #at} placement's position carries: the anchor's box's top-left,
-     * which the host fills in. Asked directly it gives nothing, so the panel is skipped
-     * rather than put anywhere else.
-     */
-    private static final Supplier<ScreenOrigin> BOX_ORIGIN = () -> null;
-
-    /**
      * A placement against {@code anchor}, or the host's own reference without one.
      *
      * @throws IllegalArgumentException for an unplaced position: a panel with no placement declares none instead
@@ -74,12 +67,6 @@ public record Placement(@Nullable Anchor anchor, PanelPosition position) {
      * up of the box.
      */
     public static Placement at(Anchor anchor, int dx, int dy) {
-        return new Placement(Objects.requireNonNull(anchor, "anchor"), PanelPosition.pixel(BOX_ORIGIN).offset(dx, dy));
-    }
-
-    /** Whether {@code position} is an {@link #at} placement's: its origin is its anchor's box's top-left. */
-    @ApiStatus.Internal
-    public static boolean fromBox(PanelPosition position) {
-        return position.pixelOrigin() == BOX_ORIGIN;
+        return new Placement(Objects.requireNonNull(anchor, "anchor"), PanelPosition.pixel(PanelHost.BOX_ORIGIN).offset(dx, dy));
     }
 }

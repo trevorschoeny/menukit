@@ -3,19 +3,16 @@ package com.trevlar.menukit.api;
 import com.trevlar.menukit.MenuKitClient;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.hud.HudNotification;
+import com.trevlar.menukit.inject.HudHosts;
 import com.trevlar.menukit.inject.LayerPlan;
 import com.trevlar.menukit.inject.PanelHost;
 import com.trevlar.menukit.api.Declarations;
-import com.trevlar.menukit.core.RegionMath;
 
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.util.Util;
-import net.minecraft.world.entity.HumanoidArm;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.GameType;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,45 +57,6 @@ public class MK {
     @ApiStatus.Internal
     public static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
-    // HUD panels share one host, which places each panel on its InsideRegion spot
-    // of the game window with the HUD's insets, or in an OutsideRegion around the
-    // vanilla hotbar (PanelHost.hudFrame). Registered at init, frozen at client
-    // start, rendered in sorted (priority, modId, sequence) order.
-    private static final PanelHost HUD = PanelHost.hud(() -> {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc == null || mc.getWindow() == null) return null;
-        return PanelHost.hudFrame(mc.getWindow().getGuiScaledWidth(), mc.getWindow().getGuiScaledHeight(),
-                drawnOffhandSide(mc));
-    });
-
-    // The HUD's status column: panels stacked up from just above the XP level number,
-    // in the gap between the hearts and the hunger bar (HudPanel.Builder.statusColumn).
-    // A host of its own, because its reference is the column's base, not the hotbar.
-    private static final java.util.function.Supplier<PanelHost.@Nullable Frame> STATUS_FRAME = () -> {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc == null || mc.getWindow() == null) return null;
-        int sw = mc.getWindow().getGuiScaledWidth(), sh = mc.getWindow().getGuiScaledHeight();
-        boolean statusBars = mc.gameMode != null && mc.gameMode.hasExperience();
-        return new PanelHost.Frame(sw, sh, RegionMath.statusColumn(sw, sh, statusBars), null);
-    };
-    private static final PanelHost HUD_STATUS = PanelHost.hud(STATUS_FRAME);
-
-    /**
-     * The side vanilla draws the offhand slot on beside the hotbar this frame, or
-     * {@code null} when it draws none. Mirrors {@code Hud.extractItemHotbar} (26.x):
-     * the item hotbar is drawn for the camera's player outside spectator mode (a
-     * spectator gets the spectator bar instead), and the offhand slot only while
-     * that player's offhand holds something, on the side opposite the main arm
-     * (left for a right-handed player, right for a left-handed one). The geometry
-     * this feeds lives in {@code RegionMath.resolveHud}; this only reads the game.
-     */
-    private static @Nullable HumanoidArm drawnOffhandSide(Minecraft mc) {
-        if (mc.gameMode == null || mc.gameMode.getPlayerMode() == GameType.SPECTATOR) return null;
-        if (!(mc.getCameraEntity() instanceof Player player)) return null;
-        if (player.getOffhandItem().isEmpty()) return null;
-        return player.getMainArm().getOpposite();
-    }
-
     // Notification definitions, registered at mod init
     private static final Map<String, HudNotification> notificationDefs = new LinkedHashMap<>();
 
@@ -131,7 +89,7 @@ public class MK {
      * @throws IllegalArgumentException if the HUD cannot place the panel's position
      */
     public static void registerHud(Panel panel, int padding) {
-        registerHud(HUD, panel, padding);
+        registerHud(HudHosts.WINDOW, panel, padding);
     }
 
     /**
@@ -142,12 +100,12 @@ public class MK {
      */
     @ApiStatus.Internal
     public static void registerHudStatus(Panel panel, int padding) {
-        registerHud(HUD_STATUS, panel, padding);
+        registerHud(HudHosts.STATUS, panel, padding);
     }
 
     private static void registerHud(PanelHost host, Panel panel, int padding) {
         Declarations.requireOpen("MK.registerHud(" + panel.id() + ")");
-        for (PanelHost h : List.of(HUD, HUD_STATUS)) {
+        for (PanelHost h : HudHosts.all()) {
             for (PanelHost.Entry e : h.entries()) {
                 if (e.panel().id().equals(panel.id())) {
                     throw new IllegalStateException("MenuKit: a HUD panel '" + panel.id() + "' is already registered.");
@@ -177,17 +135,11 @@ public class MK {
     @ApiStatus.Internal
     public static int statusColumnClearance(int bottom, int left, int right) {
         int top = Integer.MAX_VALUE;
-        for (PanelHost.Placed p : HUD_STATUS.layout().placed()) {
+        for (PanelHost.Placed p : HudHosts.STATUS.layout().placed()) {
             if (PanelHost.movedTo(p.entry()) != null) continue; // moved out of the column by the player
             if (p.x() < right && p.x() + p.w() > left) top = Math.min(top, p.y());
         }
         return top == Integer.MAX_VALUE ? 0 : Math.max(0, bottom - top);
-    }
-
-    /** The HUD's hosts, the window's and the status column's: what the HUD edit screen moves panels in. */
-    @ApiStatus.Internal
-    public static List<PanelHost> hudHosts() {
-        return List.of(HUD, HUD_STATUS);
     }
 
     /**
@@ -218,7 +170,7 @@ public class MK {
         int screenW = mc.getWindow().getGuiScaledWidth();
         int screenH = mc.getWindow().getGuiScaledHeight();
 
-        LayerPlan.compose(List.of(HUD, HUD_STATUS), graphics, -1, -1, screenW, screenH, (host, placed) -> false);
+        LayerPlan.compose(HudHosts.all(), graphics, -1, -1, screenW, screenH, (host, placed) -> false);
 
         renderActiveNotifications(graphics, deltaTracker, screenW, screenH);
     }

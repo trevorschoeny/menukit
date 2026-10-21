@@ -393,6 +393,18 @@ public final class PanelHost {
 
     // Entries
 
+    /**
+     * The origin a {@code Placement.at} position carries: its anchor's box's top-left, which
+     * the host fills in ({@link #fromBox}). Asked directly it gives nothing, so the panel is
+     * skipped rather than put anywhere else.
+     */
+    public static final java.util.function.Supplier<ScreenOrigin> BOX_ORIGIN = () -> null;
+
+    /** Whether {@code position} is a {@code Placement.at} placement's: its origin is its anchor's box's top-left. */
+    public static boolean fromBox(PanelPosition position) {
+        return position.pixelOrigin() == BOX_ORIGIN;
+    }
+
     /** The next registration sequence number: the final, per-process tie-break. */
     private static final AtomicInteger SEQ = new AtomicInteger();
 
@@ -856,7 +868,7 @@ public final class PanelHost {
                     // Placement.at position takes its point from the reference (its
                     // anchor's box), the same way: no stacking, no budget, no clamp.
                     ScreenOrigin o;
-                    if (Placement.fromBox(pos)) {
+                    if (fromBox(pos)) {
                         if (reference == null) return null;
                         o = new ScreenOrigin(reference.leftPos(), reference.topPos());
                     } else {
