@@ -12,6 +12,7 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -129,18 +130,38 @@ public final class PresentedSlots {
      * {@link SlotKey}, so the answer survives the slot object being made again.
      */
     private static final Map<Container, Map<SlotKey, Panel>> LAST_PANEL = new WeakHashMap<>();
+    /**
+     * The container screen {@link #LAST_PANEL} was filled on, weakly. The player's inventory is
+     * one container on every screen, so its slot <i>i</i> is the same key in the inventory, a
+     * chest and creative: the entries are that screen's only, and go when another container
+     * screen starts a frame ({@link #ownedBy}). Creative's tab switches stay on one screen.
+     */
+    private static WeakReference<AbstractContainerScreen<?>> owner = new WeakReference<>(null);
     private static final Set<Panel> DRAWN = Collections.newSetFromMap(new IdentityHashMap<>());
 
     // The frame
 
     /** The start of a place pass on {@code screen}: last frame's record goes. */
     static void beginFrame(@Nullable AbstractContainerScreen<?> s, int mx, int my) {
+        ownedBy(s);
         BY_PANEL.clear();
         ALL.clear();
         hoveredForChecks = null;
         screen = s;
         mouseX = mx;
         mouseY = my;
+    }
+
+    /**
+     * A frame on {@code s} starts (its background pass or its place pass): on a container
+     * screen other than the one {@link #LAST_PANEL} was filled on, the last panels go. A
+     * {@code null} screen (MenuKit's checks) changes nothing.
+     */
+    @VisibleForTesting
+    public static void ownedBy(@Nullable AbstractContainerScreen<?> s) {
+        if (s == null || s == owner.get()) return;
+        LAST_PANEL.clear();
+        owner = new WeakReference<>(s);
     }
 
     /** Whether reports are being filed (the place pass) rather than slots drawn. */
@@ -215,6 +236,7 @@ public final class PresentedSlots {
      */
     static void background(boolean on, @Nullable AbstractContainerScreen<?> s, int mx, int my) {
         if (on) {
+            ownedBy(s);
             BELOW.clear();
             BELOW_ALL.clear();
             screen = s;
