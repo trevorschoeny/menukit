@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiPredicate;
+import java.util.function.IntFunction;
 
 /**
  * Panel-look panel surfaces that follow resource packs. Packs restyle containers by replacing whole
@@ -118,7 +120,7 @@ public final class PackLook {
      * @param l left border width   @param r right border width   @param t top border height   @param b bottom border height
      * @param sTop the top corners' size (square)                   @param sBot the bottom corners' size (square)
      * @param fill the fill colour (ARGB)
-     * @param topU top edge strip's first column, {@code topW} its width; likewise bottom, left and right ({@code V}, {@code H})
+     * @param edges the clean strip along each side the edges are tiled from
      * @param sideFrom the first row the side strips may come from, {@code sideTo} the last (exclusive)
      * @param slotV the row of the slot cut (its column is vanilla's 7)
      * @param slotOk whether the slot cut matches its neighbours
@@ -129,10 +131,17 @@ public final class PackLook {
      * @param texW the texture's width in units, {@code texH} its height (for normalising UVs)
      */
     public record Cut(int x0, int x1, int top, int bottom, boolean mirror, int l, int r, int t, int b,
-                      int sTop, int sBot, int fill,
-                      int topU, int topW, int botU, int botW, int leftV, int leftH, int rightV, int rightH,
-                      int sideFrom, int sideTo, int slotV, boolean slotOk, boolean clean, int[] insetL, int[] insetR,
+                      int sTop, int sBot, int fill, Edges edges, int sideFrom, int sideTo, int slotV, boolean slotOk, boolean clean, int[] insetL, int[] insetR,
                       int texW, int texH) {}
+
+    /**
+     * A clean strip along one side of a part: from where (a column along the top and bottom,
+     * a row down the sides) and how long.
+     */
+    public record Strip(int from, int length) {}
+
+    /** The clean strip along each side of a part, tiled along that side ({@link #drawPanel}). */
+    public record Edges(Strip top, Strip bottom, Strip left, Strip right) {}
 
     /**
      * A surface's look: where it comes from, the cut (kept when it falls back too, so a check
@@ -360,7 +369,7 @@ public final class PackLook {
         int l = Math.max(2, Math.min(C, GRID_X0 - x0)), r = Math.max(2, Math.min(C, x1 - GRID_X1)), t = C, b = C;
         int contEnd = 17 + 18 * ((split - 17) / 18);
         final int bot = bottom;
-        java.util.function.BiPredicate<Integer, Integer> slot = (x, y) -> x >= GRID_X0 && x < GRID_X1
+        BiPredicate<Integer, Integer> slot = (x, y) -> x >= GRID_X0 && x < GRID_X1
                 && ((y >= bot - 83 && y < bot - 29) || (y >= bot - 25 && y < bot - 7) || (y >= 17 && y < contEnd));
 
         // The fill: the colour of the longest run of flat rows in the part's slot-free
@@ -408,13 +417,12 @@ public final class PackLook {
 
         // Edge strips: the longest run along each side like its usual profile, clear of the
         // corners and of decoration (a latch, a hinge).
-        int[] topRun = run(p, x0 + sTop, x1 - sTop, x -> colOf(p, x, top, t), topM);
-        int[] botRun = mirror ? new int[]{topRun[0], topRun[1]}
-                : run(p, x0 + sBot, x1 - sBot, x -> colOf(p, x, bot - b, b), botM);
+        Strip topRun = run(p, x0 + sTop, x1 - sTop, x -> colOf(p, x, top, t), topM);
+        Strip botRun = mirror ? topRun : run(p, x0 + sBot, x1 - sBot, x -> colOf(p, x, bot - b, b), botM);
         int sideFrom = top + sTop, sideTo = mirror || !inventory ? p1 : bottom - sBot;
         final int fx0 = x0, fx1 = x1;
-        int[] leftRun = run(p, sideFrom, sideTo, y -> rowOf(p, y, fx0, l), leftM);
-        int[] rightRun = run(p, sideFrom, sideTo, y -> rowOf(p, y, fx1 - r, r), rightM);
+        Strip leftRun = run(p, sideFrom, sideTo, y -> rowOf(p, y, fx0, l), leftM);
+        Strip rightRun = run(p, sideFrom, sideTo, y -> rowOf(p, y, fx1 - r, r), rightM);
 
         // The slot: vanilla's first, kept if it matches the one beside it and the one below.
         int slotV = inventory ? bottom - 83 : 17;
@@ -431,10 +439,9 @@ public final class PackLook {
             while (insetR[j] < sTop && !p.opaque(cx1 - 1 - insetR[j], firstY + j)) insetR[j]++;
         }
 
-        boolean clean = uniform && Math.min(Math.min(topRun[1], botRun[1]), Math.min(leftRun[1], rightRun[1])) >= 2;
+        boolean clean = uniform && Math.min(Math.min(topRun.length(), botRun.length()), Math.min(leftRun.length(), rightRun.length())) >= 2;
         return new Cut(x0, x1, top, bottom, mirror, l, r, t, b, sTop, sBot, fill,
-                topRun[0], topRun[1], botRun[0], botRun[1], leftRun[0], leftRun[1], rightRun[0], rightRun[1],
-                sideFrom, sideTo, slotV, slotOk, clean, insetL, insetR, p.w, p.h);
+                new Edges(topRun, botRun, leftRun, rightRun), sideFrom, sideTo, slotV, slotOk, clean, insetL, insetR, p.w, p.h);
     }
 
     private static int[] rowOf(Pixels p, int y, int x, int n) {
@@ -455,8 +462,8 @@ public final class PackLook {
         return out;
     }
 
-    /** The longest run in {@code [from, to)} whose profile is like {@code ref}: {@code [start, length]}. */
-    private static int[] run(Pixels p, int from, int to, java.util.function.IntFunction<int[]> profile, int[] ref) {
+    /** The longest run in {@code [from, to)} whose profile is like {@code ref}. */
+    private static Strip run(Pixels p, int from, int to, IntFunction<int[]> profile, int[] ref) {
         int bestStart = from, best = 0, start = -1;
         for (int i = from; i <= to; i++) {
             boolean ok = i < to && same(profile.apply(i), ref);
@@ -466,7 +473,7 @@ public final class PackLook {
                 start = -1;
             }
         }
-        return new int[]{bestStart, best};
+        return new Strip(bestStart, best);
     }
 
     /**
@@ -477,7 +484,7 @@ public final class PackLook {
      */
     private static int grow(Pixels p, boolean right, int x0, int x1, int top, int l, int r, int t,
                             int[] leftM, int[] rightM, int[] topM, int fill,
-                            java.util.function.BiPredicate<Integer, Integer> slot) {
+                            BiPredicate<Integer, Integer> slot) {
         int side = right ? r : l, base = Math.max(t, side);
         for (int s = base; s < 24; s++) {
             Boolean a = shell(p, right, x0, x1, top, side, t, leftM, rightM, topM, fill, slot, s);
@@ -491,7 +498,7 @@ public final class PackLook {
     /** Whether shell {@code s} of a top corner is plain; {@code null} if it reaches a slot. */
     private static @Nullable Boolean shell(Pixels p, boolean right, int x0, int x1, int top, int side, int t,
                                            int[] leftM, int[] rightM, int[] topM, int fill,
-                                           java.util.function.BiPredicate<Integer, Integer> slot, int s) {
+                                           BiPredicate<Integer, Integer> slot, int s) {
         for (int i = 0; i <= s; i++) {
             int[][] cells = {{i, top + s}, {s, top + i}};
             for (int[] c : cells) {
@@ -532,15 +539,16 @@ public final class PackLook {
 
         // Edges, tiled from their clean strips: the top's along the top, the sides' down the
         // sides, the bottom's (or the top's mirrored) along the bottom.
-        strip(g, c, tex, x + sT, y, w - 2 * sT, c.t(), c.topU(), c.top(), c.topW(), c.t(), false);
-        strip(g, c, tex, x, y + sT, c.l(), h - sT - sB, c.x0(), c.leftV(), c.l(), c.leftH(), false);
-        strip(g, c, tex, x + w - c.r(), y + sT, c.r(), h - sT - sB, c.x1() - c.r(), c.rightV(), c.r(), c.rightH(), false);
+        Edges e = c.edges();
+        strip(g, c, tex, x + sT, y, w - 2 * sT, c.t(), e.top().from(), c.top(), e.top().length(), c.t(), false);
+        strip(g, c, tex, x, y + sT, c.l(), h - sT - sB, c.x0(), e.left().from(), c.l(), e.left().length(), false);
+        strip(g, c, tex, x + w - c.r(), y + sT, c.r(), h - sT - sB, c.x1() - c.r(), e.right().from(), c.r(), e.right().length(), false);
         if (c.mirror()) {
-            strip(g, c, tex, x + sB, y + h - c.t(), w - 2 * sB, c.t(), c.topU(), c.top(), c.topW(), c.t(), true);
+            strip(g, c, tex, x + sB, y + h - c.t(), w - 2 * sB, c.t(), e.top().from(), c.top(), e.top().length(), c.t(), true);
             corner(g, c, tex, x, y + h - sB, sB, c.x0(), c.top(), false, true);
             corner(g, c, tex, x + w - sB, y + h - sB, sB, c.x1() - sB, c.top(), true, true);
         } else {
-            strip(g, c, tex, x + sB, y + h - c.b(), w - 2 * sB, c.b(), c.botU(), c.bottom() - c.b(), c.botW(), c.b(), false);
+            strip(g, c, tex, x + sB, y + h - c.b(), w - 2 * sB, c.b(), e.bottom().from(), c.bottom() - c.b(), e.bottom().length(), c.b(), false);
             piece(g, c, tex, x, y + h - sB, sB, sB, c.x0(), c.bottom() - sB, sB, sB, false);
             piece(g, c, tex, x + w - sB, y + h - sB, sB, sB, c.x1() - sB, c.bottom() - sB, sB, sB, false);
         }
