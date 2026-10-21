@@ -446,7 +446,7 @@ public final class PanelHost {
     public synchronized Entry add(Panel panel, @Nullable ModeScope scope, PanelPosition position, int padding,
                                   String modId, int seq) {
         requireSupported(kind, panel, position);
-        if (position.mode() == PanelPosition.Mode.MAIN && hasMain(scope)) {
+        if (position.mode() == PanelPosition.Mode.MAIN && hasMain(panel, scope)) {
             throw new IllegalArgumentException("MenuKit: panel '" + panel.id()
                     + "' is a second main() on one screen; a screen has one frame.");
         }
@@ -947,13 +947,17 @@ public final class PanelHost {
     }
 
     /**
-     * Whether a MAIN entry that would show alongside one for {@code scope} is here already:
-     * one frame a screen, in each mode. An entry with no scope shows in every mode.
+     * Whether a MAIN entry that would show alongside {@code panel}'s for {@code scope} is here
+     * already: one frame a screen, in each mode. An entry with no scope shows in every mode,
+     * and {@code BOTH} in every mode another panel has no placement of its own for, so it
+     * overlaps every scope. Two scopes of one panel never show together ({@link #forNow}).
      */
-    private boolean hasMain(@Nullable ModeScope scope) {
+    private boolean hasMain(Panel panel, @Nullable ModeScope scope) {
         for (Entry e : entries) {
             if (e.position().mode() != PanelPosition.Mode.MAIN) continue;
-            if (scope == null || e.scope() == null || e.scope() == scope) return true;
+            if (e.panel() == panel && scope != null && e.scope() != null && e.scope() != scope) continue;
+            if (scope == null || e.scope() == null || scope == ModeScope.BOTH || e.scope() == ModeScope.BOTH
+                    || e.scope() == scope) return true;
         }
         return false;
     }
