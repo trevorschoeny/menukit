@@ -24,32 +24,34 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Panel-look panel surfaces that follow resource packs (spec "Panel-look panels follow
- * resource packs", 2026-10-20). Packs restyle containers by replacing whole
+ * Panel-look panel surfaces that follow resource packs. Packs restyle containers by replacing whole
  * {@code textures/gui/container/*.png} files with the slots drawn into the art; none add
  * nine-slice data. So a panel surface's look is <b>cut from the container texture</b> the
  * active pack supplies: a frame, a fill and a slot.
  *
- * <h3>Where a look comes from (spec part 1), per texture</h3>
+ * <h3>Where a look comes from, per texture</h3>
  * <ol>
  *   <li>A pack overrides {@code menukit:panel_raised}: that sprite. The pack themed MenuKit
  *       directly, so it wins over anything cut from a container texture.</li>
  *   <li>The container texture is vanilla's own: MenuKit's sprite exactly as before, so an
  *       unmodded game looks unchanged.</li>
  *   <li>Otherwise the look is cut from the pack's texture, unless its fill is not one colour
- *       or no clean strip of edge is found: then MenuKit's sprite again ({@link Source#FALLBACK}).</li>
+ *       or no clean strip of edge is found: then MenuKit's sprite again ({@link Source#FALLBACK}).
+ *       A textured fill (wood grain, say) can't be tiled from a strip without seams, and a
+ *       frame cut from it would not match the pack's own screens anyway.</li>
  * </ol>
  *
- * <h3>What is cut (spec parts 2 and 3)</h3>
+ * <h3>What is cut</h3>
  * A container texture has two <b>parts</b>: the container's (top) and the player
  * inventory's (vanilla's last 96 rows). Some packs draw the inventory as a box of its own
- * with its own top border (Recolourful, Touched UI); then the container part has no bottom
- * border, and its top border is mirrored for one. From a part:
+ * with its own top border; then the container part has no bottom border, and its top
+ * border is mirrored for one. From a part:
  * <ul>
  *   <li><b>corners</b>, 7 px (vanilla's slots start at x 7), grown at the top while an
- *       ornament runs past them (Touched UI), never into the slots;</li>
+ *       ornament runs past them, never into the slots;</li>
  *   <li><b>edges</b>, tiled along each side from the longest strip clear of corners, slots
- *       and decoration (Recolourful's latch is skipped), never stretched;</li>
+ *       and decoration (a latch drawn on the frame is skipped), never stretched: stretching
+ *       a side would smear its bevel and any pattern along it;</li>
  *   <li><b>the fill</b>: the colour of the longest run of flat rows in the part's slot-free
  *       strips (the title strip, the gap above the hotbar);</li>
  *   <li><b>a slot</b>, at vanilla's first slot position, if it matches its neighbours (else
@@ -58,7 +60,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * An inventory part with no clean frame of its own (drawn in pieces: rows hung under the
  * container's box, the hotbar boxed apart) is drawn as the pack's plain panel ({@link #inventory}).
  * Everything is in the texture's 256-unit coordinates and drawn as blits in them, so a
- * 512 px pack (Faithful 32x) needs nothing extra.
+ * 512 px (32x) pack needs nothing extra.
  *
  * <h3>Cached, never read per frame</h3>
  * A texture is read and cut once, on its first use after a resource reload; the cache is
@@ -71,7 +73,7 @@ public final class PackLook {
 
     private static final Logger LOG = LoggerFactory.getLogger("MenuKit/PackLook");
 
-    /** Vanilla's chest texture: the look of a plain Panel-look panel (spec part 6). */
+    /** Vanilla's chest texture: the look of a plain Panel-look panel, the most common container art a pack restyles. */
     public static final Identifier CHEST = Identifier.withDefaultNamespace("textures/gui/container/generic_54.png");
     /** Vanilla's shulker box texture. */
     public static final Identifier SHULKER_BOX = Identifier.withDefaultNamespace("textures/gui/container/shulker_box.png");
@@ -90,24 +92,6 @@ public final class PackLook {
 
     /** MenuKit's sprite's fill, the vanilla grey. */
     private static final int SPRITE_FILL = 0xFFC6C6C6;
-    /** MenuKit's sprite's frame: its outline and its two-pixel bevel, on every side, before the fill. */
-    private static final int[] SPRITE_FRAME = {3, 3, 3, 3};
-
-    // ---------------------------------------------------------------------------------
-    // Comparison switches for the review shots. Each holds the variant the spec chose by
-    // default; flipping one shows the other. Delete with the losing code once picked.
-    // ---------------------------------------------------------------------------------
-
-    /** mockup: the review shots' variant switches (Trev picks; then delete this class and its uses). */
-    public static final class Mockup {
-        private Mockup() {}
-        /** mockup: edges and fill stretched over the side instead of tiled from clean strips. */
-        public static volatile boolean stretch = false;
-        /** mockup: draw the cut even where it falls back (a non-uniform fill), to show why it does. */
-        public static volatile boolean noFallback = false;
-        /** mockup: where two region sections meet, each closes its own inner ring ({@link #drawCap}). */
-        public static volatile boolean capped = false;
-    }
 
     // The analysis
 
@@ -119,7 +103,7 @@ public final class PackLook {
         INVENTORY
     }
 
-    /** Where a look comes from (spec part 1). */
+    /** Where a look comes from. */
     public enum Source {
         /** The texture is vanilla's own: MenuKit's sprite, as before packs were followed. */
         VANILLA,
@@ -139,57 +123,41 @@ public final class PackLook {
      * @param mirror whether the bottom border is the top one mirrored (the part has none of its own)
      * @param l left border width   @param r right border width   @param t top border height   @param b bottom border height
      * @param sTop the top corners' size (square)                   @param sBot the bottom corners' size (square)
-     * @param fill the fill colour (ARGB)                           @param uniform whether a flat run of rows was found
+     * @param fill the fill colour (ARGB)
      * @param topU top edge strip's first column, {@code topW} its width; likewise bottom, left and right ({@code V}, {@code H})
      * @param sideFrom the first row the side strips may come from, {@code sideTo} the last (exclusive)
-     * @param sample the slot-free strip the fill is sampled from, {@code [x0, y0, x1, y1]}: tiled when the fill is textured
      * @param slotV the row of the slot cut (its column is vanilla's 7)
      * @param slotOk whether the slot cut matches its neighbours
      * @param clean whether the part is clean enough to draw: a uniform fill and every edge strip found
      * @param insetL how many pixels in from the left the texture's own top corner starts, per row from its top
      *               (its rounding); {@code insetR} from the right. A top corner is drawn in that shape, so one cut
-     *               from a box drawn under another (Recolourful's inventory) leaves out the art of the box above
+     *               from a box drawn under another (an inventory boxed apart) leaves out the art of the box above
      * @param texW the texture's width in units, {@code texH} its height (for normalising UVs)
-     * @param frame how far in from each side the frame's art ends and the fill begins, {@code [left, top, right, bottom]}
-     * @param ring the frame's inner ring on the left and the right, just inside its outline, next to the fill:
-     *             {@code [left depth, left colour, right depth, right colour]} (depth 0: none)
      */
     public record Cut(int x0, int x1, int top, int bottom, boolean mirror, int l, int r, int t, int b,
-                      int sTop, int sBot, int fill, boolean uniform,
+                      int sTop, int sBot, int fill,
                       int topU, int topW, int botU, int botW, int leftV, int leftH, int rightV, int rightH,
-                      int sideFrom, int sideTo, int[] sample, int slotV, boolean slotOk, boolean clean, int[] insetL, int[] insetR,
-                      int texW, int texH, int[] frame, int[] ring) {}
+                      int sideFrom, int sideTo, int slotV, boolean slotOk, boolean clean, int[] insetL, int[] insetR,
+                      int texW, int texH) {}
 
     /**
-     * A surface's look: where it comes from, the cut (kept even when it falls back, for the
-     * comparison shots), its fill, and whether vanilla's slot sprite was restyled by a pack.
-     * {@code spriteFrame} is the frame's inner edge where the surface is MenuKit's sprite or
-     * a pack's override of it ({@link #frame}).
+     * A surface's look: where it comes from, the cut (kept when it falls back too, so a check
+     * can see why it did), its fill, and whether vanilla's slot sprite was restyled by a pack.
      */
     public record Look(Identifier texture, Part part, Source source, @Nullable Cut cut, int spriteFill,
-                       boolean slotSprite, int[] spriteFrame) {
-
-        /**
-         * How far in from each side of a surface in this look its frame ends,
-         * {@code [left, top, right, bottom]} in GUI pixels: where its fill starts. A block
-         * laid inside the surface (a container region section in its own texture's fill) goes this far out,
-         * so it meets the frame and leaves the frame itself as it is.
-         */
-        public int[] frame() {
-            return drawsCut() ? cut.frame() : spriteFrame;
-        }
+                       boolean slotSprite) {
 
         /** Whether this surface draws the cut (else MenuKit's sprite, or the pack's override of it). */
         public boolean drawsCut() {
-            return cut != null && (source == Source.PACK || (source == Source.FALLBACK && Mockup.noFallback));
+            return cut != null && source == Source.PACK;
         }
 
-        /** The surface's fill colour: what text on it is read against, and a block of it inside another surface (a section in the region). */
+        /** The surface's fill colour: what text on it is read against. */
         public int fill() {
             return drawsCut() ? cut.fill() : spriteFill;
         }
 
-        /** How far the look's top corners reach in and down, in GUI pixels: past its ornaments (Touched UI's brackets). */
+        /** How far the look's top corners reach in and down, in GUI pixels: past any ornament drawn over them. */
         public int corner() {
             return drawsCut() ? cut.sTop() : 0;
         }
@@ -212,7 +180,7 @@ public final class PackLook {
         return CACHE.computeIfAbsent(texture + "#" + part, k -> resolve(texture, part));
     }
 
-    // Text that reads on the fill (spec part 8)
+    // Text that reads on the fill
 
     /** The Panel look's heading and body text, vanilla's label grey ({@code ElementConstants.TEXT_DARK}). */
     private static final int TEXT = 0xFF404040;
@@ -221,9 +189,9 @@ public final class PackLook {
     private static final int WHITE = 0xFFFFFFFF, BLACK = 0xFF000000;
 
     /**
-     * The look of a plain Panel-look panel (a settings screen): the chest's container part
-     * (spec part 6), whatever its fill. A dark chest (Touched UI's) keeps its look; its text
-     * turns light instead ({@link #textOn}).
+     * The look of a plain Panel-look panel (a settings screen): the chest's container part,
+     * whatever its fill, so a settings screen matches the pack's most familiar container. A
+     * dark chest keeps its look; its text turns light instead ({@link #textOn}).
      */
     public static Look panel() {
         return look(CHEST, Part.CONTAINER);
@@ -232,10 +200,10 @@ public final class PackLook {
     /**
      * The look of the inventory panel on a screen drawn from {@code texture}: that texture's
      * inventory part, or, where the pack draws the inventory in pieces with no frame of its own
-     * to cut, the pack's plain panel ({@link #panel}). GUI Revision Dark hangs the inventory's
-     * three rows under the container's box with no top border and boxes the hotbar apart, so
-     * no strip of its inventory part is plain fill; its pieces are its plain panel's grey on
-     * every container's screen, as its chest's box is, whatever colour the container's own is.
+     * to cut, the pack's plain panel ({@link #panel}). A pack that hangs the inventory's three
+     * rows under the container's box with no top border and boxes the hotbar apart leaves no
+     * strip of its inventory part plain fill; such packs draw those pieces in their plain
+     * panel's colour on every container's screen, whatever colour the container's own is.
      */
     public static Look inventory(Identifier texture) {
         Look own = look(texture, Part.INVENTORY);
@@ -247,7 +215,7 @@ public final class PackLook {
     /**
      * How far body text stands out from its fill: WCAG's 4.5:1 for text. Vanilla's grey stays
      * wherever it does, and text that has to change is made to: below it vanilla's grey reads
-     * dim (on Recolourful's lime shulker box, 3:1).
+     * dim (on a lime shulker box, about 3:1).
      */
     public static final double BODY_TARGET = 4.5;
     /** How far muted text stands out from MenuKit's own fill: what muted text keeps on any fill. */
@@ -257,12 +225,11 @@ public final class PackLook {
      * Heading and body text {@code text} on {@code fill}, pure. {@code text} itself wherever
      * it reads ({@link #BODY_TARGET}), so vanilla's grey stays on MenuKit's own fill and on any
      * light one. On a fill too dark or too coloured for it, a colour made from the fill: the
-     * fill taken toward white (on a dark fill, Touched UI's chest) or black (on a light one,
-     * Recolourful's orange) until it stands out by {@link #BODY_TARGET}, so the text keeps
-     * the fill's hue.
+     * fill taken toward white (on a dark fill) or black (on a light or coloured one, an orange
+     * chest) until it stands out by {@link #BODY_TARGET}, so the text keeps the fill's hue.
      *
      * <p>{@code shaderLightens} says the pack's text shader repaints vanilla's exact grey in
-     * a light colour (Default Dark Mode's does). Then on a dark fill vanilla's grey is left as
+     * a light colour (as dark-mode packs do). Then on a dark fill vanilla's grey is left as
      * it is, for the pack to repaint as it does on its own screens: lightened once, by the pack.
      */
     public static int textOn(int text, int fill, boolean shaderLightens) {
@@ -275,8 +242,8 @@ public final class PackLook {
     /**
      * Muted text on {@code fill}, pure: MenuKit's muted grey wherever it stands out from the
      * fill as much as it does from MenuKit's own fill (so exactly as before with no pack, and
-     * on Default Dark Mode's dark grey), else the fill taken toward white or black until it
-     * does: between the fill and the body text, in the fill's hue (Recolourful's orange).
+     * on a dark-mode pack's dark grey), else the fill taken toward white or black until it
+     * does: between the fill and the body text, in the fill's hue.
      */
     public static int mutedOn(int fill) {
         if (contrast(MUTED, fill) >= MUTED_CONTRAST) return MUTED;
@@ -288,14 +255,14 @@ public final class PackLook {
         return contrast(fill, WHITE) > contrast(fill, BLACK);
     }
 
-    /** The GUI text shader, which a pack replaces to repaint vanilla's text (Default Dark Mode). */
+    /** The GUI text shader, which a dark-mode pack replaces to repaint vanilla's text. */
     private static final Identifier TEXT_SHADER = Identifier.withDefaultNamespace("shaders/core/text.fsh");
     /** {@link #shaderLightens}, read once per reload: {@code 0} unread, {@code 1} no, {@code 2} yes. */
     private static volatile int shaderLightens = 0;
 
     /**
      * Whether a pack's GUI text shader repaints vanilla's exact label grey: its {@code text.fsh}
-     * names 0x404040 (Default Dark Mode's turns it 0xAAAAAA). Read once per reload.
+     * names 0x404040 (a dark-mode pack's turns it a light grey). Read once per reload.
      */
     // ponytail: a text match on the shader's source; a pack that spells the grey another way reads as "no", and its text is lightened by MenuKit instead.
     public static boolean shaderLightens() {
@@ -370,11 +337,11 @@ public final class PackLook {
         return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
     }
 
-    /** Works out one look (spec part 1's order). Never throws: anything unreadable is MenuKit's sprite. */
+    /** Works out one look, in the order the class doc gives. Never throws: anything unreadable is MenuKit's sprite. */
     private static Look resolve(Identifier texture, Part part) {
         // No game (MenuKit's headless checks draw panels too): MenuKit's own sprite.
         Minecraft mc = Minecraft.getInstance();
-        if (mc == null) return new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, false, SPRITE_FRAME);
+        if (mc == null) return new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, false);
         ResourceManager rm = mc.getResourceManager();
         boolean slotSprite = fromPack(rm.getResource(SLOT_SPRITE_FILE), VANILLA_PACK);
 
@@ -382,59 +349,28 @@ public final class PackLook {
         Optional<Resource> sprite = rm.getResource(PANEL_SPRITE_FILE);
         if (fromPack(sprite, MENUKIT_PACK)) {
             int centre = SPRITE_FILL;
-            int[] frame = SPRITE_FRAME;
             try (InputStream in = sprite.get().open(); NativeImage img = NativeImage.read(in)) {
                 centre = img.getPixel(img.getWidth() / 2, img.getHeight() / 2);
-                frame = spriteFrame(img, centre);
             } catch (Exception e) {
                 LOG.warn("Couldn't read the overridden {}: {}", PANEL_SPRITE_FILE, e.toString());
             }
-            return new Look(texture, part, Source.OVERRIDE, null, centre, slotSprite, frame);
+            return new Look(texture, part, Source.OVERRIDE, null, centre, slotSprite);
         }
 
         // 2. Vanilla's own texture (or none at all): MenuKit's sprite, unchanged.
         Optional<Resource> res = rm.getResource(texture);
-        if (!fromPack(res, VANILLA_PACK)) return new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, slotSprite, SPRITE_FRAME);
+        if (!fromPack(res, VANILLA_PACK)) return new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, slotSprite);
 
         // 3. Cut from the pack's texture, or MenuKit's sprite when it can't be cut cleanly.
         try (InputStream in = res.get().open(); NativeImage img = NativeImage.read(in)) {
             Cut cut = analyse(new Pixels(img), part == Part.INVENTORY);
             Source source = cut != null && cut.clean() ? Source.PACK : Source.FALLBACK;
             LOG.debug("{} {} from {}: {}", texture, part, res.get().sourcePackId(), source);
-            return new Look(texture, part, source, cut, SPRITE_FILL, slotSprite, SPRITE_FRAME);
+            return new Look(texture, part, source, cut, SPRITE_FILL, slotSprite);
         } catch (Exception e) {
             LOG.warn("Couldn't cut a panel look from {}: {}", texture, e.toString());
-            return new Look(texture, part, Source.FALLBACK, null, SPRITE_FILL, slotSprite, SPRITE_FRAME);
+            return new Look(texture, part, Source.FALLBACK, null, SPRITE_FILL, slotSprite);
         }
-    }
-
-    /**
-     * A pack's own {@code menukit:panel_raised}'s frame: on each side, across its middle, how
-     * far in its last pixel unlike its centre is, in the sprite's 9 px of GUI.
-     */
-    // ponytail: assumes MenuKit's nine-slice size (9 px); a pack that also replaces the .mcmeta with another size reads off.
-    private static int[] spriteFrame(NativeImage img, int centre) {
-        int w = img.getWidth(), h = img.getHeight();
-        int[] across = new int[w], down = new int[h];
-        for (int x = 0; x < w; x++) across[x] = img.getPixel(x, h / 2);
-        for (int y = 0; y < h; y++) down[y] = img.getPixel(w / 2, y);
-        int[] f = {inset(Arrays.copyOfRange(across, 0, w / 2), centre, true), inset(Arrays.copyOfRange(down, 0, h / 2), centre, true),
-                inset(Arrays.copyOfRange(across, w - w / 2, w), centre, false), inset(Arrays.copyOfRange(down, h - h / 2, h), centre, false)};
-        for (int i = 0; i < 4; i++) f[i] = Math.round(f[i] * 9f / (i % 2 == 0 ? w : h));
-        return f;
-    }
-
-    /**
-     * How deep a border profile's frame is: from its outer end to just past the last pixel
-     * unlike {@code fill}. {@code outerFirst} says which end of {@code profile} is the outside.
-     */
-    static int inset(int[] profile, int fill, boolean outerFirst) {
-        int n = profile.length;
-        for (int k = n - 1; k >= 0; k--) {
-            int i = outerFirst ? k : n - 1 - k;   // the k-th pixel in from the outside
-            if (dist(profile[i], fill) > TOL) return k + 1;
-        }
-        return 0;
     }
 
     /** Whether a resource is present and supplied by a pack other than {@code own}, its owner's. */
@@ -442,7 +378,7 @@ public final class PackLook {
         return res.isPresent() && !own.equals(res.get().sourcePackId());
     }
 
-    // The cut, pure over pixels: a port of the prototype the research shots were checked with.
+    // The cut, pure over pixels
 
     /** The width of a corner and border: vanilla's slots start at x 7. */
     private static final int C = 7;
@@ -469,11 +405,6 @@ public final class PackLook {
             this.argb = new int[img.getWidth() * img.getHeight()];
             for (int y = 0; y < img.getHeight(); y++)
                 for (int x = 0; x < img.getWidth(); x++) argb[x + y * nativeW] = img.getPixel(x, y);
-        }
-
-        /** For the self-check: pixels given in units directly. */
-        Pixels(int w, int h, int[] argb) {
-            this.k = 1; this.w = w; this.h = h; this.nativeW = w; this.argb = argb;
         }
 
         int at(int x, int y) {
@@ -523,7 +454,7 @@ public final class PackLook {
         int vanillaSplit = bottom - INVENTORY_PART;
 
         // A pack that draws the inventory as a box of its own starts its top border near
-        // vanilla's split, in the outer border's colour (Recolourful, Touched UI at row 132).
+        // vanilla's split (a few rows below it, typically), in the outer border's colour.
         int outer = p.at(10, firstY);
         int own = -1;
         for (int y = vanillaSplit; y < vanillaSplit + 14 && y < bottom; y++) {
@@ -543,7 +474,7 @@ public final class PackLook {
         for (int x = 0; x < p.w; x++) if (p.opaque(x, mid)) { if (x0 < 0) x0 = x; x1 = x + 1; }
         if (x0 < 0) return null;
 
-        // Border widths: 7, or less where the art starts right of 0 (Touched UI), so a
+        // Border widths: 7, or less where the art starts right of 0 (a narrower frame), so a
         // border never takes in the slots at x 7.
         int l = Math.max(2, Math.min(C, GRID_X0 - x0)), r = Math.max(2, Math.min(C, x1 - GRID_X1)), t = C, b = C;
         int contEnd = 17 + 18 * ((split - 17) / 18);
@@ -552,8 +483,8 @@ public final class PackLook {
                 && ((y >= bot - 83 && y < bot - 29) || (y >= bot - 25 && y < bot - 7) || (y >= 17 && y < contEnd));
 
         // The fill: the colour of the longest run of flat rows in the part's slot-free
-        // strips. Wood grain (Wilder Forest) has no flat run; a zigzag along the title
-        // (Recolourful's shulker box) is skipped for the plain rows under it.
+        // strips. Wood grain has no flat run (the look falls back); a zigzag along the title
+        // is skipped for the plain rows under it.
         List<Integer> rows = new ArrayList<>();
         if (inventory) {
             for (int y = p0 + t; y < bottom - 83; y++) rows.add(y);
@@ -576,11 +507,6 @@ public final class PackLook {
             if (run > bestRun) { bestRun = run; fill = cur; }
         }
         boolean uniform = bestRun >= 3;
-        if (!uniform && !rows.isEmpty()) fill = p.at((x0 + x1) / 2, rows.get(rows.size() / 2));
-        // Where a textured fill is tiled from (only when the cut is drawn anyway, for the shots).
-        int[] sample = inventory
-                ? new int[]{x0 + l, bottom - 29, x1 - r, bottom - 25}
-                : new int[]{x0 + l, top + t, x1 - r, Math.max(top + t + 1, 17)};
 
         // Each side's usual profile across its border.
         List<int[]> lefts = new ArrayList<>(), rights = new ArrayList<>(), tops = new ArrayList<>(), bots = new ArrayList<>();
@@ -590,7 +516,7 @@ public final class PackLook {
         if (lefts.isEmpty() || tops.isEmpty()) return null;
         int[] leftM = modal(lefts), rightM = modal(rights), topM = modal(tops), botM = mirror ? null : modal(bots);
 
-        // Top corners grow while an ornament runs past them (Touched UI's brackets), as
+        // Top corners grow while an ornament runs past them (brackets over the corners), as
         // squares, never into the slots: one that would is left at its border's size.
         int sTop = Math.max(t, Math.max(l, r));
         if (uniform) {
@@ -624,33 +550,10 @@ public final class PackLook {
             while (insetR[j] < sTop && !p.opaque(cx1 - 1 - insetR[j], firstY + j)) insetR[j]++;
         }
 
-        // The frame's inner edge on each side, from its usual profile: where the fill starts.
-        // The right and bottom profiles run from the inside out; a mirrored bottom is the top's.
-        int frameTop = inset(topM, fill, true);
-        int[] frame = {inset(leftM, fill, true), frameTop, inset(rightM, fill, false),
-                mirror ? frameTop : inset(botM, fill, false)};
-
-        int[] ringL = ring(leftM, frame[0], true), ringR = ring(rightM, frame[2], false);
-
         boolean clean = uniform && Math.min(Math.min(topRun[1], botRun[1]), Math.min(leftRun[1], rightRun[1])) >= 2;
-        return new Cut(x0, x1, top, bottom, mirror, l, r, t, b, sTop, sBot, fill, uniform,
+        return new Cut(x0, x1, top, bottom, mirror, l, r, t, b, sTop, sBot, fill,
                 topRun[0], topRun[1], botRun[0], botRun[1], leftRun[0], leftRun[1], rightRun[0], rightRun[1],
-                sideFrom, sideTo, sample, slotV, slotOk, clean, insetL, insetR, p.w, p.h, frame,
-                new int[]{ringL[0], ringL[1], ringR[0], ringR[1]});
-    }
-
-    /**
-     * A side's inner ring: the run of one colour at the frame's inner edge, {@code depth} in
-     * from the outside, back toward the outline but never taking it in (the outermost pixel).
-     * {@code [depth, colour]}; {@code [0, 0]} for a frame of the outline alone.
-     */
-    static int[] ring(int[] profile, int depth, boolean outerFirst) {
-        int n = profile.length;
-        if (depth < 2 || depth > n) return new int[]{0, 0};
-        java.util.function.IntUnaryOperator at = k -> profile[outerFirst ? k : n - 1 - k];   // the k-th pixel in from the outside
-        int colour = at.applyAsInt(depth - 1), count = 1;
-        for (int k = depth - 2; k >= 1 && dist(at.applyAsInt(k), colour) <= TOL; k--) count++;
-        return new int[]{count, colour};
+                sideFrom, sideTo, slotV, slotOk, clean, insetL, insetR, p.w, p.h);
     }
 
     private static int[] rowOf(Pixels p, int y, int x, int n) {
@@ -740,59 +643,28 @@ public final class PackLook {
         }
         Cut c = look.cut();
         Identifier tex = look.texture();
-        boolean stretch = Mockup.stretch;
         // Corners can't be bigger than half the panel.
         int sT = Math.min(c.sTop(), Math.min(w / 2, h / 2)), sB = Math.min(c.sBot(), Math.min(w / 2, h / 2));
 
         // The fill under everything, inside the borders.
         drawFill(g, x + c.l(), y + c.t(), w - c.l() - c.r(), h - c.t() - c.b(), look);
 
-        // Edges: the top's strip along the top, the sides' down the sides, the bottom's (or
-        // the top's mirrored) along the bottom; tiled, or stretched in the mockup variant
-        // from the whole side between the corners, decoration and all.
-        int topU = stretch ? c.x0() + c.sTop() : c.topU(), topW = stretch ? c.x1() - c.x0() - 2 * c.sTop() : c.topW();
-        strip(g, c, tex, x + sT, y, w - 2 * sT, c.t(), topU, c.top(), topW, c.t(), false, stretch);
-        int sideH = Math.max(1, c.sideTo() - c.sideFrom());
-        int lv = stretch ? c.sideFrom() : c.leftV(), lh = stretch ? sideH : c.leftH();
-        int rv = stretch ? c.sideFrom() : c.rightV(), rh = stretch ? sideH : c.rightH();
-        strip(g, c, tex, x, y + sT, c.l(), h - sT - sB, c.x0(), lv, c.l(), lh, false, stretch);
-        strip(g, c, tex, x + w - c.r(), y + sT, c.r(), h - sT - sB, c.x1() - c.r(), rv, c.r(), rh, false, stretch);
+        // Edges, tiled from their clean strips: the top's along the top, the sides' down the
+        // sides, the bottom's (or the top's mirrored) along the bottom.
+        strip(g, c, tex, x + sT, y, w - 2 * sT, c.t(), c.topU(), c.top(), c.topW(), c.t(), false);
+        strip(g, c, tex, x, y + sT, c.l(), h - sT - sB, c.x0(), c.leftV(), c.l(), c.leftH(), false);
+        strip(g, c, tex, x + w - c.r(), y + sT, c.r(), h - sT - sB, c.x1() - c.r(), c.rightV(), c.r(), c.rightH(), false);
         if (c.mirror()) {
-            strip(g, c, tex, x + sB, y + h - c.t(), w - 2 * sB, c.t(), topU, c.top(), topW, c.t(), true, stretch);
+            strip(g, c, tex, x + sB, y + h - c.t(), w - 2 * sB, c.t(), c.topU(), c.top(), c.topW(), c.t(), true);
             corner(g, c, tex, x, y + h - sB, sB, c.x0(), c.top(), false, true);
             corner(g, c, tex, x + w - sB, y + h - sB, sB, c.x1() - sB, c.top(), true, true);
         } else {
-            int botU = stretch ? c.x0() + c.sBot() : c.botU(), botW = stretch ? c.x1() - c.x0() - 2 * c.sBot() : c.botW();
-            strip(g, c, tex, x + sB, y + h - c.b(), w - 2 * sB, c.b(), botU, c.bottom() - c.b(), botW, c.b(), false, stretch);
+            strip(g, c, tex, x + sB, y + h - c.b(), w - 2 * sB, c.b(), c.botU(), c.bottom() - c.b(), c.botW(), c.b(), false);
             piece(g, c, tex, x, y + h - sB, sB, sB, c.x0(), c.bottom() - sB, sB, sB, false);
             piece(g, c, tex, x + w - sB, y + h - sB, sB, sB, c.x1() - sB, c.bottom() - sB, sB, sB, false);
         }
         corner(g, c, tex, x, y, sT, c.x0(), c.top(), false, false);
         corner(g, c, tex, x + w - sT, y, sT, c.x1() - sT, c.top(), true, false);
-    }
-
-    /**
-     * mockup: where two region sections meet, one closes its inner ring across the list
-     * ({@link Mockup#capped}), {@code rows} deep at {@code y}, the list {@code w} wide at
-     * {@code x}: a section's top in its left side's ring colour, running into that ring and up
-     * to the right side's, its bottom in the right side's, running from the left side's ring
-     * into the right's, as a bevel is lit. The outline, outside the rings, runs on. Nothing
-     * for MenuKit's sprite or a ring-less frame.
-     */
-    public static void drawCap(GuiGraphicsExtractor g, Look look, int x, int w, int y, int rows, boolean top) {
-        if (!look.drawsCut() || rows <= 0) return;
-        Cut c = look.cut();
-        int[] f = c.frame(), ring = c.ring();
-        int depth = top ? ring[0] : ring[2];
-        if (depth <= 0) return;
-        rows = Math.min(rows, depth);
-        int x0 = top ? x + f[0] - ring[0] : x + f[0], x1 = top ? x + w - f[2] : x + w - f[2] + ring[2];
-        g.fill(x0, y, x1, y + rows, top ? ring[1] : ring[3]);
-    }
-
-    /** How deep a section's ring closing at its top ({@code top}) or bottom is in {@code look}: 0 for MenuKit's sprite. */
-    public static int capDepth(Look look, boolean top) {
-        return look.drawsCut() ? look.cut().ring()[top ? 0 : 2] : 0;
     }
 
     /**
@@ -812,20 +684,10 @@ public final class PackLook {
         }
     }
 
-    /**
-     * Fills a rectangle with {@code look}'s fill: one colour for a uniform fill (a tiled
-     * flat strip is one colour anyway), the sample strip tiled (or stretched) for a textured
-     * one, which is drawn only in the no-fallback comparison.
-     */
-    public static void drawFill(GuiGraphicsExtractor g, int x, int y, int w, int h, Look look) {
+    /** Fills a rectangle with {@code look}'s fill: one colour, since a look is only cut from a flat fill. */
+    private static void drawFill(GuiGraphicsExtractor g, int x, int y, int w, int h, Look look) {
         if (w <= 0 || h <= 0) return;
-        Cut c = look.cut();
-        if (!look.drawsCut() || c.uniform()) {
-            g.fill(x, y, x + w, y + h, look.fill());
-            return;
-        }
-        int[] s = c.sample();
-        strip(g, c, look.texture(), x, y, w, h, s[0], s[1], s[2] - s[0], s[3] - s[1], false, Mockup.stretch);
+        g.fill(x, y, x + w, y + h, look.fill());
     }
 
     /**
@@ -860,15 +722,11 @@ public final class PackLook {
 
     /**
      * Covers {@code (w x h)} with the strip {@code (u, v, uw, vh)}: repeated at its own size,
-     * the last copy cut short, or (the mockup variant) stretched once over the whole.
+     * the last copy cut short.
      */
     private static void strip(GuiGraphicsExtractor g, Cut c, Identifier tex, int x, int y, int w, int h,
-                              int u, int v, int uw, int vh, boolean flip, boolean stretch) {
+                              int u, int v, int uw, int vh, boolean flip) {
         if (w <= 0 || h <= 0 || uw <= 0 || vh <= 0) return;
-        if (stretch) {
-            piece(g, c, tex, x, y, w, h, u, v, uw, vh, flip);   // mockup: stretched
-            return;
-        }
         for (int dy = 0; dy < h; dy += vh) {
             int ph = Math.min(vh, h - dy);
             // A cut-short copy of a mirrored strip takes its rows from the far end, so it
