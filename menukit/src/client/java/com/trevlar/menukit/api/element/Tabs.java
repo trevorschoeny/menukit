@@ -1570,6 +1570,19 @@ public final class Tabs extends AbstractPanelElement {
         else ChildDispatch.notifyClickOutside(b.tab.body, inner);
     }
 
+    /** Culled itself: the headers and the shown tab's body are held out of view with it; the other tabs' bodies are hidden. */
+    @Override
+    public void renderCulled(RenderContext ctx) {
+        ChildDispatch.renderCulled(header, childContext(ctx.at(ctx.originX() + childX, ctx.originY() + childY)));
+        ChildDispatch.renderCulled(sidebarHeader,
+                childContext(ctx.at(ctx.originX() + childX, ctx.originY() + childY + strip().top)));
+        BodyView b = liveBody(ctx.kind());
+        if (b == null) return;
+        RenderContext bodyCtx = bodyRender(ctx, strip());
+        if (b.scroll != null) b.scroll.renderCulled(bodyCtx);
+        else ChildDispatch.renderCulled(b.tab.body, bodyCtx);
+    }
+
     /** The headers' and the shown body's overlays (an open Dropdown popover), unclipped, after all base renders. */
     @Override
     public void renderOverlay(RenderContext ctx) {

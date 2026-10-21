@@ -655,6 +655,11 @@ public final class Flow extends AbstractPanelElement {
     }
 
     @Override
+    public void renderCulled(RenderContext ctx) {
+        ChildDispatch.renderCulled(children, childContext(ctx));
+    }
+
+    @Override
     public void renderOverlay(RenderContext ctx) {
         ChildDispatch.renderOverlay(children, childContext(ctx));
     }

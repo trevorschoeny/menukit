@@ -265,6 +265,22 @@ public interface PanelElement {
     void render(RenderContext ctx);
 
     /**
+     * Called each frame instead of {@link #render} for a <i>visible</i> element that is
+     * skipped only because its box lies wholly outside the clip in play (7.4.0): a row
+     * scrolled out of a {@link ScrollContainer}, a list's row past its scroll area, a
+     * section of the container region out of view. The element is still shown, just not
+     * on screen, so it can mark its state as held rather than gone: a slot element keeps
+     * its slot parked instead of handing it back to the menu's layout, as it would for a
+     * hidden one. Never called for a hidden element (its own {@link #isVisible()} false,
+     * or a hidden or collapsed parent): that one gets neither call.
+     *
+     * <p>An element that contains others forwards it to its shown children
+     * ({@link ChildDispatch#renderCulled}), so a culled section reaches the slots inside
+     * it. The context is the one {@link #render} would have had. Default: no-op.
+     */
+    default void renderCulled(RenderContext ctx) {}
+
+    /**
      * Second-pass render for transient overlays that draw outside the element's
      * layout bounds (a Dropdown's popover). Runs after every element's
      * {@link #render}, so an overlay is always on top regardless of declaration

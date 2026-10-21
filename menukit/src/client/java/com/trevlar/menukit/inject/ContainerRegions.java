@@ -92,7 +92,8 @@ import java.util.function.Supplier;
  *       (step 3 below): over it, it scrolls itself; anywhere else this class scrolls it
  *       ({@link #wheel}). Both move the same scroll ({@code state.scroll}) the same step.</li>
  *   <li><b>Slots</b> clip at its edges ({@code SlotClip}), and a row out of view is not
- *       rendered at any depth ({@code ChildDispatch.render}), so its library parks it.</li>
+ *       rendered at any depth ({@code ChildDispatch.render}); it gets {@code renderCulled}
+ *       instead, so its library parks its slots rather than sending them home.</li>
  * </ul>
  *
  * <h3>Once a frame</h3>

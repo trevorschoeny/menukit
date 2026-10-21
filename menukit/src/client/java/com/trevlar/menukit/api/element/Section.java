@@ -333,6 +333,12 @@ public final class Section extends AbstractPanelElement {
         return font.plainSubstrByWidth(text, room - font.width(ELLIPSIS)) + ELLIPSIS;
     }
 
+    /** Culled while open: its content is held out of view with it. Closed, its content is hidden and gets nothing. */
+    @Override
+    public void renderCulled(RenderContext ctx) {
+        if (isOpen()) ChildDispatch.renderCulled(children, contentRender(ctx));
+    }
+
     @Override
     public void renderOverlay(RenderContext ctx) {
         if (isOpen()) ChildDispatch.renderOverlay(children, contentRender(ctx));
