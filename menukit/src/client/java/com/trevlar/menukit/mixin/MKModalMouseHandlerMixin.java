@@ -81,8 +81,9 @@ public abstract class MKModalMouseHandlerMixin {
     private void mk$eatModalButton(long window, MouseButtonInfo button, int action,
                                         CallbackInfo ci) {
         PressedTracker.onMouseButton(button.button(), action, button.modifiers());
-        // Edit mode (7.4.0) takes every button on its screen, before the screen, its widgets,
-        // its slots or any other mod's hook could: here, ahead of every screen's own handling.
+        // Edit mode (7.4.0) takes every press on its screen, and the release of each press it
+        // took, before the screen, its widgets, its slots or any other mod's hook could: here,
+        // ahead of every screen's own handling. Other releases go on, so a press it never saw ends.
         if (editModeTakes(button, action)) {
             ci.cancel();
             return;
@@ -101,10 +102,13 @@ public abstract class MKModalMouseHandlerMixin {
         }
     }
 
-    /** Hands the event to {@link PanelEditing}, at the cursor in GUI pixels; true to eat it. */
+    /**
+     * Hands the event to {@link PanelEditing}, at the cursor in GUI pixels; true to eat it. With
+     * no screen too: the release of a press it ate still has to be matched once the screen is gone.
+     */
     private boolean editModeTakes(MouseButtonInfo button, int action) {
         var mc = Minecraft.getInstance();
-        if (mc == null || mc.gui.screen() == null || mc.getWindow() == null) return false;
+        if (mc == null || mc.getWindow() == null) return false;
         var window = mc.getWindow();
         double scaledX = xpos * window.getGuiScaledWidth() / window.getScreenWidth();
         double scaledY = ypos * window.getGuiScaledHeight() / window.getScreenHeight();
