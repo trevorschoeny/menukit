@@ -645,7 +645,7 @@ public final class PackLook {
 
     /**
      * While a panel (or a card on it) renders, the surface its slot frames and text are on:
-     * the panel's own ({@code Panel.surfaceLooks}), the host's for a Panel-look raised
+     * the panel's own ({@code PanelHost.surfaceLooks}), the host's for a Panel-look raised
      * panel, or {@code null} for none. Returns what was set before, for {@link #endSurface}.
      * Render thread.
      */
