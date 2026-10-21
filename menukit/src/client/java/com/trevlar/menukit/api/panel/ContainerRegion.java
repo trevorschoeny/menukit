@@ -161,8 +161,8 @@ import java.util.function.Supplier;
  * shows or the item it was opened from ({@link Source#of(BlockEntity)},
  * {@link Source#of(ItemStack)}). One that doesn't is the screen's own container: it takes
  * the block the screen was opened on (the one under the crosshair as it opened, when it
- * holds a container the screen's size), else what OptiGUI picked for the screen, as the
- * inventory panel does. Without OptiGUI, nothing changes.
+ * holds a container the screen's size and the screen has its title), else what OptiGUI
+ * picked for the screen, as the inventory panel does. Without OptiGUI, no rules are read.
  *
  * <h3>Titles and names</h3>
  * Title a section that is a vanilla container's with vanilla's translation key
