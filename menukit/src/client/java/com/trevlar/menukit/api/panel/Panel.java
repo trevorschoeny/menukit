@@ -3,6 +3,7 @@ package com.trevlar.menukit.api.panel;
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.element.AbstractPanelElement;
 import com.trevlar.menukit.api.element.MKTooltip;
+import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.RegionMath;
 import com.trevlar.menukit.api.element.ScrollContainer;
 import com.trevlar.menukit.api.element.Tabs;
@@ -208,6 +209,11 @@ public class Panel {
     // panel draws as the screen's own background, under everything else on the screen,
     // and claims nothing. The LayerPlan's BACKGROUND layer.
     private boolean background = false;
+
+    // What each point of the panel's surface is (7.4.0): the look its slot frames and text
+    // take, for a panel MenuKit draws per point itself (the container region's, per section).
+    // Null: the host's own (a Panel-look raised panel, the plain panel's).
+    private PackLook.@Nullable SurfaceLooks surfaceLooks;
 
     // Optional Escape action. When this is the topmost visible tracksAsModal panel
     // and the player presses Escape, the host (MKScreen, or ScreenPanelRegistry's
@@ -1318,6 +1324,23 @@ public class Panel {
      */
     public boolean isPopover() {
         return popover;
+    }
+
+    /**
+     * Gives the panel its own surface looks (7.4.0): what each point of it is, for its slot
+     * frames and its text, in place of the host's (one look for a whole Panel-look raised
+     * panel). MenuKit's own panels only.
+     */
+    @ApiStatus.Internal
+    public Panel surfaceLooks(PackLook.SurfaceLooks looks) {
+        this.surfaceLooks = Objects.requireNonNull(looks, "looks");
+        return this;
+    }
+
+    /** The panel's own surface looks ({@link #surfaceLooks(PackLook.SurfaceLooks)}), or {@code null} for the host's. */
+    @ApiStatus.Internal
+    public PackLook.@Nullable SurfaceLooks surfaceLooks() {
+        return surfaceLooks;
     }
 
     /**

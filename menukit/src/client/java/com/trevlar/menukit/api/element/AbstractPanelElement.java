@@ -276,7 +276,7 @@ public abstract class AbstractPanelElement implements PanelElement {
         TextRole r = disabled(ctx) ? TextRole.DISABLED : role;
         int colour = ctx.kind().textColor(r);
         if (ctx.kind() != ScreenKind.PANEL || r == TextRole.DISABLED) return colour;
-        PackLook.Look surface = PackLook.slotLookAt(ctx.originX() + getChildX(), ctx.originY() + getChildY());
+        PackLook.Look surface = PackLook.surfaceAt(ctx.originX() + getChildX(), ctx.originY() + getChildY());
         return surface == null ? colour : PackText.on(surface, colour, r == TextRole.MUTED);
     }
 
