@@ -2,7 +2,7 @@ package com.trevlar.menukit.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-import com.trevlar.menukit.inject.ContainerRegions;
+import com.trevlar.menukit.inject.RegionReveal;
 
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.world.entity.player.Player;
@@ -21,7 +21,7 @@ import java.util.List;
  * player makes in a menu, whoever sends it (vanilla's screen, another mod), goes through
  * {@code handleContainerInput}, which plays it on the client's menu before telling the
  * server. Around that local play, and only for a quick move while a region is up, the
- * stacks are noted before and compared after; {@link ContainerRegions#quickMoved} scrolls
+ * stacks are noted before and compared after; {@link RegionReveal#quickMoved} scrolls
  * the region to the slot that gained items when it is the region's and out of view.
  * The click itself runs exactly as before.
  */
@@ -33,12 +33,12 @@ public abstract class MKQuickMoveRevealMixin {
             target = "Lnet/minecraft/world/inventory/AbstractContainerMenu;clicked(IILnet/minecraft/world/inventory/ContainerInput;Lnet/minecraft/world/entity/player/Player;)V"))
     private void mk$revealQuickMove(AbstractContainerMenu menu, int slot, int button, ContainerInput input,
                                     Player player, Operation<Void> original) {
-        if (input != ContainerInput.QUICK_MOVE || !ContainerRegions.active()) {
+        if (input != ContainerInput.QUICK_MOVE || !RegionReveal.active()) {
             original.call(menu, slot, button, input, player);
             return;
         }
-        List<ItemStack> before = ContainerRegions.snapshot(menu);
+        List<ItemStack> before = RegionReveal.snapshot(menu);
         original.call(menu, slot, button, input, player);
-        ContainerRegions.quickMoved(menu, before);
+        RegionReveal.quickMoved(menu, before);
     }
 }

@@ -977,13 +977,14 @@ public final class PanelHost {
         // look, so a dialog in the Default look reads as vanilla's own.
         // A raised panel in the Panel look is a panel surface: it follows the resource
         // pack's container art, the chest's (controls keep their own sprite); the HUD's panels and
-        // every other style keep their sprites. Its slot frames follow it too; the
-        // container region's own panels say per section which look a slot takes.
+        // every other style keep their sprites. Its slot frames and text follow it too; a
+        // panel with surface looks of its own (the container region's, per section) says
+        // which look each point takes.
         boolean surface = screenKind == ScreenKind.PANEL && kind != Kind.HUD && panel.getStyle() == PanelStyle.RAISED;
-        PackLook.SlotLooks slotLooks = ContainerRegions.slotLooks(panel);
-        if (slotLooks == null && surface) {
+        PackLook.SurfaceLooks surfaceLooks = panel.surfaceLooks();
+        if (surfaceLooks == null && surface) {
             PackLook.Look look = PackLook.panel();
-            slotLooks = (sx, sy) -> look;
+            surfaceLooks = (sx, sy) -> look;
         }
         if (panel.getStyle() != PanelStyle.NONE) {
             if (screenKind == ScreenKind.DEFAULT) {
@@ -999,7 +1000,7 @@ public final class PanelHost {
                 screenKind);
         if (live) liveRenderDepth++;
         PresentedSlots.beginPanel(panel);
-        PackLook.SlotLooks slotsBefore = PackLook.beginSlots(slotLooks);
+        PackLook.SurfaceLooks surfaceBefore = PackLook.beginSurface(surfaceLooks);
         try {
             // Base pass, then the slots this panel shows on a container screen (7.3.0:
             // a panel's slots draw right after it, over its chrome and under the next
@@ -1012,7 +1013,7 @@ public final class PanelHost {
             panel.maybeQueueTooltip(graphics, p.x(), p.y(), p.w(), p.h(), mx, my, ctx.hasMouseInput());
         } finally {
             PresentedSlots.endPanel();
-            PackLook.endSlots(slotsBefore);
+            PackLook.endSurface(surfaceBefore);
             if (live) liveRenderDepth--;
         }
     }

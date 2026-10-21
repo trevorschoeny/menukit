@@ -49,7 +49,7 @@ public final class SlotRendering {
             return;
         }
         if (size == DEFAULT_SIZE) {
-            PackLook.Look look = PackLook.slotLookAt(sx, sy);
+            PackLook.Look look = PackLook.surfaceAt(sx, sy);
             if (look != null) PackLook.drawSlot(g, sx, sy, look);
             else PanelRendering.renderSlotBackground(g, sx, sy);
             return;

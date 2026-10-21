@@ -613,11 +613,11 @@ public final class Flow extends AbstractPanelElement {
         drawCard(ctx);
         // On the card, text and slot frames are the card's, not the panel surface's under it:
         // vanilla's grey on the card's grey, whatever a resource pack made of the panel.
-        PackLook.SlotLooks before = ctx.kind() == ScreenKind.PANEL ? PackLook.beginSlots(null) : null;
+        PackLook.SurfaceLooks before = ctx.kind() == ScreenKind.PANEL ? PackLook.beginSurface(null) : null;
         try {
             ChildDispatch.render(children, childContext(ctx));
         } finally {
-            if (ctx.kind() == ScreenKind.PANEL) PackLook.endSlots(before);
+            if (ctx.kind() == ScreenKind.PANEL) PackLook.endSurface(before);
         }
     }
 

@@ -623,36 +623,38 @@ public final class PackLook {
     // Which look a slot frame and text are drawn in
 
     /**
-     * What a panel surface is at a screen point, set while it renders: the look a slot frame
-     * drawn there takes, and whose fill text there is read against ({@link PackText#on}).
-     * {@code null} where there is no surface (a card drawn over one).
+     * What a panel's surface is at a screen point: the look a slot frame drawn there takes,
+     * and whose fill text there is read against ({@link PackText#on}). {@code null} where
+     * there is no surface (a card drawn over one).
      */
     @FunctionalInterface
-    public interface SlotLooks {
+    public interface SurfaceLooks {
         @Nullable Look at(int x, int y);
     }
 
-    private static @Nullable SlotLooks slotLooks;
+    // ponytail: the surface being drawn on, a render-thread scope set around each panel and card; SlotRendering.drawSlotBackground (public, called by slot libraries) has no context to carry it in.
+    private static @Nullable SurfaceLooks surface;
 
     /**
-     * While a panel renders, the look its slot frames and text take (the panel's own; per
-     * section in the container region; {@code null} inside a card drawn over it). Returns
-     * what was set before, for {@link #endSlots}. Render thread.
+     * While a panel (or a card on it) renders, the surface its slot frames and text are on:
+     * the panel's own ({@code Panel.surfaceLooks}), the host's for a Panel-look raised
+     * panel, or {@code null} for none. Returns what was set before, for {@link #endSurface}.
+     * Render thread.
      */
-    public static @Nullable SlotLooks beginSlots(@Nullable SlotLooks looks) {
-        SlotLooks before = slotLooks;
-        slotLooks = looks;
+    public static @Nullable SurfaceLooks beginSurface(@Nullable SurfaceLooks looks) {
+        SurfaceLooks before = surface;
+        surface = looks;
         return before;
     }
 
-    /** Puts back what {@link #beginSlots} replaced. */
-    public static void endSlots(@Nullable SlotLooks before) {
-        slotLooks = before;
+    /** Puts back what {@link #beginSurface} replaced. */
+    public static void endSurface(@Nullable SurfaceLooks before) {
+        surface = before;
     }
 
-    /** The look of a slot frame drawn at {@code (x, y)} now, or {@code null} outside any panel surface. */
-    public static @Nullable Look slotLookAt(int x, int y) {
-        SlotLooks s = slotLooks;
+    /** The surface's look at {@code (x, y)} now, or {@code null} outside any panel surface. */
+    public static @Nullable Look surfaceAt(int x, int y) {
+        SurfaceLooks s = surface;
         return s == null ? null : s.at(x, y);
     }
 }

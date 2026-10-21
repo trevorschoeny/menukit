@@ -12,7 +12,7 @@
     "MKContainerItemTooltipMixin",
     "MKChatStatusLiftMixin",
     "MKContainerLayersMixin",
-    "MKContainerRegionMixin",
+    "MKContainerTitleMixin",
     "MKCreativeTabHoverMixin",
     "MKGuiMixin",
     "MKHudStatusLiftMixin",

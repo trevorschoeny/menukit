@@ -4,6 +4,7 @@ import com.trevlar.menukit.api.Declarations;
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.inject.ContainerRegions;
+import com.trevlar.menukit.inject.RegionLayout;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.BlockPos;
@@ -155,9 +156,9 @@ import java.util.function.Supplier;
  * With OptiGUI installed, a pack's rules can give a container art of its own by its block
  * (a lime box), its name ("Ores"), its biome or its height. OptiGUI picks that for a whole
  * screen, from the block that opened it; the region asks for each section's own. A section
- * that knows its container says so with {@link Builder#context}, from the block entity it
- * shows or the item it was opened from ({@link Context#of(BlockEntity)},
- * {@link Context#of(ItemStack)}). One that doesn't is the screen's own container: it takes
+ * that knows its container says so with {@link Builder#source}, from the block entity it
+ * shows or the item it was opened from ({@link Source#of(BlockEntity)},
+ * {@link Source#of(ItemStack)}). One that doesn't is the screen's own container: it takes
  * the block the screen was opened on (the one under the crosshair as it opened, when it
  * holds a container the screen's size), else what OptiGUI picked for the screen, as the
  * inventory panel does. Without OptiGUI, nothing changes.
@@ -182,10 +183,10 @@ public final class ContainerRegion {
     private ContainerRegion() {}
 
     /** The room between two sections, and from a section's grid to vanilla's "Inventory" below. */
-    public static final int GAP = ContainerRegions.GAP;
+    public static final int GAP = RegionLayout.GAP;
 
     /** The width a section has before the scrollbar: nine slots. */
-    public static final int CONTENT_WIDTH = ContainerRegions.CONTENT_WIDTH;
+    public static final int CONTENT_WIDTH = RegionLayout.CONTENT_WIDTH;
 
     /**
      * The container list's rectangle on a screen the region is on, scrollbar lane
@@ -203,32 +204,33 @@ public final class ContainerRegion {
     public static final Identifier SHULKER_BOX = PackLook.SHULKER_BOX;
 
     /**
-     * The container a section shows, for the packs that pick a container's art by its block,
-     * name and place (OptiGUI's rules): its block's id, its custom name ({@code null} for
-     * none: the section's title is matched instead, as OptiGUI matches a screen's), and
-     * where it is ({@code null} for a container opened from an item: the player's position).
+     * Where a section's items are: the container it shows, for the packs that pick a
+     * container's art by its block, name and place (OptiGUI's rules). Its block's id, its
+     * custom name ({@code null} for none: the section's title is matched instead, as OptiGUI
+     * matches a screen's), and where it is ({@code null} for a container opened from an
+     * item: the player's position).
      */
-    public record Context(Identifier block, @Nullable String customName, @Nullable BlockPos pos) {
+    public record Source(Identifier block, @Nullable String customName, @Nullable BlockPos pos) {
 
-        public Context {
+        public Source {
             Objects.requireNonNull(block, "block");
         }
 
         /** A placed container: its block, its custom name, its position. */
-        public static Context of(BlockEntity container) {
+        public static Source of(BlockEntity container) {
             String name = container instanceof Nameable n && n.hasCustomName() ? n.getCustomName().getString() : null;
-            return new Context(BuiltInRegistries.BLOCK.getKey(container.getBlockState().getBlock()), name, container.getBlockPos());
+            return new Source(BuiltInRegistries.BLOCK.getKey(container.getBlockState().getBlock()), name, container.getBlockPos());
         }
 
         /**
          * A container opened from its item (a shulker box in the inventory): the item's block,
          * so its dye, and the name the player gave it. Where it is, the player is.
          */
-        public static Context of(ItemStack item) {
+        public static Source of(ItemStack item) {
             Identifier block = item.getItem() instanceof BlockItem b ? BuiltInRegistries.BLOCK.getKey(b.getBlock())
                     : BuiltInRegistries.ITEM.getKey(item.getItem());
             Component name = item.get(DataComponents.CUSTOM_NAME);
-            return new Context(block, name == null ? null : name.getString(), null);
+            return new Source(block, name == null ? null : name.getString(), null);
         }
     }
 
@@ -247,7 +249,7 @@ public final class ContainerRegion {
         private BooleanSupplier visibleWhen = () -> true;
         private Identifier texture = CHEST;
         private @Nullable Supplier<Component> title, name;
-        private @Nullable Supplier<@Nullable Context> context;
+        private @Nullable Supplier<@Nullable Source> source;
 
         private Builder(String id) {
             this.id = Objects.requireNonNull(id, "id");
@@ -303,7 +305,7 @@ public final class ContainerRegion {
          * What the section is called while its {@link #title} comes out blank and other
          * sections show beside it, read every frame: something a pack doesn't blank and that
          * tells this container from the others, such as the box item's
-         * {@code getHoverName()}. Without one, a section with no {@link #context} (the screen's
+         * {@code getHoverName()}. Without one, a section with no {@link #source} (the screen's
          * own container) is called by the block the screen was opened on, and any other by
          * vanilla's own English for the title's key.
          */
@@ -316,7 +318,9 @@ public final class ContainerRegion {
          * The container texture this section stands for, a full texture path
          * ({@link #CHEST}, {@link #SHULKER_BOX}, or a mod's own container texture laid out
          * like vanilla's): under a resource pack that restyles it, the section's slot frames
-         * and its part of the list take its look. Vanilla's chest by default.
+         * and its part of the list take its look. Vanilla's chest by default. It must be the
+         * texture of the container the section shows ({@link #source}, or the screen's own
+         * without one): OptiGUI's rules for that container replace this texture, and only it.
          */
         public Builder texture(Identifier texture) {
             this.texture = Objects.requireNonNull(texture, "texture");
@@ -327,11 +331,13 @@ public final class ContainerRegion {
          * The container this section shows, read every frame, for the packs that pick a
          * container's art by its block, name and place: with OptiGUI installed, its rules are
          * evaluated against it, so a lime box's section has the lime art whatever screen it is
-         * on. Without one (or {@code null}), the section is the screen's own container: the
-         * block the screen was opened on, else what OptiGUI picked for the open screen.
+         * on. Its container's texture is the section's {@link #texture}. Without a source, the
+         * section is the screen's own container: the block the screen was opened on, else what
+         * OptiGUI picked for the open screen. A source that gives {@code null} (its container
+         * not known this frame) takes what OptiGUI picked for the open screen.
          */
-        public Builder context(Supplier<@Nullable Context> context) {
-            this.context = Objects.requireNonNull(context, "context");
+        public Builder source(Supplier<@Nullable Source> source) {
+            this.source = Objects.requireNonNull(source, "source");
             return this;
         }
 
@@ -344,7 +350,7 @@ public final class ContainerRegion {
         public void declare() {
             Declarations.requireOpen("ContainerRegion.section(" + id + ")");
             if (content == null) throw new IllegalStateException("ContainerRegion section '" + id + "': content(...) is required");
-            ContainerRegions.declare(new ContainerRegions.Section(id, content, matcher, order, visibleWhen, texture, title, name, context));
+            ContainerRegions.declare(new ContainerRegions.Declared(id, content, matcher, order, visibleWhen, texture, title, name, source));
         }
     }
 }
