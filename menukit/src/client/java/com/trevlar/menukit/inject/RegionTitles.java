@@ -74,7 +74,7 @@ public final class RegionTitles {
     static @Nullable Component openedName(ContainerRegion.@Nullable Source opened) {
         if (opened == null) return null;
         if (opened.customName() != null) return Component.literal(opened.customName());
-        return BuiltInRegistries.BLOCK.getValue(opened.block()).getName();
+        return opened.block() == null ? null : BuiltInRegistries.BLOCK.getValue(opened.block()).getName();
     }
 
     /**

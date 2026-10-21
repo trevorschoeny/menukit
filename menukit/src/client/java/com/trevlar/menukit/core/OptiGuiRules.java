@@ -115,12 +115,13 @@ public final class OptiGuiRules {
     /**
      * What a rule is evaluated against: one container, drawn with {@code texture}.
      *
-     * @param container the container's id, its block's ({@code minecraft:lime_shulker_box})
+     * @param container the container's id, its block's ({@code minecraft:lime_shulker_box}), or {@code null} for one
+     *                  with no block: only the rules for no container ({@code texture.<path>=}) can hold
      * @param name      its custom name, else its screen's title (OptiGUI's name input)
      * @param biome     the biome it is in, {@code y} its height ({@code null}: unknown, so no biome or height rule holds)
      * @param large     whether it is a double chest ({@code null}: not a placed chest)
      */
-    public record Input(Identifier container, Identifier texture, String name, @Nullable Identifier biome,
+    public record Input(@Nullable Identifier container, Identifier texture, String name, @Nullable Identifier biome,
                         @Nullable Integer y, @Nullable Boolean large, String playerName,
                         @Nullable Identifier playerBiome, @Nullable Integer playerY, LocalDate today) {}
 
@@ -152,7 +153,9 @@ public final class OptiGuiRules {
         /** The texture OptiGUI would draw for {@code in}, or {@code null} where no rule replaces it. Pure. */
         public @Nullable Identifier evaluate(Input in) {
             if (!replaceable.contains(in.texture())) return null;
-            for (Rule r : byContainer.getOrDefault(in.container(), List.of())) if (r.holds(in)) return r.replacement();
+            if (in.container() != null) {
+                for (Rule r : byContainer.getOrDefault(in.container(), List.of())) if (r.holds(in)) return r.replacement();
+            }
             for (Rule r : byContainer.getOrDefault(null, List.of())) if (r.holds(in)) return r.replacement();
             return null;
         }
@@ -597,7 +600,7 @@ public final class OptiGuiRules {
     // ponytail: one answer per section context, kept while a screen is open (the key leaves out where the player is, the biome and the date, which don't change under an open screen) and dropped when it closes.
     private static final Map<Key, Identifier> ANSWERS = new ConcurrentHashMap<>();
 
-    private record Key(Identifier texture, Identifier block, String name, BlockPos pos, @Nullable Boolean large) {}
+    private record Key(Identifier texture, @Nullable Identifier block, String name, BlockPos pos, @Nullable Boolean large) {}
 
     /** A resource reload: the rules are read again from the new packs on their next use. */
     public static void onReload() {
@@ -611,13 +614,13 @@ public final class OptiGuiRules {
     }
 
     /**
-     * The texture OptiGUI's rules give a section's container: {@code block} with
+     * The texture OptiGUI's rules give a section's container: {@code block} (or none) with
      * {@code customName} (else {@code title}, as OptiGUI falls back to a screen's title), at
      * {@code pos} (else the player's position, for a container opened from an item), drawn
      * with {@code texture}. {@code texture} itself when no rule replaces it, or OptiGUI
      * isn't installed.
      */
-    public static Identifier forContainer(Identifier texture, Identifier block, @Nullable String customName, String title,
+    public static Identifier forContainer(Identifier texture, @Nullable Identifier block, @Nullable String customName, String title,
                                           @Nullable BlockPos pos) {
         if (!LOADED) return texture;
         Minecraft mc = Minecraft.getInstance();

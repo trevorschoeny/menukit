@@ -204,17 +204,14 @@ public final class ContainerRegion {
     public static final Identifier SHULKER_BOX = PackLook.SHULKER_BOX;
 
     /**
-     * Where a section's items are: the container it shows, for the packs that pick a
-     * container's art by its block, name and place (OptiGUI's rules). Its block's id, its
-     * custom name ({@code null} for none: the section's title is matched instead, as OptiGUI
-     * matches a screen's), and where it is ({@code null} for a container opened from an
-     * item: the player's position).
+     * Where a section's items are: the container it shows. Its block's id ({@code null} for a
+     * container with no block behind it, such as one opened from an item that isn't a block),
+     * its custom name ({@code null} for none), and where it is ({@code null} for a container
+     * opened from an item: the player's position). The section takes its texture and its name
+     * from it, and with OptiGUI the pack's rules are evaluated against it: by block, name and
+     * place, or with no block by name and place only.
      */
-    public record Source(Identifier block, @Nullable String customName, @Nullable BlockPos pos) {
-
-        public Source {
-            Objects.requireNonNull(block, "block");
-        }
+    public record Source(@Nullable Identifier block, @Nullable String customName, @Nullable BlockPos pos) {
 
         /** A placed container: its block, its custom name, its position. */
         public static Source of(BlockEntity container) {
@@ -224,11 +221,11 @@ public final class ContainerRegion {
 
         /**
          * A container opened from its item (a shulker box in the inventory): the item's block,
-         * so its dye, and the name the player gave it. Where it is, the player is.
+         * so its dye, and the name the player gave it. Where it is, the player is. An item that
+         * isn't a block (a backpack) gives no block.
          */
         public static Source of(ItemStack item) {
-            Identifier block = item.getItem() instanceof BlockItem b ? BuiltInRegistries.BLOCK.getKey(b.getBlock())
-                    : BuiltInRegistries.ITEM.getKey(item.getItem());
+            Identifier block = item.getItem() instanceof BlockItem b ? BuiltInRegistries.BLOCK.getKey(b.getBlock()) : null;
             Component name = item.get(DataComponents.CUSTOM_NAME);
             return new Source(block, name == null ? null : name.getString(), null);
         }
