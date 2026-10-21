@@ -92,11 +92,19 @@ public final class ScreenPanelAdapter {
      * @throws IllegalStateException    after MenuKit's declarations froze
      */
     public ScreenPanelAdapter(Panel panel, int padding) {
+        this(panel, padding, null);
+    }
+
+    /**
+     * Declares the panel for {@code modId}, or for the calling mod when it is {@code null}:
+     * MenuKit's shared panels credit the mod whose contribution declares the panel.
+     */
+    ScreenPanelAdapter(Panel panel, int padding, @Nullable String modId) {
         Declarations.requireOpen("ScreenPanelAdapter(" + panel.id() + ")");
         PanelHost.requirePlacements(PanelHost.Kind.CONTAINER, panel);
         this.panel = panel;
         this.padding = padding;
-        this.modId = PanelHost.captureCallerModId();
+        this.modId = modId != null ? modId : PanelHost.captureCallerModId();
         this.seq = PanelHost.nextSeq();
         ScreenPanelRegistry.declare(this);
     }
