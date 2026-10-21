@@ -407,6 +407,33 @@ public final class RegionMath {
     public static final int HOTBAR_WIDTH = 182, HOTBAR_HEIGHT = 22;
 
     /**
+     * The width of the gap between the hearts and the hunger bar, in GUI pixels: each
+     * row is 81 px wide, flush with one end of the 182 px hotbar, so 20 px are left
+     * in the middle.
+     */
+    public static final int STATUS_COLUMN_WIDTH = HOTBAR_WIDTH - 2 * 81;
+
+    /**
+     * The base of the HUD's status column on an {@code sw x sh} GUI: a rectangle
+     * {@link #STATUS_COLUMN_WIDTH} wide, centred on the hotbar: the column's fixed
+     * origin. {@code TOP_CENTER} stacks its panels up from the top, the first one
+     * {@link RegionConstants#MENU_STACK_GAP} (2 px) above it.
+     *
+     * <p>With the status bars shown ({@code statusBars}: survival and adventure, where
+     * {@code Hud} draws hearts, hunger and the XP bar), the first panel rests right on
+     * the XP level number, level with the hearts and armour rows: the number is drawn
+     * at {@code sh - 24 - 9 - 2} with a 1 px outline, so its top is {@code sh - 36}, and
+     * the base sits the default gap below that. The column stays there whether the
+     * number shows or not (it hides at level 0), so it doesn't jump when the player's
+     * first level arrives. Without them (creative, spectator) the base is the hotbar's
+     * top.
+     */
+    public static Reference statusColumn(int sw, int sh, boolean statusBars) {
+        int top = statusBars ? sh - 36 + RegionConstants.MENU_STACK_GAP : sh - HOTBAR_HEIGHT;
+        return new Reference(sw / 2 - STATUS_COLUMN_WIDTH / 2, top, STATUS_COLUMN_WIDTH, sh - top);
+    }
+
+    /**
      * The vanilla offhand slot's sprite width, in GUI pixels (since 7.1.0). While the
      * offhand holds something, {@code Hud.extractItemHotbar} draws
      * {@code hud/hotbar_offhand_left} (29 x 24) at {@code hotbarLeft - 29}, or

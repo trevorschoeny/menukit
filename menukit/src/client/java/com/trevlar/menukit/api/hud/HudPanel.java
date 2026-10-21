@@ -54,6 +54,14 @@ public class HudPanel {
     private HudPanel() {} // static API only
 
     /**
+     * The scale for a {@link SlotBuilder#scale scaled} hotbar slot in the
+     * {@link Builder#statusColumn status column} (since 7.3.0): 6/11, so the 20 x 22
+     * slot takes 11 x 12 and its item is about a heart's size. Use it rather than a
+     * number of your own, so every mod's icons in the column match.
+     */
+    public static final float STATUS_SCALE = 6f / 11f;
+
+    /**
      * Starts a HUD panel builder.
      *
      * @param name unique id for this panel
@@ -67,6 +75,7 @@ public class HudPanel {
         // Required, exactly one: a spot on the window, or a region around the hotbar.
         private @Nullable InsideRegion region;
         private @Nullable OutsideRegion aroundHotbar;
+        private boolean statusColumn;
         private int offsetX = 0, offsetY = 0;
         private int priority = PanelPosition.DEFAULT_PRIORITY;
         private @Nullable Integer gap;              // null = the HUD's 2px
@@ -89,6 +98,7 @@ public class HudPanel {
         public Builder region(InsideRegion region) {
             this.region = region;
             this.aroundHotbar = null;
+            this.statusColumn = false;
             return this;
         }
 
@@ -111,6 +121,32 @@ public class HudPanel {
          */
         public Builder region(OutsideRegion aroundHotbar) {
             this.aroundHotbar = aroundHotbar;
+            this.region = null;
+            this.statusColumn = false;
+            return this;
+        }
+
+        /**
+         * Places the panel in the status column (since 7.3.0): the 20 px gap between
+         * the hearts and the hunger bar, centred on the hotbar, from a fixed origin
+         * pinned to it: the lowest panel rests right on the XP level number, level
+         * with the hearts and armour rows. Panels there stack upward in
+         * {@link #priority} order (lowest nearest the number), centred, 2px apart
+         * unless {@link #gap} says otherwise, and a hidden one takes no room. Where the
+         * game mode shows no status bars (creative, spectator) the column starts 2px
+         * above the hotbar. It stays put at level 0, when vanilla hides the number.
+         *
+         * <p>While the column reaches them, vanilla's held-item name, its action-bar
+         * message and the chat move up by exactly as far as it rises above their
+         * bottom edge, and back when it doesn't, whichever mods put panels there.
+         *
+         * <p>Meant for small things such as a status icon in a {@link #slot hotbar
+         * slot} scaled by {@link HudPanel#STATUS_SCALE}: a panel wider than 20 px
+         * overlaps the hearts and hunger.
+         */
+        public Builder statusColumn() {
+            this.statusColumn = true;
+            this.aroundHotbar = OutsideRegion.TOP_CENTER;
             this.region = null;
             return this;
         }
@@ -243,7 +279,7 @@ public class HudPanel {
          * @param item supplier that returns the ItemStack to display each frame
          */
         public Builder slot(int x, int y, Supplier<ItemStack> item) {
-            elements.add(new HudSlot(x, y, item, true, true, null));
+            elements.add(new HudSlot(x, y, item, true, true, null, 1f));
             return this;
         }
 
@@ -326,7 +362,8 @@ public class HudPanel {
             if (width >= 0 && height >= 0) {
                 panel.size(Math.max(0, width - 2 * padding), Math.max(0, height - 2 * padding));
             }
-            MK.registerHud(panel, padding);
+            if (statusColumn) MK.registerHudStatus(panel, padding);
+            else MK.registerHud(panel, padding);
             return panel;
         }
     }
@@ -458,6 +495,7 @@ public class HudPanel {
         private boolean showCount = true;
         private boolean showDurability = true;
         private @Nullable Runnable onRender;
+        private float scale = 1f;
 
         SlotBuilder(Builder parent, int x, int y) {
             this.parent = parent;
@@ -470,8 +508,22 @@ public class HudPanel {
         public SlotBuilder hideDurability() { this.showDurability = false; return this; }
         public SlotBuilder onRender(Runnable callback) { this.onRender = callback; return this; }
 
+        /**
+         * Draws the slot, item and decorations together at {@code scale} (since 7.3.0),
+         * 1 by default. The element's size follows, rounded up: at
+         * {@link HudPanel#STATUS_SCALE}, the {@link Builder#statusColumn status
+         * column}'s size, the 20 x 22 slot takes 11 x 12.
+         *
+         * @throws IllegalArgumentException unless {@code scale} is above 0
+         */
+        public SlotBuilder scale(float scale) {
+            if (!(scale > 0f)) throw new IllegalArgumentException("MenuKit: a HUD slot's scale must be above 0, got " + scale);
+            this.scale = scale;
+            return this;
+        }
+
         public Builder done() {
-            parent.elements.add(new HudSlot(x, y, item, showCount, showDurability, onRender));
+            parent.elements.add(new HudSlot(x, y, item, showCount, showDurability, onRender, scale));
             return parent;
         }
     }
