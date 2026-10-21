@@ -41,10 +41,14 @@ public class MenuKitClient implements ClientModInitializer {
     public void onInitializeClient() {
         // Declarations freeze once every client entrypoint has run, in a phase
         // after the default one, so anything a library wires at client start declares
-        // before the freeze, whichever mod's entrypoint ran first.
+        // before the freeze, whichever mod's entrypoint ran first. Shared panels are built
+        // between the two: after every mod joined, and while adapters can still be declared.
+        Identifier sharedPanels = Identifier.fromNamespaceAndPath("menukit", "shared_panels");
         Identifier freeze = Identifier.fromNamespaceAndPath("menukit", "freeze");
         var started = net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED;
-        started.addPhaseOrdering(net.fabricmc.fabric.api.event.Event.DEFAULT_PHASE, freeze);
+        started.addPhaseOrdering(net.fabricmc.fabric.api.event.Event.DEFAULT_PHASE, sharedPanels);
+        started.addPhaseOrdering(sharedPanels, freeze);
+        started.register(sharedPanels, client -> com.trevlar.menukit.api.panel.SharedPanels.buildAll());
         started.register(freeze, client -> com.trevlar.menukit.api.Declarations.freeze("client started"));
 
         MK.initClient();

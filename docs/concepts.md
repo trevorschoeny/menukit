@@ -317,6 +317,20 @@ A panel wraps its width to the space its placement leaves and scrolls its height
 
 On a standalone screen, the `main()` panel makes room for the `region(...)` panels around it. Its room leaves out the height of the panels above and below it and the width of the panels beside it, gaps included. A panel above a full-height menu still fits, and the menu gets a little shorter. A main panel with room to spare stays centred.
 
+## Shared panels
+
+Mods that deliberately work together can put their elements in one panel (7.4.0). A shared panel is named by an id that belongs to no single mod, a plain string such as `trevlar:gear`, with no registry. Each mod joins it from its client initializer with `SharedPanels.join(id, contribution)`. No mod creates the panel and no mod depends on another. Unrelated mods that happen to share a spot don't need this: panels in one region already stack.
+
+A `Contribution` is one mod's part: its elements (`add(...)`), an order number and a mode scope (`Contribution.builder(order, scope)`), and its own `visibleWhen(...)`. It is a list of elements, not a layout of its own. It also carries the panel's own declaration: its placement per mode (`in(scope, placement)`, at least one), its `style(...)`, its axis (`vertical()`, a row by default) and its `gap(px)` (`Flow`'s default; `0` keeps slots on vanilla's 18 pixel pitch). Every contribution carries the whole declaration, so whichever mods are installed can build the panel.
+
+MenuKit builds each shared panel once, at client start, after every client entrypoint has run and before declarations freeze, from whatever contributions joined. A `join` after that throws. The panel's id is the shared id.
+
+- **One flow.** The contributions are laid out in one `Flow` along the panel's axis, by order number, ties by mod id, so the result doesn't depend on load order. A contribution out of its mode scope, or whose `visibleWhen` is false, takes no room: the next one moves into its place.
+- **All hidden.** With every contribution hidden the panel isn't placed, so it draws nothing and claims nothing.
+- **Disagreement.** If contributions declare the panel differently (placements, style, axis or gap), the lowest order's declaration is used and MenuKit logs a warning naming both mods. Nothing crashes, so a player with mismatched versions still gets a panel.
+- **One mod installed.** The panel is that mod's contribution alone, an ordinary panel. With no contribution there is no panel.
+- **Registration.** It goes where an ordinary panel with the same placements would. With a screen placement it is on every container screen through a screen adapter, which puts its anchored placements in their anchors' hosts there. With only anchored placements it goes through an `AnchorPanelAdapter`, on any screen where the anchor is. In a shared region it is credited to the mod whose declaration won.
+
 ## Reference
 
 A reference is the rectangle a `region(...)` placement is measured against. It is not the panel and has no relation to the panel's size. The host decides it. It is a container screen's frame (extended by its chrome, such as creative's tab rows or an open recipe book), an anchor's box, a standalone screen's main panel, or on the HUD the vanilla hotbar. `Reference` is the record that carries it. A region never names its reference.
