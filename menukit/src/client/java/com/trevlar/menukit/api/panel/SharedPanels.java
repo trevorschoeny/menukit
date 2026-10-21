@@ -37,13 +37,15 @@ import java.util.Objects;
  *       mod id, so the result doesn't depend on load order. A contribution out of its mode
  *       scope or whose {@code visibleWhen} is false takes no room; with all of them hidden the
  *       panel isn't placed, so it draws and claims nothing.</li>
- *   <li><b>The declaration</b> (placements, style, axis, gap) travels with every contribution.
- *       Where they differ, the lowest order's wins and MenuKit logs a warning naming both
- *       mods.</li>
- *   <li><b>Registered like an ordinary panel</b>: with a screen placement, on every
- *       container screen through a {@link ScreenPanelAdapter} (which also puts its anchored
- *       placements in their anchors' hosts there); with only anchored placements, through an
- *       {@link AnchorPanelAdapter}. Its id is the shared id.</li>
+ *   <li><b>The declaration</b> (placements, style, axis, gap, {@code fixed()}) travels with
+ *       every contribution. Where they differ, the lowest order's wins and MenuKit logs a
+ *       warning naming both mods. Two {@code pixel(...)} origins are lambdas, which can't be
+ *       compared, so they never count as a difference.</li>
+ *   <li><b>Registered like an ordinary panel</b>: with a screen placement, through a
+ *       {@link ScreenPanelAdapter} on <em>every</em> container screen (chests, furnaces and the
+ *       rest, not only the inventory; it also puts its anchored placements in their anchors'
+ *       hosts there), since no contribution says which screens; with only anchored placements,
+ *       through an {@link AnchorPanelAdapter}, wherever its anchors are. Its id is the shared id.</li>
  * </ul>
  * With one mod installed it is an ordinary panel; with none, there is no panel.
  */
@@ -141,6 +143,7 @@ public final class SharedPanels {
                     return false;
                 });
         decl.placements.forEach(panel::in);
+        if (decl.fixed) panel.fixed();
         Panel built = panel.build();
         BUILT.put(id, built);
 

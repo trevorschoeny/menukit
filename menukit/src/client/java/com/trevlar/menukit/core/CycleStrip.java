@@ -102,6 +102,8 @@ public final class CycleStrip {
         HudPanel.builder("menukit:cycle-strip", com.trevlar.menukit.api.panel.ModeScope.BOTH)
                 .region(InsideRegion.BOTTOM_CENTER)
                 .visibleWhen(CycleStrip::shouldShow)
+                // Drawn from the window size, not from where the panel sits: nothing to move.
+                .fixed()
                 // A zero-size element that draws the strip. render places it from the
                 // window size, not from the panel, because the strip sits beside the
                 // vanilla hotbar rather than in a region's stack.
