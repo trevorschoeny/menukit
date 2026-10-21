@@ -8,7 +8,6 @@ import com.trevlar.menukit.core.DialogLayout;
 import com.trevlar.menukit.core.ItemEditing;
 import com.trevlar.menukit.core.ItemEditing.EnchantChoice;
 import com.trevlar.menukit.core.ItemSources;
-import com.trevlar.menukit.core.VanillaLook;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -1051,14 +1050,14 @@ final class ItemDialog {
         }
     }
 
-    /** A control button: vanilla's button in the Default look, MenuKit's raised one (dark when off) in the Panel look. */
+    /**
+     * A control button: a raised control (vanilla's button in the Default look, MenuKit's
+     * control art in the Panel look or vanilla's where a pack restyled it), its disabled face
+     * while off, its glyph in vanilla's button text colours on vanilla's button.
+     */
     private static void drawControl(GuiGraphicsExtractor g, ScreenKind screen, int x, int y, String glyph, boolean enabled, boolean hovered) {
-        ScreenKind kind = ControlLook.kind(screen, ControlLook.Control.BUTTON);   // vanilla's where a pack restyled it
-        if (screen == ScreenKind.DEFAULT) {
-            VanillaLook.button(g, x, y, CONTROL, CONTROL, enabled, hovered && enabled);
-        } else {
-            ControlLook.drawRaised(g, x, y, CONTROL, CONTROL, enabled, hovered, false);
-        }
+        ScreenKind kind = ControlLook.kind(screen, ControlLook.Control.BUTTON);
+        ControlLook.drawRaised(screen, g, x, y, CONTROL, CONTROL, enabled, hovered, ControlLook.Press.NONE);
         int color = enabled ? ElementConstants.TEXT_LIGHT : kind.textColor(TextRole.DISABLED);
         Text.renderCentered(g, Component.literal(glyph), x, y, CONTROL, CONTROL, color, true);
     }

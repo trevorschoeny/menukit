@@ -23,15 +23,6 @@ public final class PanelRendering {
     private static final int COLOR_SHADOW    = 0xFF555555;
     private static final int COLOR_BORDER    = 0xFF000000;
 
-    // MenuKit's RAISED panel sprite, in vanilla's inventory-panel look.
-    private static final Identifier PANEL_RAISED_SPRITE =
-            Identifier.fromNamespaceAndPath("menukit", "panel_raised");
-
-    // MenuKit's RAISED control sprite (buttons, toggles, popovers): the same art as the
-    // panel's, a file of its own so a resource pack can theme controls apart from panels.
-    private static final Identifier CONTROL_RAISED_SPRITE =
-            Identifier.fromNamespaceAndPath("menukit", "control_raised");
-
     // Vanilla's dark panel sprite, the one behind status effects.
     private static final Identifier PANEL_DARK_SPRITE =
             Identifier.withDefaultNamespace("container/inventory/effect_background");
@@ -47,7 +38,7 @@ public final class PanelRendering {
 
         if (style == PanelStyle.RAISED) {
             graphics.blitSprite(RenderPipelines.GUI_TEXTURED,
-                    PANEL_RAISED_SPRITE, x, y, w, h);
+                    ControlLook.Control.PANEL.own(0), x, y, w, h);
             return;
         }
         if (style == PanelStyle.DARK) {
@@ -65,29 +56,16 @@ public final class PanelRendering {
      * which is MenuKit's {@code menukit:control_raised} sprite, so a resource pack themes
      * controls and panels ({@code menukit:panel_raised}) each on its own. Unthemed, the two are
      * the same art. Controls with states (buttons, toggles, a dropdown, the colour field) draw
-     * through {@link ControlLook#drawRaised}, every state from one source.
+     * through {@link ControlLook#drawRaised}, every state from one source. A Panel-look panel
+     * surface that follows the pack's container art is {@link PackLook#drawPanel}.
      */
     public static void renderControl(GuiGraphicsExtractor graphics, int x, int y, int w, int h, PanelStyle style) {
         if (style == PanelStyle.RAISED && w > 0 && h > 0) {
-            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, CONTROL_RAISED_SPRITE, x, y, w, h);
+            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, ControlLook.Control.BUTTON.own(ControlLook.State.NORMAL.ordinal()),
+                    x, y, w, h);
             return;
         }
         renderPanel(graphics, x, y, w, h, style);
-    }
-
-    /**
-     * Draws a Panel-look <b>panel surface</b>: the background of a panel itself (a settings
-     * screen, the container region's two panels), which follows the resource pack's
-     * container art ({@link PackLook}). Not for controls: a button, toggle or popover that
-     * is RAISED draws {@link #renderControl}'s sprite, since a frame cut from a chest would
-     * be wrong on a button. With vanilla's own textures it draws exactly what
-     * {@code renderPanel(..., RAISED)} draws.
-     *
-     * @param look the surface's look, from {@link PackLook#look} (cached; cheap per frame)
-     */
-    public static void renderPanelSurface(GuiGraphicsExtractor graphics, int x, int y, int w, int h,
-                                          PackLook.Look look) {
-        PackLook.drawPanel(graphics, x, y, w, h, look);
     }
 
     /**

@@ -2,7 +2,6 @@ package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.api.panel.ScreenKind;
-import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.core.PanelRendering;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
@@ -326,17 +325,10 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         var g = ctx.graphics();
         int h = getHeight();
 
-        // Background: vanilla's button sprite, or MenuKit's raised panel; pressed
-        // while open (the popover is the live surface then, so no hover highlight).
-        // Vanilla's in the Default look, and in the Panel look where a pack restyled vanilla's
-        // button. MenuKit's own control art is not pressed while open; vanilla's button is.
+        // Background: a raised control, open while the popover is up (the popover is the live
+        // surface then, so no hover highlight; ControlLook.Press.OPEN).
         ScreenKind kind = ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON);
-        if (ctx.kind() == ScreenKind.DEFAULT) {
-            VanillaLook.button(g, tx, ty, width, h, !disabled, hovered && !open);
-            if (open) VanillaLook.pressedOverlay(g, tx, ty, width, h, false);   // over the resting sprite
-        } else {
-            ControlLook.drawRaised(g, tx, ty, width, h, !disabled, hovered && !open, open && kind == ScreenKind.DEFAULT);
-        }
+        ControlLook.drawRaised(ctx.kind(), g, tx, ty, width, h, !disabled, hovered, open ? ControlLook.Press.OPEN : ControlLook.Press.NONE);
 
         // Label: left, wrapping onto more lines when too long (the trigger grows);
         // the chevron stays beside the first line.
@@ -371,14 +363,9 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         var g = ctx.graphics();
         int[] p = popoverBounds(ctx.originX() + childX, ctx.originY() + childY);
         int px = p[0], py = p[1], pw = p[2], ph = p[3];
-        // The list: vanilla's disabled button, its flatter surface, in the Default look and where a
-        // pack restyled vanilla's (that state's sprite or derived, ControlLook); else MenuKit's control art.
+        // The list: a flat surface in the trigger's set (ControlLook.drawList).
         ScreenKind kind = ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON);
-        if (ctx.kind() == ScreenKind.DEFAULT) {
-            VanillaLook.popoverBackground(g, px, py, pw, ph);
-        } else {
-            ControlLook.draw(g, px, py, pw, ph, kind == ScreenKind.DEFAULT ? ControlLook.State.DISABLED : ControlLook.State.NORMAL);
-        }
+        ControlLook.drawList(ctx.kind(), g, px, py, pw, ph);
 
         int textX = px + 1 + POPOVER_TEXT_PAD_X;
         int fullRowRight = px + pw - 1;

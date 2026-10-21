@@ -1,13 +1,13 @@
 package com.trevlar.menukit.core;
 
-import com.trevlar.menukit.api.panel.ScreenKind;
-
 import com.trevlar.menukit.api.element.ElementConstants;
+import com.trevlar.menukit.api.panel.ScreenKind;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -15,77 +15,48 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 /**
- * Which art a Panel-look control draws under the active resource packs: every Panel-look
- * element follows its vanilla equivalent. The Panel look draws MenuKit's own art, which no
- * pack touches; the Default look draws vanilla's widget sprites, which nearly every pack
- * restyles. So each control is mapped, once, here, to its vanilla equivalent, and per
- * control (in the same order as a panel's look, {@link PackLook}):
- * <ol>
- *   <li>a pack overrides MenuKit's own sprite for it: MenuKit's drawing, with that sprite;</li>
- *   <li>otherwise, a pack restyled any of its vanilla sprites: it draws as in the Default
- *       look, vanilla's sprites and vanilla's text colours for that control (white on a
- *       button, light grey disabled), through {@link VanillaLook} and the element's own
- *       Default-look code;</li>
- *   <li>otherwise MenuKit's art, so an unmodded game is unchanged to the pixel.</li>
- * </ol>
- * Any one sprite of a control's set being a pack's makes the whole set that control draws.
+ * How MenuKit's raised controls draw, in both looks, under the active resource packs. A
+ * control draws from one of two <b>sets</b> of sprites, named as vanilla names its button's
+ * ({@code _highlighted}, {@code _pressed}, {@code _disabled}): MenuKit's own
+ * {@code menukit:control_raised} set, or vanilla's {@code widget/button} set (which has no
+ * pressed sprite). Which set:
+ * <ul>
+ *   <li>the Default look: vanilla's, always;</li>
+ *   <li>the Panel look, per control: MenuKit's where a pack overrides any of it; else
+ *       vanilla's where a pack restyled any of vanilla's (every Panel-look element follows
+ *       its vanilla equivalent, and takes vanilla's text colours on it: {@link #kind}); else
+ *       MenuKit's, so an unmodded game is unchanged to the pixel.</li>
+ * </ul>
  *
- * <h3>Every state follows the normal state's source</h3>
- * A raised control's sprites come in a set named as vanilla names its button's:
- * {@code menukit:control_raised}, {@code _highlighted}, {@code _pressed}, {@code _disabled}
- * (vanilla's {@code widget/button} set has no pressed sprite). Per state, in the set drawn:
- * <ol>
- *   <li>a pack supplies that state's sprite: it;</li>
- *   <li>otherwise, if a pack supplied the normal sprite: derived from that sprite, so a
- *       control never switches look between states;</li>
- *   <li>otherwise the set's own art (MenuKit's, split from what it drew before, so an
- *       unmodded game is unchanged to the pixel; or vanilla's own).</li>
- * </ol>
- * The derivations, one for every control and every pack, all at blit time (no generated
- * texture):
+ * <h3>One rule for every set</h3>
+ * Per state: the set's own sprite for it where it has one (from a pack, or the set's own art
+ * when no pack touched its normal sprite); otherwise derived from the set's normal sprite, so
+ * a control never switches look between states. The derivations, at blit time:
  * <ul>
  *   <li><b>Highlighted</b>: the normal sprite, then a white wash ({@link #HOVER_WASH}) inside
- *       its 1 px outline. MenuKit's own hover, so MenuKit's highlighted sprite is exactly
- *       this transform of its normal one; it lightens a light, dark or coloured fill alike.</li>
- *   <li><b>Disabled</b>: the normal sprite multiplied by {@link #DISABLED_TINT}, the bevel and
- *       hue kept, the whole darker. Vanilla's disabled button is its normal one at about
- *       0.4 of the brightness, flattened; MenuKit's is darker still; this sits between. Darker
- *       reads as off on every pack (a dark one goes near black, as vanilla's own disabled
- *       button is), where fading would leave a light pack's button barely changed and let what
- *       is under an open list show through it.</li>
- *   <li><b>Pressed</b>: MenuKit's one pressed transform ({@link VanillaLook#pressedOverlay})
- *       on the resting or hovered face, as the Default look presses vanilla's button: an
- *       inverted bevel in translucent black and white, and a wash darkening a light face and
- *       lightening a dark one, judged by {@link #faceLuma} of the face it lands on. A toggle
- *       that is on and disabled is the disabled face pressed, so on and off stay apart.</li>
+ *       its 1 px outline (MenuKit's own highlighted sprite is exactly this).</li>
+ *   <li><b>Disabled</b>: the normal sprite multiplied by {@link #DISABLED_TINT}: darker reads
+ *       as off on every pack.</li>
+ *   <li><b>Pressed</b>: the face under the cursor (highlighted while hovered) with MenuKit's
+ *       one pressed transform over it ({@link #pressedOverlay}): an inverted bevel and a wash
+ *       that darkens a light face and lightens a dark one. How a control is pressed is its
+ *       {@link Press}.</li>
  * </ul>
+ * With no pack every state of both sets is the set's own sprite, so both looks draw what
+ * they drew before packs were followed.
  *
- * <h3>The mapping</h3>
- * <ul>
- *   <li><b>Button, Toggle, a dropdown's trigger and its open list, ColorField, the item
- *       dialog's row controls</b>: MenuKit's {@code menukit:control_raised};
- *       {@link Control#BUTTON}, vanilla's {@code widget/button}, {@code _highlighted},
- *       {@code _disabled} (an open list is {@code _disabled}, as in the Default look). A
- *       Toggle that is on is the button pressed, since vanilla's button has no on state and
- *       a Panel-look toggle's label need not say its state.</li>
- *   <li><b>Checkbox's box</b>: drawn with fills; {@link Control#CHECKBOX}, vanilla's
- *       {@code widget/checkbox}, {@code _highlighted}, {@code _selected},
- *       {@code _selected_highlighted}.</li>
- *   <li><b>Slider, text field, Tabs</b>: already vanilla's widgets and sprites
- *       ({@code widget/slider*}, {@code widget/text_field*}, {@code widget/tab*}) in both
- *       looks, so they follow a pack as they are.</li>
- *   <li><b>Scrollbar</b>: its handle is already vanilla's
- *       {@code container/creative_inventory/scroller}; its track has no sprite of vanilla's
- *       (the creative screen draws its track into its tab art) and keeps MenuKit's.</li>
- *   <li><b>A slot on a plain panel; a dialog</b>: panel surfaces, cut from the pack's
- *       chest, else {@code container/slot} ({@link PackLook}).</li>
- *   <li><b>Radio, InfoBox, a Flow card, ProgressBar</b>: no vanilla equivalent; MenuKit's
- *       art, their text reading on the panel under them.</li>
- * </ul>
+ * <h3>The sprite table</h3>
+ * {@link Control} is the one place the sprites MenuKit's looks draw are named: each element
+ * kind, MenuKit's own sprites for it and vanilla's equivalent. Elements whose vanilla
+ * equivalent is already a vanilla widget (slider, text field, tabs, the scroller handle)
+ * draw it in both looks and follow a pack as they are; elements with no vanilla equivalent
+ * (radio, info box, a card, a progress bar) keep MenuKit's art.
  */
 @ApiStatus.Internal
 public final class ControlLook {
@@ -101,24 +72,75 @@ public final class ControlLook {
         State(String suffix) { this.suffix = suffix; }
     }
 
+    /**
+     * How a raised control is pressed.
+     * <ul>
+     *   <li>{@link #NONE}: not at all.</li>
+     *   <li>{@link #HELD}: held down, between press and release (a button). The press is under
+     *       the cursor, so a derived press is over the highlighted face; the set's own pressed
+     *       sprite shows as it is.</li>
+     *   <li>{@link #ON}: latched (a toggle that is on). A derived press is over the face as
+     *       hovered or not; the set's own pressed sprite takes the hover wash while hovered.</li>
+     *   <li>{@link #OPEN}: a dropdown's trigger while its list is up, never hovered (the list
+     *       is the live surface). Vanilla's set presses its resting face, as the Default look
+     *       always has; MenuKit's leaves it resting.</li>
+     * </ul>
+     */
+    public enum Press { NONE, HELD, ON, OPEN }
+
     /** The highlighted derivation: a white wash inside the outline (MenuKit's own hover). */
     public static final int HOVER_WASH = ElementConstants.HOVER_OVERLAY;
     /** The disabled derivation: the normal sprite at 0.3 of its brightness, its alpha kept. */
     public static final int DISABLED_TINT = 0xFF4D4D4D;
 
-    /** A Panel-look control with a vanilla equivalent: MenuKit's own sprites for it, if any, and vanilla's. */
+    /** The pressed transform's inverted bevel: translucent black over the top and left, translucent white over the bottom and right. */
+    public static final int PRESSED_SHADE = 0xAE000000, PRESSED_LIGHT = 0x45FFFFFF;
+    /** The wash inside it: a quarter of the way to black on a light face, to white on a dark one. */
+    public static final int PRESSED_DARKEN = 0x40000000, PRESSED_LIGHTEN = 0x40FFFFFF;
+    /**
+     * A face that reads darker than this grey ({@code 0xFF606060}, by {@link PackArt#luminance})
+     * is lit by the press instead of darkened: between a typical dark-mode pack's button and
+     * vanilla's, so vanilla's own darkens as it always has.
+     */
+    public static final double DARK_FACE = PackArt.luminance(0xFF606060);
+
+    /**
+     * The sprites MenuKit's looks draw, per element kind: MenuKit's own (a pack overrides them
+     * to theme MenuKit directly) and vanilla's equivalent (which nearly every pack restyles).
+     * The only place these sprites are named.
+     */
     public enum Control {
-        /** By {@link State}: MenuKit's {@code control_raised} set; vanilla's button set (no pressed sprite). */
+        /** Buttons, toggles, a dropdown's trigger and list, the colour field, the item dialog's row controls; by {@link State}. */
         BUTTON(states("menukit", "control_raised", true), states("minecraft", "widget/button", false)),
-        CHECKBOX(null, sprites("widget/checkbox", "widget/checkbox_highlighted", "widget/checkbox_selected",
-                "widget/checkbox_selected_highlighted"));
+        /** The checkbox's box: vanilla's by checked and highlighted ({@link #checkbox}); MenuKit's is drawn with fills. */
+        CHECKBOX(null, vanilla("widget/checkbox", "widget/checkbox_highlighted", "widget/checkbox_selected",
+                "widget/checkbox_selected_highlighted")),
+        /** A Panel-look panel surface: MenuKit's raised panel (its look cut from container art is {@link PackLook}'s). */
+        PANEL(new Identifier[]{Identifier.fromNamespaceAndPath("menukit", "panel_raised")}, null),
+        /** A slot frame: vanilla's slot sprite (horse, nautilus, stats; the Default look's slot). */
+        SLOT(null, vanilla("container/slot"));
 
-        private final Identifier @Nullable [] own;
-        private final @Nullable Identifier[] vanilla;
+        private final @Nullable Identifier @Nullable [] own;
+        private final @Nullable Identifier @Nullable [] vanilla;
 
-        Control(Identifier @Nullable [] own, @Nullable Identifier[] vanilla) {
+        Control(@Nullable Identifier @Nullable [] own, @Nullable Identifier @Nullable [] vanilla) {
             this.own = own;
             this.vanilla = vanilla;
+        }
+
+        /** MenuKit's own sprite {@code i} for this element ({@link State#ordinal} for a raised control). */
+        public Identifier own(int i) {
+            return Objects.requireNonNull(Objects.requireNonNull(own)[i]);
+        }
+
+        /** Vanilla's sprite {@code i} for this element ({@link State#ordinal} for a raised control, never pressed). */
+        public Identifier vanilla(int i) {
+            return Objects.requireNonNull(Objects.requireNonNull(vanilla)[i]);
+        }
+
+        /** Vanilla's checkbox sprite for a box {@code checked} or not, {@code highlighted} or not. */
+        public static Identifier checkbox(boolean checked, boolean highlighted) {
+            return CHECKBOX.vanilla((checked ? 2 : 0) + (highlighted ? 1 : 0));
         }
 
         private static @Nullable Identifier[] states(String namespace, String base, boolean pressed) {
@@ -129,28 +151,34 @@ public final class ControlLook {
             return ids;
         }
 
-        private static Identifier[] sprites(String... paths) {
+        private static Identifier[] vanilla(String... paths) {
             return Arrays.stream(paths).map(Identifier::withDefaultNamespace).toArray(Identifier[]::new);
         }
     }
 
-    /** What one control draws now: vanilla's set or MenuKit's, and each state's sprite ({@code null}: derived). */
+    /** A sprite's file, under {@code textures/gui/sprites/}: what a pack replaces. */
+    public static Identifier file(Identifier sprite) {
+        return sprite.withPath(p -> "textures/gui/sprites/" + p + ".png");
+    }
+
+    /** One set as drawn now: vanilla's or MenuKit's, and each state's sprite ({@code null}: derived). */
     private record Art(boolean vanilla, @Nullable Identifier @Nullable [] sprites) {}
 
-    // ponytail: one answer per control, dropped whole on a resource reload (PackLook.onReload).
-    private static final Map<Control, Art> ART = new ConcurrentHashMap<>();
+    // ponytail: one answer per control and look, dropped whole on a resource reload.
+    private static final Map<Control, Art> PANEL_ART = new ConcurrentHashMap<>(), DEFAULT_ART = new ConcurrentHashMap<>();
 
     /** A resource reload: every control is decided again from what the new packs supply. */
-    static void onReload() {
-        ART.clear();
-        LUMA.clear();
+    public static void onReload() {
+        PANEL_ART.clear();
+        DEFAULT_ART.clear();
+        FACES.clear();
     }
 
     /**
      * The look {@code control} draws in on a screen of kind {@code screen}: the Default look
-     * where the screen is one, or where a pack restyled the control's vanilla sprites and not
-     * MenuKit's own; else {@code screen}. Elements colour their text by what this returns in
-     * place of the screen's kind.
+     * where the screen is one, or where the Panel look draws vanilla's set for it; else
+     * {@code screen}. Elements colour their text by what this returns in place of the
+     * screen's kind.
      */
     public static ScreenKind kind(ScreenKind screen, Control control) {
         return screen == ScreenKind.PANEL && follows(control) ? ScreenKind.DEFAULT : screen;
@@ -158,28 +186,32 @@ public final class ControlLook {
 
     /** Whether {@code control} draws vanilla's sprites in the Panel look now. */
     public static boolean follows(Control control) {
-        return art(control).vanilla();
+        return art(ScreenKind.PANEL, control).vanilla();
     }
 
-    /** Each state's sprite for {@code control} now, by {@link State}; {@code null} where it is derived. */
+    /** Each state's sprite for {@code control} in the Panel look now, by {@link State}; {@code null} where it is derived. */
     public static @Nullable Identifier[] sprites(Control control) {
-        @Nullable Identifier[] s = art(control).sprites();
+        @Nullable Identifier[] s = art(ScreenKind.PANEL, control).sprites();
         return s == null ? new Identifier[0] : s.clone();
     }
 
-    private static Art art(Control control) {
-        return ART.computeIfAbsent(control, ControlLook::decide);
+    private static Art art(ScreenKind kind, Control control) {
+        return kind == ScreenKind.DEFAULT ? DEFAULT_ART.computeIfAbsent(control, c -> decide(c, true))
+                : PANEL_ART.computeIfAbsent(control, c -> decide(c, false));
     }
 
-    /** One control's art, in the class doc's order, then each state's; no game (the headless checks): MenuKit's art. */
-    private static Art decide(Control c) {
+    /**
+     * One control's set, in the class doc's order, then each state's sprite. No game
+     * (MenuKit's headless checks): the set's own art, MenuKit's in the Panel look.
+     */
+    private static Art decide(Control c, boolean defaultLook) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc == null) return new Art(false, c.own);
+        if (mc == null) return defaultLook ? new Art(true, c.vanilla) : new Art(false, c.own);
         ResourceManager rm = mc.getResourceManager();
-        Predicate<Identifier> ownFromPack = id -> PackLook.fromPack(rm.getResource(file(id)), PackLook.MENUKIT_PACK);
-        Predicate<Identifier> vanillaFromPack = id -> PackLook.fromPack(rm.getResource(file(id)), PackLook.VANILLA_PACK);
-        boolean vanilla = !anyOf(c.own, ownFromPack) && anyOf(c.vanilla, vanillaFromPack);
-        if (vanilla) return new Art(true, c.own == null ? null : pick(c.vanilla, vanillaFromPack));
+        Predicate<Identifier> ownFromPack = id -> PackArt.fromPack(rm.getResource(file(id)), PackArt.MENUKIT_PACK);
+        Predicate<Identifier> vanillaFromPack = id -> PackArt.fromPack(rm.getResource(file(id)), PackArt.VANILLA_PACK);
+        boolean vanilla = defaultLook || (!anyOf(c.own, ownFromPack) && anyOf(c.vanilla, vanillaFromPack));
+        if (vanilla) return new Art(true, c.vanilla == null ? null : pick(c.vanilla, vanillaFromPack));
         return new Art(false, c.own == null ? null : pick(c.own, ownFromPack));
     }
 
@@ -190,10 +222,10 @@ public final class ControlLook {
     }
 
     /**
-     * Each state's sprite for one set, by {@link State}: per state, its sprite where
-     * a pack supplies it or where the normal sprite is the set's own; {@code null} (derived
-     * from the normal sprite) where a pack supplied the normal one and not this, or where the
-     * set has no sprite for it. {@code fromPack}: whether a pack, not the set's own, supplies a
+     * Each state's sprite for one set, by {@link State}: per state, its sprite where a pack
+     * supplies it or where the normal sprite is the set's own; {@code null} (derived from the
+     * normal sprite) where a pack supplied the normal one and not this, or where the set has
+     * no sprite for it. {@code fromPack}: whether a pack, not the set's own, supplies a
      * sprite. Pure, for the headless checks.
      */
     public static @Nullable Identifier[] pick(@Nullable Identifier[] set, Predicate<Identifier> fromPack) {
@@ -206,102 +238,147 @@ public final class ControlLook {
         return out;
     }
 
-    private static Identifier file(Identifier sprite) {
-        return sprite.withPath(p -> "textures/gui/sprites/" + p + ".png");
-    }
-
-    // Drawing: the one path every raised control takes in the Panel look
-
-    // ponytail: one luma per sprite, dropped on a resource reload with ART.
-    private static final Map<Identifier, Integer> LUMA = new ConcurrentHashMap<>();
+    // Drawing: the one path every raised control takes, in both looks
 
     /**
-     * A sprite's face luma, 0 to 255: the luma of its centre pixel, the fill a nine-sliced
-     * sprite stretches over most of a control (as {@link PackLook} reads a sprite's fill). An
-     * average over the whole sprite would let a small sprite's frame outweigh its face. Which
-     * way the pressed wash goes on it ({@link VanillaLook#DARK_FACE}). No game, or no such
-     * sprite: 255, a light face, darkened as MenuKit always darkened a press.
+     * A raised control's background on a screen of kind {@code kind}, in its state: disabled
+     * wins (a toggle on and disabled is the disabled face pressed, so on and off stay apart);
+     * then {@code press}; then hovered; else resting.
      */
-    public static int faceLuma(Identifier sprite) {
-        return LUMA.computeIfAbsent(sprite, ControlLook::readLuma);
-    }
-
-    private static int readLuma(Identifier sprite) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc == null) return 255;
-        var res = mc.getResourceManager().getResource(file(sprite));
-        if (res.isEmpty()) return 255;
-        try (java.io.InputStream in = res.get().open();
-             com.mojang.blaze3d.platform.NativeImage img = com.mojang.blaze3d.platform.NativeImage.read(in)) {
-            int p = img.getPixel(img.getWidth() / 2, img.getHeight() / 2);
-            return (int) Math.round(0.2126 * ((p >> 16) & 0xFF) + 0.7152 * ((p >> 8) & 0xFF) + 0.0722 * (p & 0xFF));
-        } catch (java.io.IOException e) {
-            return 255;
-        }
-    }
-
-    /** The luma of the raised control's face in {@code state}: its sprite's, or as derived (see the class doc). */
-    static int faceLuma(State state) {
-        @Nullable Identifier[] sprites = art(Control.BUTTON).sprites();
-        if (sprites[state.ordinal()] != null) return faceLuma(sprites[state.ordinal()]);
-        int normal = faceLuma(sprites[State.NORMAL.ordinal()]);
-        return switch (state) {
-            case DISABLED -> normal * (DISABLED_TINT & 0xFF) / 255;
-            case HIGHLIGHTED -> normal + (255 - normal) * (HOVER_WASH >>> 24) / 255;
-            default -> normal;
-        };
-    }
-
-    /**
-     * A raised control's background in the Panel look, in its state: disabled wins; then
-     * pressed (the pressed sprite, washed while hovered; or derived, MenuKit's pressed look on
-     * the resting or hovered sprite); then hovered; else resting. Disabled and pressed (a
-     * toggle on and disabled) is the disabled face pressed. Buttons, toggles (on is
-     * pressed), a dropdown's trigger, the colour field and the item dialog's row controls.
-     */
-    public static void drawRaised(GuiGraphicsExtractor g, int x, int y, int w, int h,
-                                  boolean enabled, boolean hovered, boolean pressed) {
+    public static void drawRaised(ScreenKind kind, GuiGraphicsExtractor g, int x, int y, int w, int h,
+                                  boolean enabled, boolean hovered, Press press) {
         if (w <= 0 || h <= 0) return;
+        Art a = art(kind, Control.BUTTON);
         if (!enabled) {
-            draw(g, x, y, w, h, State.DISABLED);
-            if (pressed) VanillaLook.pressedOverlay(g, x, y, w, h, faceLuma(State.DISABLED));
+            draw(g, a, x, y, w, h, State.DISABLED);
+            if (press == Press.ON || (press == Press.OPEN && a.vanilla())) pressedOverlay(g, x, y, w, h, face(a, State.DISABLED));
             return;
         }
-        if (!pressed) { draw(g, x, y, w, h, hovered ? State.HIGHLIGHTED : State.NORMAL); return; }
-        Identifier sprite = art(Control.BUTTON).sprites()[State.PRESSED.ordinal()];
-        if (sprite == null) {
-            State under = hovered ? State.HIGHLIGHTED : State.NORMAL;
-            draw(g, x, y, w, h, under);
-            VanillaLook.pressedOverlay(g, x, y, w, h, faceLuma(under));
-            return;
+        Identifier pressedSprite = a.sprites()[State.PRESSED.ordinal()];
+        switch (press) {
+            case NONE -> draw(g, a, x, y, w, h, hovered ? State.HIGHLIGHTED : State.NORMAL);
+            case OPEN -> {
+                draw(g, a, x, y, w, h, State.NORMAL);
+                if (a.vanilla()) pressedOverlay(g, x, y, w, h, face(a, State.NORMAL));
+            }
+            case HELD, ON -> {
+                if (pressedSprite != null) {
+                    g.blitSprite(RenderPipelines.GUI_TEXTURED, pressedSprite, x, y, w, h);
+                    if (press == Press.ON && hovered) wash(g, x, y, w, h);
+                } else {
+                    State under = press == Press.HELD || hovered ? State.HIGHLIGHTED : State.NORMAL;
+                    draw(g, a, x, y, w, h, under);
+                    pressedOverlay(g, x, y, w, h, face(a, under));
+                }
+            }
         }
-        g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, y, w, h);
-        if (hovered) wash(g, x, y, w, h);
     }
 
-    /** One state of the raised control's art: its sprite, or derived from the normal one (see the class doc). */
-    public static void draw(GuiGraphicsExtractor g, int x, int y, int w, int h, State state) {
+    /**
+     * An open dropdown's list on a screen of kind {@code kind}: a flat surface under the
+     * trigger. Vanilla's set draws its disabled face, its darker and flatter grey (as the
+     * Default look always has); MenuKit's its resting face.
+     */
+    public static void drawList(ScreenKind kind, GuiGraphicsExtractor g, int x, int y, int w, int h) {
         if (w <= 0 || h <= 0) return;
-        @Nullable Identifier[] sprites = art(Control.BUTTON).sprites();
+        Art a = art(kind, Control.BUTTON);
+        draw(g, a, x, y, w, h, a.vanilla() ? State.DISABLED : State.NORMAL);
+    }
+
+    /**
+     * MenuKit's press over vanilla's own button as it draws under the mouse (its highlighted
+     * face): the press on a vanilla or YACL button, MenuKit's one styling exception there.
+     */
+    public static void pressVanillaButton(GuiGraphicsExtractor g, int x, int y, int w, int h) {
+        pressedOverlay(g, x, y, w, h, face(art(ScreenKind.DEFAULT, Control.BUTTON), State.HIGHLIGHTED));
+    }
+
+    /** One state of a set's art, never pressed: its sprite, or derived from the normal one (see the class doc). */
+    private static void draw(GuiGraphicsExtractor g, Art a, int x, int y, int w, int h, State state) {
+        @Nullable Identifier[] sprites = a.sprites();
         Identifier sprite = sprites[state.ordinal()], normal = sprites[State.NORMAL.ordinal()];
         if (sprite != null) {
             g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, y, w, h);
-            return;
-        }
-        switch (state) {
-            case DISABLED -> g.blitSprite(RenderPipelines.GUI_TEXTURED, normal, x, y, w, h, DISABLED_TINT);
-            case HIGHLIGHTED -> {
-                g.blitSprite(RenderPipelines.GUI_TEXTURED, normal, x, y, w, h);
-                wash(g, x, y, w, h);
-            }
-            default -> {   // PRESSED
-                g.blitSprite(RenderPipelines.GUI_TEXTURED, normal, x, y, w, h);
-                VanillaLook.pressedOverlay(g, x, y, w, h, faceLuma(State.NORMAL));
-            }
+        } else if (state == State.DISABLED) {
+            g.blitSprite(RenderPipelines.GUI_TEXTURED, normal, x, y, w, h, DISABLED_TINT);
+        } else {
+            g.blitSprite(RenderPipelines.GUI_TEXTURED, normal, x, y, w, h);
+            if (state == State.HIGHLIGHTED) wash(g, x, y, w, h);
         }
     }
 
     private static void wash(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         g.fill(x + 1, y + 1, x + w - 1, y + h - 1, HOVER_WASH);
+    }
+
+    /**
+     * MenuKit's one pressed transform, drawn over the face the control shows under it, for
+     * every derived press in both looks and on every pack. Relative to that face, so it reads
+     * on light, dark and coloured faces alike:
+     * <ul>
+     *   <li>the 1 px bevel inside the outline inverted: translucent black over the top and
+     *       left, translucent white over the bottom and right;</li>
+     *   <li>a wash inside the bevel that darkens a light face by a quarter and lightens a dark
+     *       one ({@link #DARK_FACE}), since a near-black face can't be darkened further.</li>
+     * </ul>
+     * The alphas are tuned so vanilla's highlighted button comes out as it did under the fixed
+     * greys drawn before (0xFF373737 top and left, 0xFF888888 bottom and right): the bevel
+     * lines within a few levels, the wash exact. The outer outline is left alone.
+     *
+     * @param face the luminance of the face it lands on ({@link PackArt#luminance})
+     */
+    public static void pressedOverlay(GuiGraphicsExtractor g, int x, int y, int width, int height, double face) {
+        // Each bevel pixel is washed once: the top row stops short of the right column and the
+        // left column short of the bottom row, which take those corners, as the greys did.
+        g.fill(x + 1, y + 1, x + width - 2, y + 2, PRESSED_SHADE);
+        g.fill(x + 1, y + 2, x + 2, y + height - 2, PRESSED_SHADE);
+        g.fill(x + 1, y + height - 2, x + width - 1, y + height - 1, PRESSED_LIGHT);
+        g.fill(x + width - 2, y + 1, x + width - 1, y + height - 2, PRESSED_LIGHT);
+        g.fill(x + 2, y + 2, x + width - 2, y + height - 2, face < DARK_FACE ? PRESSED_LIGHTEN : PRESSED_DARKEN);
+    }
+
+    // The face a press lands on
+
+    /** How a sprite reads when it can't be read (no game, no such sprite, a broken file): light, so a press darkens it. */
+    private static final int LIGHT_FACE = 0xFFFFFFFF;
+    // ponytail: one face colour per sprite, failures included, dropped on a resource reload.
+    private static final Map<Identifier, Integer> FACES = new ConcurrentHashMap<>();
+
+    /** The luminance of a set's face in {@code state}: its sprite's, or as derived from the normal one. */
+    private static double face(Art a, State state) {
+        @Nullable Identifier[] sprites = a.sprites();
+        if (sprites[state.ordinal()] != null) return PackArt.luminance(faceColour(sprites[state.ordinal()]));
+        int normal = faceColour(sprites[State.NORMAL.ordinal()]);
+        int derived = switch (state) {
+            case DISABLED -> multiply(normal, DISABLED_TINT);
+            case HIGHLIGHTED -> over(HOVER_WASH, normal);
+            default -> normal;
+        };
+        return PackArt.luminance(derived);
+    }
+
+    /** A sprite's face colour ({@link PackArt#faceColour}), read once per reload. */
+    private static int faceColour(Identifier sprite) {
+        return FACES.computeIfAbsent(sprite, s -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc == null) return LIGHT_FACE;
+            Optional<Resource> res = mc.getResourceManager().getResource(file(s));
+            Integer c = res.isEmpty() ? null : PackArt.faceColour(res.get());
+            return c == null ? LIGHT_FACE : c;
+        });
+    }
+
+    /** {@code c} with each channel multiplied by {@code tint}'s, as a tinted blit draws it. */
+    private static int multiply(int c, int tint) {
+        int out = 0xFF000000;
+        for (int s = 0; s < 24; s += 8) out |= (((c >> s) & 0xFF) * ((tint >> s) & 0xFF) / 255) << s;
+        return out;
+    }
+
+    /** {@code top} (translucent) blended over opaque {@code under}. */
+    private static int over(int top, int under) {
+        int a = top >>> 24, out = 0xFF000000;
+        for (int s = 0; s < 24; s += 8) out |= ((((top >> s) & 0xFF) * a + ((under >> s) & 0xFF) * (255 - a)) / 255) << s;
+        return out;
     }
 }

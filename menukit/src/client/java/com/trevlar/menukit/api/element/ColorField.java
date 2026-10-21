@@ -3,8 +3,6 @@ package com.trevlar.menukit.api.element;
 import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.api.panel.Focus;
 import com.trevlar.menukit.api.panel.Panel;
-import com.trevlar.menukit.api.panel.ScreenKind;
-import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -275,11 +273,7 @@ public class ColorField extends AbstractPanelElement {
         }
         boolean hot = !disabled && (hovered || (widget != null && widget.focused()));
         GuiGraphicsExtractor g = ctx.graphics();
-        if (ctx.kind() == ScreenKind.DEFAULT) {
-            VanillaLook.button(g, x, y, width, height, !disabled, hot);
-        } else {
-            ControlLook.drawRaised(g, x, y, width, height, !disabled, hot, false);
-        }
+        ControlLook.drawRaised(ctx.kind(), g, x, y, width, height, !disabled, hot, ControlLook.Press.NONE);
         int ix = x + INSET, iy = y + INSET, iw = width - 2 * INSET, ih = height - 2 * INSET;
         if (iw > 0 && ih > 0) {
             g.fill(ix - 1, iy - 1, ix + iw + 1, iy + ih + 1, 0xFF000000);

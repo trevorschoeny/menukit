@@ -989,7 +989,7 @@ public final class PanelHost {
             if (screenKind == ScreenKind.DEFAULT) {
                 VanillaLook.panelBackground(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
             } else if (surface) {
-                PanelRendering.renderPanelSurface(graphics, p.x(), p.y(), p.w(), p.h(), PackLook.panel());
+                PackLook.drawPanel(graphics, p.x(), p.y(), p.w(), p.h(), PackLook.panel());
             } else {
                 PanelRendering.renderPanel(graphics, p.x(), p.y(), p.w(), p.h(), panel.getStyle());
             }

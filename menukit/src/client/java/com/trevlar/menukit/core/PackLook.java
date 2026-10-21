@@ -78,17 +78,10 @@ public final class PackLook {
     /** Vanilla's shulker box texture. */
     public static final Identifier SHULKER_BOX = Identifier.withDefaultNamespace("textures/gui/container/shulker_box.png");
 
-    /** MenuKit's raised panel sprite, and its file a pack overrides to theme MenuKit directly. */
-    public static final Identifier PANEL_SPRITE = Identifier.fromNamespaceAndPath("menukit", "panel_raised");
-    private static final Identifier PANEL_SPRITE_FILE =
-            Identifier.fromNamespaceAndPath("menukit", "textures/gui/sprites/panel_raised.png");
-    /** Vanilla's slot sprite (horse, nautilus, stats), the slot fallback when a pack restyled it. */
-    private static final Identifier SLOT_SPRITE = Identifier.withDefaultNamespace("container/slot");
-    private static final Identifier SLOT_SPRITE_FILE =
-            Identifier.withDefaultNamespace("textures/gui/sprites/container/slot.png");
-
-    /** The pack ids of vanilla's own resources and of MenuKit's own (a Fabric mod's pack is its mod id). */
-    static final String VANILLA_PACK = "vanilla", MENUKIT_PACK = "menukit";
+    /** MenuKit's raised panel sprite, which a pack overrides to theme MenuKit directly. */
+    private static final Identifier PANEL_SPRITE = ControlLook.Control.PANEL.own(0);
+    /** Vanilla's slot sprite, the slot fallback when a pack restyled it. */
+    private static final Identifier SLOT_SPRITE = ControlLook.Control.SLOT.vanilla(0);
 
     /** MenuKit's sprite's fill, the vanilla grey. */
     private static final int SPRITE_FILL = 0xFFC6C6C6;
@@ -272,7 +265,7 @@ public final class PackLook {
         Minecraft mc = Minecraft.getInstance();
         if (mc != null) {
             Optional<Resource> res = mc.getResourceManager().getResource(TEXT_SHADER);
-            if (fromPack(res, VANILLA_PACK)) {
+            if (PackArt.fromPack(res, PackArt.VANILLA_PACK)) {
                 try (InputStream in = res.get().open()) {
                     String src = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).toLowerCase(java.util.Locale.ROOT);
                     yes = src.contains("0x404040") || src.contains("4210752");
@@ -343,23 +336,19 @@ public final class PackLook {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null) return new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, false);
         ResourceManager rm = mc.getResourceManager();
-        boolean slotSprite = fromPack(rm.getResource(SLOT_SPRITE_FILE), VANILLA_PACK);
+        boolean slotSprite = PackArt.fromPack(rm.getResource(ControlLook.file(SLOT_SPRITE)), PackArt.VANILLA_PACK);
 
         // 1. A pack restyled MenuKit's own sprite: that, whatever the container texture.
-        Optional<Resource> sprite = rm.getResource(PANEL_SPRITE_FILE);
-        if (fromPack(sprite, MENUKIT_PACK)) {
-            int centre = SPRITE_FILL;
-            try (InputStream in = sprite.get().open(); NativeImage img = NativeImage.read(in)) {
-                centre = img.getPixel(img.getWidth() / 2, img.getHeight() / 2);
-            } catch (Exception e) {
-                LOG.warn("Couldn't read the overridden {}: {}", PANEL_SPRITE_FILE, e.toString());
-            }
-            return new Look(texture, part, Source.OVERRIDE, null, centre, slotSprite);
+        Optional<Resource> sprite = rm.getResource(ControlLook.file(PANEL_SPRITE));
+        if (PackArt.fromPack(sprite, PackArt.MENUKIT_PACK)) {
+            Integer face = PackArt.faceColour(sprite.get());
+            if (face == null) LOG.warn("Couldn't read the overridden {}; its text reads against MenuKit's grey", PANEL_SPRITE);
+            return new Look(texture, part, Source.OVERRIDE, null, face == null ? SPRITE_FILL : face, slotSprite);
         }
 
         // 2. Vanilla's own texture (or none at all): MenuKit's sprite, unchanged.
         Optional<Resource> res = rm.getResource(texture);
-        if (!fromPack(res, VANILLA_PACK)) return new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, slotSprite);
+        if (!PackArt.fromPack(res, PackArt.VANILLA_PACK)) return new Look(texture, part, Source.VANILLA, null, SPRITE_FILL, slotSprite);
 
         // 3. Cut from the pack's texture, or MenuKit's sprite when it can't be cut cleanly.
         try (InputStream in = res.get().open(); NativeImage img = NativeImage.read(in)) {
@@ -371,11 +360,6 @@ public final class PackLook {
             LOG.warn("Couldn't cut a panel look from {}: {}", texture, e.toString());
             return new Look(texture, part, Source.FALLBACK, null, SPRITE_FILL, slotSprite);
         }
-    }
-
-    /** Whether a resource is present and supplied by a pack other than {@code own}, its owner's. */
-    static boolean fromPack(Optional<Resource> res, String own) {
-        return res.isPresent() && !own.equals(res.get().sourcePackId());
     }
 
     // The cut, pure over pixels

@@ -12,14 +12,11 @@ import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Vanilla's menu chrome, drawn the way vanilla draws it: what an element draws on
- * a Default-look screen ({@code ScreenKind.DEFAULT}, 6.1.0). The button sprites, the
- * popup frame, the slot, the separator lines and the darker list background of
- * every Options screen, plus MenuKit's pressed overlay on a vanilla button
- * (MenuKit's one styling exception, which also draws on vanilla's and YACL's own
- * buttons).
+ * a Default-look screen ({@code ScreenKind.DEFAULT}, 6.1.0): the popup frame, the
+ * slot, the separator lines and the darker list background of every Options screen.
+ * Vanilla's button, in both looks, is {@link ControlLook}'s.
  *
- * <p>Checked against 26.2: the button sprites are {@code AbstractButton.SPRITES}
- * (enabled, disabled, highlighted); the popup frame is
+ * <p>Checked against 26.2: the popup frame is
  * {@code PopupScreen.BACKGROUND_SPRITE}; the slot is
  * {@code CreateFlatWorldScreen.SLOT_SPRITE}, the slot the Superflat layer list
  * draws its items in; the separators are {@link Screen}'s own public identifiers;
@@ -35,82 +32,6 @@ import org.jetbrains.annotations.ApiStatus;
 public final class VanillaLook {
 
     private VanillaLook() {}
-
-    private static final Identifier BUTTON = Identifier.withDefaultNamespace("widget/button");
-    private static final Identifier BUTTON_DISABLED = Identifier.withDefaultNamespace("widget/button_disabled");
-    private static final Identifier BUTTON_HIGHLIGHTED = Identifier.withDefaultNamespace("widget/button_highlighted");
-
-    /**
-     * Vanilla's button at the given bounds, the sprite picked by state: disabled
-     * wins (as vanilla's does), else highlighted on hover or press (vanilla has no
-     * separate pressed sprite). The highlighted sprite is the hover affordance; no
-     * overlay is added.
-     */
-    public static void button(GuiGraphicsExtractor g, int x, int y, int width, int height,
-                              boolean enabled, boolean hoveredOrPressed) {
-        Identifier sprite = !enabled ? BUTTON_DISABLED : hoveredOrPressed ? BUTTON_HIGHLIGHTED : BUTTON;
-        g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, y, width, height, 0xFFFFFFFF);
-    }
-
-    /**
-     * MenuKit's pressed look on vanilla's button as it draws under the mouse (its
-     * highlighted sprite): the press on a vanilla, YACL or Default-look MenuKit button.
-     */
-    public static void pressedOverlay(GuiGraphicsExtractor g, int x, int y, int width, int height) {
-        pressedOverlay(g, x, y, width, height, true);
-    }
-
-    /** MenuKit's pressed look on vanilla's button, highlighted or not (an open dropdown's trigger). */
-    public static void pressedOverlay(GuiGraphicsExtractor g, int x, int y, int width, int height, boolean highlighted) {
-        pressedOverlay(g, x, y, width, height, ControlLook.faceLuma(highlighted ? BUTTON_HIGHLIGHTED : BUTTON));
-    }
-
-    /** The inverted bevel: translucent black over the top and left, translucent white over the bottom and right. */
-    public static final int PRESSED_SHADE = 0xAE000000, PRESSED_LIGHT = 0x45FFFFFF;
-    /** The wash inside it: a quarter of the way to black on a light face, to white on a dark one. */
-    public static final int PRESSED_DARKEN = 0x40000000, PRESSED_LIGHTEN = 0x40FFFFFF;
-    /**
-     * A face whose luma (0 to 255, its fill, {@link ControlLook#faceLuma}) is below this is lit
-     * by the press instead of darkened. Between a typical dark-mode pack's button (about 80)
-     * and vanilla's (about 110), so vanilla's own darkens as it always has.
-     */
-    public static final int DARK_FACE = 96;
-
-    /**
-     * MenuKit's one pressed transform, for every pressed control in both looks and on every
-     * pack, drawn over the art the control shows under it. It is relative to
-     * that art, so it reads on light, dark and coloured faces alike:
-     * <ul>
-     *   <li>the 1 px bevel inside the outline inverted: translucent black over the top and
-     *       left, translucent white over the bottom and right, so the light edge goes dark
-     *       and the dark edge light whatever the art;</li>
-     *   <li>a wash inside the bevel that darkens a light face by a quarter and lightens a dark
-     *       one by a quarter ({@link #DARK_FACE}), since a near-black face can't be darkened
-     *       any further.</li>
-     * </ul>
-     * The alphas are tuned so vanilla's highlighted button comes out as it did under the
-     * fixed greys drawn before (0xFF373737 top and left, 0xFF888888 bottom and right, the same
-     * wash): the bevel lines within a few levels, the wash exact. The outer outline is left
-     * alone. {@code faceLuma}: the face's luma, {@link ControlLook#faceLuma}.
-     */
-    public static void pressedOverlay(GuiGraphicsExtractor g, int x, int y, int width, int height, int faceLuma) {
-        // Each bevel pixel is washed once: the top row stops short of the right column and the
-        // left column short of the bottom row, which take those corners, as the greys did.
-        g.fill(x + 1, y + 1, x + width - 2, y + 2, PRESSED_SHADE);
-        g.fill(x + 1, y + 2, x + 2, y + height - 2, PRESSED_SHADE);
-        g.fill(x + 1, y + height - 2, x + width - 1, y + height - 1, PRESSED_LIGHT);
-        g.fill(x + width - 2, y + 1, x + width - 1, y + height - 2, PRESSED_LIGHT);
-        g.fill(x + 2, y + 2, x + width - 2, y + height - 2, faceLuma < DARK_FACE ? PRESSED_LIGHTEN : PRESSED_DARKEN);
-    }
-
-    /**
-     * An open dropdown's list: vanilla's disabled button sprite, its darker and
-     * flatter grey, so the list reads as a surface under the trigger. Nine-sliced,
-     * so it stretches to any size with crisp corners.
-     */
-    public static void popoverBackground(GuiGraphicsExtractor g, int x, int y, int width, int height) {
-        g.blitSprite(RenderPipelines.GUI_TEXTURED, BUTTON_DISABLED, x, y, width, height, 0xFFFFFFFF);
-    }
 
     // Vanilla's popup frame: the dark box its warning and confirm popups sit in. Nine-sliced.
     private static final Identifier POPUP = Identifier.withDefaultNamespace("popup/background");
@@ -132,12 +53,9 @@ public final class VanillaLook {
         }
     }
 
-    // The slot vanilla draws items in in the Default look (the Superflat layer list).
-    private static final Identifier SLOT = Identifier.withDefaultNamespace("container/slot");
-
-    /** Vanilla's 18 x 18 slot at {@code (x, y)}, faded while disabled as vanilla fades a widget. */
+    /** Vanilla's 18 x 18 slot at {@code (x, y)} (the Superflat layer list's), faded while disabled as vanilla fades a widget. */
     public static void slot(GuiGraphicsExtractor g, int x, int y, boolean disabled) {
-        g.blitSprite(RenderPipelines.GUI_TEXTURED, SLOT, x, y, 18, 18, disabled ? 0x80FFFFFF : 0xFFFFFFFF);
+        g.blitSprite(RenderPipelines.GUI_TEXTURED, ControlLook.Control.SLOT.vanilla(0), x, y, 18, 18, disabled ? 0x80FFFFFF : 0xFFFFFFFF);
     }
 
     /** Vanilla's separator is 2 px tall: a light line over a dark one (header), or the reverse (footer). */

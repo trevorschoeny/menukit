@@ -61,12 +61,6 @@ public class Checkbox extends AbstractPanelElement {
     private static final int CHECKMARK_WIDTH = 9;
     private static final int CHECKMARK_HEIGHT = 8;
 
-    // Vanilla's checkbox sprites (net.minecraft.client.gui.components.Checkbox, 26.2).
-    private static final Identifier VANILLA_BOX = Identifier.withDefaultNamespace("widget/checkbox");
-    private static final Identifier VANILLA_BOX_HIGHLIGHTED = Identifier.withDefaultNamespace("widget/checkbox_highlighted");
-    private static final Identifier VANILLA_CHECKED = Identifier.withDefaultNamespace("widget/checkbox_selected");
-    private static final Identifier VANILLA_CHECKED_HIGHLIGHTED =
-            Identifier.withDefaultNamespace("widget/checkbox_selected_highlighted");
     /** A disabled vanilla checkbox draws half transparent: vanilla has no disabled sprite, it fades the widget. */
     private static final int VANILLA_DISABLED_TINT = 0x80FFFFFF;
 
@@ -146,10 +140,7 @@ public class Checkbox extends AbstractPanelElement {
         // Vanilla's checkbox in the Default look, and in the Panel look where a pack restyled it (ControlLook).
         if (ControlLook.kind(kind, ControlLook.Control.CHECKBOX) == ScreenKind.DEFAULT) {
             // Vanilla's checkbox: one sprite per (checked, highlighted), the check drawn in it.
-            Identifier box = checked
-                    ? (highlighted ? VANILLA_CHECKED_HIGHLIGHTED : VANILLA_CHECKED)
-                    : (highlighted ? VANILLA_BOX_HIGHLIGHTED : VANILLA_BOX);
-            g.blitSprite(RenderPipelines.GUI_TEXTURED, box, sx, sy, BOX_SIZE, BOX_SIZE,
+            g.blitSprite(RenderPipelines.GUI_TEXTURED, ControlLook.Control.checkbox(checked, highlighted), sx, sy, BOX_SIZE, BOX_SIZE,
                     disabled ? VANILLA_DISABLED_TINT : 0xFFFFFFFF);
         } else {
             PanelRendering.renderPanel(g, sx, sy, BOX_SIZE, BOX_SIZE, disabled ? PanelStyle.DARK : PanelStyle.INSET);
