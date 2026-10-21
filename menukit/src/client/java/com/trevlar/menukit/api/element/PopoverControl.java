@@ -328,9 +328,8 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
 
         // Background: vanilla's button sprite, or MenuKit's raised panel; pressed
         // while open (the popover is the live surface then, so no hover highlight).
-        // Vanilla's in the Default look, and in the Panel look where a pack restyled vanilla's button (spec part 10).
-        // MenuKit's own control art is not pressed while open; vanilla's button is (spec part 12
-        // for every state).
+        // Vanilla's in the Default look, and in the Panel look where a pack restyled vanilla's
+        // button. MenuKit's own control art is not pressed while open; vanilla's button is.
         ScreenKind kind = ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON);
         if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.button(g, tx, ty, width, h, !disabled, hovered && !open);
@@ -373,7 +372,7 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
         int[] p = popoverBounds(ctx.originX() + childX, ctx.originY() + childY);
         int px = p[0], py = p[1], pw = p[2], ph = p[3];
         // The list: vanilla's disabled button, its flatter surface, in the Default look and where a
-        // pack restyled vanilla's (that state's sprite or derived, spec part 12); else MenuKit's control art.
+        // pack restyled vanilla's (that state's sprite or derived, ControlLook); else MenuKit's control art.
         ScreenKind kind = ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON);
         if (ctx.kind() == ScreenKind.DEFAULT) {
             VanillaLook.popoverBackground(g, px, py, pw, ph);

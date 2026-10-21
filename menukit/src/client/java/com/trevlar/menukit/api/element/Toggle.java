@@ -206,8 +206,7 @@ public class Toggle extends AbstractPanelElement {
             VanillaLook.button(ctx.graphics(), sx, sy, w, h, !disabled, hovered);
             return;
         }
-        // The Panel look (spec parts 10 and 12): its state is its face, not its text, so on is
-        // the control pressed.
+        // The Panel look: its state is its face, not its text, so on is the control pressed.
         ControlLook.drawRaised(ctx.graphics(), sx, sy, w, h, !disabled, hovered, on);
     }
 

@@ -27,8 +27,8 @@ public final class PanelRendering {
     private static final Identifier PANEL_RAISED_SPRITE =
             Identifier.fromNamespaceAndPath("menukit", "panel_raised");
 
-    // MenuKit's RAISED control sprite (buttons, toggles, popovers): today's panel art, a file
-    // of its own so a resource pack can theme controls apart from panels (spec part 7).
+    // MenuKit's RAISED control sprite (buttons, toggles, popovers): the same art as the
+    // panel's, a file of its own so a resource pack can theme controls apart from panels.
     private static final Identifier CONTROL_RAISED_SPRITE =
             Identifier.fromNamespaceAndPath("menukit", "control_raised");
 
@@ -80,7 +80,7 @@ public final class PanelRendering {
      * screen, the container region's two panels), which follows the resource pack's
      * container art ({@link PackLook}). Not for controls: a button, toggle or popover that
      * is RAISED draws {@link #renderControl}'s sprite, since a frame cut from a chest would
-     * be wrong on a button (spec part 7). With vanilla's own textures it draws exactly what
+     * be wrong on a button. With vanilla's own textures it draws exactly what
      * {@code renderPanel(..., RAISED)} draws.
      *
      * @param look the surface's look, from {@link PackLook#look} (cached; cheap per frame)

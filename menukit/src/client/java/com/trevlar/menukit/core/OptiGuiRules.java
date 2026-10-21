@@ -40,12 +40,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Container art chosen by OptiGUI rules, per section (spec "Coloured containers through
- * OptiGUI"). OptiGUI picks one texture per screen, from the block used to open it, so a
- * lime box's screen has lime art and a chest's screen has none of the boxes' colours. A
- * container region shows several containers on one screen, so MenuKit evaluates the pack's
- * rules itself, once per section, against that section's own container: its block (and so
- * its dye), its custom name, its biome and its height.
+ * Container art chosen by OptiGUI rules, per section. OptiGUI picks one texture per screen,
+ * from the block used to open it, so a lime box's screen has lime art and a chest's screen has
+ * none of the boxes' colours. A container region shows several containers on one screen, so
+ * MenuKit evaluates the pack's rules itself, once per section, against that section's own
+ * container: its block (and so its dye), its custom name, its biome and its height.
  *
  * <p><b>Only while OptiGUI is installed</b> ({@link #LOADED}). Without it, every texture
  * is returned as it was given, so nothing changes.

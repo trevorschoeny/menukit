@@ -1053,11 +1053,11 @@ final class ItemDialog {
 
     /** A control button: vanilla's button in the Default look, MenuKit's raised one (dark when off) in the Panel look. */
     private static void drawControl(GuiGraphicsExtractor g, ScreenKind screen, int x, int y, String glyph, boolean enabled, boolean hovered) {
-        ScreenKind kind = ControlLook.kind(screen, ControlLook.Control.BUTTON);   // vanilla's where a pack restyled it (spec part 10)
+        ScreenKind kind = ControlLook.kind(screen, ControlLook.Control.BUTTON);   // vanilla's where a pack restyled it
         if (screen == ScreenKind.DEFAULT) {
             VanillaLook.button(g, x, y, CONTROL, CONTROL, enabled, hovered && enabled);
         } else {
-            ControlLook.drawRaised(g, x, y, CONTROL, CONTROL, enabled, hovered, false);   // spec part 12
+            ControlLook.drawRaised(g, x, y, CONTROL, CONTROL, enabled, hovered, false);
         }
         int color = enabled ? ElementConstants.TEXT_LIGHT : kind.textColor(TextRole.DISABLED);
         Text.renderCentered(g, Component.literal(glyph), x, y, CONTROL, CONTROL, color, true);
