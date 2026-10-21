@@ -1,6 +1,7 @@
 package com.trevlar.menukit.mixin;
 
 import com.trevlar.menukit.core.PressedTracker;
+import com.trevlar.menukit.inject.PanelEditing;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 
 import net.minecraft.client.Minecraft;
@@ -80,6 +81,12 @@ public abstract class MKModalMouseHandlerMixin {
     private void mk$eatModalButton(long window, MouseButtonInfo button, int action,
                                         CallbackInfo ci) {
         PressedTracker.onMouseButton(button.button(), action, button.modifiers());
+        // Edit mode (7.4.0) takes every button on its screen, before the screen, its widgets,
+        // its slots or any other mod's hook could: here, ahead of every screen's own handling.
+        if (editModeTakes(button, action)) {
+            ci.cancel();
+            return;
+        }
         if (action == 0) {
             // Release: ends drags in opaque panels, and is eaten when the press
             // would have been. Passes through when nothing opaque covers the
@@ -92,6 +99,19 @@ public abstract class MKModalMouseHandlerMixin {
         if (eatInputAtCurrentMouse(button.button())) {
             ci.cancel();
         }
+    }
+
+    /** Hands the event to {@link PanelEditing}, at the cursor in GUI pixels; true to eat it. */
+    private boolean editModeTakes(MouseButtonInfo button, int action) {
+        var mc = Minecraft.getInstance();
+        if (mc == null || mc.gui.screen() == null || mc.getWindow() == null) return false;
+        var window = mc.getWindow();
+        double scaledX = xpos * window.getGuiScaledWidth() / window.getScreenWidth();
+        double scaledY = ypos * window.getGuiScaledHeight() / window.getScreenHeight();
+        // Shift from the event's modifiers, or the key itself held (what a client gametest's held Shift sets).
+        boolean shift = button.hasShiftDown() || com.mojang.blaze3d.platform.InputConstants.isKeyDown(com.mojang.blaze3d.platform.InputConstants.KEY_LSHIFT)
+                || com.mojang.blaze3d.platform.InputConstants.isKeyDown(com.mojang.blaze3d.platform.InputConstants.KEY_RSHIFT);
+        return PanelEditing.onButton(button.button(), action, shift, scaledX, scaledY);
     }
 
     /** Sends the release to {@link com.trevlar.menukit.inject.ScreenPanelRegistry#dispatchCoveredRelease}; true to eat it. */
@@ -121,6 +141,11 @@ public abstract class MKModalMouseHandlerMixin {
         // handles non-opaque panels.
         var mc = Minecraft.getInstance();
         if (mc == null || mc.gui.screen() == null) return;
+        // Edit mode (7.4.0): nothing on its screen takes the wheel either.
+        if (PanelEditing.active()) {
+            ci.cancel();
+            return;
+        }
         // The wheel moved on a screen: tell MKTooltip.onWheel listeners first, so a
         // mod scrolling a tooltip hears every turn, consumed below or not. Scaled the
         // way vanilla scales it for screens (discrete scrolling, wheel sensitivity).

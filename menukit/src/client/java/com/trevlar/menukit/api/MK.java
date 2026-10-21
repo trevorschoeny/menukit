@@ -178,9 +178,16 @@ public class MK {
     public static int statusColumnClearance(int bottom, int left, int right) {
         int top = Integer.MAX_VALUE;
         for (PanelHost.Placed p : HUD_STATUS.layout().placed()) {
+            if (PanelHost.movedTo(p.entry()) != null) continue; // moved out of the column by the player
             if (p.x() < right && p.x() + p.w() > left) top = Math.min(top, p.y());
         }
         return top == Integer.MAX_VALUE ? 0 : Math.max(0, bottom - top);
+    }
+
+    /** The HUD's hosts, the window's and the status column's: what the HUD edit screen moves panels in. */
+    @ApiStatus.Internal
+    public static List<PanelHost> hudHosts() {
+        return List.of(HUD, HUD_STATUS);
     }
 
     /**

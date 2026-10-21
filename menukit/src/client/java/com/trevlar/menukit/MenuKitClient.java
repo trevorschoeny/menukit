@@ -8,6 +8,8 @@ import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.PackText;
 import com.trevlar.menukit.inject.ContainerRegions;
 import com.trevlar.menukit.inject.MenuChrome;
+import com.trevlar.menukit.inject.PanelEditing;
+import com.trevlar.menukit.inject.PanelPositions;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 import com.trevlar.menukit.input.CursorContinuity;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
@@ -60,6 +62,10 @@ public class MenuKitClient implements ClientModInitializer {
         // One ScreenEvents.AFTER_INIT listener for every panel adapter, so
         // consumers don't each register their own.
         ScreenPanelRegistry.init();
+        // Player-moved panels (7.4.0): where they were put, read once here and written on
+        // each drop and reset; and the edit mode they are moved in, with its key.
+        PanelPositions.load(PanelPositions.defaultFile(net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir()));
+        PanelEditing.init();
         // The container region's per-screen hooks (7.4.0): its frame, and the wheel, last.
         ContainerRegions.init();
 

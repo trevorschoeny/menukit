@@ -295,7 +295,7 @@ A `Placement` is what the panel is placed against and its position there:
 
 A placement on an anchor shows wherever that anchor's box is on the open screen, so the box is its presence. A screen adapter puts a panel's screen placements in the screen's host and each anchored one in its anchor's host on the screens it targets; an `AnchorPanelAdapter` needs no targeting when the placements name their anchors.
 
-`Panel.Builder.fixed()` says the player can't move the panel. Players moving panels comes in a later release; the flag is kept from now.
+`Panel.Builder.fixed()` says the player can't move the panel ([moving panels](#moving-panels)).
 
 The positions:
 
@@ -330,6 +330,30 @@ MenuKit builds each shared panel once, at client start, after every client entry
 - **Disagreement.** If contributions declare the panel differently (placements, style, axis or gap), the lowest order's declaration is used and MenuKit logs a warning naming both mods. Nothing crashes, so a player with mismatched versions still gets a panel.
 - **One mod installed.** The panel is that mod's contribution alone, an ordinary panel. With no contribution there is no panel.
 - **Registration.** It goes where an ordinary panel with the same placements would. With a screen placement it is on every container screen through a screen adapter, which puts its anchored placements in their anchors' hosts there. With only anchored placements it goes through an `AnchorPanelAdapter`, on any screen where the anchor is. In a shared region it is credited to the mod whose declaration won.
+
+## Moving panels
+
+Players can move panels themselves (7.4.0). Mods have nothing to do: every panel can be moved unless it says otherwise.
+
+- **The key.** "Move panels", in MenuKit's category of the Controls screen, is unbound until the player binds it. On a screen it turns edit mode on and off. In game, with no screen open, it opens a clear screen over the HUD where HUD panels can be moved.
+- **Edit mode.** Every panel the player can move gets an outline, and a hint line sits at the top of the screen. Nothing else on the screen takes a click: not the panels' elements, vanilla's slots or another mod's widgets. Keys reach the screen as usual, except Esc and the key, which both leave edit mode. Esc doesn't also close the screen.
+- **Moving.** Drag a panel to move it. A plain drop places it in both game modes; with Shift held at the drop, only in the current one. A right-click puts the panel back where its mod declared it, in both modes.
+- **Where it lands.** The place is kept on each axis from the third of the screen the panel is nearest (its start edge, its centre or its end edge), so a panel dropped by the right edge stays by it when the window is resized or the GUI scale changes. It is kept in `config/menukit/panel-positions.json`, by panel id and game mode.
+- **What a move changes.** Where the panel sits, not whether it shows. A moved panel still shows only where its declaration would place it: its screen targeted, its anchor present, its own `visibleWhen`. It leaves its region's flow, so the panels after it close up.
+
+To keep a panel where you put it, mark it `fixed()`. Use it for a panel whose place is part of what it means, such as one lined up against vanilla's own art:
+
+```java
+Panel tabs = Panel.builder("mymod:tab_strip")
+        .in(ModeScope.BOTH, Placement.screen(PanelPosition.region(OutsideRegion.TOP_ALIGN_LEFT)))
+        .fixed()
+        .add(tabStrip)
+        .build();
+```
+
+Some panels are never movable, `fixed()` or not: background panels, overlays (centred, dimming or modal, which every MenuKit dialog is), popovers, and a standalone screen's `main()` panel.
+
+A player's position is stored under the panel's id, and a shared panel's under its shared id, so moving it moves every mod's part together. Ids key across every mod the player has, so namespace them: `mymod:elytra`, not `elytra`. Two panels with one id share one position.
 
 ## Reference
 
