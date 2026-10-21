@@ -341,12 +341,11 @@ public final class ContainerRegions {
     }
 
     /**
-     * Grow first, then scroll, centred while it fits (Trev, 2026-10-20, after rounds 3 and
-     * 5), from the screen's own bounds as vanilla laid them out. The container list starts
-     * as the screen's own container part, its top at vanilla's {@code topPos}, and grows
-     * with its content. The two panels are one block, and the room left free around it is
-     * shared evenly above and below (to {@link #TOP_MARGIN} and {@link #BOTTOM_MARGIN}),
-     * as far as each side has room:
+     * Grow first, then scroll, centred while it fits, from the screen's own bounds as vanilla
+     * laid them out. The container list starts as the screen's own container part, its top at
+     * vanilla's {@code topPos}, and grows with its content. The two panels are one block, and
+     * the room left free around it is shared evenly above and below (to {@link #TOP_MARGIN}
+     * and {@link #BOTTOM_MARGIN}), as far as each side has room:
      * <ul>
      *   <li>while the block fits centred, it is centred: each pixel the list grows moves
      *       its top up half a pixel and the inventory panel down half a pixel, rounded as
@@ -879,13 +878,13 @@ public final class ContainerRegions {
 
     // The frame
 
-    // Following resource packs (spec "Panel-look panels follow resource packs")
+    // Following resource packs
 
     /**
      * The container texture {@code screen} draws its own image from, whose inventory half
-     * the inventory panel takes (spec part 6), as vanilla does: with OptiGUI, the texture
-     * OptiGUI gives the screen's own container. A shulker box's screen is the shulker box's;
-     * any other the chest's.
+     * the inventory panel takes, so it matches the inventory vanilla would draw on that
+     * screen under the pack: with OptiGUI, the texture OptiGUI gives the screen's own
+     * container. A shulker box's screen is the shulker box's; any other the chest's.
      */
     static Identifier screenTexture(@Nullable Screen screen) {
         return OptiGuiRules.onScreen(screen instanceof ShulkerBoxScreen ? PackLook.SHULKER_BOX : PackLook.CHEST);
@@ -926,9 +925,7 @@ public final class ContainerRegions {
      */
     private static PackLook.Look listLook(PackLook.@Nullable Look[] looks) {
         for (PackLook.Look l : looks) if (l != null) return l;
-        Screen screen = state.screen.get();
-        return PackLook.look(OptiGuiRules.onScreen(screen instanceof ShulkerBoxScreen ? PackLook.SHULKER_BOX : PackLook.CHEST),
-                PackLook.Part.CONTAINER);
+        return PackLook.look(screenTexture(state.screen.get()), PackLook.Part.CONTAINER);
     }
 
     /**
@@ -947,7 +944,7 @@ public final class ContainerRegions {
      */
     public static final int TITLE_INSET = 2;
 
-    // Titles and names (spec part 5)
+    // Titles and names
 
     /**
      * The title section {@code s} draws this frame: its own, or while it comes out blank and
@@ -1014,8 +1011,9 @@ public final class ContainerRegions {
 
     /**
      * How far right the first shown section's title goes, so it stays clear of the list's top
-     * corner where the pack decorates it (Touched UI's brackets run past vanilla's title at
-     * x 8): to a pixel past the corner. None for a plain corner, or with no title showing.
+     * corner where the pack decorates it (brackets drawn over the corner can run past
+     * vanilla's title at x 8): to a pixel past the corner. None for a plain corner, or with
+     * no title showing.
      */
     private static int titleIndent(Section s) {
         if (state.screen.get() == null) return 0;
@@ -1061,15 +1059,12 @@ public final class ContainerRegions {
         PackLook.Look[] looks = looks();
         PackLook.Look list = listLook(looks);
         if (g == null || state.tops.length != SECTIONS.size()) return (x, y) -> list;
-        int[][] slices = bands(g, WHOLE, state.tops, state.scroll);
+        int[][] slices = bands(g, state.tops, state.scroll);
         return (x, y) -> {
             int i = bandAt(slices, x, y);
             return i < 0 || looks[i] == null ? list : looks[i];
         };
     }
-
-    /** No frame: a section's slice runs out to the list's own edges. */
-    private static final int[] WHOLE = {0, 0, 0, 0};
 
     /** Which band holds {@code (x, y)}, or {@code -1}. */
     private static int bandAt(int[][] bands, int x, int y) {
@@ -1081,14 +1076,16 @@ public final class ContainerRegions {
     }
 
     /**
-     * The container list, each section a slice of its own container's screen (spec part 9):
-     * in each section's slice of the list ({@link #bands} out to the list's edges), the list
-     * drawn whole in that section's look, cut to the slice. So the list's left and right edges
-     * at a section's height are that section's texture's, its fill too; the top is the first
-     * section's, the bottom the last's, and the outline runs on unbroken. Slices next to each
-     * other in one look are one, so with no pack (every look MenuKit's own) the list is drawn
-     * once, exactly as before. The scrollbar lane is inside it while it scrolls; everything
-     * the sections draw goes over it, their text in a colour that reads on their own fill.
+     * The container list, each section a slice of its own container's screen, so a box in the
+     * list looks as its own screen does under the pack, and where two meet the colours simply
+     * change, with no seam drawn between them: in each section's slice of the list ({@link
+     * #bands} out to the list's edges), the list drawn whole in that section's look, cut to
+     * the slice. So the list's left and right edges at a section's height are that section's
+     * texture's, its fill too; the top is the first section's, the bottom the last's, and the
+     * outline runs on unbroken. Slices next to each other in one look are one, so with no pack
+     * (every look MenuKit's own) the list is drawn once, exactly as before. The scrollbar lane
+     * is inside it while it scrolls; everything the sections draw goes over it, their text in
+     * a colour that reads on their own fill.
      */
     private static final class Backdrop implements PanelElement {
         @Override public int getChildX() { return 0; }
@@ -1109,7 +1106,7 @@ public final class ContainerRegions {
             }
             // The panel's origin is the list's top-left; the slices are from the screen's.
             int dy = oy - g.top();
-            int[][] slices = bands(g, WHOLE, state.tops, state.scroll);
+            int[][] slices = bands(g, state.tops, state.scroll);
             List<Integer> shown = new ArrayList<>();
             for (int i = 0; i < slices.length; i++) if (slices[i] != null && looks[i] != null) shown.add(i);
             if (shown.isEmpty()) {
@@ -1130,28 +1127,6 @@ public final class ContainerRegions {
                 }
                 k = m;
             }
-            if (PackLook.Mockup.capped) caps(graphics, g, ox, oy, looks, slices, shown);   // mockup: capped
-        }
-
-        /**
-         * mockup: where two sections meet, each closes its own inner ring ({@link PackLook#drawCap}):
-         * the one above at its bottom, in the room left under its grid, the one below at its
-         * top, in the room above its title. Cut to the list inside its top and bottom frame.
-         */
-        private static void caps(net.minecraft.client.gui.GuiGraphicsExtractor graphics, Geometry g, int ox, int oy,
-                                 PackLook.@Nullable Look[] looks, int[][] slices, List<Integer> shown) {
-            int dy = oy - g.top();
-            PackLook.Look first = looks[shown.get(0)], last = looks[shown.get(shown.size() - 1)];
-            graphics.enableScissor(ox, oy + first.frame()[1], ox + g.width(), oy + g.height() - last.frame()[3]);
-            for (int k = 0; k + 1 < shown.size(); k++) {
-                int above = shown.get(k), below = shown.get(k + 1), yb = slices[below][1] + dy;
-                int roomBelow = GAP - BAND_ABOVE;
-                int roomAbove = BAND_ABOVE + (ownsBlock(SECTIONS.get(below).section()) ? TITLE_INSET : 0);
-                int down = Math.min(roomBelow, PackLook.capDepth(looks[above], false));
-                PackLook.drawCap(graphics, looks[above], ox, g.width(), yb - down, down, false);
-                PackLook.drawCap(graphics, looks[below], ox, g.width(), yb, roomAbove, true);
-            }
-            graphics.disableScissor();
         }
     }
 
@@ -1164,21 +1139,19 @@ public final class ContainerRegions {
 
     /**
      * Each section's band on screen this frame, {@code [x0, y0, x1, y1]}, or {@code null}
-     * while it is hidden or scrolled out of the frame: its slice of the list goes there
-     * (with {@code frame} all 0). The bands tile the inside of the container list's frame
-     * with no gap: across, from the frame's inner edge to the other ({@code frame},
-     * {@code [left, top, right, bottom]}; the scrollbar draws over it); down, each from
-     * {@link #BAND_ABOVE} above its section to where the next shown one's starts, the first
-     * from the frame's top and the last to its bottom. Moved by the scroll and cut at the
-     * frame's inner edges. Pure.
+     * while it is hidden or scrolled out of the list: its slice of the list goes there. The
+     * bands tile the container list with no gap: across, its whole width (the scrollbar
+     * draws over it); down, each from {@link #BAND_ABOVE} above its section to where the
+     * next shown one's starts, the first from the list's top and the last to its bottom.
+     * Moved by the scroll and cut at the list's edges. Pure.
      *
      * @param tops each section's top in the content, {@code -1} while hidden, in stacking order
      */
-    public static int[][] bands(Geometry g, int[] frame, int[] tops, double scroll) {
+    public static int[][] bands(Geometry g, int[] tops, double scroll) {
         int n = tops.length;
         int[][] out = new int[n][];
-        int x0 = g.x() + frame[0], x1 = g.x() + g.width() - frame[2];
-        int innerTop = g.top() + frame[1], innerBottom = g.top() + g.height() - frame[3];
+        int x0 = g.x(), x1 = g.x() + g.width();
+        int innerTop = g.top(), innerBottom = g.top() + g.height();
         // The content's top on screen this frame.
         int origin = g.viewTop() - (int) scroll;
         boolean first = true;
