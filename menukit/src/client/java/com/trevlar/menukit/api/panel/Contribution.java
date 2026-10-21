@@ -73,7 +73,7 @@ public final class Contribution {
 
     /** Whether its elements show now: its scope covers the mode, and its own condition holds. */
     boolean shown() {
-        return PanelHost.inScope(scope) && (visibleWhen == null || visibleWhen.getAsBoolean());
+        return scope.covers(PanelHost.currentMode()) && (visibleWhen == null || visibleWhen.getAsBoolean());
     }
 
     /** What of the panel's declaration differs from {@code other}'s, for the warning; empty when they agree. */

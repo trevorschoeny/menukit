@@ -366,7 +366,7 @@ public final class ContainerRegion {
             if (content == null) throw new IllegalStateException("ContainerRegion section '" + id + "': content(...) is required");
             // The mode scope is one more condition, read every frame with the section's own.
             BooleanSupplier own = visibleWhen;
-            BooleanSupplier shown = scope == ModeScope.BOTH ? own : () -> PanelHost.inScope(scope) && own.getAsBoolean();
+            BooleanSupplier shown = scope == ModeScope.BOTH ? own : () -> scope.covers(PanelHost.currentMode()) && own.getAsBoolean();
             ContainerRegions.declare(new ContainerRegions.Declared(id, content, matcher, order, shown, texture, title, name, source));
         }
     }
