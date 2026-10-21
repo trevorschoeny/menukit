@@ -8,7 +8,10 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import org.jetbrains.annotations.ApiStatus;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The one frame-composition plan every panel surface follows: BACKGROUND, then
@@ -95,12 +98,21 @@ public final class LayerPlan {
      * The placed panels of {@code layer} on {@code hosts} (bottom to top), in draw
      * order: host by host, and within a host in its sorted order. The one order the
      * renderers draw forward and the claims walk backward.
+     *
+     * <p>A panel the player moved (7.4.0) is in it once, from the first host that places
+     * it: its spot is the screen's, not a host's, so a panel two hosts place would
+     * otherwise draw, and take clicks, twice in one place.
      */
     public static List<Drawn> drawOrder(List<PanelHost> hosts, Layer layer) {
         List<Drawn> out = new ArrayList<>();
+        Set<Panel> moved = Collections.newSetFromMap(new IdentityHashMap<>());
         for (PanelHost host : hosts) {
             for (PanelHost.Placed p : host.placed()) {
-                if (layerOf(p.panel()) == layer) out.add(new Drawn(host, p));
+                if (layerOf(p.panel()) != layer) continue;
+                // ponytail: per list. A screen's own host draws its FLOW apart from the
+                // registry's hosts, so a panel in both of those still draws twice there.
+                if (PanelHost.movedTo(p.entry()) != null && !moved.add(p.panel())) continue;
+                out.add(new Drawn(host, p));
             }
         }
         return out;
