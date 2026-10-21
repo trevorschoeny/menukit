@@ -101,6 +101,7 @@ public class HudPanel {
         private int width = -1, height = -1;        // outer size; -1 = size to content
         private PanelStyle style = PanelStyle.NONE;
         private BooleanSupplier visibleWhen = () -> true;
+        private boolean fixed = false;
         private final List<PanelElement> elements = new ArrayList<>();
 
         Builder(String name, ModeScope scope) {
@@ -258,6 +259,17 @@ public class HudPanel {
         }
 
         /**
+         * The player can't move this panel (7.4.0), as {@link Panel.Builder#fixed()}: for a
+         * panel whose place is part of what it shows, or one that draws from the window
+         * rather than from where it is placed. Without it a player may move the panel on the
+         * HUD screen of MenuKit's edit mode.
+         */
+        public Builder fixed() {
+            this.fixed = true;
+            return this;
+        }
+
+        /**
          * Adds a text element with default styling (white, shadow, 1x scale).
          *
          * @param x    panel-relative X position
@@ -372,11 +384,12 @@ public class HudPanel {
                     : PanelPosition.region(aroundHotbar);
             // PanelPosition.gap validates (and throws on a negative gap) in one place.
             if (gap != null) where = where.gap(gap);
-            Panel panel = Panel.builder(name)
+            Panel.Builder builder = Panel.builder(name)
                     .elements(elements)
                     .style(style)
-                    .in(scope, Placement.screen(where.offset(offsetX, offsetY).priority(priority)))
-                    .build();
+                    .in(scope, Placement.screen(where.offset(offsetX, offsetY).priority(priority)));
+            if (fixed) builder.fixed();
+            Panel panel = builder.build();
             panel.visibleWhen(visibleWhen);
             if (width >= 0 && height >= 0) {
                 panel.size(Math.max(0, width - 2 * padding), Math.max(0, height - 2 * padding));

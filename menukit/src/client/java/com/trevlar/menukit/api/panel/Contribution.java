@@ -17,7 +17,7 @@ import java.util.function.BooleanSupplier;
 /**
  * One mod's part of a shared panel ({@link SharedPanels}, 7.4.0): its elements, its order
  * in the panel, the mode it shows in and its own {@code visibleWhen}, plus the panel's own
- * declaration (where it goes per mode, its style, its axis and gap). Every contribution
+ * declaration (where it goes per mode, its style, its axis and gap, whether it is fixed). Every contribution
  * carries the whole declaration, so whichever mods are installed can build the panel.
  *
  * <pre>{@code
@@ -41,6 +41,7 @@ public final class Contribution {
     final PanelStyle style;
     final boolean vertical;
     final int gap;
+    final boolean fixed;
 
     private Contribution(Builder b) {
         this.order = b.order;
@@ -51,6 +52,7 @@ public final class Contribution {
         this.style = b.style;
         this.vertical = b.vertical;
         this.gap = b.gap;
+        this.fixed = b.fixed;
     }
 
     /**
@@ -70,10 +72,29 @@ public final class Contribution {
     /** What of the panel's declaration differs from {@code other}'s, for the warning; empty when they agree. */
     List<String> differences(Contribution other) {
         List<String> out = new ArrayList<>();
-        if (!placements.equals(other.placements)) out.add("placements");
+        if (!comparable(placements).equals(comparable(other.placements))) out.add("placements");
         if (style != other.style) out.add("style");
         if (vertical != other.vertical) out.add("axis");
         if (gap != other.gap) out.add("gap");
+        if (fixed != other.fixed) out.add("fixed");
+        return out;
+    }
+
+    /**
+     * The placements as values to compare: each with a {@code pixel(...)} origin left out. Two
+     * mods can't share a lambda, so two equal {@code pixel(...)} declarations would always
+     * differ by it, and two lambdas can't be told apart anyway: a difference only there is no
+     * disagreement. ({@link Placement#at}'s origin is one shared value and stays in.)
+     */
+    private static Map<ModeScope, Placement> comparable(Map<ModeScope, Placement> placements) {
+        Map<ModeScope, Placement> out = new EnumMap<>(ModeScope.class);
+        placements.forEach((scope, p) -> {
+            PanelPosition at = p.position();
+            if (at.pixelOrigin() != null && !Placement.fromBox(at)) {
+                at = new PanelPosition(at.mode(), at.screenAnchor(), at.region(), null, at.dx(), at.dy(), at.priority(), at.gap());
+            }
+            out.put(scope, new Placement(p.anchor(), at));
+        });
         return out;
     }
 
@@ -87,6 +108,7 @@ public final class Contribution {
         private PanelStyle style = PanelStyle.RAISED;
         private boolean vertical = false;
         private int gap = Flow.DEFAULT_GAP;
+        private boolean fixed = false;
 
         private Builder(int order, ModeScope scope) {
             this.order = order;
@@ -135,6 +157,12 @@ public final class Contribution {
         public Builder gap(int px) {
             if (px < 0) throw new IllegalArgumentException("gap must be >= 0, was " + px);
             this.gap = px;
+            return this;
+        }
+
+        /** The player can't move the panel ({@link Panel.Builder#fixed()}): part of the declaration, so the winning one decides. */
+        public Builder fixed() {
+            this.fixed = true;
             return this;
         }
 
