@@ -1,6 +1,6 @@
 package com.trevlar.menukit.mixin;
 
-import com.trevlar.menukit.core.VanillaLook;
+import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.core.PressedTracker;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -79,7 +79,7 @@ public abstract class MKVanillaButtonPressedMixin {
         if (!self.active) return;
         if (!self.isHovered()) return;
 
-        VanillaLook.pressedOverlay(graphics,
+        ControlLook.pressVanillaButton(graphics,
                 self.getX(), self.getY(),
                 self.getWidth(), self.getHeight());
     }

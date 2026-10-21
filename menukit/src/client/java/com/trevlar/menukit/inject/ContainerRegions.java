@@ -1101,7 +1101,7 @@ public final class ContainerRegions {
             int ox = ctx.originX(), oy = ctx.originY(), w = g.width(), h = g.height();
             PackLook.Look[] looks = looks();
             if (state.tops.length != SECTIONS.size()) {
-                PanelRendering.renderPanelSurface(graphics, ox, oy, w, h, listLook(looks));
+                PackLook.drawPanel(graphics, ox, oy, w, h, listLook(looks));
                 return;
             }
             // The panel's origin is the list's top-left; the slices are from the screen's.
@@ -1110,7 +1110,7 @@ public final class ContainerRegions {
             List<Integer> shown = new ArrayList<>();
             for (int i = 0; i < slices.length; i++) if (slices[i] != null && looks[i] != null) shown.add(i);
             if (shown.isEmpty()) {
-                PanelRendering.renderPanelSurface(graphics, ox, oy, w, h, listLook(looks));
+                PackLook.drawPanel(graphics, ox, oy, w, h, listLook(looks));
                 return;
             }
             for (int k = 0; k < shown.size(); ) {
@@ -1119,10 +1119,10 @@ public final class ContainerRegions {
                 while (m < shown.size() && looks[shown.get(m)] == look) m++;
                 int y1 = slices[shown.get(m - 1)][3];
                 if (y0 <= g.top() && y1 >= g.top() + h) {
-                    PanelRendering.renderPanelSurface(graphics, ox, oy, w, h, look);
+                    PackLook.drawPanel(graphics, ox, oy, w, h, look);
                 } else {
                     graphics.enableScissor(ox, y0 + dy, ox + w, y1 + dy);
-                    PanelRendering.renderPanelSurface(graphics, ox, oy, w, h, look);
+                    PackLook.drawPanel(graphics, ox, oy, w, h, look);
                     graphics.disableScissor();
                 }
                 k = m;
@@ -1186,7 +1186,7 @@ public final class ContainerRegions {
             if (g == null || !(state.screen.get() instanceof AbstractContainerScreen<?> acs)) return;
             Reference inv = g.inventory();
             PackLook.Look look = PackLook.inventory(screenTexture(acs));
-            PanelRendering.renderPanelSurface(ctx.graphics(), ctx.originX(), ctx.originY(), inv.imageWidth(), inv.imageHeight(),
+            PackLook.drawPanel(ctx.graphics(), ctx.originX(), ctx.originY(), inv.imageWidth(), inv.imageHeight(),
                     look);
             AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) acs;
             for (Slot slot : acs.getMenu().slots) {

@@ -4,8 +4,6 @@ import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.core.MKRenderPipelines;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.core.PressedTracker;
-import com.trevlar.menukit.api.panel.ScreenKind;
-import com.trevlar.menukit.core.VanillaLook;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
@@ -193,27 +191,18 @@ public class Button extends AbstractPanelElement {
     }
 
     /**
-     * Paints the background: raised, inset while pressed, dark while disabled,
-     * with the hover highlight, in the Panel look; vanilla's button sprite
-     * in the Default look ({@link ScreenKind#DEFAULT}). Covers the grown height
-     * when the label wraps.
+     * Paints the background: a raised control, highlighted while hovered, pressed while
+     * held, its disabled face while disabled, from the look's set of sprites (vanilla's
+     * button in the Default look, MenuKit's control art in the Panel look or vanilla's where
+     * a pack restyled it; {@code ControlLook}). Covers the grown height when the label wraps.
      *
      * <p><b>Stable extension point.</b> {@code sx}/{@code sy} are the button's
      * screen-space top-left; runs before {@link #renderContent}; must not mutate
      * the button.
      */
     protected void renderBackground(RenderContext ctx, int sx, int sy, Look look) {
-        int w = getWidth(), h = getHeight();
-        // Vanilla's button in the Default look.
-        if (ctx.kind() == ScreenKind.DEFAULT) {
-            VanillaLook.button(ctx.graphics(), sx, sy, w, h, !look.disabled(), look.hovered() || look.pressed());
-            if (look.pressed()) VanillaLook.pressedOverlay(ctx.graphics(), sx, sy, w, h);
-            return;
-        }
-        // The Panel look: MenuKit's control art, or vanilla's button where a pack restyled it,
-        // every state from the normal state's source (ControlLook). Held down, it shows
-        // pressed and no hover.
-        ControlLook.drawRaised(ctx.graphics(), sx, sy, w, h, !look.disabled(), look.hovered() && !look.pressed(), look.pressed());
+        ControlLook.drawRaised(ctx.kind(), ctx.graphics(), sx, sy, getWidth(), getHeight(), !look.disabled(), look.hovered(),
+                look.pressed() ? ControlLook.Press.HELD : ControlLook.Press.NONE);
     }
 
     /**

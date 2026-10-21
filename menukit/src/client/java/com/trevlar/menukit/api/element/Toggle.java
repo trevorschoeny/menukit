@@ -2,7 +2,6 @@ package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.api.panel.ScreenKind;
-import com.trevlar.menukit.core.VanillaLook;
 import com.trevlar.menukit.core.MKRenderPipelines;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -190,9 +189,10 @@ public class Toggle extends AbstractPanelElement {
     }
 
     /**
-     * Paints the toggle for this frame: raised off, inset on, dark disabled, and
-     * the hover highlight; in the Default look, vanilla's button (highlighted on
-     * hover, its disabled sprite while disabled), whose text carries the state.
+     * Paints the toggle for this frame: a raised control, highlighted while hovered, its
+     * disabled face while disabled ({@code ControlLook}). In the Panel look its state is its
+     * face, so on is the control pressed; in the Default look its text carries the state, so
+     * it is vanilla's button as it is.
      * Covers the grown height when a label wrapped.
      *
      * <p><b>Stable extension point.</b> {@code sx}/{@code sy} are the toggle's
@@ -200,14 +200,9 @@ public class Toggle extends AbstractPanelElement {
      */
     protected void renderBackground(RenderContext ctx, int sx, int sy,
                                     boolean on, boolean disabled, boolean hovered) {
-        int w = getWidth(), h = getHeight();
-        // Vanilla's button in the Default look, whose text carries the state.
-        if (ctx.kind() == ScreenKind.DEFAULT) {
-            VanillaLook.button(ctx.graphics(), sx, sy, w, h, !disabled, hovered);
-            return;
-        }
-        // The Panel look: its state is its face, not its text, so on is the control pressed.
-        ControlLook.drawRaised(ctx.graphics(), sx, sy, w, h, !disabled, hovered, on);
+        boolean pressed = on && ctx.kind() != ScreenKind.DEFAULT;   // the Default look's text says on or off
+        ControlLook.drawRaised(ctx.kind(), ctx.graphics(), sx, sy, getWidth(), getHeight(), !disabled, hovered,
+                pressed ? ControlLook.Press.ON : ControlLook.Press.NONE);
     }
 
     @Override
