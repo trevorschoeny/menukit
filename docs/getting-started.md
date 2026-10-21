@@ -13,14 +13,14 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    implementation 'maven.modrinth:menukit:7.2.0+26.3'
+    implementation 'maven.modrinth:menukit:7.4.0+26.3'
 }
 ```
 
 Declare the dependency in `fabric.mod.json`:
 
 ```json
-"depends": { "menukit": ">=7.2.0 <8.0.0" }
+"depends": { "menukit": ">=7.4.0 <8.0.0" }
 ```
 
 Declare both bounds. The lower bound guarantees the API you call exists. The upper bound stops the next breaking MenuKit from loading against a jar built before it existed. That combination fails at a class load in the middle of a play session instead of at launch.
@@ -82,7 +82,7 @@ Result: a 90 by 16 button renders in the top right gutter of the survival invent
 
 Every element is built the same way: `X.builder()`, the settings it needs, then `build()` (see [Builders and one vocabulary](concepts.md#builders-and-one-vocabulary)). A control that shows a value takes a `state(get, set)` over your own field, for example `Toggle.builder().state(config::sort, config::setSort)`.
 
-The panel declares where it sits (`position`), and the adapter declares which screens it appears on. Without `.on(...)` the panel renders on every container screen. Declare adapters from your client initializer. To show a panel only some of the time, give it a `visibleWhen` rather than removing its adapter.
+The panel declares where it sits in each game mode (`in(scope, placement)`), and the adapter declares which screens it appears on. Without `.on(...)` the panel renders on every container screen. Declare adapters from your client initializer. To show a panel only some of the time, give it a `visibleWhen` rather than removing its adapter. A player can move the panel with MenuKit's Move panels key; `fixed()` on the builder keeps it where it is declared ([Moving panels](concepts.md#moving-panels)).
 
 ## 4. Run
 
