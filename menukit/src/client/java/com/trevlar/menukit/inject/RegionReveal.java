@@ -29,8 +29,9 @@ import java.util.Map;
  * drawn, or one whose height has changed since), the region pages down a viewport a frame
  * until the slot is drawn, then shows it; if no page has it, it goes back to where it was.
  *
- * <p>In tabs mode a quick move into a container not shown picks its tab instead
- * ({@link RegionTabs#revealed}).
+ * <p>A quick move into a section not shown (its slots are off, {@link RegionSlots}) scrolls
+ * nothing: that section's {@code onHiddenLanding} runs instead, so its mod can show it.
+ * MenuKit shows nothing itself.
  *
  * <p>Render thread only; the state is the open region's, reset with it.
  */
@@ -91,6 +92,12 @@ public final class RegionReveal {
         }
     }
 
+    /** The section the region last drew {@code slot} in, by stacking index, or {@code -1} for one it never drew. */
+    static int sectionOf(Slot slot) {
+        Cell c = CELLS.get(slot);
+        return c == null ? -1 : c.section();
+    }
+
     /** Whether a region is up on the open screen: the quick-move hook takes its snapshot only then. */
     public static boolean active() {
         Screen s = ContainerRegions.state.screen.get();
@@ -107,7 +114,8 @@ public final class RegionReveal {
     /**
      * After a quick move the client has predicted: the first slot that gained items, if it
      * is the region's and not in view, is shown. A move into the inventory gains its slots,
-     * which are not the region's, so nothing scrolls.
+     * which are not the region's, so nothing scrolls. One into a hidden section runs that
+     * section's {@code onHiddenLanding}.
      */
     public static void quickMoved(AbstractContainerMenu menu, List<ItemStack> before) {
         ContainerRegions.State state = ContainerRegions.state;
@@ -120,7 +128,11 @@ public final class RegionReveal {
             boolean gained = !now.isEmpty() && (was.isEmpty() || !ItemStack.isSameItemSameComponents(was, now)
                     || now.getCount() > was.getCount());
             if (!gained) continue;
-            if (RegionTabs.revealed(slot)) return;             // tabs mode: landed in a container not shown, now picked
+            int hidden = RegionSlots.inHidden(slot);
+            if (hidden >= 0) {                                 // landed in a section not shown: its mod decides
+                ContainerRegions.landedHidden(hidden);
+                return;
+            }
             if (!regionsOwn(acs, slot, panel)) return;         // landed in the inventory (or elsewhere in view)
             Integer cell = cellTop(slot, state.tops, state.bottoms);
             if (cell != null && RegionLayout.revealScroll(state.scroll, cell, g) == state.scroll
