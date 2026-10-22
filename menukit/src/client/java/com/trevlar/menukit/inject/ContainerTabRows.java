@@ -90,13 +90,42 @@ public final class ContainerTabRows {
     private static final List<Tab> TABS = new CopyOnWriteArrayList<>();
     private static boolean panelsBuilt;
 
+    /**
+     * A tab one live key made ({@code ContainerRegion.sections}): placed among the declared
+     * tabs by its order, then by its section kind's id, then by its key's place in the keys.
+     */
+    record Live(Tab tab, String kind, int index) {}
+
+    private static List<Live> live = List.of();
+    /** Every tab there is now, declared and live, in row order. */
+    private static List<Tab> all = List.of();
+
     /** {@code ContainerTabs.Builder.declare}: adds a tab in its place, and the rows' panels with the first one. */
     public static synchronized void declare(Tab tab) {
         for (Tab t : TABS) {
             if (t.id().equals(tab.id())) throw new IllegalStateException("ContainerTabs tab '" + tab.id() + "' is already declared");
         }
         TABS.add(tab);
-        TABS.sort(Comparator.comparingInt(Tab::order).thenComparing(Tab::id));
+        merge();
+        buildPanels();
+    }
+
+    /** The live keys' tabs now, from the container region whenever its sections restack. */
+    static void live(List<Live> tabs) {
+        live = List.copyOf(tabs);
+        merge();
+    }
+
+    private static void merge() {
+        List<Live> every = new ArrayList<>(TABS.size() + live.size());
+        for (Tab t : TABS) every.add(new Live(t, t.id(), 0));
+        every.addAll(live);
+        every.sort(Comparator.comparingInt((Live l) -> l.tab().order()).thenComparing(Live::kind).thenComparingInt(Live::index));
+        all = every.stream().map(Live::tab).toList();
+    }
+
+    /** The rows' panels, made once, with the first tab or the first kind of section with tabs. */
+    static synchronized void buildPanels() {
         if (panelsBuilt) return;
         panelsBuilt = true;
         // One background panel per edge, drawn over the region's two so a selected tab opens
@@ -144,7 +173,7 @@ public final class ContainerTabRows {
         if (screen instanceof AbstractContainerScreen<?> acs) {
             List<List<Tab>> by = new ArrayList<>();
             for (int i = 0; i < out.length; i++) by.add(new ArrayList<>());
-            for (Tab t : TABS) if (t.matcher().matches(acs) && t.visible().getAsBoolean()) by.get(t.edge().ordinal()).add(t);
+            for (Tab t : all) if (t.matcher().matches(acs) && t.visible().getAsBoolean()) by.get(t.edge().ordinal()).add(t);
             for (int i = 0; i < out.length; i++) out[i] = by.get(i).toArray(Tab[]::new);
         }
         rows = out;

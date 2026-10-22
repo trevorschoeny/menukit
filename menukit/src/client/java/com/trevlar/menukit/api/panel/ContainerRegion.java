@@ -20,8 +20,11 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 
 import org.jspecify.annotations.Nullable;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -225,7 +228,40 @@ import java.util.function.Supplier;
  *         .declare();
  * }</pre>
  *
- * <p>Declare from your client initializer: sections freeze with every other declaration.
+ * <h3>Sections for what opens at runtime</h3>
+ * A section is declared ahead of time, so a mod that lets the player open as many boxes as
+ * they like would need one for each it might ever show. {@link #sections} declares a
+ * <b>kind</b> of section instead: on a screen it is on, its keys are read every frame (any
+ * type with {@code equals}: a slot library's group instances, say), and each key has a
+ * section, and a tab if the kind has them, built from the key the frame it first appears and
+ * kept for as long as it is there. A key that goes takes its section and tab with it, and a
+ * new screen starts with none. They are sections like any other: titled, sourced, ordered and
+ * shown by what the builder sets, hidden ones' slots off, a shift-click into a hidden one
+ * running its {@code onHiddenLanding}. A kind's sections stack by their order, then by the
+ * kind's id, then in the order of the keys, so with the keys in the order they opened, the
+ * newest box is at the bottom and its tab at the row's end.
+ *
+ * <pre>{@code
+ * ContainerRegion.sections("mymod:opened-box", ModeScope.BOTH, screen -> boxes.openOn(screen.getMenu()))
+ *         .section((box, s) -> s
+ *                 .content(boxGrid(box))
+ *                 .title(() -> Component.translatable("container.shulkerBox"))
+ *                 .source(() -> ContainerRegion.Source.of(box.stack()))
+ *                 .order(10)
+ *                 .visibleWhen(() -> box.equals(shown))
+ *                 .onHiddenLanding(() -> shown = box))
+ *         .tab((box, t) -> t
+ *                 .icon(box::stack)
+ *                 .tooltip(() -> box.stack().getHoverName())
+ *                 .order(10)
+ *                 .selectedWhen(() -> box.equals(shown))
+ *                 .onClick(() -> shown = box))
+ *         .on(ContainerScreen.class)
+ *         .declare();
+ * }</pre>
+ *
+ * <p>Declare from your client initializer: sections, and kinds of section, freeze with every
+ * other declaration.
  */
 public final class ContainerRegion {
 
@@ -456,11 +492,116 @@ public final class ContainerRegion {
          */
         public void declare() {
             Declarations.requireOpen("ContainerRegion.section(" + id + ")");
+            ContainerRegions.declare(build());
+        }
+
+        /** The section as built so far, its mode scope one more condition, read every frame with its own. */
+        private ContainerRegions.Declared build() {
             if (content == null) throw new IllegalStateException("ContainerRegion section '" + id + "': content(...) is required");
-            // The mode scope is one more condition, read every frame with the section's own.
             BooleanSupplier own = visibleWhen;
             BooleanSupplier shown = scope == ModeScope.BOTH ? own : () -> scope.covers(PanelHost.currentMode()) && own.getAsBoolean();
-            ContainerRegions.declare(new ContainerRegions.Declared(id, content, matcher, order, shown, texture, title, name, source, onHiddenLanding));
+            return new ContainerRegions.Declared(id, content, matcher, order, shown, texture, title, name, source, onHiddenLanding);
+        }
+    }
+
+    /**
+     * Starts a kind of section with one section per live key, for what opens at runtime: as
+     * many boxes as the player opens, each its own section, for as long as it is open. Its id
+     * is namespaced and unique ({@code "mymod:opened-box"}); {@code scope} is every one of its
+     * sections' (and tabs') mode scope. On a screen the kind is on, {@code keys} is read every
+     * frame with that screen; each key it gives has its section, built from the key, and the
+     * section goes when the key does. See "Sections for what opens at runtime".
+     *
+     * @param keys the keys open on a screen now, in the order their sections stack; any type
+     *             with {@code equals}, a {@code null} or empty list for none
+     */
+    public static <K> Sections<K> sections(String kind, ModeScope scope,
+                                           Function<? super AbstractContainerScreen<?>, ? extends @Nullable List<? extends K>> keys) {
+        return new Sections<>(kind, Objects.requireNonNull(scope, "scope"), Objects.requireNonNull(keys, "keys"));
+    }
+
+    /** Builds one kind of section made per live key. {@link #section} is required. */
+    public static final class Sections<K> {
+        private final String kind;
+        private final ModeScope scope;
+        private final Function<? super AbstractContainerScreen<?>, ? extends @Nullable List<? extends K>> keys;
+        private ScreenMatcher matcher = ScreenMatcher.all();
+        private boolean targeted = false;
+        private @Nullable BiConsumer<? super K, Builder> section;
+        private @Nullable BiConsumer<? super K, ContainerTabs.Builder> tab;
+
+        private Sections(String kind, ModeScope scope,
+                         Function<? super AbstractContainerScreen<?>, ? extends @Nullable List<? extends K>> keys) {
+            this.kind = Objects.requireNonNull(kind, "kind");
+            this.scope = scope;
+            this.keys = keys;
+        }
+
+        /**
+         * Required: each key's section, set up on a builder as a declared section is (its
+         * content, title, source, order, visibility), minus {@code declare()} and its
+         * screens, which are the kind's. Run once per key, the frame the key first appears
+         * on a screen; what the section shows that changes reads through suppliers, by key.
+         */
+        public Sections<K> section(BiConsumer<? super K, Builder> build) {
+            this.section = Objects.requireNonNull(build, "build");
+            return this;
+        }
+
+        /**
+         * Each key's tab, set up on a builder as a declared tab is (its icon, tooltip, order,
+         * edge, what a click does, when it draws selected), minus {@code declare()} and its
+         * screens. Made with the key's section and gone with it.
+         */
+        public Sections<K> tab(BiConsumer<? super K, ContainerTabs.Builder> build) {
+            this.tab = Objects.requireNonNull(build, "build");
+            return this;
+        }
+
+        /** The screens it is on, and where {@code keys} is asked. Without {@code on} or {@link #onMatching}, every container screen. */
+        @SafeVarargs
+        public final Sections<K> on(Class<? extends AbstractContainerScreen<?>>... screens) {
+            if (screens.length == 0) {
+                throw new IllegalArgumentException("ContainerRegion sections '" + kind + "': on() needs at least one screen class");
+            }
+            return onMatching(ScreenMatcher.only(screens));
+        }
+
+        /** The screens it is on, by a matcher. */
+        public Sections<K> onMatching(ScreenMatcher matcher) {
+            if (targeted) throw new IllegalStateException("ContainerRegion sections '" + kind + "': targeting declared twice");
+            this.matcher = Objects.requireNonNull(matcher, "matcher");
+            this.targeted = true;
+            return this;
+        }
+
+        /**
+         * Declares the kind.
+         *
+         * @throws IllegalStateException after declarations froze, or when {@code kind} is
+         *         already declared or no section was given
+         */
+        @SuppressWarnings("unchecked")
+        public void declare() {
+            Declarations.requireOpen("ContainerRegion.sections(" + kind + ")");
+            if (section == null) throw new IllegalStateException("ContainerRegion sections '" + kind + "': section(...) is required");
+            BiConsumer<? super K, Builder> sectionOf = section;
+            BiConsumer<? super K, ContainerTabs.Builder> tabOf = tab;
+            ScreenMatcher screens = matcher;
+            // Each key's section and tab are named by the kind and the key, unique on the screen.
+            ContainerRegions.declareFamily(new ContainerRegions.Family(kind, screens, keys::apply,
+                    key -> {
+                        Builder b = new Builder(kind + "#" + key, scope);
+                        b.matcher = screens;
+                        b.targeted = true;
+                        sectionOf.accept((K) key, b);
+                        return b.build();
+                    },
+                    tabOf == null ? null : key -> {
+                        ContainerTabs.Builder b = ContainerTabs.forKey(kind + "#" + key, scope, screens);
+                        tabOf.accept((K) key, b);
+                        return b.build();
+                    }));
         }
     }
 }

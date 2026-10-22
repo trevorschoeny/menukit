@@ -98,6 +98,14 @@ public final class ContainerTabs {
         return new Builder(id, Objects.requireNonNull(scope, "scope"));
     }
 
+    /** A live key's tab ({@link ContainerRegion#sections}): on the screens its kind of section is on. */
+    static Builder forKey(String id, ModeScope scope, ScreenMatcher screens) {
+        Builder b = new Builder(id, scope);
+        b.matcher = screens;
+        b.targeted = true;
+        return b;
+    }
+
     /** Builds one tab. Every part is optional; a tab with no icon is an empty tab. */
     public static final class Builder {
         private final String id;
@@ -205,11 +213,15 @@ public final class ContainerTabs {
          */
         public void declare() {
             Declarations.requireOpen("ContainerTabs.tab(" + id + ")");
-            // The mode scope is one more condition, read every frame with the tab's own.
+            ContainerTabRows.declare(build());
+        }
+
+        /** The tab as built so far, its mode scope one more condition, read every frame with its own. */
+        ContainerTabRows.Tab build() {
             BooleanSupplier own = visibleWhen;
             BooleanSupplier shown = scope == ModeScope.BOTH ? own : () -> scope.covers(PanelHost.currentMode()) && own.getAsBoolean();
-            ContainerTabRows.declare(new ContainerTabRows.Tab(id, matcher, order, edge, shown, selectedWhen, disabledWhen,
-                    item, sprite, tooltip, onClick));
+            return new ContainerTabRows.Tab(id, matcher, order, edge, shown, selectedWhen, disabledWhen,
+                    item, sprite, tooltip, onClick);
         }
     }
 }
