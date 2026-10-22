@@ -746,6 +746,65 @@ new AnchorPanelAdapter(sortInventory);
 
 Result: each button stays by its panel as the container list grows, shrinks and scrolls, and is gone on screens the region is not on.
 
+## Show one container at a time under tabs
+
+Needs: MenuKit 7.4.0, and a slot library's elements for the grids. For a mod that opens more containers on a chest's screen and shows them one at a time, the way the creative inventory shows one page.
+
+```java
+// One container at a time on a chest's screen, picked by tabs on the list's top edge, the frame fitted to it.
+ContainerRegion.fitted(ModeScope.BOTH, ScreenMatcher.only(ContainerScreen.class));
+ContainerRegion.section("mymod:chest", ModeScope.BOTH)
+        .title(() -> session.screenTitle())
+        .content(chestGrid)
+        .on(ContainerScreen.class)
+        .visibleWhen(() -> picked.equals("mymod:chest") || !session.isOpen())
+        .onHiddenLanding(() -> picked = "mymod:chest")              // a shift-click into it shows it
+        .declare();
+ContainerRegion.section("mymod:opened-box", ModeScope.BOTH)
+        .title(() -> Component.translatable("container.shulkerBox"))
+        .source(() -> ContainerRegion.Source.of(session.box()))
+        .content(boxGrid)
+        .on(ContainerScreen.class)
+        .order(10)
+        .visibleWhen(() -> session.isOpen() && picked.equals("mymod:opened-box"))
+        .onHiddenLanding(() -> picked = "mymod:opened-box")
+        .declare();
+ContainerTabs.tab("mymod:chest", ModeScope.BOTH)
+        .icon(() -> new ItemStack(Items.CHEST))
+        .tooltip(() -> session.screenTitle())
+        .on(ContainerScreen.class)
+        .visibleWhen(() -> session.isOpen())
+        .selectedWhen(() -> picked.equals("mymod:chest"))
+        .onClick(() -> picked = "mymod:chest")
+        .declare();
+ContainerTabs.tab("mymod:opened-box", ModeScope.BOTH)
+        .icon(() -> session.box())
+        .tooltip(() -> session.box().getHoverName())
+        .on(ContainerScreen.class)
+        .order(10)
+        .visibleWhen(() -> session.isOpen())
+        .selectedWhen(() -> picked.equals("mymod:opened-box"))
+        .onClick(() -> picked = "mymod:opened-box")
+        .declare();
+```
+
+Result: with no box open, the chest's screen is the chest alone, in one frame like vanilla's. With a box open, two tabs stand on the frame's top edge, the chest's and the box's, vanilla's creative tabs with each one's icon, and the frame shows the picked container only, as tall as it needs: a 3-row box picked on a double chest's screen shrinks it. The picked tab is open into the frame, and the tabs take the place of the titles. A click on a tab picks it, with vanilla's click sound, an item on the cursor or not. The container not shown has its slots off, so nothing behind it hovers or takes a click, and a shift-click from the inventory that lands in it runs its `onHiddenLanding`, which picks it, so the player sees where the item went. `picked` is the mod's own field: MenuKit keeps no pick, so the mod resets it when its screen opens or a box closes. More tabs than fit are paged by arrows at the row's ends.
+
+A tab can stand on any edge of the two panels and draw a sprite of the mod's own:
+
+```java
+// A tab under the inventory panel that sorts the inventory, with the mod's own icon.
+ContainerTabs.tab("mymod:sort", ModeScope.BOTH)
+        .icon(Identifier.fromNamespaceAndPath("mymod", "tab/sort"))   // textures/gui/sprites/tab/sort.png
+        .tooltip(() -> Component.literal("Sort the inventory"))
+        .edge(ContainerTabs.Edge.INVENTORY_BOTTOM)
+        .disabledWhen(() -> inventoryEmpty())
+        .onClick(() -> sortInventory())
+        .declare();
+```
+
+Result: on every container screen the region is on, a bottom tab hangs under the inventory panel with the sprite in it, 16 pixels square. It is grayed and takes no click while the inventory is empty. The region makes room for it below the inventory panel, and the screen's bounds take it in. Several mods' tabs on one edge share its row, by `order`.
+
 ## A shulker box from an item, and one placed in the world, each in its own art
 
 Needs: MenuKit 7.4.0. For sections that show a particular container, so that with OptiGUI installed a pack's rules give each one the art it would have on its own screen (a lime box's lime art, a box the player named "Ores" its named art).
