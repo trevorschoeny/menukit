@@ -297,6 +297,17 @@ public final class ContainerRegion {
     }
 
     /**
+     * The container the open screen was opened on, the source its own sections (those with no
+     * source) take: the block under the crosshair as it opened, when it holds a container of the
+     * screen's size and title. {@code null} with no region screen open, for a screen opened from
+     * an item or by a key, on a double chest, and for a container the player named (the client
+     * never knows a placed container's custom name). Render thread.
+     */
+    public static @Nullable Source openedOn() {
+        return ContainerRegions.openedOn();
+    }
+
+    /**
      * The fitted frame for the screens {@code screens} takes, in {@code scope}'s game mode
      * ({@link ModeScope#BOTH} for either), read every frame: their list and inventory panel are
      * one frame, as tall as the shown sections need (see "The fitted frame"). Every other screen
