@@ -96,6 +96,12 @@ import java.util.function.Supplier;
  * new AnchorPanelAdapter(sort);
  * }</pre>
  *
+ * <p>To put a button by one section (a sort button for each box in the list), place it on
+ * {@link #anchor(String) anchor(sectionId)}: that section's rectangle, across the list,
+ * from the top of its title to the bottom of its content, moved by the scroll and cut at
+ * the list's viewport. It is absent while the section is hidden, scrolled wholly out of
+ * view or not on the screen, so the button hides with it, and comes back with it.
+ *
  * <h3>What the region does</h3>
  * <ul>
  *   <li><b>Grows, centred, then scrolls.</b> The container list starts at the screen's
@@ -205,6 +211,22 @@ public final class ContainerRegion {
 
     /** The inventory panel's rectangle on a screen the region is on: for buttons that act on the inventory. */
     public static final Anchor INVENTORY = ContainerRegions.INVENTORY;
+
+    /**
+     * The anchor for one section, by its id ({@code "mymod:opened-shulker"}): its rectangle on
+     * screen, across the whole list (scrollbar lane included), from the top of its title to the
+     * bottom of its content, moved by the scroll and cut at the list's viewport. Absent while
+     * the section is hidden, scrolled wholly out of view, or not on the screen, so a panel
+     * placed on it with an {@link AnchorPanelAdapter} hides with the section. The section may be
+     * another mod's and need not be declared yet; asking twice for one id gives the same anchor.
+     * Ask from your client initializer, while declarations are open.
+     *
+     * @throws IllegalArgumentException when {@code sectionId} is not {@code namespace:path}
+     * @throws IllegalStateException    the first time it is asked for after declarations froze
+     */
+    public static Anchor anchor(String sectionId) {
+        return ContainerRegions.sectionAnchor(sectionId);
+    }
 
     /** Vanilla's chest texture: the default look of a section, and of the list on a chest's screen. */
     public static final Identifier CHEST = PackLook.CHEST;

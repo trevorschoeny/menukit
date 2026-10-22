@@ -6,6 +6,7 @@ import com.trevlar.menukit.api.panel.RegionConstants;
 import com.trevlar.menukit.core.Scroller;
 
 import org.jetbrains.annotations.ApiStatus;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Where the container region's two panels go, pure (7.4.0; {@link ContainerRegions} is the
@@ -237,6 +238,24 @@ public final class RegionLayout {
             if (y0 < y1) out[i] = new int[]{x0, y0, x1, y1};
         }
         return out;
+    }
+
+    /**
+     * One section's rectangle on screen, for its anchor: across the whole list, from its top
+     * to its bottom (title included), moved by the scroll and cut at the viewport, where
+     * scrolled content clips. {@code null} while it is hidden ({@code top < 0}) or scrolled
+     * wholly out of view, so a panel on it hides with it.
+     *
+     * @param top    the section's top in the column the sections stack in, which starts
+     *               {@link #CONTENT_TOP} down the content
+     * @param bottom its bottom, likewise
+     */
+    public static @Nullable Reference sectionBox(Geometry g, int top, int bottom, double scroll) {
+        if (top < 0) return null;
+        // The column's top on screen this frame.
+        int origin = g.viewTop() - (int) scroll + CONTENT_TOP;
+        int y0 = Math.max(g.viewTop(), origin + top), y1 = Math.min(g.viewBottom(), origin + bottom);
+        return y0 < y1 ? new Reference(g.x(), y0, g.width(), y1 - y0) : null;
     }
 
     /** Which band holds {@code (x, y)}, or {@code -1}. */
