@@ -24,6 +24,7 @@
     "MKQuickMoveRevealMixin",
     "MKRecipeBookAccessor",
     "MKScreenBackgroundMixin",
+    "MKSlotActiveMixin",
     "MKSlotInputMixin",
     "MKTooltipSuppressMixin",
     "MKVanillaButtonPressedMixin",
