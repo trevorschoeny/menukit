@@ -501,6 +501,12 @@ public final class ContainerRegions {
         return ContainerRegion.Source.of(be);
     }
 
+    /** {@link ContainerRegion#openedOn()}: the open screen's opened-on container, while it is the region's screen. */
+    public static ContainerRegion.@Nullable Source openedOn() {
+        Screen open = Minecraft.getInstance().gui.screen();
+        return open != null && state.screen.get() == open ? state.opened : null;
+    }
+
     /** The region on {@code screen} this frame, or {@code null} when it is not there (no section shown). */
     public static @Nullable Geometry geometry(Screen screen) {
         return state.screen.get() == screen ? state.geometry : null;
