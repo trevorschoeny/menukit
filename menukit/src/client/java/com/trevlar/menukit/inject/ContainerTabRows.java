@@ -147,9 +147,14 @@ public final class ContainerTabRows {
 
     /** Each edge's row this frame, in order, by {@link Edge#ordinal}: empty where none shows. */
     private static Tab[][] rows = empty();
-    /** Each row's first tab in view when they don't all fit, and the selected tab last brought into view. */
+    /**
+     * Each row's first tab in view when they don't all fit, the selected tab last brought into
+     * view, and whether the row keeps that tab in view: from when it starts drawing selected
+     * until the arrows page it out.
+     */
     private static final int[] FIRST = new int[Edge.values().length];
     private static final @Nullable String[] IN_VIEW = new String[Edge.values().length];
+    private static final boolean[] KEEP = new boolean[Edge.values().length];
 
     private static Tab[][] empty() {
         Tab[][] out = new Tab[Edge.values().length][];
@@ -162,6 +167,7 @@ public final class ContainerTabRows {
         rows = empty();
         Arrays.fill(FIRST, 0);
         Arrays.fill(IN_VIEW, null);
+        Arrays.fill(KEEP, false);
     }
 
     /**
@@ -273,28 +279,36 @@ public final class ContainerTabRows {
         return NONE;
     }
 
+    /** The first selected tab in {@code row}, or -1. */
+    private static int selected(Tab[] row) {
+        for (int i = 0; i < row.length; i++) if (row[i].selected().getAsBoolean()) return i;
+        return -1;
+    }
+
     /**
      * Once the region is laid out: each row's first tab is the one it draws from, and in each
-     * row a tab that has started drawing selected comes into view (paging leaves the selection
-     * alone, and a tab selected all along stays wherever the arrows put the row).
+     * row a tab that has started drawing selected comes into view and stays there, however
+     * the frame's width changes, until the arrows page it out (paging leaves the selection
+     * alone, and a tab paged out stays wherever the arrows put the row).
      */
     static void afterLayout(Geometry g) {
         for (Edge edge : Edge.values()) {
             Tab[] row = rows[edge.ordinal()];
-            int e = edge.ordinal(), sel = -1;
+            int e = edge.ordinal();
             // Kept as drawn: on a frame wide enough for every tab (a list that took a
             // scrollbar's lane, a wider section) the row draws from its first, and a row
             // kept on an earlier page would go back there once the frame narrows again,
             // the selected tab out of view though it never moved.
             Fit f = fit(line(g, edge).width(), row.length, FIRST[e]);
             FIRST[e] = f.first();
-            for (int i = 0; i < row.length && sel < 0; i++) if (row[i].selected().getAsBoolean()) sel = i;
+            int sel = selected(row);
             String id = sel < 0 ? null : row[sel].id();
-            if (id == null || id.equals(IN_VIEW[e])) {
-                IN_VIEW[e] = id;
-                continue;
-            }
+            if (id != null && !id.equals(IN_VIEW[e])) KEEP[e] = true;
             IN_VIEW[e] = id;
+            // Kept in view, not only revealed once: the frame it was revealed on can narrow
+            // after (a list that takes a scrollbar's lane once a new section stacks), and the
+            // row then fits a tab fewer.
+            if (sel < 0 || !KEEP[e]) continue;
             if (sel < f.first()) FIRST[e] = sel;
             else if (sel >= f.first() + f.shown()) FIRST[e] = sel - f.shown() + 1;
         }
@@ -317,8 +331,12 @@ public final class ContainerTabRows {
         Fit f = fit(l.width(), row.length, FIRST[e]);
         int what = hit(l, row.length, f, mx, my);
         if (what == NONE) return false;
-        if (what == BACK) FIRST[e] = Math.max(0, f.first() - 1);
-        else if (what == FORWARD) FIRST[e] = f.first() + 1;
+        if (what == BACK || what == FORWARD) {
+            FIRST[e] = what == BACK ? Math.max(0, f.first() - 1) : f.first() + 1;
+            // Paged out of view, the selected tab stays out until it is selected anew.
+            int sel = selected(row);
+            KEEP[e] = sel >= FIRST[e] && sel < FIRST[e] + f.shown();
+        }
         else if (row[what].disabled().getAsBoolean()) return true;
         else row[what].onClick().run();
         Minecraft mc = Minecraft.getInstance();
