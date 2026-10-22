@@ -29,6 +29,9 @@ import java.util.Map;
  * drawn, or one whose height has changed since), the region pages down a viewport a frame
  * until the slot is drawn, then shows it; if no page has it, it goes back to where it was.
  *
+ * <p>In tabs mode a quick move into a container not shown picks its tab instead
+ * ({@link RegionTabs#revealed}).
+ *
  * <p>Render thread only; the state is the open region's, reset with it.
  */
 @ApiStatus.Internal
@@ -117,6 +120,7 @@ public final class RegionReveal {
             boolean gained = !now.isEmpty() && (was.isEmpty() || !ItemStack.isSameItemSameComponents(was, now)
                     || now.getCount() > was.getCount());
             if (!gained) continue;
+            if (RegionTabs.revealed(slot)) return;             // tabs mode: landed in a container not shown, now picked
             if (!regionsOwn(acs, slot, panel)) return;         // landed in the inventory (or elsewhere in view)
             Integer cell = cellTop(slot, state.tops, state.bottoms);
             if (cell != null && RegionLayout.revealScroll(state.scroll, cell, g) == state.scroll
