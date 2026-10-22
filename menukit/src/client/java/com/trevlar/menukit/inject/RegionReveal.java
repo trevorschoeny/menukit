@@ -92,6 +92,15 @@ public final class RegionReveal {
         }
     }
 
+    /**
+     * The sections were restacked: each noted cell's section moves to its new place,
+     * {@code to[old]}, and a cell whose section is gone ({@code -1}) is forgotten.
+     */
+    static void remap(int[] to) {
+        CELLS.entrySet().removeIf(e -> e.getValue().section() >= to.length || to[e.getValue().section()] < 0);
+        CELLS.replaceAll((slot, c) -> new Cell(to[c.section()], c.offset(), c.sectionHeight()));
+    }
+
     /** The section the region last drew {@code slot} in, by stacking index, or {@code -1} for one it never drew. */
     static int sectionOf(Slot slot) {
         Cell c = CELLS.get(slot);

@@ -52,6 +52,8 @@ import org.jspecify.annotations.Nullable;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -59,6 +61,7 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
@@ -104,7 +107,11 @@ import java.util.function.Supplier;
  * Before each frame ({@link #step}) the region works out, once, everything its elements
  * read while they lay out and draw ({@link Frame}): each section's look and the list's, which
  * sections are blocks of their own, the titles the sections show and how far the first moves
- * clear of the list's corner. Then the column lays out, and the geometry follows.
+ * clear of the list's corner. Then the column lays out, and the geometry follows. First of all,
+ * each kind of section made per live key reads its keys ({@link #syncLive}): the sections are
+ * the declared ones and one per live key, restacked only when a key comes or goes, and what the
+ * region keeps per section (last frame's tops, where each slot was drawn) follows each section
+ * to its new place.
  *
  * <h3>The screen's bounds are the two panels' union</h3>
  * Vanilla's {@code leftPos}, {@code topPos}, {@code imageWidth} and {@code imageHeight}
@@ -207,9 +214,9 @@ public final class ContainerRegions {
     private static @Nullable Reference sectionBox(Screen screen, String sectionId) {
         Geometry g = geometry(screen);
         if (g == null) return null;
-        // This frame's tops are in SECTIONS' order; a section declared after the frame has none yet.
-        for (int i = 0; i < SECTIONS.size() && i < state.tops.length; i++) {
-            if (SECTIONS.get(i).section().id().equals(sectionId)) {
+        // This frame's tops are in sections' order; a section declared after the frame has none yet.
+        for (int i = 0; i < sections.size() && i < state.tops.length; i++) {
+            if (sections.get(i).section().id().equals(sectionId)) {
                 return RegionLayout.sectionBox(g, state.tops[i], state.bottoms[i], state.scroll);
             }
         }
@@ -235,48 +242,170 @@ public final class ContainerRegions {
     /** A section as placed: what it was declared as, and the element that holds it in the scroll area. */
     private record Placed(Declared section, AbstractPanelElement holder) {}
 
-    private static final List<Placed> SECTIONS = new CopyOnWriteArrayList<>();
+    /** The sections declared at init, in stacking order. */
+    private static final List<Placed> DECLARED = new CopyOnWriteArrayList<>();
+    /**
+     * The open screen's sections, in stacking order: the declared ones and one for each live
+     * key of each {@link Family}. Every per-frame array the region keeps is indexed by it.
+     */
+    private static List<Placed> sections = List.of();
     private static @Nullable Panel panel;
     private static @Nullable ScreenPanelAdapter adapter;
     /** The inventory panel: made with the first section, on the same screens. */
     private static @Nullable Panel inventoryPanel;
     /** The column the sections stack in, inside the scroll area. */
-    private static @Nullable Flow column;
+    private static @Nullable RegionColumn column;
     /** The scroll area, for the checks. */
     private static @Nullable ScrollContainer scrollArea;
 
     /**
-     * {@code ContainerRegion.Builder.declare}: adds a section and builds the container
-     * list's panel again around every section so far. Declarations are open (checked by
-     * the caller), so the previous adapter can be withdrawn; no screen is open yet.
+     * {@code ContainerRegion.Builder.declare}: adds a section in its place, and the
+     * region's panels with the first one. No screen is open yet, so no live key either.
      */
     public static synchronized void declare(Declared section) {
-        for (Placed p : SECTIONS) {
+        for (Placed p : DECLARED) {
             if (p.section().id().equals(section.id())) {
                 throw new IllegalStateException("ContainerRegion section '" + section.id() + "' is already declared");
             }
         }
-        // A titled section: its title where vanilla draws a container's, the content 11 px
-        // below the title's top (vanilla's title at y 6, its grid at 17). The title moves
-        // right clear of the list's corner when its section is the first shown, and the
-        // section moves down when it is a block of its own (this frame's Frame says which).
-        // In the fitted frame with a tab row on top the row stands in for it, and the title row goes.
+        DECLARED.add(new Placed(section, holderFor(section)));
+        DECLARED.sort(Comparator.comparingInt((Placed p) -> p.section().order()).thenComparing(p -> p.section().id()));
+        buildPanels();
+        restack();
+    }
+
+    /**
+     * One kind of section made per live key ({@code ContainerRegion.sections}). On a screen
+     * {@code matcher} takes, {@code keys} is read once a frame; each key's section (and its
+     * tab, with {@code tab}) is made the frame the key first appears and kept, the same
+     * elements, for as long as the key is there on that screen. Keys are compared with
+     * {@code equals}; a repeated key makes one section, the first.
+     */
+    public record Family(String kind, ScreenMatcher matcher, Function<AbstractContainerScreen<?>, @Nullable List<?>> keys,
+                         Function<Object, Declared> section, @Nullable Function<Object, ContainerTabRows.Tab> tab) {}
+
+    /** What one live key made: its section, placed, and its tab, if the kind has tabs. */
+    private record Instance(Placed placed, ContainerTabRows.@Nullable Tab tab) {}
+
+    private static final List<Family> FAMILIES = new CopyOnWriteArrayList<>();
+    /** Each kind's live keys on the open screen, in the order its keys gave them, and what each made. */
+    private static final Map<Family, Map<Object, Instance>> LIVE = new IdentityHashMap<>();
+
+    /** {@code ContainerRegion.Sections.declare}: adds a kind, and the region's panels (and the tab rows') with the first. */
+    public static synchronized void declareFamily(Family family) {
+        for (Family f : FAMILIES) {
+            if (f.kind().equals(family.kind())) {
+                throw new IllegalStateException("ContainerRegion sections '" + family.kind() + "' is already declared");
+            }
+        }
+        FAMILIES.add(family);
+        buildPanels();
+        if (family.tab() != null) ContainerTabRows.buildPanels();
+    }
+
+    /**
+     * Each kind's keys on {@code screen} now (none off a container screen, or on one the kind
+     * is not on): a key that is new makes its section and tab, one that is gone takes them
+     * with it. Nothing is made, and nothing restacks, while every kind's keys are the ones
+     * it had. Before anything else in the frame reads the sections.
+     */
+    private static void syncLive(@Nullable Screen screen) {
+        boolean changed = false;
+        for (Family f : FAMILIES) {
+            List<?> keys = screen instanceof AbstractContainerScreen<?> acs && f.matcher().matches(acs) ? f.keys().apply(acs) : null;
+            if (keys == null) keys = List.of();
+            Map<Object, Instance> was = LIVE.getOrDefault(f, Map.of());
+            // ponytail: a keys list with a repeated key never matches, so it rebuilds the map each frame; the elements are kept either way.
+            if (was.size() == keys.size() && List.copyOf(was.keySet()).equals(keys)) continue;
+            Map<Object, Instance> now = new LinkedHashMap<>();
+            for (Object k : keys) {
+                if (now.containsKey(k)) continue;
+                Instance made = was.get(k);
+                if (made == null) {
+                    Declared d = f.section().apply(k);
+                    made = new Instance(new Placed(d, holderFor(d)), f.tab() == null ? null : f.tab().apply(k));
+                }
+                now.put(k, made);
+            }
+            if (now.isEmpty()) LIVE.remove(f);
+            else LIVE.put(f, now);
+            changed = true;
+        }
+        if (changed) restack();
+    }
+
+    /**
+     * The open screen's sections again, from the declared ones and every live key: stacked
+     * by order, then by id (a kind's sections by its kind, then in its keys' order). What
+     * the region learned about each section that stays (where it was, where its slots sit)
+     * follows it to its new place; the column and the tab rows take the new set.
+     */
+    private static void restack() {
+        record Entry(Placed placed, int order, String base, int index) {}
+        List<Entry> entries = new ArrayList<>();
+        for (Placed p : DECLARED) entries.add(new Entry(p, p.section().order(), p.section().id(), 0));
+        List<ContainerTabRows.Live> tabs = new ArrayList<>();
+        for (Family f : FAMILIES) {
+            int i = 0;
+            for (Instance in : LIVE.getOrDefault(f, Map.of()).values()) {
+                entries.add(new Entry(in.placed(), in.placed().section().order(), f.kind(), i));
+                if (in.tab() != null) tabs.add(new ContainerTabRows.Live(in.tab(), f.kind(), i));
+                i++;
+            }
+        }
+        entries.sort(Comparator.comparingInt(Entry::order).thenComparing(Entry::base).thenComparingInt(Entry::index));
+        List<Placed> before = sections;
+        List<Placed> next = new ArrayList<>(entries.size());
+        for (Entry e : entries) next.add(e.placed());
+        sections = List.copyOf(next);
+
+        // Old place to new (-1: gone), so last frame's tops keep the view in place and the slots' cells follow.
+        int[] to = new int[before.size()];
+        for (int i = 0; i < to.length; i++) to[i] = sections.indexOf(before.get(i));
+        if (state.tops.length == to.length) {
+            int[] tops = new int[sections.size()], bottoms = new int[sections.size()];
+            java.util.Arrays.fill(tops, -1);
+            java.util.Arrays.fill(bottoms, -1);
+            for (int i = 0; i < to.length; i++) {
+                if (to[i] < 0) continue;
+                tops[to[i]] = state.tops[i];
+                bottoms[to[i]] = state.bottoms[i];
+            }
+            state.tops = tops;
+            state.bottoms = bottoms;
+        }
+        RegionReveal.remap(to);
+
+        List<AbstractPanelElement> holders = new ArrayList<>(sections.size());
+        for (Placed p : sections) holders.add(p.holder());
+        if (column != null) column.set(holders);
+        ContainerTabRows.live(tabs);
+    }
+
+    /**
+     * The element that holds a section in the column. A titled section: its title where
+     * vanilla draws a container's, the content 11 px below the title's top (vanilla's title
+     * at y 6, its grid at 17). The title moves right clear of the list's corner when its
+     * section is the first shown, and the section moves down when it is a block of its own
+     * (this frame's Frame says which). In the fitted frame with a tab row on top the row
+     * stands in for it, and the title row goes.
+     */
+    private static AbstractPanelElement holderFor(Declared section) {
         PanelElement body = section.title() == null ? section.content() : Flow.builder().vertical().gap(0, 2)
                 .add(Flow.builder().gap(0, 0).add(new Spacer(() -> titleIndent(section), () -> 0))
                         .add(TextLabel.builder().at(1, 0).text(() -> shownTitle(section)).build())
                         .visibleWhen(() -> state.shape.titled()).build())
                 .add(section.content()).build();
-        AbstractPanelElement holder = Flow.builder().vertical().gap(0, 0)
+        return Flow.builder().vertical().gap(0, 0)
                 .add(new Spacer(() -> 0, () -> ownsBlock(section) ? RegionLayout.TITLE_INSET : 0)).add(body)
                 .visibleWhen(() -> shownOnCurrentScreen(section)).build();
-        SECTIONS.add(new Placed(section, holder));
-        SECTIONS.sort(Comparator.comparingInt((Placed p) -> p.section().order()).thenComparing(p -> p.section().id()));
+    }
 
-        if (adapter != null) adapter.unregister();
-        List<PanelElement> holders = new ArrayList<>();
-        for (Placed p : SECTIONS) holders.add(p.holder());
+    /** The region's two panels, made once, with the first section or kind declared. */
+    private static void buildPanels() {
+        if (panel != null) return;
         // One column stacks the shown sections, GAP apart; a hidden one takes no room.
-        column = Flow.builder().vertical().gap(0, RegionLayout.GAP).addAll(holders).build();
+        column = new RegionColumn();
         // The content: the column, with the shape's room above its first section and below its
         // last grid (CONTENT_TOP and CONTENT_BOTTOM in the list).
         PanelElement content = Flow.builder().vertical().gap(0, 0)
@@ -331,7 +460,7 @@ public final class ContainerRegions {
     }
 
     /**
-     * Whether any section is declared for {@code screen}: the region's panel is put on it.
+     * Whether any section, or kind of section, is declared for {@code screen}: the region's panel is put on it.
      * Never the player's own inventory, survival's or creative's: the region is for screens
      * that hold a container, and the inventory screens are the player's own (creative swaps
      * its slots on every tab, so no container list could stand there). Checked by class, not
@@ -342,7 +471,8 @@ public final class ContainerRegions {
     @VisibleForTesting
     public static boolean targets(AbstractContainerScreen<?> screen) {
         if (screen instanceof InventoryScreen || screen instanceof CreativeModeInventoryScreen) return false;
-        for (Placed p : SECTIONS) if (p.section().matcher().matches(screen)) return true;
+        for (Placed p : DECLARED) if (p.section().matcher().matches(screen)) return true;
+        for (Family f : FAMILIES) if (f.matcher().matches(screen)) return true;
         return false;
     }
 
@@ -357,10 +487,20 @@ public final class ContainerRegions {
                 && s.matcher().matches(acs) && s.visibleWhen().getAsBoolean() && s.content().isVisible();
     }
 
-    /** Every declared section, in stacking order. */
+    /** The open screen's sections, in stacking order. */
     static List<Declared> declared() {
-        List<Declared> out = new ArrayList<>(SECTIONS.size());
-        for (Placed p : SECTIONS) out.add(p.section());
+        List<Declared> out = new ArrayList<>(sections.size());
+        for (Placed p : sections) out.add(p.section());
+        return out;
+    }
+
+    /** Each section shown this frame, by id, and its top in the content, in stacking order, for the checks. */
+    @VisibleForTesting
+    public static Map<String, Integer> shownForChecks() {
+        Map<String, Integer> out = new LinkedHashMap<>();
+        for (int i = 0; i < sections.size() && i < state.tops.length; i++) {
+            if (state.tops[i] >= 0) out.put(sections.get(i).section().id(), state.tops[i]);
+        }
         return out;
     }
 
@@ -456,6 +596,11 @@ public final class ContainerRegions {
     }
 
     private static void reset(@Nullable Screen screen) {
+        // What the screen before had open was its own: every live key's section goes with it.
+        if (!LIVE.isEmpty()) {
+            LIVE.clear();
+            restack();
+        }
         state.screen = new WeakReference<>(screen);
         state.scroll = 0;
         state.geometry = null;
@@ -616,12 +761,13 @@ public final class ContainerRegions {
         // Which sections show, each asked with every slot on: a hidden section's slots were off
         // last frame, and a slot library's element with all its slots off hides itself.
         Screen screen = state.screen.get();
+        syncLive(screen);
         RegionSlots.allOn();
-        int n = SECTIONS.size();
+        int n = sections.size();
         boolean[] shown = new boolean[n];
         int count = 0;
         for (int i = 0; i < n; i++) {
-            shown[i] = SECTIONS.get(i).holder().isVisible();
+            shown[i] = sections.get(i).holder().isVisible();
             if (shown[i]) count++;
         }
         if (count == 0) {
@@ -643,7 +789,7 @@ public final class ContainerRegions {
         int[] tops = new int[n], bottoms = new int[n];
         int columnHeight = column.getHeight();   // lays the column out first
         for (int i = 0; i < n; i++) {
-            AbstractPanelElement holder = SECTIONS.get(i).holder();
+            AbstractPanelElement holder = sections.get(i).holder();
             if (!shown[i]) { tops[i] = bottoms[i] = -1; continue; }
             // The holder is placed in the column's coordinates; the column starts the shape's contentTop down the content.
             tops[i] = holder.getChildY();
@@ -655,7 +801,7 @@ public final class ContainerRegions {
         // by as much. Titles are left out, as vanilla's run past the frame.
         int wider = 0;
         for (int i = 0; i < n; i++) {
-            if (shown[i]) wider = Math.max(wider, SECTIONS.get(i).section().content().getWidth() - RegionLayout.CONTENT_WIDTH);
+            if (shown[i]) wider = Math.max(wider, sections.get(i).section().content().getWidth() - RegionLayout.CONTENT_WIDTH);
         }
         if (scrollArea.getWidth() != RegionLayout.CONTENT_WIDTH + wider + RegionLayout.LANE) {
             scrollArea.fillWidth(RegionLayout.CONTENT_WIDTH + wider + RegionLayout.LANE);
@@ -690,10 +836,10 @@ public final class ContainerRegions {
      */
     private static void switchOffHidden(@Nullable Screen screen, boolean[] shown) {
         if (!(screen instanceof AbstractContainerScreen<?> acs) || acs.getMenu() == null) return;
-        boolean[] hidden = new boolean[SECTIONS.size()];
+        boolean[] hidden = new boolean[sections.size()];
         int own = -1;
         for (int i = 0; i < hidden.length; i++) {
-            Declared s = SECTIONS.get(i).section();
+            Declared s = sections.get(i).section();
             if (!s.matcher().matches(acs)) continue;
             if (own < 0 && s.source() == null) own = i;
             hidden[i] = !s.visibleWhen().getAsBoolean();
@@ -701,7 +847,7 @@ public final class ContainerRegions {
         RegionSlots.switchOff(acs.getMenu().slots, hidden, own);
         if (own < 0) return;
         for (int i = 0; i < hidden.length; i++) {
-            if (shown[i] && !SECTIONS.get(i).holder().isVisible()) {
+            if (shown[i] && !sections.get(i).holder().isVisible()) {
                 RegionSlots.switchOff(acs.getMenu().slots, hidden, -1);
                 return;
             }
@@ -710,15 +856,14 @@ public final class ContainerRegions {
 
     /** A quick move landed in section {@code index} while it is hidden: its {@code onHiddenLanding}, if any. */
     static void landedHidden(int index) {
-        Runnable r = index < SECTIONS.size() ? SECTIONS.get(index).section().onHiddenLanding() : null;
+        Runnable r = index < sections.size() ? sections.get(index).section().onHiddenLanding() : null;
         if (r != null) r.run();
     }
 
     /** This frame's {@link Frame}, with the sections {@code shown} as they are (at least one). */
     private static Frame frameOf(boolean[] shown) {
         Screen screen = state.screen.get();
-        List<Declared> sections = new ArrayList<>(SECTIONS.size());
-        for (Placed p : SECTIONS) sections.add(p.section());
+        List<Declared> sections = declared();
         PackLook.Look[] looks = RegionLooks.sectionLooks(sections, shown, state.opened);
         PackLook.Look list = RegionLooks.listLook(looks, screen);
         // No screen (MenuKit's checks of the bare layout): no block of its own, no indent.
@@ -772,7 +917,7 @@ public final class ContainerRegions {
     private static int indexOf(Declared s) {
         Frame f = state.frame;
         int n = f == null ? 0 : f.looks().length;
-        for (int i = 0; i < SECTIONS.size() && i < n; i++) if (SECTIONS.get(i).section() == s) return i;
+        for (int i = 0; i < sections.size() && i < n; i++) if (sections.get(i).section() == s) return i;
         return -1;
     }
 
