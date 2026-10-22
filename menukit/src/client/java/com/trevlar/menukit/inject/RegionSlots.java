@@ -19,7 +19,8 @@ import java.util.Set;
  * <p>A slot is a section's once the region has drawn it there ({@link RegionReveal#sectionOf}).
  * A container's own slot (not the player's, not a created one) no section has drawn yet is the
  * screen's own container's: the first section on the screen with no source, shown or not. So a
- * screen whose own container starts hidden has its own slots off from the first frame.
+ * screen whose own container starts hidden has its own slots off from the first frame, unless
+ * that would hide a shown section, one that presents those slots itself ({@code ContainerRegions}).
  *
  * <p>Only the client's open menu is touched; the integrated server's slots are its own objects,
  * never off. Render thread, but {@link #switchedOff} is read from any thread (an identity set

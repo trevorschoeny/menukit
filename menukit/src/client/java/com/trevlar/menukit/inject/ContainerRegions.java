@@ -624,7 +624,7 @@ public final class ContainerRegions {
             ContainerTabRows.choose(null);
             return null;
         }
-        switchOffHidden(screen);
+        switchOffHidden(screen, shown);
         // Before anything lays out: what the elements read this frame, and how the list stands
         // with the tab rows on this screen.
         state.frame = frameOf(shown);
@@ -677,9 +677,12 @@ public final class ContainerRegions {
      * Every slot of a section on {@code screen} whose own condition doesn't hold this frame
      * goes off ({@link RegionSlots}). A section whose content hides itself is not hidden here:
      * its slots are not on the menu, or are off already. The screen's own container is its first
-     * section with no source, shown or not.
+     * section with no source, shown or not, and a container's own slot no section has drawn yet
+     * is its; unless that hides a section that {@code shown} says shows (its content hides with
+     * its slots off: another mod's section presents those slots), and then such slots stay on
+     * until a section draws them and so claims them.
      */
-    private static void switchOffHidden(@Nullable Screen screen) {
+    private static void switchOffHidden(@Nullable Screen screen, boolean[] shown) {
         if (!(screen instanceof AbstractContainerScreen<?> acs) || acs.getMenu() == null) return;
         boolean[] hidden = new boolean[SECTIONS.size()];
         int own = -1;
@@ -690,6 +693,13 @@ public final class ContainerRegions {
             hidden[i] = !s.visibleWhen().getAsBoolean();
         }
         RegionSlots.switchOff(acs.getMenu().slots, hidden, own);
+        if (own < 0) return;
+        for (int i = 0; i < hidden.length; i++) {
+            if (shown[i] && !SECTIONS.get(i).holder().isVisible()) {
+                RegionSlots.switchOff(acs.getMenu().slots, hidden, -1);
+                return;
+            }
+        }
     }
 
     /** A quick move landed in section {@code index} while it is hidden: its {@code onHiddenLanding}, if any. */
