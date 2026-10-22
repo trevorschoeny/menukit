@@ -325,9 +325,12 @@ public class ScrollContainer extends AbstractPanelElement {
         return inDialog ? DIALOG_INSET : DEFAULT_INSET_Y;
     }
 
+    /** The lowest shown child's bottom: a hidden child adds no room to scroll over, as it adds no width. */
     private static int autoContentHeight(List<PanelElement> content) {
         int max = 0;
-        for (PanelElement e : content) max = Math.max(max, e.getChildY() + e.getHeight());
+        for (PanelElement e : content) {
+            if (e.isVisible()) max = Math.max(max, e.getChildY() + e.getHeight());
+        }
         return max;
     }
 
