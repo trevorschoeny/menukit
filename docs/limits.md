@@ -39,6 +39,9 @@ Behavior that is incomplete in the current release.
 |---|---|
 | Mods that work out slot positions themselves | A mod that computes where a container's slot is (`leftPos + 8 + column * 18`) instead of reading the slot's `x` and `y`, or hit-tests slots itself instead of asking vanilla, can point at the wrong place, since the slots are where the list puts them and the screen's bounds are both panels'. |
 | The screen's own container | A section with no `source` is the block under the crosshair as the screen opened, when that block holds a container the screen's size and the screen has its title. A screen opened by a key while looking at another unnamed container of that size and kind (a remote chest's screen in front of a chest) takes that container's art and name. Give such a section a `source`. |
+| Hidden sections' slots | A slot is known to be a section's once the region has drawn it there. Until then, a container's own slot (not the player's, not a slot library's created one) counts as the screen's own container's, its first section with no `source`, so it is off while that section is hidden, unless that would hide a shown section (another mod's section that presents it), and then it stays on until a section draws it. A created slot never drawn stays as its library left it. |
+| Container tabs | Only on a screen the region is up on: no row on a screen where no section shows, nor on the player's own inventory. One row per edge, 25 pixels deep, no second row and no wrapping; past what fits it pages by arrows, never by the wheel. The tabs are creative's sprites and the frame the container's art, so a pack that restyles one and not the other shows the mismatch where a selected tab joins the frame. |
+| The fitted frame | A tab row on the list's top edge always takes the place of the sections' titles there, whatever the row's tabs are for. A row between the two panels splits the frame in two. |
 
 ## Resource packs
 
