@@ -410,10 +410,10 @@ public final class RegionTabs {
         act(r, over, fit(g, r));
     }
 
-    /** A click, or an item carried, on {@code what} ({@link #hit}): picks the tab or pages the row. */
+    /** A click, or an item carried, on {@code what} ({@link #hit}): picks the tab, or moves the row a tab along. */
     private static void act(Row r, int what, Fit f) {
-        if (what == BACK) first = Math.max(0, f.first() - f.shown());
-        else if (what == FORWARD) first = f.first() + f.shown();
+        if (what == BACK) first = Math.max(0, f.first() - 1);
+        else if (what == FORWARD) first = f.first() + 1;
         else if (what >= 0 && what != r.shown()) select(r.ids()[what]);
     }
 
@@ -470,7 +470,7 @@ public final class RegionTabs {
      * each with its container's icon and its name as its tooltip, in a background panel
      * drawn over the list's. A tab not picked stops at the frame, as vanilla's goes behind its
      * image; the picked one runs {@link #INTO} px into the frame, so it opens into the panel.
-     * Past {@link #fits} tabs the row pages, with vanilla's page arrows at its ends.
+     * Past {@link #fits} tabs the row pages, a tab at a time, with vanilla's page arrows at its ends.
      */
     static final class Strip implements PanelElement {
         @Override public int getChildX() { return 0; }
