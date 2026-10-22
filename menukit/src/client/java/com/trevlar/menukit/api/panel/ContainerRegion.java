@@ -216,8 +216,8 @@ import java.util.function.Supplier;
  *       inventory keeps vanilla's "Inventory". Past what fits, arrows at the row's ends page
  *       it. With one section there is no tab row, and the screen looks like vanilla's.</li>
  *   <li><b>The pick</b> is kept for the open screen, across a resize. It starts on the screen's
- *       own container (the first section with no {@link Builder#source}); a click, an item
- *       carried onto a tab (at once, as in the creative inventory), {@link #select} or a
+ *       own container (the first section with no {@link Builder#source}); a click on a tab
+ *       (with an item held or not; carrying one onto a tab picks nothing), {@link #select} or a
  *       shift-click that lands in a container not shown picks another. When the picked section
  *       hides, the screen's own container is picked.</li>
  *   <li><b>Hidden sections' slots are off</b> on the client ({@code Slot.isActive}), so nothing

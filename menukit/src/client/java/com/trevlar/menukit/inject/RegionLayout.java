@@ -72,10 +72,11 @@ public final class RegionLayout {
 
     /**
      * The tab row's height above the list's top edge in tabs mode: vanilla's creative top
-     * tab stands 28 px above its frame, these 20, so a double chest with its tabs fits a
-     * 240 px window (212 + 20 and the two margins).
+     * tab stands 28 px above its frame, these 25, room for a full-size icon inside an unpicked
+     * tab with two rows clear above and below it. A double chest with its tabs needs 245 px
+     * (212 + 25 and the two margins), so in a 240 px window its grid scrolls by 5.
      */
-    public static final int TAB_ROW = 20;
+    public static final int TAB_ROW = 25;
 
     /**
      * How the container list stands on its screen this frame: the numbers that differ
