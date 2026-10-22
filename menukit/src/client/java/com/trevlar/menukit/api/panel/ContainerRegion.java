@@ -211,7 +211,8 @@ import java.util.function.Supplier;
  *   <li><b>The tabs</b> stand on the frame's top edge, counted in the block the region centers
  *       and fits, so they never leave the screen: vanilla's creative top tabs, so they follow a
  *       pack that restyles those, the picked one open into the frame. Each shows its section's
- *       {@link Builder#icon} and has its shown name as its tooltip (see "Titles and names").
+ *       {@link Builder#icon} and has its shown name as its tooltip (see "Titles and names"),
+ *       or its {@link Builder#tooltip} where it declares one.
  *       With the tab row up the sections' titles go, as the tab names the container, and the
  *       inventory keeps vanilla's "Inventory". Past what fits, arrows at the row's ends page
  *       it. With one section there is no tab row, and the screen looks like vanilla's.</li>
@@ -388,6 +389,7 @@ public final class ContainerRegion {
         private @Nullable Supplier<Component> title, name;
         private @Nullable Supplier<@Nullable Source> source;
         private @Nullable Supplier<ItemStack> icon;
+        private @Nullable Supplier<@Nullable Component> tooltip;
 
         private Builder(String id, ModeScope scope) {
             this.id = Objects.requireNonNull(id, "id");
@@ -494,6 +496,18 @@ public final class ContainerRegion {
         }
 
         /**
+         * The section's tab tooltip in tabs mode, read every frame its tab is hovered, in place
+         * of the shown name it has by default, so every line is the mod's. A {@code \n} in it
+         * starts a new line; for a list of lines return {@link com.trevlar.menukit.api.element.MKTooltip#joinLines}
+         * ({@code () -> MKTooltip.joinLines(List.of(name, where))}). A {@code null} result
+         * shows none.
+         */
+        public Builder tooltip(Supplier<@Nullable Component> tooltip) {
+            this.tooltip = Objects.requireNonNull(tooltip, "tooltip");
+            return this;
+        }
+
+        /**
          * Declares the section.
          *
          * @throws IllegalStateException after declarations froze, or when {@code id} is
@@ -505,7 +519,7 @@ public final class ContainerRegion {
             // The mode scope is one more condition, read every frame with the section's own.
             BooleanSupplier own = visibleWhen;
             BooleanSupplier shown = scope == ModeScope.BOTH ? own : () -> scope.covers(PanelHost.currentMode()) && own.getAsBoolean();
-            ContainerRegions.declare(new ContainerRegions.Declared(id, content, matcher, order, shown, texture, title, name, source, icon));
+            ContainerRegions.declare(new ContainerRegions.Declared(id, content, matcher, order, shown, texture, title, name, source, icon, tooltip));
         }
     }
 }

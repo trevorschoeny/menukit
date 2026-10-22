@@ -231,7 +231,8 @@ public final class ContainerRegions {
      */
     public record Declared(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen,
                            Identifier texture, @Nullable Supplier<Component> title, @Nullable Supplier<Component> name,
-                           @Nullable Supplier<ContainerRegion.@Nullable Source> source, @Nullable Supplier<ItemStack> icon) {}
+                           @Nullable Supplier<ContainerRegion.@Nullable Source> source, @Nullable Supplier<ItemStack> icon,
+                           @Nullable Supplier<@Nullable Component> tooltip) {}
 
     /** A section as placed: what it was declared as, and the element that holds it in the scroll area. */
     private record Placed(Declared section, AbstractPanelElement holder) {}
