@@ -66,7 +66,7 @@ public final class VanillaLook {
     private static final Identifier INWORLD_LIST_BACKGROUND =
             Identifier.withDefaultNamespace("textures/gui/inworld_menu_list_background.png");
 
-    /** The separator's two lines as colours, for a line vanilla never draws (a vertical divider). */
+    /** The separator's two lines as colors, for a line vanilla never draws (a vertical divider). */
     public static final int SEPARATOR_LIGHT = 0x33FFFFFF;
     public static final int SEPARATOR_DARK = 0xBF000000;
 

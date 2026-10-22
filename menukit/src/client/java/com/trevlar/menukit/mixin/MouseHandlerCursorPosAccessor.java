@@ -13,11 +13,11 @@ import org.spongepowered.asm.mixin.gen.Accessor;
  *
  * <p>On some screen transitions (notably the async server-driven open path used
  * for a slot library's custom menus), vanilla resets {@code xpos}/{@code ypos} to the window
- * centre before the new screen's {@code init()} runs. {@code CursorContinuity}
+ * center before the new screen's {@code init()} runs. {@code CursorContinuity}
  * puts the OS cursor back with a warp, but the handler fields don't follow it
- * straight away; without this they stay centred until the mouse moves. The cursor then looks right while
+ * straight away; without this they stay centered until the mouse moves. The cursor then looks right while
  * hover detection, and anything else reading {@code mouseHandler.xpos()/ypos()},
- * uses the centre. Setting both in the same restore step fixes that.
+ * uses the center. Setting both in the same restore step fixes that.
  */
 @ApiStatus.Internal
 @Mixin(MouseHandler.class)

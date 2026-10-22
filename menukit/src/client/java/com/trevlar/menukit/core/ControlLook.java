@@ -30,7 +30,7 @@ import java.util.function.Predicate;
  *   <li>the Default look: vanilla's, always;</li>
  *   <li>the Panel look, per control: MenuKit's where a pack overrides any of it; else
  *       vanilla's where a pack restyled any of vanilla's (every Panel-look element follows
- *       its vanilla equivalent, and takes vanilla's text colours on it: {@link #kind}); else
+ *       its vanilla equivalent, and takes vanilla's text colors on it: {@link #kind}); else
  *       MenuKit's, so an unmodded game is unchanged to the pixel.</li>
  * </ul>
  *
@@ -98,7 +98,7 @@ public final class ControlLook {
     /** The wash inside it: a quarter of the way to black on a light face, to white on a dark one. */
     public static final int PRESSED_DARKEN = 0x40000000, PRESSED_LIGHTEN = 0x40FFFFFF;
     /**
-     * A face that reads darker than this grey ({@code 0xFF606060}, by {@link PackArt#luminance})
+     * A face that reads darker than this gray ({@code 0xFF606060}, by {@link PackArt#luminance})
      * is lit by the press instead of darkened: between a typical dark-mode pack's button and
      * vanilla's, so vanilla's own darkens as it always has.
      */
@@ -110,7 +110,7 @@ public final class ControlLook {
      * The only place these sprites are named.
      */
     public enum Control {
-        /** Buttons, toggles, a dropdown's trigger and list, the colour field, the item dialog's row controls; by {@link State}. */
+        /** Buttons, toggles, a dropdown's trigger and list, the color field, the item dialog's row controls; by {@link State}. */
         BUTTON(states("menukit", "control_raised", true), states("minecraft", "widget/button", false)),
         /** The checkbox's box: vanilla's by checked and highlighted ({@link #checkbox}); MenuKit's is drawn with fills. */
         CHECKBOX(null, vanilla("widget/checkbox", "widget/checkbox_highlighted", "widget/checkbox_selected",
@@ -177,7 +177,7 @@ public final class ControlLook {
     /**
      * The look {@code control} draws in on a screen of kind {@code screen}: the Default look
      * where the screen is one, or where the Panel look draws vanilla's set for it; else
-     * {@code screen}. Elements colour their text by what this returns in place of the
+     * {@code screen}. Elements color their text by what this returns in place of the
      * screen's kind.
      */
     public static ScreenKind kind(ScreenKind screen, Control control) {
@@ -276,7 +276,7 @@ public final class ControlLook {
 
     /**
      * An open dropdown's list on a screen of kind {@code kind}: a flat surface under the
-     * trigger. Vanilla's set draws its disabled face, its darker and flatter grey (as the
+     * trigger. Vanilla's set draws its disabled face, its darker and flatter gray (as the
      * Default look always has); MenuKit's its resting face.
      */
     public static void drawList(ScreenKind kind, GuiGraphicsExtractor g, int x, int y, int w, int h) {
@@ -314,7 +314,7 @@ public final class ControlLook {
     /**
      * MenuKit's one pressed transform, drawn over the face the control shows under it, for
      * every derived press in both looks and on every pack. Relative to that face, so it reads
-     * on light, dark and coloured faces alike:
+     * on light, dark and colored faces alike:
      * <ul>
      *   <li>the 1 px bevel inside the outline inverted: translucent black over the top and
      *       left, translucent white over the bottom and right;</li>
@@ -322,14 +322,14 @@ public final class ControlLook {
      *       one ({@link #DARK_FACE}), since a near-black face can't be darkened further.</li>
      * </ul>
      * The alphas are tuned so vanilla's highlighted button comes out as it did under the fixed
-     * greys drawn before (0xFF373737 top and left, 0xFF888888 bottom and right): the bevel
+     * grays drawn before (0xFF373737 top and left, 0xFF888888 bottom and right): the bevel
      * lines within a few levels, the wash exact. The outer outline is left alone.
      *
      * @param face the luminance of the face it lands on ({@link PackArt#luminance})
      */
     public static void pressedOverlay(GuiGraphicsExtractor g, int x, int y, int width, int height, double face) {
         // Each bevel pixel is washed once: the top row stops short of the right column and the
-        // left column short of the bottom row, which take those corners, as the greys did.
+        // left column short of the bottom row, which take those corners, as the grays did.
         g.fill(x + 1, y + 1, x + width - 2, y + 2, PRESSED_SHADE);
         g.fill(x + 1, y + 2, x + 2, y + height - 2, PRESSED_SHADE);
         g.fill(x + 1, y + height - 2, x + width - 1, y + height - 1, PRESSED_LIGHT);
@@ -341,14 +341,14 @@ public final class ControlLook {
 
     /** How a sprite reads when it can't be read (no game, no such sprite, a broken file): light, so a press darkens it. */
     private static final int LIGHT_FACE = 0xFFFFFFFF;
-    // One face colour per sprite, failures included, dropped on a resource reload.
+    // One face color per sprite, failures included, dropped on a resource reload.
     private static final Map<Identifier, Integer> FACES = new ConcurrentHashMap<>();
 
     /** The luminance of a set's face in {@code state}: its sprite's, or as derived from the normal one. */
     private static double face(Art a, State state) {
         @Nullable Identifier[] sprites = a.sprites();
-        if (sprites[state.ordinal()] != null) return PackArt.luminance(faceColour(sprites[state.ordinal()]));
-        int normal = faceColour(sprites[State.NORMAL.ordinal()]);
+        if (sprites[state.ordinal()] != null) return PackArt.luminance(faceColor(sprites[state.ordinal()]));
+        int normal = faceColor(sprites[State.NORMAL.ordinal()]);
         int derived = switch (state) {
             case DISABLED -> multiply(normal, DISABLED_TINT);
             case HIGHLIGHTED -> over(HOVER_WASH, normal);
@@ -357,13 +357,13 @@ public final class ControlLook {
         return PackArt.luminance(derived);
     }
 
-    /** A sprite's face colour ({@link PackArt#faceColour}), read once per reload. */
-    private static int faceColour(Identifier sprite) {
+    /** A sprite's face color ({@link PackArt#faceColor}), read once per reload. */
+    private static int faceColor(Identifier sprite) {
         return FACES.computeIfAbsent(sprite, s -> {
             Minecraft mc = Minecraft.getInstance();
             if (mc == null) return LIGHT_FACE;
             Optional<Resource> res = mc.getResourceManager().getResource(file(s));
-            Integer c = res.isEmpty() ? null : PackArt.faceColour(res.get());
+            Integer c = res.isEmpty() ? null : PackArt.faceColor(res.get());
             return c == null ? LIGHT_FACE : c;
         });
     }

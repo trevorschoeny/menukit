@@ -56,7 +56,7 @@ import java.util.function.Consumer;
  * }</pre>
  *
  * Several spacers in one row split the leftover evenly (the odd pixel to the
- * last one), so a three-part header (one thing at each edge and one centred) is
+ * last one), so a three-part header (one thing at each edge and one centered) is
  * just two spacers.
  *
  * <h3>Nesting</h3>

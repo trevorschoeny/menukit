@@ -104,12 +104,12 @@ import java.util.function.Supplier;
  *
  * <h3>What the region does</h3>
  * <ul>
- *   <li><b>Grows, centred, then scrolls.</b> The container list starts at the screen's
+ *   <li><b>Grows, centered, then scrolls.</b> The container list starts at the screen's
  *       own container part, where vanilla's is, and grows with its sections. While the
- *       two panels fit, they stay centred on the screen as one block: the list's top
+ *       two panels fit, they stay centered on the screen as one block: the list's top
  *       moves up and the inventory panel down by half the growth each. Where one side
  *       has less room (a window too short for vanilla's own margins), that side holds and
- *       the other moves until the block is centred. Only once the block reaches the top
+ *       the other moves until the block is centered. Only once the block reaches the top
  *       and bottom margins does it scroll. Each panel moves at most a pixel per pixel of
  *       growth, so nothing jumps. It is never shorter than the screen's own container
  *       part, so a tiny window still shows vanilla's height, scrolling. A resize lays it
@@ -155,16 +155,16 @@ import java.util.function.Supplier;
  * section's, the list's top and bottom with the first and last. It scrolls with the
  * section. A section whose fill differs from the first one's, a block of its own, has its
  * content moved down 2 px, so its title sits inside the block as vanilla's sits inside its
- * art. MenuKit adds no colour of its own: a section's colour is the pack's. Text on the
- * list keeps vanilla's colours wherever they read on the pack's fill, and takes one made
+ * art. MenuKit adds no color of its own: a section's color is the pack's. Text on the
+ * list keeps vanilla's colors wherever they read on the pack's fill, and takes one made
  * from the fill where they would not.
  *
  * <h3>Each section a slice of its own container's screen</h3>
  * Each section's part of the list, from its band's top to its bottom, is a slice of its
  * own texture's panel: the list's left and right edges there are that texture's, and so is
  * its fill; the list's top is the first section's, its bottom the last's. The outline runs
- * on unbroken; where two sections meet, the colours change. With no pack every
- * texture is vanilla's grey, and the list is MenuKit's panel as always.
+ * on unbroken; where two sections meet, the colors change. With no pack every
+ * texture is vanilla's gray, and the list is MenuKit's panel as always.
  *
  * <h3>Containers whose art a pack picks by block (OptiGUI)</h3>
  * With OptiGUI installed, a pack's rules can give a container art of its own by its block

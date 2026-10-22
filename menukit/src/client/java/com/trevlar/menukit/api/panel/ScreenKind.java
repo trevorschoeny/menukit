@@ -16,8 +16,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <ul>
  *   <li><b>{@link #PANEL}</b>, the Panel look: inventories, chests, anything built on
- *       vanilla's {@link AbstractContainerScreen}. MenuKit's own look: raised grey
- *       controls on a light grey panel, dark text without a shadow.</li>
+ *       vanilla's {@link AbstractContainerScreen}. MenuKit's own look: raised gray
+ *       controls on a light gray panel, dark text without a shadow.</li>
  *   <li><b>{@link #DEFAULT}</b>, the Default look: the screens reached from the pause
  *       menu and the title screen (vanilla's Options, Video Settings, Controls, Create
  *       World). Vanilla's look there: its stone buttons, checkbox, tab and slot
@@ -50,13 +50,13 @@ import org.jspecify.annotations.Nullable;
  *
  * <h3>What the look changes</h3>
  *
- * Drawing only, never size or behaviour: a panel's background, every control's
- * sprite and every text colour. A piece with no vanilla twin (a radio button, a
- * colour swatch, an info box, a consumer's own sprite) keeps MenuKit's drawing in
+ * Drawing only, never size or behavior: a panel's background, every control's
+ * sprite and every text color. A piece with no vanilla twin (a radio button, a
+ * color swatch, an info box, a consumer's own sprite) keeps MenuKit's drawing in
  * both looks; only its text follows the look.
  */
 public enum ScreenKind {
-    /** The Panel look: inventories, chests, anything built on {@link AbstractContainerScreen}. MenuKit's grey. */
+    /** The Panel look: inventories, chests, anything built on {@link AbstractContainerScreen}. MenuKit's gray. */
     PANEL,
     /** The Default look: vanilla's Options, Controls, Create World and the like. The pause-menu look. */
     DEFAULT;
@@ -88,7 +88,7 @@ public enum ScreenKind {
     }
 
     /**
-     * The colour of text in {@code role} in this look. Panel: dark grey
+     * The color of text in {@code role} in this look. Panel: dark gray
      * ({@link ElementConstants#TEXT_DARK}) for headings and body,
      * {@link ElementConstants#TEXT_MUTED}, {@link ElementConstants#TEXT_DISABLED}. An
      * element's own text on a panel surface follows the surface's fill from these

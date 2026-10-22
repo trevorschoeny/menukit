@@ -38,7 +38,7 @@ import java.util.function.IntFunction;
  *       directly, so it wins over anything cut from a container texture.</li>
  *   <li>The container texture is vanilla's own: MenuKit's sprite exactly as before, so an
  *       unmodded game looks unchanged.</li>
- *   <li>Otherwise the look is cut from the pack's texture, unless its fill is not one colour
+ *   <li>Otherwise the look is cut from the pack's texture, unless its fill is not one color
  *       or no clean strip of edge is found: then MenuKit's sprite again ({@link Source#FALLBACK}).
  *       A textured fill (wood grain, say) can't be tiled from a strip without seams, and a
  *       frame cut from it would not match the pack's own screens anyway.</li>
@@ -55,9 +55,9 @@ import java.util.function.IntFunction;
  *   <li><b>edges</b>, tiled along each side from the longest strip clear of corners, slots
  *       and decoration (a latch drawn on the frame is skipped), never stretched: stretching
  *       a side would smear its bevel and any pattern along it;</li>
- *   <li><b>the fill</b>: the colour of the longest run of flat rows in the part's slot-free
+ *   <li><b>the fill</b>: the color of the longest run of flat rows in the part's slot-free
  *       strips (the title strip, the gap above the hotbar);</li>
- *   <li><b>a slot</b>, at vanilla's first slot position, if it matches its neighbours (else
+ *   <li><b>a slot</b>, at vanilla's first slot position, if it matches its neighbors (else
  *       {@code container/slot} if a pack restyled it, else the fill-drawn slot).</li>
  * </ul>
  * An inventory part with no clean frame of its own (drawn in pieces: rows hung under the
@@ -86,7 +86,7 @@ public final class PackLook {
     /** Vanilla's slot sprite, the slot fallback when a pack restyled it. */
     private static final Identifier SLOT_SPRITE = ControlLook.Control.SLOT.vanilla(0);
 
-    /** MenuKit's sprite's fill, the vanilla grey. */
+    /** MenuKit's sprite's fill, the vanilla gray. */
     static final int SPRITE_FILL = 0xFFC6C6C6;
 
     // The analysis
@@ -119,16 +119,16 @@ public final class PackLook {
      * @param mirror whether the bottom border is the top one mirrored (the part has none of its own)
      * @param l left border width   @param r right border width   @param t top border height   @param b bottom border height
      * @param sTop the top corners' size (square)                   @param sBot the bottom corners' size (square)
-     * @param fill the fill colour (ARGB)
+     * @param fill the fill color (ARGB)
      * @param edges the clean strip along each side the edges are tiled from
      * @param sideFrom the first row the side strips may come from, {@code sideTo} the last (exclusive)
      * @param slotV the row of the slot cut (its column is vanilla's 7)
-     * @param slotOk whether the slot cut matches its neighbours
+     * @param slotOk whether the slot cut matches its neighbors
      * @param clean whether the part is clean enough to draw: a uniform fill and every edge strip found
      * @param insetL how many pixels in from the left the texture's own top corner starts, per row from its top
      *               (its rounding); {@code insetR} from the right. A top corner is drawn in that shape, so one cut
      *               from a box drawn under another (an inventory boxed apart) leaves out the art of the box above
-     * @param texW the texture's width in units, {@code texH} its height (for normalising UVs)
+     * @param texW the texture's width in units, {@code texH} its height (for normalizing UVs)
      */
     public record Cut(int x0, int x1, int top, int bottom, boolean mirror, int l, int r, int t, int b,
                       int sTop, int sBot, int fill, Edges edges, int sideFrom, int sideTo, int slotV, boolean slotOk, boolean clean, int[] insetL, int[] insetR,
@@ -155,7 +155,7 @@ public final class PackLook {
             return cut != null && source == Source.PACK;
         }
 
-        /** The surface's fill colour: what text on it is read against. */
+        /** The surface's fill color: what text on it is read against. */
         public int fill() {
             return drawsCut() ? cut.fill() : spriteFill;
         }
@@ -196,7 +196,7 @@ public final class PackLook {
      * to cut, the pack's plain panel ({@link #panel}). A pack that hangs the inventory's three
      * rows under the container's box with no top border and boxes the hotbar apart leaves no
      * strip of its inventory part plain fill; such packs draw those pieces in their plain
-     * panel's colour on every container's screen, whatever colour the container's own is.
+     * panel's color on every container's screen, whatever color the container's own is.
      */
     public static Look inventory(Identifier texture) {
         Look own = look(texture, Part.INVENTORY);
@@ -216,8 +216,8 @@ public final class PackLook {
         // 1. A pack restyled MenuKit's own sprite: that, whatever the container texture.
         Optional<Resource> sprite = rm.getResource(ControlLook.file(PANEL_SPRITE));
         if (PackArt.fromPack(sprite, PackArt.MENUKIT_PACK)) {
-            Integer face = PackArt.faceColour(sprite.get());
-            if (face == null) LOG.warn("Couldn't read the overridden {}; its text reads against MenuKit's grey", PANEL_SPRITE);
+            Integer face = PackArt.faceColor(sprite.get());
+            if (face == null) LOG.warn("Couldn't read the overridden {}; its text reads against MenuKit's gray", PANEL_SPRITE);
             return new Look(texture, part, Source.OVERRIDE, null, face == null ? SPRITE_FILL : face, slotSprite);
         }
 
@@ -227,7 +227,7 @@ public final class PackLook {
 
         // 3. Cut from the pack's texture, or MenuKit's sprite when it can't be cut cleanly.
         try (InputStream in = res.get().open(); NativeImage img = NativeImage.read(in)) {
-            Cut cut = analyse(new Pixels(img), part == Part.INVENTORY);
+            Cut cut = analyze(new Pixels(img), part == Part.INVENTORY);
             Source source = cut != null && cut.clean() ? Source.PACK : Source.FALLBACK;
             LOG.debug("{} {} from {}: {}", texture, part, res.get().sourcePackId(), source);
             return new Look(texture, part, source, cut, SPRITE_FILL, slotSprite);
@@ -297,7 +297,7 @@ public final class PackLook {
         }
     }
 
-    /** The largest per-channel difference between two ARGB colours, alpha included. */
+    /** The largest per-channel difference between two ARGB colors, alpha included. */
     static int dist(int a, int b) {
         int d = 0;
         for (int s = 0; s < 32; s += 8) d = Math.max(d, Math.abs(((a >>> s) & 0xFF) - ((b >>> s) & 0xFF)));
@@ -310,7 +310,7 @@ public final class PackLook {
         return true;
     }
 
-    /** The most common of {@code items} (exact): an edge's usual profile, a row's usual colour. */
+    /** The most common of {@code items} (exact): an edge's usual profile, a row's usual color. */
     private static int[] modal(List<int[]> items) {
         Map<List<Integer>, Integer> counts = new HashMap<>();
         int[] best = items.isEmpty() ? new int[0] : items.get(0);
@@ -328,14 +328,14 @@ public final class PackLook {
      */
     @VisibleForTesting
     public static @Nullable Cut cut(int width, int height, int[] argb, Part part) {
-        return analyse(new Pixels(width, height, argb), part == Part.INVENTORY);
+        return analyze(new Pixels(width, height, argb), part == Part.INVENTORY);
     }
 
     /**
      * Cuts one part of a container texture. {@code null} when it isn't laid out like one
      * (too short for vanilla's inventory part, or nothing opaque where the frame should be).
      */
-    static @Nullable Cut analyse(Pixels p, boolean inventory) {
+    static @Nullable Cut analyze(Pixels p, boolean inventory) {
         // The image's extent down its frame: vanilla's chest is 222 rows, the shulker box's 166.
         int bottom = -1, firstY = -1;
         for (int y = 0; y < p.h; y++) if (p.opaque(40, y)) { if (firstY < 0) firstY = y; bottom = y + 1; }
@@ -343,7 +343,7 @@ public final class PackLook {
         int vanillaSplit = bottom - INVENTORY_PART;
 
         // A pack that draws the inventory as a box of its own starts its top border near
-        // vanilla's split (a few rows below it, typically), in the outer border's colour.
+        // vanilla's split (a few rows below it, typically), in the outer border's color.
         int outer = p.at(10, firstY);
         int own = -1;
         for (int y = vanillaSplit; y < vanillaSplit + 14 && y < bottom; y++) {
@@ -371,7 +371,7 @@ public final class PackLook {
         BiPredicate<Integer, Integer> slot = (x, y) -> x >= GRID_X0 && x < GRID_X1
                 && ((y >= bot - 83 && y < bot - 29) || (y >= bot - 25 && y < bot - 7) || (y >= 17 && y < contEnd));
 
-        // The fill: the colour of the longest run of flat rows in the part's slot-free
+        // The fill: the color of the longest run of flat rows in the part's slot-free
         // strips. Wood grain has no flat run (the look falls back); a zigzag along the title
         // is skipped for the plain rows under it.
         List<Integer> rows = new ArrayList<>();
@@ -572,7 +572,7 @@ public final class PackLook {
         }
     }
 
-    /** Fills a rectangle with {@code look}'s fill: one colour, since a look is only cut from a flat fill. */
+    /** Fills a rectangle with {@code look}'s fill: one color, since a look is only cut from a flat fill. */
     private static void drawFill(GuiGraphicsExtractor g, int x, int y, int w, int h, Look look) {
         if (w <= 0 || h <= 0) return;
         g.fill(x, y, x + w, y + h, look.fill());

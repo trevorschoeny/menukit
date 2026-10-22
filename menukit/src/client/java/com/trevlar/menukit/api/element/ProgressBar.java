@@ -19,7 +19,7 @@ import java.util.function.Supplier;
  *
  * <p>{@code value} is read-only: the bar shows a fraction (clamped to 0..1) and
  * never writes one, so it takes no {@code state}. It fills in any of four
- * directions; an optional label is centred on it. Caps to its panel's width.
+ * directions; an optional label is centered on it. Caps to its panel's width.
  */
 public class ProgressBar extends AbstractPanelElement {
 
@@ -104,19 +104,19 @@ public class ProgressBar extends AbstractPanelElement {
             return this;
         }
 
-        /** ARGB fill colour. Default white. */
+        /** ARGB fill color. Default white. */
         public Builder fillColor(int argb) {
             this.fillColor = argb;
             return this;
         }
 
-        /** ARGB background colour. Default dark grey. */
+        /** ARGB background color. Default dark gray. */
         public Builder bgColor(int argb) {
             this.bgColor = argb;
             return this;
         }
 
-        /** Text centred on the bar, read every frame. */
+        /** Text centered on the bar, read every frame. */
         public Builder label(Supplier<Component> label) {
             this.label = Objects.requireNonNull(label, "label");
             return this;

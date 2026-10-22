@@ -75,7 +75,7 @@ import java.util.function.Supplier;
  * never wider than the strip (a longer label is cut with "..." and shown whole
  * as a tooltip). A tab with an {@linkplain TabSpec#icon icon} is wider by the
  * icon and {@link #ICON_LABEL_GAP}; the icon sits left of the label and the two
- * are placed as one group (centred on the strip, aligned in the sidebar), the
+ * are placed as one group (centered on the strip, aligned in the sidebar), the
  * selected underline under the label alone.
  * <ul>
  *   <li><b>{@link Mode#WRAP}</b>: the fewest rows the width allows, with the tabs
@@ -133,7 +133,7 @@ import java.util.function.Supplier;
  * {@link ScrollContainer#DEFAULT_INSET_Y} above and below, so the body is laid out
  * that much narrower. In a dialog the page insets by the dialog's own gap,
  * {@link ScrollContainer#DIALOG_INSET}, the same rule as a ScrollContainer's band.
- * Behaviour, sizes and the arrows (vanilla's page arrows) are the same in both looks.
+ * Behavior, sizes and the arrows (vanilla's page arrows) are the same in both looks.
  *
  * <p>{@link Mode#SIDEBAR} in the Default look is that tab bar turned on its
  * side: vanilla's tab sprites drawn under a pose turned a quarter, open toward
@@ -145,12 +145,12 @@ import java.util.function.Supplier;
  * Labels stay upright, white, the selected one underlined. Column width and
  * scrolling are the same in both looks; the scrollbar is a ScrollContainer's,
  * vanilla's thin list scroller here. In the Panel look
- * the sidebar draws MenuKit's own tab in vanilla's tab colours.
+ * the sidebar draws MenuKit's own tab in vanilla's tab colors.
  *
  * <p>{@link Builder#header} puts a row across the whole element, above the strip
  * (or the sidebar column) and the body, in every mode: the menu's own title bar.
  * Its elements get the element's full width, so a {@link Flow} with a spacer at
- * each end centres a label across it. Everything else starts under it and its
+ * each end centers a label across it. Everything else starts under it and its
  * {@link #HEADER_GAP}, and the body is that much shorter.
  *
  * <p>{@link Align#FILL} gives every tab in a row its label width plus an equal
@@ -209,7 +209,7 @@ import java.util.function.Supplier;
  * an owner tab marked {@link TabSpec#standIn() standIn()} with the same id, or
  * places itself {@link TabSpec#after after} or {@link TabSpec#before before} a tab;
  * contributions that share an anchor are ordered by id, so the result does not
- * depend on which mod initialised first. See {@link TabMenus} for the full rule.
+ * depend on which mod initialized first. See {@link TabMenus} for the full rule.
  *
  * <p>Known limit, shared with hidden panels: a widget-wrapping element (a
  * {@link TextField}) in a tab that is not shown is still registered with the
@@ -275,7 +275,7 @@ public final class Tabs extends AbstractPanelElement {
     // The sidebar tab in the Panel look, drawn rather than blitted. Vanilla's tab sprite is a
     // nine-slice that TILES its middle, so drawn thicker than its native 24 px (as
     // a sidebar tab is: the column's whole width) it repeats its outline lines
-    // across the tab. These are the sprite's own colours and structure, turned on
+    // across the tab. These are the sprite's own colors and structure, turned on
     // its side with the middle stretched instead. The cost: a resource pack that
     // restyles vanilla's tabs restyles the top strip and not this sidebar. (On an
     // Default-look screen the sidebar blits the sprite itself, turned: drawTurnedTab.)
@@ -1208,20 +1208,20 @@ public final class Tabs extends AbstractPanelElement {
                     : p.tab.standIn
                             ? (isSelected ? COLOR_STAND_IN_SELECTED : COLOR_STAND_IN_UNSELECTED)
                             : (isSelected ? COLOR_SELECTED : COLOR_UNSELECTED);
-            // The icon (if any), a gap and the label, centred as one group the way
-            // centeredText centres a label alone, which is what a tab with no icon is,
-            // to the pixel. The icon centres in the same box as the label.
+            // The icon (if any), a gap and the label, centered as one group the way
+            // centeredText centers a label alone, which is what a tab with no icon is,
+            // to the pixel. The icon centers in the same box as the label.
             int textW = font.width(p.text);
-            int groupX = TabRows.centredStart(tx, p.w, p.tab.iconRoom() + textW);
+            int groupX = TabRows.centeredStart(tx, p.w, p.tab.iconRoom() + textW);
             if (p.tab.icon != null) {
                 p.tab.icon.draw(g, groupX, labelTop + (ty + TAB_HEIGHT - labelTop - p.tab.icon.size) / 2);
             }
             int textX = groupX + p.tab.iconRoom();
             g.text(font, p.text, textX, textY, color);
             if (vanilla && isSelected) {
-                // MenuTabButton.renderFocusUnderline: 1 px, the label's colour, as wide
+                // MenuTabButton.renderFocusUnderline: 1 px, the label's color, as wide
                 // as the label (at most the tab less 4), 2 px above the tab's bottom.
-                // Under the label only: beside an icon the label is off the tab's centre.
+                // Under the label only: beside an icon the label is off the tab's center.
                 int lineW = Math.min(textW, p.w - 4);
                 int lineX = p.tab.icon == null ? tx + (p.w - lineW) / 2 : textX;
                 int lineY = ty + TAB_HEIGHT - 2;
@@ -1330,7 +1330,7 @@ public final class Tabs extends AbstractPanelElement {
             int textX = groupX + p.tab.iconRoom();
             int textY = Text.centeredTextY(ty, ty + TAB_HEIGHT);
             // In the Default look the labels are vanilla's, as on the top strip: white
-            // (a stand-in's light grey), the selected one underlined.
+            // (a stand-in's light gray), the selected one underlined.
             int color = vanilla
                     ? (p.tab.standIn ? COLOR_UNSELECTED : COLOR_SELECTED)
                     : p.tab.standIn
@@ -1338,7 +1338,7 @@ public final class Tabs extends AbstractPanelElement {
                             : (isSelected ? COLOR_SELECTED : COLOR_UNSELECTED);
             g.text(font, text, textX, textY, color);
             if (vanilla && isSelected) {
-                // The top strip's underline, the label's colour and width, kept off the
+                // The top strip's underline, the label's color and width, kept off the
                 // frame's inner line along the tab's bottom (2 px up), so 3 px up here.
                 g.fill(textX, ty + TAB_HEIGHT - 3, textX + textW, ty + TAB_HEIGHT - 2, color);
             }
@@ -1412,7 +1412,7 @@ public final class Tabs extends AbstractPanelElement {
      * own texels: along its length exactly as vanilla's nine-slice does (both end
      * borders 1:1, the first {@code h - 4} middle columns), and across its
      * thickness the head and tail rows 1:1 with the face rows stretched between
-     * them (they are one colour, so stretched reads the same as tiled). A resource
+     * them (they are one color, so stretched reads the same as tiled). A resource
      * pack that restyles vanilla's tabs restyles these too.
      */
     private static void drawTurnedTab(net.minecraft.client.gui.GuiGraphicsExtractor g, Identifier id,
@@ -1705,7 +1705,7 @@ public final class Tabs extends AbstractPanelElement {
         if (ly >= viewStart + stripViewportLength(s)) return true;
         if (lx < scrollbarLane(s, in.kind())) {
             // On the handle: grab it where it was pressed. On the track: jump so the
-            // handle centres on the click, and keep holding it, as a body's does.
+            // handle centers on the click, and keep holding it, as a body's does.
             double fromTop = ly - viewStart;
             dragGrabOffset = Scroller.grab(fromTop, scrollerTop(s));
             draggingScroller = true;
@@ -2112,7 +2112,7 @@ public final class Tabs extends AbstractPanelElement {
          * sidebar column) and the body, in every mode: a menu's title bar.
          * Positioned from the element's top-left and laid out to its full width
          * the way a panel lays out its own elements, so a {@link Flow} with a
-         * spacer at each end centres a label across it. The strip, the column and
+         * spacer at each end centers a label across it. The strip, the column and
          * the body start under it and {@link #HEADER_GAP}; the body is that much
          * shorter. Hidden elements keep no room. A screen whose header names it
          * can {@code hideTitle()} so the name shows once.

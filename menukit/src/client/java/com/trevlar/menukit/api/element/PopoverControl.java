@@ -181,13 +181,13 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
     /** Draws a selected row's check mark in the check column; default nothing. */
     protected void drawCheck(GuiGraphicsExtractor g, int x, int rowY) {}
 
-    /** Whether the trigger shows the open/closed arrow at its right; default yes. Without it the label is centred. */
+    /** Whether the trigger shows the open/closed arrow at its right; default yes. Without it the label is centered. */
     protected boolean chevron() { return true; }
 
     /** The popover's width; default the trigger's. A wider popover lines up its right edge with the trigger's. */
     protected int popoverWidth() { return width; }
 
-    /** The colour of {@code item}'s row text; default the light text every row has. */
+    /** The color of {@code item}'s row text; default the light text every row has. */
     protected int rowColor(T item) { return ElementConstants.TEXT_LIGHT; }
 
     /** Closes the popover (a single-select after a pick). */

@@ -27,7 +27,7 @@ import java.util.Set;
  * {@code after(id)} or {@code before(id)}, owner's or contributed, and the menu is
  * read as a tree: each tab's {@code before} contributions, the tab, then its
  * {@code after} contributions, each group ordered by id. Ordering by id, never by
- * registration, is what makes the result the same whichever mod initialised
+ * registration, is what makes the result the same whichever mod initialized
  * first. A contribution with no anchor, an anchor that is not in the menu, or an
  * anchor cycle goes at the end, ordered by id.
  */

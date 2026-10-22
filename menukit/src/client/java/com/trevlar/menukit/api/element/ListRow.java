@@ -44,7 +44,7 @@ import java.util.function.Supplier;
  *
  * <p>Each control keeps its slot whether or not it shows (a pinned row has no arrows
  * and no remove button), so every row of the list leaves the same room and the
- * controls line up in columns. They are centred on the first line: a Section's
+ * controls line up in columns. They are centered on the first line: a Section's
  * header, or a row's height less what it grew by ({@link PanelElement#extraLayoutHeight}).
  * A first line shorter than the controls moves the row down until they fit.
  *
@@ -54,7 +54,7 @@ import java.util.function.Supplier;
  * list at its own top, it is given the rows' width and lines up with them.
  *
  * <p>A toolbar with a title ({@link ListView.Builder#title}) starts with it at its left
- * edge, in the heading style a {@link Section}'s title has, centred on the buttons'
+ * edge, in the heading style a {@link Section}'s title has, centered on the buttons'
  * line as a label in a {@code crossAlign(CENTER)} {@link Flow} is. The search field
  * follows a button's gap after it and takes what is left; with no search the room
  * between the title and the buttons is empty. The title is read every frame, so a live
@@ -95,7 +95,7 @@ final class ListRow extends AbstractPanelElement {
     private final @Nullable Supplier<Component> title;
     /** The title's own hover tooltip, read while hovered, or {@code null}: then a cut title shows whole. */
     private final @Nullable Supplier<Component> titleTooltip;
-    /** Greys the title with the list. */
+    /** Grays the title with the list. */
     private final BooleanSupplier titleOff;
     /** Whether the toolbar's row is a search field (it keeps its own width from the title) rather than an empty stand-in. */
     private final boolean searched;
@@ -112,7 +112,7 @@ final class ListRow extends AbstractPanelElement {
 
     /**
      * The toolbar: the title if any, the search field if any (else an empty Flow), and
-     * the buttons a gap after them, no divider. {@code off} greys the title with the list;
+     * the buttons a gap after them, no divider. {@code off} grays the title with the list;
      * {@code titleTooltip} is the title's own hover tooltip, if any.
      */
     static ListRow toolbar(@Nullable Supplier<Component> title, @Nullable Supplier<Component> titleTooltip,
@@ -179,15 +179,15 @@ final class ListRow extends AbstractPanelElement {
         return new int[]{0, row.getHeight() - Math.max(0, row.extraLayoutHeight()), 0};
     }
 
-    /** The controls' top, from the row's: centred on the first line (negative: above the row's top). */
-    private int centred() {
+    /** The controls' top, from the row's: centered on the first line (negative: above the row's top). */
+    private int centered() {
         int[] line = line();
         return line[0] + (line[1] - laneHeight()) / 2;
     }
 
     /** How far the row sits below this element's top so the controls fit above its first line. */
     private int rowDrop() {
-        return Math.max(0, -centred());
+        return Math.max(0, -centered());
     }
 
     /** The left edge of the controls, from this element's left. */
@@ -205,7 +205,7 @@ final class ListRow extends AbstractPanelElement {
         return searched ? room - row.naturalWidth() - LANE_GAP : room;
     }
 
-    /** The title as drawn now: whole when it fits, else cut with "..." keeping its styles (a grey count stays grey). */
+    /** The title as drawn now: whole when it fits, else cut with "..." keeping its styles (a gray count stays gray). */
     FormattedText titleShown() {
         if (title == null) return FormattedText.EMPTY;
         Component t = title.get();
@@ -246,7 +246,7 @@ final class ListRow extends AbstractPanelElement {
 
     /** The buttons' box, {@code {x, y, width, height}}: their left edge, the line they share. */
     int[] laneBox() {
-        int top = getChildY() + rowDrop() + centred();
+        int top = getChildY() + rowDrop() + centered();
         return new int[]{getChildX() + laneX(), top, laneWidth(), laneHeight()};
     }
 
@@ -277,7 +277,7 @@ final class ListRow extends AbstractPanelElement {
     @Override
     public int getHeight() {
         int drop = rowDrop();
-        int h = Math.max(drop + row.getHeight(), drop + centred() + laneHeight());
+        int h = Math.max(drop + row.getHeight(), drop + centered() + laneHeight());
         return title == null ? h : Math.max(h, Minecraft.getInstance().font.lineHeight);
     }
 
@@ -299,14 +299,14 @@ final class ListRow extends AbstractPanelElement {
         layoutWithin(width);
     }
 
-    /** Places the row at the left and the controls on its first line, ending at its trailing edge, each centred. */
+    /** Places the row at the left and the controls on its first line, ending at its trailing edge, each centered. */
     @Override
     public void setChildPosition(int x, int y) {
         super.setChildPosition(x, y);
         int drop = rowDrop();
         placedLead = lead();
         if (row instanceof AbstractPanelElement r) r.setChildPosition(x + placedLead, y + drop);
-        int top = y + drop + centred(), laneH = laneHeight();
+        int top = y + drop + centered(), laneH = laneHeight();
         int cx = x + laneX();
         for (PanelElement c : controls) {
             if (c instanceof AbstractPanelElement e) e.setChildPosition(cx, top + (laneH - c.getHeight()) / 2);
@@ -327,8 +327,8 @@ final class ListRow extends AbstractPanelElement {
     }
 
     /**
-     * The toolbar's title at its left edge, centred on the line, in a heading's colour
-     * and shadow for the look (a {@link Section}'s title), greyed with the list. Hovered,
+     * The toolbar's title at its left edge, centered on the line, in a heading's color
+     * and shadow for the look (a {@link Section}'s title), grayed with the list. Hovered,
      * it shows {@link #titleHover()}: its own tooltip, or the whole title when cut.
      */
     private void titleLine(RenderContext ctx) {
@@ -349,7 +349,7 @@ final class ListRow extends AbstractPanelElement {
     /**
      * The line between the row's content and the controls, in MenuKit's divider style
      * for the look: vanilla's light and dark pair in the Default look, the Panel look's
-     * one grey line. It runs along the first line and the card's padding above and below
+     * one gray line. It runs along the first line and the card's padding above and below
      * it, kept inside the card's border (the Default card's 1 px, the Panel card's border
      * and bevel): the card's whole inner height for a one-line card, and only the header
      * line of a card holding an open {@link Section}, whose content has the full width.

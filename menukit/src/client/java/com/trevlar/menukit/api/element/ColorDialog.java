@@ -27,9 +27,9 @@ import java.util.concurrent.atomic.AtomicLong;
  * larger, and switching resizes it, the buttons following.
  * Package-private: consumers reach it through {@link ColorField}.
  *
- * <p>The colour lives with the consumer, through the field's lens. The dialog keeps
+ * <p>The color lives with the consumer, through the field's lens. The dialog keeps
  * only its view state: the tab shown, the hue, saturation and brightness the picker
- * is at (a grey or black colour has no hue of its own, so the picker remembers
+ * is at (a gray or black color has no hue of its own, so the picker remembers
  * where its handle was), and the hex text being typed.
  */
 final class ColorDialog {
@@ -45,7 +45,7 @@ final class ColorDialog {
     static final int PREVIEW = 24;
     /**
      * The dyes as the Basic tab shows them: the rainbow in rows of six, then the four
-     * neutrals, centred under them.
+     * neutrals, centered under them.
      */
     static final List<List<DyeColor>> DYE_ROWS = List.of(
             List.of(DyeColor.RED, DyeColor.ORANGE, DyeColor.YELLOW, DyeColor.LIME, DyeColor.GREEN, DyeColor.CYAN),
@@ -67,10 +67,10 @@ final class ColorDialog {
     private String tab = "basic";
     private double hue, saturation, brightness;
     private int alpha = 0xFF;
-    /** The colour the picker's handles were last set from, so a change from elsewhere moves them. */
+    /** The color the picker's handles were last set from, so a change from elsewhere moves them. */
     private int pickerSynced;
     private String hexDraft = "";
-    /** The colour the hex text was last set from, so a change from elsewhere replaces it. */
+    /** The color the hex text was last set from, so a change from elsewhere replaces it. */
     private int hexSynced;
 
     ColorDialog(ColorField field) {
@@ -95,10 +95,10 @@ final class ColorDialog {
                 .tab("custom", Component.literal("Custom"), List.of(picker, hex))
                 .build();
 
-        // Every dialog's layout: centred, modal (opaque, dims behind, takes every
+        // Every dialog's layout: centered, modal (opaque, dims behind, takes every
         // click and key), Escape cancels. Shown while the field says it is open.
         this.panel = DialogLayout.panel("menukit:color-dialog-" + IDS.incrementAndGet(), field::cancel,
-                        DialogLayout.centred(TextLabel.builder().text(field.label()).build()),
+                        DialogLayout.centered(TextLabel.builder().text(field.label()).build()),
                         tabs,
                         DialogLayout.cancelDone(field::cancel, field::done))
                 .visibleWhen(field::dialogShown);
@@ -133,12 +133,12 @@ final class ColorDialog {
         return cells;
     }
 
-    /** A dye's name, as its tooltip shows it: vanilla's translated colour ("Light Blue"). */
+    /** A dye's name, as its tooltip shows it: vanilla's translated color ("Light Blue"). */
     static Component dyeName(DyeColor dye) {
         return Component.translatable("color.minecraft." + dye.getName());
     }
 
-    /** Opened: Basic first, the picker and the hex text from the colour as it is now. */
+    /** Opened: Basic first, the picker and the hex text from the color as it is now. */
     void opened() {
         tab = "basic";
         syncPicker(true);
@@ -166,12 +166,12 @@ final class ColorDialog {
             if (field.hasAlpha() && digits.length() == 6) parsed = (field.value() & 0xFF000000) | (parsed & 0xFFFFFF);
             field.write(parsed);
         }
-        // What was typed stands for the colour as it is now, valid or not: only a later
+        // What was typed stands for the color as it is now, valid or not: only a later
         // change from elsewhere replaces it.
         hexSynced = field.value();
     }
 
-    /** Red while the text is not a colour; back to the colour's hex once the field loses focus. */
+    /** Red while the text is not a color; back to the color's hex once the field loses focus. */
     private void checkHex() {
         EditBox box = hex.widget();
         boolean valid = ColorField.parseHex(hexDraft, field.hasAlpha()) != null;
@@ -186,12 +186,12 @@ final class ColorDialog {
 
     // The picker's handles
 
-    /** Moves the handles to the colour when it changed from elsewhere (or always, on open). */
+    /** Moves the handles to the color when it changed from elsewhere (or always, on open). */
     private void syncPicker(boolean force) {
         int c = field.value();
         if (!force && c == pickerSynced) return;
         float[] hsv = toHsv(c);
-        // Grey has no hue and black no saturation: keep where those handles were.
+        // Gray has no hue and black no saturation: keep where those handles were.
         if (hsv[1] > 0 && hsv[2] > 0) hue = hsv[0];
         if (hsv[2] > 0) saturation = hsv[1];
         brightness = hsv[2];
@@ -205,9 +205,9 @@ final class ColorDialog {
         pickerSynced = field.value();
     }
 
-    // Colour maths
+    // Color maths
 
-    /** {@code {hue 0..1, saturation 0..1, brightness 0..1}} of an RGB colour (alpha ignored). */
+    /** {@code {hue 0..1, saturation 0..1, brightness 0..1}} of an RGB color (alpha ignored). */
     static float[] toHsv(int rgb) {
         float r = ((rgb >> 16) & 0xFF) / 255f, g = ((rgb >> 8) & 0xFF) / 255f, b = (rgb & 0xFF) / 255f;
         float max = Math.max(r, Math.max(g, b)), min = Math.min(r, Math.min(g, b));
@@ -239,7 +239,7 @@ final class ColorDialog {
         return ((int) Math.round(r * 255) << 16) | ((int) Math.round(g * 255) << 8) | (int) Math.round(b * 255);
     }
 
-    /** Light and mid grey squares, four pixels each: what transparency is shown over. */
+    /** Light and mid gray squares, four pixels each: what transparency is shown over. */
     static void checkerboard(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         g.fill(x, y, x + w, y + h, 0xFFFFFFFF);
         for (int cy = 0; cy < h; cy += 4) {
@@ -262,10 +262,10 @@ final class ColorDialog {
 
     /**
      * The sixteen dyes, by their items, in {@link #DYE_ROWS}. Clicking one writes its
-     * colour. The grid's bounds include {@link #RING} round the slots, so the current
+     * color. The grid's bounds include {@link #RING} round the slots, so the current
      * dye's ring (a pixel outside its slot) is inside them: the tab's body clips to
      * its own box, and a ring on the top row would otherwise lose its top edge. Given
-     * more width than it needs (the dialog's button row is wider), it centres the
+     * more width than it needs (the dialog's button row is wider), it centers the
      * slots in it.
      */
     private final class DyeGrid extends AbstractPanelElement {
@@ -275,12 +275,12 @@ final class ColorDialog {
             this.height = DYE_ROWS.size() * DYE_STEP - 2 + 2 * RING;
         }
 
-        /** As wide as the body, so the slots centre in it; never narrower than they need. */
+        /** As wide as the body, so the slots center in it; never narrower than they need. */
         @Override public void layoutWithin(int budget) { width = Math.max(authoredWidth, budget); }
         @Override public void fillWidth(int width) {}
         @Override public boolean isInteractive() { return true; }
 
-        /** A dye's slot, {@code {x, y}} from the grid's top-left; a short row is centred under the full ones. */
+        /** A dye's slot, {@code {x, y}} from the grid's top-left; a short row is centered under the full ones. */
         int[] slot(DyeColor dye) {
             for (int r = 0; r < DYE_ROWS.size(); r++) {
                 List<DyeColor> row = DYE_ROWS.get(r);
@@ -311,7 +311,7 @@ final class ColorDialog {
                 int[] at = slot(dye);
                 int x = gx + at[0], y = gy + at[1];
                 ItemPicker.drawSlot(g, ctx.kind(), x, y, Items.DYE.pick(dye), dye == hovered, false);
-                // The current colour's dye: a white ring around its slot.
+                // The current color's dye: a white ring around its slot.
                 if ((ColorField.dyeColor(dye) & 0xFFFFFF) == current) g.outline(x - 1, y - 1, ItemPicker.SIZE + 2, ItemPicker.SIZE + 2, 0xFFFFFFFF);
             }
             if (hovered != null) MKTooltip.queue(g, dyeName(hovered), ctx.mouseX(), ctx.mouseY());
@@ -335,7 +335,7 @@ final class ColorDialog {
 
     /**
      * Saturation and brightness square, hue bar, transparency bar (with alpha), and
-     * the colour before and now. Each handle follows a held press, as a scroll
+     * the color before and now. Each handle follows a held press, as a scroll
      * container's handle does.
      */
     private final class Picker extends AbstractPanelElement {
@@ -371,7 +371,7 @@ final class ColorDialog {
             }
             GuiGraphicsExtractor g = ctx.graphics();
 
-            // The square: each column a gradient from its full-brightness colour down to
+            // The square: each column a gradient from its full-brightness color down to
             // black, which is exactly brightness scaling the RGB.
             for (int col = 0; col < SQUARE; col++) {
                 int top = 0xFF000000 | fromHsv(hue, col / (double) (SQUARE - 1), 1);

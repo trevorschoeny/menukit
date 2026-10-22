@@ -22,9 +22,9 @@ import java.util.regex.Pattern;
 
 /**
  * Text that reads on a Panel-look panel surface under the active resource packs. Body and
- * muted text keep MenuKit's colours wherever they read on the surface's fill, and take one
- * made from the fill where a pack's fill is too dark or too coloured for them. A dark-mode
- * pack whose text shader repaints vanilla's grey light is left to do so.
+ * muted text keep MenuKit's colors wherever they read on the surface's fill, and take one
+ * made from the fill where a pack's fill is too dark or too colored for them. A dark-mode
+ * pack whose text shader repaints vanilla's gray light is left to do so.
  */
 @ApiStatus.Internal
 public final class PackText {
@@ -33,22 +33,22 @@ public final class PackText {
 
     private static final Logger LOG = LoggerFactory.getLogger("MenuKit/PackText");
 
-    /** The Panel look's heading and body text, vanilla's label grey. */
+    /** The Panel look's heading and body text, vanilla's label gray. */
     private static final int TEXT = ElementConstants.TEXT_DARK;
     /** MenuKit's muted text. */
     private static final int MUTED = ElementConstants.TEXT_MUTED;
     private static final int WHITE = 0xFFFFFFFF, BLACK = 0xFF000000;
 
     /**
-     * How far body text stands out from its fill: WCAG's 4.5:1 for text. Vanilla's grey stays
-     * wherever it does, and text that has to change is made to: below it vanilla's grey reads
+     * How far body text stands out from its fill: WCAG's 4.5:1 for text. Vanilla's gray stays
+     * wherever it does, and text that has to change is made to: below it vanilla's gray reads
      * dim (on a lime shulker box, about 3:1).
      */
     public static final double BODY_TARGET = 4.5;
     /** How far muted text stands out from MenuKit's own fill: what muted text keeps on any fill. */
     private static final double MUTED_CONTRAST = contrast(MUTED, PackLook.SPRITE_FILL);
 
-    /** A resource reload: the shader is read again and every text colour worked out again. */
+    /** A resource reload: the shader is read again and every text color worked out again. */
     public static void onReload() {
         MEMO.clear();
         shaderLightens = 0;
@@ -56,13 +56,13 @@ public final class PackText {
 
     /**
      * Heading and body text {@code text} on {@code fill}, pure. {@code text} itself wherever
-     * it reads ({@link #BODY_TARGET}), so vanilla's grey stays on MenuKit's own fill and on any
-     * light one. On a fill too dark or too coloured for it, a colour made from the fill: the
-     * fill taken toward white (on a dark fill) or black (on a light or coloured one, an orange
+     * it reads ({@link #BODY_TARGET}), so vanilla's gray stays on MenuKit's own fill and on any
+     * light one. On a fill too dark or too colored for it, a color made from the fill: the
+     * fill taken toward white (on a dark fill) or black (on a light or colored one, an orange
      * chest) until it stands out by {@link #BODY_TARGET}, so the text keeps the fill's hue.
      *
-     * <p>{@code shaderLightens} says the pack's text shader repaints vanilla's exact grey in
-     * a light colour (as dark-mode packs do). Then on a dark fill vanilla's grey is left as
+     * <p>{@code shaderLightens} says the pack's text shader repaints vanilla's exact gray in
+     * a light color (as dark-mode packs do). Then on a dark fill vanilla's gray is left as
      * it is, for the pack to repaint as it does on its own screens: lightened once, by the pack.
      */
     public static int textOn(int text, int fill, boolean shaderLightens) {
@@ -73,9 +73,9 @@ public final class PackText {
     }
 
     /**
-     * Muted text on {@code fill}, pure: MenuKit's muted grey wherever it stands out from the
+     * Muted text on {@code fill}, pure: MenuKit's muted gray wherever it stands out from the
      * fill as much as it does from MenuKit's own fill (so exactly as before with no pack, and
-     * on a dark-mode pack's dark grey), else the fill taken toward white or black until it
+     * on a dark-mode pack's dark gray), else the fill taken toward white or black until it
      * does: between the fill and the body text, in the fill's hue.
      */
     public static int mutedOn(int fill) {
@@ -88,7 +88,7 @@ public final class PackText {
         return contrast(fill, WHITE) > contrast(fill, BLACK);
     }
 
-    /** WCAG's contrast ratio of two colours, 1 to 21. */
+    /** WCAG's contrast ratio of two colors, 1 to 21. */
     public static double contrast(int a, int b) {
         double la = PackArt.luminance(a), lb = PackArt.luminance(b);
         return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
@@ -121,9 +121,9 @@ public final class PackText {
     private static volatile int shaderLightens = 0;
 
     /**
-     * Whether a pack's GUI text shader repaints vanilla's exact label grey in a light colour,
+     * Whether a pack's GUI text shader repaints vanilla's exact label gray in a light color,
      * as a dark-mode pack's does: its {@code text.fsh} or {@code text.vsh} names 0x404040 and
-     * a light colour to paint it with ({@link #repaintsLight}). Read once per reload.
+     * a light color to paint it with ({@link #repaintsLight}). Read once per reload.
      */
     public static boolean shaderLightens() {
         int known = shaderLightens;
@@ -150,12 +150,12 @@ public final class PackText {
     private static final Pattern VEC = Pattern.compile("vec[34]\\(\\s*([0-9.]+)\\s*,\\s*([0-9.]+)\\s*,\\s*([0-9.]+)");
 
     /**
-     * Whether shader source repaints vanilla's grey light, pure: it names 0x404040 (or its
-     * decimal 4210752), and a light colour besides it, as a hex literal or a {@code vec3} of
-     * 0 to 1. A shader that names the grey only to paint it dark, or to test it, is no repaint
+     * Whether shader source repaints vanilla's gray light, pure: it names 0x404040 (or its
+     * decimal 4210752), and a light color besides it, as a hex literal or a {@code vec3} of
+     * 0 to 1. A shader that names the gray only to paint it dark, or to test it, is no repaint
      * MenuKit can leave its text to.
      */
-    // A text match on the shader's source: a pack that spells either colour another way reads as "no", and MenuKit lightens its text itself.
+    // A text match on the shader's source: a pack that spells either color another way reads as "no", and MenuKit lightens its text itself.
     public static boolean repaintsLight(String source) {
         String src = source.toLowerCase(Locale.ROOT);
         if (!src.contains("0x404040") && !src.contains("4210752")) return false;
@@ -175,28 +175,28 @@ public final class PackText {
                 }
                 if (c != TEXT && !darkFill(c)) return true;
             } catch (NumberFormatException ignored) {
-                // not a colour
+                // not a color
             }
         }
         return false;
     }
 
-    // The colour text is drawn in, on the surface under it
+    // The color text is drawn in, on the surface under it
 
-    /** A memo key: text in {@code colour} (muted or not) on {@code fill}. */
-    record Key(int colour, boolean muted, int fill) {}
+    /** A memo key: text in {@code color} (muted or not) on {@code fill}. */
+    record Key(int color, boolean muted, int fill) {}
 
-    // One memo of each fill's text colours, dropped on a reload; a screen shows a handful of fills.
+    // One memo of each fill's text colors, dropped on a reload; a screen shows a handful of fills.
     private static final Map<Key, Integer> MEMO = new ConcurrentHashMap<>();
 
     /**
-     * The colour text in a role is drawn in on a surface of {@code look} ({@code colour},
-     * the role's own: the Panel look's body grey, or its muted grey when {@code muted}): one
+     * The color text in a role is drawn in on a surface of {@code look} ({@code color},
+     * the role's own: the Panel look's body gray, or its muted gray when {@code muted}): one
      * that reads on the surface's fill ({@link #textOn}, {@link #mutedOn}).
      */
-    public static int on(PackLook.Look look, int colour, boolean muted) {
+    public static int on(PackLook.Look look, int color, boolean muted) {
         int fill = look.fill();
-        return MEMO.computeIfAbsent(new Key(colour, muted, fill),
-                k -> muted ? mutedOn(fill) : textOn(colour, fill, shaderLightens()));
+        return MEMO.computeIfAbsent(new Key(color, muted, fill),
+                k -> muted ? mutedOn(fill) : textOn(color, fill, shaderLightens()));
     }
 }

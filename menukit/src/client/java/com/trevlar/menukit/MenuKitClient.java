@@ -87,7 +87,7 @@ public class MenuKitClient implements ClientModInitializer {
         Focus.init();
 
         // Keeps the cursor where it was across screen changes, undoing vanilla's
-        // re-centring. Applies to every screen with no opt-in. See CursorContinuity.
+        // re-centering. Applies to every screen with no opt-in. See CursorContinuity.
         CursorContinuity.registerRestoreHook();
 
         // Cursor lock under a modal. Window has a global allowCursorChanges flag;
@@ -98,7 +98,7 @@ public class MenuKitClient implements ClientModInitializer {
         // Synced every tick (20 Hz is fine for a cursor shape, and avoids
         // tracking visibility changes): while an injected modal gates input the
         // cursor stays DEFAULT whatever hover code asks for, and returns to
-        // vanilla behaviour when it closes.
+        // vanilla behavior when it closes.
         //
         // Only modals lock the cursor. Non-modal opaque panels don't: the cursor
         // shape is window state, not tied to the pointer's position, and switching

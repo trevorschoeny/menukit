@@ -138,14 +138,14 @@ final class ItemDialog {
                 .build();
         // As wide as the grid's nine columns, the band's inset and the scrollbar lane. The
         // lane stays while a search's results fit, as the creative inventory's does, so the
-        // centred grid never shifts sideways as you type.
+        // centered grid never shifts sideways as you type.
         this.grid = new Grid();
         this.gridBox = ScrollContainer.builder().at(0, FIELD_HEIGHT + GAP).fitWidth().steadyLane().height(ROWS * ItemPicker.SIZE)
                 .content(List.of(grid))
                 .state(() -> gridScroll, v -> gridScroll = v)
                 .build();
 
-        this.title = DialogLayout.centred(TextLabel.builder().text(picker.label()).build());
+        this.title = DialogLayout.centered(TextLabel.builder().text(picker.label()).build());
         this.row = new SlotRow();
         this.buttons = DialogLayout.cancelDone(picker::cancel, picker::done);
 
@@ -666,7 +666,7 @@ final class ItemDialog {
     // The slot row
 
     /**
-     * The setting's slots, nine to a row, centred: the selected one outlined, a list's
+     * The setting's slots, nine to a row, centered: the selected one outlined, a list's
      * last (empty) one marked with a plus, each filled one with its remove button in
      * the top-right corner. A click on a slot selects it (the grid fills it, the Edit
      * tab edits it); a click on a remove button empties that slot. Asks for its slots'
@@ -682,7 +682,7 @@ final class ItemDialog {
             return Math.max(1, (slots.size() + COLUMNS - 1) / COLUMNS);
         }
 
-        /** Left edge of the slots, from the row's: centred under the title. */
+        /** Left edge of the slots, from the row's: centered under the title. */
         int left() {
             return (getWidth() - naturalWidth()) / 2;
         }
@@ -757,7 +757,7 @@ final class ItemDialog {
 
     /**
      * The entries matching the search, nine to a row, as slots in the kind of screen.
-     * Asks for its nine columns' width; given more, it centres them. As tall as its
+     * Asks for its nine columns' width; given more, it centers them. As tall as its
      * rows, read every frame, so the scroll area around it follows the search. Draws
      * only the rows on screen.
      */
@@ -775,7 +775,7 @@ final class ItemDialog {
             return (shown().size() + COLUMNS - 1) / COLUMNS;
         }
 
-        /** The columns' left edge from the grid's: centred in whatever width it was given. */
+        /** The columns' left edge from the grid's: centered in whatever width it was given. */
         int left() {
             return Math.max(0, (width - GRID_WIDTH) / 2);
         }
@@ -854,7 +854,7 @@ final class ItemDialog {
      * with its level, minus and plus controls (from I to its highest) and a remove
      * control; then "Not Added", those that can be added, each with an add control
      * (on at level I, and into the list above). One excluded by an enchantment on
-     * the item is greyed, its add control off, its tooltip naming what it conflicts
+     * the item is grayed, its add control off, its tooltip naming what it conflicts
      * with. Asks for the room
      * its longest name, the level and the controls need; every row's controls line up
      * at the right, whatever moves between the lists. A name that still does not fit
@@ -1053,7 +1053,7 @@ final class ItemDialog {
     /**
      * A control button: a raised control (vanilla's button in the Default look, MenuKit's
      * control art in the Panel look or vanilla's where a pack restyled it), its disabled face
-     * while off, its glyph in vanilla's button text colours on vanilla's button.
+     * while off, its glyph in vanilla's button text colors on vanilla's button.
      */
     private static void drawControl(GuiGraphicsExtractor g, ScreenKind screen, int x, int y, String glyph, boolean enabled, boolean hovered) {
         ScreenKind kind = ControlLook.kind(screen, ControlLook.Control.BUTTON);

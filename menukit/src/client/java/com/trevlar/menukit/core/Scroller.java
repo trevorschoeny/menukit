@@ -43,7 +43,7 @@ import org.jetbrains.annotations.ApiStatus;
  * the content's length, as vanilla's creative inventory: small, easy to see, and
  * the same on every scroller. It travels the track less {@link #TRACK_PADDING} at
  * each end. A press on the thumb grabs it where pressed; a press on the track
- * jumps so the thumb centres on the press and keeps holding it, as vanilla's lists
+ * jumps so the thumb centers on the press and keeps holding it, as vanilla's lists
  * and creative inventory do ({@link #grab}, {@link #dragTo}). {@link #draw} paints
  * it for the kind of screen: MenuKit's inset track and vanilla's creative scroller
  * in the Panel look, vanilla's thin list scroller in the Default look.
@@ -144,7 +144,7 @@ public final class Scroller {
     /**
      * A press {@code along} pixels down the track: where on the thumb it holds.
      * On the thumb, where it was pressed, so the thumb does not move; on the
-     * track, the thumb's middle, so the thumb jumps to centre on the press.
+     * track, the thumb's middle, so the thumb jumps to center on the press.
      */
     public static double grab(double along, double thumbTop) {
         boolean onThumb = along >= thumbTop && along < thumbTop + THUMB_LENGTH;
@@ -167,7 +167,7 @@ public final class Scroller {
     /**
      * The scrollbar, its track's top-left at {@code (x, y)}, {@link #trackWidth}
      * wide and {@code track} long, the thumb {@code thumbTop} down it. In the
-     * Panel look MenuKit's inset track, the thumb greyed when nothing scrolls or
+     * Panel look MenuKit's inset track, the thumb grayed when nothing scrolls or
      * the owner is disabled (a {@code ScrollContainer} draws it only while
      * something scrolls, or always for its steady lane); in the Default look
      * vanilla's list scrollbar, only while something scrolls, as vanilla's does.

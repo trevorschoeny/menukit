@@ -28,7 +28,7 @@ import java.util.function.Supplier;
  *   <li>{@code size(w, h)}: on the elements that take a size (the rest size
  *       themselves from their content).</li>
  *   <li>{@code visibleWhen(supplier)}: shown while it holds, read every frame.</li>
- *   <li>{@code disabledWhen(supplier)}: greyed and inert while it holds.</li>
+ *   <li>{@code disabledWhen(supplier)}: grayed and inert while it holds.</li>
  *   <li>{@code tooltip(text)}: the hover tooltip.</li>
  *   <li>{@code state(get, set)}: the lens onto the consumer's value, on every
  *       element that shows one. An element never stores the value: it
@@ -40,7 +40,7 @@ import java.util.function.Supplier;
  *
  * <p>No builder picks a look. An element draws for the kind of screen it is on
  * ({@link com.trevlar.menukit.api.panel.ScreenKind}, read from
- * {@link RenderContext#kind()}), so the same element is MenuKit's grey on an
+ * {@link RenderContext#kind()}), so the same element is MenuKit's gray on an
  * inventory and vanilla's stone in the Default look (6.1.0).
  *
  * <h2>What an instance keeps</h2>
@@ -266,18 +266,18 @@ public abstract class AbstractPanelElement implements PanelElement {
     }
 
     /**
-     * The colour of text in {@code role} on the kind of screen this element is on
-     * this frame, the {@link TextRole#DISABLED} colour while it is disabled. In the Panel
-     * look, heading, body and muted text on a panel surface keep the role's own colour
+     * The color of text in {@code role} on the kind of screen this element is on
+     * this frame, the {@link TextRole#DISABLED} color while it is disabled. In the Panel
+     * look, heading, body and muted text on a panel surface keep the role's own color
      * wherever it reads on the surface's fill, and take one made from the fill where a
-     * resource pack's fill is too dark or too coloured for it ({@code PackText}).
+     * resource pack's fill is too dark or too colored for it ({@code PackText}).
      */
     protected final int textColor(RenderContext ctx, TextRole role) {
         TextRole r = disabled(ctx) ? TextRole.DISABLED : role;
-        int colour = ctx.kind().textColor(r);
-        if (ctx.kind() != ScreenKind.PANEL || r == TextRole.DISABLED) return colour;
+        int color = ctx.kind().textColor(r);
+        if (ctx.kind() != ScreenKind.PANEL || r == TextRole.DISABLED) return color;
         PackLook.Look surface = PackLook.surfaceAt(ctx.originX() + getChildX(), ctx.originY() + getChildY());
-        return surface == null ? colour : PackText.on(surface, colour, r == TextRole.MUTED);
+        return surface == null ? color : PackText.on(surface, color, r == TextRole.MUTED);
     }
 
     // A list row's controls on the row's own first line (7.3.0). Package-private: only
@@ -360,7 +360,7 @@ public abstract class AbstractPanelElement implements PanelElement {
         }
 
         /**
-         * Greyed and inert while {@code condition} holds, read every frame. On a
+         * Grayed and inert while {@code condition} holds, read every frame. On a
          * container (a {@link Section}, {@link Tabs}, {@link ScrollContainer},
          * {@link Flow}) it disables everything inside as well.
          */
@@ -382,7 +382,7 @@ public abstract class AbstractPanelElement implements PanelElement {
 
         /**
          * A hover tooltip of several fixed lines, top to bottom, each keeping its own
-         * style: a white title, then grey hints, say. Stored as one text joined by line
+         * style: a white title, then gray hints, say. Stored as one text joined by line
          * feeds ({@link MKTooltip#joinLines}).
          */
         public B tooltip(Component first, Component... more) {

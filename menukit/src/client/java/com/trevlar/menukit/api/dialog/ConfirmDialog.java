@@ -49,7 +49,7 @@ import java.util.function.Supplier;
  * On vanilla container screens, on other vanilla screens, and on {@code MKScreen}
  * subclasses. For an {@code MKScreen}, add the dialog Panel to the screen's panels
  * (visibility driven by {@link Panel#visibleWhen}): {@code dimsBehind} panels are
- * centred, and the dim, click-eating and key dispatch send input only to the
+ * centered, and the dim, click-eating and key dispatch send input only to the
  * dialog's buttons. SlotKit's slot groups and the HUD don't apply: one anchors to slots,
  * the other takes no input.
  *
@@ -77,7 +77,7 @@ public final class ConfirmDialog {
 
     /** Room between the dialog's frame and its content, on every side and either kind of screen. */
     public static final int PADDING = DialogLayout.GAP;
-    /** Vertical gap between the title, body and button row. It equals {@link #PADDING}, so the buttons sit centred under the body. */
+    /** Vertical gap between the title, body and button row. It equals {@link #PADDING}, so the buttons sit centered under the body. */
     public static final int SECTION_GAP = DialogLayout.GAP;
     /** Horizontal gap between buttons in the button bar. */
     public static final int BUTTON_GAP = DialogLayout.BUTTON_GAP;
@@ -192,8 +192,8 @@ public final class ConfirmDialog {
             requireField(onConfirm, "onConfirm");
             requireField(onCancel, "onCancel");
 
-            // DialogLayout centres the title, body and buttons, with the same margin on
-            // every side and the buttons centred between the body and the frame. Cancel
+            // DialogLayout centers the title, body and buttons, with the same margin on
+            // every side and the buttons centered between the body and the frame. Cancel
             // is on the left and Confirm on the right, as in vanilla's ConfirmScreen.
             final Runnable cancelRun = onCancel;
             final Runnable confirmRun = onConfirm;
@@ -204,8 +204,8 @@ public final class ConfirmDialog {
             // onEscape runs onCancel, so Escape dismisses the dialog exactly as
             // clicking Cancel does instead of closing the screen underneath.
             return DialogLayout.panel(panelId, cancelRun,
-                    DialogLayout.centred(TextLabel.builder().text(title).build()),
-                    DialogLayout.centred(TextLabel.builder().text(body).build()),
+                    DialogLayout.centered(TextLabel.builder().text(title).build()),
+                    DialogLayout.centered(TextLabel.builder().text(body).build()),
                     DialogLayout.buttons(
                             DialogLayout.button(cancelLabel, cancelRun),
                             DialogLayout.button(confirmLabel, confirmRun)));

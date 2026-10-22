@@ -66,7 +66,7 @@ import java.util.function.Supplier;
  * declares in one {@link ScrollContainer}, and below it, {@link RegionLayout#PANEL_GAP}
  * apart, the <b>inventory panel</b>, its own frame around the player's inventory, which
  * never scrolls. The list grows first and scrolls only when there is no room left; while the
- * two panels fit, they are centred on the screen as one block ({@link RegionLayout#layout}).
+ * two panels fit, they are centered on the screen as one block ({@link RegionLayout#layout}).
  * This class keeps the declarations, the open screen's state, its lifecycle and bounds;
  * {@link RegionLayout} is where the panels go, {@link RegionLooks} how they follow
  * resource packs, {@link RegionTitles} what the sections are called, and
@@ -116,8 +116,8 @@ import java.util.function.Supplier;
  * distance the inventory panel went down, so they go with it. The slots are placed every
  * frame from the slots the menu holds then ({@link #placeSlots}), so one another mod puts in
  * while the screen is open goes with the panel too, and putting the bounds back moves exactly
- * the slots that were moved. Before the screen initialises again (a resize), the bounds go
- * back to vanilla's, so vanilla centres its own image as always.
+ * the slots that were moved. Before the screen initializes again (a resize), the bounds go
+ * back to vanilla's, so vanilla centers its own image as always.
  *
  * <h3>Never the player's own inventory</h3>
  * The region is never put on {@code InventoryScreen} or {@code CreativeModeInventoryScreen},
@@ -147,7 +147,7 @@ import java.util.function.Supplier;
  * Tweaks over any slot) answers "used", so the region does not move.
  *
  * <p>Render thread only. One container screen is open at a time; its state is reset when
- * another opens (a resize re-initialises the same screen and keeps it).
+ * another opens (a resize re-initializes the same screen and keeps it).
  */
 @ApiStatus.Internal
 public final class ContainerRegions {
@@ -386,8 +386,8 @@ public final class ContainerRegions {
 
     /** Called once from MenuKit's client init. */
     public static void init() {
-        // Before a screen initialises again (a resize), its bounds go back to vanilla's, so
-        // vanilla centres its own image from its own size.
+        // Before a screen initializes again (a resize), its bounds go back to vanilla's, so
+        // vanilla centers its own image from its own size.
         ScreenEvents.BEFORE_INIT.register((client, screen, w, h) -> {
             if (screen instanceof AbstractContainerScreen<?> acs && state.screen.get() == screen) restoreBounds(acs);
         });
@@ -398,7 +398,7 @@ public final class ContainerRegions {
             AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) acs;
             state.vanilla = new Reference(acc.mk$getLeftPos(), acc.mk$getTopPos(), acc.mk$getImageWidth(), acc.mk$getImageHeight());
             state.vanillaInventoryLabelY = acc.mk$getInventoryLabelY();
-            state.screenHeight = screen.height;   // a resize initialises again, so the region re-runs
+            state.screenHeight = screen.height;   // a resize initializes again, so the region re-runs
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> frame(acs, mx, my, false));
             ScreenEvents.remove(screen).register(s -> {
                 if (state.screen.get() != s) return;
@@ -785,7 +785,7 @@ public final class ContainerRegions {
     /**
      * Whether the region's panels stand in for {@code screen}'s own image and title now: while
      * its bounds are the union, vanilla's container texture would be drawn around the union's
-     * centre, so the background pass leaves it out ({@link ScreenBackground}), and vanilla's
+     * center, so the background pass leaves it out ({@link ScreenBackground}), and vanilla's
      * title would draw over the first section's, so it is left out too. Everything else in
      * the screen's background still draws, every other mod's included.
      */

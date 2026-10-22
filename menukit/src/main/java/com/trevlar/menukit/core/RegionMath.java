@@ -122,7 +122,7 @@ public final class RegionMath {
             // Pinned at the frame bottom: grows up toward the top margin.
             case RIGHT_ALIGN_BOTTOM, LEFT_ALIGN_BOTTOM ->
                     growUpHeight(frameBottom, margin);
-            // Beside the frame, centred on it: clear of both margins.
+            // Beside the frame, centered on it: clear of both margins.
             case LEFT_CENTER, RIGHT_CENTER -> centeredHeight(centerY, sh, margin);
             // CENTER stays within the frame; frame height is the safe ceiling.
             case CENTER -> Math.min(imageHeight, centeredHeight(centerY, sh, margin));
@@ -140,8 +140,8 @@ public final class RegionMath {
      *       the frame's bottom ({@code topPos + imageHeight}).</li>
      *   <li>{@code RIGHT_ALIGN_BOTTOM}, {@code LEFT_ALIGN_BOTTOM}: the mirror image,
      *       from the panel's bottom up to the frame's top.</li>
-     *   <li>{@code RIGHT_CENTER}, {@code LEFT_CENTER}: centred on the reference's middle,
-     *       as far as both of the frame's ends allow, so a wrapped column stays centred
+     *   <li>{@code RIGHT_CENTER}, {@code LEFT_CENTER}: centered on the reference's middle,
+     *       as far as both of the frame's ends allow, so a wrapped column stays centered
      *       and inside the frame.</li>
      *   <li>Every other region is above, below or inside the frame, with no frame
      *       beside it: {@code -1}.</li>
@@ -234,8 +234,8 @@ public final class RegionMath {
      * @param gap          stacking gap between siblings on one spot, for a panel that
      *                     declares none ({@code PanelPosition.gapOr})
      * @param belowCenter  when positive, {@link InsideRegion#CENTER} flows down from
-     *                     this far below the screen centre (the HUD clears the
-     *                     crosshair); when zero, CENTER is centred like the other
+     *                     this far below the screen center (the HUD clears the
+     *                     crosshair); when zero, CENTER is centered like the other
      *                     middle-row spots
      * @param hideOverflow when true, a panel that does not fit its spot's axis is not
      *                     placed ({@link Optional#empty()}); when false it always
@@ -261,12 +261,12 @@ public final class RegionMath {
      * spot of an {@code sw x sh} screen, {@code prefix} pixels along the spot's
      * stacking axis from its anchor edge. Every spot stacks vertically: the top row
      * grows down, the bottom row grows up, the middle row grows down from its
-     * centred start.
+     * centered start.
      *
-     * <p>The X axis: LEFT spots pin to the inset, CENTER spots centre, RIGHT spots
-     * pin to the right inset. The Y axis mirrors it; the middle row is centred on the
+     * <p>The X axis: LEFT spots pin to the inset, CENTER spots center, RIGHT spots
+     * pin to the right inset. The Y axis mirrors it; the middle row is centered on the
      * screen, except {@link InsideRegion#CENTER} with {@code insets.belowCenter() > 0}
-     * (the HUD), which starts that far below the centre so it clears the crosshair.
+     * (the HUD), which starts that far below the center so it clears the crosshair.
      *
      * <p>Returns empty only when {@code insets.hideOverflow()} and the stack would run
      * past the spot's available height (screen height minus both insets, halved for
@@ -307,7 +307,7 @@ public final class RegionMath {
 
     /**
      * Whether {@code region}'s gap off the reference lies along its stacking axis
-     * (since 7.1.0). True only for the four regions centred on a side (TOP_CENTER,
+     * (since 7.1.0). True only for the four regions centered on a side (TOP_CENTER,
      * BOTTOM_CENTER, LEFT_CENTER, RIGHT_CENTER), which stack straight away from the
      * frame: their first panel's gap off the frame and every later panel's gap off its
      * sibling are the same axis, so the room they need beside the frame is their sum.
@@ -331,7 +331,7 @@ public final class RegionMath {
      * ({@code stackEnd} null) the prefix is 0: the resolver itself puts the gap
      * between the panel and the reference. For a later panel the gap goes between
      * it and the sibling before it: added here for the regions that stack along
-     * the frame edge, and by the resolver for the four side-centred regions, whose
+     * the frame edge, and by the resolver for the four side-centered regions, whose
      * frame gap is already on the stacking axis (which is why
      * {@link #stackEnd} counts their gap into the stack instead).
      *
@@ -348,7 +348,7 @@ public final class RegionMath {
      * Where {@code region}'s stack ends once a panel {@code axial} pixels long on the
      * stacking axis has been placed at {@code prefix} with {@code gap} (since 7.1.0):
      * the {@code stackEnd} the next {@link #stackPrefix} call takes. For the four
-     * side-centred regions it includes the panel's gap, because the resolver adds that gap on
+     * side-centered regions it includes the panel's gap, because the resolver adds that gap on
      * the stacking axis and the next panel must start beyond it.
      */
     public static int stackEnd(OutsideRegion region, int prefix, int axial, int gap) {
@@ -408,7 +408,7 @@ public final class RegionMath {
     }
 
     /**
-     * The vanilla hotbar on an {@code sw x sh} GUI (since 7.1.0): 182 x 22, centred,
+     * The vanilla hotbar on an {@code sw x sh} GUI (since 7.1.0): 182 x 22, centered,
      * flush with the bottom edge, where {@code Hud} draws {@code hud/hotbar}. The HUD's
      * reference, so an {@link OutsideRegion} on the HUD means "around the hotbar".
      */
@@ -428,13 +428,13 @@ public final class RegionMath {
 
     /**
      * The base of the HUD's status column on an {@code sw x sh} GUI: a rectangle
-     * {@link #STATUS_COLUMN_WIDTH} wide, centred on the hotbar: the column's fixed
+     * {@link #STATUS_COLUMN_WIDTH} wide, centered on the hotbar: the column's fixed
      * origin. {@code TOP_CENTER} stacks its panels up from the top, the first one
      * {@link RegionConstants#MENU_STACK_GAP} (2 px) above it.
      *
      * <p>With the status bars shown ({@code statusBars}: survival and adventure, where
      * {@code Hud} draws hearts, hunger and the XP bar), the first panel rests right on
-     * the XP level number, level with the hearts and armour rows: the number is drawn
+     * the XP level number, level with the hearts and armor rows: the number is drawn
      * at {@code sh - 24 - 9 - 2} with a 1 px outline, so its top is {@code sh - 36}, and
      * the base sits the default gap below that. The column stays there whether the
      * number shows or not (it hides at level 0), so it doesn't jump when the player's
@@ -515,7 +515,7 @@ public final class RegionMath {
      * Where a {@code pw x ph} panel sits around {@code bounds} in {@code region},
      * {@code prefix} pixels along its stacking axis from the aligned end and
      * {@code gap} pixels off the reference, before any clamping: the one geometry
-     * every outside placement shares. For the four side-centred regions the gap and
+     * every outside placement shares. For the four side-centered regions the gap and
      * the prefix are on the same axis, so both add up (see {@link #stackPrefix}).
      */
     private static ScreenOrigin outsideOrigin(OutsideRegion region, Reference bounds,
@@ -560,7 +560,7 @@ public final class RegionMath {
             case BOTTOM_CENTER -> new ScreenOrigin(
                     leftPos + (imageWidth - pw) / 2,
                     topPos + imageHeight + gap + prefix);
-            // LEFT_CENTER and RIGHT_CENTER: the same turned on their side, centred
+            // LEFT_CENTER and RIGHT_CENTER: the same turned on their side, centered
             // vertically and stacking horizontally away from the frame.
             case LEFT_CENTER -> new ScreenOrigin(
                     leftPos - pw - gap - prefix,

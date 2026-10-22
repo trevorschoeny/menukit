@@ -20,19 +20,19 @@ import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 
 /**
- * A colour setting: a swatch showing the colour, and a lens onto it. Clicking the
+ * A color setting: a swatch showing the color, and a lens onto it. Clicking the
  * swatch (or Enter on it) opens a modal dialog over the screen with two tabs:
  * <ul>
- *   <li><b>Basic</b>, the default: Minecraft's sixteen dye colours in rainbow order,
+ *   <li><b>Basic</b>, the default: Minecraft's sixteen dye colors in rainbow order,
  *       rows of six with the four neutrals last, each shown by its dye item, named in a
- *       tooltip (vanilla's colour name, "Light Blue"), the current one outlined.
- *       Clicking one sets the colour.</li>
+ *       tooltip (vanilla's color name, "Light Blue"), the current one outlined.
+ *       Clicking one sets the color.</li>
  *   <li><b>Custom</b>: a saturation and brightness square, a hue bar, a transparency
- *       bar over a checkerboard (with {@code alpha(true)}), the colour before and now
+ *       bar over a checkerboard (with {@code alpha(true)}), the color before and now
  *       side by side, and a hex field.</li>
  * </ul>
  * Changes are written as they are made, so the screen behind shows them at once.
- * Done keeps them; Cancel and Escape write back the colour from before the dialog
+ * Done keeps them; Cancel and Escape write back the color from before the dialog
  * opened.
  *
  * <pre>{@code
@@ -54,21 +54,21 @@ import java.util.function.IntSupplier;
  * Typing is free; only valid hex is written: {@code #RRGGBB}, and with alpha
  * {@code #AARRGGBB} too (six digits then keep the current transparency); the
  * {@code #} is optional. While the text is not valid it shows red and nothing is
- * written; when the field loses focus it goes back to the colour's hex.
+ * written; when the field loses focus it goes back to the color's hex.
  *
  * <h3>The kind of screen</h3>
  *
  * The swatch is a button of the screen's kind (vanilla's stone button in the Default
- * look, MenuKit's raised grey in the Panel look) with the colour inside it,
+ * look, MenuKit's raised gray in the Panel look) with the color inside it,
  * over a checkerboard when it has alpha. The dialog is a panel on the same screen,
  * so it draws in the same kind, its tabs, buttons and hex field included. It needs a
- * screen: on the HUD the swatch only shows the colour.
+ * screen: on the HUD the swatch only shows the color.
  */
 public class ColorField extends AbstractPanelElement {
 
     /** The swatch's size unless {@code size} says otherwise: a vanilla control's height, square. */
     public static final int DEFAULT_SIZE = 20;
-    /** Room between the swatch's frame and the colour inside it. */
+    /** Room between the swatch's frame and the color inside it. */
     private static final int INSET = 3;
 
     private final IntSupplier stateGet;
@@ -82,7 +82,7 @@ public class ColorField extends AbstractPanelElement {
 
     /** The dialog, built once with the field; shown on whatever screen the field is on. */
     private final ColorDialog dialog;
-    /** The dialog's view state: whether it is open, and the colour to go back to on Cancel. */
+    /** The dialog's view state: whether it is open, and the color to go back to on Cancel. */
     private boolean open = false;
     private int before;
 
@@ -95,14 +95,14 @@ public class ColorField extends AbstractPanelElement {
         this.dialog = new ColorDialog(this);
     }
 
-    /** Starts a colour field. Give it a {@code state(get, set)}. */
+    /** Starts a color field. Give it a {@code state(get, set)}. */
     public static Builder builder() {
         return new Builder();
     }
 
     // The value
 
-    /** The colour the field shows now: {@code 0xRRGGBB}, or {@code 0xAARRGGBB} with alpha. */
+    /** The color the field shows now: {@code 0xRRGGBB}, or {@code 0xAARRGGBB} with alpha. */
     public int value() {
         int v = stateGet.getAsInt();
         return alpha ? v : v & 0xFFFFFF;
@@ -118,7 +118,7 @@ public class ColorField extends AbstractPanelElement {
         stateSet.accept(alpha ? argb : argb & 0xFFFFFF);
     }
 
-    /** The value as an opaque-or-not ARGB colour to draw. */
+    /** The value as an opaque-or-not ARGB color to draw. */
     int drawColor() {
         int v = value();
         return alpha ? v : 0xFF000000 | v;
@@ -129,7 +129,7 @@ public class ColorField extends AbstractPanelElement {
         return label;
     }
 
-    /** The colour the dialog opened with (what Cancel writes back), as an ARGB colour to draw. */
+    /** The color the dialog opened with (what Cancel writes back), as an ARGB color to draw. */
     int before() {
         return alpha ? before : 0xFF000000 | before;
     }
@@ -137,7 +137,7 @@ public class ColorField extends AbstractPanelElement {
     // Hex, public so consumers can read and write the same strings
 
     /**
-     * The colour in {@code text}, or {@code null} when it is not valid hex: six digits
+     * The color in {@code text}, or {@code null} when it is not valid hex: six digits
      * ({@code RRGGBB}, read as opaque with alpha), or with {@code alpha} eight
      * ({@code AARRGGBB}); a leading {@code #} and surrounding spaces are allowed.
      * Without alpha the result is {@code 0xRRGGBB}.
@@ -161,7 +161,7 @@ public class ColorField extends AbstractPanelElement {
                 : String.format(Locale.ROOT, "#%06X", color & 0xFFFFFF);
     }
 
-    /** A dye's colour, opaque {@code 0xAARRGGBB}: vanilla's own for it (dyed leather, sheep, banners). */
+    /** A dye's color, opaque {@code 0xAARRGGBB}: vanilla's own for it (dyed leather, sheep, banners). */
     public static int dyeColor(DyeColor dye) {
         return dye.getTextureDiffuseColor();
     }
@@ -169,7 +169,7 @@ public class ColorField extends AbstractPanelElement {
     // The dialog. Public for MenuKit's checks; the swatch and the dialog's own
     // elements are what call these in play.
 
-    /** Opens the dialog, remembering the colour to go back to. Does nothing while it is open. */
+    /** Opens the dialog, remembering the color to go back to. Does nothing while it is open. */
     @ApiStatus.Internal
     public void openDialog() {
         if (open) return;
@@ -186,13 +186,13 @@ public class ColorField extends AbstractPanelElement {
         return open;
     }
 
-    /** Done: keeps the colour and closes the dialog. */
+    /** Done: keeps the color and closes the dialog. */
     @ApiStatus.Internal
     public void done() {
         open = false;
     }
 
-    /** Cancel (and Escape): writes back the colour from before the dialog opened, and closes it. */
+    /** Cancel (and Escape): writes back the color from before the dialog opened, and closes it. */
     @ApiStatus.Internal
     public void cancel() {
         if (!open) return;
@@ -200,13 +200,13 @@ public class ColorField extends AbstractPanelElement {
         write(before);
     }
 
-    /** A dye picked in the dialog: its colour, opaque, through the lens. */
+    /** A dye picked in the dialog: its color, opaque, through the lens. */
     @ApiStatus.Internal
     public void pickDye(DyeColor dye) {
         write(dyeColor(dye));
     }
 
-    /** What the hex field shows: the colour's hex, or what the player is typing. */
+    /** What the hex field shows: the color's hex, or what the player is typing. */
     @ApiStatus.Internal
     public String hexText() {
         return dialog.hexText();
@@ -240,7 +240,7 @@ public class ColorField extends AbstractPanelElement {
         return ColorDialog.DYE_ROWS;
     }
 
-    /** A dye's tooltip: vanilla's translated colour name. */
+    /** A dye's tooltip: vanilla's translated color name. */
     @ApiStatus.Internal
     public static Component dyeName(DyeColor dye) {
         return ColorDialog.dyeName(dye);
@@ -339,8 +339,8 @@ public class ColorField extends AbstractPanelElement {
         }
 
         /**
-         * Required: the lens onto the colour. {@code get} is read every frame;
-         * {@code set} receives every change the player makes, and the opening colour
+         * Required: the lens onto the color. {@code get} is read every frame;
+         * {@code set} receives every change the player makes, and the opening color
          * again on Cancel.
          */
         public Builder state(IntSupplier get, IntConsumer set) {
@@ -363,7 +363,7 @@ public class ColorField extends AbstractPanelElement {
 
         @Override
         public ColorField build() {
-            require(stateGet != null, "state(get, set) is required; a ColorField shows the consumer's colour");
+            require(stateGet != null, "state(get, set) is required; a ColorField shows the consumer's color");
             require(width > 0 && height > 0, "size(w, h) must be positive");
             // Hovered, the swatch reads its hex unless the consumer says something else.
             if (tooltip == null) {

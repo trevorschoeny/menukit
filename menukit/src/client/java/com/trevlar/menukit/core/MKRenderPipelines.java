@@ -14,19 +14,19 @@ import org.jetbrains.annotations.ApiStatus;
 /**
  * MenuKit's own {@link RenderPipeline}s for GUI rendering:
  * {@link #GUI_BRIGHTNESS_INVERTED}, the pressed look of a sprite button or sprite
- * toggle, and {@link #GUI_SILHOUETTE}, the coloured item outline
+ * toggle, and {@link #GUI_SILHOUETTE}, the colored item outline
  * ({@code SlotRendering.drawItemOutline}).
  *
  * <p>Both copy vanilla's 26.3 {@code RenderPipelines.GUI_TEXTURED} setup
  * (GLOBALS, PROJECTION, DYNAMIC_TRANSFORMS and SAMPLER0 bind groups, TRANSLUCENT
- * colour target, POSITION_TEX_COLOR vertex binding, QUADS topology, no depth
+ * color target, POSITION_TEX_COLOR vertex binding, QUADS topology, no depth
  * state since GUI ordering is done by strata) with a custom fragment shader.
  *
  * <p>Locations are in the {@code menukit} namespace so they can't collide with
  * vanilla or other mods. Shaders live at
  * {@code assets/menukit/shaders/core/button_brightness_invert.vsh} and {@code .fsh}.
  *
- * <p>Initialising the pipelines in static fields is fine: the renderer compiles
+ * <p>Initializing the pipelines in static fields is fine: the renderer compiles
  * them on first draw, not at class load.
  */
 @ApiStatus.Internal
@@ -40,7 +40,7 @@ public final class MKRenderPipelines {
      * pressed look (see {@code Button.SpriteButton.renderBackground}).
      */
     // The 26.2 builder: UBO and sampler declarations became bind-group layouts,
-    // blend became a colour-target state, and vertex format and mode split into
+    // blend became a color-target state, and vertex format and mode split into
     // vertex binding and primitive topology. There is no depth test, because
     // vanilla's GUI pipelines declare no depth state (ordering moved to render
     // strata). 26.3 split MATRICES_PROJECTION into PROJECTION and
@@ -61,7 +61,7 @@ public final class MKRenderPipelines {
 
     /**
      * GUI textured pipeline whose fragment shader draws every visible pixel of
-     * the texture in the vertex colour: a flat silhouette of a sprite. Used to
+     * the texture in the vertex color: a flat silhouette of a sprite. Used to
      * draw an item's outline from its own sprite in vanilla's item atlas
      * ({@code SlotRendering.drawItemOutline}). Same bind groups, vertex format and
      * blend as {@link #GUI_BRIGHTNESS_INVERTED}; the vertex stage is shared.

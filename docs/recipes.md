@@ -21,7 +21,7 @@ HudPanel.builder("offshore:boat-health", ModeScope.BOTH)
         .build();
 ```
 
-Result: a 7 pixel tall bar renders 50 pixels above the bottom centre of the window while `boatActive()` returns true and no screen is open. `value` is a `DoubleSupplier` in the range 0 to 1.
+Result: a 7 pixel tall bar renders 50 pixels above the bottom center of the window while `boatActive()` returns true and no screen is open. `value` is a `DoubleSupplier` in the range 0 to 1.
 
 `.region(InsideRegion)` puts the panel on one of nine spots of the window, 4 pixels in from the edges it touches. It stacks with the other panels on that spot in `.priority(n)` order. `.offset(dx, dy)` nudges this panel alone. Sub-builders (`text`, `item`, `slot`, `bar`) end with `.done()`. `.element(PanelElement)` adds any element, and `.custom(x, y, w, h, ctx -> ...)` draws freely inside the panel.
 
@@ -56,7 +56,7 @@ HudPanel.builder("mymod:totem-status", ModeScope.BOTH)
         .build();
 ```
 
-Result: while `totemShown()` holds a stack, the totem sits in a hotbar slot scaled to 11 x 12, centred in the 20 pixel gap between the hearts and the hunger bar, resting on the XP level number, level with the hearts and armour rows (2 pixels above the hotbar in creative). Icons from several mods in the column stack upward 2 pixels apart in `.priority(n)` order, lowest nearest the number; a hidden one takes no room. While the column reaches them, vanilla's held-item name, action-bar message and the chat move up by exactly as far as it rises above their bottom edge, and back down when it no longer does, so none of them lands on it. Keep `.scale(HudPanel.STATUS_SCALE)` so every mod's icons match, and leave durability on (drop `.hideDurability()`) for items that wear, such as an elytra.
+Result: while `totemShown()` holds a stack, the totem sits in a hotbar slot scaled to 11 x 12, centered in the 20 pixel gap between the hearts and the hunger bar, resting on the XP level number, level with the hearts and armor rows (2 pixels above the hotbar in creative). Icons from several mods in the column stack upward 2 pixels apart in `.priority(n)` order, lowest nearest the number; a hidden one takes no room. While the column reaches them, vanilla's held-item name, action-bar message and the chat move up by exactly as far as it rises above their bottom edge, and back down when it no longer does, so none of them lands on it. Keep `.scale(HudPanel.STATUS_SCALE)` so every mod's icons match, and leave durability on (drop `.hideDurability()`) for items that wear, such as an elytra.
 
 ## Put a button on every container screen
 
@@ -111,7 +111,7 @@ static Reference buttonsBox(Screen screen) {
 }
 ```
 
-Result: on the pause screen the row sits centred under the button column, and moves with it when the window resizes. On every other screen the box is `null`, so the row takes no place and claims nothing. Declare an anchor once and pass it to every adapter that places against it; panels on one anchor stack in its regions. SlotKit's slot-group panels are anchors built this way.
+Result: on the pause screen the row sits centered under the button column, and moves with it when the window resizes. On every other screen the box is `null`, so the row takes no place and claims nothing. Declare an anchor once and pass it to every adapter that places against it; panels on one anchor stack in its regions. SlotKit's slot-group panels are anchors built this way.
 
 ## Put a panel somewhere else in creative
 
@@ -132,14 +132,14 @@ Result: in survival the panel sits right of the inventory, stacked with any othe
 
 ## Share one panel with another mod
 
-Needs: MenuKit 7.4.0, in each mod. Join from each mod's client entry point. `OFFHAND` and `ARMOUR` are anchors on the offhand slot's box and the armor column's box (with SlotKit, its slot anchors, see [SlotKit's recipes](https://github.com/trevorschoeny/slotkit/blob/main/docs/recipes.md#put-a-slot-above-the-offhand)); `elytraSlot` and `totemSlot` are each mod's own element.
+Needs: MenuKit 7.4.0, in each mod. Join from each mod's client entry point. `OFFHAND` and `ARMOR` are anchors on the offhand slot's box and the armor column's box (with SlotKit, its slot anchors, see [SlotKit's recipes](https://github.com/trevorschoeny/slotkit/blob/main/docs/recipes.md#put-a-slot-above-the-offhand)); `elytraSlot` and `totemSlot` are each mod's own element.
 
 ```java
 // Simple Elytra Slot's client initializer: the elytra slot, first.
 SharedPanels.join("trevlar:gear", Contribution.builder(10, ModeScope.BOTH)
         .add(elytraSlot)
         .in(ModeScope.SURVIVAL, Placement.around(OFFHAND, PanelPosition.region(OutsideRegion.TOP_CENTER)))
-        .in(ModeScope.CREATIVE, Placement.around(ARMOUR, PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)))
+        .in(ModeScope.CREATIVE, Placement.around(ARMOR, PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)))
         .gap(0)
         .build());
 
@@ -148,7 +148,7 @@ SharedPanels.join("trevlar:gear", Contribution.builder(20, ModeScope.BOTH)
         .add(totemSlot)
         .visibleWhen(() -> config.totemSlotShown)
         .in(ModeScope.SURVIVAL, Placement.around(OFFHAND, PanelPosition.region(OutsideRegion.TOP_CENTER)))
-        .in(ModeScope.CREATIVE, Placement.around(ARMOUR, PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)))
+        .in(ModeScope.CREATIVE, Placement.around(ARMOR, PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)))
         .gap(0)
         .build());
 ```
@@ -236,9 +236,9 @@ List<PanelElement> buttonRow = Row.at(20, 30).spacing(4)
 Panel p = Panel.builder("mymod:confirm").elements(buttonRow).in(ModeScope.BOTH, Placement.screen(PanelPosition.center())).build();
 ```
 
-Result: two 60 by 20 buttons at y 30, starting at x 20, with a 4 pixel gap. `Column` has the same shape on the vertical axis. `.crossAlign(CrossAlign.CENTER)` centres children on the cross axis. A hidden element keeps its space. `Row` places once, on the panel's first layout, and does not follow the panel after that. For a row that follows the panel's width, use a `Flow` (next recipe).
+Result: two 60 by 20 buttons at y 30, starting at x 20, with a 4 pixel gap. `Column` has the same shape on the vertical axis. `.crossAlign(CrossAlign.CENTER)` centers children on the cross axis. A hidden element keeps its space. `Row` places once, on the panel's first layout, and does not follow the panel after that. For a row that follows the panel's width, use a `Flow` (next recipe).
 
-## Build a settings body: label left, control right, greyed while off
+## Build a settings body: label left, control right, grayed while off
 
 Needs: MenuKit. The body of a settings tab, built by the tab's body factory.
 
@@ -257,7 +257,7 @@ body.add(Flow.builder().at(0, 0)
 // A rule as wide as the body.
 body.add(Divider.horizontal().at(0, 22).build());
 // A setting: its label at the left, level with the middle of its control at the right,
-// both grey while the feature is off.
+// both gray while the feature is off.
 body.add(Flow.builder().at(0, 28).disabledWhen(off).crossAlign(CrossAlign.CENTER)
         .add(TextLabel.builder().text(Component.literal("Rows")).build())
         .add(Flow.spacer())
@@ -270,7 +270,7 @@ body.add(Flow.builder().at(0, 50).disabledWhen(off).crossAlign(CrossAlign.CENTER
         .build());
 ```
 
-Result: the switch sits at the left and Reset at the right edge of the tab body. Each setting's control sits at the right edge beside its label, whatever the window's width. When the window is too narrow the control drops under its label. The divider spans the body. While the feature is off, every setting row is grey and ignores the mouse and keys. `Panel.disabledWhen(...)` greys a whole panel the same way.
+Result: the switch sits at the left and Reset at the right edge of the tab body. Each setting's control sits at the right edge beside its label, whatever the window's width. When the window is too narrow the control drops under its label. The divider spans the body. While the feature is off, every setting row is gray and ignores the mouse and keys. `Panel.disabledWhen(...)` grays a whole panel the same way.
 
 ## A settings screen in the Default look
 
@@ -300,7 +300,7 @@ public final class ModSettingsScreen extends MKScreen {
                 .build();
     }
 
-    // Done at the bottom centre, the way every Options screen ends.
+    // Done at the bottom center, the way every Options screen ends.
     private static Panel done(Screen parent) {
         return Panel.builder("mymod:settings-done")
                 .style(PanelStyle.NONE)
@@ -347,11 +347,11 @@ public final class ModSettingsScreen extends MKScreen {
 }
 ```
 
-Open it with `Minecraft.getInstance().gui.setScreen(new ModSettingsScreen(Minecraft.getInstance().gui.screen()))`. Result: "My Mod" in white at the top centre, over the blurred world (the panorama on the title screen). Under it, Create World's tab bar runs across the whole width. With more tabs than fit, it scrolls with arrows. The page is the darker list band between two thin lines. The section header is centred as a category on Controls is, and its rows are white text. The toggle is a stone button reading ON or OFF, and the slider and dropdown are vanilla's own. Locked items shows nine slots in vanilla's slot sprite. A click opens the item dialog over the screen, with a search box and every item. A click on an item in the grid fills the selected slot, and a right click on the page empties a slot. The items are setting values, so nothing is taken from the inventory or sent to the server. Done at the bottom and Escape both return to the screen it opened from. Nothing on it picks a look.
+Open it with `Minecraft.getInstance().gui.setScreen(new ModSettingsScreen(Minecraft.getInstance().gui.screen()))`. Result: "My Mod" in white at the top center, over the blurred world (the panorama on the title screen). Under it, Create World's tab bar runs across the whole width. With more tabs than fit, it scrolls with arrows. The page is the darker list band between two thin lines. The section header is centered as a category on Controls is, and its rows are white text. The toggle is a stone button reading ON or OFF, and the slider and dropdown are vanilla's own. Locked items shows nine slots in vanilla's slot sprite. A click opens the item dialog over the screen, with a search box and every item. A click on an item in the grid fills the selected slot, and a right click on the page empties a slot. The items are setting values, so nothing is taken from the inventory or sent to the server. Done at the bottom and Escape both return to the screen it opened from. Nothing on it picks a look.
 
-A dialog on this screen (a `ConfirmDialog` for Reset to Defaults, for example) is in the same look. A `RAISED` panel draws vanilla's popup frame, with white text, and keeps the same 4 px between that frame and its elements as inside MenuKit's own frame (the popup frame is 3 px thicker, so the panel is 6 px bigger). Keep labels on roles (next recipe) rather than `TextLabel.COLOR_DARK`, which reads only on the Panel look's grey. A screen that declares no look (`super(title, panels)`) keeps the Panel look, MenuKit's grey. Panels injected into vanilla's own screens need nothing, because a panel on Options or Controls is already in the Default look.
+A dialog on this screen (a `ConfirmDialog` for Reset to Defaults, for example) is in the same look. A `RAISED` panel draws vanilla's popup frame, with white text, and keeps the same 4 px between that frame and its elements as inside MenuKit's own frame (the popup frame is 3 px thicker, so the panel is 6 px bigger). Keep labels on roles (next recipe) rather than `TextLabel.COLOR_DARK`, which reads only on the Panel look's gray. A screen that declares no look (`super(title, panels)`) keeps the Panel look, MenuKit's gray. Panels injected into vanilla's own screens need nothing, because a panel on Options or Controls is already in the Default look.
 
-## Colour text by role
+## Color text by role
 
 Needs: MenuKit 6.1.0.
 
@@ -363,9 +363,9 @@ body.add(TextLabel.builder().at(0, 26).text(Component.literal("Applies to chests
         .role(TextRole.MUTED).build());
 ```
 
-Result: the heading and "Rows" are dark grey in the Panel look and white in the Default look. The note is mid grey on the first and vanilla's grey on the second. A label without a role is `BODY`. Disabled text takes the look's disabled grey whatever its role. `color(argb)` and `shadow(b)` fix a value in both looks instead, for text over the world on the HUD. `TextLabel.COLOR_DARK` is right only on the Panel look's grey.
+Result: the heading and "Rows" are dark gray in the Panel look and white in the Default look. The note is mid gray on the first and vanilla's gray on the second. A label without a role is `BODY`. Disabled text takes the look's disabled gray whatever its role. `color(argb)` and `shadow(b)` fix a value in both looks instead, for text over the world on the HUD. `TextLabel.COLOR_DARK` is right only on the Panel look's gray.
 
-## Outline an item in its group's colour
+## Outline an item in its group's color
 
 Needs: MenuKit.
 
@@ -374,10 +374,10 @@ Needs: MenuKit.
 SlotRendering.drawItemOutline(graphics, stack, x, y, 0xFFE0A030);
 
 // Or as an element:
-ItemDisplay.builder().item(() -> stack).outline(() -> lockColour(stack)).build();
+ItemDisplay.builder().item(() -> stack).outline(() -> lockColor(stack)).build();
 ```
 
-Result: the item is drawn with a one pixel line of that colour around its own shape (not its square). A colour of 0 draws the item alone.
+Result: the item is drawn with a one pixel line of that color around its own shape (not its square). A color of 0 draws the item alone.
 
 ## Handle a right click and tint a button
 
@@ -438,7 +438,7 @@ PanelElement dropdown = WidgetHost.builder()
 
 Result: `place` is called every frame with the box in screen coordinates. While the widget has keyboard focus it draws on top of every panel, past its box, and takes clicks anywhere on the screen. A click it does not take ends its focus, which closes its list.
 
-## A colour setting
+## A color setting
 
 Needs: MenuKit 7.2.0.
 
@@ -450,7 +450,7 @@ PanelElement glow = ColorField.builder()
         .build();
 ```
 
-Result: a swatch of the colour, over a checkerboard because it has alpha. Clicking it opens a dialog over the screen, titled Glow color. The Basic tab shows the 16 dye colours by their dye items in three rows, in rainbow order, and clicking one sets the colour. The Custom tab has a saturation and brightness square, a hue bar, a transparency bar and a hex field. Every change is written at once. Done keeps it, and Cancel or Escape puts back the colour from before the dialog opened. Without `alpha(true)` the value is `0xRRGGBB` and there is no transparency bar.
+Result: a swatch of the color, over a checkerboard because it has alpha. Clicking it opens a dialog over the screen, titled Glow color. The Basic tab shows the 16 dye colors by their dye items in three rows, in rainbow order, and clicking one sets the color. The Custom tab has a saturation and brightness square, a hue bar, a transparency bar and a hex field. Every change is written at once. Done keeps it, and Cancel or Escape puts back the color from before the dialog opened. Without `alpha(true)` the value is `0xRRGGBB` and there is no transparency bar.
 
 ## An item setting
 
@@ -568,7 +568,7 @@ return Flow.builder().vertical().gap(2)
         .build();
 ```
 
-Each row is a card holding a section that opens on the group's settings. The list builds a row once per key, so the section reads its title and swatch every frame: a rename or a recolour shows on the same row, with no rebuild. The row is the mod's own: its toggle sits at the right end because a `Flow.spacer()` comes before it, and `crossAlign(CrossAlign.CENTER)` centres the label on the toggle's line.
+Each row is a card holding a section that opens on the group's settings. The list builds a row once per key, so the section reads its title and swatch every frame: a rename or a recolor shows on the same row, with no rebuild. The row is the mod's own: its toggle sits at the right end because a `Flow.spacer()` comes before it, and `crossAlign(CrossAlign.CENTER)` centers the label on the toggle's line.
 
 ```java
 static PanelElement groupRow(String id) {
@@ -589,7 +589,7 @@ static PanelElement groupRow(String id) {
 }
 ```
 
-Result: one line with "Lock groups" and a grey count at its left and + Slot group, + Item group, + Tag group, - Delete group and up and down arrows at its right end, over a list of cards. The count changes as groups come and go, and a heading too long for the line is cut with "..." before the first button, shown whole while hovered. `title(heading, tooltip)` gives the heading a hover tooltip of its own, a config option's description say, fixed or read while hovered; it shows instead of the whole heading when the heading is cut, as a `Section` with a tooltip does. Without `title(...)` the buttons sit alone at the right. Hovering an add button shows its tooltip, saying what that kind of group locks; `add(label, () -> tooltip, action)` takes one read while hovered instead. Clicking anywhere on a card selects it: a white outline in the Default look, a lighter card in the Panel look. Delete and the arrows stay grey until a group is selected, and stay grey for the two default groups, for up on the top movable group and down on the bottom one. Delete asks first, naming the group and its lock count, and then selects the group that took its place, so a second click deletes the next. Alt+Up and Alt+Down move the selected group. An added group appears at the bottom, scrolled into view. A group's card opens in place and stays open through renames and refreshes.
+Result: one line with "Lock groups" and a gray count at its left and + Slot group, + Item group, + Tag group, - Delete group and up and down arrows at its right end, over a list of cards. The count changes as groups come and go, and a heading too long for the line is cut with "..." before the first button, shown whole while hovered. `title(heading, tooltip)` gives the heading a hover tooltip of its own, a config option's description say, fixed or read while hovered; it shows instead of the whole heading when the heading is cut, as a `Section` with a tooltip does. Without `title(...)` the buttons sit alone at the right. Hovering an add button shows its tooltip, saying what that kind of group locks; `add(label, () -> tooltip, action)` takes one read while hovered instead. Clicking anywhere on a card selects it: a white outline in the Default look, a lighter card in the Panel look. Delete and the arrows stay gray until a group is selected, and stay gray for the two default groups, for up on the top movable group and down on the bottom one. Delete asks first, naming the group and its lock count, and then selects the group that took its place, so a second click deletes the next. Alt+Up and Alt+Down move the selected group. An added group appears at the bottom, scrolled into view. A group's card opens in place and stays open through renames and refreshes.
 
 ## A config list of values, each its own text field
 
@@ -611,7 +611,7 @@ return ListView.<Entry>builder()
         .build();
 ```
 
-Result: one text field per value, each with a thin divider line after it and then up, down and a remove cross. Nothing needs selecting: the first row's up and the last row's down are grey, and the cross removes its row at once. With one name left every cross is grey, so the list never empties; `addDisabledWhen` caps the other end the same way. + Add name in the toolbar adds an empty row at the bottom. In a card row the controls sit inside the card after the same divider. Placed in the middle of a page, the list pushes whatever is below it down as rows are added and pulls it back up as they go: place the next element as if the list took no room, as after a closed `Section`.
+Result: one text field per value, each with a thin divider line after it and then up, down and a remove cross. Nothing needs selecting: the first row's up and the last row's down are gray, and the cross removes its row at once. With one name left every cross is gray, so the list never empties; `addDisabledWhen` caps the other end the same way. + Add name in the toolbar adds an empty row at the bottom. In a card row the controls sit inside the card after the same divider. Placed in the middle of a page, the list pushes whatever is below it down as rows are added and pulls it back up as they go: place the next element as if the list took no room, as after a closed `Section`.
 
 ## A list the player searches and sorts
 
@@ -676,7 +676,7 @@ static Panel editSaveDialog() {
 }
 ```
 
-Result: each card has an Edit button at its right end. Edit opens a dialog over the dimmed screen, titled with the save's name, as wide as its fields, with Cancel and Save centred under them. Changes in the dialog touch only the draft: the card behind it doesn't change until Save, and Cancel or Escape closes it with the save as it was.
+Result: each card has an Edit button at its right end. Edit opens a dialog over the dimmed screen, titled with the save's name, as wide as its fields, with Cancel and Save centered under them. Changes in the dialog touch only the draft: the card behind it doesn't change until Save, and Cancel or Escape closes it with the save as it was.
 
 ## Show a panel on the screens that hold your slots
 

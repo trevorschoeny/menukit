@@ -152,7 +152,7 @@ public class Slider<V> extends AbstractPanelElement {
     public void render(RenderContext ctx) {
         // The lens, every frame: the widget shows what the consumer holds.
         slider.syncFromSupplier(scale.toFraction().apply(stateGet.get()));
-        // Disabled (own or cascaded): vanilla's inactive widget draws greyed and
+        // Disabled (own or cascaded): vanilla's inactive widget draws grayed and
         // ignores drag, keys and wheel on its own.
         slider.active = !disabled(ctx);
         host.fillWidth(width);

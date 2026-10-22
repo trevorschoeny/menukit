@@ -21,7 +21,7 @@ import java.util.Objects;
  *
  * <h3>The trigger</h3>
  *
- * Its label centred, with no arrow: in the Default look vanilla's button, in the
+ * Its label centered, with no arrow: in the Default look vanilla's button, in the
  * Panel look MenuKit's raised one, pressed while the menu is open.
  *
  * <h3>The menu</h3>
@@ -36,12 +36,12 @@ import java.util.Objects;
  * it, as does Escape, without closing the screen. No submenus.
  *
  * <p>Like every element it takes {@code at}, {@code visibleWhen}, {@code disabledWhen}
- * (greyed, and the menu does not open), {@code tooltip}, {@code opaque} and
+ * (grayed, and the menu does not open), {@code tooltip}, {@code opaque} and
  * {@code declId}. An action that throws is the consumer's error and is not caught.
  */
 public final class MenuButton extends PopoverControl<MenuButton.Action> {
 
-    /** Red, for an action that destroys something: the colour a dialog's invalid text has. */
+    /** Red, for an action that destroys something: the color a dialog's invalid text has. */
     static final int DANGER = TextField.TEXT_INVALID;
 
     /**

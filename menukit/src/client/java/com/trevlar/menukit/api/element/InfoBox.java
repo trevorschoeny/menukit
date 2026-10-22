@@ -19,7 +19,7 @@ import java.util.function.Supplier;
  * }</pre>
  *
  * <p>Sizes itself from its text, with {@link #PADDING} around it; wraps when its
- * panel is narrower, growing taller. Draws its text in the disabled grey while
+ * panel is narrower, growing taller. Draws its text in the disabled gray while
  * disabled (its own {@code disabledWhen}, or its panel's or container's).
  */
 public class InfoBox extends AbstractPanelElement {

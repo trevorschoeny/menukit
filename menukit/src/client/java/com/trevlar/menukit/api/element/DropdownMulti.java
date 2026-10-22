@@ -14,7 +14,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * A multi-selection dropdown: a trigger summarising the chosen set, and a
+ * A multi-selection dropdown: a trigger summarizing the chosen set, and a
  * popover list where each row toggles its item. A lens onto the consumer's set.
  *
  * <pre>{@code

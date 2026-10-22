@@ -75,7 +75,7 @@ import java.util.function.DoubleSupplier;
  * eats its own clicks. An open popover of a child (a {@link Dropdown}) claims its
  * whole area, even the part hanging below the viewport, and draws unclipped on
  * the overlay pass. Disabled (its own {@code disabledWhen} or its panel's), it and
- * everything in it are greyed and inert.
+ * everything in it are grayed and inert.
  *
  * <p>Every child is dispatched through {@link ChildDispatch}, with the context
  * moved to the scrolled content origin: the same order a panel uses.
@@ -127,7 +127,7 @@ import java.util.function.DoubleSupplier;
  * {@link Builder#fitWidth()} makes it as wide as its widest child plus the band's
  * inset and the scrollbar lane, so a grid of whole columns is never cut off on
  * either look; given more room by its panel it takes it, and lays its
- * children out to it (a child that centres itself stays centred).
+ * children out to it (a child that centers itself stays centered).
  * {@link Builder#fitHeight()} makes the declared height the most it is: as tall as
  * its content up to that, scrolling past it.
  * Its height then follows its content, so it pushes what is below it as a
@@ -234,7 +234,7 @@ public class ScrollContainer extends AbstractPanelElement {
     private final int[] settledBottom;
 
     /**
-     * Keeps the lane and its (greyed) handle even while everything fits, as vanilla's
+     * Keeps the lane and its (grayed) handle even while everything fits, as vanilla's
      * creative inventory does: for a grid whose contents a search changes as you type
      * (the item picker), so it never shifts sideways under the cursor.
      */
@@ -624,7 +624,7 @@ public class ScrollContainer extends AbstractPanelElement {
         // The scrollbar at the lane's right, drawn for the kind of screen by the one
         // scroller: MenuKit's inset track and vanilla's creative handle in the Panel
         // look, vanilla's thin list scroller in the Default look. None while everything
-        // fits, in either look (a steady lane keeps its greyed handle in the Panel look).
+        // fits, in either look (a steady lane keeps its grayed handle in the Panel look).
         // The handle's size, travel and drag are the same on both.
         if (shown) {
             Scroller.draw(g, kind, sx + width - Scroller.trackWidth(kind), sy, height, handleTop(kind),
@@ -667,7 +667,7 @@ public class ScrollContainer extends AbstractPanelElement {
         if (lx >= viewportWidth()) {
             // The gutter and the track eat their own clicks. A left press on the
             // track holds the handle: where it was pressed, on the handle; else by its
-            // middle, so it jumps to centre on the press (vanilla's lists and creative
+            // middle, so it jumps to center on the press (vanilla's lists and creative
             // inventory do the same), and the drag carries on from there.
             ScreenKind kind = in.kind();
             if (button == Click.LEFT && lx >= trackLeft && canScroll(kind)) {

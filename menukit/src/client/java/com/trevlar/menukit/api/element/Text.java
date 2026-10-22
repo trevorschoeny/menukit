@@ -21,10 +21,10 @@ import java.util.List;
  * wider than its bounds scrolls back and forth inside them, as vanilla's button
  * labels do, so no text is ever cut off. Vanilla's own
  * {@code GuiGraphicsExtractor.textRenderer().acceptScrolling(...)} always uses its
- * centred model, so it cannot draw text left-aligned when it fits and scrolling
+ * centered model, so it cannot draw text left-aligned when it fits and scrolling
  * when it does not; {@link #render} can.
  *
- * <p>Button, Toggle and ProgressBar centre their label with it, and the dropdowns
+ * <p>Button, Toggle and ProgressBar center their label with it, and the dropdowns
  * draw their trigger and popover rows with it. An element whose label sizes the
  * element (Checkbox, Radio) never overflows, and multi-line text wraps instead
  * ({@link #drawWrapped}).
@@ -34,7 +34,7 @@ public final class Text {
     private Text() {}
 
     /**
-     * Where to draw one line of text so it looks centred in the box from
+     * Where to draw one line of text so it looks centered in the box from
      * {@code top} to {@code bottom}: vanilla's rule, {@code (top + bottom -
      * lineHeight) / 2 + 1}, the same arithmetic as its button labels and its
      * scrolling-text helper ({@code ActiveTextCollector.defaultScrollingHelper}).
@@ -42,9 +42,9 @@ public final class Text {
      * <p><b>Why the {@code + 1}.</b> Minecraft's font line is 9 px, but a glyph
      * does not fill it evenly. Capitals and most lowercase sit in the top 7 rows,
      * the drop shadow adds one row under them, and the 9th row is only reached by
-     * the shadow of a descender (g, p, y). Centring the whole 9 px line therefore
+     * the shadow of a descender (g, p, y). Centering the whole 9 px line therefore
      * puts what the eye reads, the capitals, a pixel too high; one pixel down
-     * centres the capitals instead. Every MenuKit control that draws text in a box
+     * centers the capitals instead. Every MenuKit control that draws text in a box
      * goes through this, so a 16 px button and a 16 px toggle side by side put
      * their text on the same row.
      */
@@ -67,7 +67,7 @@ public final class Text {
      * across the bounds with vanilla's animation, where the alignment no longer
      * shows.
      *
-     * <p>The text is centred vertically between {@code y1} and {@code y2}, usually
+     * <p>The text is centered vertically between {@code y1} and {@code y2}, usually
      * {@code (textY, textY + font.lineHeight)}. {@code color} is ARGB and needs a
      * non-zero alpha, or vanilla silently drops the draw.
      *
@@ -83,7 +83,7 @@ public final class Text {
         int textW = font.width(text);
         if (textW <= boundsW) {
             // Not TextAlignment.calculateLeft: it takes (anchorPoint, textWidth),
-            // where the anchor is the left edge, the centre or the right edge
+            // where the anchor is the left edge, the center or the right edge
             // depending on the alignment, and passing (containerWidth, textWidth)
             // to it is an easy mistake. The arithmetic here is plainer.
             int textX = switch (align) {
@@ -91,13 +91,13 @@ public final class Text {
                 case CENTER -> x1 + (boundsW - textW) / 2;
                 case RIGHT -> x2 - textW;
             };
-            // Vanilla's centring rule, the same one the scrolling branch gets from
+            // Vanilla's centering rule, the same one the scrolling branch gets from
             // vanilla, so fitting and overflowing labels sit on the same row.
             int textY = centeredTextY(y1, y2);
             graphics.text(font, text, textX, textY, color, shadow);
         } else {
             // Vanilla's scroll call is (text, centerX, x1, x2, y1, y2) with no
-            // colour parameter, so the colour goes on the Component's style.
+            // color parameter, so the color goes on the Component's style.
             // centerX only matters for text that fits, handled above; scrolling
             // text moves across x1..x2. acceptScrolling does not scissor itself,
             // so the scissor here clips the animation to the bounds.
@@ -119,7 +119,7 @@ public final class Text {
     }
 
     /**
-     * {@link #render} centred in the box at {@code (x, y)} of {@code width} by
+     * {@link #render} centered in the box at {@code (x, y)} of {@code width} by
      * {@code height}, the shape of a vanilla button label.
      */
     public static void renderCentered(GuiGraphicsExtractor graphics, Component text,
@@ -236,15 +236,15 @@ public final class Text {
     /**
      * Draws {@code text} broken at {@code wrapWidth}, the first line at
      * {@code y}, one line every {@code lineHeight}. Each line starts at {@code x};
-     * with {@code centreIn > 0} each is centred in {@code [x, x + centreIn)}
+     * with {@code centerIn > 0} each is centered in {@code [x, x + centerIn)}
      * instead (a button's label).
      */
     public static void drawWrapped(GuiGraphicsExtractor graphics, Component text, int wrapWidth,
-                                   int x, int y, int centreIn, int color, boolean shadow) {
+                                   int x, int y, int centerIn, int color, boolean shadow) {
         Font font = Minecraft.getInstance().font;
         int lineY = y;
         for (FormattedCharSequence line : lines(text, wrapWidth)) {
-            int lineX = centreIn > 0 ? x + (centreIn - font.width(line)) / 2 : x;
+            int lineX = centerIn > 0 ? x + (centerIn - font.width(line)) / 2 : x;
             graphics.text(font, line, lineX, lineY, color, shadow);
             lineY += font.lineHeight;
         }

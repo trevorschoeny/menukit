@@ -16,8 +16,8 @@ import org.jetbrains.annotations.ApiStatus;
  * {@code init()} (any screen: vanilla, MenuKit, a slot library's or another mod's) restores it
  * through Fabric's AFTER_INIT hook. No base class and no per-consumer opt-in.
  *
- * <p>Vanilla moves the cursor to the window centre on some screen transitions (in
- * dev, every InventoryScreen open lands at about the centre). Capturing only on
+ * <p>Vanilla moves the cursor to the window center on some screen transitions (in
+ * dev, every InventoryScreen open lands at about the center). Capturing only on
  * screens that opt in can't fix a transition from a vanilla screen, because the
  * screen being left never opted in. So every screen captures and every screen
  * restores. Cursor position belongs to the transition, not to any Screen class,
@@ -36,12 +36,12 @@ import org.jetbrains.annotations.ApiStatus;
  *       use so a later, unrelated open doesn't get a stale position.</li>
  *   <li><b>Back to the HUD:</b> a tick listener clears the stash whenever
  *       {@code Gui.screen() == null}, so opening the first screen from the HUD
- *       centres the cursor as vanilla does, instead of restoring a position from
+ *       centers the cursor as vanilla does, instead of restoring a position from
  *       long ago. Screen-to-screen changes never tick with no screen (setScreen
  *       removes, sets and inits synchronously), so the stash survives those.</li>
  * </ul>
  *
- * <p>This acts on every screen only to undo vanilla's re-centring. The only
+ * <p>This acts on every screen only to undo vanilla's re-centering. The only
  * visible effect is that the cursor stays where it was.
  */
 @ApiStatus.Internal
@@ -70,9 +70,9 @@ public final class CursorContinuity {
 
         // The warp doesn't reach MouseHandler before this screen's first frame,
         // so MouseHandler.xpos/ypos would keep whatever
-        // vanilla last wrote (usually the window centre on the async open path).
+        // vanilla last wrote (usually the window center on the async open path).
         // Without this, hover detection and anything reading
-        // mouseHandler.xpos()/ypos() sees the centre until the mouse moves.
+        // mouseHandler.xpos()/ypos() sees the center until the mouse moves.
         ((MouseHandlerCursorPosAccessor) (Object) mc.mouseHandler)
                 .mk$setXpos(stashed[0]);
         ((MouseHandlerCursorPosAccessor) (Object) mc.mouseHandler)
@@ -92,7 +92,7 @@ public final class CursorContinuity {
             restoreIfAny();
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // No screen open: drop the stash so the next open centres the cursor
+            // No screen open: drop the stash so the next open centers the cursor
             // as vanilla does. Screen-to-screen changes happen inside setScreen()
             // and never tick here with no screen.
             if (client.gui.screen() == null && stashed != null) {

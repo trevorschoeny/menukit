@@ -17,7 +17,7 @@ import java.util.function.Supplier;
 
 /**
  * An interactive button within a {@link Panel}: a raised background with a
- * centred label, an icon, or a consumer sprite as its whole face.
+ * centered label, an icon, or a consumer sprite as its whole face.
  *
  * <pre>{@code
  * Button.builder()
@@ -48,7 +48,7 @@ import java.util.function.Supplier;
  * the modifier keys), else fall through to vanilla. Keyboard: Tab focuses the
  * button and Enter or Space presses it, through the shared {@link ElementWidget},
  * which also gives it narration. Disabled (its own {@code disabledWhen}, or its
- * panel's) it draws greyed and takes nothing.
+ * panel's) it draws grayed and takes nothing.
  *
  * <h3>Extension points for consumer subclasses</h3>
  *
@@ -206,8 +206,8 @@ public class Button extends AbstractPanelElement {
     }
 
     /**
-     * Paints the content: by default the label, centred; wrapped onto several
-     * centred lines when the panel narrowed the button below it, else on one line
+     * Paints the content: by default the label, centered; wrapped onto several
+     * centered lines when the panel narrowed the button below it, else on one line
      * that scrolls if it still overflows.
      *
      * <p><b>Stable extension point.</b> {@code sx}/{@code sy} are the button's
@@ -215,7 +215,7 @@ public class Button extends AbstractPanelElement {
      * the button.
      */
     protected void renderContent(RenderContext ctx, int sx, int sy, Look look) {
-        // Vanilla's colours on vanilla's button: white, light grey while disabled.
+        // Vanilla's colors on vanilla's button: white, light gray while disabled.
         int color = look.disabled() ? ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON).textColor(TextRole.DISABLED)
                 : ElementConstants.TEXT_LIGHT;
         if (wrapWidth > 0) {
@@ -323,7 +323,7 @@ public class Button extends AbstractPanelElement {
             return this;
         }
 
-        /** An icon button: {@code sprite} centred, inset 2px. Square: size it {@code (n, n)}. */
+        /** An icon button: {@code sprite} centered, inset 2px. Square: size it {@code (n, n)}. */
         public Builder icon(Identifier sprite) {
             Objects.requireNonNull(sprite, "sprite");
             return icon(() -> sprite);
@@ -336,10 +336,10 @@ public class Button extends AbstractPanelElement {
         }
 
         /**
-         * An icon button whose sprite is a white glyph drawn in the look's text colour,
+         * An icon button whose sprite is a white glyph drawn in the look's text color,
          * as a label is: dark on the Panel look's light face, white on the Default
-         * look's stone, grey while disabled. No shadow, so a glyph and its mirror weigh
-         * the same. A coloured sprite keeps {@link #icon(Supplier)}.
+         * look's stone, gray while disabled. No shadow, so a glyph and its mirror weigh
+         * the same. A colored sprite keeps {@link #icon(Supplier)}.
          */
         // Package-private while the list's glyphs are its only users; open it when a consumer needs one.
         Builder glyph(Supplier<Identifier> sprite) {
@@ -374,7 +374,7 @@ public class Button extends AbstractPanelElement {
         }
     }
 
-    /** A square button with a centred sprite. Intrinsic: never stretched or shrunk. */
+    /** A square button with a centered sprite. Intrinsic: never stretched or shrunk. */
     static final class IconButton extends Button {
         private static final int INSET = 2;
         private static final float DISABLED_ALPHA = 0.4f;
@@ -396,7 +396,7 @@ public class Button extends AbstractPanelElement {
             if (id == null) return;
             int size = getWidth() - INSET * 2;
             if (glyph) {
-                // A glyph is text: the look's body colour, its disabled colour while disabled.
+                // A glyph is text: the look's body color, its disabled color while disabled.
                 int color = ControlLook.kind(ctx.kind(), ControlLook.Control.BUTTON)
                         .textColor(look.disabled() ? TextRole.DISABLED : TextRole.BODY);
                 ctx.graphics().blitSprite(RenderPipelines.GUI_TEXTURED, id, sx + INSET, sy + INSET, size, size, color);

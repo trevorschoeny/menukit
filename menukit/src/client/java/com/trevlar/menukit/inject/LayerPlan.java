@@ -83,7 +83,7 @@ public final class LayerPlan {
     /**
      * Which layer a panel draws (and claims) in. A background panel is in the
      * background whatever else it is. An overlay wins over a popover: a popover that
-     * is also a modal (or centred) is a modal, and draws with the modals above the dim.
+     * is also a modal (or centered) is a modal, and draws with the modals above the dim.
      */
     public static Layer layerOf(Panel panel) {
         if (panel.isBackground()) return Layer.BACKGROUND;

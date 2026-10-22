@@ -40,7 +40,7 @@ public class Radio<T> extends AbstractPanelElement {
     /** Size of the selection dot inside the square. */
     public static final int INDICATOR_SIZE = 4;
 
-    /** Colour of the selection dot (visible on the inset interior). */
+    /** Color of the selection dot (visible on the inset interior). */
     public static final int INDICATOR_COLOR = 0xFF606060;
 
     private final RadioGroup<T> group;
@@ -115,7 +115,7 @@ public class Radio<T> extends AbstractPanelElement {
                 text != null ? text : Component.empty(), CommonComponents.optionStatus(selected)));
         var g = ctx.graphics();
 
-        // The round button: a black ring, the inset grey inside it (darker when
+        // The round button: a black ring, the inset gray inside it (darker when
         // disabled), the hover wash, and the dot.
         disc(g, sx, sy, RING, 0xFF000000);
         disc(g, sx + 1, sy + 1, INSIDE, disabled ? 0xFF8B8B8B : 0xFFC6C6C6);

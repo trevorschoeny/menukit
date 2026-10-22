@@ -8,15 +8,15 @@ The contract covers the public API: every type in a package named `api` (`com.tr
 
 Everything else is internal: the other packages (each marked `@ApiStatus.Internal` on the package), mixins, network payloads, and any member marked `@ApiStatus.Internal`. Internal code can change or disappear in any release, a patch included. It is public only because Java requires that for MenuKit's own packages to reach each other. A mod that calls it can break without warning. A task that seems to need an internal type is a gap in the API, and the fix is a public replacement. Open an issue for it.
 
-Behaviour counts too. A change to what a public method does that could break a caller is a breaking change, the same as removing it.
+Behavior counts too. A change to what a public method does that could break a caller is a breaking change, the same as removing it.
 
 ## What each part means
 
-A **major** bump means something public was removed or renamed, or its behaviour changed in a way that can break a caller. Code built against the previous major may not link. 5.0.0 replaced the four region enums with `OutsideRegion` and `InsideRegion`; 6.0.0 moved the public types into `api` packages and renamed several; 7.0.0 moved every slot type out to SlotKit.
+A **major** bump means something public was removed or renamed, or its behavior changed in a way that can break a caller. Code built against the previous major may not link. 5.0.0 replaced the four region enums with `OutsideRegion` and `InsideRegion`; 6.0.0 moved the public types into `api` packages and renamed several; 7.0.0 moved every slot type out to SlotKit.
 
 A **minor** bump adds API. Code built against an earlier minor of the same major keeps working.
 
-A **patch** bump fixes behaviour without changing the API.
+A **patch** bump fixes behavior without changing the API.
 
 The `+26.3` suffix is the Minecraft target. It is build metadata and takes no part in version comparison. A range written against `7.0.0` still matches `7.0.0+26.4` when MenuKit is rebuilt for a newer Minecraft.
 

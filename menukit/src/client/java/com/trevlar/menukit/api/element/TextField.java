@@ -69,9 +69,9 @@ public class TextField extends AbstractPanelElement {
     /** Vanilla's EditBox draws its text (and hint) this far inside its border, each side. */
     static final int TEXT_INSET = 4;
     /**
-     * The text colours a dialog's field shows: vanilla's EditBox default while the
+     * The text colors a dialog's field shows: vanilla's EditBox default while the
      * text is valid, red while it is not (an item dialog's count or components, a
-     * colour dialog's hex).
+     * color dialog's hex).
      */
     static final int TEXT_VALID = 0xFFE0E0E0, TEXT_INVALID = 0xFFFF5555;
 
@@ -303,7 +303,7 @@ public class TextField extends AbstractPanelElement {
 
         /**
          * Read-only when false: visible, selectable and copyable, but not
-         * changeable. Distinct from {@code disabledWhen}, which greys it and makes
+         * changeable. Distinct from {@code disabledWhen}, which grays it and makes
          * it wholly inert. Default true.
          */
         public Builder editable(boolean editable) {
@@ -311,7 +311,7 @@ public class TextField extends AbstractPanelElement {
             return this;
         }
 
-        /** Grey text shown while it is empty and unfocused. */
+        /** Gray text shown while it is empty and unfocused. */
         public Builder hint(Component hint) {
             this.hint = Objects.requireNonNull(hint, "hint");
             return this;

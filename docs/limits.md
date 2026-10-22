@@ -31,7 +31,7 @@ Behavior that is incomplete in the current release.
 | Moved panels | A position the player stores is not kept on the screen: a panel dropped by an edge of a large window can be partly off a smaller one. A right-click in edit mode is the way back. |
 | Creative tabs | No scope or value per creative tab. A panel follows the game mode (`ModeScope`) and its own `visibleWhen`; a screen's targeting (`ScreenMatcher.where`) is decided when the screen opens and not asked again on a tab switch. |
 | Shared panel ids | A shared id is a plain string with no registry. Two mods that use one id by accident share a panel, so namespace it as for any panel id. |
-| A look per element | None since 6.1.0, and 7.0.0 removed `ControlStyle`. No switch makes a control differ from its screen's look (a MenuKit-grey button in the Default look). Draw such a control with a sprite of your own (`Button.builder().sprite(...)`). |
+| A look per element | None since 6.1.0, and 7.0.0 removed `ControlStyle`. No switch makes a control differ from its screen's look (a MenuKit-gray button in the Default look). Draw such a control with a sprite of your own (`Button.builder().sprite(...)`). |
 
 ## Container region
 
@@ -62,10 +62,10 @@ Behavior that is incomplete in the current release.
 | Secondary click and tint | `Button` and `Toggle` only. Other shipped elements take left clicks alone. A custom `PanelElement` handles any button in its own `mouseClicked`. |
 | `ScrollContainer` | Vertical only. No keyboard scrolling. |
 | `Slider` | A 0 to 1 fraction, whole numbers (`ofInts`) or an enum's constants (`ofEnum`). No range handle, no vertical orientation. |
-| `WidgetHost` | A drag reaches the widget once a frame, not once per mouse event. A hosted widget draws itself, so it does not grey when disabled unless it greys itself. `overflow()` knows a widget's popup is open only by its keyboard focus. A hosted widget, like a control, stops being focusable a quarter second after it stops being drawn. |
-| `ColorField` | No eyedropper and no list of recent colours. The dialog opens only on a screen. Hex takes six or eight digits, not the three-digit short form. |
+| `WidgetHost` | A drag reaches the widget once a frame, not once per mouse event. A hosted widget draws itself, so it does not gray when disabled unless it grays itself. `overflow()` knows a widget's popup is open only by its keyboard focus. A hosted widget, like a control, stops being focusable a quarter second after it stops being drawn. |
+| `ColorField` | No eyedropper and no list of recent colors. The dialog opens only on a screen. Hex takes six or eight digits, not the three-digit short form. |
 | Keyboard focus on `Button`, `Toggle`, `Checkbox`, `Radio` | Follows the screen's widget order, which is panel order. An element that stops being drawn loses focusability a quarter second later, not the same frame. |
-| Disabled `Tabs` | The strip and the body are inert and the body greys; the strip's labels keep their colours. |
+| Disabled `Tabs` | The strip and the body are inert and the body grays; the strip's labels keep their colors. |
 | Item outline (`SlotRendering.drawItemOutline`, `ItemDisplay.outline`) | Items whose model reaches outside their 16 by 16 box, which vanilla draws through a separate path, draw without the outline. |
 | Auto-sizing elements with supplier content | The build measures width once. Reserve width for the longest expected content. |
 
