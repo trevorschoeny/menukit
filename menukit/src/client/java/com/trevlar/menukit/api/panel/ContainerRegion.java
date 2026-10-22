@@ -6,7 +6,6 @@ import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.inject.ContainerRegions;
 import com.trevlar.menukit.inject.PanelHost;
 import com.trevlar.menukit.inject.RegionLayout;
-import com.trevlar.menukit.inject.RegionTabs;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.BlockPos;
@@ -112,9 +111,9 @@ import java.util.function.Supplier;
  *       has less room (a window too short for vanilla's own margins), that side holds and
  *       the other moves until the block is centered. Only once the block reaches the top
  *       and bottom margins does it scroll. Each panel moves at most a pixel per pixel of
- *       growth, so nothing jumps. In list mode it is never shorter than the screen's own
- *       container part, so a tiny window still shows vanilla's height, scrolling. A resize
- *       lays it out again.</li>
+ *       growth, so nothing jumps. It is never shorter than the screen's own container part
+ *       (unless the screen is {@link #fitted}), so a tiny window still shows vanilla's
+ *       height, scrolling. A resize lays it out again.</li>
  *   <li><b>The wheel, last, from anywhere on the screen.</b> It scrolls the region
  *       only when vanilla and every other handler declined the turn: over a slot, a
  *       mod that moves items with the wheel (Mouse Tweaks, Inventory Profiles Next)
@@ -192,40 +191,39 @@ import java.util.function.Supplier;
  * ("Lime Shulker Box 1", "Lime Shulker Box 2"). The first section's title moves right,
  * clear of the pack's top corner, where the pack decorates it.
  *
- * <h3>Tabs mode</h3>
- * A screen can show its list as <b>tabs</b> instead: one container at a time, and a row of
- * tabs on the list's top edge, like the creative inventory's, one per section that could show,
- * in stacking order. The mode is per screen, not per section; sections stay as they are.
+ * <h3>Hidden sections</h3>
+ * A section whose own condition doesn't hold this frame ({@link Builder#visibleWhen}, its mode
+ * scope, its screens) takes no room, and its slots are off on the client
+ * ({@code Slot.isActive}), so nothing draws, hovers or takes a click there, and a slot library's
+ * element leaves them out. A slot is a section's once the region has drawn it there; a
+ * container's own slot no section has drawn yet is the screen's own container's (its first
+ * section with no {@link Builder#source}). A shift-click that lands in a hidden section scrolls
+ * nothing: the section's {@link Builder#onHiddenLanding} runs instead, so its mod can show it.
+ *
+ * <h3>The fitted frame</h3>
+ * {@link #fitted} declares screens whose list and inventory panel are one frame, as vanilla's
+ * image is, as tall as the shown sections need: shorter than the screen's own container part
+ * where they are smaller (a 3-row box shown on a double chest's screen), centered as the list
+ * is. Each shown section's slice of its own container art runs straight on into the inventory
+ * part, under a resource pack too. With a tab row on the list's top edge
+ * ({@link ContainerTabs}), the row stands in for the sections' titles, as creative's tabs do.
+ * To show one container at a time under tabs, as the creative inventory shows one page:
  *
  * <pre>{@code
- * ContainerRegion.tabs(ModeScope.BOTH).on(ContainerScreen.class);
- * ContainerRegion.select("mymod:opened-shulker");   // the box the player just opened
+ * ContainerRegion.fitted(ModeScope.BOTH, ScreenMatcher.only(ContainerScreen.class));
+ * ContainerRegion.section("mymod:backpack", ModeScope.BOTH)
+ *         .content(backpackGrid)
+ *         .on(ContainerScreen.class)
+ *         .visibleWhen(() -> shown == Shown.BACKPACK)
+ *         .onHiddenLanding(() -> shown = Shown.BACKPACK)   // a shift-click into it shows it
+ *         .declare();
+ * ContainerTabs.tab("mymod:backpack", ModeScope.BOTH)
+ *         .icon(() -> backpack.stack())
+ *         .on(ContainerScreen.class)
+ *         .selectedWhen(() -> shown == Shown.BACKPACK)
+ *         .onClick(() -> shown = Shown.BACKPACK)
+ *         .declare();
  * }</pre>
- *
- * <ul>
- *   <li><b>One frame, as tall as the shown container.</b> The list and the inventory panel are
- *       one frame, as vanilla's image is: the shown section's slice of its own container art
- *       runs straight on into the inventory part, under a resource pack too. The frame is as
- *       tall as the shown section needs, shorter than the screen's own container part where it
- *       is smaller (a 3-row box picked on a double chest), centered as the list is.</li>
- *   <li><b>The tabs</b> stand on the frame's top edge, counted in the block the region centers
- *       and fits, so they never leave the screen: vanilla's creative top tabs, so they follow a
- *       pack that restyles those, the picked one open into the frame. Each shows its section's
- *       {@link Builder#icon} and has its shown name as its tooltip (see "Titles and names"),
- *       or its {@link Builder#tooltip} where it declares one.
- *       With the tab row up the sections' titles go, as the tab names the container, and the
- *       inventory keeps vanilla's "Inventory". Past what fits, arrows at the row's ends page
- *       it. With one section there is no tab row, and the screen looks like vanilla's.</li>
- *   <li><b>The pick</b> is kept for the open screen, across a resize. It starts on the screen's
- *       own container (the first section with no {@link Builder#source}); a click on a tab
- *       (with an item held or not; carrying one onto a tab picks nothing), {@link #select} or a
- *       shift-click that lands in a container not shown picks another. When the picked section
- *       hides, the screen's own container is picked.</li>
- *   <li><b>Hidden sections' slots are off</b> on the client ({@code Slot.isActive}), so nothing
- *       draws, hovers or takes a click there, and a slot library's element leaves them out.</li>
- * </ul>
- * Where one mod declares tabs and another the list for the same screen, tabs win (a mod
- * asking for tabs has many containers to show), and MenuKit logs it once.
  *
  * <p>Declare from your client initializer: sections freeze with every other declaration.
  */
@@ -299,72 +297,17 @@ public final class ContainerRegion {
     }
 
     /**
-     * Tabs mode for the screens {@link ListMode#on} or {@link ListMode#onMatching} names, in
-     * {@code scope}'s game mode ({@link ModeScope#BOTH} for either), read every frame: their
-     * list shows one container at a time, picked by a row of tabs (see "Tabs mode").
-     */
-    public static ListMode tabs(ModeScope scope) {
-        return new ListMode(true, Objects.requireNonNull(scope, "scope"));
-    }
-
-    /**
-     * List mode, every section in one column, for the screens {@link ListMode#on} names: the
-     * default, for a mod that needs it to stay so. Where another mod asks for tabs on the same
-     * screen, tabs win.
-     */
-    public static ListMode list(ModeScope scope) {
-        return new ListMode(false, Objects.requireNonNull(scope, "scope"));
-    }
-
-    /**
-     * In tabs mode, shows section {@code sectionId} on the open screen, as a click on its tab
-     * does (for example, the box a player just opened): now if it is there, else as soon as it
-     * shows. Nothing changes in list mode; another screen opening starts on its own container.
-     * Render thread.
+     * The fitted frame for the screens {@code screens} takes, in {@code scope}'s game mode
+     * ({@link ModeScope#BOTH} for either), read every frame: their list and inventory panel are
+     * one frame, as tall as the shown sections need (see "The fitted frame"). Every other screen
+     * keeps the list. A tab row between the two panels splits the frame back into two, still
+     * fitted, the row in the gap.
      *
-     * @throws IllegalArgumentException when {@code sectionId} is not {@code namespace:path}
+     * @throws IllegalStateException after declarations froze
      */
-    public static void select(String sectionId) {
-        if (Identifier.tryParse(Objects.requireNonNull(sectionId, "sectionId")) == null) {
-            throw new IllegalArgumentException("ContainerRegion.select: section id '" + sectionId + "' is not namespace:path");
-        }
-        RegionTabs.select(sectionId);
-    }
-
-    /** Declares how the container list shows on some screens: {@link #tabs} or {@link #list}. */
-    public static final class ListMode {
-        private final boolean tabs;
-        private final ModeScope scope;
-
-        private ListMode(boolean tabs, ModeScope scope) {
-            this.tabs = tabs;
-            this.scope = scope;
-        }
-
-        /**
-         * Declares it for these screens.
-         *
-         * @throws IllegalStateException after declarations froze
-         */
-        @SafeVarargs
-        public final void on(Class<? extends AbstractContainerScreen<?>>... screens) {
-            if (screens.length == 0) throw new IllegalArgumentException("ContainerRegion." + name() + ": on() needs at least one screen class");
-            onMatching(ScreenMatcher.only(screens));
-        }
-
-        /**
-         * Declares it for the screens {@code matcher} takes, asked every frame.
-         *
-         * @throws IllegalStateException after declarations froze
-         */
-        public void onMatching(ScreenMatcher matcher) {
-            Declarations.requireOpen("ContainerRegion." + name() + "(" + scope + ")");
-            RegionTabs.declare(tabs, scope, Objects.requireNonNull(matcher, "matcher"));
-        }
-
-        private String name() {
-            return tabs ? "tabs" : "list";
-        }
+    public static void fitted(ModeScope scope, ScreenMatcher screens) {
+        Declarations.requireOpen("ContainerRegion.fitted(" + scope + ")");
+        ContainerRegions.declareFitted(Objects.requireNonNull(scope, "scope"), Objects.requireNonNull(screens, "screens"));
     }
 
     /**
@@ -388,8 +331,7 @@ public final class ContainerRegion {
         private Identifier texture = CHEST;
         private @Nullable Supplier<Component> title, name;
         private @Nullable Supplier<@Nullable Source> source;
-        private @Nullable Supplier<ItemStack> icon;
-        private @Nullable Supplier<@Nullable Component> tooltip;
+        private @Nullable Runnable onHiddenLanding;
 
         private Builder(String id, ModeScope scope) {
             this.id = Objects.requireNonNull(id, "id");
@@ -486,24 +428,12 @@ public final class ContainerRegion {
         }
 
         /**
-         * The section's tab icon in tabs mode, read every frame. Without one, its
-         * {@link #source}'s block's item (a lime shulker box for a lime shulker box), and for the
-         * screen's own container (no source) the block the screen was opened on.
+         * What happens when a quick move (a shift-click) lands an item in this section while it
+         * is hidden: the region scrolls to a slot only in a shown section, so this is the mod's
+         * chance to show it (pick its tab, say). MenuKit shows nothing itself. Render thread.
          */
-        public Builder icon(Supplier<ItemStack> icon) {
-            this.icon = Objects.requireNonNull(icon, "icon");
-            return this;
-        }
-
-        /**
-         * The section's tab tooltip in tabs mode, read every frame its tab is hovered, in place
-         * of the shown name it has by default, so every line is the mod's. A {@code \n} in it
-         * starts a new line; for a list of lines return {@link com.trevlar.menukit.api.element.MKTooltip#joinLines}
-         * ({@code () -> MKTooltip.joinLines(List.of(name, where))}). A {@code null} result
-         * shows none.
-         */
-        public Builder tooltip(Supplier<@Nullable Component> tooltip) {
-            this.tooltip = Objects.requireNonNull(tooltip, "tooltip");
+        public Builder onHiddenLanding(Runnable action) {
+            this.onHiddenLanding = Objects.requireNonNull(action, "action");
             return this;
         }
 
@@ -519,7 +449,7 @@ public final class ContainerRegion {
             // The mode scope is one more condition, read every frame with the section's own.
             BooleanSupplier own = visibleWhen;
             BooleanSupplier shown = scope == ModeScope.BOTH ? own : () -> scope.covers(PanelHost.currentMode()) && own.getAsBoolean();
-            ContainerRegions.declare(new ContainerRegions.Declared(id, content, matcher, order, shown, texture, title, name, source, icon, tooltip));
+            ContainerRegions.declare(new ContainerRegions.Declared(id, content, matcher, order, shown, texture, title, name, source, onHiddenLanding));
         }
     }
 }

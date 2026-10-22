@@ -8,6 +8,7 @@ import com.trevlar.menukit.api.element.ScrollContainer;
 import com.trevlar.menukit.api.element.TextLabel;
 import com.trevlar.menukit.api.panel.Anchor;
 import com.trevlar.menukit.api.panel.ContainerRegion;
+import com.trevlar.menukit.api.panel.ContainerTabs.Edge;
 import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.PanelPosition;
@@ -160,8 +161,6 @@ public final class ContainerRegions {
     public static final String PANEL_ID = "menukit:container_region";
     /** The inventory panel's panel id. */
     public static final String INVENTORY_PANEL_ID = "menukit:container_region_inventory";
-    /** The tab row's panel id (tabs mode). */
-    public static final String TABS_PANEL_ID = "menukit:container_region_tabs";
     /** The after-init phase the bounds are set in: before the default one, so other mods' init listeners see them. */
     private static final Identifier FIRST = Identifier.fromNamespaceAndPath("menukit", "container_region_bounds");
 
@@ -227,12 +226,11 @@ public final class ContainerRegions {
      * OptiGUI the texture its rules give the section's {@code source} (the open screen's,
      * without one). {@code title}, if any, is drawn above its content; {@code name} stands in
      * for a blank title while other sections show, ahead of its source's name ({@link RegionTitles#shownTitles}).
-     * {@code icon}, if any, is its tab's icon in tabs mode, ahead of its source's block ({@link RegionTabs}).
+     * {@code onHiddenLanding}, if any, runs when a quick move lands in it while it is hidden ({@link RegionReveal}).
      */
     public record Declared(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen,
                            Identifier texture, @Nullable Supplier<Component> title, @Nullable Supplier<Component> name,
-                           @Nullable Supplier<ContainerRegion.@Nullable Source> source, @Nullable Supplier<ItemStack> icon,
-                           @Nullable Supplier<@Nullable Component> tooltip) {}
+                           @Nullable Supplier<ContainerRegion.@Nullable Source> source, @Nullable Runnable onHiddenLanding) {}
 
     /** A section as placed: what it was declared as, and the element that holds it in the scroll area. */
     private record Placed(Declared section, AbstractPanelElement holder) {}
@@ -262,16 +260,15 @@ public final class ContainerRegions {
         // below the title's top (vanilla's title at y 6, its grid at 17). The title moves
         // right clear of the list's corner when its section is the first shown, and the
         // section moves down when it is a block of its own (this frame's Frame says which).
-        // In tabs mode with a tab row the tab names the container, and the title row goes.
+        // In the fitted frame with a tab row on top the row stands in for it, and the title row goes.
         PanelElement body = section.title() == null ? section.content() : Flow.builder().vertical().gap(0, 2)
                 .add(Flow.builder().gap(0, 0).add(new Spacer(() -> titleIndent(section), () -> 0))
                         .add(TextLabel.builder().at(1, 0).text(() -> shownTitle(section)).build())
                         .visibleWhen(() -> state.shape.titled()).build())
                 .add(section.content()).build();
-        // In tabs mode only the shown section is in the column.
         AbstractPanelElement holder = Flow.builder().vertical().gap(0, 0)
                 .add(new Spacer(() -> 0, () -> ownsBlock(section) ? RegionLayout.TITLE_INSET : 0)).add(body)
-                .visibleWhen(() -> RegionTabs.inColumn(section) && shownOnCurrentScreen(section)).build();
+                .visibleWhen(() -> shownOnCurrentScreen(section)).build();
         SECTIONS.add(new Placed(section, holder));
         SECTIONS.sort(Comparator.comparingInt((Placed p) -> p.section().order()).thenComparing(p -> p.section().id()));
 
@@ -281,7 +278,7 @@ public final class ContainerRegions {
         // One column stacks the shown sections, GAP apart; a hidden one takes no room.
         column = Flow.builder().vertical().gap(0, RegionLayout.GAP).addAll(holders).build();
         // The content: the column, with the shape's room above its first section and below its
-        // last grid (CONTENT_TOP and CONTENT_BOTTOM in list mode).
+        // last grid (CONTENT_TOP and CONTENT_BOTTOM in the list).
         PanelElement content = Flow.builder().vertical().gap(0, 0)
                 .add(new Spacer(() -> 0, () -> state.shape.contentTop())).add(column)
                 .add(new Spacer(() -> 0, () -> state.shape.contentBottom())).build();
@@ -313,16 +310,24 @@ public final class ContainerRegions {
                     .visibleWhen(() -> state.geometry != null && state.applied != null);
             PanelHost.surfaceLooks(inventoryPanel, RegionLooks::inventorySurfaceAt);
             new ScreenPanelAdapter(inventoryPanel, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
-            // Tabs mode's tab row, on the list's top edge, drawn over the list so the picked tab
-            // opens into its frame.
-            Panel tabs = Panel.builder(TABS_PANEL_ID).style(PanelStyle.NONE).background()
-                    .in(ModeScope.BOTH, Placement.screen(PanelPosition.pixel(ContainerRegions::tabsOrigin)
-                            .priority(PanelPosition.DEFAULT_PRIORITY + 1)))
-                    .add(new RegionTabs.Strip())
-                    .build()
-                    .visibleWhen(() -> state.geometry != null && state.applied != null && state.shape.above() > 0);
-            new ScreenPanelAdapter(tabs, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
         }
+    }
+
+    /** One {@code ContainerRegion.fitted} declaration: the screens {@code matcher} takes, in {@code scope}'s game mode. */
+    private record Fitted(ModeScope scope, ScreenMatcher matcher) {}
+
+    private static final List<Fitted> FITTED = new CopyOnWriteArrayList<>();
+
+    /** {@code ContainerRegion.fitted}: the screens {@code matcher} takes show the fitted frame in {@code scope}. */
+    public static void declareFitted(ModeScope scope, ScreenMatcher matcher) {
+        FITTED.add(new Fitted(Objects.requireNonNull(scope, "scope"), Objects.requireNonNull(matcher, "matcher")));
+    }
+
+    /** Whether {@code screen} shows the fitted frame now: a declaration takes it in the player's mode. */
+    private static boolean fitted(@Nullable Screen screen) {
+        if (!(screen instanceof AbstractContainerScreen<?> acs)) return false;
+        for (Fitted f : FITTED) if (f.scope().covers(PanelHost.currentMode()) && f.matcher().matches(acs)) return true;
+        return false;
     }
 
     /**
@@ -377,7 +382,7 @@ public final class ContainerRegions {
         WeakReference<Screen> screen = new WeakReference<>(null);
         double scroll;
         @Nullable Geometry geometry;
-        /** How the list stands this frame: list mode, or tabs mode with or without its tab row ({@link RegionTabs#shape}). */
+        /** How the list stands this frame: the list or the fitted frame, and the tab rows on it. */
         Shape shape = Shape.LIST;
         /** What the region's elements read this frame ({@link #step}). */
         @Nullable Frame frame;
@@ -464,7 +469,8 @@ public final class ContainerRegions {
         state.opened = openedContainer(screen);
         state.shape = Shape.LIST;
         RegionReveal.reset();
-        RegionTabs.reset(screen);
+        RegionSlots.allOn();
+        ContainerTabRows.reset();
         OptiGuiRules.screenClosed();   // its answers were for the screen before
     }
 
@@ -521,11 +527,6 @@ public final class ContainerRegions {
         return g == null ? null : new ScreenOrigin(g.inventory().leftPos(), g.inventory().topPos());
     }
 
-    private static @Nullable ScreenOrigin tabsOrigin() {
-        Geometry g = state.geometry;
-        return g == null ? null : new ScreenOrigin(g.x(), g.tabTop());
-    }
-
     /**
      * Before each frame of a screen the region is on (and once at its init): lay the
      * region out from the screen's vanilla bounds, and set the screen's bounds to the two
@@ -558,7 +559,7 @@ public final class ContainerRegions {
         // still not these) gets them written here: never a layout every frame.
         if (Objects.equals(want, state.applied)) return;
         if (want == null) restoreBounds(screen);
-        else applyBounds(screen, want);
+        else applyBounds(screen, want, g.shape().below());
     }
 
     private static int relayouts = 0;
@@ -606,16 +607,10 @@ public final class ContainerRegions {
                                           int mouseX, int mouseY, long now) {
         if (panel == null) return null;
 
-        // Tabs mode first: which sections could show (each asked with every slot on, as a
-        // hidden tab's slots are off), which is picked, and so how the list stands; then every
-        // other section's slots off. In list mode there is no row and nothing is off.
+        // Which sections show, each asked with every slot on: a hidden section's slots were off
+        // last frame, and a slot library's element with all its slots off hides itself.
         Screen screen = state.screen.get();
-        RegionTabs.allOn();
-        RegionTabs.Row row = RegionTabs.choose(screen, declared(), ContainerRegions::shownOnCurrentScreen);
-        state.shape = RegionTabs.shape(row);
-        RegionTabs.switchOff(screen instanceof AbstractContainerScreen<?> acs && acs.getMenu() != null ? acs.getMenu().slots : null);
-
-        // Before anything lays out: what the elements read this frame.
+        RegionSlots.allOn();
         int n = SECTIONS.size();
         boolean[] shown = new boolean[n];
         int count = 0;
@@ -626,15 +621,17 @@ public final class ContainerRegions {
         if (count == 0) {
             state.geometry = null;
             state.frame = null;
+            ContainerTabRows.choose(null);
             return null;
         }
-        // Names are worked out among the sections the player tells apart: the list's, or every tab's.
-        boolean[] named = shown;
-        if (row != null) {
-            named = new boolean[n];
-            for (int i : row.sections()) named[i] = true;
-        }
-        state.frame = frameOf(shown, named);
+        switchOffHidden(screen);
+        // Before anything lays out: what the elements read this frame, and how the list stands
+        // with the tab rows on this screen.
+        state.frame = frameOf(shown);
+        ContainerTabRows.choose(screen);
+        state.shape = Shape.of(fitted(screen), ContainerTabRows.height(Edge.CONTAINERS_TOP),
+                ContainerTabRows.height(Edge.CONTAINERS_BOTTOM) + ContainerTabRows.height(Edge.INVENTORY_TOP),
+                ContainerTabRows.height(Edge.INVENTORY_BOTTOM));
 
         // Where each shown section sits in the content (the column stacks them).
         int[] tops = new int[n], bottoms = new int[n];
@@ -672,15 +669,37 @@ public final class ContainerRegions {
         state.scroll = RegionReveal.step(g, state.scroll, tops, bottoms);
         if (carrying) state.scroll += RegionLayout.edgeSpeed(g, mouseX, mouseY) * seconds;
         state.scroll = Scroller.clamp(state.scroll, g.content(), g.viewHeight());
-        RegionTabs.afterLayout(g);
+        ContainerTabRows.afterLayout(g);
         return g;
     }
 
     /**
-     * This frame's {@link Frame}, with the sections {@code shown} as they are (at least one),
-     * and names worked out among the {@code named} ones (the shown ones in list mode).
+     * Every slot of a section on {@code screen} whose own condition doesn't hold this frame
+     * goes off ({@link RegionSlots}). A section whose content hides itself is not hidden here:
+     * its slots are not on the menu, or are off already. The screen's own container is its first
+     * section with no source, shown or not.
      */
-    private static Frame frameOf(boolean[] shown, boolean[] named) {
+    private static void switchOffHidden(@Nullable Screen screen) {
+        if (!(screen instanceof AbstractContainerScreen<?> acs) || acs.getMenu() == null) return;
+        boolean[] hidden = new boolean[SECTIONS.size()];
+        int own = -1;
+        for (int i = 0; i < hidden.length; i++) {
+            Declared s = SECTIONS.get(i).section();
+            if (!s.matcher().matches(acs)) continue;
+            if (own < 0 && s.source() == null) own = i;
+            hidden[i] = !s.visibleWhen().getAsBoolean();
+        }
+        RegionSlots.switchOff(acs.getMenu().slots, hidden, own);
+    }
+
+    /** A quick move landed in section {@code index} while it is hidden: its {@code onHiddenLanding}, if any. */
+    static void landedHidden(int index) {
+        Runnable r = index < SECTIONS.size() ? SECTIONS.get(index).section().onHiddenLanding() : null;
+        if (r != null) r.run();
+    }
+
+    /** This frame's {@link Frame}, with the sections {@code shown} as they are (at least one). */
+    private static Frame frameOf(boolean[] shown) {
         Screen screen = state.screen.get();
         List<Declared> sections = new ArrayList<>(SECTIONS.size());
         for (Placed p : SECTIONS) sections.add(p.section());
@@ -697,7 +716,7 @@ public final class ContainerRegions {
         int first = -1;
         for (int i = 0; i < sections.size(); i++) {
             if (shown[i] && first < 0) first = i;
-            if (!named[i]) continue;
+            if (!shown[i]) continue;
             Declared s = sections.get(i);
             if (s.title() == null) continue;
             titled.add(i);
@@ -750,10 +769,10 @@ public final class ContainerRegions {
      * the inventory panel. Only on a change of layout. The labels move here, by the change;
      * the slots are placed from the new shift ({@link #placeSlots}), here and every frame.
      */
-    private static void applyBounds(AbstractContainerScreen<?> screen, Reference bounds) {
+    private static void applyBounds(AbstractContainerScreen<?> screen, Reference bounds, int below) {
         Reference vanilla = state.vanilla;
         if (vanilla == null) return;
-        int[] shift = RegionLayout.counterShift(vanilla, bounds);
+        int[] shift = RegionLayout.counterShift(vanilla, bounds, below);
         int dx = shift[0] - state.shiftX, dy = shift[1] - state.shiftY, invDy = shift[2] - state.inventoryShiftY;
         AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
         acc.mk$setLeftPos(bounds.leftPos());
@@ -779,7 +798,7 @@ public final class ContainerRegions {
     private static void restoreBounds(AbstractContainerScreen<?> screen) {
         unplaceSlots();
         if (state.applied == null || state.vanilla == null) return;
-        applyBounds(screen, state.vanilla);
+        applyBounds(screen, state.vanilla, 0);
         state.applied = null;
     }
 
@@ -869,7 +888,6 @@ public final class ContainerRegions {
         if (panel == null || g == null || state.screen.get() != screen) return;
         int topPos = ((AbstractContainerScreenAccessor) screen).mk$getTopPos();
         RegionReveal.placed(PresentedSlots.below(panel), topPos, g, state.scroll, state.tops, state.bottoms);
-        RegionTabs.placed(PresentedSlots.below(panel));
     }
 
     // The wheel
