@@ -496,8 +496,10 @@ public final class RegionTabs {
             }
             if (over == BACK || over == FORWARD || (over >= 0 && over != r.shown())) graphics.requestCursor(CursorTypes.POINTING_HAND);
             if (over >= 0) {
-                Component name = name(r, over, sections);
-                if (name != null) MKTooltip.queue(graphics, name, ctx.mouseX(), ctx.mouseY());
+                // A section's own tooltip, when it declared one, replaces the shown name whole.
+                Declared s = sections.get(r.sections()[over]);
+                Component text = s.tooltip() != null ? s.tooltip().get() : name(r, over, sections);
+                if (text != null) MKTooltip.queue(graphics, text, ctx.mouseX(), ctx.mouseY());
             }
         }
 
