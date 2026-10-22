@@ -18,8 +18,8 @@ import java.util.Optional;
 /**
  * What the active resource packs supply, read the same way by every look that follows
  * them ({@link PackLook} for panels, {@link ControlLook} for controls, {@link PackText} for
- * text): whose a resource is, the colour a sprite's face shows, and the one luminance
- * formula colours are compared with.
+ * text): whose a resource is, the color a sprite's face shows, and the one luminance
+ * formula colors are compared with.
  */
 @ApiStatus.Internal
 public final class PackArt {
@@ -35,14 +35,14 @@ public final class PackArt {
     }
 
     /**
-     * The colour a sprite's face shows, opaque, or {@code null} when it can't be read
+     * The color a sprite's face shows, opaque, or {@code null} when it can't be read
      * (nothing there, a broken file, an all-transparent face). The face is the part of the
      * sprite a control or panel stretches over most of its area: for a nine-sliced sprite
-     * its centre slice; for any other, the middle half each way. Only the first frame is read
+     * its center slice; for any other, the middle half each way. Only the first frame is read
      * (an animated sprite stacks its frames down the file). Each pixel counts by its alpha,
      * so a face with see-through gaps averages what does show. Never throws.
      */
-    public static @Nullable Integer faceColour(Resource res) {
+    public static @Nullable Integer faceColor(Resource res) {
         try (InputStream in = res.open(); NativeImage img = NativeImage.read(in)) {
             ResourceMetadata meta = res.metadata();
             int w = img.getWidth(), h = img.getHeight();
@@ -57,9 +57,9 @@ public final class PackArt {
     }
 
     /**
-     * The face of a {@code fw x fh} frame, {@code [x0, y0, x1, y1]}: a nine-slice's centre
+     * The face of a {@code fw x fh} frame, {@code [x0, y0, x1, y1]}: a nine-slice's center
      * (its borders are in the sprite's own units, so scaled to the file's pixels), else the
-     * middle half; the centre pixel where that comes out empty (a nine-slice all border).
+     * middle half; the center pixel where that comes out empty (a nine-slice all border).
      */
     static int[] faceArea(int fw, int fh, @Nullable GuiSpriteScaling scaling) {
         int x0, y0, x1, y1;
@@ -79,7 +79,7 @@ public final class PackArt {
         return new int[]{x0, y0, x1, y1};
     }
 
-    /** The alpha-weighted average colour of {@code area} of {@code img}, opaque; {@code null} if nothing in it shows. */
+    /** The alpha-weighted average color of {@code area} of {@code img}, opaque; {@code null} if nothing in it shows. */
     private static @Nullable Integer average(NativeImage img, int[] area) {
         long a = 0, r = 0, g = 0, b = 0;
         for (int y = area[1]; y < area[3]; y++) {
@@ -95,7 +95,7 @@ public final class PackArt {
         return 0xFF000000 | (int) (r / a) << 16 | (int) (g / a) << 8 | (int) (b / a);
     }
 
-    /** A colour's relative luminance, 0 to 1 (WCAG's, from linear light): how light it reads. */
+    /** A color's relative luminance, 0 to 1 (WCAG's, from linear light): how light it reads. */
     public static double luminance(int argb) {
         return 0.2126 * channel((argb >> 16) & 0xFF) + 0.7152 * channel((argb >> 8) & 0xFF) + 0.0722 * channel(argb & 0xFF);
     }

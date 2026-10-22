@@ -11,7 +11,7 @@ import java.util.WeakHashMap;
 
 /**
  * The bookkeeping behind {@link SlotRendering#drawItemOutline}: which of this
- * frame's item draws are silhouettes, and in what colour.
+ * frame's item draws are silhouettes, and in what color.
  *
  * <h3>Why two steps</h3>
  *
@@ -23,7 +23,7 @@ import java.util.WeakHashMap;
  * (the states recorded inside {@link #silhouettes}) and drawn at the second:
  * {@code MKItemOutlineMarkMixin} records the mark as the state is added, and
  * {@code MKItemOutlineDrawMixin} blits a marked state through
- * {@link MKRenderPipelines#GUI_SILHOUETTE} in its colour instead of normally.
+ * {@link MKRenderPipelines#GUI_SILHOUETTE} in its color instead of normally.
  *
  * <p>Ordering needs nothing extra: vanilla's render state puts an element that
  * overlaps an earlier one above it, so the item drawn after its four silhouettes
@@ -39,7 +39,7 @@ public final class ItemOutline {
 
     private static final Map<GuiItemRenderState, Integer> MARKED = Collections.synchronizedMap(new WeakHashMap<>());
 
-    /** The colour items recorded right now are marked with; 0 when none. */
+    /** The color items recorded right now are marked with; 0 when none. */
     private static int pending = 0;
 
     /** Runs {@code draws} with every item it records marked as a silhouette in {@code argb}. */
@@ -58,7 +58,7 @@ public final class ItemOutline {
         if (pending != 0) MARKED.put(state, pending);
     }
 
-    /** The silhouette colour of {@code state}, removing the mark; 0 for an ordinary item. */
+    /** The silhouette color of {@code state}, removing the mark; 0 for an ordinary item. */
     public static int take(GuiItemRenderState state) {
         Integer argb = MARKED.remove(state);
         return argb == null ? 0 : argb;

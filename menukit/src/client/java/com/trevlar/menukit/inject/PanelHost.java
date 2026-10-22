@@ -160,7 +160,7 @@ public final class PanelHost {
      *                 position the caller gave rather than one of the panel's placements (the
      *                 7.3.0 forms), which shows in every mode as it always did
      * @param position the position this host resolves (the panel's own, or the
-     *                 standalone normalisation of an unplaced one)
+     *                 standalone normalization of an unplaced one)
      * @param padding  content padding between the panel's outer edge and its elements
      * @param modId    the registering mod: the tie-break after priority
      * @param seq      registration sequence: the last tie-break
@@ -499,7 +499,7 @@ public final class PanelHost {
 
     /**
      * The placement rule per context. Every context takes PIXEL and CENTER (an
-     * overlay floats centred on the screen wherever it is hosted); the rest depend
+     * overlay floats centered on the screen wherever it is hosted); the rest depend
      * on what the context has to place against.
      */
     public static void requireSupported(Kind kind, Panel panel, PanelPosition position) {
@@ -601,7 +601,7 @@ public final class PanelHost {
 
     /**
      * Whether the player may move this entry's panel: not one marked {@code fixed()}, nor one
-     * that isn't part of the screen's layout: a background panel, an overlay (centred, dim or
+     * that isn't part of the screen's layout: a background panel, an overlay (centered, dim or
      * modal, which every MenuKit dialog is), a popover, or a standalone screen's main panel.
      */
     public static boolean movable(Entry e) {
@@ -862,7 +862,7 @@ public final class PanelHost {
 
         if (panel.isOverlayPositioned()) {
             // The single overlay rule: whatever its declared mode, an overlay (a
-            // center() panel, or any dim or modal panel) floats centred on the screen
+            // center() panel, or any dim or modal panel) floats centered on the screen
             // window and draws on top. It grows to the screen width, not an anchor's.
             feedWidth(panel, RegionMath.availableScreenEdgeWidth(sw, RegionConstants.SCREEN_EDGE_MARGIN), pad);
             panel.setFrameHeight(-1);
@@ -997,8 +997,8 @@ public final class PanelHost {
     private static final int TITLE_STRIP = 14;
 
     /**
-     * The main frame: the main panel centred on the screen, with the title's room
-     * reserved per {@link TitleBand}. The main panel gets the centred width budget and
+     * The main frame: the main panel centered on the screen, with the title's room
+     * reserved per {@link TitleBand}. The main panel gets the centered width budget and
      * (when {@link #autoFitMain} allows) a height budget, so it wraps and
      * auto-scrolls rather than running off the screen.
      *
@@ -1006,7 +1006,7 @@ public final class PanelHost {
      * leave out the bands its shown {@link OutsideRegion} panels need (see
      * {@link #outsideBands}), and the frame is pushed off a screen edge only as far
      * as a band needs. So a panel above a full-height main panel always fits; the
-     * main panel shrinks instead. A main panel with room to spare stays centred.
+     * main panel shrinks instead. A main panel with room to spare stays centered.
      */
     private MainFrame resolveMain(Entry main, int sw, int sh) {
         Panel panel = main.panel();
@@ -1045,7 +1045,7 @@ public final class PanelHost {
      * The room the shown {@link OutsideRegion} panels need beside the main frame, as
      * {top, bottom, left, right} including the frame gap. A region that flows along
      * the frame edge (TOP_ALIGN_*, LEFT_ALIGN_*, ...) needs its tallest (or widest)
-     * panel; the side-centred regions (TOP_CENTER, LEFT_CENTER, ...) stack away from the
+     * panel; the side-centered regions (TOP_CENTER, LEFT_CENTER, ...) stack away from the
      * frame and need their sum plus gaps. Each side takes its largest region. Overlays and in-frame CENTER
      * panels need no band.
      *
@@ -1072,7 +1072,7 @@ public final class PanelHost {
             int[] size = measure(p, e.padding());
             int across = sideways ? size[0] : size[1];
             // Each panel's own gap, as place() will put it: off the frame, and for
-            // a side-centred region also off the panel before it.
+            // a side-centered region also off the panel before it.
             int gap = e.position().gapOr(RegionConstants.MENU_STACK_GAP);
             if (RegionMath.gapAlongStack(r)) {
                 need.merge(r, across + gap, Integer::sum);

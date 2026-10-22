@@ -26,7 +26,7 @@ import java.util.function.BooleanSupplier;
  *         .add(elytraSlot)
  *         .visibleWhen(config::elytraSlotOn)
  *         .in(ModeScope.SURVIVAL, Placement.around(OFFHAND, PanelPosition.region(OutsideRegion.TOP_CENTER)))
- *         .in(ModeScope.CREATIVE, Placement.around(ARMOUR, PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)))
+ *         .in(ModeScope.CREATIVE, Placement.around(ARMOR, PanelPosition.region(OutsideRegion.LEFT_ALIGN_TOP)))
  *         .gap(0)
  *         .build());
  * }</pre>
@@ -168,7 +168,7 @@ public final class Contribution {
             return this;
         }
 
-        /** Pixels between neighbouring elements, across contributions too. Default {@link Flow#DEFAULT_GAP}; 0 keeps slots on vanilla's 18 px pitch. */
+        /** Pixels between neighboring elements, across contributions too. Default {@link Flow#DEFAULT_GAP}; 0 keeps slots on vanilla's 18 px pitch. */
         public Builder gap(int px) {
             if (px < 0) throw new IllegalArgumentException("gap must be >= 0, was " + px);
             this.gap = px;

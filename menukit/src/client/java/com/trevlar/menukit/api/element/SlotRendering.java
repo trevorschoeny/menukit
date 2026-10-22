@@ -21,8 +21,8 @@ import net.minecraft.world.item.ItemStack;
  * <p>Parallel to {@link PanelRendering}, which handles panel-level backgrounds.
  *
  * <p>It also holds the one item-decoration primitive a slot decoration needs and
- * vanilla lacks, {@link #drawItemOutline}: a coloured outline around an item's own
- * silhouette (Inventory Plus marks locked items with their lock group's colour).
+ * vanilla lacks, {@link #drawItemOutline}: a colored outline around an item's own
+ * silhouette (Inventory Plus marks locked items with their lock group's color).
  */
 public final class SlotRendering {
 
@@ -71,7 +71,7 @@ public final class SlotRendering {
      * vanilla draws through a separate picture-in-picture path) draws without an
      * outline. Call it where the item would be drawn: it draws the item itself.
      *
-     * @param argb the outline's colour, alpha byte included; 0 draws the item alone
+     * @param argb the outline's color, alpha byte included; 0 draws the item alone
      */
     public static void drawItemOutline(GuiGraphicsExtractor g, ItemStack stack, int x, int y, int argb) {
         if (stack.isEmpty()) return;

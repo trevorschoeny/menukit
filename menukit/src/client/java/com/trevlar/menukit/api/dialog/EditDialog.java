@@ -16,7 +16,7 @@ import java.util.function.Supplier;
  * Builds a modal dialog that edits a copy of something and writes it back only on Save
  * (7.3.0): a title, your controls, Cancel and Save. The same shell as
  * {@link ConfirmDialog} (an ordinary {@link Panel}, the {@link Panel#modal() modal
- * flags} set, centred, as wide and as tall as its content) with your controls where
+ * flags} set, centered, as wide and as tall as its content) with your controls where
  * the confirm's body is.
  *
  * <p>The copy is yours, the draft. Your controls are lenses onto it, so nothing the
@@ -137,10 +137,10 @@ public final class EditDialog {
             require(content, "content");
             require(onSave, "onSave");
             require(onCancel, "onCancel");
-            // Every MenuKit dialog's layout: the title centred, the content, Cancel left
-            // and Save right, centred under it; Escape cancels instead of closing the screen.
+            // Every MenuKit dialog's layout: the title centered, the content, Cancel left
+            // and Save right, centered under it; Escape cancels instead of closing the screen.
             return DialogLayout.panel(id != null ? id : "edit-dialog-" + AUTO_ID_COUNTER.incrementAndGet(), onCancel,
-                    DialogLayout.centred(TextLabel.builder().text(title).build()),
+                    DialogLayout.centered(TextLabel.builder().text(title).build()),
                     content,
                     DialogLayout.buttons(
                             DialogLayout.button(cancelLabel, onCancel),

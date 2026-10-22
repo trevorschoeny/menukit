@@ -27,7 +27,7 @@ import com.trevlar.menukit.core.VanillaLook;
  */
 public class Divider extends AbstractPanelElement {
 
-    /** Default colour: vanilla's container-label grey. */
+    /** Default color: vanilla's container-label gray. */
     public static final int DEFAULT_COLOR = ElementConstants.TEXT_DARK;
 
     /** Default thickness in pixels. */
@@ -98,7 +98,7 @@ public class Divider extends AbstractPanelElement {
         queueTooltip(ctx);
     }
 
-    /** The divider's ARGB colour. */
+    /** The divider's ARGB color. */
     public int getColor() { return color; }
 
     public static class Builder extends AbstractPanelElement.Builder<Divider, Builder> {
@@ -128,7 +128,7 @@ public class Divider extends AbstractPanelElement {
             return this;
         }
 
-        /** ARGB colour, alpha byte included, in the Panel look. Default {@link #DEFAULT_COLOR}. */
+        /** ARGB color, alpha byte included, in the Panel look. Default {@link #DEFAULT_COLOR}. */
         public Builder color(int argb) {
             this.color = argb;
             return this;

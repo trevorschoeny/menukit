@@ -19,13 +19,13 @@ import java.util.function.Supplier;
  * TextLabel.builder().text(() -> Component.literal("Bees: " + bees())).color(TextLabel.COLOR_LIGHT).shadow(true).build();
  * }</pre>
  *
- * <h3>Colour: a role, or a value</h3>
+ * <h3>Color: a role, or a value</h3>
  *
- * A label's colour comes from its {@link TextRole} ({@link TextRole#BODY} unless
+ * A label's color comes from its {@link TextRole} ({@link TextRole#BODY} unless
  * {@code role(...)} says otherwise), resolved by the kind of screen it is on
- * (6.1.0): dark grey without a shadow in the Panel look, vanilla's white and
- * greys with a shadow in the Default look ({@link ScreenKind#textColor}). So a
- * label reads on either kind with nothing hand-coloured. {@code color(argb)} and
+ * (6.1.0): dark gray without a shadow in the Panel look, vanilla's white and
+ * grays with a shadow in the Default look ({@link ScreenKind#textColor}). So a
+ * label reads on either kind with nothing hand-colored. {@code color(argb)} and
  * {@code shadow(b)} fix a value instead, on every kind: a HUD label over the world,
  * say.
  *
@@ -39,13 +39,13 @@ import java.util.function.Supplier;
  * <h3>Disabled look</h3>
  *
  * While its own {@code disabledWhen} holds, or its panel or container is
- * disabled, the label draws in its kind's {@link TextRole#DISABLED} colour:
- * the text of a greyed settings group greys with its controls, with no
- * colour swapping by hand.
+ * disabled, the label draws in its kind's {@link TextRole#DISABLED} color:
+ * the text of a grayed settings group grays with its controls, with no
+ * color swapping by hand.
  *
  * <h3>ARGB (26.2)</h3>
  *
- * A colour must carry an alpha byte ({@code 0xFF404040}, not {@code 0x404040}):
+ * A color must carry an alpha byte ({@code 0xFF404040}, not {@code 0x404040}):
  * vanilla silently drops text whose alpha is zero.
  *
  * <h3>Supplier text and layout</h3>
@@ -56,7 +56,7 @@ import java.util.function.Supplier;
  */
 public class TextLabel extends AbstractPanelElement {
 
-    /** Dark grey, no shadow: vanilla's container-label colour on a light panel. */
+    /** Dark gray, no shadow: vanilla's container-label color on a light panel. */
     public static final int COLOR_DARK = ElementConstants.TEXT_DARK;
 
     /** White, drawn with a shadow: readable on a dark panel. */
@@ -64,7 +64,7 @@ public class TextLabel extends AbstractPanelElement {
 
     private final Supplier<Component> text;
     private final TextRole role;
-    /** A fixed colour, or null to take the role's colour on the kind of screen. */
+    /** A fixed color, or null to take the role's color on the kind of screen. */
     private final @Nullable Integer color;
     /** A fixed shadow, or null to take the kind's. */
     private final @Nullable Boolean shadow;
@@ -151,8 +151,8 @@ public class TextLabel extends AbstractPanelElement {
         var g = ctx.graphics();
         int x = ctx.originX() + childX;
         int y = ctx.originY() + childY;
-        // The role's colour in this frame's look, unless a colour was fixed; disabled
-        // text takes the kind's disabled colour either way.
+        // The role's color in this frame's look, unless a color was fixed; disabled
+        // text takes the kind's disabled color either way.
         ScreenKind kind = ctx.kind();
         int drawColor = disabled(ctx) || color == null ? textColor(ctx, role) : color;
         boolean drawShadow = shadow != null ? shadow : kind.textShadow();
@@ -205,7 +205,7 @@ public class TextLabel extends AbstractPanelElement {
         }
 
         /**
-         * What the text is for: its colour comes from the role on the kind of screen
+         * What the text is for: its color comes from the role on the kind of screen
          * the label is on ({@link ScreenKind#textColor}). Default {@link TextRole#BODY},
          * which in the Panel look is {@link #COLOR_DARK}, the 6.0.0 default.
          */
@@ -214,7 +214,7 @@ public class TextLabel extends AbstractPanelElement {
             return this;
         }
 
-        /** A fixed ARGB colour, alpha byte included, on every kind of screen: wins over the role. */
+        /** A fixed ARGB color, alpha byte included, on every kind of screen: wins over the role. */
         public Builder color(int argb) {
             this.color = argb;
             return this;

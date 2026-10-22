@@ -99,7 +99,7 @@ import java.util.function.Supplier;
  * reads your field to show its actions only while selected
  * ({@code visibleWhen(() -> id.equals(selectedId))}). The selected row reads clearly in
  * both looks: in the Default look a one-pixel outline, white while the list has the
- * keyboard, grey otherwise; in the Panel look a card row (a boxed {@link Flow}) is washed
+ * keyboard, gray otherwise; in the Panel look a card row (a boxed {@link Flow}) is washed
  * lighter inside its border, and any other row is outlined. After a click in the
  * list, Up and Down move the selection (not while a text field has the keys). When the
  * selection changes other than by a click (your code selecting a new item, the arrow
@@ -137,10 +137,10 @@ import java.util.function.Supplier;
  *       {@code null} and the list finds the key that appeared; either way the new row is
  *       scrolled into view, and a search query that would hide it is cleared. A
  *       tooltip between the label and the action, fixed or read while hovered, says
- *       what the kind is. {@link Builder#addDisabledWhen} greys them.</li>
+ *       what the kind is. {@link Builder#addDisabledWhen} grays them.</li>
  *   <li><b>Remove</b> ({@link Builder#remove}): a "- Remove item" button right of the
  *       add buttons, acting on the selected row; it can take its own label and tooltip.
- *       {@link Builder#removeDisabledWhen} greys it, and every row's cross with
+ *       {@link Builder#removeDisabledWhen} grays it, and every row's cross with
  *       {@code controlsInRows} (a list at its minimum length). {@link Builder#confirmRemove} asks
  *       first, in a {@link ConfirmDialog} whose body names the item, read when it
  *       shows. Once the row is gone the row that took its place is selected (the one
@@ -151,7 +151,7 @@ import java.util.function.Supplier;
  *   <li><b>Pinned</b> ({@link Builder#pinned}): those rows can't be removed or moved,
  *       and no other row moves past them. Their order is still yours.</li>
  *   <li><b>Disabled, with a reason</b> ({@link Builder#disabledReason}): while the
- *       list's own {@code disabledWhen} holds, the reason shows above the greyed rows.</li>
+ *       list's own {@code disabledWhen} holds, the reason shows above the grayed rows.</li>
  *   <li><b>Search</b> ({@link Builder#search}) and <b>sort</b> ({@link Builder#sort}):
  *       in the toolbar, the search field on the left taking the free width, the sort
  *       picker and its direction after it. Search is case-insensitive
@@ -162,7 +162,7 @@ import java.util.function.Supplier;
  *       default. A list can't both sort and move: {@code build()} throws.</li>
  * </ul>
  *
- * <p>Remove, up and down are greyed while nothing is selected or the selected row
+ * <p>Remove, up and down are grayed while nothing is selected or the selected row
  * can't do it: a pinned row, up on the top row and down on the bottom one, a move
  * next to a pinned row, remove on a row a query hides, and either arrow while a query
  * is typed (a move in a filtered view would land somewhere you can't see). Without
@@ -179,7 +179,7 @@ import java.util.function.Supplier;
  * level with the controls above it. Place it the rows' {@code gap} above the scroll
  * area so it reads as part of the list. A list whose toolbar you never ask for draws
  * it at its own top, that gap above the rows, as wide as the rows (inside the band and
- * clear of the scrollbar), and it scrolls with them. It greys with the list.
+ * clear of the scrollbar), and it scrolls with them. It grays with the list.
  *
  * <p>{@link Builder#title} puts the list's heading on the toolbar's line, at its left
  * edge, so a heading and its buttons share one line instead of the heading sitting
@@ -190,15 +190,15 @@ import java.util.function.Supplier;
  *     .items(ranges::all).key(Range::id).row(this::rangeRow)
  *     .title(() -> Component.literal("Range counts  ")                   // read every frame
  *             .append(Component.literal(ranges.size() + " rows")
- *                     .withColor(look.textColor(TextRole.MUTED))))         // the screen's look, its grey
+ *                     .withColor(look.textColor(TextRole.MUTED))))         // the screen's look, its gray
  *     .add(Component.literal("+ Add range"), () -> ranges.add())
  *     .build();
  * }</pre>
  *
  * The title reads, left to right, before the search field (which then takes the width
  * between them) or before empty room up to the buttons. It is drawn in the heading
- * style a {@link Section}'s title has for the look, centred on the buttons' line as a
- * label in a {@code crossAlign(CENTER)} {@link Flow} is, and greys with the list. A
+ * style a {@link Section}'s title has for the look, centered on the buttons' line as a
+ * label in a {@code crossAlign(CENTER)} {@link Flow} is, and grays with the list. A
  * supplier is read every frame, so a live count changes in place; a title too long for
  * the line is cut with "..." before the search field or the first button, its styles
  * kept, and shown whole in a tooltip. A title can carry a hover tooltip of its own,
@@ -225,7 +225,7 @@ import java.util.function.Supplier;
  * its controls. Your own controls in a row (a toggle, an Edit button that opens an
  * {@link com.trevlar.menukit.api.dialog.EditDialog}) go where your row puts them: in a
  * row {@link Flow} after a {@link Flow#spacer()} they sit at its right end, and
- * {@link Flow.Builder#crossAlign} centres them on the line.
+ * {@link Flow.Builder#crossAlign} centers them on the line.
  *
  * @param <T> the item type
  */
@@ -241,8 +241,8 @@ public final class ListView<T> extends AbstractPanelElement {
     /** The toolbar's search field and sort picker widths. */
     static final int SEARCH_WIDTH = 120, SORT_WIDTH = 100;
 
-    // The icons: white glyphs with no shadow, drawn in the look's text colour (Button's
-    // glyph), each pixel-centred in its button. Up and down are exact mirrors; remove's
+    // The icons: white glyphs with no shadow, drawn in the look's text color (Button's
+    // glyph), each pixel-centered in its button. Up and down are exact mirrors; remove's
     // cross has the arrows' ink. A row's up, down and remove are drawn in its 16 px
     // buttons; the toolbar's up and down are the same glyphs padded to 16 px for its
     // 20 px buttons, so they draw 1:1 like the sort direction's.
@@ -267,7 +267,7 @@ public final class ListView<T> extends AbstractPanelElement {
 
     // Editing (7.3.0): each null or empty when its option is off.
     private final @Nullable Consumer<Object> remove;
-    /** Greys every remove, the toolbar's and each row's cross, while it holds ({@link Builder#removeDisabledWhen}). */
+    /** Grays every remove, the toolbar's and each row's cross, while it holds ({@link Builder#removeDisabledWhen}). */
     private final @Nullable BooleanSupplier removeDisabled;
     private final @Nullable Function<? super T, Component> confirmRemove;
     private final @Nullable BiConsumer<Object, Integer> move;
@@ -318,7 +318,7 @@ public final class ListView<T> extends AbstractPanelElement {
      * it is gone (the one that took its place, or the one before). Read by the next
      * sync and dropped there, so a remove the consumer refuses leaves the selection be.
      */
-    private @Nullable Object removedKey, neighbourKey;
+    private @Nullable Object removedKey, neighborKey;
     /** An add just ran: the key it returned, or the keys before it to find the new one. */
     private boolean adding = false;
     private @Nullable Object addedKey;
@@ -404,7 +404,7 @@ public final class ListView<T> extends AbstractPanelElement {
      * with two or more sorts the picker and its direction; the add buttons, one per kind;
      * then, unless the controls are in the rows, remove, up and down, acting on the
      * selected row. Each part only when its option is on; with no search the buttons
-     * alone, at the right. Every part greys with the list, wherever the toolbar is
+     * alone, at the right. Every part grays with the list, wherever the toolbar is
      * placed, the add buttons also while {@code addDisabledWhen} holds, remove also while
      * {@code removeDisabledWhen} does, and remove and the arrows while the selected row
      * can't do it.
@@ -533,9 +533,9 @@ public final class ListView<T> extends AbstractPanelElement {
         List<? extends T> now = items.get();
         if (now == null) now = List.of();
         if (!sameKeys(now)) reconcile(now);
-        // A toolbar remove is settled by now: done (the neighbour was selected) or refused.
+        // A toolbar remove is settled by now: done (the neighbor was selected) or refused.
         removedKey = null;
-        neighbourKey = null;
+        neighborKey = null;
         if (edits) {
             byKey(now);
             if (adding) revealAdded();
@@ -571,8 +571,8 @@ public final class ListView<T> extends AbstractPanelElement {
         if (selectedGet != null && selectedSet != null) {
             Object selected = selectedGet.get();
             if (selected != null && !rows.containsKey(selected)) {
-                boolean handOn = selected.equals(removedKey) && neighbourKey != null && rows.containsKey(neighbourKey);
-                selectedSet.accept(handOn ? neighbourKey : null);
+                boolean handOn = selected.equals(removedKey) && neighborKey != null && rows.containsKey(neighborKey);
+                selectedSet.accept(handOn ? neighborKey : null);
             }
         }
         // A removed row's confirm closes, with nothing left to confirm.
@@ -660,7 +660,7 @@ public final class ListView<T> extends AbstractPanelElement {
 
     /**
      * A square icon button for a row (up, down, remove): the look's own button at the
-     * controls' height, greyed as every disabled button is, hidden on a pinned row.
+     * controls' height, grayed as every disabled button is, hidden on a pinned row.
      */
     private Button.Builder rowIcon(Identifier icon, String tooltip, Object k) {
         return Button.builder().glyph(() -> icon).size(ListRow.CONTROL, ListRow.CONTROL)
@@ -693,7 +693,7 @@ public final class ListView<T> extends AbstractPanelElement {
         revealKey = k;
     }
 
-    /** Whether {@code removeDisabledWhen} holds now: every remove greyed. */
+    /** Whether {@code removeDisabledWhen} holds now: every remove grayed. */
     private boolean removeHeld() {
         return removeDisabled != null && removeDisabled.getAsBoolean();
     }
@@ -715,7 +715,7 @@ public final class ListView<T> extends AbstractPanelElement {
             List<Object> order = visibleKeys();
             int at = order.indexOf(k);
             removedKey = k;
-            neighbourKey = at < 0 ? null : at + 1 < order.size() ? order.get(at + 1) : at > 0 ? order.get(at - 1) : null;
+            neighborKey = at < 0 ? null : at + 1 < order.size() ? order.get(at + 1) : at > 0 ? order.get(at - 1) : null;
         }
         remove.accept(k);
     }
@@ -959,7 +959,7 @@ public final class ListView<T> extends AbstractPanelElement {
         settle();
         if (ctx.kind() != kind) screenKind(ctx.kind());
         RenderContext inner = childContext(ctx);
-        // The reason is what explains the grey, so it is not greyed itself.
+        // The reason is what explains the gray, so it is not grayed itself.
         if (reason != null && reason.isVisible()) reason.render(ctx);
         PanelElement bar = ownToolbar();
         if (bar != null) bar.render(inner);
@@ -1237,35 +1237,35 @@ public final class ListView<T> extends AbstractPanelElement {
         if (selectedSet != null && rows.containsKey(key)) select(key);
     }
 
-    /** As a click on the toolbar's remove: removes the selected row, or opens the confirm; nothing while it is greyed. */
+    /** As a click on the toolbar's remove: removes the selected row, or opens the confirm; nothing while it is grayed. */
     @ApiStatus.Internal
     public void clickRemove() {
         sync();
         removeSelected();
     }
 
-    /** As a click on the remove cross in the row of {@code key} ({@code controlsInRows}): removes, or opens the confirm; nothing while it is greyed. */
+    /** As a click on the remove cross in the row of {@code key} ({@code controlsInRows}): removes, or opens the confirm; nothing while it is grayed. */
     @ApiStatus.Internal
     public void clickRemove(Object key) {
         sync();
         askRemove(key);
     }
 
-    /** As a click on the toolbar's up ({@code by} -1) or down (+1); nothing while it is greyed. */
+    /** As a click on the toolbar's up ({@code by} -1) or down (+1); nothing while it is grayed. */
     @ApiStatus.Internal
     public void clickMove(int by) {
         sync();
         moveSelected(by);
     }
 
-    /** Whether the toolbar's remove is live (not greyed by the selection or {@code removeDisabledWhen}; the list's own grey aside). */
+    /** Whether the toolbar's remove is live (not grayed by the selection or {@code removeDisabledWhen}; the list's own gray aside). */
     @ApiStatus.Internal
     public boolean removeLive() {
         sync();
         return removeEnabled();
     }
 
-    /** Whether the remove cross in the row of {@code key} ({@code controlsInRows}) is live: shown (not pinned) and not greyed. */
+    /** Whether the remove cross in the row of {@code key} ({@code controlsInRows}) is live: shown (not pinned) and not grayed. */
     @ApiStatus.Internal
     public boolean removeLive(Object key) {
         sync();
@@ -1447,7 +1447,7 @@ public final class ListView<T> extends AbstractPanelElement {
         // Editing (7.3.0)
 
         /**
-         * An add button in the {@link ListView#toolbar() toolbar}, labelled {@code label}; call once per kind of
+         * An add button in the {@link ListView#toolbar() toolbar}, labeled {@code label}; call once per kind of
          * item. {@code action} adds to your data and returns the new item's key (or
          * {@code null}: the list finds the key that appeared). The new row is scrolled
          * into view, and a search query that would hide it is cleared.
@@ -1503,7 +1503,7 @@ public final class ListView<T> extends AbstractPanelElement {
             };
         }
 
-        /** Greys every add button while {@code condition} holds, read every frame (a copy running, a cap reached). */
+        /** Grays every add button while {@code condition} holds, read every frame (a copy running, a cap reached). */
         public Builder<T, K> addDisabledWhen(BooleanSupplier condition) {
             this.addDisabled = Objects.requireNonNull(condition, "condition");
             return this;
@@ -1521,7 +1521,7 @@ public final class ListView<T> extends AbstractPanelElement {
             return this;
         }
 
-        /** {@link #remove(Consumer)}, its toolbar button labelled {@code label} ("- Delete group"). */
+        /** {@link #remove(Consumer)}, its toolbar button labeled {@code label} ("- Delete group"). */
         public Builder<T, K> remove(Component label, Consumer<? super K> remove) {
             this.removeLabel = Objects.requireNonNull(label, "label");
             return remove(remove);
@@ -1543,9 +1543,9 @@ public final class ListView<T> extends AbstractPanelElement {
         }
 
         /**
-         * Greys the remove while {@code condition} holds, read every frame: the toolbar's
+         * Grays the remove while {@code condition} holds, read every frame: the toolbar's
          * "- Remove item" and, with {@link #controlsInRows()}, every row's cross (a config
-         * list at its minimum length). A click on a greyed remove does nothing. Needs
+         * list at its minimum length). A click on a grayed remove does nothing. Needs
          * {@link #remove}.
          */
         public Builder<T, K> removeDisabledWhen(BooleanSupplier condition) {
@@ -1594,7 +1594,7 @@ public final class ListView<T> extends AbstractPanelElement {
             return this;
         }
 
-        /** Shown above the greyed rows while the list's {@code disabledWhen} holds: why it is greyed. */
+        /** Shown above the grayed rows while the list's {@code disabledWhen} holds: why it is grayed. */
         public Builder<T, K> disabledReason(Component reason) {
             this.disabledReason = Objects.requireNonNull(reason, "reason");
             return this;
@@ -1611,7 +1611,7 @@ public final class ListView<T> extends AbstractPanelElement {
         }
 
         /**
-         * A way to sort the rows, labelled {@code label} in the sort picker; call once per
+         * A way to sort the rows, labeled {@code label} in the sort picker; call once per
          * way. The first is the default. With two or more, the toolbar has a picker and a
          * direction toggle. Can't be on a list with {@link #move}: a sorted list has no
          * order of its own to move a row in.
@@ -1624,7 +1624,7 @@ public final class ListView<T> extends AbstractPanelElement {
         /**
          * The list's heading, on the {@link ListView#toolbar() toolbar}'s line at its left
          * edge, before the search field and the buttons: one line for both. Drawn in the
-         * look's heading style, centred on the buttons, cut with "..." when it would
+         * look's heading style, centered on the buttons, cut with "..." when it would
          * reach them. A list with a title and nothing else for a toolbar still has the
          * title's line.
          */
@@ -1635,7 +1635,7 @@ public final class ListView<T> extends AbstractPanelElement {
 
         /**
          * {@link #title(Component)} read every frame, so it can show a live count
-         * ({@code "Ranges  4 rows"}, the count styled grey); its styles are kept.
+         * ({@code "Ranges  4 rows"}, the count styled gray); its styles are kept.
          */
         public Builder<T, K> title(Supplier<Component> title) {
             return titled(title, null);
@@ -1697,8 +1697,8 @@ public final class ListView<T> extends AbstractPanelElement {
             require(confirmRemove == null || remove != null, "confirmRemove(...) needs remove(...): it asks before one");
             require(!controlsInRows || remove != null || move != null,
                     "controlsInRows() needs remove(...) or move(...): they are the controls it puts in the rows");
-            require(addDisabled == null || !adds.isEmpty(), "addDisabledWhen(...) needs an add(...) to grey");
-            require(removeDisabled == null || remove != null, "removeDisabledWhen(...) needs remove(...) to grey");
+            require(addDisabled == null || !adds.isEmpty(), "addDisabledWhen(...) needs an add(...) to gray");
+            require(removeDisabled == null || remove != null, "removeDisabledWhen(...) needs remove(...) to gray");
             require(sortGet == null || !sorts.isEmpty(), "sortState(...) needs a sort(...)");
             require(disabledReason == null || disabledWhen != null,
                     "disabledReason(...) needs disabledWhen(...): the reason shows while it holds");

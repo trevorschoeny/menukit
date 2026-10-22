@@ -148,10 +148,10 @@ public class HudPanel {
 
         /**
          * Places the panel in the status column (since 7.3.0): the 20 px gap between
-         * the hearts and the hunger bar, centred on the hotbar, from a fixed origin
+         * the hearts and the hunger bar, centered on the hotbar, from a fixed origin
          * pinned to it: the lowest panel rests right on the XP level number, level
-         * with the hearts and armour rows. Panels there stack upward in
-         * {@link #priority} order (lowest nearest the number), centred, 2px apart
+         * with the hearts and armor rows. Panels there stack upward in
+         * {@link #priority} order (lowest nearest the number), centered, 2px apart
          * unless {@link #gap} says otherwise, and a hidden one takes no room. Where the
          * game mode shows no status bars (creative, spectator) the column starts 2px
          * above the hotbar. It stays put at level 0, when vanilla hides the number.
@@ -180,9 +180,9 @@ public class HudPanel {
          * {@code .region(InsideRegion.X).offset(dx', dy')} where each axis that
          * touched an edge gives back the inset: {@code dx' = dx + 4} on a right
          * spot, {@code dx - 4} on a left one; the same for {@code dy} on bottom and
-         * top spots. A centred axis keeps its offset. The one exception is
-         * {@code CENTER}: the old anchor centred the panel on the window, while
-         * {@code InsideRegion.CENTER} on the HUD starts 16px below the centre (clear
+         * top spots. A centered axis keeps its offset. The one exception is
+         * {@code CENTER}: the old anchor centered the panel on the window, while
+         * {@code InsideRegion.CENTER} on the HUD starts 16px below the center (clear
          * of the crosshair), so the old {@code CENTER, dx, dy} is
          * {@code offset(dx, dy - 16 - panelHeight / 2)}; for "just below the
          * crosshair", {@code .region(InsideRegion.CENTER)} alone says it.

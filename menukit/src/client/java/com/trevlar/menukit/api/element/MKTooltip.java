@@ -164,7 +164,7 @@ public final class MKTooltip {
         itemNext = false;
     }
 
-    /** Any one registered predicate holding switches the behaviour on (wrap, clamp, dock). */
+    /** Any one registered predicate holding switches the behavior on (wrap, clamp, dock). */
     private static boolean anyHolds(Set<BooleanSupplier> conditions) {
         for (BooleanSupplier c : conditions) {
             if (c.getAsBoolean()) return true;
@@ -312,7 +312,7 @@ public final class MKTooltip {
 
     // Docking a tooltip. Vanilla puts a tooltip beside the cursor, so a wide one near an
     // inventory lands over the slots the player is reading. Docked, it sits at the bottom
-    // centre of the screen instead, or the top centre when the cursor is where the bottom
+    // center of the screen instead, or the top center when the cursor is where the bottom
     // one would be. Same split as hideWhen: MenuKit places, the mod decides when
     // (Inventory Plus: "keep long tooltips out of the way").
 
@@ -321,8 +321,8 @@ public final class MKTooltip {
 
     /**
      * Docks every tooltip vanilla places beside the cursor on every frame {@code condition}
-     * is true: it sits centred at the bottom of the screen, {@link #EDGE} above the edge,
-     * or centred at the top when the cursor is within {@link #DOCK_MARGIN} of where the
+     * is true: it sits centered at the bottom of the screen, {@link #EDGE} above the edge,
+     * or centered at the top when the cursor is within {@link #DOCK_MARGIN} of where the
      * bottom one would sit, not only directly over it.
      * Nothing wraps or changes side. {@link #clampWhen}, {@link #wrapWhen},
      * {@link #scrollBy} and {@link #hideWhen} work on a docked tooltip as on any other,
@@ -362,7 +362,7 @@ public final class MKTooltip {
 
     /**
      * Where a docked tooltip's text starts, given the text's {@code width} and {@code height}
-     * as vanilla measures them (a positioner's arguments). Centred, at the bottom with
+     * as vanilla measures them (a positioner's arguments). Centered, at the bottom with
      * {@link #EDGE} under it; at the top, {@link #EDGE} down, when the cursor is within
      * {@link #DOCK_MARGIN} of the bottom one's background (the text plus its padding, grown by
      * the margin on every side). Pure: no screen is read.
@@ -573,7 +573,7 @@ public final class MKTooltip {
      *
      * <p><b>Line breaks.</b> A {@code \n} in the text starts a new line, wherever it is:
      * in a literal ({@code "Sort by Category\nRight click: cycle"}), in a sibling
-     * appended with its own style (a grey hint after a white title), or in a
+     * appended with its own style (a gray hint after a white title), or in a
      * translation. Each line keeps the style of the text it came from. Vanilla's
      * single-Component tooltip does not do this: it draws the whole Component on one
      * line and the font draws the line feed as a glyph (a boxed "LF").

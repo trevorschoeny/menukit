@@ -3,7 +3,7 @@
 
 // MenuKit: fragment shader for SpriteButton's pressed look. Inverts each pixel's
 // lightness in HSL space and keeps its hue and saturation, so black becomes
-// white, dark blue becomes light blue, and light grey becomes dark grey.
+// white, dark blue becomes light blue, and light gray becomes dark gray.
 //
 // Plain RGB inversion (color = 1 - color) would rotate the hue by 180 degrees,
 // turning dark blue into yellow and dark red into cyan. A pressed button should
@@ -65,7 +65,7 @@ vec3 hsl2rgb(vec3 hsl) {
     float S = hsl.y;
     float L = hsl.z;
     if (S == 0.0) {
-        // Grey: return early instead of rebuilding a hue. Greys invert
+        // Gray: return early instead of rebuilding a hue. Grays invert
         // cleanly, each channel becoming 1 - L.
         return vec3(L);
     }

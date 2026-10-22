@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Lifts vanilla's held-item name and action-bar message clear of the HUD's status
  * column ({@code HudPanel.Builder.statusColumn}, 7.3.0) while the column reaches them.
- * Both are centred over the hotbar and would land on it otherwise.
+ * Both are centered over the hotbar and would land on it otherwise.
  *
  * <p>Each draw is wrapped in a pose translated up by how far the column rises above the
  * name's bottom edge ({@link MK#statusColumnClearance}): the push at HEAD, the pop at

@@ -1,10 +1,10 @@
 #version 330
 #extension GL_ARB_separate_shader_objects : require
 
-// MenuKit: the coloured item outline's silhouette (SlotRendering.drawItemOutline).
-// Every pixel the sprite covers is drawn in the vertex colour, keeping the
+// MenuKit: the colored item outline's silhouette (SlotRendering.drawItemOutline).
+// Every pixel the sprite covers is drawn in the vertex color, keeping the
 // sprite's own coverage as alpha, so four copies offset one pixel each way,
-// drawn under the item, leave a one-pixel line of that colour around the item's
+// drawn under the item, leave a one-pixel line of that color around the item's
 // shape. Uniforms and inputs mirror vanilla's core/position_tex_color.fsh, so it
 // plugs into the same POSITION_TEX_COLOR vertex format.
 

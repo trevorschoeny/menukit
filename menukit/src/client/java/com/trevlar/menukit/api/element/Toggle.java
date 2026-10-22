@@ -40,7 +40,7 @@ import java.util.function.Supplier;
  * <ul>
  *   <li><b>Switch</b> (default): raised when off, inset when on, dark when
  *       disabled, a highlight on hover. Needs a {@code size}.</li>
- *   <li><b>Labelled</b> ({@code label(...)}): the same bar with its label on it,
+ *   <li><b>Labeled</b> ({@code label(...)}): the same bar with its label on it,
  *       as wide as the label needs; the label wraps and the bar grows when the
  *       panel is narrower.</li>
  *   <li><b>Sprite</b> ({@code sprite(...)}): the consumer's sprite as-is when
@@ -50,9 +50,9 @@ import java.util.function.Supplier;
  *
  * <h3>In the Default look</h3>
  *
- * In the Default look ({@link ScreenKind#DEFAULT}) the switch and the labelled
+ * In the Default look ({@link ScreenKind#DEFAULT}) the switch and the labeled
  * bar are a vanilla button, the way
- * vanilla's own on/off options are buttons: the text says the state. A labelled
+ * vanilla's own on/off options are buttons: the text says the state. A labeled
  * toggle shows its label (give it one that says the state, {@code "On"} /
  * {@code "Off"}); a switch with no label reads vanilla's own {@code ON} /
  * {@code OFF}. A sprite face keeps the consumer's sprite.
@@ -77,7 +77,7 @@ public class Toggle extends AbstractPanelElement {
     // panels on the dedicated server too, where no screen class exists.
     private @Nullable ElementWidget widget;
 
-    // The labelled bar's layout: the width cap and its label's wrap width (the one
+    // The labeled bar's layout: the width cap and its label's wrap width (the one
     // wrap helper), recomputed every layout pass, so both are reversible. A bare or
     // sprite switch never touches them.
     private int widthCap = Integer.MAX_VALUE;
@@ -100,7 +100,7 @@ public class Toggle extends AbstractPanelElement {
         return label == null ? null : label.get();
     }
 
-    /** The labelled bar's natural width: its label plus padding, at least the authored width. */
+    /** The labeled bar's natural width: its label plus padding, at least the authored width. */
     @Override
     public int naturalWidth() {
         Component text = currentLabel();
@@ -121,7 +121,7 @@ public class Toggle extends AbstractPanelElement {
         return Math.max(height, lines * Minecraft.getInstance().font.lineHeight + 2 * ElementConstants.LABEL_VPAD);
     }
 
-    /** A labelled bar caps to the budget and wraps its label inside; a switch keeps its size. */
+    /** A labeled bar caps to the budget and wraps its label inside; a switch keeps its size. */
     @Override
     public void layoutWithin(int budget) {
         Component text = currentLabel();
@@ -135,7 +135,7 @@ public class Toggle extends AbstractPanelElement {
         return wrapWidth > 0 ? Math.max(0, getHeight() - height) : 0;
     }
 
-    /** Column fill stretches a labelled bar; a switch or sprite would distort, so it keeps its size. */
+    /** Column fill stretches a labeled bar; a switch or sprite would distort, so it keeps its size. */
     @Override
     public void fillWidth(int width) {
         if (label != null) authoredWidth = width;
@@ -265,7 +265,7 @@ public class Toggle extends AbstractPanelElement {
         }
 
         /**
-         * Size in pixels. A switch or sprite needs one; a labelled toggle grows to
+         * Size in pixels. A switch or sprite needs one; a labeled toggle grows to
          * fit its label and treats this width as its minimum. Default height 20.
          */
         @Override
@@ -273,7 +273,7 @@ public class Toggle extends AbstractPanelElement {
             return super.size(width, height);
         }
 
-        /** A label on the bar: the toggle becomes a labelled bar, sized to it. */
+        /** A label on the bar: the toggle becomes a labeled bar, sized to it. */
         public Builder label(Component label) {
             Objects.requireNonNull(label, "label");
             return label(() -> label);

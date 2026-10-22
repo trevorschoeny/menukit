@@ -34,7 +34,7 @@ import java.util.WeakHashMap;
  *       {@link #init}, does the same after vanilla's dispatch.</li>
  * </ol>
  * Both only touch widgets registered through {@link #addWidget}; other widgets on
- * the screen keep vanilla's focus behaviour.
+ * the screen keep vanilla's focus behavior.
  *
  * <p>The second path is a Fabric event rather than a mixin because in 26.2
  * {@code Screen} doesn't override {@code mouseClicked}; it inherits the default
@@ -59,7 +59,7 @@ import java.util.WeakHashMap;
 public final class Focus {
 
     // Widgets registered through addWidget, per screen. Weak keys so closed screens
-    // don't leak. Render thread only, so no synchronisation.
+    // don't leak. Render thread only, so no synchronization.
     private static final WeakHashMap<Screen, Set<GuiEventListener>> MANAGED =
             new WeakHashMap<>();
 
@@ -92,7 +92,7 @@ public final class Focus {
      * {@link #addWidget} and the click landed outside it. A click inside leaves
      * focus alone: either vanilla moves focus to whatever claimed the click, or
      * the widget keeps it (clicking a focused TextField again, say). Widgets not
-     * registered here keep vanilla's behaviour.
+     * registered here keep vanilla's behavior.
      *
      * <p>Called after vanilla's click dispatch (through the
      * {@code afterMouseClick} listener) and after MenuKit routes a click to a

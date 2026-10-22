@@ -443,7 +443,7 @@ public class Panel {
 
         /**
          * Disables the whole panel while {@code condition} holds, read every frame:
-         * every element draws greyed and takes no input. See
+         * every element draws grayed and takes no input. See
          * {@link Panel#disabledWhen}.
          */
         public Builder disabledWhen(BooleanSupplier condition) {
@@ -857,7 +857,7 @@ public class Panel {
     // The smallest screen-imposed height worth scrolling within. A region panel
     // squeezed against a tall main frame can be left a sliver, and a scrollbar in
     // fewer pixels than this is worse than drawing at natural height and relying on
-    // the on-screen clamp. A pinnedHeight is always honoured.
+    // the on-screen clamp. A pinnedHeight is always honored.
     private static final int MIN_SCROLL_VIEWPORT = 24;
 
     /**
@@ -1264,7 +1264,7 @@ public class Panel {
     /**
      * Disables the whole panel while {@code condition} holds, read every frame
      * (pass {@code null} to clear). Every element draws its disabled look (text
-     * and section headers grey, controls dark) and takes no clicks, wheel or
+     * and section headers gray, controls dark) and takes no clicks, wheel or
      * keys; containers pass it down to their children. The panel itself stays
      * present: it still claims its area, so nothing behind it reacts either.
      */
@@ -1383,19 +1383,19 @@ public class Panel {
     }
 
     /**
-     * Whether this panel is a screen-centred overlay rather than part of the
+     * Whether this panel is a screen-centered overlay rather than part of the
      * normal layout: true when it declares {@link PanelPosition#center()}, or is
      * {@link #dimsBehind()} or {@link #tracksAsModal()}.
      *
-     * <p>Hosts use this one check for three things: centring the panel on the
+     * <p>Hosts use this one check for three things: centering the panel on the
      * screen, leaving it out of the normal layout, and drawing it in the overlay
      * layer on top. Counting {@code dimsBehind} and {@code tracksAsModal} means a
-     * dialog made with {@code modal()} is centred without calling
+     * dialog made with {@code modal()} is centered without calling
      * {@code center()}, while a non-dim, non-modal overlay opts in with
      * {@code in(ModeScope.BOTH, Placement.screen(PanelPosition.center()))}.
      *
      * <p>This is about position only. The dim is still drawn only for
-     * {@link #dimsBehind()}, so an overlay can be centred on top without
+     * {@link #dimsBehind()}, so an overlay can be centered on top without
      * dimming.
      */
     public boolean isOverlayPositioned() {
@@ -1427,7 +1427,7 @@ public class Panel {
      *
      * <p><b>Undefined:</b> {@code opaque(false)} with {@code tracksAsModal(true)}
      * makes no sense (clicks pass through while the cursor and keys are locked)
-     * and is almost certainly a bug. It isn't rejected, but its behaviour is not
+     * and is almost certainly a bug. It isn't rejected, but its behavior is not
      * defined.
      *
      * @return this panel, for chaining

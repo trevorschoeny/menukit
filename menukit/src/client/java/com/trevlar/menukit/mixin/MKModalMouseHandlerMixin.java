@@ -33,7 +33,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * "any visible modal" means any panel with the flag, from any mod.
  *
  * <p>A click inside a visible modal's bounds goes to the modal's adapter (so its
- * Confirm button fires and so on) and is then cancelled, so the screen's
+ * Confirm button fires and so on) and is then canceled, so the screen's
  * mouseClicked never sees it: no slot pickup, no tab switch.
  *
  * <p>{@link MouseHandler#xpos} and {@code ypos} are raw window coordinates, while
@@ -63,14 +63,14 @@ public abstract class MKModalMouseHandlerMixin {
      *
      * <p>{@code action} values: 0 = release, 1 = press.
      *
-     * <p>Every event is also handed to {@link PressedTracker} first, cancelled or
+     * <p>Every event is also handed to {@link PressedTracker} first, canceled or
      * not, since that is the only record of whether the left button is held.
      *
      * <p>Releases have to match presses. Letting every release through (to end
      * ScrollContainer drags) broke modal tab blocking, because creative selects a
      * tab in {@code mouseReleased}, not {@code mouseClicked}. So a release is eaten
      * whenever its press would be, and {@code mouseReleased} is sent to the opaque
-     * panels' elements by hand, since cancelling onButton keeps Fabric's
+     * panels' elements by hand, since canceling onButton keeps Fabric's
      * {@code allowMouseRelease} from firing.
      */
     @Inject(

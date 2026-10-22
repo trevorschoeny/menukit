@@ -117,7 +117,7 @@ public final class RegionLooks {
     /**
      * What the surface is at a point in the container list this frame: the look of the
      * section whose slice it is in ({@link RegionLayout#bands}), else the list's. So a slot
-     * frame takes its section's look, and text a colour that reads on its section's fill.
+     * frame takes its section's look, and text a color that reads on its section's fill.
      */
     static PackLook.@Nullable Look listSurfaceAt(int x, int y) {
         ContainerRegions.State state = ContainerRegions.state;
@@ -137,7 +137,7 @@ public final class RegionLooks {
 
     /**
      * The container list, each section a slice of its own container's screen, so a box in the
-     * list looks as its own screen does under the pack, and where two meet the colours just
+     * list looks as its own screen does under the pack, and where two meet the colors just
      * change, with no seam drawn between them: in each section's slice of the list ({@link
      * RegionLayout#bands} out to the list's edges), the list drawn whole in that section's
      * look, cut to the slice. So the list's left and right edges at a section's height are
@@ -145,7 +145,7 @@ public final class RegionLooks {
      * last's, and the outline runs on unbroken. Slices next to each other in one look are one,
      * so with no pack (every look MenuKit's own) the list is drawn once, exactly as before. The
      * scrollbar lane is inside it while it scrolls; everything the sections draw goes over it,
-     * their text in a colour that reads on their own fill.
+     * their text in a color that reads on their own fill.
      */
     static final class Backdrop implements PanelElement {
         @Override public int getChildX() { return 0; }

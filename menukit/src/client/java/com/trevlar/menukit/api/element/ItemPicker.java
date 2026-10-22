@@ -82,7 +82,7 @@ import java.util.function.Supplier;
  *
  * <p>{@link Builder#ignoring} and {@link Builder#ignoringCount} declare once what the
  * setting leaves out of the comparison ({@link ItemMatch#ignoring}): every rule the
- * picker writes carries it, so {@code rule.matches(stack)} honours it, and with
+ * picker writes carries it, so {@code rule.matches(stack)} honors it, and with
  * {@code ignoringCount} the Edit tab has no count. A {@code stack} or {@code stacks}
  * lens stores plain stacks, so test those with a rule that ignores the same:
  * {@code new ItemMatch(stack, EXACT).ignoring(DataComponents.DAMAGE).matches(candidate)}.
@@ -100,7 +100,7 @@ import java.util.function.Supplier;
  * <h3>The dialog</h3>
  *
  * A modal dialog of the screen, in its kind, laid out as every MenuKit dialog
- * (equal margins, Cancel and Done centred, as tall as the shown tab):
+ * (equal margins, Cancel and Done centered, as tall as the shown tab):
  * <ul>
  *   <li><b>The slot row</b> at the top: the setting's slots (a list's wrapped, with
  *       an empty one at the end to add to). A click on a slot selects it, outlined;
@@ -117,7 +117,7 @@ import java.util.function.Supplier;
  *   <li><b>Edit</b>, for {@code EXACT} and {@code CONTAINS}: the selected slot's
  *       name, count, enchantments (under "Added" those on the item, under "Not Added"
  *       those that fit it, up to their highest level, the ones a chosen enchantment
- *       excludes greyed; none for an item nothing enchants; an enchanted book's
+ *       excludes grayed; none for an item nothing enchants; an enchanted book's
  *       stored ones), every other component as text in vanilla's {@code /give}
  *       syntax (read by vanilla's own item parser, its errors shown as a
  *       command's), and the match choice when the player has one.</li>
@@ -143,7 +143,7 @@ public class ItemPicker extends AbstractPanelElement {
     /** A filled slot's remove button: this many pixels square, over the slot's top-right corner. */
     static final int REMOVE_SIZE = 5;
     static final Component REMOVE_TOOLTIP = Component.translatable("menukit.item_picker.remove");
-    // Dark with a white bar, lighter while hovered: reads in both looks' grey slots.
+    // Dark with a white bar, lighter while hovered: reads in both looks' gray slots.
     static final int REMOVE_FILL = 0xFF2A2A2A, REMOVE_HOVER = 0xFF5E5E5E, REMOVE_BAR = 0xFFFFFFFF;
     // The add slot's plus: white over vanilla's text shadow for white (a quarter of it).
     private static final int ADD_MARK = 0xFFFFFFFF, ADD_SHADOW = 0xFF3F3F3F;
@@ -359,7 +359,7 @@ public class ItemPicker extends AbstractPanelElement {
         if (disabled && !stack.isEmpty()) g.fill(ix, iy, ix + 16, iy + 16, ElementConstants.DISABLED_OVERLAY);
     }
 
-    /** One slot holding the plain {@code item}: the colour dialog's dyes. */
+    /** One slot holding the plain {@code item}: the color dialog's dyes. */
     static void drawSlot(GuiGraphicsExtractor g, ScreenKind kind, int x, int y, Item item,
                          boolean highlighted, boolean disabled) {
         ItemSources.ready();
@@ -382,14 +382,14 @@ public class ItemPicker extends AbstractPanelElement {
     /**
      * The plus in the empty slot at the end of a list: add one here. White with a dark
      * shadow a pixel down and right, as vanilla draws white text, so it reads at rest
-     * in both looks' grey slots (the remove button's minus is white too).
+     * in both looks' gray slots (the remove button's minus is white too).
      */
     static void drawAddMark(GuiGraphicsExtractor g, int x, int y) {
         plus(g, x + 1, y + 1, ADD_SHADOW);
         plus(g, x, y, ADD_MARK);
     }
 
-    /** A 6 x 6 plus of 2 px bars, centred in the slot at {@code (x, y)}. */
+    /** A 6 x 6 plus of 2 px bars, centered in the slot at {@code (x, y)}. */
     private static void plus(GuiGraphicsExtractor g, int x, int y, int color) {
         g.fill(x + 6, y + 8, x + 12, y + 10, color);
         g.fill(x + 8, y + 6, x + 10, y + 12, color);

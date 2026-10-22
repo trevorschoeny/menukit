@@ -21,10 +21,10 @@ import java.util.function.Supplier;
  * <ul>
  *   <li>{@link Mode#UNPLACED}: no placement declared (the default). A host throws on
  *       an unplaced panel, except the standalone-screen builders
- *       ({@code MKScreen}, {@code CustomContainerMenu}), which normalise it: the first
+ *       ({@code MKScreen}, {@code CustomContainerMenu}), which normalize it: the first
  *       unplaced panel becomes {@link #main()}, each later one
  *       {@code region(BOTTOM_CENTER)}.</li>
- *   <li>{@link Mode#MAIN}: a standalone screen's frame. One per screen, centred,
+ *   <li>{@link Mode#MAIN}: a standalone screen's frame. One per screen, centered,
  *       and the reference its {@code REGION} siblings resolve against.</li>
  *   <li>{@link Mode#REGION}: outside a reference rectangle via an
  *       {@link OutsideRegion} (RIGHT_ALIGN_TOP, BOTTOM_CENTER, ...). The rectangle is
@@ -33,7 +33,7 @@ import java.util.function.Supplier;
  *   <li>{@link Mode#SCREEN_ANCHOR}: on one of the nine {@link InsideRegion} spots of
  *       the screen (or the game window, for the HUD), inset from the edges it
  *       touches.</li>
- *   <li>{@link Mode#CENTER}: a screen-centred overlay, drawn on top.</li>
+ *   <li>{@link Mode#CENTER}: a screen-centered overlay, drawn on top.</li>
  *   <li>{@link Mode#PIXEL}: the outer origin comes from a per-frame supplier, in
  *       absolute screen pixels, for positions a region cannot express.</li>
  * </ul>
@@ -87,12 +87,12 @@ public record PanelPosition(Mode mode,
         /**
          * No placement declared. Hosts refuse it, since a panel with nowhere to go
          * is a declaration bug and failing at registration is better than an
-         * invisible panel. The standalone-screen builders normalise it instead
+         * invisible panel. The standalone-screen builders normalize it instead
          * (see the class doc).
          */
         UNPLACED,
         /**
-         * A standalone screen's frame, centred on the screen window: the reference
+         * A standalone screen's frame, centered on the screen window: the reference
          * every {@link #REGION} sibling resolves against. One per screen; the
          * custom screen's equivalent of a vanilla container's menu frame.
          */
@@ -102,7 +102,7 @@ public record PanelPosition(Mode mode,
         /** On one of the nine {@link InsideRegion} spots of the screen or window. */
         SCREEN_ANCHOR,
         /**
-         * Centred on the screen as an overlay and drawn on top. Position only: it
+         * Centered on the screen as an overlay and drawn on top. Position only: it
          * combines freely with {@code dimsBehind}, {@code opaque} and
          * {@code tracksAsModal}, which stay independent.
          */
@@ -120,7 +120,7 @@ public record PanelPosition(Mode mode,
             new PanelPosition(Mode.UNPLACED, null, null, null, 0, 0, DEFAULT_PRIORITY, HOST_GAP);
 
     /**
-     * A standalone screen's main panel, its frame: centred on the screen window;
+     * A standalone screen's main panel, its frame: centered on the screen window;
      * every {@link #region} sibling anchors to its bounds. One per screen.
      */
     public static PanelPosition main() {
@@ -152,7 +152,7 @@ public record PanelPosition(Mode mode,
     }
 
     /**
-     * Centred on the screen as an overlay, drawn on top: the placement for dialogs
+     * Centered on the screen as an overlay, drawn on top: the placement for dialogs
      * and popovers. Combines freely with {@code dimsBehind}, {@code opaque} and
      * {@code tracksAsModal}.
      */
@@ -203,7 +203,7 @@ public record PanelPosition(Mode mode,
      *       region, and the sibling before it along the stack, for every panel but the
      *       first. So {@code region(RIGHT_ALIGN_TOP).gap(0)} sits flush against the
      *       frame's right edge, and a second {@code gap(0)} panel sits flush under the
-     *       first. For the four side-centred regions ({@code TOP_CENTER}, {@code RIGHT_CENTER}, ...) the two are the
+     *       first. For the four side-centered regions ({@code TOP_CENTER}, {@code RIGHT_CENTER}, ...) the two are the
      *       same axis: the first panel is {@code gap} off the frame, each later one
      *       {@code gap} off the one before. Unset: {@link RegionConstants#MENU_STACK_GAP}.</li>
      *   <li>{@link Mode#SCREEN_ANCHOR}: the space between this panel and the sibling
@@ -223,12 +223,12 @@ public record PanelPosition(Mode mode,
      *
      * @param gap pixels before the panel, {@code 0} or more
      * @throws IllegalArgumentException when {@code gap} is negative: a panel that
-     *         overlaps its neighbour is an {@link #offset(int, int)}, which says so
+     *         overlaps its neighbor is an {@link #offset(int, int)}, which says so
      */
     public PanelPosition gap(int gap) {
         if (gap < 0) {
             throw new IllegalArgumentException("PanelPosition.gap(" + gap + ") on " + describe()
-                    + ": a gap is 0 or more pixels. To overlap a neighbour, use offset(dx, dy).");
+                    + ": a gap is 0 or more pixels. To overlap a neighbor, use offset(dx, dy).");
         }
         return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority, gap);
     }
@@ -280,7 +280,7 @@ public record PanelPosition(Mode mode,
                 // BOTTOM_CENTER stacks down from the main frame; each panel's own gap is
                 // the space above it, off the main frame for the first and off the
                 // panel before for the rest, so every one sits 14 px below its
-                // neighbour, the old column's spacing.
+                // neighbor, the old column's spacing.
                 out.add(region(OutsideRegion.BOTTOM_CENTER).gap(STANDALONE_STACK_GAP));
             }
         }

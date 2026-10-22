@@ -42,7 +42,7 @@ import java.util.TreeSet;
  * </pre>
  *
  * Each axis is measured from the third of the screen the panel was nearest when dropped: from
- * the screen's start edge to the panel's, centre to centre, or end edge to end edge, in GUI
+ * the screen's start edge to the panel's, center to center, or end edge to end edge, in GUI
  * pixels. So a panel dropped by the right edge stays that far from it at any window width or
  * GUI scale. Nothing is clamped: a position can be off a smaller screen, and a reset is the way
  * back.
@@ -64,14 +64,14 @@ public final class PanelPositions {
 
     /**
      * A moved panel's place: on each axis the edge it is measured from and its offset there
-     * (the panel's start edge from the screen's start, its centre from the screen's centre,
+     * (the panel's start edge from the screen's start, its center from the screen's center,
      * its end edge from the screen's end; negative toward the start).
      */
     public record Spot(Edge edgeX, int dx, Edge edgeY, int dy) {
 
         /**
          * The spot of a {@code w x h} panel whose top-left is {@code (left, top)} on an
-         * {@code sw x sh} screen: each axis from the third the panel's centre is in.
+         * {@code sw x sh} screen: each axis from the third the panel's center is in.
          */
         public static Spot of(int left, int top, int w, int h, int sw, int sh) {
             Edge ex = nearest(left, w, sw), ey = nearest(top, h, sh);
@@ -89,12 +89,12 @@ public final class PanelPositions {
         }
     }
 
-    /** The third of {@code screen} the centre of a span from {@code start}, {@code size} long, is in. */
+    /** The third of {@code screen} the center of a span from {@code start}, {@code size} long, is in. */
     private static Edge nearest(int start, int size, int screen) {
-        // Twice the centre against two and four thirds of the screen: integers only.
-        int centre2 = 2 * start + size;
-        if (3 * centre2 < 2 * screen) return Edge.START;
-        if (3 * centre2 > 4 * screen) return Edge.END;
+        // Twice the center against two and four thirds of the screen: integers only.
+        int center2 = 2 * start + size;
+        if (3 * center2 < 2 * screen) return Edge.START;
+        if (3 * center2 > 4 * screen) return Edge.END;
         return Edge.CENTER;
     }
 

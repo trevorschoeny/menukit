@@ -18,7 +18,7 @@ import java.util.Objects;
  * A run of elements laid out left to right at the panel's runtime width,
  * wrapping onto new rows when it runs out of room: the runtime row. Holds
  * heterogeneous children (buttons, checkboxes, labels, icons), the element
- * analogue of {@code SlotFlowElement}.
+ * analog of {@code SlotFlowElement}.
  *
  * <pre>{@code
  * Flow.builder().gap(10, 4)
@@ -39,14 +39,14 @@ import java.util.Objects;
  * row with the control pinned to the
  * right edge, at whatever width the panel has, with no width handed to whoever
  * built it (a {@link Tabs} body factory never knows its width). A spacer at
- * each end of a one-row Flow centres what is between them. When the row is
+ * each end of a one-row Flow centers what is between them. When the row is
  * too narrow and wraps, a spacer that ends up at the start or end of a row takes
  * nothing, and the control sits under its label.
  *
  * <h3>Vertical alignment in a row (7.3.0)</h3>
  *
  * A row top-aligns its children by default. {@link Builder#crossAlign} with
- * {@link CrossAlign#CENTER} centres each child on its row's line instead, and
+ * {@link CrossAlign#CENTER} centers each child on its row's line instead, and
  * {@link CrossAlign#END} sets it on the line's bottom, so a label beside a
  * 20 px control, or a mod's toggle beside a list's 16 px buttons, sit level with
  * no pixel offsets. The line is the tallest child's first line: a child that grew
@@ -55,7 +55,7 @@ import java.util.Objects;
  *
  * <pre>{@code
  * Flow.builder().crossAlign(CrossAlign.CENTER)
- *         .add(nameLabel)                  // centred on the toggle's height
+ *         .add(nameLabel)                  // centered on the toggle's height
  *         .add(Flow.spacer())
  *         .add(toggle)
  *         .build();
@@ -436,7 +436,7 @@ public final class Flow extends AbstractPanelElement {
         int line = 0;
         for (PanelElement c : m) if (!(c instanceof Spacer)) line = Math.max(line, baseline(c));
         // Spacers between content count. One leading or trailing counts only while
-        // the Flow is one row, so spacer, label, spacer centres the label; once it
+        // the Flow is one row, so spacer, label, spacer centers the label; once it
         // wraps, the ends take nothing and a wrapped control sits at the left.
         int firstContent = -1, lastContent = -1;
         for (int i = 0; i < m.size(); i++) {
@@ -529,7 +529,7 @@ public final class Flow extends AbstractPanelElement {
      * past its own baseline (an open {@link Section}, a wrapped label, a {@link ListView},
      * whose baseline is nothing) counts at its baseline (7.3.0), so its growth is the
      * Flow's too and what is below is pushed down by it; a list row's controls stay
-     * centred on the row's first line. In a row Flow a vertical Flow child counts whole:
+     * centered on the row's first line. In a row Flow a vertical Flow child counts whole:
      * what it reports is its stack, not growth. A vertical Flow's own extra is its
      * stack past its tallest child's baseline, which stays put as its children grow,
      * so a list in a column pushes what is below the column.
@@ -612,7 +612,7 @@ public final class Flow extends AbstractPanelElement {
         }
         drawCard(ctx);
         // On the card, text and slot frames are the card's, not the panel surface's under it:
-        // vanilla's grey on the card's grey, whatever a resource pack made of the panel.
+        // vanilla's gray on the card's gray, whatever a resource pack made of the panel.
         PackLook.SurfaceLooks before = ctx.kind() == ScreenKind.PANEL ? PackLook.beginSurface(null) : null;
         try {
             ChildDispatch.render(children, childContext(ctx));
@@ -814,7 +814,7 @@ public final class Flow extends AbstractPanelElement {
 
         /**
          * Where each child sits on its row's line, in a row Flow. The default,
-         * {@link CrossAlign#START}, top-aligns them; {@link CrossAlign#CENTER} centres
+         * {@link CrossAlign#START}, top-aligns them; {@link CrossAlign#CENTER} centers
          * each on the line (a label level with the middle of its control);
          * {@link CrossAlign#END} sets each on the line's bottom. {@code FILL} is a
          * {@code Column}'s and reads as {@code START}. The line is the tallest child's

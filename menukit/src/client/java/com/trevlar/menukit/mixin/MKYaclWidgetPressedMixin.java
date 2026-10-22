@@ -68,7 +68,7 @@ public abstract class MKYaclWidgetPressedMixin {
     }
 
     // There is no release hook. 3.9.5 removed the base mouseReleased body (only
-    // the slider, colour picker and list entry declare one, each differently).
+    // the slider, color picker and list entry declare one, each differently).
     // The tracker clears itself instead: isPressedAndCheckRelease checks the
     // real button state at render time, which already handled every widget
     // whose release skipped the base body in 3.8.1.

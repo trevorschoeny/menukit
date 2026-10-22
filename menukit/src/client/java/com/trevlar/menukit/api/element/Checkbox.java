@@ -45,7 +45,7 @@ import java.util.function.Supplier;
  * own checkbox ({@code widget/checkbox}, {@code _selected}, {@code _highlighted}),
  * drawn at MenuKit's box size ({@value #BOX_SIZE} px; vanilla's is 17), so the
  * layout is the same in both looks; the label takes the kind's text
- * colour.
+ * color.
  */
 public class Checkbox extends AbstractPanelElement {
 
@@ -154,8 +154,8 @@ public class Checkbox extends AbstractPanelElement {
         }
         if (text != null) {
             int textX = sx + BOX_SIZE + LABEL_GAP;
-            // One line centres on the box; a wrapped block starts level with the box
-            // top (centred against a 10px box it would float off it).
+            // One line centers on the box; a wrapped block starts level with the box
+            // top (centered against a 10px box it would float off it).
             int textY = wrapWidth > 0 ? sy : Text.centeredTextY(sy, sy + BOX_SIZE);
             Text.drawWrapped(g, text, wrapWidth, textX, textY, 0, textColor(ctx, TextRole.BODY), kind.textShadow());
         }

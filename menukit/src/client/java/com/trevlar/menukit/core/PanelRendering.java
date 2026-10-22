@@ -16,7 +16,7 @@ public final class PanelRendering {
 
     private PanelRendering() {}
 
-    // Colours for the fill-drawn styles
+    // Colors for the fill-drawn styles
 
     private static final int COLOR_BASE      = 0xFFC6C6C6;
     private static final int COLOR_HIGHLIGHT = 0xFFFFFFFF;
@@ -29,7 +29,7 @@ public final class PanelRendering {
 
     /**
      * Draws a panel background. RAISED and DARK are nine-sliced sprites, INSET is
-     * drawn with the default colours, and NONE draws nothing.
+     * drawn with the default colors, and NONE draws nothing.
      */
     public static void renderPanel(GuiGraphicsExtractor graphics, int x, int y,
                                    int w, int h, PanelStyle style) {
@@ -55,7 +55,7 @@ public final class PanelRendering {
      * Draws a stateless control surface (an info box): as {@link #renderPanel}, except RAISED,
      * which is MenuKit's {@code menukit:control_raised} sprite, so a resource pack themes
      * controls and panels ({@code menukit:panel_raised}) each on its own. Unthemed, the two are
-     * the same art. Controls with states (buttons, toggles, a dropdown, the colour field) draw
+     * the same art. Controls with states (buttons, toggles, a dropdown, the color field) draw
      * through {@link ControlLook#drawRaised}, every state from one source. A Panel-look panel
      * surface that follows the pack's container art is {@link PackLook#drawPanel}.
      */
@@ -69,7 +69,7 @@ public final class PanelRendering {
     }
 
     /**
-     * Draws a panel background with custom colours and the default black border.
+     * Draws a panel background with custom colors and the default black border.
      * Every style except NONE is drawn with fills here: INSET with the shadow at
      * the top left, any other style raised.
      */
@@ -82,8 +82,8 @@ public final class PanelRendering {
     }
 
     /**
-     * Draws a panel background with custom colours, border included. For callers
-     * whose colours depend on state, such as a button's hover and press.
+     * Draws a panel background with custom colors, border included. For callers
+     * whose colors depend on state, such as a button's hover and press.
      */
     public static void renderPanel(GuiGraphicsExtractor graphics, int x, int y,
                                    int w, int h, PanelStyle style,
@@ -122,21 +122,21 @@ public final class PanelRendering {
             }
 
             // Vanilla's asymmetric corner rounding: the top-right and bottom-left
-            // inner corners take the border colour, the bottom-right the shadow.
+            // inner corners take the border color, the bottom-right the shadow.
             graphics.fill(x + w - 2, y + 1, x + w - 1, y + 2, borderColor);
             graphics.fill(x + 1, y + h - 2, x + 2, y + h - 1, borderColor);
             graphics.fill(x + w - 2, y + h - 2, x + w - 1, y + h - 1, bottomRight);
         }
     }
 
-    // Slot colours, matched from the vanilla inventory texture
+    // Slot colors, matched from the vanilla inventory texture
     private static final int SLOT_FILL      = 0xFF8B8B8B; // medium gray (slot interior)
     private static final int SLOT_SHADOW    = 0xFF373737; // dark top-left edge
     private static final int SLOT_HIGHLIGHT = 0xFFFFFFFF; // light bottom-right edge
 
     /**
      * Draws an 18x18 slot background exactly as vanilla does: no outer black
-     * border, just the inner highlight and shadow edges around a medium grey fill.
+     * border, just the inner highlight and shadow edges around a medium gray fill.
      */
     public static void renderSlotBackground(GuiGraphicsExtractor graphics, int x, int y) {
         renderInsetRect(graphics, x, y, 18, 18);

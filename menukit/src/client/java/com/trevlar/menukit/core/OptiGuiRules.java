@@ -48,7 +48,7 @@ import java.util.regex.Pattern;
 /**
  * Container art chosen by OptiGUI rules, per section. OptiGUI picks one texture per screen,
  * from the block used to open it, so a lime box's screen has lime art and a chest's screen has
- * none of the boxes' colours. A container region shows several containers on one screen, so
+ * none of the boxes' colors. A container region shows several containers on one screen, so
  * MenuKit evaluates the pack's rules itself, once per section, against that section's own
  * container: its block (and so its dye), its custom name, its biome and its height.
  *
@@ -518,7 +518,7 @@ public final class OptiGuiRules {
     /**
      * OptiGUI's path resolution: beside {@code resource}, or from {@code optifine/} for
      * {@code ~/}, or a full id with a colon; {@code null} for one it can't resolve. OptiGUI
-     * uses {@code java.nio.file.Path} (sibling, then normalised); this does the same with
+     * uses {@code java.nio.file.Path} (sibling, then normalized); this does the same with
      * strings, so a value no file system accepts ({@code * ? " < > |} on Windows, a NUL)
      * is no id rather than a throw.
      */
@@ -532,8 +532,8 @@ public final class OptiGuiRules {
         // The sibling: the folder the root is in, then the path.
         String root = fromTilde ? tilde + "/." : resource.getPath();
         String joined = root.substring(0, root.lastIndexOf('/') + 1) + rest;
-        // Normalised as Path.normalize does: "." and empty names dropped, a name and the ".."
-        // after it cancelled; a ".." with nothing before it is kept (and refused below).
+        // Normalized as Path.normalize does: "." and empty names dropped, a name and the ".."
+        // after it canceled; a ".." with nothing before it is kept (and refused below).
         List<String> names = new ArrayList<>();
         for (String name : joined.split("/")) {
             if (name.isEmpty() || name.equals(".")) continue;

@@ -15,18 +15,18 @@ import org.jetbrains.annotations.ApiStatus;
 /**
  * The one layout every MenuKit dialog uses ({@code ConfirmDialog},
  * {@code AlertDialog}, a {@code ColorField}'s and an {@code ItemPicker}'s dialog):
- * rows top to bottom, a title, the body, and the button row last, in a centred
+ * rows top to bottom, a title, the body, and the button row last, in a centered
  * modal {@link PanelStyle#RAISED} panel.
  *
  * <p>The rows start at the panel's content origin, so the panel's padding is the
  * only margin and it is the same on all four sides. That padding leaves
  * {@link #GAP} between the frame and the rows in either look (the host
  * widens it where the frame is thicker, {@link Panel#frameExtra}), and the rows are
- * {@link #GAP} apart, so the button row sits centred between the body above it and
+ * {@link #GAP} apart, so the button row sits centered between the body above it and
  * the frame below it.
  *
- * <p>A row made with {@link #centred} is centred across the dialog at whatever width
- * it ends up (a {@link Flow} with a spacer at each end), so it stays centred when
+ * <p>A row made with {@link #centered} is centered across the dialog at whatever width
+ * it ends up (a {@link Flow} with a spacer at each end), so it stays centered when
  * another row's width changes at runtime (a Tabs page in the Default look is
  * wider than in the Panel look). Any other row (a Tabs) is laid out to the
  * dialog's full width.
@@ -52,16 +52,16 @@ public final class DialogLayout {
 
     private DialogLayout() {}
 
-    /** The elements in one row, centred across the dialog's width. */
-    public static PanelElement centred(PanelElement... elements) {
+    /** The elements in one row, centered across the dialog's width. */
+    public static PanelElement centered(PanelElement... elements) {
         Flow.Builder row = Flow.builder().gap(BUTTON_GAP).add(Flow.spacer());
         for (PanelElement e : elements) row.add(e);
         return row.add(Flow.spacer()).build();
     }
 
-    /** The button row: the buttons side by side, centred. */
+    /** The button row: the buttons side by side, centered. */
     public static PanelElement buttons(Button... buttons) {
-        return centred(buttons);
+        return centered(buttons);
     }
 
     /** A dialog button: {@code label}, {@link #BUTTON_W} x {@link #BUTTON_H}, running {@code onClick}. */
@@ -75,7 +75,7 @@ public final class DialogLayout {
     }
 
     /**
-     * The dialog: {@code rows} stacked from the top, {@link #GAP} apart, in a centred
+     * The dialog: {@code rows} stacked from the top, {@link #GAP} apart, in a centered
      * modal RAISED panel, hidden until shown, Escape running {@code onEscape}.
      */
     public static Panel panel(String id, Runnable onEscape, PanelElement... rows) {

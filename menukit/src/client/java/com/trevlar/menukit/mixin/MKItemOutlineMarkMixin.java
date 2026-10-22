@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * The first half of the coloured item outline ({@code SlotRendering.drawItemOutline}):
+ * The first half of the colored item outline ({@code SlotRendering.drawItemOutline}):
  * as an item's render state is recorded, mark it when MenuKit is drawing an
  * outline's silhouette copy. See {@link ItemOutline} for why the outline takes two
  * steps. Observes only; changes nothing about the state.

@@ -4,11 +4,11 @@ package com.trevlar.menukit.api.layout;
  * Cross-axis alignment for {@link Row} and {@link Column}.
  *
  * <p>In a {@link Row} the cross axis is vertical: {@link #START} aligns children
- * to the top, {@link #CENTER} centres them in the row's height, {@link #END}
+ * to the top, {@link #CENTER} centers them in the row's height, {@link #END}
  * aligns them to the bottom.
  *
  * <p>In a {@link Column} the cross axis is horizontal: {@code START} is left,
- * {@code CENTER} the horizontal centre, {@code END} right.
+ * {@code CENTER} the horizontal center, {@code END} right.
  *
  * <p>Both default to {@code START}, which places children at the row or column
  * origin with no cross-axis adjustment. A row of mixed heights or a column of

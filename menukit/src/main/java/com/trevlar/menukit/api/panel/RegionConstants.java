@@ -51,7 +51,7 @@ public final class RegionConstants {
      * Extra downward offset for {@link InsideRegion#CENTER} on the HUD, so a
      * centered HUD panel clears the crosshair.
      *
-     * <p>HUD only: on a screen, {@code CENTER} resolves to the true centre. Since {@link InsideRegion} serves both contexts, a value for one of
+     * <p>HUD only: on a screen, {@code CENTER} resolves to the true center. Since {@link InsideRegion} serves both contexts, a value for one of
      * them lives here rather than on the enum.
      */
     public static final int CENTER_CROSSHAIR_CLEARANCE = 16;

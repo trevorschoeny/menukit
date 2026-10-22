@@ -68,7 +68,7 @@ public final class CycleStrip {
     /** Half the vanilla hotbar's width (182 / 2). */
     public static final int HOTBAR_HALF_WIDTH_PX = 91;
     private static final int ITEM_OFFSET_PX = 3;
-    /** Item x inset is 1 px less than y; otherwise the icons sit a pixel right of centre. */
+    /** Item x inset is 1 px less than y; otherwise the icons sit a pixel right of center. */
     private static final int ITEM_OFFSET_X_PX = ITEM_OFFSET_PX - 1;
     /** The floating part of a column clears the hotbar-height cell by this many px. */
     public static final int COLUMN_RISE_PX = 1;
@@ -403,12 +403,12 @@ public final class CycleStrip {
     private static void renderHeldVertical(GuiGraphicsExtractor graphics, Minecraft mc,
                                            Slide slide, ItemStack now, int cellX, int stripY) {
         float p = progress(slide.startMillis(), Util.getMillis());
-        int travelled = Math.round(SLOT_PX * p);
+        int traveled = Math.round(SLOT_PX * p);
         int remaining = Math.round(SLOT_PX * (1f - p));
         boolean down = slide.direction() == Direction.FORWARD;
         graphics.enableScissor(cellX, stripY, cellX + SLOT_PX, stripY + STRIP_HEIGHT_PX);
         try {
-            renderItem(graphics, mc, slide.heldBefore(), cellX, down ? stripY + travelled : stripY - travelled);
+            renderItem(graphics, mc, slide.heldBefore(), cellX, down ? stripY + traveled : stripY - traveled);
             renderItem(graphics, mc, now, cellX, down ? stripY - remaining : stripY + remaining);
         } finally {
             graphics.disableScissor();

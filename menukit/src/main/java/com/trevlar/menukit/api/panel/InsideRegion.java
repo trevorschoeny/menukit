@@ -4,7 +4,7 @@ import com.trevlar.menukit.core.RegionMath;
 
 /**
  * A region <b>on</b> a reference rectangle: one of nine spots, the four corners,
- * the four edge midpoints, and the centre, inset from the edge.
+ * the four edge midpoints, and the center, inset from the edge.
  *
  * <p>This names the <em>vocabulary</em>, not the reference. The reference is
  * decided by the call site: a HUD panel is placed against the game window, and so

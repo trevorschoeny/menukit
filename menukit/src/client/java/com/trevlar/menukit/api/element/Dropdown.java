@@ -68,7 +68,7 @@ public final class Dropdown<T> extends PopoverControl<T> {
         return new Builder<>();
     }
 
-    /** The integer lens: the whole numbers {@code min} to {@code max} inclusive, labelled with themselves. */
+    /** The integer lens: the whole numbers {@code min} to {@code max} inclusive, labeled with themselves. */
     public static Builder<Integer> ofInts(int min, int max) {
         if (max < min) throw new IllegalArgumentException("Dropdown.ofInts: max below min, " + min + ".." + max);
         List<Integer> values = new ArrayList<>(max - min + 1);

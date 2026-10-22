@@ -133,7 +133,7 @@ public abstract class MKTooltipSuppressMixin {
             // MKTooltip.wrapWhen: lines wider than the screen re-split before vanilla measures
             // and places them; a wrapped line stays one component, so the title is still lines[0].
             java.util.List<ClientTooltipComponent> shown = MKTooltip.wraps() ? MKTooltip.wrapped(font, lines, self.guiWidth()) : lines;
-            // MKTooltip.avoidCoverWhen: a beside-the-cursor tooltip docks at the bottom (or top) centre.
+            // MKTooltip.avoidCoverWhen: a beside-the-cursor tooltip docks at the bottom (or top) center.
             boolean dock = MKTooltip.docks(positioner);
             int[] drawn = new int[3];  // x, y, width, as vanilla placed them after the offset
             ClientTooltipPositioner scrolled = (screenW, screenH, x, y, w, h) -> {

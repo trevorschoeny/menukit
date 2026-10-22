@@ -33,7 +33,7 @@ import java.util.List;
  * panel by its placements ({@link Panel#placements()}), one per mode scope, each frame the
  * one for the current mode (else {@code BOTH}), by its {@link PanelPosition}:
  * <ul>
- *   <li>{@code main()}: the screen's frame, centred (one per screen);</li>
+ *   <li>{@code main()}: the screen's frame, centered (one per screen);</li>
  *   <li>{@code region(OutsideRegion)}: around the main panel;</li>
  *   <li>{@code screenAnchor(InsideRegion)}: screen chrome (a back button, a title);</li>
  *   <li>{@code center()}: an overlay, drawn on top (dialogs);</li>
@@ -55,7 +55,7 @@ import java.util.List;
  * settings screen that should read like the ones reached from the pause menu.
  * Every element on it draws for that kind, its panels' backgrounds too, and so
  * does anything injected onto it or opened from it (a dialog, an item picker's
- * dialog). Without a kind it is {@link ScreenKind#PANEL}, MenuKit's grey
+ * dialog). Without a kind it is {@link ScreenKind#PANEL}, MenuKit's gray
  * look, which is how every standalone screen looked before 6.1.0. In the Default
  * look a panel usually has no background ({@link PanelStyle#NONE}), so
  * vanilla's backdrop (the blurred world, or the panorama) shows behind it.
@@ -92,7 +92,7 @@ public class MKScreen extends Screen {
     private @Nullable Runnable returnAction;
 
     /**
-     * A Panel-look screen ({@link ScreenKind#PANEL}): MenuKit's grey look,
+     * A Panel-look screen ({@link ScreenKind#PANEL}): MenuKit's gray look,
      * the look every standalone screen had before 6.1.0.
      *
      * @param title  the screen title (drawn at the top unless {@link #hideTitle()}; always narrated)

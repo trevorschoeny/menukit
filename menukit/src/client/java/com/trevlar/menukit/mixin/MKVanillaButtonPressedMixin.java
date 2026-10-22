@@ -28,7 +28,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * <p>It is visual only. It reads existing widget state ({@code isHovered},
  * {@code active}, a press-tracker flag) and draws over vanilla's own draw;
  * pressing a button does exactly what it did before. A change here that
- * intercepted input or changed behaviour would fall outside the exception.
+ * intercepted input or changed behavior would fall outside the exception.
  *
  * <h3>Known costs</h3>
  *

@@ -10,7 +10,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Where the container region's two panels go, pure (7.4.0; {@link ContainerRegions} is the
- * region itself): how the container list grows, centres and scrolls above the inventory
+ * region itself): how the container list grows, centers and scrolls above the inventory
  * panel, how vanilla's own placements move with them, each section's band of the list, the
  * scroll an edge or a reveal asks for. Nothing here reads the game, so the checks ask it
  * directly. All in GUI pixels; the container list's numbers are from its own top-left.
@@ -54,7 +54,7 @@ public final class RegionLayout {
     public static final int TITLE_INSET = 2;
     /**
      * How far above its content a section's band starts: the rest of the {@link #GAP} above
-     * it is the band of the section above, so the grid above keeps 2 px of its own colour
+     * it is the band of the section above, so the grid above keeps 2 px of its own color
      * under it and this section's title sits inside its own.
      */
     public static final int BAND_ABOVE = 1;
@@ -95,25 +95,25 @@ public final class RegionLayout {
     }
 
     /**
-     * Grow first, then scroll, centred while it fits, from the screen's own bounds as vanilla
+     * Grow first, then scroll, centered while it fits, from the screen's own bounds as vanilla
      * laid them out. The container list starts as the screen's own container part, its top at
      * vanilla's {@code topPos}, and grows with its content. The two panels are one block, and
      * the room left free around it is shared evenly above and below (to {@link #TOP_MARGIN}
      * and {@link #BOTTOM_MARGIN}), as far as each side has room:
      * <ul>
-     *   <li>while the block fits centred, it is centred: each pixel the list grows moves
+     *   <li>while the block fits centered, it is centered: each pixel the list grows moves
      *       its top up half a pixel and the inventory panel down half a pixel, rounded as
-     *       vanilla rounds its own centring;</li>
+     *       vanilla rounds its own centering;</li>
      *   <li>where one side has less room than the other (a window too short for vanilla's
-     *       own margins, a screen vanilla does not centre), that side's panel holds and the
-     *       other moves until the block is centred: the list's top holds and the inventory
+     *       own margins, a screen vanilla does not center), that side's panel holds and the
+     *       other moves until the block is centered: the list's top holds and the inventory
      *       panel moves down, or the other way round. A side with no room at all never
      *       moves, so the other takes all the growth up to its margin;</li>
      *   <li>only when both margins are reached does the list <b>scroll</b>.</li>
      * </ul>
      * Each pixel of growth moves each panel by at most one pixel and never back, so a box
      * opening never makes the block jump, at any window height. With vanilla's image
-     * centred the block stays centred right up to both margins at once.
+     * centered the block stays centered right up to both margins at once.
      * Never shorter than the screen's own container part, and neither panel ever moves the
      * other way from where vanilla put it: on a window with no room (a tiny one) the list
      * keeps vanilla's height and scrolls.
@@ -134,7 +134,7 @@ public final class RegionLayout {
         int roomAbove = Math.max(0, vanilla.topPos() - TOP_MARGIN);
         int grow = Math.max(0, Math.min(VIEW_TOP + content + VIEW_BOTTOM - ownPart, roomBelow + roomAbove));
         // The room still free once grown, split evenly: the list's top keeps the lower half
-        // above it (floor, as vanilla centres), the inventory the rest below. Clamped so that
+        // above it (floor, as vanilla centers), the inventory the rest below. Clamped so that
         // neither panel moves back, nor past its margin.
         int up = Math.max(0, Math.min(grow, roomAbove - Math.floorDiv(roomAbove + roomBelow - grow, 2)));
         int down = grow - up;

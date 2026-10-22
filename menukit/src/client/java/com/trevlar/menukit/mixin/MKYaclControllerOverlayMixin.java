@@ -19,7 +19,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * Part of MenuKit's one styling exception (see {@link MKVanillaButtonPressedMixin}).
  *
  * <p>Draws the pressed overlay on YACL controller widgets (toggles, sliders,
- * dropdowns, colour pickers) while they are held down. Press state comes from
+ * dropdowns, color pickers) while they are held down. Press state comes from
  * {@link PressedTracker}, set by {@link MKYaclWidgetPressedMixin} on the
  * AbstractWidget superclass. Both YACL mixins are {@code @Pseudo}, so they are
  * skipped when YACL isn't loaded.

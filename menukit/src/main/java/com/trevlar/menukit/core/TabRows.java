@@ -69,18 +69,18 @@ public final class TabRows {
     // put it exactly where the label always went.
 
     /**
-     * Where the group starts on the top strip: centred in the tab with vanilla's
-     * {@code centeredText} rounding (the centre, less half the group, each
+     * Where the group starts on the top strip: centered in the tab with vanilla's
+     * {@code centeredText} rounding (the center, less half the group, each
      * floored), so a group that is only a label lands where centeredText drew it.
      */
-    public static int centredStart(int tabX, int tabWidth, int groupWidth) {
+    public static int centeredStart(int tabX, int tabWidth, int groupWidth) {
         return tabX + tabWidth / 2 - groupWidth / 2;
     }
 
     /**
      * Where the group starts in a sidebar tab whose face runs from
      * {@code faceLeft} to {@code right}: {@code pad} in from the left
-     * ({@code side < 0}), centred in the face ({@code side == 0}), or {@code pad}
+     * ({@code side < 0}), centered in the face ({@code side == 0}), or {@code pad}
      * in from the right ({@code side > 0}).
      */
     public static int sidebarStart(int faceLeft, int right, int pad, int groupWidth, int side) {

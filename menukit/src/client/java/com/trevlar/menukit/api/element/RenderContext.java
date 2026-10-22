@@ -15,7 +15,7 @@ import java.util.Objects;
  * <ul>
  *   <li><b>Inventory menus and standalone screens</b>: full context including
  *   live mouse coordinates for hover detection.</li>
- *   <li><b>HUDs</b>: {@code mouseX} and {@code mouseY} are {@code -1}, signalling
+ *   <li><b>HUDs</b>: {@code mouseX} and {@code mouseY} are {@code -1}, signaling
  *   that no input dispatch is happening. {@link #hasMouseInput()} returns
  *   {@code false}; {@link #isHovered} returns {@code false} uniformly.</li>
  * </ul>

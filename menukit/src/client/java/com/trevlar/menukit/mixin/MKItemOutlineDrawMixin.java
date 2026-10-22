@@ -21,10 +21,10 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * The second half of the coloured item outline ({@code SlotRendering.drawItemOutline}):
+ * The second half of the colored item outline ({@code SlotRendering.drawItemOutline}):
  * when the GUI renderer blits an item from its item atlas, a state MenuKit marked
  * as a silhouette is blitted through MenuKit's silhouette pipeline in the mark's
- * colour instead: the item's own sprite, every visible pixel in one colour. The
+ * color instead: the item's own sprite, every visible pixel in one color. The
  * blit is otherwise vanilla's own (same texture, sampler, pose, bounds, UVs,
  * scissor). An unmarked item is untouched. See {@link ItemOutline}.
  */

@@ -1,13 +1,13 @@
 package com.trevlar.menukit.api.element;
 
 /**
- * The colours and spacings MenuKit's elements share.
+ * The colors and spacings MenuKit's elements share.
  * Each used to be declared again in every element that drew it, a
- * {@code 0xFF808080} disabled grey in five files and a {@code 0x30FFFFFF} hover
+ * {@code 0xFF808080} disabled gray in five files and a {@code 0x30FFFFFF} hover
  * overlay in seven; one change now reaches every element.
  *
- * <p><b>ARGB (26.2).</b> Every colour carries an explicit alpha byte: vanilla's
- * text draw silently discards a colour whose alpha is zero.
+ * <p><b>ARGB (26.2).</b> Every color carries an explicit alpha byte: vanilla's
+ * text draw silently discards a color whose alpha is zero.
  */
 public final class ElementConstants {
 
@@ -15,7 +15,7 @@ public final class ElementConstants {
 
     // Text
 
-    /** Dark grey text, no shadow: vanilla's container-label colour on a light panel. */
+    /** Dark gray text, no shadow: vanilla's container-label color on a light panel. */
     public static final int TEXT_DARK = 0xFF404040;
 
     /** White text, drawn with a shadow: on a dark panel, a button, a HUD. */
@@ -26,7 +26,7 @@ public final class ElementConstants {
 
     /**
      * Text of a disabled element, and all text inside a disabled panel or
-     * container. Mid grey reads as "off" on both light
+     * container. Mid gray reads as "off" on both light
      * and dark backgrounds.
      */
     public static final int TEXT_DISABLED = 0xFF808080;
@@ -41,7 +41,7 @@ public final class ElementConstants {
 
     // Spacing
 
-    /** Horizontal padding each side of a label drawn on a control (a button, a labelled toggle). */
+    /** Horizontal padding each side of a label drawn on a control (a button, a labeled toggle). */
     public static final int LABEL_PAD = 6;
 
     /** Vertical padding above and below a label that wrapped onto several lines. */

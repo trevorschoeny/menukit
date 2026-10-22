@@ -30,23 +30,23 @@ import java.util.function.Supplier;
  *
  * <h3>Header</h3>
  *
- * An arrow ({@code ▶} closed, {@code ▼} open), an optional 8x8 colour swatch, the
- * title, and a grey summary, cut with "..." when it runs out of room. A click
+ * An arrow ({@code ▶} closed, {@code ▼} open), an optional 8x8 color swatch, the
+ * title, and a gray summary, cut with "..." when it runs out of room. A click
  * anywhere on the header row toggles the section.
  *
  * <p>The title and swatch are fixed or read every frame ({@code builder(Supplier)},
  * {@code swatch(IntSupplier)}, 7.3.0), and the summary is always read every frame. So
  * a section built once, such as a keyed {@link ListView} row, shows a rename or a
- * recolour in place, with no rebuild:
+ * recolor in place, with no rebuild:
  * {@code Section.builder(() -> Component.literal(group.name)).swatch(() -> group.color)}.
  * The header measures the title as it is now. The summary takes what room the title
  * leaves, and a title too long for the header (a long rename) is cut with "..."
  * before the trailing edge, or a list row's controls, and shown whole in a tooltip.
  *
  * <p>In the Default look ({@link ScreenKind#DEFAULT}) the header takes the
- * category header's colours from vanilla's Controls screen: the title in white
- * with a shadow, the summary in vanilla's grey. It reads from the left as in the
- * Panel look, not centred as vanilla's is, so it lines up with the content
+ * category header's colors from vanilla's Controls screen: the title in white
+ * with a shadow, the summary in vanilla's gray. It reads from the left as in the
+ * Panel look, not centered as vanilla's is, so it lines up with the content
  * under it.
  *
  * <h3>Content</h3>
@@ -76,7 +76,7 @@ import java.util.function.Supplier;
  * <h3>Disabled look</h3>
  *
  * While disabled (its own {@code disabledWhen}, or its panel's or container's),
- * the arrow, title and summary draw in the disabled grey, the header takes no
+ * the arrow, title and summary draw in the disabled gray, the header takes no
  * clicks, and everything in the section is disabled too.
  */
 public final class Section extends AbstractPanelElement {
@@ -85,9 +85,9 @@ public final class Section extends AbstractPanelElement {
     public static final int HEADER_HEIGHT = 12;
     /** Space between the header and the content when open. */
     public static final int CONTENT_GAP = 2;
-    /** The title's colour in the Panel look ({@link TextRole#HEADING}): dark, for a raised panel. */
+    /** The title's color in the Panel look ({@link TextRole#HEADING}): dark, for a raised panel. */
     public static final int DEFAULT_TITLE_COLOR = ElementConstants.TEXT_DARK;
-    /** The summary's colour in the Panel look ({@link TextRole#MUTED}). */
+    /** The summary's color in the Panel look ({@link TextRole#MUTED}). */
     public static final int DEFAULT_SUMMARY_COLOR = ElementConstants.TEXT_MUTED;
 
     private static final String ARROW_CLOSED = "▶ ";
@@ -106,7 +106,7 @@ public final class Section extends AbstractPanelElement {
     private final Supplier<Component> title;
     private final @Nullable IntSupplier swatch;
     private final @Nullable Supplier<Component> summary;
-    /** Fixed colours from {@code colors(...)}, or null to take the kind's heading and muted colours. */
+    /** Fixed colors from {@code colors(...)}, or null to take the kind's heading and muted colors. */
     private final @Nullable Integer titleColor;
     private final @Nullable Integer summaryColor;
     private final List<PanelElement> children;
@@ -288,8 +288,8 @@ public final class Section extends AbstractPanelElement {
         int textY = Text.centeredTextY(hy, hy + headerHeight());
         String arrow = open ? ARROW_OPEN : ARROW_CLOSED;
         // The header reads from the left in both looks, where the section's content
-        // starts. Vanilla's category header is centred (KeyBindsList.CategoryEntry), but
-        // over a settings page of labels and controls a centred heading floats away
+        // starts. Vanilla's category header is centered (KeyBindsList.CategoryEntry), but
+        // over a settings page of labels and controls a centered heading floats away
         // from what it heads.
         int x = hx + HEADER_INSET;
         g.text(font, arrow, x, textY, titleCol, shadow);
@@ -466,27 +466,27 @@ public final class Section extends AbstractPanelElement {
 
         @Override protected Builder self() { return this; }
 
-        /** An 8x8 colour swatch after the arrow (ARGB). */
+        /** An 8x8 color swatch after the arrow (ARGB). */
         public Builder swatch(int argb) {
             return swatch(() -> argb);
         }
 
-        /** An 8x8 colour swatch after the arrow (ARGB), read every frame (7.3.0): a recolour shows at once. */
+        /** An 8x8 color swatch after the arrow (ARGB), read every frame (7.3.0): a recolor shows at once. */
         public Builder swatch(IntSupplier argb) {
             this.swatch = Objects.requireNonNull(argb, "argb");
             return this;
         }
 
-        /** The grey text after the title, read every frame. */
+        /** The gray text after the title, read every frame. */
         public Builder summary(Supplier<Component> summary) {
             this.summary = Objects.requireNonNull(summary, "summary");
             return this;
         }
 
         /**
-         * Fixed title and summary colours (ARGB), on every kind of screen. Without them the
+         * Fixed title and summary colors (ARGB), on every kind of screen. Without them the
          * kind decides ({@link TextRole#HEADING} and {@link TextRole#MUTED}). A
-         * disabled section draws both in the disabled colour on its own.
+         * disabled section draws both in the disabled color on its own.
          */
         public Builder colors(int title, int summary) {
             this.titleColor = title;

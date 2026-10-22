@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 
 /**
  * An item drawn at a fixed size, with its count and durability bar, and
- * optionally a coloured outline. No input, no storage: it only draws.
+ * optionally a colored outline. No input, no storage: it only draws.
  *
  * <pre>{@code
  * ItemDisplay.builder().item(() -> player.getMainHandItem()).size(16, 16)
@@ -29,7 +29,7 @@ import java.util.function.Supplier;
  *
  * <h3>Outline</h3>
  *
- * {@code outline(argb)} draws a one-pixel line of that colour around the item's
+ * {@code outline(argb)} draws a one-pixel line of that color around the item's
  * own silhouette, read every frame (0 for none). It is
  * {@link SlotRendering#drawItemOutline}, the same primitive a slot decoration
  * uses.
@@ -144,12 +144,12 @@ public class ItemDisplay extends AbstractPanelElement {
             return this;
         }
 
-        /** A one-pixel outline of this ARGB colour around the item's silhouette. */
+        /** A one-pixel outline of this ARGB color around the item's silhouette. */
         public Builder outline(int argb) {
             return outline(() -> argb);
         }
 
-        /** An outline colour read every frame; 0 draws none. */
+        /** An outline color read every frame; 0 draws none. */
         public Builder outline(IntSupplier argb) {
             this.outline = Objects.requireNonNull(argb, "argb");
             return this;
