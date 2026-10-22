@@ -245,14 +245,20 @@ public final class ContainerTabRows {
     }
 
     /**
-     * Once the region is laid out: in each row, a tab that has started drawing selected comes
-     * into view (paging leaves the selection alone, and a tab selected all along stays wherever
-     * the arrows put the row).
+     * Once the region is laid out: each row's first tab is the one it draws from, and in each
+     * row a tab that has started drawing selected comes into view (paging leaves the selection
+     * alone, and a tab selected all along stays wherever the arrows put the row).
      */
     static void afterLayout(Geometry g) {
         for (Edge edge : Edge.values()) {
             Tab[] row = rows[edge.ordinal()];
             int e = edge.ordinal(), sel = -1;
+            // Kept as drawn: on a frame wide enough for every tab (a list that took a
+            // scrollbar's lane, a wider section) the row draws from its first, and a row
+            // kept on an earlier page would go back there once the frame narrows again,
+            // the selected tab out of view though it never moved.
+            Fit f = fit(line(g, edge).width(), row.length, FIRST[e]);
+            FIRST[e] = f.first();
             for (int i = 0; i < row.length && sel < 0; i++) if (row[i].selected().getAsBoolean()) sel = i;
             String id = sel < 0 ? null : row[sel].id();
             if (id == null || id.equals(IN_VIEW[e])) {
@@ -260,7 +266,6 @@ public final class ContainerTabRows {
                 continue;
             }
             IN_VIEW[e] = id;
-            Fit f = fit(line(g, edge).width(), row.length, FIRST[e]);
             if (sel < f.first()) FIRST[e] = sel;
             else if (sel >= f.first() + f.shown()) FIRST[e] = sel - f.shown() + 1;
         }
