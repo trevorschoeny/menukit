@@ -146,6 +146,10 @@ public final class RegionLooks {
      * so with no pack (every look MenuKit's own) the list is drawn once, exactly as before. The
      * scrollbar lane is inside it while it scrolls; everything the sections draw goes over it,
      * their text in a color that reads on their own fill.
+     *
+     * <p>Where the list and the inventory panel are one frame (tabs mode), each slice is of a
+     * panel the whole frame's height, so the shown section's art runs straight on into the
+     * inventory part ({@link InventoryFrame}, the frame's other slice), with no edge between.
      */
     static final class Backdrop implements PanelElement {
         @Override public int getChildX() { return 0; }
@@ -161,18 +165,20 @@ public final class RegionLooks {
             if (g == null || f == null) return;
             GuiGraphicsExtractor graphics = ctx.graphics();
             int ox = ctx.originX(), oy = ctx.originY(), w = g.width(), h = g.height();
+            // The panel each slice is cut from: the list's, or the whole frame's where it is one.
+            int panelHeight = g.shape().joined() ? g.frameHeight() : h;
             PackLook.Look[] looks = f.looks();
-            if (state.tops.length != looks.length) {
-                PackLook.drawPanel(graphics, ox, oy, w, h, f.list());
-                return;
-            }
             // The panel's origin is the list's top-left; the slices are from the screen's.
             int dy = oy - g.top();
+            if (state.tops.length != looks.length) {
+                slice(graphics, ox, oy, w, panelHeight, oy, oy + h, f.list());
+                return;
+            }
             int[][] slices = RegionLayout.bands(g, state.tops, state.scroll);
             List<Integer> shown = new ArrayList<>();
             for (int i = 0; i < slices.length; i++) if (slices[i] != null && looks[i] != null) shown.add(i);
             if (shown.isEmpty()) {
-                PackLook.drawPanel(graphics, ox, oy, w, h, f.list());
+                slice(graphics, ox, oy, w, panelHeight, oy, oy + h, f.list());
                 return;
             }
             for (int k = 0; k < shown.size(); ) {
@@ -180,16 +186,24 @@ public final class RegionLooks {
                 int y0 = slices[shown.get(k)][1], m = k + 1;
                 while (m < shown.size() && looks[shown.get(m)] == look) m++;
                 int y1 = slices[shown.get(m - 1)][3];
-                if (y0 <= g.top() && y1 >= g.top() + h) {
-                    PackLook.drawPanel(graphics, ox, oy, w, h, look);
-                } else {
-                    graphics.enableScissor(ox, y0 + dy, ox + w, y1 + dy);
-                    PackLook.drawPanel(graphics, ox, oy, w, h, look);
-                    graphics.disableScissor();
-                }
+                slice(graphics, ox, oy, w, panelHeight, y0 + dy, y1 + dy, look);
                 k = m;
             }
         }
+    }
+
+    /**
+     * A {@code w x h} panel at {@code (x, y)} in {@code look}, drawn only from {@code y0} to
+     * {@code y1}: whole, with no scissor, where that is all of it.
+     */
+    private static void slice(GuiGraphicsExtractor graphics, int x, int y, int w, int h, int y0, int y1, PackLook.Look look) {
+        if (y0 <= y && y1 >= y + h) {
+            PackLook.drawPanel(graphics, x, y, w, h, look);
+            return;
+        }
+        graphics.enableScissor(x, y0, x + w, y1);
+        PackLook.drawPanel(graphics, x, y, w, h, look);
+        graphics.disableScissor();
     }
 
     /**
@@ -197,7 +211,9 @@ public final class RegionLooks {
      * screen's container texture under the active resource packs (MenuKit's raised panel
      * with vanilla's own), and a slot frame under each of the player's inventory slots,
      * where vanilla's image had them, in the same look. The slots themselves are vanilla's,
-     * drawn over it in vanilla's pass.
+     * drawn over it in vanilla's pass. Where the list and the inventory panel are one frame
+     * (tabs mode), the surface is the whole frame's panel cut to this part, the list's slice
+     * above it ({@link Backdrop}).
      */
     static final class InventoryFrame implements PanelElement {
         @Override public int getChildX() { return 0; }
@@ -212,7 +228,9 @@ public final class RegionLooks {
             Frame f = state.frame;
             if (g == null || f == null || !(state.screen.get() instanceof AbstractContainerScreen<?> acs)) return;
             Reference inv = g.inventory();
-            PackLook.drawPanel(ctx.graphics(), ctx.originX(), ctx.originY(), inv.imageWidth(), inv.imageHeight(), f.inventory());
+            int above = g.shape().joined() ? inv.topPos() - g.top() : 0;
+            slice(ctx.graphics(), ctx.originX(), ctx.originY() - above, inv.imageWidth(), inv.imageHeight() + above,
+                    ctx.originY(), ctx.originY() + inv.imageHeight(), f.inventory());
             AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) acs;
             for (Slot slot : acs.getMenu().slots) {
                 if (ContainerRegions.stays(slot) && slot.isActive()) {
