@@ -90,8 +90,12 @@ public final class RegionTabs {
      * above the frame rather than vanilla's 28: rows {@link #CUT_FROM} on, plain side and fill.
      */
     static final int CUT = SPRITE_HEIGHT - INTO - RegionLayout.TAB_ROW, CUT_FROM = 12;
-    /** Where the item icon sits in a tab, from its top: in the fill, a pixel clear of the frame. */
-    static final int ICON_X = 5, ICON_Y = 3;
+    /**
+     * The item icon, at {@link #ICON_SCALE} and centred in the tab's own {@link RegionLayout#TAB_ROW}
+     * band, picked and unpicked alike: at full size it ran past the tab's top edge.
+     */
+    static final float ICON_SCALE = 0.8f;
+    static final float ICON_X = (TAB_WIDTH - 16 * ICON_SCALE) / 2f, ICON_Y = (RegionLayout.TAB_ROW - 16 * ICON_SCALE) / 2f;
     /** The paging arrows: vanilla's recipe book page arrows, at the row's two ends. */
     public static final int ARROW_WIDTH = 12, ARROW_HEIGHT = 17;
     /** {@link #hit} answers: nothing, the back arrow, the forward arrow (a tab is its place in the row, 0 up). */
@@ -493,7 +497,7 @@ public final class RegionTabs {
                 int x = tabX(g.x(), f, i);
                 boolean picked = i == r.shown();
                 tab(graphics, ControlLook.Control.containerTab(picked, !f.paged() && i == 0), x, y, picked);
-                graphics.item(icon(sections.get(r.sections()[i])), x + ICON_X, y + ICON_Y);
+                drawIcon(graphics, icon(sections.get(r.sections()[i])), x, y);
             }
             if (f.paged()) {
                 int ay = y + (RegionLayout.TAB_ROW - ARROW_HEIGHT) / 2;
@@ -523,6 +527,19 @@ public final class RegionTabs {
             graphics.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, TAB_WIDTH, SPRITE_HEIGHT, 0, 0, x, y, TAB_WIDTH, CUT_FROM);
             graphics.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, TAB_WIDTH, SPRITE_HEIGHT, 0, CUT_FROM + CUT,
                     x, y + CUT_FROM, TAB_WIDTH, below);
+        }
+
+        /**
+         * {@code stack}'s icon at {@code (x, y)}, the tab's own top-left, scaled to
+         * {@link #ICON_SCALE} and centred in the tab: picked or not, the same spot.
+         */
+        private static void drawIcon(GuiGraphicsExtractor graphics, ItemStack stack, int x, int y) {
+            if (stack.isEmpty()) return;
+            graphics.pose().pushMatrix();
+            graphics.pose().translate(x + ICON_X, y + ICON_Y);
+            graphics.pose().scale(ICON_SCALE, ICON_SCALE);
+            graphics.item(stack, 0, 0);
+            graphics.pose().popMatrix();
         }
 
         @Override
