@@ -120,7 +120,8 @@ public final class RegionLayout {
      *
      * @param x          the container list's left edge (the screen's own {@code leftPos})
      * @param top        its top edge
-     * @param width      its width: the screen's image width, and the scrollbar lane while it scrolls
+     * @param width      its width: the screen's image width, as much more as the shown content
+     *                   is wider than nine slots, and the scrollbar lane while it scrolls
      * @param height     its height, from {@code top} to {@code bottom}
      * @param bottom     its bottom edge, {@link #PANEL_GAP} above the inventory panel
      * @param viewTop    the viewport's top edge
@@ -197,6 +198,17 @@ public final class RegionLayout {
      * screen's own container part.
      */
     public static Geometry layout(Reference vanilla, int inventoryLabelY, int content, int screenHeight, Shape shape) {
+        return layout(vanilla, inventoryLabelY, content, screenHeight, shape, 0);
+    }
+
+    /**
+     * {@link #layout(Reference, int, int, int, Shape)} for content {@code wider} pixels wider
+     * than {@link #CONTENT_WIDTH}: the list is that much wider, so a section with its own
+     * scrollbar beside its grid ({@code ScrollContainer.Builder.laneOutside}) keeps it inside
+     * the frame, while it shows.
+     */
+    public static Geometry layout(Reference vanilla, int inventoryLabelY, int content, int screenHeight, Shape shape,
+                                  int wider) {
         int left = vanilla.leftPos(), imageWidth = vanilla.imageWidth();
         int imageBottom = vanilla.topPos() + vanilla.imageHeight();
         int vanillaInventoryTop = vanilla.topPos() + inventoryLabelY - shape.inventoryLabelTop();
@@ -224,7 +236,7 @@ public final class RegionLayout {
         int bottom = inventoryTop - shape.panelGap();
         int viewHeight = height - VIEW_TOP - shape.viewBottom();
         boolean scrollable = content > viewHeight;
-        int width = imageWidth + (scrollable ? LANE : 0);
+        int width = imageWidth + Math.max(0, wider) + (scrollable ? LANE : 0);
         int inventoryBottom = imageBottom + down;
         // One frame is one width: the inventory part takes the scrollbar lane's room too.
         int inventoryWidth = shape.joined() ? width : imageWidth;

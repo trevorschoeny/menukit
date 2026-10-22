@@ -646,12 +646,22 @@ public final class ContainerRegions {
             bottoms[i] = tops[i] + holder.getHeight();
         }
         int content = state.shape.contentTop() + columnHeight + state.shape.contentBottom();
+        // How much wider than nine slots the widest shown section's content is (a grid with
+        // its own scrollbar beside it, while that shows): the list and its scroll area widen
+        // by as much. Titles are left out, as vanilla's run past the frame.
+        int wider = 0;
+        for (int i = 0; i < n; i++) {
+            if (shown[i]) wider = Math.max(wider, SECTIONS.get(i).section().content().getWidth() - RegionLayout.CONTENT_WIDTH);
+        }
+        if (scrollArea.getWidth() != RegionLayout.CONTENT_WIDTH + wider + RegionLayout.LANE) {
+            scrollArea.fillWidth(RegionLayout.CONTENT_WIDTH + wider + RegionLayout.LANE);
+        }
 
         if (state.tops.length == n) state.scroll = RegionLayout.keepInPlace(state.scroll, state.tops, state.bottoms, tops);
         state.tops = tops;
         state.bottoms = bottoms;
 
-        Geometry g = RegionLayout.layout(vanilla, inventoryLabelY, content, state.screenHeight, state.shape);
+        Geometry g = RegionLayout.layout(vanilla, inventoryLabelY, content, state.screenHeight, state.shape, wider);
         state.geometry = g;
         if (panel.getPinnedWidth() != g.width() || panel.getPinnedHeight() != g.height()) panel.size(g.width(), g.height());
 

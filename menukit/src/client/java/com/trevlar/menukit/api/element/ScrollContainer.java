@@ -136,6 +136,14 @@ import java.util.function.DoubleSupplier;
  * room, and that moves down as the content grows and back up as it shrinks, in the
  * same frame.
  *
+ * <h3>A lane outside its width (7.4.0)</h3>
+ *
+ * {@link Builder#laneOutside()} puts the scrollbar lane beside the declared width
+ * instead of inside it: the content keeps the whole declared width, and the container
+ * is a lane wider only while the lane shows. So whatever holds it makes room for the
+ * scrollbar exactly while there is one, as the container list widens its frame for a
+ * section's own scrolling grid.
+ *
  * <h3>Filling its container (7.3.0)</h3>
  *
  * {@link Builder#fillHeight()} takes the height its container gives it instead: what
@@ -212,6 +220,8 @@ public class ScrollContainer extends AbstractPanelElement {
     private final boolean band;
     /** Width from the content ({@link Builder#fitWidth}); height up to the declared one ({@link Builder#fitHeight}). */
     private final boolean fitWidth, fitHeight;
+    /** The lane beside the declared width, taken only while it shows ({@link Builder#laneOutside}). */
+    private final boolean laneOutside;
     /** For measuring only (a measure gets no context): the kind of screen and whether in a dialog, handed down. */
     private ScreenKind measuredKind = ScreenKind.PANEL;
     private boolean inDialog = false;
@@ -259,6 +269,7 @@ public class ScrollContainer extends AbstractPanelElement {
         this.band = b.band;
         this.fitWidth = b.fitWidth;
         this.fitHeight = b.fitHeight;
+        this.laneOutside = b.laneOutside;
         this.fill = b.fill;
         this.steadyLane = b.steadyLane;
         if (fitWidth) this.width = -1;   // its content's until the panel lays it out
@@ -354,9 +365,13 @@ public class ScrollContainer extends AbstractPanelElement {
         }
     }
 
-    /** Fitting its content, as wide as it was laid out (its content's before then); else as declared. */
+    /**
+     * Fitting its content, as wide as it was laid out (its content's before then); else as
+     * declared, and the lane beside that while it shows for a lane outside.
+     */
     @Override
     public int getWidth() {
+        if (laneOutside) return width + laneWidth(measuredKind);
         return width >= 0 ? width : naturalWidth();
     }
 
@@ -412,6 +427,7 @@ public class ScrollContainer extends AbstractPanelElement {
     /** Fitting its width: the widest child, the band's inset and the scrollbar lane. */
     @Override
     public int naturalWidth() {
+        if (laneOutside) return authoredWidth + laneWidth(measuredKind);
         if (!fitWidth) return authoredWidth;
         int widest = 0;
         for (PanelElement e : content) {
@@ -737,7 +753,7 @@ public class ScrollContainer extends AbstractPanelElement {
         private @Nullable DoubleSupplier scrollGet;
         private @Nullable DoubleConsumer scrollSet;
         private boolean band = true;
-        private boolean fitWidth, fitHeight, fill, steadyLane;
+        private boolean fitWidth, fitHeight, fill, steadyLane, laneOutside;
 
         protected Builder() {}
 
@@ -798,6 +814,17 @@ public class ScrollContainer extends AbstractPanelElement {
         }
 
         /**
+         * The scrollbar lane beside the declared width rather than inside it (7.4.0): the
+         * content has the whole width, and the container is a lane wider only while the
+         * content overflows, so what holds it makes room for the scrollbar just then. With
+         * {@link #size}, not {@link #fitWidth()}.
+         */
+        public Builder laneOutside() {
+            this.laneOutside = true;
+            return this;
+        }
+
+        /**
          * Takes the height its container gives it (7.3.0): the room a panel's viewport
          * leaves below it, what a vertical {@link Flow} has left after its other
          * children, a {@link Tabs} page's height. So a header stays put above it and only
@@ -838,6 +865,7 @@ public class ScrollContainer extends AbstractPanelElement {
         public ScrollContainer build() {
             require((height > 0 || fill) && (fitWidth || width > 0),
                     "size(w, h) is required (or fitWidth() and height(h), or fillHeight() with a width)");
+            require(!(laneOutside && fitWidth), "laneOutside() takes a declared width: use size(w, h), not fitWidth()");
             return new ScrollContainer(this);
         }
     }
