@@ -55,7 +55,8 @@ import java.util.function.Predicate;
  * {@link Control} is the one place the sprites MenuKit's looks draw are named: each element
  * kind, MenuKit's own sprites for it and vanilla's equivalent. Elements whose vanilla
  * equivalent is already a vanilla widget (slider, text field, tabs, the scroller handle)
- * draw it in both looks and follow a pack as they are; elements with no vanilla equivalent
+ * draw it in both looks and follow a pack as they are (so do the container list's tabs and
+ * their paging arrows); elements with no vanilla equivalent
  * (radio, info box, a card, a progress bar) keep MenuKit's art.
  */
 @ApiStatus.Internal
@@ -118,7 +119,17 @@ public final class ControlLook {
         /** A Panel-look panel surface: MenuKit's raised panel (its look cut from container art is {@link PackLook}'s). */
         PANEL(new Identifier[]{Identifier.fromNamespaceAndPath("menukit", "panel_raised")}, null),
         /** A slot frame: vanilla's slot sprite (horse, nautilus, stats; the Default look's slot). */
-        SLOT(null, vanilla("container/slot"));
+        SLOT(null, vanilla("container/slot")),
+        /**
+         * A tab of the container list's tab row (tabs mode): vanilla's creative inventory top
+         * tabs, picked or not ({@link #containerTab}), the first flush with the frame's left edge.
+         */
+        CONTAINER_TAB(null, vanilla("container/creative_inventory/tab_top_unselected_1",
+                "container/creative_inventory/tab_top_unselected_2", "container/creative_inventory/tab_top_selected_1",
+                "container/creative_inventory/tab_top_selected_2")),
+        /** The tab row's paging arrows: vanilla's recipe book page arrows, back or forward, resting or highlighted ({@link #pageArrow}). */
+        PAGE_ARROW(null, vanilla("recipe_book/page_backward", "recipe_book/page_backward_highlighted",
+                "recipe_book/page_forward", "recipe_book/page_forward_highlighted"));
 
         private final @Nullable Identifier @Nullable [] own;
         private final @Nullable Identifier @Nullable [] vanilla;
@@ -141,6 +152,16 @@ public final class ControlLook {
         /** Vanilla's checkbox sprite for a box {@code checked} or not, {@code highlighted} or not. */
         public static Identifier checkbox(boolean checked, boolean highlighted) {
             return CHECKBOX.vanilla((checked ? 2 : 0) + (highlighted ? 1 : 0));
+        }
+
+        /** Vanilla's creative top tab, {@code picked} or not, the first one in a row ({@code first}: flush with the frame's left edge) or another. */
+        public static Identifier containerTab(boolean picked, boolean first) {
+            return CONTAINER_TAB.vanilla((picked ? 2 : 0) + (first ? 0 : 1));
+        }
+
+        /** Vanilla's page arrow, {@code forward} or back, {@code highlighted} or not. */
+        public static Identifier pageArrow(boolean forward, boolean highlighted) {
+            return PAGE_ARROW.vanilla((forward ? 2 : 0) + (highlighted ? 1 : 0));
         }
 
         private static @Nullable Identifier[] states(String namespace, String base, boolean pressed) {

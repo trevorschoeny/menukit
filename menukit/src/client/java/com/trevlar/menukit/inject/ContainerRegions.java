@@ -21,6 +21,7 @@ import com.trevlar.menukit.core.OptiGuiRules;
 import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.Scroller;
 import com.trevlar.menukit.inject.RegionLayout.Geometry;
+import com.trevlar.menukit.inject.RegionLayout.Shape;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevlar.menukit.mixin.SlotAccessor;
 
@@ -38,6 +39,7 @@ import net.minecraft.world.Container;
 import net.minecraft.world.Nameable;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -158,6 +160,8 @@ public final class ContainerRegions {
     public static final String PANEL_ID = "menukit:container_region";
     /** The inventory panel's panel id. */
     public static final String INVENTORY_PANEL_ID = "menukit:container_region_inventory";
+    /** The tab row's panel id (tabs mode). */
+    public static final String TABS_PANEL_ID = "menukit:container_region_tabs";
     /** The after-init phase the bounds are set in: before the default one, so other mods' init listeners see them. */
     private static final Identifier FIRST = Identifier.fromNamespaceAndPath("menukit", "container_region_bounds");
 
@@ -223,10 +227,11 @@ public final class ContainerRegions {
      * OptiGUI the texture its rules give the section's {@code source} (the open screen's,
      * without one). {@code title}, if any, is drawn above its content; {@code name} stands in
      * for a blank title while other sections show, ahead of its source's name ({@link RegionTitles#shownTitles}).
+     * {@code icon}, if any, is its tab's icon in tabs mode, ahead of its source's block ({@link RegionTabs}).
      */
     public record Declared(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen,
                            Identifier texture, @Nullable Supplier<Component> title, @Nullable Supplier<Component> name,
-                           @Nullable Supplier<ContainerRegion.@Nullable Source> source) {}
+                           @Nullable Supplier<ContainerRegion.@Nullable Source> source, @Nullable Supplier<ItemStack> icon) {}
 
     /** A section as placed: what it was declared as, and the element that holds it in the scroll area. */
     private record Placed(Declared section, AbstractPanelElement holder) {}
@@ -256,13 +261,16 @@ public final class ContainerRegions {
         // below the title's top (vanilla's title at y 6, its grid at 17). The title moves
         // right clear of the list's corner when its section is the first shown, and the
         // section moves down when it is a block of its own (this frame's Frame says which).
+        // In tabs mode with a tab row the tab names the container, and the title row goes.
         PanelElement body = section.title() == null ? section.content() : Flow.builder().vertical().gap(0, 2)
                 .add(Flow.builder().gap(0, 0).add(new Spacer(() -> titleIndent(section), () -> 0))
-                        .add(TextLabel.builder().at(1, 0).text(() -> shownTitle(section)).build()).build())
+                        .add(TextLabel.builder().at(1, 0).text(() -> shownTitle(section)).build())
+                        .visibleWhen(() -> state.shape.titled()).build())
                 .add(section.content()).build();
+        // In tabs mode only the shown section is in the column.
         AbstractPanelElement holder = Flow.builder().vertical().gap(0, 0)
                 .add(new Spacer(() -> 0, () -> ownsBlock(section) ? RegionLayout.TITLE_INSET : 0)).add(body)
-                .visibleWhen(() -> shownOnCurrentScreen(section)).build();
+                .visibleWhen(() -> RegionTabs.inColumn(section) && shownOnCurrentScreen(section)).build();
         SECTIONS.add(new Placed(section, holder));
         SECTIONS.sort(Comparator.comparingInt((Placed p) -> p.section().order()).thenComparing(p -> p.section().id()));
 
@@ -271,9 +279,11 @@ public final class ContainerRegions {
         for (Placed p : SECTIONS) holders.add(p.holder());
         // One column stacks the shown sections, GAP apart; a hidden one takes no room.
         column = Flow.builder().vertical().gap(0, RegionLayout.GAP).addAll(holders).build();
-        // The content: the column, CONTENT_TOP down, with CONTENT_BOTTOM under its last grid.
-        PanelElement content = Flow.builder().vertical().gap(0, 0).at(0, RegionLayout.CONTENT_TOP)
-                .add(column).add(new Spacer(() -> 0, () -> RegionLayout.CONTENT_BOTTOM)).build();
+        // The content: the column, with the shape's room above its first section and below its
+        // last grid (CONTENT_TOP and CONTENT_BOTTOM in list mode).
+        PanelElement content = Flow.builder().vertical().gap(0, 0)
+                .add(new Spacer(() -> 0, () -> state.shape.contentTop())).add(column)
+                .add(new Spacer(() -> 0, () -> state.shape.contentBottom())).build();
         // A section is nine slots wide, so its content wraps there. The scroll area has a
         // declared width and lays no children out, so nothing else hands the content its width.
         content.layoutWithin(RegionLayout.CONTENT_WIDTH);
@@ -281,9 +291,10 @@ public final class ContainerRegions {
                 .fillHeight()
                 .state(() -> state.scroll, v -> state.scroll = v)
                 .content(List.of(content)).build();
-        // The viewport takes the panel's height below VIEW_TOP, less the frame's bottom border.
+        // The viewport takes the panel's height below VIEW_TOP, less the frame's bottom border
+        // (none where the list runs on into the inventory as one frame).
         PanelElement view = Flow.builder().vertical().gap(0, 0).at(RegionLayout.INSET_X, RegionLayout.VIEW_TOP)
-                .add(scrollArea).add(new Spacer(() -> 0, () -> RegionLayout.VIEW_BOTTOM)).build();
+                .add(scrollArea).add(new Spacer(() -> 0, () -> state.shape.viewBottom())).build();
         // Both panels are the screen's background: under everything, claiming nothing. Each
         // says what its surface is at a point, for its slot frames and text (RegionLooks).
         panel = Panel.builder(PANEL_ID).style(PanelStyle.NONE).background()
@@ -301,6 +312,15 @@ public final class ContainerRegions {
                     .visibleWhen(() -> state.geometry != null && state.applied != null);
             PanelHost.surfaceLooks(inventoryPanel, RegionLooks::inventorySurfaceAt);
             new ScreenPanelAdapter(inventoryPanel, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
+            // Tabs mode's tab row, on the list's top edge, drawn over the list so the picked tab
+            // opens into its frame.
+            Panel tabs = Panel.builder(TABS_PANEL_ID).style(PanelStyle.NONE).background()
+                    .in(ModeScope.BOTH, Placement.screen(PanelPosition.pixel(ContainerRegions::tabsOrigin)
+                            .priority(PanelPosition.DEFAULT_PRIORITY + 1)))
+                    .add(new RegionTabs.Strip())
+                    .build()
+                    .visibleWhen(() -> state.geometry != null && state.applied != null && state.shape.above() > 0);
+            new ScreenPanelAdapter(tabs, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
         }
     }
 
@@ -331,6 +351,13 @@ public final class ContainerRegions {
                 && s.matcher().matches(acs) && s.visibleWhen().getAsBoolean() && s.content().isVisible();
     }
 
+    /** Every declared section, in stacking order. */
+    static List<Declared> declared() {
+        List<Declared> out = new ArrayList<>(SECTIONS.size());
+        for (Placed p : SECTIONS) out.add(p.section());
+        return out;
+    }
+
     /** The container list's panel, or {@code null} with no section declared. */
     static @Nullable Panel listPanel() {
         return panel;
@@ -349,6 +376,8 @@ public final class ContainerRegions {
         WeakReference<Screen> screen = new WeakReference<>(null);
         double scroll;
         @Nullable Geometry geometry;
+        /** How the list stands this frame: list mode, or tabs mode with or without its tab row ({@link RegionTabs#shape}). */
+        Shape shape = Shape.LIST;
         /** What the region's elements read this frame ({@link #step}). */
         @Nullable Frame frame;
         /** The screen's own bounds and "Inventory" label as vanilla laid them out at its last init. */
@@ -432,7 +461,9 @@ public final class ContainerRegions {
         state.bottoms = new int[0];
         state.lastFrame = -1;
         state.opened = openedContainer(screen);
+        state.shape = Shape.LIST;
         RegionReveal.reset();
+        RegionTabs.reset(screen);
         OptiGuiRules.screenClosed();   // its answers were for the screen before
     }
 
@@ -487,6 +518,11 @@ public final class ContainerRegions {
     private static @Nullable ScreenOrigin inventoryOrigin() {
         Geometry g = state.geometry;
         return g == null ? null : new ScreenOrigin(g.inventory().leftPos(), g.inventory().topPos());
+    }
+
+    private static @Nullable ScreenOrigin tabsOrigin() {
+        Geometry g = state.geometry;
+        return g == null ? null : new ScreenOrigin(g.x(), g.tabTop());
     }
 
     /**
@@ -569,6 +605,15 @@ public final class ContainerRegions {
                                           int mouseX, int mouseY, long now) {
         if (panel == null) return null;
 
+        // Tabs mode first: which sections could show (each asked with every slot on, as a
+        // hidden tab's slots are off), which is picked, and so how the list stands; then every
+        // other section's slots off. In list mode there is no row and nothing is off.
+        Screen screen = state.screen.get();
+        RegionTabs.allOn();
+        RegionTabs.Row row = RegionTabs.choose(screen, declared(), ContainerRegions::shownOnCurrentScreen);
+        state.shape = RegionTabs.shape(row);
+        RegionTabs.switchOff(screen instanceof AbstractContainerScreen<?> acs && acs.getMenu() != null ? acs.getMenu().slots : null);
+
         // Before anything lays out: what the elements read this frame.
         int n = SECTIONS.size();
         boolean[] shown = new boolean[n];
@@ -582,7 +627,13 @@ public final class ContainerRegions {
             state.frame = null;
             return null;
         }
-        state.frame = frameOf(shown);
+        // Names are worked out among the sections the player tells apart: the list's, or every tab's.
+        boolean[] named = shown;
+        if (row != null) {
+            named = new boolean[n];
+            for (int i : row.sections()) named[i] = true;
+        }
+        state.frame = frameOf(shown, named);
 
         // Where each shown section sits in the content (the column stacks them).
         int[] tops = new int[n], bottoms = new int[n];
@@ -590,17 +641,17 @@ public final class ContainerRegions {
         for (int i = 0; i < n; i++) {
             AbstractPanelElement holder = SECTIONS.get(i).holder();
             if (!shown[i]) { tops[i] = bottoms[i] = -1; continue; }
-            // The holder is placed in the column's coordinates; the column starts CONTENT_TOP down the content.
+            // The holder is placed in the column's coordinates; the column starts the shape's contentTop down the content.
             tops[i] = holder.getChildY();
             bottoms[i] = tops[i] + holder.getHeight();
         }
-        int content = RegionLayout.CONTENT_TOP + columnHeight + RegionLayout.CONTENT_BOTTOM;
+        int content = state.shape.contentTop() + columnHeight + state.shape.contentBottom();
 
         if (state.tops.length == n) state.scroll = RegionLayout.keepInPlace(state.scroll, state.tops, state.bottoms, tops);
         state.tops = tops;
         state.bottoms = bottoms;
 
-        Geometry g = RegionLayout.layout(vanilla, inventoryLabelY, content, state.screenHeight);
+        Geometry g = RegionLayout.layout(vanilla, inventoryLabelY, content, state.screenHeight, state.shape);
         state.geometry = g;
         if (panel.getPinnedWidth() != g.width() || panel.getPinnedHeight() != g.height()) panel.size(g.width(), g.height());
 
@@ -610,11 +661,15 @@ public final class ContainerRegions {
         state.scroll = RegionReveal.step(g, state.scroll, tops, bottoms);
         if (carrying) state.scroll += RegionLayout.edgeSpeed(g, mouseX, mouseY) * seconds;
         state.scroll = Scroller.clamp(state.scroll, g.content(), g.viewHeight());
+        RegionTabs.afterLayout(g, carrying, mouseX, mouseY);
         return g;
     }
 
-    /** This frame's {@link Frame}, with the sections {@code shown} as they are (at least one). */
-    private static Frame frameOf(boolean[] shown) {
+    /**
+     * This frame's {@link Frame}, with the sections {@code shown} as they are (at least one),
+     * and names worked out among the {@code named} ones (the shown ones in list mode).
+     */
+    private static Frame frameOf(boolean[] shown, boolean[] named) {
         Screen screen = state.screen.get();
         List<Declared> sections = new ArrayList<>(SECTIONS.size());
         for (Placed p : SECTIONS) sections.add(p.section());
@@ -630,8 +685,8 @@ public final class ContainerRegions {
         List<@Nullable Component> names = new ArrayList<>();
         int first = -1;
         for (int i = 0; i < sections.size(); i++) {
-            if (!shown[i]) continue;
-            if (first < 0) first = i;
+            if (shown[i] && first < 0) first = i;
+            if (!named[i]) continue;
             Declared s = sections.get(i);
             if (s.title() == null) continue;
             titled.add(i);
@@ -803,6 +858,7 @@ public final class ContainerRegions {
         if (panel == null || g == null || state.screen.get() != screen) return;
         int topPos = ((AbstractContainerScreenAccessor) screen).mk$getTopPos();
         RegionReveal.placed(PresentedSlots.below(panel), topPos, g, state.scroll, state.tops, state.bottoms);
+        RegionTabs.placed(PresentedSlots.below(panel));
     }
 
     // The wheel
