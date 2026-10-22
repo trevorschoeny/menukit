@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
@@ -125,7 +126,8 @@ import java.util.function.Supplier;
  * <h3>Anchors</h3>
  * {@link #CONTAINERS} is the container list's rectangle and {@link #INVENTORY} the
  * inventory panel's, for an {@code AnchorPanelAdapter}: a mod's buttons go beside the
- * panel they act on.
+ * panel they act on. {@link #sectionAnchor} is one section's, cut at the viewport, absent
+ * while the section is hidden or scrolled out of view: for a button that acts on one box.
  *
  * <h3>The wheel, last</h3>
  * Three places, one rule: the region scrolls on a turn nobody else used.
@@ -174,6 +176,42 @@ public final class ContainerRegions {
                 Geometry g = geometry(screen);
                 return g == null ? null : g.inventory();
             });
+
+    /** Each section's anchor, by section id: one per id, however many mods ask for it. */
+    private static final Map<String, Anchor> SECTION_ANCHORS = new ConcurrentHashMap<>();
+
+    /**
+     * {@code ContainerRegion.anchor}: the anchor for the section {@code sectionId}, made the
+     * first time it is asked for. The section need not be declared yet (a mod's button may
+     * declare before the mod whose section it goes by), so it is looked up by id each frame;
+     * an id no section has is simply never there. Its own id is MenuKit's, so it can't clash
+     * with an anchor the section's mod declares.
+     *
+     * @throws IllegalArgumentException when {@code sectionId} is not {@code namespace:path}
+     * @throws IllegalStateException    the first time, after declarations froze
+     */
+    public static Anchor sectionAnchor(String sectionId) {
+        Identifier id = Identifier.tryParse(Objects.requireNonNull(sectionId, "sectionId"));
+        if (id == null) {
+            throw new IllegalArgumentException("ContainerRegion.anchor: section id '" + sectionId + "' is not namespace:path");
+        }
+        return SECTION_ANCHORS.computeIfAbsent(sectionId, s -> Anchor.of(
+                Identifier.fromNamespaceAndPath("menukit", "container_region/section/" + id.getNamespace() + "/" + id.getPath()),
+                screen -> sectionBox(screen, s)));
+    }
+
+    /** Section {@code sectionId}'s rectangle on {@code screen} this frame, or {@code null} where it isn't showing. */
+    private static @Nullable Reference sectionBox(Screen screen, String sectionId) {
+        Geometry g = geometry(screen);
+        if (g == null) return null;
+        // This frame's tops are in SECTIONS' order; a section declared after the frame has none yet.
+        for (int i = 0; i < SECTIONS.size() && i < state.tops.length; i++) {
+            if (SECTIONS.get(i).section().id().equals(sectionId)) {
+                return RegionLayout.sectionBox(g, state.tops[i], state.bottoms[i], state.scroll);
+            }
+        }
+        return null;
+    }
 
     // Declarations
 
@@ -552,7 +590,7 @@ public final class ContainerRegions {
         for (int i = 0; i < n; i++) {
             AbstractPanelElement holder = SECTIONS.get(i).holder();
             if (!shown[i]) { tops[i] = bottoms[i] = -1; continue; }
-            // The holder is placed in the content's coordinates, CONTENT_TOP included.
+            // The holder is placed in the column's coordinates; the column starts CONTENT_TOP down the content.
             tops[i] = holder.getChildY();
             bottoms[i] = tops[i] + holder.getHeight();
         }
