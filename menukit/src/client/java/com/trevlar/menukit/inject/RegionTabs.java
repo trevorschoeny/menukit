@@ -1,6 +1,7 @@
 package com.trevlar.menukit.inject;
 
 import com.mojang.blaze3d.platform.cursor.CursorTypes;
+import com.trevlar.menukit.api.element.Click;
 import com.trevlar.menukit.api.element.InputContext;
 import com.trevlar.menukit.api.element.MKTooltip;
 import com.trevlar.menukit.api.element.PanelElement;
@@ -56,8 +57,8 @@ import java.util.function.Predicate;
  *
  * <h3>The pick</h3>
  * Kept for the open screen, across a resize, and reset when another screen opens: it starts
- * on the screen's own container (the first section with no source), a click, an item carried
- * onto a tab or {@code ContainerRegion.select} picks another, and a shift-click into a
+ * on the screen's own container (the first section with no source), a click on a tab (an item
+ * held or not) or {@code ContainerRegion.select} picks another, and a shift-click into a
  * container not shown picks that one. A pick that is not there yet (a box whose section shows
  * a frame later) waits for it; once shown, a pick whose section hides falls back to the
  * screen's own container, and stays there.
@@ -91,11 +92,15 @@ public final class RegionTabs {
      */
     static final int CUT = SPRITE_HEIGHT - INTO - RegionLayout.TAB_ROW, CUT_FROM = 12;
     /**
-     * The item icon, at {@link #ICON_SCALE} and centred in the tab's own {@link RegionLayout#TAB_ROW}
-     * band, picked and unpicked alike: at full size it ran past the tab's top edge.
+     * The first row of an unpicked tab's fill: vanilla's unpicked sprite starts two clear rows
+     * down, then three of border.
      */
-    static final float ICON_SCALE = 0.8f;
-    static final float ICON_X = (TAB_WIDTH - 16 * ICON_SCALE) / 2f, ICON_Y = (RegionLayout.TAB_ROW - 16 * ICON_SCALE) / 2f;
+    static final int UNPICKED_FILL = 5;
+    /**
+     * The item icon, full size, centred across the tab and in an unpicked tab's fill, down to the
+     * frame; picked tabs draw it on the same spot, so the icon stays put as the pick moves.
+     */
+    static final int ICON_X = (TAB_WIDTH - 16) / 2, ICON_Y = (UNPICKED_FILL + RegionLayout.TAB_ROW - 16) / 2;
     /** The paging arrows: vanilla's recipe book page arrows, at the row's two ends. */
     public static final int ARROW_WIDTH = 12, ARROW_HEIGHT = 17;
     /** {@link #hit} answers: nothing, the back arrow, the forward arrow (a tab is its place in the row, 0 up). */
@@ -155,16 +160,13 @@ public final class RegionTabs {
 
     /** This frame's row, or {@code null} in list mode. */
     private static @Nullable Row row;
-    /** The pick asked for (by a click, an item carried onto a tab, {@code select}, a shift-click), by id; {@code null}: the screen's own. */
+    /** The pick asked for (by a click, {@code select}, a shift-click), by id; {@code null}: the screen's own. */
     private static @Nullable String wanted;
     /** Whether {@link #wanted} has shown since it was asked for: then its section hiding drops it. */
     private static boolean wantedShown;
     /** The first tab in view when they don't all fit, and the pick last brought into view. */
     private static int first;
     private static @Nullable String inView;
-    /** Carrying an item: the tab or arrow it last picked or paged with, and where the mouse was then. */
-    private static int carriedOver = NONE;
-    private static double carriedX = Double.NaN, carriedY = Double.NaN;
     /** The section each slot was shown in, by section id: what a section's slots are. Weak, keyed by the slot object. */
     private static final Map<Slot, String> OWNERS = new WeakHashMap<>();
     /** The block the open screen was opened on, as an item: the screen's own section's icon. */
@@ -177,8 +179,6 @@ public final class RegionTabs {
         wantedShown = false;
         first = 0;
         inView = null;
-        carriedOver = NONE;
-        carriedX = carriedY = Double.NaN;
         OWNERS.clear();
         off = Set.of();
         screenIcon = screen == null ? ItemStack.EMPTY : openedIcon();
@@ -385,13 +385,8 @@ public final class RegionTabs {
         return hit(g.x(), g.width(), g.top(), r.count(), fit(g, r), mx, my);
     }
 
-    /**
-     * Once the list is laid out: a newly picked tab comes into view (paging leaves the pick
-     * alone), and an item carried onto a tab picks it, at once, as the creative inventory's
-     * does, or onto an arrow pages; once each time the mouse comes onto one, and only once
-     * the mouse has moved since, so a row moving under a still mouse picks nothing.
-     */
-    static void afterLayout(Geometry g, boolean carrying, double mouseX, double mouseY) {
+    /** Once the list is laid out: a newly picked tab comes into view (paging leaves the pick alone). */
+    static void afterLayout(Geometry g) {
         Row r = row;
         if (r == null || r.count() < 2) return;
         Fit f = fit(g, r);
@@ -401,20 +396,9 @@ public final class RegionTabs {
             else if (r.shown() >= f.first() + f.shown()) first = r.shown() - f.shown() + 1;
             else first = f.first();
         }
-        int over = carrying ? hitAt(g, r, mouseX, mouseY) : NONE;
-        if (over == NONE) {
-            carriedOver = NONE;
-            return;
-        }
-        // Acted on already, or come under a mouse that hasn't moved since it last acted.
-        if (over == carriedOver || (mouseX == carriedX && mouseY == carriedY)) return;
-        carriedOver = over;
-        carriedX = mouseX;
-        carriedY = mouseY;
-        act(r, over, fit(g, r));
     }
 
-    /** A click, or an item carried, on {@code what} ({@link #hit}): picks the tab, or moves the row a tab along. */
+    /** A click on {@code what} ({@link #hit}): picks the tab, or moves the row a tab along. */
     private static void act(Row r, int what, Fit f) {
         if (what == BACK) first = Math.max(0, f.first() - 1);
         else if (what == FORWARD) first = f.first() + 1;
@@ -497,7 +481,7 @@ public final class RegionTabs {
                 int x = tabX(g.x(), f, i);
                 boolean picked = i == r.shown();
                 tab(graphics, ControlLook.Control.containerTab(picked, !f.paged() && i == 0), x, y, picked);
-                drawIcon(graphics, icon(sections.get(r.sections()[i])), x, y);
+                graphics.item(icon(sections.get(r.sections()[i])), x + ICON_X, y + ICON_Y);
             }
             if (f.paged()) {
                 int ay = y + (RegionLayout.TAB_ROW - ARROW_HEIGHT) / 2;
@@ -530,23 +514,14 @@ public final class RegionTabs {
         }
 
         /**
-         * {@code stack}'s icon at {@code (x, y)}, the tab's own top-left, scaled to
-         * {@link #ICON_SCALE} and centred in the tab: picked or not, the same spot.
+         * A left click on a tab picks it and on an arrow pages, held item or not. Taking the
+         * click keeps it from vanilla, so a held item is neither dropped nor placed.
          */
-        private static void drawIcon(GuiGraphicsExtractor graphics, ItemStack stack, int x, int y) {
-            if (stack.isEmpty()) return;
-            graphics.pose().pushMatrix();
-            graphics.pose().translate(x + ICON_X, y + ICON_Y);
-            graphics.pose().scale(ICON_SCALE, ICON_SCALE);
-            graphics.item(stack, 0, 0);
-            graphics.pose().popMatrix();
-        }
-
         @Override
         public boolean mouseClicked(InputContext in, int button) {
             Geometry g = ContainerRegions.state.geometry;
             Row r = row;
-            if (button != 0 || g == null || r == null || r.count() < 2) return false;
+            if (button != Click.LEFT || g == null || r == null || r.count() < 2) return false;
             int what = hitAt(g, r, in.mouseX(), in.mouseY());
             if (what == NONE) return false;
             act(r, what, fit(g, r));
