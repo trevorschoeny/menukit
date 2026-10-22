@@ -147,7 +147,7 @@ public final class RegionLooks {
      * scrollbar lane is inside it while it scrolls; everything the sections draw goes over it,
      * their text in a color that reads on their own fill.
      *
-     * <p>Where the list and the inventory panel are one frame (tabs mode), each slice is of a
+     * <p>Where the list and the inventory panel are one frame (the fitted frame), each slice is of a
      * panel the whole frame's height, so the shown section's art runs straight on into the
      * inventory part ({@link InventoryFrame}, the frame's other slice), with no edge between.
      */
@@ -212,7 +212,7 @@ public final class RegionLooks {
      * with vanilla's own), and a slot frame under each of the player's inventory slots,
      * where vanilla's image had them, in the same look. The slots themselves are vanilla's,
      * drawn over it in vanilla's pass. Where the list and the inventory panel are one frame
-     * (tabs mode), the surface is the whole frame's panel cut to this part, the list's slice
+     * (the fitted frame), the surface is the whole frame's panel cut to this part, the list's slice
      * above it ({@link Backdrop}).
      */
     static final class InventoryFrame implements PanelElement {
