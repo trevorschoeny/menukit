@@ -255,6 +255,17 @@ public final class ChildDispatch {
         return false;
     }
 
+    /**
+     * Hands {@code overflow} down the children in order ({@link PanelElement#yieldHeight}),
+     * each shown one asked for what the ones before it left, each hidden one for nothing (so
+     * it shows again at its full height); returns how much they gave.
+     */
+    public static int yieldHeight(List<? extends PanelElement> children, int overflow) {
+        int given = 0;
+        for (PanelElement c : children) given += c.yieldHeight(c.isVisible() ? Math.max(0, overflow - given) : 0);
+        return given;
+    }
+
     /** Detaches every child. */
     public static void detach(List<? extends PanelElement> children, Screen screen) {
         for (PanelElement c : children) c.onDetach(screen);

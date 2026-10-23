@@ -743,6 +743,12 @@ public final class Flow extends AbstractPanelElement {
         ChildDispatch.inBand(children, inBand);
     }
 
+    /** A vertical Flow is as much shorter as its children give; a row is as tall as its tallest, so it gives nothing. */
+    @Override
+    public int yieldHeight(int overflow) {
+        return vertical ? ChildDispatch.yieldHeight(children, overflow) : 0;
+    }
+
     @Override
     public void onAttach(Screen screen) {
         ChildDispatch.attach(children, screen);
