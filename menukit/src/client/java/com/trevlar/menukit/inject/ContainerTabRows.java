@@ -40,10 +40,14 @@ import org.jspecify.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -60,6 +64,10 @@ import java.util.function.Supplier;
  * selected tab opens into it. The screen keeps vanilla's layout; the two middle edges have no
  * gap to stand in there and show nothing. So screens of one size that open in place of each
  * other show one row in one place.
+ *
+ * <p><b>Keyed lists</b> ({@code ContainerTabs.keyed}): each list's keys are read as the rows
+ * are chosen, every frame a container screen is open, and its tabs placed among the others as
+ * a kind of section's are.
  *
  * <p><b>Paging carries across screens.</b> A screen opened in place of another keeps each row's
  * page; it starts over only once the player is back in the world with no screen open.
@@ -118,12 +126,68 @@ public final class ContainerTabRows {
 
     /** {@code ContainerTabs.Builder.declare}: adds a tab in its place, and the rows' panels with the first one. */
     public static synchronized void declare(Tab tab) {
-        for (Tab t : TABS) {
-            if (t.id().equals(tab.id())) throw new IllegalStateException("ContainerTabs tab '" + tab.id() + "' is already declared");
-        }
+        requireFree(tab.id());
         TABS.add(tab);
         merge();
         buildPanels();
+    }
+
+    /**
+     * One keyed list of tabs ({@code ContainerTabs.keyed}): {@code keys} read every frame a
+     * container screen is open, and {@code tab} making a key's tab, the frame it first appears.
+     */
+    public record Keyed(String id, Supplier<? extends @Nullable List<?>> keys, Function<Object, Tab> tab) {}
+
+    private static final List<Keyed> KEYED = new CopyOnWriteArrayList<>();
+    /** Each list's live keys, in the order its keys gave them, and each one's tab. */
+    private static final Map<Keyed, Map<Object, Tab>> KEYED_LIVE = new IdentityHashMap<>();
+    /** The keyed lists' tabs now, placed as {@link #live} ones are: by order, the list's id, the key's place. */
+    private static List<Live> keyedLive = List.of();
+
+    /** {@code ContainerTabs.Keyed.declare}: adds a list, and the rows' panels with the first. */
+    public static synchronized void declareKeyed(Keyed list) {
+        requireFree(list.id());
+        KEYED.add(list);
+        buildPanels();
+    }
+
+    private static void requireFree(String id) {
+        for (Tab t : TABS) if (t.id().equals(id)) throw new IllegalStateException("ContainerTabs tab '" + id + "' is already declared");
+        for (Keyed k : KEYED) if (k.id().equals(id)) throw new IllegalStateException("ContainerTabs keyed '" + id + "' is already declared");
+    }
+
+    /**
+     * Each keyed list's keys now: a key that is new makes its tab, one that is gone takes it
+     * with it, and one that stays keeps the tab it had. The tabs re-place only when some
+     * list's keys changed. A list keeps its tabs while no container screen is open, so a
+     * screen opened in place of another finds the same ones.
+     */
+    private static void syncKeyed() {
+        boolean changed = false;
+        for (Keyed list : KEYED) {
+            List<?> keys = list.keys().get();
+            if (keys == null) keys = List.of();
+            Map<Object, Tab> was = KEYED_LIVE.getOrDefault(list, Map.of());
+            // ponytail: a keys list with a repeated key never matches, so it rebuilds the map each frame; the tabs are kept either way.
+            if (was.size() == keys.size() && List.copyOf(was.keySet()).equals(keys)) continue;
+            Map<Object, Tab> now = new LinkedHashMap<>();
+            for (Object k : keys) {
+                if (now.containsKey(k)) continue;
+                Tab made = was.get(k);
+                now.put(k, made != null ? made : list.tab().apply(k));
+            }
+            if (now.isEmpty()) KEYED_LIVE.remove(list);
+            else KEYED_LIVE.put(list, now);
+            changed = true;
+        }
+        if (!changed) return;
+        List<Live> tabs = new ArrayList<>();
+        for (Keyed list : KEYED) {
+            int i = 0;
+            for (Tab t : KEYED_LIVE.getOrDefault(list, Map.of()).values()) tabs.add(new Live(t, list.id(), i++));
+        }
+        keyedLive = List.copyOf(tabs);
+        merge();
     }
 
     /** The live keys' tabs now, from the container region whenever its sections restack. */
@@ -133,9 +197,10 @@ public final class ContainerTabRows {
     }
 
     private static void merge() {
-        List<Live> every = new ArrayList<>(TABS.size() + live.size());
+        List<Live> every = new ArrayList<>(TABS.size() + live.size() + keyedLive.size());
         for (Tab t : TABS) every.add(new Live(t, t.id(), 0));
         every.addAll(live);
+        every.addAll(keyedLive);
         every.sort(Comparator.comparingInt((Live l) -> l.tab().order()).thenComparing(Live::kind).thenComparingInt(Live::index));
         all = every.stream().map(Live::tab).toList();
     }
@@ -236,6 +301,8 @@ public final class ContainerTabRows {
      * until the arrows page it out.
      */
     private static final int[] FIRST = new int[Edge.values().length];
+    /** Each row's first tab in view, by id, so the page stays on it as tabs before it come and go. */
+    private static final @Nullable String[] FIRST_ID = new String[Edge.values().length];
     private static final @Nullable String[] IN_VIEW = new String[Edge.values().length];
     private static final boolean[] KEEP = new boolean[Edge.values().length];
 
@@ -253,6 +320,7 @@ public final class ContainerTabRows {
     /** Back in the world: every row starts over from its first tab. */
     private static void resetPaging() {
         Arrays.fill(FIRST, 0);
+        Arrays.fill(FIRST_ID, null);
         Arrays.fill(IN_VIEW, null);
         Arrays.fill(KEEP, false);
     }
@@ -264,6 +332,7 @@ public final class ContainerTabRows {
     static void choose(@Nullable Screen screen) {
         Tab[][] out = empty();
         if (screen instanceof AbstractContainerScreen<?> acs) {
+            syncKeyed();
             List<List<Tab>> by = new ArrayList<>();
             for (int i = 0; i < out.length; i++) by.add(new ArrayList<>());
             for (Tab t : all) if (t.matcher().matches(acs) && t.visible().getAsBoolean()) by.get(t.edge().ordinal()).add(t);
@@ -371,6 +440,12 @@ public final class ContainerTabRows {
         return NONE;
     }
 
+    /** Where the tab {@code id} is in {@code row}, or -1. */
+    private static int indexOf(Tab[] row, @Nullable String id) {
+        if (id != null) for (int i = 0; i < row.length; i++) if (row[i].id().equals(id)) return i;
+        return -1;
+    }
+
     /** The first selected tab in {@code row}, or -1. */
     private static int selected(Tab[] row) {
         for (int i = 0; i < row.length; i++) if (row[i].selected().getAsBoolean()) return i;
@@ -381,7 +456,9 @@ public final class ContainerTabRows {
      * Once the region is laid out: each row's first tab is the one it draws from, and in each
      * row a tab that has started drawing selected comes into view and stays there, however
      * the frame's width changes, until the arrows page it out (paging leaves the selection
-     * alone, and a tab paged out stays wherever the arrows put the row).
+     * alone, and a tab paged out stays wherever the arrows put the row). The page follows its
+     * first tab in view: tabs that come or go before it (a keyed list's) don't move the row
+     * off it, and a tab that went leaves the page at its place.
      */
     static void afterLayout() {
         for (Edge edge : Edge.values()) {
@@ -393,7 +470,8 @@ public final class ContainerTabRows {
             // scrollbar's lane, a wider section) the row draws from its first, and a row
             // kept on an earlier page would go back there once the frame narrows again,
             // the selected tab out of view though it never moved.
-            Fit f = fit(l.width(), row.length, FIRST[e]);
+            int anchor = indexOf(row, FIRST_ID[e]);
+            Fit f = fit(l.width(), row.length, anchor >= 0 ? anchor : FIRST[e]);
             FIRST[e] = f.first();
             int sel = selected(row);
             String id = sel < 0 ? null : row[sel].id();
@@ -402,9 +480,12 @@ public final class ContainerTabRows {
             // Kept in view, not only revealed once: the frame it was revealed on can narrow
             // after (a list that takes a scrollbar's lane once a new section stacks), and the
             // row then fits a tab fewer.
-            if (sel < 0 || !KEEP[e]) continue;
-            if (sel < f.first()) FIRST[e] = sel;
-            else if (sel >= f.first() + f.shown()) FIRST[e] = sel - f.shown() + 1;
+            if (sel >= 0 && KEEP[e]) {
+                if (sel < f.first()) FIRST[e] = sel;
+                else if (sel >= f.first() + f.shown()) FIRST[e] = sel - f.shown() + 1;
+            }
+            // An empty row (a frame with none showing) keeps the anchor for when they're back.
+            if (row.length > 0) FIRST_ID[e] = row[FIRST[e]].id();
         }
     }
 
@@ -426,6 +507,7 @@ public final class ContainerTabRows {
         if (what == NONE) return false;
         if (what == BACK || what == FORWARD) {
             FIRST[e] = what == BACK ? Math.max(0, f.first() - 1) : f.first() + 1;
+            FIRST_ID[e] = row[FIRST[e]].id();
             // Paged out of view, the selected tab stays out until it is selected anew.
             int sel = selected(row);
             KEEP[e] = sel >= FIRST[e] && sel < FIRST[e] + f.shown();

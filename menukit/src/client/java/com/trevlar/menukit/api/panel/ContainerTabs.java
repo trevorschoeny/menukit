@@ -11,7 +11,9 @@ import net.minecraft.world.item.ItemStack;
 
 import org.jspecify.annotations.Nullable;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
@@ -74,6 +76,27 @@ import java.util.function.Supplier;
  * A row's page carries over to a screen opened in place of the last, and starts over once
  * the player is back in the world.
  *
+ * <h3>A tab per key</h3>
+ * A mod whose tabs come and go at runtime (one per box the player has open, say) declares a
+ * {@link #keyed keyed list} instead of a tab for each it might ever show. Its keys are read
+ * every frame, any type with {@code equals}; each key's tab is built the frame the key first
+ * appears and kept for as long as it is there, so what MenuKit keeps per tab (the page the
+ * row is on, the selected tab kept in view) follows the key wherever the keys move it. The
+ * list's tabs stand in the keys' order, together at the list's {@link Keyed#order order}
+ * among the other tabs, on the frame or the region's panels as any tab does.
+ *
+ * <pre>{@code
+ * ContainerTabs.keyed("mymod:boxes", ModeScope.BOTH, () -> boxes.open())
+ *         .tab((box, t) -> t
+ *                 .icon(box::stack)
+ *                 .tooltip(() -> box.stack().getHoverName())
+ *                 .selectedWhen(() -> box.equals(shown))
+ *                 .onClick(() -> shown = box))
+ *         .on(InventoryScreen.class, ContainerScreen.class, ShulkerBoxScreen.class)
+ *         .order(200)
+ *         .declare();
+ * }</pre>
+ *
  * <p>To show one container at a time under the tabs, as the creative inventory shows one
  * page, give each section a {@code visibleWhen} that reads the mod's own pick, have each tab's
  * {@code onClick} set it, and declare the screen {@link ContainerRegion#fitted fitted}, so the
@@ -111,12 +134,109 @@ public final class ContainerTabs {
         return new Builder(id, Objects.requireNonNull(scope, "scope"));
     }
 
-    /** A live key's tab ({@link ContainerRegion#sections}): on the screens its kind of section is on. */
+    /** A live key's tab ({@link ContainerRegion#sections}, {@link #keyed}): on the screens its kind of section, or its list, is on. */
     static Builder forKey(String id, ModeScope scope, ScreenMatcher screens) {
         Builder b = new Builder(id, scope);
         b.matcher = screens;
         b.targeted = true;
         return b;
+    }
+
+    /**
+     * Starts a keyed list of tabs, its id namespaced and unique among tabs and lists
+     * ({@code "mymod:boxes"}), for one mode scope: one tab per key {@code keys} gives, read
+     * every frame a container screen is open, in the order it gives them. Keys compare with
+     * {@code equals}; a repeated key has one tab, the first. A {@code null} list is no keys.
+     */
+    public static <K> Keyed<K> keyed(String id, ModeScope scope, Supplier<? extends @Nullable List<? extends K>> keys) {
+        return new Keyed<>(id, Objects.requireNonNull(scope, "scope"), Objects.requireNonNull(keys, "keys"));
+    }
+
+    /**
+     * Builds a keyed list of tabs ({@link #keyed}). Its screens, order and edge are the
+     * list's, shared by every tab in it; each key's tab sets the rest.
+     */
+    public static final class Keyed<K> {
+        private final String id;
+        private final ModeScope scope;
+        private final Supplier<? extends @Nullable List<? extends K>> keys;
+        private ScreenMatcher matcher = ScreenMatcher.all();
+        private boolean targeted = false;
+        private int order = 0;
+        private Edge edge = Edge.CONTAINERS_TOP;
+        private @Nullable BiConsumer<? super K, Builder> tab;
+
+        private Keyed(String id, ModeScope scope, Supplier<? extends @Nullable List<? extends K>> keys) {
+            this.id = Objects.requireNonNull(id, "id");
+            this.scope = scope;
+            this.keys = keys;
+        }
+
+        /**
+         * Required: each key's tab, set up on a builder as a declared tab is (its icon,
+         * tooltip, what a click does, when it shows, draws selected or is disabled), minus
+         * {@code declare()}, its screens, order and edge, which are the list's: setting those
+         * on it throws. Run once per key, the frame the key first appears; what the tab shows
+         * that changes reads through suppliers, by key.
+         */
+        public Keyed<K> tab(BiConsumer<? super K, Builder> build) {
+            this.tab = Objects.requireNonNull(build, "build");
+            return this;
+        }
+
+        /** Where the list goes in its row, every tab of it together, in the keys' order: lower is further left; ties go by id. Default 0. */
+        public Keyed<K> order(int order) {
+            this.order = order;
+            return this;
+        }
+
+        /** The edge its row stands on. Default {@link Edge#CONTAINERS_TOP}. */
+        public Keyed<K> edge(Edge edge) {
+            this.edge = Objects.requireNonNull(edge, "edge");
+            return this;
+        }
+
+        /** The screens its tabs are on. Without {@code on} or {@link #onMatching}, every container screen (see "Where a row stands"). */
+        @SafeVarargs
+        public final Keyed<K> on(Class<? extends AbstractContainerScreen<?>>... screens) {
+            if (screens.length == 0) {
+                throw new IllegalArgumentException("ContainerTabs keyed '" + id + "': on() needs at least one screen class");
+            }
+            return onMatching(ScreenMatcher.only(screens));
+        }
+
+        /** The screens its tabs are on, by a matcher. */
+        public Keyed<K> onMatching(ScreenMatcher matcher) {
+            if (targeted) throw new IllegalStateException("ContainerTabs keyed '" + id + "': targeting declared twice");
+            this.matcher = Objects.requireNonNull(matcher, "matcher");
+            this.targeted = true;
+            return this;
+        }
+
+        /**
+         * Declares the list.
+         *
+         * @throws IllegalStateException after declarations froze, when {@code id} is already a
+         *         tab's or a list's, or when no tab was given
+         */
+        @SuppressWarnings("unchecked")
+        public void declare() {
+            Declarations.requireOpen("ContainerTabs.keyed(" + id + ")");
+            if (tab == null) throw new IllegalStateException("ContainerTabs keyed '" + id + "': tab(...) is required");
+            BiConsumer<? super K, Builder> tabOf = tab;
+            ScreenMatcher screens = matcher;
+            int at = order;
+            Edge on = edge;
+            // Each key's tab is named by the list and the key, so what the row keeps by id follows the key.
+            ContainerTabRows.declareKeyed(new ContainerTabRows.Keyed(id, keys::get, key -> {
+                Builder b = forKey(id + "#" + key, scope, screens);
+                b.order = at;
+                b.edge = on;
+                b.fixed = true;
+                tabOf.accept((K) key, b);
+                return b.build();
+            }));
+        }
     }
 
     /** Builds one tab. Every part is optional; a tab with no icon is an empty tab. */
@@ -125,6 +245,8 @@ public final class ContainerTabs {
         private final ModeScope scope;
         private ScreenMatcher matcher = ScreenMatcher.all();
         private boolean targeted = false;
+        /** A keyed list's tab: its order and edge are the list's. */
+        private boolean fixed = false;
         private int order = 0;
         private Edge edge = Edge.CONTAINERS_TOP;
         private @Nullable Supplier<ItemStack> item;
@@ -168,12 +290,14 @@ public final class ContainerTabs {
 
         /** Where it goes in its row: lower is further left; ties go by id. Default 0. */
         public Builder order(int order) {
+            if (fixed) throw new IllegalStateException("ContainerTabs tab '" + id + "': a keyed list's tabs take its order");
             this.order = order;
             return this;
         }
 
         /** The edge its row stands on. Default {@link Edge#CONTAINERS_TOP}. */
         public Builder edge(Edge edge) {
+            if (fixed) throw new IllegalStateException("ContainerTabs tab '" + id + "': a keyed list's tabs take its edge");
             this.edge = Objects.requireNonNull(edge, "edge");
             return this;
         }
