@@ -144,6 +144,17 @@ import java.util.function.DoubleSupplier;
  * scrollbar exactly while there is one, as the container list widens its frame for a
  * section's own scrolling grid.
  *
+ * <h3>Fitting the room (7.4.0)</h3>
+ *
+ * {@link Builder#fitRoom(int)} makes it as tall as its content while there is room,
+ * and shorter only when there is not, in whole steps (rows), never below its declared
+ * height. In a {@link com.trevlar.menukit.api.panel.ContainerRegion} section the region
+ * asks it to give back what the list would overflow the screen by
+ * ({@link PanelElement#yieldHeight}), so it shows every row and no scrollbar while the
+ * window has the height, and scrolls once it is too short; with {@link Builder#laneOutside()}
+ * the lane takes width only while it scrolls. Elsewhere nothing asks, and it is as tall
+ * as its content. It pushes what is below it as {@link Builder#fitHeight()} does.
+ *
  * <h3>Filling its container (7.3.0)</h3>
  *
  * {@link Builder#fillHeight()} takes the height its container gives it instead: what
@@ -222,6 +233,10 @@ public class ScrollContainer extends AbstractPanelElement {
     private final boolean fitWidth, fitHeight;
     /** The lane beside the declared width, taken only while it shows ({@link Builder#laneOutside}). */
     private final boolean laneOutside;
+    /** Fitting the room ({@link Builder#fitRoom}): the step it gives height back in, 0 for not. */
+    private final int roomStep;
+    /** Fitting the room: how much shorter than its content it is this frame ({@link #yieldHeight}). */
+    private int yielded = 0;
     /** For measuring only (a measure gets no context): the kind of screen and whether in a dialog, handed down. */
     private ScreenKind measuredKind = ScreenKind.PANEL;
     private boolean inDialog = false;
@@ -270,6 +285,7 @@ public class ScrollContainer extends AbstractPanelElement {
         this.fitWidth = b.fitWidth;
         this.fitHeight = b.fitHeight;
         this.laneOutside = b.laneOutside;
+        this.roomStep = b.roomStep;
         this.fill = b.fill;
         this.steadyLane = b.steadyLane;
         if (fitWidth) this.width = -1;   // its content's until the panel lays it out
@@ -394,7 +410,7 @@ public class ScrollContainer extends AbstractPanelElement {
      */
     @Override
     public int extraLayoutHeight() {
-        boolean followsContent = !(fill && filled > 0) && (fitHeight || height <= 0);
+        boolean followsContent = !(fill && filled > 0) && (fitHeight || roomStep > 0 || height <= 0);
         return followsContent ? getHeight() : 0;
     }
 
@@ -402,12 +418,30 @@ public class ScrollContainer extends AbstractPanelElement {
     private int viewHeight(ScreenKind kind) {
         if (fill && filled > 0) return filled;          // the room its container gave it
         if (height <= 0) return Math.max(1, contentHeight(kind));   // filling with no room given: its content
+        if (roomStep > 0) {                                          // fitting the room: its content less what it gave back
+            int content = contentHeight(kind);
+            return Math.max(1, Math.max(Math.min(height, content), content - yielded));
+        }
         return fitHeight ? Math.max(1, Math.min(height, contentHeight(kind))) : height;
     }
 
     @Override
     public boolean fillsHeight() {
         return fill;
+    }
+
+    /**
+     * Fitting the room: gives back {@code overflow} rounded up to whole steps, so it stays
+     * whole rows and the list fits, but never below its declared height (past that the list
+     * scrolls instead). Not fitting: nothing, and its content scrolls as it is.
+     */
+    @Override
+    public int yieldHeight(int overflow) {
+        if (roomStep <= 0) return 0;
+        int content = contentHeight(measuredKind);
+        int steps = (Math.max(0, overflow) + roomStep - 1) / roomStep * roomStep;
+        yielded = Math.max(0, Math.min(steps, content - Math.min(height, content)));
+        return yielded;
     }
 
     /** The height its container gives it, {@code -1} for none (back to its declared or content height). */
@@ -757,6 +791,7 @@ public class ScrollContainer extends AbstractPanelElement {
         private @Nullable DoubleConsumer scrollSet;
         private boolean band = true;
         private boolean fitWidth, fitHeight, fill, steadyLane, laneOutside;
+        private int roomStep;
 
         protected Builder() {}
 
@@ -824,6 +859,22 @@ public class ScrollContainer extends AbstractPanelElement {
          */
         public Builder laneOutside() {
             this.laneOutside = true;
+            return this;
+        }
+
+        /**
+         * As tall as its content while there is room, shorter by whole {@code step}s when there
+         * is not, never below the declared height (7.4.0). In a container region section it
+         * shows every row without a scrollbar while the window has the height and scrolls once
+         * it is too short; elsewhere it is as tall as its content. It pushes what is below it,
+         * as {@link #fitHeight()} does. Pair with {@link #laneOutside()} for a lane only while
+         * it scrolls: {@code .size(ContainerRegion.CONTENT_WIDTH, 3 * 18).laneOutside().fitRoom(18)}.
+         *
+         * @param step the row height it shrinks by, {@code > 0}
+         */
+        public Builder fitRoom(int step) {
+            if (step <= 0) throw new IllegalArgumentException("fitRoom step must be > 0");
+            this.roomStep = step;
             return this;
         }
 

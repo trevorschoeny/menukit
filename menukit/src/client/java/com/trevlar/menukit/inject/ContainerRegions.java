@@ -1,6 +1,7 @@
 package com.trevlar.menukit.inject;
 
 import com.trevlar.menukit.api.element.AbstractPanelElement;
+import com.trevlar.menukit.api.element.ChildDispatch;
 import com.trevlar.menukit.api.element.Flow;
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.element.RenderContext;
@@ -815,7 +816,18 @@ public final class ContainerRegions {
 
         // Where each shown section sits in the content (the column stacks them).
         int[] tops = new int[n], bottoms = new int[n];
+        // A section's own scroll area that fits the room (ScrollContainer.Builder.fitRoom)
+        // is measured at its full height first; where the list would then scroll, the
+        // sections give back what it overflows by, and the column is measured again. So such
+        // a grid shows every row while the window has the height, and the list itself
+        // scrolls only once those grids are at their least.
+        List<AbstractPanelElement> holders = new ArrayList<>(n);
+        for (Placed p : sections) holders.add(p.holder());
+        ChildDispatch.yieldHeight(holders, 0);
         int columnHeight = column.getHeight();   // lays the column out first
+        int overflow = state.shape.contentTop() + columnHeight + state.shape.contentBottom()
+                - RegionLayout.maxContent(vanilla, inventoryLabelY, state.screenHeight, state.shape);
+        if (overflow > 0 && ChildDispatch.yieldHeight(holders, overflow) > 0) columnHeight = column.getHeight();
         for (int i = 0; i < n; i++) {
             AbstractPanelElement holder = sections.get(i).holder();
             if (!shown[i]) { tops[i] = bottoms[i] = -1; continue; }

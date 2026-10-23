@@ -255,6 +255,16 @@ public interface PanelElement {
      */
     default int @Nullable [] takeRevealRequest() { return null; }
 
+    /**
+     * Gives back up to {@code overflow} pixels of height because what holds it has run out
+     * of room (7.4.0), returning how much it gave; 0 gives it all back. Asked once a frame,
+     * before layout, by the container region of each shown section: a
+     * {@link ScrollContainer} that fits the room ({@link ScrollContainer.Builder#fitRoom})
+     * shrinks, a vertical {@link Flow} passes it down its shown children in order. Default:
+     * gives nothing.
+     */
+    default int yieldHeight(int overflow) { return 0; }
+
     // Rendering
 
     /**
