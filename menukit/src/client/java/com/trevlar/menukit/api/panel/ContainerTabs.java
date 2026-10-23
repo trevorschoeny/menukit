@@ -57,9 +57,22 @@ import java.util.function.Supplier;
  *       is neither dropped nor placed.</li>
  * </ul>
  *
- * <p>Tabs stand on the region's panels, so they show only where the region is up: a container
- * screen with a section showing. Where it isn't (no section shows, or the player's own
- * inventory, which the region is never on), no row shows.
+ * <h3>Where a row stands</h3>
+ * <ul>
+ *   <li><b>On the region's panels</b> while the region is up (a container screen with a
+ *       section showing), on any of the four edges.</li>
+ *   <li><b>On the screen's own frame</b> (Fluorite) on every other container screen: the
+ *       player's inventory, a shulker box, a chest with no section showing, a mod's own
+ *       container screen. A {@link Edge#CONTAINERS_TOP} row stands on the frame's top edge and
+ *       an {@link Edge#INVENTORY_BOTTOM} row on its bottom edge; the two middle edges have no
+ *       gap to stand in there, and their tabs don't show. The screen keeps vanilla's layout,
+ *       so screens of one size (the inventory, a shulker box and a single chest are all
+ *       176 x 166) put the row in one place, and a mod that opens one in place of another
+ *       shows a steady row.</li>
+ *   <li>Never on the creative inventory, which has tabs of its own.</li>
+ * </ul>
+ * A row's page carries over to a screen opened in place of the last, and starts over once
+ * the player is back in the world.
  *
  * <p>To show one container at a time under the tabs, as the creative inventory shows one
  * page, give each section a {@code visibleWhen} that reads the mod's own pick, have each tab's
@@ -189,7 +202,7 @@ public final class ContainerTabs {
             return this;
         }
 
-        /** The screens it is on. Without {@code on} or {@link #onMatching}, every container screen the region is on. */
+        /** The screens it is on. Without {@code on} or {@link #onMatching}, every container screen (see "Where a row stands"). */
         @SafeVarargs
         public final Builder on(Class<? extends AbstractContainerScreen<?>>... screens) {
             if (screens.length == 0) {

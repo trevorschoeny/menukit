@@ -861,7 +861,7 @@ public final class ContainerRegions {
         state.scroll = RegionReveal.step(g, state.scroll, tops, bottoms);
         if (carrying) state.scroll += RegionLayout.edgeSpeed(g, mouseX, mouseY) * seconds;
         state.scroll = Scroller.clamp(state.scroll, g.content(), g.viewHeight());
-        ContainerTabRows.afterLayout(g);
+        ContainerTabRows.afterLayout();
         return g;
     }
 

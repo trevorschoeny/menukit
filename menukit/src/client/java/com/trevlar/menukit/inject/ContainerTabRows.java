@@ -18,12 +18,16 @@ import com.trevlar.menukit.api.panel.ScreenOrigin;
 import com.trevlar.menukit.api.panel.ScreenPanelAdapter;
 import com.trevlar.menukit.core.ControlLook;
 import com.trevlar.menukit.inject.RegionLayout.Geometry;
+import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -47,6 +51,18 @@ import java.util.function.Supplier;
  * the declared tabs, this frame's row on each {@link Edge}, and each row drawn, hit and paged.
  * {@link ContainerRegions} asks each frame which edges have a row, so the layout makes room for
  * it ({@link RegionLayout.Shape}); what a tab does is the mod's, through its callbacks.
+ *
+ * <p><b>Two ways to stand</b> (Fluorite). While the region is up, a row stands on its panels'
+ * edges, drawn in the background layer over the region's panels. On a container screen the
+ * region isn't up on (the player's inventory, a shulker box, a chest with no section showing),
+ * the outer two rows stand on the screen's own frame instead ({@link #bare}): the top one on
+ * its top edge, the bottom one on its bottom edge, drawn just after the screen's image so a
+ * selected tab opens into it. The screen keeps vanilla's layout; the two middle edges have no
+ * gap to stand in there and show nothing. So screens of one size that open in place of each
+ * other show one row in one place.
+ *
+ * <p><b>Paging carries across screens.</b> A screen opened in place of another keeps each row's
+ * page; it starts over only once the player is back in the world with no screen open.
  *
  * <p>Render thread only.
  */
@@ -128,10 +144,11 @@ public final class ContainerTabRows {
     static synchronized void buildPanels() {
         if (panelsBuilt) return;
         panelsBuilt = true;
-        // One background panel per edge, drawn over the region's two so a selected tab opens
-        // into its frame, on the screens the region is on.
         for (Edge edge : Edge.values()) {
-            Panel row = Panel.builder("menukit:container_tabs_" + edge.name().toLowerCase(Locale.ROOT))
+            String id = "menukit:container_tabs_" + edge.name().toLowerCase(Locale.ROOT);
+            // One background panel per edge, drawn over the region's two so a selected tab opens
+            // into its frame, on the screens the region is on.
+            Panel row = Panel.builder(id)
                     .style(PanelStyle.NONE).background()
                     .in(ModeScope.BOTH, Placement.screen(PanelPosition.pixel(() -> origin(edge))
                             .priority(PanelPosition.DEFAULT_PRIORITY + 1)))
@@ -140,7 +157,73 @@ public final class ContainerTabRows {
                     .visibleWhen(() -> ContainerRegions.state.geometry != null && ContainerRegions.state.applied != null
                             && rows[edge.ordinal()].length > 0);
             new ScreenPanelAdapter(row, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
+            if (edge != Edge.CONTAINERS_TOP && edge != Edge.INVENTORY_BOTTOM) continue;
+            // And on a screen's own frame, where the region isn't up: an ordinary panel, drawn
+            // after the screen's image, so a selected tab opens into it.
+            Panel onFrame = Panel.builder(id + "_on_frame")
+                    .style(PanelStyle.NONE)
+                    .in(ModeScope.BOTH, Placement.screen(PanelPosition.pixel(() -> origin(edge))
+                            .priority(PanelPosition.DEFAULT_PRIORITY + 1)))
+                    .add(new Strip(edge))
+                    .build()
+                    .visibleWhen(() -> bare != null && rows[edge.ordinal()].length > 0);
+            new ScreenPanelAdapter(onFrame, 0).onMatching(ScreenMatcher.where(ContainerTabRows::carries));
         }
+    }
+
+    // A screen's own frame, where the region isn't up
+
+    /** This frame's screen frame the outer rows stand on, or {@code null} while the region is up or no screen is. */
+    private static @Nullable Reference bare;
+
+    /** Whether rows may stand on {@code screen}: every container screen but the creative inventory, which has tabs of its own. */
+    private static boolean carries(AbstractContainerScreen<?> screen) {
+        return !(screen instanceof CreativeModeInventoryScreen);
+    }
+
+    /**
+     * Hooks every container screen's frame, after the region's own frame hook, and clears the
+     * rows' paging once the player is back in the world. Called once from client init.
+     */
+    public static void init() {
+        ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
+            if (!(screen instanceof AbstractContainerScreen<?> acs) || !carries(acs)) return;
+            ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> onFrame(acs));
+            ScreenEvents.remove(screen).register(s -> bare = null);
+            onFrame(acs);
+        });
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.gui.screen() == null) resetPaging();
+        });
+    }
+
+    /**
+     * One frame of {@code screen} with the region down: the tabs that show there on the outer
+     * two edges, standing on the screen's own frame. With the region up, it chose the rows.
+     */
+    private static void onFrame(AbstractContainerScreen<?> screen) {
+        if (ContainerRegions.state.geometry != null && ContainerRegions.state.screen.get() == screen) {
+            bare = null;
+            return;
+        }
+        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
+        bare = new Reference(acc.mk$getLeftPos(), acc.mk$getTopPos(), acc.mk$getImageWidth(), acc.mk$getImageHeight());
+        choose(screen);
+        for (Edge edge : Edge.values()) if (lineNow(edge) == null) rows[edge.ordinal()] = new Tab[0];
+        afterLayout();
+    }
+
+    /** {@code edge}'s line this frame: on the region's panels while it is up, else the screen's own frame's outer two; {@code null} where none stands. */
+    private static @Nullable Line lineNow(Edge edge) {
+        Geometry g = ContainerRegions.state.geometry;
+        if (g != null) return line(g, edge);
+        Reference f = bare;
+        if (f == null) return null;
+        return switch (edge) {
+            case CONTAINERS_TOP -> new Line(f.leftPos(), f.imageWidth(), f.topPos(), true);
+            case INVENTORY_BOTTOM -> new Line(f.leftPos(), f.imageWidth(), f.topPos() + f.imageHeight(), false);
+            default -> null;
+        };
     }
 
     // This frame's rows
@@ -162,9 +245,13 @@ public final class ContainerTabRows {
         return out;
     }
 
-    /** The open region went (or another opened): the rows and their paging go with it. */
+    /** The open region went (or another opened): the rows go with it. Paging stays for a screen opened in its place. */
     static void reset() {
         rows = empty();
+    }
+
+    /** Back in the world: every row starts over from its first tab. */
+    private static void resetPaging() {
         Arrays.fill(FIRST, 0);
         Arrays.fill(IN_VIEW, null);
         Arrays.fill(KEEP, false);
@@ -194,6 +281,12 @@ public final class ContainerTabRows {
     @VisibleForTesting
     public static List<String> rowForChecks(Edge edge) {
         return Arrays.stream(rows[edge.ordinal()]).map(Tab::id).toList();
+    }
+
+    /** {@code edge}'s line this frame, on the region or on the screen's own frame, for the checks. */
+    @VisibleForTesting
+    public static @Nullable Line lineForChecks(Edge edge) {
+        return lineNow(edge);
     }
 
     /** The first tab in view in {@code edge}'s row, for the checks. */
@@ -230,9 +323,8 @@ public final class ContainerTabRows {
 
     /** {@code edge}'s panel's origin: the row's top-left, a bottom row's {@link #INTO} rows up to take its selected tab. */
     private static @Nullable ScreenOrigin origin(Edge edge) {
-        Geometry g = ContainerRegions.state.geometry;
-        if (g == null) return null;
-        Line l = line(g, edge);
+        Line l = lineNow(edge);
+        if (l == null) return null;
         return new ScreenOrigin(l.x(), l.top() ? l.rowTop() : l.y() - INTO);
     }
 
@@ -291,15 +383,17 @@ public final class ContainerTabRows {
      * the frame's width changes, until the arrows page it out (paging leaves the selection
      * alone, and a tab paged out stays wherever the arrows put the row).
      */
-    static void afterLayout(Geometry g) {
+    static void afterLayout() {
         for (Edge edge : Edge.values()) {
             Tab[] row = rows[edge.ordinal()];
             int e = edge.ordinal();
+            Line l = lineNow(edge);
+            if (l == null) continue;
             // Kept as drawn: on a frame wide enough for every tab (a list that took a
             // scrollbar's lane, a wider section) the row draws from its first, and a row
             // kept on an earlier page would go back there once the frame narrows again,
             // the selected tab out of view though it never moved.
-            Fit f = fit(line(g, edge).width(), row.length, FIRST[e]);
+            Fit f = fit(l.width(), row.length, FIRST[e]);
             FIRST[e] = f.first();
             int sel = selected(row);
             String id = sel < 0 ? null : row[sel].id();
@@ -323,10 +417,9 @@ public final class ContainerTabRows {
      * and a held item is neither dropped nor placed. A disabled tab takes it and does nothing.
      */
     public static boolean click(Edge edge, double mx, double my) {
-        Geometry g = ContainerRegions.state.geometry;
+        Line l = lineNow(edge);
         Tab[] row = rows[edge.ordinal()];
-        if (g == null || row.length == 0) return false;
-        Line l = line(g, edge);
+        if (l == null || row.length == 0) return false;
         int e = edge.ordinal();
         Fit f = fit(l.width(), row.length, FIRST[e]);
         int what = hit(l, row.length, f, mx, my);
@@ -361,17 +454,16 @@ public final class ContainerTabRows {
 
         @Override public int getChildX() { return 0; }
         @Override public int getChildY() { return 0; }
-        @Override public int getWidth() { Geometry g = ContainerRegions.state.geometry; return g == null ? 0 : line(g, edge).width(); }
+        @Override public int getWidth() { Line l = lineNow(edge); return l == null ? 0 : l.width(); }
         @Override public int getHeight() { return RegionLayout.TAB_ROW + INTO; }
         @Override public boolean isInteractive() { return true; }
 
         @Override
         public void render(RenderContext ctx) {
-            Geometry g = ContainerRegions.state.geometry;
+            Line l = lineNow(edge);
             Tab[] row = rows[edge.ordinal()];
-            if (g == null || row.length == 0) return;
+            if (l == null || row.length == 0) return;
             GuiGraphicsExtractor graphics = ctx.graphics();
-            Line l = line(g, edge);
             Fit f = fit(l.width(), row.length, FIRST[edge.ordinal()]);
             int over = ctx.hasMouseInput() ? hit(l, row.length, f, ctx.mouseX(), ctx.mouseY()) : NONE;
             for (int i = f.first(); i < f.first() + f.shown(); i++) {
