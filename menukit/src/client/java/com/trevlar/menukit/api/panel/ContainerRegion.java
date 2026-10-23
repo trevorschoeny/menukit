@@ -7,6 +7,7 @@ import com.trevlar.menukit.inject.ContainerRegions;
 import com.trevlar.menukit.inject.PanelHost;
 import com.trevlar.menukit.inject.RegionLayout;
 
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
@@ -341,6 +342,34 @@ public final class ContainerRegion {
      */
     public static @Nullable Source openedOn() {
         return ContainerRegions.openedOn();
+    }
+
+    /**
+     * Whether the container list on {@code screen} scrolls this frame: {@code true} where the
+     * mouse wheel should go to the list rather than anything else a mod would otherwise do with
+     * it (switch tabs, say) while the cursor is over it. {@code false} while the region is not
+     * on {@code screen}, or no section shows. Render thread.
+     *
+     * @throws NullPointerException if {@code screen} is {@code null}
+     */
+    public static boolean scrolls(Screen screen) {
+        return ContainerRegions.scrolls(screen);
+    }
+
+    /**
+     * The content height a section on {@code screen} may grow to before the fitted list
+     * ({@link #fitted}) would scroll: the room left there after the tab rows on it, the frame,
+     * the inventory part and the margins, in pixels. For a mod that grows its own scrolling
+     * grid up to the list's room before scrolling inside itself; read it both while building
+     * the grid and on every frame (the room changes with the window). Worked out from
+     * {@code screen}'s own size and this frame's tab rows, never from this frame's own layout,
+     * so it is answerable before that layout runs. 0 while the region is not on {@code screen}
+     * yet. Render thread.
+     *
+     * @throws NullPointerException if {@code screen} is {@code null}
+     */
+    public static int contentRoom(Screen screen) {
+        return ContainerRegions.contentRoom(screen);
     }
 
     /**
