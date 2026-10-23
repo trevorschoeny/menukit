@@ -268,6 +268,16 @@ public final class RegionLayout {
     }
 
     /**
+     * The content height a section may grow to on a screen shaped {@code shape}, this tall,
+     * before {@link #layout} would make the list scroll: {@link Geometry#viewHeight()} with
+     * the content given all the room there is to take. Can go negative on a window too short
+     * for even the tab rows and the margins.
+     */
+    public static int maxContent(Reference vanilla, int inventoryLabelY, int screenHeight, Shape shape) {
+        return layout(vanilla, inventoryLabelY, Integer.MAX_VALUE / 2, screenHeight, shape).viewHeight();
+    }
+
+    /**
      * How far vanilla's own placements move, from the screen's origin, when it goes from
      * {@code vanilla}'s to {@code bounds}'s: back by as much as the origin moved, so on screen
      * the title stays where vanilla put it ({@code [dx, dy]}); the inventory's slots and its

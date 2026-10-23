@@ -459,6 +459,13 @@ public final class ContainerRegions {
         return false;
     }
 
+    /** This frame's {@link Shape} for {@code screen}: whether it is {@link #fitted}, and its tab rows' heights now. */
+    private static Shape shapeFor(@Nullable Screen screen) {
+        return Shape.of(fitted(screen), ContainerTabRows.height(Edge.CONTAINERS_TOP),
+                ContainerTabRows.height(Edge.CONTAINERS_BOTTOM) + ContainerTabRows.height(Edge.INVENTORY_TOP),
+                ContainerTabRows.height(Edge.INVENTORY_BOTTOM));
+    }
+
     /**
      * Whether any section, or kind of section, is declared for {@code screen}: the region's panel is put on it.
      * Never the player's own inventory, survival's or creative's: the region is for screens
@@ -657,6 +664,29 @@ public final class ContainerRegions {
         return state.screen.get() == screen ? state.geometry : null;
     }
 
+    /**
+     * Whether the container list on {@code screen} scrolls this frame ({@code ContainerRegion.scrolls}):
+     * {@code false} while the region is not on {@code screen}, or no section shows.
+     */
+    public static boolean scrolls(Screen screen) {
+        Objects.requireNonNull(screen, "screen");
+        Geometry g = geometry(screen);
+        return g != null && g.scrollable();
+    }
+
+    /**
+     * {@code ContainerRegion.contentRoom}: the content height a section on {@code screen} may
+     * grow to before the fitted list would scroll, worked out from {@code screen}'s own size,
+     * this frame's tab rows and whether it is {@link #fitted}, never from this frame's own
+     * layout (a section reads this while building itself, ahead of that layout). 0 while the
+     * region is not on {@code screen} yet (its own init, before {@link #frame} first runs).
+     */
+    public static int contentRoom(Screen screen) {
+        Objects.requireNonNull(screen, "screen");
+        if (state.screen.get() != screen || state.vanilla == null) return 0;
+        return RegionLayout.maxContent(state.vanilla, state.vanillaInventoryLabelY, state.screenHeight, shapeFor(screen));
+    }
+
     /** The open region's scroll, in pixels. */
     public static double scroll() {
         return state.scroll;
@@ -781,9 +811,7 @@ public final class ContainerRegions {
         // with the tab rows on this screen.
         state.frame = frameOf(shown);
         ContainerTabRows.choose(screen);
-        state.shape = Shape.of(fitted(screen), ContainerTabRows.height(Edge.CONTAINERS_TOP),
-                ContainerTabRows.height(Edge.CONTAINERS_BOTTOM) + ContainerTabRows.height(Edge.INVENTORY_TOP),
-                ContainerTabRows.height(Edge.INVENTORY_BOTTOM));
+        state.shape = shapeFor(screen);
 
         // Where each shown section sits in the content (the column stacks them).
         int[] tops = new int[n], bottoms = new int[n];
