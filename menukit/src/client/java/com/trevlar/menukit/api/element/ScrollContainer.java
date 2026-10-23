@@ -418,9 +418,8 @@ public class ScrollContainer extends AbstractPanelElement {
     private int viewHeight(ScreenKind kind) {
         if (fill && filled > 0) return filled;          // the room its container gave it
         if (height <= 0) return Math.max(1, contentHeight(kind));   // filling with no room given: its content
-        if (roomStep > 0) {                                          // fitting the room: its content less what it gave back
-            int content = contentHeight(kind);
-            return Math.max(1, Math.max(Math.min(height, content), content - yielded));
+        if (roomStep > 0) {                                          // fitting the room: its content less what it gave back,
+            return Math.max(1, Math.max(height, contentHeight(kind) - yielded));   // never under its declared height
         }
         return fitHeight ? Math.max(1, Math.min(height, contentHeight(kind))) : height;
     }
@@ -864,7 +863,8 @@ public class ScrollContainer extends AbstractPanelElement {
 
         /**
          * As tall as its content while there is room, shorter by whole {@code step}s when there
-         * is not, never below the declared height (7.4.0). In a container region section it
+         * is not, never below the declared height (7.4.0): content shorter than that leaves the
+         * rest of the declared height empty, so the frame keeps its size as the content shrinks. In a container region section it
          * shows every row without a scrollbar while the window has the height and scrolls once
          * it is too short; elsewhere it is as tall as its content. It pushes what is below it,
          * as {@link #fitHeight()} does. Pair with {@link #laneOutside()} for a lane only while
