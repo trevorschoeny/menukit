@@ -209,8 +209,10 @@ import java.util.function.Supplier;
  * image is, as tall as the shown sections need: shorter than the screen's own container part
  * where they are smaller (a 3-row box shown on a double chest's screen), centered as the list
  * is. Each shown section's slice of its own container art runs straight on into the inventory
- * part, under a resource pack too. With a tab row on the list's top edge
- * ({@link ContainerTabs}), the row stands in for the sections' titles, as creative's tabs do.
+ * part, under a resource pack too. Sections as tall as a vanilla container's (a 3-row grid and
+ * its title) make that container's own frame, in the same place on screen, tab rows standing
+ * on it ({@link ContainerTabs}) as they do on a vanilla screen's: switching between the two
+ * moves nothing.
  * To show one container at a time under tabs, as the creative inventory shows one page:
  *
  * <pre>{@code

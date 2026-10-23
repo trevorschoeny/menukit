@@ -388,14 +388,12 @@ public final class ContainerRegions {
      * vanilla draws a container's, the content 11 px below the title's top (vanilla's title
      * at y 6, its grid at 17). The title moves right clear of the list's corner when its
      * section is the first shown, and the section moves down when it is a block of its own
-     * (this frame's Frame says which). In the fitted frame with a tab row on top the row
-     * stands in for it, and the title row goes.
+     * (this frame's Frame says which).
      */
     private static AbstractPanelElement holderFor(Declared section) {
         PanelElement body = section.title() == null ? section.content() : Flow.builder().vertical().gap(0, 2)
                 .add(Flow.builder().gap(0, 0).add(new Spacer(() -> titleIndent(section), () -> 0))
-                        .add(TextLabel.builder().at(1, 0).text(() -> shownTitle(section)).build())
-                        .visibleWhen(() -> state.shape.titled()).build())
+                        .add(TextLabel.builder().at(1, 0).text(() -> shownTitle(section)).build()).build())
                 .add(section.content()).build();
         return Flow.builder().vertical().gap(0, 0)
                 .add(new Spacer(() -> 0, () -> ownsBlock(section) ? RegionLayout.TITLE_INSET : 0)).add(body)
