@@ -408,7 +408,7 @@ public final class ContainerRegions {
         // The content: the column, with the shape's room above its first section and below its
         // last grid (CONTENT_TOP and CONTENT_BOTTOM in the list).
         PanelElement content = Flow.builder().vertical().gap(0, 0)
-                .add(new Spacer(() -> 0, () -> state.shape.contentTop())).add(column)
+                .add(new Spacer(() -> 0, () -> RegionLayout.CONTENT_TOP)).add(column)
                 .add(new Spacer(() -> 0, () -> state.shape.contentBottom())).build();
         // A section is nine slots wide, so its content wraps there. The scroll area has a
         // declared width and lays no children out, so nothing else hands the content its width.
@@ -830,18 +830,18 @@ public final class ContainerRegions {
         for (Placed p : sections) holders.add(p.holder());
         ChildDispatch.yieldHeight(holders, 0);
         int columnHeight = column.getHeight();   // lays the column out first
-        int overflow = state.shape.contentTop() + columnHeight + state.shape.contentBottom()
+        int overflow = RegionLayout.CONTENT_TOP + columnHeight + state.shape.contentBottom()
                 - RegionLayout.maxContent(vanilla, inventoryLabelY, state.screenHeight, state.shape);
         state.sectionScrolls = overflow > 0 && ChildDispatch.yieldHeight(holders, overflow) > 0;
         if (state.sectionScrolls) columnHeight = column.getHeight();
         for (int i = 0; i < n; i++) {
             AbstractPanelElement holder = sections.get(i).holder();
             if (!shown[i]) { tops[i] = bottoms[i] = -1; continue; }
-            // The holder is placed in the column's coordinates; the column starts the shape's contentTop down the content.
+            // The holder is placed in the column's coordinates; the column starts CONTENT_TOP down the content.
             tops[i] = holder.getChildY();
             bottoms[i] = tops[i] + holder.getHeight();
         }
-        int content = state.shape.contentTop() + columnHeight + state.shape.contentBottom();
+        int content = RegionLayout.CONTENT_TOP + columnHeight + state.shape.contentBottom();
         // How much wider than nine slots the widest shown section's content is (a grid with
         // its own scrollbar beside it, while that shows): the list and its scroll area widen
         // by as much. Titles are left out, as vanilla's run past the frame.

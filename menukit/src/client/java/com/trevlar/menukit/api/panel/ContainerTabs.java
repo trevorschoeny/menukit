@@ -3,7 +3,6 @@ package com.trevlar.menukit.api.panel;
 import com.trevlar.menukit.api.Declarations;
 import com.trevlar.menukit.inject.ContainerTabRows;
 import com.trevlar.menukit.inject.PanelHost;
-import com.trevlar.menukit.inject.RegionLayout;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -173,13 +172,26 @@ public final class ContainerTabs {
         /** Above the inventory panel's top edge, in the gap below the container list. */
         INVENTORY_TOP,
         /** Below the inventory panel's bottom edge. */
-        INVENTORY_BOTTOM;
-
-        /** Whether the row stands on a top edge, its tabs standing up from it. */
-        public boolean top() {
-            return this == CONTAINERS_TOP || this == INVENTORY_TOP;
-        }
+        INVENTORY_BOTTOM
     }
+
+    // A tab's measures, from vanilla's creative inventory.
+
+    /** A tab's default width: vanilla's 26 px tab. Tabs stand side by side, touching, so no background shows between them. */
+    public static final int TAB_WIDTH = 26;
+    /**
+     * A tab's default height beyond the frame edge it stands on: vanilla's creative top tab
+     * stands 28 px above its frame, these 25, room for a full-size icon inside an unpicked
+     * tab with two rows clear above and below it. A double chest with a row above it needs
+     * 245 px (212 + 25 and the two margins), so in a 240 px window its grid scrolls by 5.
+     */
+    public static final int TAB_HEIGHT = 25;
+    /** A group's sub-tabs by default: about two-thirds of a tab, on the same line. */
+    public static final int SUB_WIDTH = 18, SUB_HEIGHT = 17;
+    /** The smallest a tab can be, either way: its sprite's corners and edges, kept whole. */
+    public static final int MIN_SIZE = 8;
+    /** How long a group's sub-tabs take to slide open or closed, in ms. */
+    public static final int SLIDE_MILLIS = 200;
 
     /**
      * Starts a tab, its id namespaced and unique ({@code "mymod:backpack"}), for one mode scope:
@@ -250,7 +262,7 @@ public final class ContainerTabs {
          * own {@code visibleWhen} holds, with or without keys, and its sub-tabs only with it. What
          * a click on it does is its {@code onClick}, the mod's (show its own page, pick its first
          * sub-tab). Its id is the list's. Without {@link #tabSize}, sub-tabs are
-         * {@value ContainerTabRows#SUB_WIDTH} by {@value ContainerTabRows#SUB_HEIGHT}.
+         * {@value #SUB_WIDTH} by {@value #SUB_HEIGHT}.
          */
         public Keyed<K> header(Consumer<Builder> build) {
             this.header = Objects.requireNonNull(build, "build");
@@ -261,7 +273,7 @@ public final class ContainerTabs {
          * When a group's sub-tabs are out, read every frame: always, only while one of them is
          * selected, or whatever the mod's own rule is. Default: always. MenuKit slides them out
          * from under the header to its right as this starts holding and back under it as it
-         * stops, in {@value ContainerTabRows#SLIDE_MILLIS} ms, a turn mid-way going back from
+         * stops, in {@value #SLIDE_MILLIS} ms, a turn mid-way going back from
          * where they are. Only for a list with a {@link #header}.
          */
         public Keyed<K> expandedWhen(BooleanSupplier condition) {
@@ -340,8 +352,8 @@ public final class ContainerTabs {
                 head = h.build();
             }
             BooleanSupplier headShown = head == null ? null : head.visible();
-            int w = tabWidth > 0 ? tabWidth : group != null ? ContainerTabRows.SUB_WIDTH : ContainerTabRows.TAB_WIDTH;
-            int ht = tabHeight > 0 ? tabHeight : group != null ? ContainerTabRows.SUB_HEIGHT : RegionLayout.TAB_ROW;
+            int w = tabWidth > 0 ? tabWidth : group != null ? SUB_WIDTH : TAB_WIDTH;
+            int ht = tabHeight > 0 ? tabHeight : group != null ? SUB_HEIGHT : TAB_HEIGHT;
             // Each key's tab is named by the list and the key, so what the row keeps by id follows the key.
             ContainerTabRows.declareKeyed(new ContainerTabRows.Keyed(id, keys::get, key -> {
                 Builder b = forKey(id + "#" + key, scope, screens);
@@ -393,7 +405,7 @@ public final class ContainerTabs {
         private int order = 0;
         private Edge edge = Edge.CONTAINERS_TOP;
         private @Nullable Icon icon;
-        private int width = ContainerTabRows.TAB_WIDTH, height = RegionLayout.TAB_ROW;
+        private int width = TAB_WIDTH, height = TAB_HEIGHT;
         /** A group's header or sub-tab: its group, whether a sub-tab, and its header's showing, which a sub-tab's adds to. */
         private ContainerTabRows.@Nullable Group group;
         private boolean sub;
@@ -440,11 +452,11 @@ public final class ContainerTabs {
 
         /**
          * The tab's size: {@code width} across and {@code height} out from the frame, each at
-         * least {@value ContainerTabRows#MIN_SIZE}. Default 26 by 25, vanilla's creative tab as a
+         * least {@value #MIN_SIZE}. Default 26 by 25, vanilla's creative tab as a
          * row has it. Every tab stands on the frame, so tabs of different heights share their
          * line, and the row is as tall as its tallest.
          *
-         * @throws IllegalArgumentException when either is below {@value ContainerTabRows#MIN_SIZE}
+         * @throws IllegalArgumentException when either is below {@value #MIN_SIZE}
          */
         public Builder size(int width, int height) {
             requireSize("ContainerTabs tab '" + id + "'", width, height);
@@ -556,9 +568,9 @@ public final class ContainerTabs {
     }
 
     private static void requireSize(String what, int width, int height) {
-        if (width < ContainerTabRows.MIN_SIZE || height < ContainerTabRows.MIN_SIZE) {
+        if (width < MIN_SIZE || height < MIN_SIZE) {
             throw new IllegalArgumentException(what + ": size(" + width + ", " + height + ") is below "
-                    + ContainerTabRows.MIN_SIZE + " either way");
+                    + MIN_SIZE + " either way");
         }
     }
 }

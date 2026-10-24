@@ -98,22 +98,13 @@ public final class ContainerTabRows {
 
     private ContainerTabRows() {}
 
-    // The row's measures, from vanilla's creative inventory.
-
-    /** A tab's width: vanilla's 26 px tab. Tabs stand side by side, touching, so no background shows between them. */
-    public static final int TAB_WIDTH = 26;
-    /** A group's sub-tabs by default: about two-thirds of a tab, on the same line. */
-    public static final int SUB_WIDTH = 18, SUB_HEIGHT = 17;
-    /** The smallest a tab can be, either way: its sprite's corners and edges, kept whole. */
-    public static final int MIN_SIZE = 8;
+    // The row's measures, from vanilla's creative inventory (a tab's own are ContainerTabs').
     /** Vanilla's tab sprite's size; the {@link #INTO} rows at its frame end are where a selected tab opens into the frame. */
     static final int SPRITE_WIDTH = 26, SPRITE_HEIGHT = 32, INTO = 4;
     /** The sprite's left and right edges, kept whole as a tab widens or narrows; the plain columns between repeat or are cut. */
     static final int EDGE_COLUMNS = 4;
     /** A tab's rows outside its fill, at the tip: the sprite's 2 empty rows, its outline and its 2-row highlight. */
     static final int TIP = 5;
-    /** How long a group takes to slide open or closed. */
-    public static final int SLIDE_MILLIS = 200;
     /** The paging arrows: vanilla's recipe book page arrows, at the row's two ends. */
     public static final int ARROW_WIDTH = 12, ARROW_HEIGHT = 17;
     /** {@link #hit} answers: nothing, the back arrow, the forward arrow (a tab is its place in the row, 0 up). */
@@ -388,13 +379,13 @@ public final class ContainerTabRows {
      * Each group's slide, by its id, so it carries over to a screen opened in place of another.
      * Eased each way, so a group closing moves from its first frame as one opening does.
      */
-    private static Transition slide = Transition.eachWay(SLIDE_MILLIS, Easing.EASE_OUT);
+    private static Transition slide = Transition.eachWay(ContainerTabs.SLIDE_MILLIS, Easing.EASE_OUT);
     /**
      * The room each row's arrows take at its ends, by edge, 0 to 1 of theirs: it opens and closes
      * with the slide that makes the row page or stop paging, so the tabs move over to make room
      * rather than jump. Tabs coming or going page the row at once, as they appear at once.
      */
-    private static Transition pageRoom = Transition.eachWay(SLIDE_MILLIS, Easing.EASE_OUT);
+    private static Transition pageRoom = Transition.eachWay(ContainerTabs.SLIDE_MILLIS, Easing.EASE_OUT);
     /** Each edge's row this frame: whether a group on it is sliding. */
     private static final boolean[] SLIDING = new boolean[Edge.values().length];
     /** How far each group showing this frame is open, 0 to 1, by its id. */
@@ -413,7 +404,7 @@ public final class ContainerTabRows {
         long now = clock.getAsLong();
         if (!settle) return slide.toward(id, expanded, now);
         // Started a whole slide ago, so it is already there.
-        slide.toward(id, expanded, now - SLIDE_MILLIS);
+        slide.toward(id, expanded, now - ContainerTabs.SLIDE_MILLIS);
         return expanded ? 1f : 0f;
     }
 
@@ -435,8 +426,8 @@ public final class ContainerTabRows {
         Arrays.fill(FIRST_ID, null);
         Arrays.fill(IN_VIEW, null);
         Arrays.fill(KEEP, false);
-        slide = Transition.eachWay(SLIDE_MILLIS, Easing.EASE_OUT);
-        pageRoom = Transition.eachWay(SLIDE_MILLIS, Easing.EASE_OUT);
+        slide = Transition.eachWay(ContainerTabs.SLIDE_MILLIS, Easing.EASE_OUT);
+        pageRoom = Transition.eachWay(ContainerTabs.SLIDE_MILLIS, Easing.EASE_OUT);
         settle = true;
     }
 
@@ -488,7 +479,7 @@ public final class ContainerTabRows {
     /** {@code edge}'s row's height for its line: its tallest tab, or a tab's with none, so an empty row's line still reads. */
     private static int rowHeight(Edge edge) {
         int h = height(edge);
-        return h > 0 ? h : RegionLayout.TAB_ROW;
+        return h > 0 ? h : ContainerTabs.TAB_HEIGHT;
     }
 
     /** The ids in {@code edge}'s row this frame, in order, for the checks. A closed group's sub-tabs aren't in it. */
@@ -628,7 +619,7 @@ public final class ContainerTabRows {
     private static int inset(Edge edge, boolean paged) {
         long now = clock.getAsLong();
         // No group sliding: the room is where it goes, at once.
-        if (!SLIDING[edge.ordinal()]) pageRoom.toward(edge, paged, now - SLIDE_MILLIS);
+        if (!SLIDING[edge.ordinal()]) pageRoom.toward(edge, paged, now - ContainerTabs.SLIDE_MILLIS);
         return Math.round((ARROW_WIDTH + 1) * pageRoom.toward(edge, paged, now));
     }
 
@@ -1023,7 +1014,7 @@ public final class ContainerTabRows {
          */
         private static void icon(GuiGraphicsExtractor graphics, Tab t, int x, Line l) {
             if (t.icon() == null) return;
-            float scale = Math.min(1f, Math.min((float) t.width() / TAB_WIDTH, (float) t.height() / RegionLayout.TAB_ROW));
+            float scale = Math.min(1f, Math.min((float) t.width() / ContainerTabs.TAB_WIDTH, (float) t.height() / ContainerTabs.TAB_HEIGHT));
             int size = 2 * Math.round(8f * scale);
             int clear = Math.max(0, (t.height() - TIP - size) / 2);
             int ix = x + (t.width() - size) / 2, iy = l.top() ? l.y() - clear - size : l.y() + clear;

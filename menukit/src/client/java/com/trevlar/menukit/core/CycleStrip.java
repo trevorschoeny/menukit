@@ -1,5 +1,7 @@
 package com.trevlar.menukit.core;
 
+import com.trevlar.menukit.api.element.Easing;
+
 import com.trevlar.menukit.api.hud.HudCycleStrip.Axis;
 import com.trevlar.menukit.api.hud.HudCycleStrip.Direction;
 import com.trevlar.menukit.api.hud.HudCycleStrip.Source;
@@ -223,19 +225,15 @@ public final class CycleStrip {
 
     // Pure: timing
 
-    /** Ease-out-back: overshoots about 10% then settles to exactly 1. */
-    public static float easeOutBack(float t) {
+    /**
+     * Eased progress at {@code nowMillis} of a slide that started at {@code startMillis}: ease-out-back
+     * ({@link Easing#EASE_OUT_BACK}), overshooting about 10% then settling, exactly 0 and 1 at its ends.
+     */
+    public static float progress(long startMillis, long nowMillis) {
+        float t = (float) (nowMillis - startMillis) / SLIDE_MILLIS;
         if (t <= 0f) return 0f;
         if (t >= 1f) return 1f;
-        final float c1 = 1.70158f;
-        final float c3 = c1 + 1f;
-        float tm1 = t - 1f;
-        return 1f + c3 * tm1 * tm1 * tm1 + c1 * tm1 * tm1;
-    }
-
-    /** Eased progress at {@code nowMillis} of a slide that started at {@code startMillis}. */
-    public static float progress(long startMillis, long nowMillis) {
-        return easeOutBack((float) (nowMillis - startMillis) / SLIDE_MILLIS);
+        return Easing.EASE_OUT_BACK.apply(t);
     }
 
     public static boolean done(long startMillis, long nowMillis) {

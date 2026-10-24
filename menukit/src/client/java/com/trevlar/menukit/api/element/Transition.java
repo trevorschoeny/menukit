@@ -90,11 +90,10 @@ public final class Transition {
     }
 
     /**
-     * {@link #toward(Object, boolean)} at {@code nowMillis}, on {@code Util.getMillis()}'s
+     * {@link #toward(Object, boolean)} at {@code now}, on {@code Util.getMillis()}'s
      * scale: for a mod running its own clock, and for checks.
      */
-    public float toward(Object key, boolean forward, long nowMillis) {
-        long now = nowMillis;
+    public float toward(Object key, boolean forward, long now) {
         Objects.requireNonNull(key, "key");
         Run run = runs.get(key);
         if (run == null) {
