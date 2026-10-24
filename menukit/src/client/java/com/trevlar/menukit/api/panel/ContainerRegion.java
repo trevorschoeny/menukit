@@ -211,8 +211,8 @@ import java.util.function.Supplier;
  * is. Each shown section's slice of its own container art runs straight on into the inventory
  * part, under a resource pack too. Sections as tall as a vanilla container's (a 3-row grid and
  * its title) make that container's own frame, in the same place on screen, tab rows standing
- * on it ({@link ContainerTabs}) as they do on a vanilla screen's: switching between the two
- * moves nothing.
+ * on it ({@link ContainerTabs}) and centered with it as they are on a vanilla screen's:
+ * switching between the two, with the same rows, moves nothing.
  * To show one container at a time under tabs, as the creative inventory shows one page:
  *
  * <pre>{@code

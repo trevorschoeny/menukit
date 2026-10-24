@@ -49,6 +49,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -66,9 +67,10 @@ import java.util.function.Supplier;
  * region isn't up on (the player's inventory, a shulker box, a chest with no section showing),
  * the outer two rows stand on the screen's own frame instead ({@link #bare}): the top one on
  * its top edge, the bottom one on its bottom edge, drawn just after the screen's image so a
- * selected tab opens into it. The screen keeps vanilla's layout; the two middle edges have no
- * gap to stand in there and show nothing. So screens of one size that open in place of each
- * other show one row in one place.
+ * selected tab opens into it. The frame and those rows are centered as one block, by the rule
+ * the region's block is ({@link #centre}); the two middle edges have no gap to stand in there
+ * and show nothing. So screens of one size that open in place of each other, with the same
+ * rows, show one row in one place.
  *
  * <p><b>Keyed lists</b> ({@code ContainerTabs.keyed}): each list's keys are read as the rows
  * are chosen, every frame a container screen is open, and its tabs placed among the others as
@@ -283,9 +285,9 @@ public final class ContainerTabRows {
     public static void init() {
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
             if (!(screen instanceof AbstractContainerScreen<?> acs) || !carries(acs)) return;
-            ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> onFrame(acs));
+            ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> onFrame(acs, false));
             ScreenEvents.remove(screen).register(s -> bare = null);
-            onFrame(acs);
+            onFrame(acs, true);
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.gui.screen() == null) resetPaging();
@@ -294,9 +296,12 @@ public final class ContainerTabRows {
 
     /**
      * One frame of {@code screen} with the region down: the tabs that show there on the outer
-     * two edges, standing on the screen's own frame. With the region up, it chose the rows.
+     * two edges, standing on the screen's own frame. With the region up, it chose the rows. Rows
+     * other than the ones the frame was centered with ({@link #centre}) lay the screen out
+     * again, as the region does on a layout change, so it centers anew and every mod's widget
+     * follows: not at init, which has just centered it.
      */
-    private static void onFrame(AbstractContainerScreen<?> screen) {
+    private static void onFrame(AbstractContainerScreen<?> screen, boolean atInit) {
         if (ContainerRegions.state.geometry != null && ContainerRegions.state.screen.get() == screen) {
             bare = null;
             return;
@@ -308,6 +313,44 @@ public final class ContainerTabRows {
             if (lineNow(edge) == null) rows[edge.ordinal()] = drawn[edge.ordinal()] = new Tab[0];
         }
         afterLayout();
+        int[] c = CENTRED.get(screen);
+        if (!atInit && c != null && (c[1] != height(Edge.CONTAINERS_TOP) || c[2] != height(Edge.INVENTORY_BOTTOM))) {
+            ContainerRegions.relayout(screen);
+        }
+    }
+
+    // A screen's own frame centered with its rows
+
+    /** Each container screen's centering at its last init: {dy, above, below}, the frame's move down from vanilla's place and the rows it counted. */
+    private static final Map<Screen, int[]> CENTRED = new WeakHashMap<>();
+
+    /**
+     * At the head of each of {@code screen}'s inits ({@code MKFrameCentringMixin}), before
+     * vanilla centers it: how far its frame goes down from vanilla's place so that the frame and
+     * the rows standing on it now, the top one above it and the bottom one below, are centered
+     * as one block ({@link RegionLayout#frameTop}, the region's own rule). Vanilla's container
+     * screen code then centers everything from a window that much taller, so the frame, its
+     * image, its slots and labels, the recipe book and its button all move together, and so
+     * does every widget placed from {@code topPos}. No row, or the region up on it: vanilla's place.
+     */
+    public static void centre(AbstractContainerScreen<?> screen) {
+        int above = 0, below = 0;
+        boolean regionUp = ContainerRegions.state.geometry != null && ContainerRegions.state.screen.get() == screen;
+        if (carries(screen) && !regionUp) {
+            choose(screen);
+            above = height(Edge.CONTAINERS_TOP);
+            below = height(Edge.INVENTORY_BOTTOM);
+        }
+        int imageHeight = ((AbstractContainerScreenAccessor) screen).mk$getImageHeight();
+        int top = (screen.height - imageHeight) / 2;
+        int dy = RegionLayout.frameTop(new Reference(0, top, 0, imageHeight), screen.height, above, below) - top;
+        CENTRED.put(screen, new int[]{dy, above, below});
+    }
+
+    /** How far {@code screen}'s frame is moved down from vanilla's place for its tab rows ({@link #centre}); 0 for none. */
+    public static int centring(Screen screen) {
+        int[] c = CENTRED.get(screen);
+        return c == null ? 0 : c[0];
     }
 
     // This frame's rows
@@ -336,8 +379,19 @@ public final class ContainerTabRows {
     /** The clock the slides run on: vanilla's, as every MenuKit animation's. Checks stop it to step through a slide. */
     @VisibleForTesting
     public static LongSupplier clock = Util::getMillis;
-    /** Each group's slide, by its id, so it carries over to a screen opened in place of another. */
-    private static Transition slide = Transition.of(SLIDE_MILLIS, Easing.EASE_OUT);
+    /**
+     * Each group's slide, by its id, so it carries over to a screen opened in place of another.
+     * Eased each way, so a group closing moves from its first frame as one opening does.
+     */
+    private static Transition slide = Transition.eachWay(SLIDE_MILLIS, Easing.EASE_OUT);
+    /**
+     * The room each row's arrows take at its ends, by edge, 0 to 1 of theirs: it opens and closes
+     * with the slide that makes the row page or stop paging, so the tabs move over to make room
+     * rather than jump. Tabs coming or going page the row at once, as they appear at once.
+     */
+    private static Transition pageRoom = Transition.eachWay(SLIDE_MILLIS, Easing.EASE_OUT);
+    /** Each edge's row this frame: whether a group on it is sliding. */
+    private static final boolean[] SLIDING = new boolean[Edge.values().length];
     /** How far each group showing this frame is open, 0 to 1, by its id. */
     private static final Map<String, Float> OPEN = new HashMap<>();
     /** The first frame since the player was last in the world: groups stand as they are then, not sliding. */
@@ -373,7 +427,8 @@ public final class ContainerTabRows {
         Arrays.fill(FIRST_ID, null);
         Arrays.fill(IN_VIEW, null);
         Arrays.fill(KEEP, false);
-        slide = Transition.of(SLIDE_MILLIS, Easing.EASE_OUT);
+        slide = Transition.eachWay(SLIDE_MILLIS, Easing.EASE_OUT);
+        pageRoom = Transition.eachWay(SLIDE_MILLIS, Easing.EASE_OUT);
         settle = true;
     }
 
@@ -385,6 +440,7 @@ public final class ContainerTabRows {
     static void choose(@Nullable Screen screen) {
         Tab[][] out = empty(), drew = empty();
         OPEN.clear();
+        Arrays.fill(SLIDING, false);
         if (screen instanceof AbstractContainerScreen<?> acs) {
             syncKeyed();
             // Each group's open rule, read once a frame.
@@ -397,6 +453,7 @@ public final class ContainerTabRows {
                         Group g = t.group();
                         boolean open = expanded.computeIfAbsent(g, k -> k.expanded().getAsBoolean());
                         float p = OPEN.computeIfAbsent(g.id(), id -> openness(id, open));
+                        if (p != (open ? 1f : 0f)) SLIDING[i] = true;
                         if (open) row.add(t);
                         // Closed and back under its header: not drawn.
                         if (open || p > 0f) shown.add(t);
@@ -456,7 +513,7 @@ public final class ContainerTabRows {
     @VisibleForTesting
     public static int hitForChecks(Edge edge, double mx, double my) {
         View v = view(edge);
-        return v == null ? NONE : hit(v.line(), v.row().length, v.fit(), v.placed(), mx, my);
+        return v == null ? NONE : hit(v.line(), v.row().length, v.fit(), v.inset(), v.placed(), mx, my);
     }
 
     /** Where {@code edge}'s tabs draw this frame, for the checks. */
@@ -556,9 +613,17 @@ public final class ContainerTabRows {
         return from;
     }
 
-    /** The left and right ends of the room the tabs draw in on line {@code l}: between the arrows when paged. */
-    private static int roomLeft(Line l, Fit f) { return l.x() + (f.paged() ? ARROW_WIDTH + 1 : 0); }
-    private static int roomRight(Line l, Fit f) { return l.x() + l.width() - (f.paged() ? ARROW_WIDTH + 1 : 0); }
+    /** The left and right ends of the room the tabs draw in on line {@code l}, {@code inset} in from each end: the arrows' room. */
+    private static int roomLeft(Line l, int inset) { return l.x() + inset; }
+    private static int roomRight(Line l, int inset) { return l.x() + l.width() - inset; }
+
+    /** The arrows' room at each end of {@code edge}'s row this frame, toward theirs while it pages ({@link #pageRoom}). */
+    private static int inset(Edge edge, boolean paged) {
+        long now = clock.getAsLong();
+        // No group sliding: the room is where it goes, at once.
+        if (!SLIDING[edge.ordinal()]) pageRoom.toward(edge, paged, now - SLIDE_MILLIS);
+        return Math.round((ARROW_WIDTH + 1) * pageRoom.toward(edge, paged, now));
+    }
 
     /**
      * One tab where it draws this frame: its left edge, its size, its place in the row ({@code -1}
@@ -570,13 +635,15 @@ public final class ContainerTabRows {
 
     /**
      * Where the tabs {@code drew} draw on line {@code l} this frame, the row {@code row} laid
-     * out by {@code f}, each group open {@code open} of the way (by its id; 1 where absent): the
-     * row's tabs in view, the sub-tabs of a group sliding, and the tabs pinned at the room's left
-     * end. A group's sub-tabs move as one, out from under the header to its right as it opens,
-     * and every tab after it moves with their edge. Settled, each tab not pinned is where the
-     * row's fit puts it.
+     * out by {@code f} between ends {@code inset} in, each group open {@code open} of the way (by
+     * its id; 1 where absent): the row's tabs in view, the sub-tabs of a group sliding, and the
+     * tabs pinned at the room's left end. A group's sub-tabs move as one, out from under the
+     * header to its right as it opens, and every tab after it moves with their edge. Settled,
+     * each tab not pinned is where the row's fit puts it. A tab not pinned shows whole or not
+     * at all, as paging shows them: one that a slide has pushed past the room's right end is
+     * left out until it is back inside.
      */
-    static List<Placed> place(Line l, Tab[] drew, Tab[] row, Fit f, Map<String, Float> open) {
+    static List<Placed> place(Line l, Tab[] drew, Tab[] row, Fit f, Map<String, Float> open, int inset) {
         int[] widths = widths(row);
         int n = drew.length;
         // Each tab's left as the row lays it out, its place in the row, and whether it pins now.
@@ -584,7 +651,7 @@ public final class ContainerTabRows {
         int[] index = new int[n];
         boolean[] pins = new boolean[n];
         // From the row's first tab, in view at the room's left; tabs before it are off to the left.
-        double cursor = roomLeft(l, f) - span(widths, 0, f.first());
+        double cursor = roomLeft(l, inset) - span(widths, 0, f.first());
         int r = 0;
         for (int i = 0; i < n; ) {
             Tab t = drew[i];
@@ -614,7 +681,7 @@ public final class ContainerTabRows {
             }
             cursor += p * span;
         }
-        int left = roomLeft(l, f);
+        int left = roomLeft(l, inset), right = roomRight(l, inset);
         boolean[] stuck = pin(drew, x, pins, left, cursor);
         List<Placed> out = new ArrayList<>();
         int headerX = Integer.MIN_VALUE;
@@ -624,9 +691,11 @@ public final class ContainerTabRows {
             if (!t.sub()) headerX = at;
             // Pinned, drawn while any of it is right of the room's left end; in the row, drawn
             // while in view; closing, drawn until it is back under the header.
+            // A tab shows whole or not at all: one a slide has pushed past the room's end is left out.
+            boolean whole = at + t.width() <= right && (t.sub() || at >= left);
             boolean shown = stuck[i] ? at + t.width() > left
-                    : index[i] >= 0 ? index[i] >= f.first() && index[i] < f.first() + f.shown()
-                    : open.getOrDefault(t.group().id(), 1f) > 0f;
+                    : whole && (index[i] >= 0 ? index[i] >= f.first() && index[i] < f.first() + f.shown()
+                    : open.getOrDefault(t.group().id(), 1f) > 0f);
             if (shown) out.add(new Placed(t, at, t.width(), t.height(), index[i], t.sub(), t.sub() ? headerX : Integer.MIN_VALUE, stuck[i]));
         }
         return out;
@@ -703,13 +772,13 @@ public final class ContainerTabRows {
      * only right of it. Tabs touch, each from its left edge up to the next one's, so a point is
      * on one tab only.
      */
-    private static int hit(Line l, int count, Fit f, List<Placed> placed, double mx, double my) {
+    private static int hit(Line l, int count, Fit f, int inset, List<Placed> placed, double mx, double my) {
         if (mx < l.x() || mx >= l.x() + l.width()) return NONE;
         if (f.paged() && my >= l.rowTop() && my < l.rowTop() + l.height()) {
             if (mx < l.x() + ARROW_WIDTH) return f.first() > 0 ? BACK : NONE;
             if (mx >= l.x() + l.width() - ARROW_WIDTH) return f.first() + f.shown() < count ? FORWARD : NONE;
         }
-        int left = roomLeft(l, f), right = roomRight(l, f);
+        int left = roomLeft(l, inset), right = roomRight(l, inset);
         for (int layer = 2; layer >= 0; layer--) {
             for (Placed p : placed) {
                 if (layer(p) != layer || p.index() < 0) continue;
@@ -726,15 +795,16 @@ public final class ContainerTabRows {
         return p.stuck() ? 2 : p.sub() ? 0 : 1;
     }
 
-    /** {@code edge}'s row this frame: its line, its tabs, how it fits and where each draws; {@code null} where none shows. */
-    private record View(Line line, Tab[] row, Fit fit, List<Placed> placed) {}
+    /** {@code edge}'s row this frame: its line, its tabs, how it fits, the arrows' room and where each draws; {@code null} where none shows. */
+    private record View(Line line, Tab[] row, Fit fit, int inset, List<Placed> placed) {}
 
     private static @Nullable View view(Edge edge) {
         Line l = lineNow(edge);
         Tab[] row = rows[edge.ordinal()];
         if (l == null || row.length == 0) return null;
         Fit f = fit(l.width(), widths(row), FIRST[edge.ordinal()]);
-        return new View(l, row, f, place(l, drawn[edge.ordinal()], row, f, OPEN));
+        int inset = inset(edge, f.paged());
+        return new View(l, row, f, inset, place(l, drawn[edge.ordinal()], row, f, OPEN, inset));
     }
 
     /** Where the tab {@code id} is in {@code row}, or -1. */
@@ -803,7 +873,7 @@ public final class ContainerTabRows {
         Tab[] row = v.row();
         Fit f = v.fit();
         int e = edge.ordinal();
-        int what = hit(v.line(), row.length, f, v.placed(), mx, my);
+        int what = hit(v.line(), row.length, f, v.inset(), v.placed(), mx, my);
         if (what == NONE) return false;
         if (what == BACK || what == FORWARD) {
             FIRST[e] = what == BACK ? Math.max(0, f.first() - 1) : f.first() + 1;
@@ -865,10 +935,10 @@ public final class ContainerTabRows {
             Tab[] row = v.row();
             Fit f = v.fit();
             GuiGraphicsExtractor graphics = ctx.graphics();
-            int over = ctx.hasMouseInput() ? hit(l, row.length, f, v.placed(), ctx.mouseX(), ctx.mouseY()) : NONE;
+            int over = ctx.hasMouseInput() ? hit(l, row.length, f, v.inset(), v.placed(), ctx.mouseX(), ctx.mouseY()) : NONE;
             // Tabs show between the arrows; sub-tabs right of their header too. The band takes
             // in a selected tab's rows into the frame, either way up.
-            int left = roomLeft(l, f), right = roomRight(l, f);
+            int left = roomLeft(l, v.inset()), right = roomRight(l, v.inset());
             int bandTop = l.y() - l.height() - INTO, bandBottom = l.y() + l.height() + INTO;
             graphics.enableScissor(left, bandTop, right, bandBottom);
             for (int layer = 0; layer <= 2; layer++) {

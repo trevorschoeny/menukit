@@ -12,9 +12,10 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
 /**
- * The recipe book button on a stretched screen ({@link ScreenFrames}): vanilla places it from
- * the window's middle, as if the screen were its own size, at init and again on each click;
- * it goes to the same place in the stretched frame. Every other screen's is left as it is.
+ * The recipe book button on a stretched screen ({@link ScreenFrames}): vanilla places it from the
+ * window's middle, as if the screen were its own size where vanilla centers it, at init and again
+ * on each click; it goes to the same place in the frame as it is. Every other screen's is left as
+ * it is (a frame centered with its tab rows moves it in vanilla's own code, {@code MKFrameCentringHeightMixin}).
  */
 @ApiStatus.Internal
 @Mixin(AbstractRecipeBookScreen.class)

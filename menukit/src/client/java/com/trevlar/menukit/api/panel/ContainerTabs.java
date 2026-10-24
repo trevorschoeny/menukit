@@ -71,10 +71,14 @@ import java.util.function.Supplier;
  *       player's inventory, a shulker box, a chest with no section showing, a mod's own
  *       container screen. A {@link Edge#CONTAINERS_TOP} row stands on the frame's top edge and
  *       an {@link Edge#INVENTORY_BOTTOM} row on its bottom edge; the two middle edges have no
- *       gap to stand in there, and their tabs don't show. The screen keeps vanilla's layout,
- *       so screens of one size put the row in one place ({@link ScreenFrames} makes the
- *       inventory, 166 tall, a shulker box's 167), and a mod that opens one in place of another
- *       shows a steady row.</li>
+ *       gap to stand in there, and their tabs don't show. The frame and those two rows are
+ *       centered as one block, as the region's are: the frame moves from vanilla's place (half
+ *       a top row lower, half a bottom row higher), and everything vanilla places from it
+ *       with it; a row coming or going lays the screen out again. Screens of one size with
+ *       the same rows put the row in one place ({@link ScreenFrames} makes a shulker box
+ *       and a chest the inventory's 166), and a mod that opens one in place of another
+ *       shows a steady row. A mod's own screen that draws its image from the window's middle
+ *       rather than from {@code topPos} draws it where vanilla would have centered it.</li>
  *   <li>Never on the creative inventory, which has tabs of its own.</li>
  * </ul>
  * A row's page carries over to a screen opened in place of the last, and starts over once
@@ -112,7 +116,9 @@ import java.util.function.Supplier;
  *       always, only while the group holds the selected tab, or on the mod's own conditions.</li>
  *   <li><b>How they move</b> is MenuKit's, one way only: they slide out from under the header
  *       to its right as the group opens, the tabs after it moving over to make room, and slide
- *       back under it as it closes. A turn mid-way goes back from where they are. A group stands
+ *       back under it as it closes, eased alike each way. A turn mid-way goes back from where
+ *       they are. A slide that makes the row page opens the arrows' room with it, so the tabs
+ *       move over rather than jump; a tab shows whole or not at all. A group stands
  *       as it is on a screen's first frame, so opening the inventory doesn't play it.</li>
  *   <li><b>Paging</b> counts the tabs out: a closed group is its header, an open one its header
  *       and every sub-tab, and the arrows page through those. A closed group's sub-tabs take no

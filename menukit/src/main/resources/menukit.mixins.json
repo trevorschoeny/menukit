@@ -16,6 +16,8 @@
     "MKContainerTitleMixin",
     "MKCreativeTabHoverMixin",
     "MKCursorContinuityMixin",
+    "MKFrameCentringHeightMixin",
+    "MKFrameCentringMixin",
     "MKGuiMixin",
     "MKHudStatusLiftMixin",
     "MKItemOpennessMixin",

@@ -2,6 +2,8 @@ package com.trevlar.menukit.api.panel;
 
 import com.trevlar.menukit.api.Declarations;
 import com.trevlar.menukit.inject.ContainerRegions;
+import com.trevlar.menukit.inject.ContainerTabRows;
+import com.trevlar.menukit.inject.RegionLayout;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevlar.menukit.mixin.SlotAccessor;
 
@@ -116,9 +118,12 @@ public final class ScreenFrames {
         if (screen.getClass() == ContainerScreen.class) {
             int rows = ((ContainerScreen) screen).getMenu().getRowCount();
             // Vanilla's frame is 114 + 18 a row; its image (rows * 18 + 17, then the inventory's 96) a row less.
-            Seam blank = new Seam(113 + rows * 18, -1);
-            // Row 72 is plain gap, under the third row's slots and over the "Inventory" label.
-            return rows == 3 ? List.of(new Seam(72, -1), blank) : List.of(blank);
+            int frame = 113 + rows * 18;
+            Seam blank = new Seam(frame, -1);
+            // Then the standard size's rule, the fitted frame's too: row 18 + 18 a row is plain
+            // gap, under the grid's last row and over the "Inventory" label.
+            int trim = RegionLayout.gapTrim(frame);
+            return trim > 0 ? List.of(new Seam(18 + rows * 18, -trim), blank) : List.of(blank);
         }
         return List.of();
     }
@@ -185,14 +190,17 @@ public final class ScreenFrames {
     /**
      * {@code y}, a place vanilla worked out on the screen as if it were its own size (the
      * recipe book button's, from the window's middle), moved to the same place in the
-     * stretched frame.
+     * stretched frame. Vanilla works it out from the window as its container screen code reads
+     * it, taller while the frame is centered with tab rows ({@code ContainerTabRows.centre}),
+     * so it has moved with the frame already.
      */
     @ApiStatus.Internal
     public static int place(Screen screen, int y) {
         Seams seams = of(screen);
         if (seams == null) return y;
         AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
-        int vanillaTop = (screen.height - acc.mk$getImageHeight() + seams.by()) / 2;
+        // topPos is vanilla's place for the stretched size in the window as vanilla read it: the row is from vanilla's own.
+        int vanillaTop = (screen.height + 2 * ContainerTabRows.centring(screen) - acc.mk$getImageHeight() + seams.by()) / 2;
         int row = y - vanillaTop;
         // ponytail: assumes the place was worked out from the window (vanilla's recipe screens do); one from topPos would move twice
         return acc.mk$getTopPos() + row + seams.shift(row);
