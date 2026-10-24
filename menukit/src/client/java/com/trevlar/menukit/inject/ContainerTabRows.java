@@ -127,8 +127,11 @@ public final class ContainerTabRows {
                       @Nullable Supplier<@Nullable Component> tooltip, Runnable onClick,
                       int width, int height, @Nullable Group group, boolean sub) {}
 
-    /** A group of tabs (a keyed list with a header): the list's id, and whether its sub-tabs are out, read every frame. */
-    public record Group(String id, BooleanSupplier expanded) {}
+    /**
+     * A group of tabs (a keyed list with a header): the list's id, whether its sub-tabs are out,
+     * read every frame, and whether its header sticks at the row's left end while it is open.
+     */
+    public record Group(String id, BooleanSupplier expanded, boolean sticky) {}
 
     private static final List<Tab> TABS = new CopyOnWriteArrayList<>();
     private static boolean panelsBuilt;
@@ -568,7 +571,9 @@ public final class ContainerTabRows {
      * out by {@code f}, each group open {@code open} of the way (by its id; 1 where absent): the
      * row's tabs in view, and the sub-tabs of a group sliding. A group's sub-tabs move as one,
      * out from under the header to its right as it opens, and every tab after it moves with
-     * their edge. Settled, each tab is where the row's fit puts it.
+     * their edge. Settled, each tab is where the row's fit puts it. An open sticky group's header
+     * paged past stands at the room's left end, its sub-tabs behind it, until the group's end
+     * pushes it off.
      */
     static List<Placed> place(Line l, Tab[] drew, Tab[] row, Fit f, Map<String, Float> open) {
         int[] widths = widths(row);
@@ -581,7 +586,21 @@ public final class ContainerTabRows {
             if (!t.sub()) {
                 int index = r < row.length && row[r] == t ? r++ : -1;
                 headerX = (int) Math.round(cursor);
-                if (index >= f.first() && index < f.first() + f.shown()) {
+                Group g = t.group();
+                // Open: its sub-tabs are in the row (closing, they slide back out of it).
+                boolean stuck = g != null && g.sticky() && index >= 0 && index < f.first()
+                        && i + 1 < drew.length && drew[i + 1].group() == g && r < row.length && row[r] == drew[i + 1];
+                if (stuck) {
+                    double end = cursor + t.width();
+                    for (int j = i + 1; j < drew.length && drew[j].sub() && drew[j].group() == g; j++) {
+                        end += open.getOrDefault(g.id(), 1f) * drew[j].width();
+                    }
+                    // At the room's left end, or pushed left by the tab after the group.
+                    headerX = (int) Math.round(Math.min(roomLeft(l, f), end - t.width()));
+                    if (headerX + t.width() > roomLeft(l, f)) {
+                        out.add(new Placed(t, headerX, t.width(), t.height(), index, false, Integer.MIN_VALUE));
+                    }
+                } else if (index >= f.first() && index < f.first() + f.shown()) {
                     out.add(new Placed(t, headerX, t.width(), t.height(), index, false, Integer.MIN_VALUE));
                 }
                 cursor += t.width();
@@ -606,6 +625,24 @@ public final class ContainerTabRows {
             cursor += p * span;
         }
         return out;
+    }
+
+    /**
+     * Whether tab {@code at} of {@code row}, laid out from {@code first}, is behind its sticky
+     * group's header, wholly or in part: the header paged past, standing at the room's left end
+     * or pushed part way off it.
+     */
+    static boolean covered(Tab[] row, int first, int at) {
+        Group g = row[at].group();
+        if (!row[at].sub() || g == null || !g.sticky()) return false;
+        int h = at, end = at + 1;
+        while (h > 0 && row[h].sub()) h--;
+        if (h >= first) return false;
+        while (end < row.length && row[end].sub() && row[end].group() == g) end++;
+        int[] widths = widths(row);
+        // From the room's left end: the header's left, and the tab's.
+        int header = Math.min(0, span(widths, first, end) - row[h].width());
+        return span(widths, first, at) < header + row[h].width();
     }
 
     private static int[] widths(Tab[] row) {
@@ -694,6 +731,8 @@ public final class ContainerTabRows {
             if (sel >= 0 && KEEP[e]) {
                 if (sel < f.first()) FIRST[e] = sel;
                 else if (sel >= f.first() + f.shown()) FIRST[e] = endingAt(l.width(), widths, sel);
+                // Out from behind a sticky header: back a tab at a time, at most to the header.
+                while (FIRST[e] > 0 && covered(row, FIRST[e], sel)) FIRST[e]--;
             }
             // An empty row (a frame with none showing) keeps the anchor for when they're back.
             if (row.length > 0) FIRST_ID[e] = row[FIRST[e]].id();
@@ -719,9 +758,9 @@ public final class ContainerTabRows {
         if (what == BACK || what == FORWARD) {
             FIRST[e] = what == BACK ? Math.max(0, f.first() - 1) : f.first() + 1;
             FIRST_ID[e] = row[FIRST[e]].id();
-            // Paged out of view, the selected tab stays out until it is selected anew.
+            // Paged out of view, or behind a sticky header, the selected tab stays out until it is selected anew.
             int sel = selected(row);
-            KEEP[e] = sel >= FIRST[e] && sel < FIRST[e] + f.shown();
+            KEEP[e] = sel >= FIRST[e] && sel < FIRST[e] + f.shown() && !covered(row, FIRST[e], sel);
         }
         else if (row[what].disabled().getAsBoolean()) return true;
         else row[what].onClick().run();
