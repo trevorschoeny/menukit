@@ -93,8 +93,8 @@ public final class ContainerTabRows {
 
     // The row's measures, from vanilla's creative inventory.
 
-    /** A tab's width, and its place in the row: vanilla's 26 px tab, a pixel apart. */
-    public static final int TAB_WIDTH = 26, GAP = 1;
+    /** A tab's width: vanilla's 26 px tab. Tabs stand side by side, touching, so no background shows between them. */
+    public static final int TAB_WIDTH = 26;
     /** A group's sub-tabs by default: about two-thirds of a tab, on the same line. */
     public static final int SUB_WIDTH = 18, SUB_HEIGHT = 17;
     /** The smallest a tab can be, either way: its sprite's corners and edges, kept whole. */
@@ -515,9 +515,9 @@ public final class ContainerTabRows {
      */
     public record Fit(int first, int shown, boolean paged) {}
 
-    /** How wide tabs {@code from} to {@code to} (exclusive) of a row of {@code widths} are, a pixel apart. */
+    /** How wide tabs {@code from} to {@code to} (exclusive) of a row of {@code widths} are, side by side. */
     public static int span(int[] widths, int from, int to) {
-        int w = Math.max(0, to - from - 1) * GAP;
+        int w = 0;
         for (int i = from; i < to; i++) w += widths[i];
         return w;
     }
@@ -573,7 +573,7 @@ public final class ContainerTabRows {
     static List<Placed> place(Line l, Tab[] drew, Tab[] row, Fit f, Map<String, Float> open) {
         int[] widths = widths(row);
         // From the row's first tab, in view at the room's left; tabs before it are off to the left.
-        double cursor = roomLeft(l, f) - (f.first() > 0 ? span(widths, 0, f.first()) + GAP : 0);
+        double cursor = roomLeft(l, f) - span(widths, 0, f.first());
         List<Placed> out = new ArrayList<>();
         int r = 0, headerX = Integer.MIN_VALUE;
         for (int i = 0; i < drew.length; ) {
@@ -584,7 +584,7 @@ public final class ContainerTabRows {
                 if (index >= f.first() && index < f.first() + f.shown()) {
                     out.add(new Placed(t, headerX, t.width(), t.height(), index, false, Integer.MIN_VALUE));
                 }
-                cursor += t.width() + GAP;
+                cursor += t.width();
                 i++;
                 continue;
             }
@@ -592,7 +592,7 @@ public final class ContainerTabRows {
             Group g = t.group();
             int end = i;
             double span = 0;
-            while (end < drew.length && drew[end].sub() && drew[end].group() == g) span += drew[end++].width() + GAP;
+            while (end < drew.length && drew[end].sub() && drew[end].group() == g) span += drew[end++].width();
             float p = open.getOrDefault(g.id(), 1f);
             double x = cursor - (1f - p) * span;
             for (; i < end; i++) {
@@ -601,7 +601,7 @@ public final class ContainerTabRows {
                 // In the row, drawn while in view; closing, drawn until it is back under the header.
                 boolean shown = index >= 0 ? index >= f.first() && index < f.first() + f.shown() : p > 0f;
                 if (shown) out.add(new Placed(s, (int) Math.round(x), s.width(), s.height(), index, true, headerX));
-                x += s.width() + GAP;
+                x += s.width();
             }
             cursor += p * span;
         }
@@ -618,7 +618,8 @@ public final class ContainerTabRows {
      * What is at {@code (mx, my)} on line {@code l}, the row of {@code count} tabs laid out by
      * {@code f} and drawn at {@code placed}: a tab (its place in the row), an arrow there is one
      * for, or {@link #NONE}. A tab runs from the frame to its height out, and shows only
-     * between the arrows; a header is over its sub-tabs, which show only right of it.
+     * between the arrows; a header is over its sub-tabs, which show only right of it. Tabs
+     * touch, each from its left edge up to the next one's, so a point is on one tab only.
      */
     private static int hit(Line l, int count, Fit f, List<Placed> placed, double mx, double my) {
         if (mx < l.x() || mx >= l.x() + l.width()) return NONE;
