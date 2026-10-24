@@ -127,7 +127,7 @@ import java.util.function.Supplier;
  *       while the row is paged either way past them: each stops at the end of the row it would
  *       leave by, the tabs beyond it going on behind it, and pinned tabs of one group stand
  *       there side by side in row order, until the next group's header (at the left end) or
- *       the previous group's last tab (at the right end) pushes them off together, as section
+ *       the previous group's pinned tabs (at the right end) push them off together, as section
  *       headers do in a phone's list. Which tabs pin is the mod's, read every frame: a header
  *       while its group is open, a sub-tab while it is selected.</li>
  * </ul>
@@ -505,7 +505,8 @@ public final class ContainerTabs {
          * Pinned while this holds, read every frame: as the row is paged past it, it stops at the
          * end of the row it would leave by, still clickable, and the tabs beyond it go on behind
          * it. Paged forward, it stops at the left end until the next group's header pushes it
-         * off; paged back, at the right end until the previous group's last tab pushes it off. A
+         * off; paged back, at the right end, other groups' tabs going on behind it too, until the
+         * previous group's pinned tabs push it off. A
          * group's pinned tabs, its header and any of its sub-tabs, stand there side by side in
          * row order and leave together. A selected tab
          * behind a pinned one is brought out from behind it. Pinning is a group's: a tab outside

@@ -85,8 +85,8 @@ import java.util.function.Supplier;
  *
  * <p><b>Pinned tabs</b> (Fluorite): a tab whose {@code sticky} holds this frame stops at
  * whichever end of the row paging would take it past, and the tabs on the far side of it go on
- * behind it, until the next group's header (at the left end) or the previous group's last tab
- * (at the right end) pushes it off ({@link #pin}). Pinning moves only the drawing, as a slide does.
+ * behind it, until the next group's header (at the left end) or the previous group's pinned
+ * tabs (at the right end) push it off ({@link #pin}). Pinning moves only the drawing, as a slide does.
  *
  * <p><b>Paging carries across screens.</b> A screen opened in place of another keeps each row's
  * page; it starts over only once the player is back in the world with no screen open.
@@ -710,35 +710,45 @@ public final class ContainerTabRows {
      * run is a tab and the sub-tabs of its group after it (a tab outside any group is a run of
      * its own). At the left end a run's pinned tabs stack from {@code left} in its order, and
      * its end, the next run's left or {@code end} for the last, pushes the stack off to the left
-     * as it arrives, so a pinned sub-tab leaves with its group's header. The right end mirrors
-     * it: the stack ends at {@code right}, still in row order, and the run's start, where the
-     * previous run ends, pushes it off to the right. Moves each pinned tab's {@code x} to where
-     * it stands; whether each one is stuck there, its own place past where the stack has it.
+     * as it arrives, so a pinned sub-tab leaves with its group's header. At the right end a
+     * group's pinned tabs stack up to {@code right}, still in row order, and the tabs before
+     * them go on behind, other groups' too: a header leads its group, so the previous group's
+     * last tab is beside it and can't be what pushes it. The previous group's pinned tabs push
+     * the stack off to the right instead, as they reach the right end to stand there in its
+     * place. A tab outside any group doesn't pin at the right end, as at the left. Moves each
+     * pinned tab's {@code x} to where it stands; whether each one is stuck there, its own place
+     * past where the stack has it.
      */
     static boolean[] pin(Tab[] tabs, double[] x, boolean[] pins, double left, double right, double end) {
         boolean[] stuck = new boolean[tabs.length];
+        // The right edge of the last pinned tab so far, where the row lays it out: what pushes
+        // the next group's stack off the right end.
+        double pusher = Double.NEGATIVE_INFINITY;
         for (int from = 0; from < tabs.length; ) {
             int to = from + 1;
             while (to < tabs.length && tabs[to].sub() && tabs[to].group() == tabs[from].group()) to++;
-            double runStart = x[from], runEnd = to < tabs.length ? x[to] : end;
+            double runEnd = to < tabs.length ? x[to] : end;
+            boolean grouped = tabs[from].group() != null;
             // How wide the run's pinned tabs before this one are, and this one and those after it.
-            double before = 0, rest = 0;
+            double before = 0, rest = 0, lastEnd = pusher;
             for (int i = from; i < to; i++) if (pins[i]) rest += tabs[i].width();
             for (int i = from; i < to; i++) {
                 if (!pins[i]) continue;
-                // Its place in each end's stack, and where the run's edge pushing the stack off has it.
+                // Its place in each end's stack, and where what pushes the stack off has it.
                 double atLeft = left + before, leftPushed = runEnd - rest;
-                double atRight = right - rest, rightPushed = runStart + before;
+                double atRight = right - rest, rightPushed = pusher + before;
+                lastEnd = x[i] + tabs[i].width();
                 before += tabs[i].width();
                 rest -= tabs[i].width();
                 if (x[i] < atLeft) {
                     stuck[i] = true;
                     x[i] = Math.min(atLeft, leftPushed);
-                } else if (x[i] > atRight) {
+                } else if (grouped && x[i] > atRight) {
                     stuck[i] = true;
                     x[i] = Math.max(atRight, rightPushed);
                 }
             }
+            pusher = lastEnd;
             from = to;
         }
         return stuck;
