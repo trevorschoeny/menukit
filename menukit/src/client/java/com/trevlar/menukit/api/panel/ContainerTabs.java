@@ -123,10 +123,12 @@ import java.util.function.Supplier;
  *   <li><b>Paging</b> counts the tabs out: a closed group is its header, an open one its header
  *       and every sub-tab, and the arrows page through those. A closed group's sub-tabs take no
  *       click.</li>
- *   <li><b>A sticky header</b> ({@link Keyed#stickyHeader}) stays in view while its group is open
- *       and the row is paged past it: it stands at the row's left end, its sub-tabs going on
- *       behind it, until the tab after the group pushes it off, as section headers do in a
- *       phone's list. Several open groups each stick in turn.</li>
+ *   <li><b>Pinned tabs</b> ({@link Builder#stickyWhen}), a header or a sub-tab, stay in view
+ *       while the row is paged past them: each stops at the row's left end as it gets there,
+ *       the tabs after it going on behind it, and pinned tabs of one group stand there side by
+ *       side in row order, until the next group's header pushes them off together, as section
+ *       headers do in a phone's list. Which tabs pin is the mod's, read every frame: a header
+ *       while its group is open, a sub-tab while it is selected.</li>
  * </ul>
  *
  * <pre>{@code
@@ -220,7 +222,6 @@ public final class ContainerTabs {
         private @Nullable BiConsumer<? super K, Builder> tab;
         private @Nullable Consumer<Builder> header;
         private @Nullable BooleanSupplier expanded;
-        private boolean sticky;
         /** Each key's tab's size before its own {@code size}; 0 for the default. */
         private int tabWidth, tabHeight;
 
@@ -268,18 +269,6 @@ public final class ContainerTabs {
         }
 
         /**
-         * Keeps the header in view while the group is open: once the row is paged past it, it
-         * stands at the row's left end, still clickable, and its sub-tabs go on behind it, until
-         * the tab after the group pushes it off to the left. A closed group's header pages as
-         * any tab does. A selected sub-tab brought into view is brought out from behind it.
-         * Off by default. Only for a list with a {@link #header}.
-         */
-        public Keyed<K> stickyHeader() {
-            this.sticky = true;
-            return this;
-        }
-
-        /**
          * Every key's tab's size, as {@link Builder#size} takes it, before a key's own {@code size}.
          * Default: a full tab, or a group's sub-tab size with a {@link #header}.
          */
@@ -323,8 +312,7 @@ public final class ContainerTabs {
          * Declares the list.
          *
          * @throws IllegalStateException after declarations froze, when {@code id} is already a
-         *         tab's or a list's, when no tab was given, or with {@code expandedWhen} or
-         *         {@code stickyHeader} and no header
+         *         tab's or a list's, when no tab was given, or with {@code expandedWhen} and no header
          */
         @SuppressWarnings("unchecked")
         public void declare() {
@@ -333,16 +321,13 @@ public final class ContainerTabs {
             if (expanded != null && header == null) {
                 throw new IllegalStateException("ContainerTabs keyed '" + id + "': expandedWhen(...) is for a group, one with a header(...)");
             }
-            if (sticky && header == null) {
-                throw new IllegalStateException("ContainerTabs keyed '" + id + "': stickyHeader() is for a group, one with a header(...)");
-            }
             BiConsumer<? super K, Builder> tabOf = tab;
             ScreenMatcher screens = matcher;
             int at = order;
             Edge on = edge;
             // A group's header, built once, its id the list's; its sub-tabs show only with it.
             ContainerTabRows.Group group = header == null ? null
-                    : new ContainerTabRows.Group(id, expanded != null ? expanded : () -> true, sticky);
+                    : new ContainerTabRows.Group(id, expanded != null ? expanded : () -> true);
             ContainerTabRows.Tab head = null;
             if (group != null) {
                 Builder h = forKey(id, scope, screens);
@@ -414,7 +399,7 @@ public final class ContainerTabs {
         private @Nullable BooleanSupplier under;
         private @Nullable Supplier<@Nullable Component> tooltip;
         private Runnable onClick = () -> {};
-        private BooleanSupplier visibleWhen = () -> true, selectedWhen = () -> false, disabledWhen = () -> false;
+        private BooleanSupplier visibleWhen = () -> true, selectedWhen = () -> false, disabledWhen = () -> false, stickyWhen = () -> false;
 
         private Builder(String id, ModeScope scope) {
             this.id = Objects.requireNonNull(id, "id");
@@ -515,6 +500,19 @@ public final class ContainerTabs {
             return this;
         }
 
+        /**
+         * Pinned while this holds, read every frame: as the row is paged past it, it stops at the
+         * row's left end, still clickable, and the tabs after it go on behind it, until the next
+         * group's header pushes it off to the left. A group's pinned tabs, its header and any of
+         * its sub-tabs, stand there side by side in row order and leave together. A selected tab
+         * behind a pinned one is brought out from behind it. Pinning is a group's: a tab outside
+         * any group is pushed off by the tab after it, so it pages as before. Default: never.
+         */
+        public Builder stickyWhen(BooleanSupplier condition) {
+            this.stickyWhen = Objects.requireNonNull(condition, "condition");
+            return this;
+        }
+
         /** The screens it is on. Without {@code on} or {@link #onMatching}, every container screen (see "Where a row stands"). */
         @SafeVarargs
         public final Builder on(Class<? extends AbstractContainerScreen<?>>... screens) {
@@ -548,7 +546,7 @@ public final class ContainerTabs {
             BooleanSupplier scoped = scope == ModeScope.BOTH ? own : () -> scope.covers(PanelHost.currentMode()) && own.getAsBoolean();
             BooleanSupplier header = under;
             BooleanSupplier shown = header == null ? scoped : () -> header.getAsBoolean() && scoped.getAsBoolean();
-            return new ContainerTabRows.Tab(id, matcher, order, edge, shown, selectedWhen, disabledWhen,
+            return new ContainerTabRows.Tab(id, matcher, order, edge, shown, selectedWhen, disabledWhen, stickyWhen,
                     icon, tooltip, onClick, width, height, group, sub);
         }
     }

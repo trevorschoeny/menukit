@@ -83,6 +83,10 @@ import java.util.function.Supplier;
  * ({@link #place}), clipped at the header's left edge and drawn before it, so they come out from
  * behind it; the tabs after the strip follow its edge.
  *
+ * <p><b>Pinned tabs</b> (Fluorite): a tab whose {@code sticky} holds this frame stops at the
+ * row's left end as paging takes it there, and tabs after it go on behind it, until the next
+ * group's header pushes it off ({@link #pin}). Pinning moves only the drawing, as a slide does.
+ *
  * <p><b>Paging carries across screens.</b> A screen opened in place of another keeps each row's
  * page; it starts over only once the player is back in the world with no screen open.
  *
@@ -122,18 +126,15 @@ public final class ContainerTabRows {
      * One declared tab ({@code ContainerTabs.tab}). {@code visible} already holds its mode
      * scope (and, for a sub-tab, its header's showing); its icon, the mod's drawing, or none.
      * {@code width} across and {@code height} out from its frame. A group's header and its sub-tabs carry the
-     * {@code group}; {@code sub} marks the sub-tabs.
+     * {@code group}; {@code sub} marks the sub-tabs. {@code sticky}, read every frame, pins it ({@link #pin}).
      */
     public record Tab(String id, ScreenMatcher matcher, int order, Edge edge, BooleanSupplier visible,
-                      BooleanSupplier selected, BooleanSupplier disabled, ContainerTabs.@Nullable Icon icon,
+                      BooleanSupplier selected, BooleanSupplier disabled, BooleanSupplier sticky, ContainerTabs.@Nullable Icon icon,
                       @Nullable Supplier<@Nullable Component> tooltip, Runnable onClick,
                       int width, int height, @Nullable Group group, boolean sub) {}
 
-    /**
-     * A group of tabs (a keyed list with a header): the list's id, whether its sub-tabs are out,
-     * read every frame, and whether its header sticks at the row's left end while it is open.
-     */
-    public record Group(String id, BooleanSupplier expanded, boolean sticky) {}
+    /** A group of tabs (a keyed list with a header): the list's id, and whether its sub-tabs are out, read every frame. */
+    public record Group(String id, BooleanSupplier expanded) {}
 
     private static final List<Tab> TABS = new CopyOnWriteArrayList<>();
     private static boolean panelsBuilt;
@@ -626,51 +627,38 @@ public final class ContainerTabRows {
 
     /**
      * One tab where it draws this frame: its left edge, its size, its place in the row ({@code -1}
-     * for a closing group's sub-tab, which takes no click), and for a sub-tab the left edge it
-     * shows from, its header's, so it goes under the header as it slides back.
+     * for a closing group's sub-tab, which takes no click), for a sub-tab the left edge it shows
+     * from, its header's, so it goes under the header as it slides back, and whether it is
+     * {@link #pin pinned} at the row's left end, drawn over the tabs going on behind it.
      */
-    public record Placed(Tab tab, int x, int width, int height, int index, boolean sub, int clipLeft) {}
+    public record Placed(Tab tab, int x, int width, int height, int index, boolean sub, int clipLeft, boolean stuck) {}
 
     /**
      * Where the tabs {@code drew} draw on line {@code l} this frame, the row {@code row} laid
      * out by {@code f} between ends {@code inset} in, each group open {@code open} of the way (by
-     * its id; 1 where absent): the row's tabs in view, and the sub-tabs of a group sliding. A
-     * group's sub-tabs move as one, out from under the header to its right as it opens, and
-     * every tab after it moves with their edge. Settled, each tab is where the row's fit puts
-     * it. A tab shows whole or not at all, as paging shows them: one that a slide has pushed
-     * past the room's right end is left out until it is back inside. An open sticky group's
-     * header paged past stands at the room's left end, its sub-tabs behind it, until the
-     * group's end pushes it off.
+     * its id; 1 where absent): the row's tabs in view, the sub-tabs of a group sliding, and the
+     * tabs pinned at the room's left end. A group's sub-tabs move as one, out from under the
+     * header to its right as it opens, and every tab after it moves with their edge. Settled,
+     * each tab not pinned is where the row's fit puts it. A tab not pinned shows whole or not
+     * at all, as paging shows them: one that a slide has pushed past the room's right end is
+     * left out until it is back inside.
      */
     static List<Placed> place(Line l, Tab[] drew, Tab[] row, Fit f, Map<String, Float> open, int inset) {
         int[] widths = widths(row);
-        int left = roomLeft(l, inset), right = roomRight(l, inset);
+        int n = drew.length;
+        // Each tab's left as the row lays it out, its place in the row, and whether it pins now.
+        double[] x = new double[n];
+        int[] index = new int[n];
+        boolean[] pins = new boolean[n];
         // From the row's first tab, in view at the room's left; tabs before it are off to the left.
-        double cursor = left - span(widths, 0, f.first());
-        List<Placed> out = new ArrayList<>();
-        int r = 0, headerX = Integer.MIN_VALUE;
-        for (int i = 0; i < drew.length; ) {
+        double cursor = roomLeft(l, inset) - span(widths, 0, f.first());
+        int r = 0;
+        for (int i = 0; i < n; ) {
             Tab t = drew[i];
             if (!t.sub()) {
-                int index = r < row.length && row[r] == t ? r++ : -1;
-                headerX = (int) Math.round(cursor);
-                Group g = t.group();
-                // Open: its sub-tabs are in the row (closing, they slide back out of it).
-                boolean stuck = g != null && g.sticky() && index >= 0 && index < f.first()
-                        && i + 1 < drew.length && drew[i + 1].group() == g && r < row.length && row[r] == drew[i + 1];
-                if (stuck) {
-                    double end = cursor + t.width();
-                    for (int j = i + 1; j < drew.length && drew[j].sub() && drew[j].group() == g; j++) {
-                        end += open.getOrDefault(g.id(), 1f) * drew[j].width();
-                    }
-                    // At the room's left end, or pushed left by the tab after the group.
-                    headerX = (int) Math.round(Math.min(left, end - t.width()));
-                    if (headerX + t.width() > left) {
-                        out.add(new Placed(t, headerX, t.width(), t.height(), index, false, Integer.MIN_VALUE));
-                    }
-                } else if (index >= f.first() && index < f.first() + f.shown() && headerX >= left && headerX + t.width() <= right) {
-                    out.add(new Placed(t, headerX, t.width(), t.height(), index, false, Integer.MIN_VALUE));
-                }
+                index[i] = r < row.length && row[r] == t ? r++ : -1;
+                x[i] = cursor;
+                pins[i] = index[i] >= 0 && t.sticky().getAsBoolean();
                 cursor += t.width();
                 i++;
                 continue;
@@ -679,39 +667,95 @@ public final class ContainerTabRows {
             Group g = t.group();
             int end = i;
             double span = 0;
-            while (end < drew.length && drew[end].sub() && drew[end].group() == g) span += drew[end++].width();
+            while (end < n && drew[end].sub() && drew[end].group() == g) span += drew[end++].width();
             float p = open.getOrDefault(g.id(), 1f);
-            double x = cursor - (1f - p) * span;
+            double sx = cursor - (1f - p) * span;
             for (; i < end; i++) {
                 Tab s = drew[i];
-                int index = r < row.length && row[r] == s ? r++ : -1;
-                // In the row, drawn while in view; closing, drawn until it is back under the header.
-                boolean shown = index >= 0 ? index >= f.first() && index < f.first() + f.shown() : p > 0f;
-                int sx = (int) Math.round(x);
-                if (shown && sx + s.width() <= right) out.add(new Placed(s, sx, s.width(), s.height(), index, true, headerX));
-                x += s.width();
+                index[i] = r < row.length && row[r] == s ? r++ : -1;
+                x[i] = sx;
+                // ponytail: a sliding group's sub-tabs move as one strip and pin once it settles, so one
+                // that should pin then steps into its place at the slide's end; pin within the slide if that shows.
+                pins[i] = index[i] >= 0 && p >= 1f && s.sticky().getAsBoolean();
+                sx += s.width();
             }
             cursor += p * span;
+        }
+        int left = roomLeft(l, inset), right = roomRight(l, inset);
+        boolean[] stuck = pin(drew, x, pins, left, cursor);
+        List<Placed> out = new ArrayList<>();
+        int headerX = Integer.MIN_VALUE;
+        for (int i = 0; i < n; i++) {
+            Tab t = drew[i];
+            int at = (int) Math.round(x[i]);
+            if (!t.sub()) headerX = at;
+            // Pinned, drawn while any of it is right of the room's left end; in the row, drawn
+            // while in view; closing, drawn until it is back under the header.
+            // A tab shows whole or not at all: one a slide has pushed past the room's end is left out.
+            boolean whole = at + t.width() <= right && (t.sub() || at >= left);
+            boolean shown = stuck[i] ? at + t.width() > left
+                    : whole && (index[i] >= 0 ? index[i] >= f.first() && index[i] < f.first() + f.shown()
+                    : open.getOrDefault(t.group().id(), 1f) > 0f);
+            if (shown) out.add(new Placed(t, at, t.width(), t.height(), index[i], t.sub(), t.sub() ? headerX : Integer.MIN_VALUE, stuck[i]));
         }
         return out;
     }
 
     /**
-     * Whether tab {@code at} of {@code row}, laid out from {@code first}, is behind its sticky
-     * group's header, wholly or in part: the header paged past, standing at the room's left end
-     * or pushed part way off it.
+     * Pins tabs: of {@code tabs}, laid out from lefts {@code x}, those that {@code pins} stop at
+     * {@code left} as they reach it, and the tabs after them go on behind. A run is a tab and
+     * the sub-tabs of its group after it (a tab outside any group is a run of its own); a run's
+     * pinned tabs stack at {@code left} in its order, and its end, the next run's left or
+     * {@code end} for the last, pushes the stack off to the left as it arrives, so a pinned
+     * sub-tab leaves with its group's header. Moves each pinned tab's {@code x} to where it
+     * stands; whether each one is stuck there, its own place left of where the stack has it.
+     */
+    static boolean[] pin(Tab[] tabs, double[] x, boolean[] pins, double left, double end) {
+        boolean[] stuck = new boolean[tabs.length];
+        for (int from = 0; from < tabs.length; ) {
+            int to = from + 1;
+            while (to < tabs.length && tabs[to].sub() && tabs[to].group() == tabs[from].group()) to++;
+            double runEnd = to < tabs.length ? x[to] : end;
+            // How wide the run's pinned tabs before this one are, and this one and those after it.
+            double before = 0, rest = 0;
+            for (int i = from; i < to; i++) if (pins[i]) rest += tabs[i].width();
+            for (int i = from; i < to; i++) {
+                if (!pins[i]) continue;
+                double stack = left + before, pushed = runEnd - rest;
+                before += tabs[i].width();
+                rest -= tabs[i].width();
+                if (x[i] < stack) {
+                    stuck[i] = true;
+                    x[i] = Math.min(stack, pushed);
+                }
+            }
+            from = to;
+        }
+        return stuck;
+    }
+
+    /**
+     * Whether tab {@code at} of {@code row}, laid out from {@code first}, is behind a pinned
+     * tab, wholly or in part. A tab pinned itself is never behind one.
      */
     static boolean covered(Tab[] row, int first, int at) {
-        Group g = row[at].group();
-        if (!row[at].sub() || g == null || !g.sticky()) return false;
-        int h = at, end = at + 1;
-        while (h > 0 && row[h].sub()) h--;
-        if (h >= first) return false;
-        while (end < row.length && row[end].sub() && row[end].group() == g) end++;
         int[] widths = widths(row);
-        // From the room's left end: the header's left, and the tab's.
-        int header = Math.min(0, span(widths, first, end) - row[h].width());
-        return span(widths, first, at) < header + row[h].width();
+        double[] x = new double[row.length];
+        boolean[] pins = new boolean[row.length];
+        // From the room's left end, 0; tabs before the first are left of it.
+        double cursor = -span(widths, 0, first);
+        for (int i = 0; i < row.length; i++) {
+            x[i] = cursor;
+            cursor += widths[i];
+            pins[i] = row[i].sticky().getAsBoolean();
+        }
+        double from = x[at], to = from + widths[at];
+        boolean[] stuck = pin(row, x, pins, 0, cursor);
+        if (stuck[at]) return false;
+        for (int i = 0; i < row.length; i++) {
+            if (stuck[i] && x[i] < to && x[i] + widths[i] > from) return true;
+        }
+        return false;
     }
 
     private static int[] widths(Tab[] row) {
@@ -724,8 +768,9 @@ public final class ContainerTabRows {
      * What is at {@code (mx, my)} on line {@code l}, the row of {@code count} tabs laid out by
      * {@code f} and drawn at {@code placed}: a tab (its place in the row), an arrow there is one
      * for, or {@link #NONE}. A tab runs from the frame to its height out, and shows only
-     * between the arrows; a header is over its sub-tabs, which show only right of it. Tabs
-     * touch, each from its left edge up to the next one's, so a point is on one tab only.
+     * between the arrows; a pinned tab is over the rest, a header over its sub-tabs, which show
+     * only right of it. Tabs touch, each from its left edge up to the next one's, so a point is
+     * on one tab only.
      */
     private static int hit(Line l, int count, Fit f, int inset, List<Placed> placed, double mx, double my) {
         if (mx < l.x() || mx >= l.x() + l.width()) return NONE;
@@ -734,15 +779,20 @@ public final class ContainerTabRows {
             if (mx >= l.x() + l.width() - ARROW_WIDTH) return f.first() + f.shown() < count ? FORWARD : NONE;
         }
         int left = roomLeft(l, inset), right = roomRight(l, inset);
-        for (boolean subs : new boolean[]{false, true}) {
+        for (int layer = 2; layer >= 0; layer--) {
             for (Placed p : placed) {
-                if (p.sub() != subs || p.index() < 0) continue;
+                if (layer(p) != layer || p.index() < 0) continue;
                 int from = Math.max(left, Math.max(p.x(), p.clipLeft())), to = Math.min(right, p.x() + p.width());
                 int near = l.top() ? l.y() - p.height() : l.y();
                 if (mx >= from && mx < to && my >= near && my < near + p.height()) return p.index();
             }
         }
         return NONE;
+    }
+
+    /** Which tabs draw over which, from the bottom: sub-tabs, then the other tabs, then pinned ones. */
+    private static int layer(Placed p) {
+        return p.stuck() ? 2 : p.sub() ? 0 : 1;
     }
 
     /** {@code edge}'s row this frame: its line, its tabs, how it fits, the arrows' room and where each draws; {@code null} where none shows. */
@@ -801,7 +851,7 @@ public final class ContainerTabRows {
             if (sel >= 0 && KEEP[e]) {
                 if (sel < f.first()) FIRST[e] = sel;
                 else if (sel >= f.first() + f.shown()) FIRST[e] = endingAt(l.width(), widths, sel);
-                // Out from behind a sticky header: back a tab at a time, at most to the header.
+                // Out from behind a pinned tab: back a tab at a time.
                 while (FIRST[e] > 0 && covered(row, FIRST[e], sel)) FIRST[e]--;
             }
             // An empty row (a frame with none showing) keeps the anchor for when they're back.
@@ -828,7 +878,7 @@ public final class ContainerTabRows {
         if (what == BACK || what == FORWARD) {
             FIRST[e] = what == BACK ? Math.max(0, f.first() - 1) : f.first() + 1;
             FIRST_ID[e] = row[FIRST[e]].id();
-            // Paged out of view, or behind a sticky header, the selected tab stays out until it is selected anew.
+            // Paged out of view, or behind a pinned tab, the selected tab stays out until it is selected anew.
             int sel = selected(row);
             KEEP[e] = sel >= FIRST[e] && sel < FIRST[e] + f.shown() && !covered(row, FIRST[e], sel);
         }
@@ -861,7 +911,8 @@ public final class ContainerTabRows {
      * image; a selected one runs {@link #INTO} px into the frame, so it opens into the panel. A
      * disabled one is grayed. Past {@link #fit what fits} the row pages, a tab at a time, with
      * vanilla's page arrows at its ends. A group's sub-tabs draw under the tabs, so they slide
-     * out from under their header. Drawn from the screen's coordinates, not the panel's.
+     * out from under their header, and pinned tabs over every other. Drawn from the screen's
+     * coordinates, not the panel's.
      */
     static final class Strip implements PanelElement {
         private final Edge edge;
@@ -890,12 +941,12 @@ public final class ContainerTabRows {
             int left = roomLeft(l, v.inset()), right = roomRight(l, v.inset());
             int bandTop = l.y() - l.height() - INTO, bandBottom = l.y() + l.height() + INTO;
             graphics.enableScissor(left, bandTop, right, bandBottom);
-            for (boolean subs : new boolean[]{true, false}) {
+            for (int layer = 0; layer <= 2; layer++) {
                 for (Placed p : v.placed()) {
-                    if (p.sub() != subs) continue;
-                    if (subs) graphics.enableScissor(Math.max(left, p.clipLeft()), bandTop, right, bandBottom);
+                    if (layer(p) != layer) continue;
+                    if (p.sub()) graphics.enableScissor(Math.max(left, p.clipLeft()), bandTop, right, bandBottom);
                     draw(graphics, p, l, !f.paged() && p.index() == 0);
-                    if (subs) graphics.disableScissor();
+                    if (p.sub()) graphics.disableScissor();
                 }
             }
             graphics.disableScissor();
