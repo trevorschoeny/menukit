@@ -124,25 +124,30 @@ public final class RegionReveal {
      * After a quick move the client has predicted: the first slot that gained items, if it
      * is the region's and not in view, is shown. A move into the inventory gains its slots,
      * which are not the region's, so nothing scrolls. One into a hidden section runs that
-     * section's {@code onHiddenLanding}.
+     * section's {@code onHiddenLanding}. One into a scrolling slot grid's slot scrolls that grid
+     * ({@code SlotScroll}), with or without a region on the screen.
      */
     public static void quickMoved(AbstractContainerMenu menu, List<ItemStack> before) {
         ContainerRegions.State state = ContainerRegions.state;
         Geometry g = state.geometry;
         Panel panel = ContainerRegions.listPanel();
-        if (!(state.screen.get() instanceof AbstractContainerScreen<?> acs) || g == null || acs.getMenu() != menu) return;
+        AbstractContainerScreen<?> acs = state.screen.get() instanceof AbstractContainerScreen<?> s && g != null
+                && s.getMenu() == menu ? s : null;
         for (int i = 0; i < menu.slots.size() && i < before.size(); i++) {
             Slot slot = menu.slots.get(i);
             ItemStack was = before.get(i), now = slot.getItem();
             boolean gained = !now.isEmpty() && (was.isEmpty() || !ItemStack.isSameItemSameComponents(was, now)
                     || now.getCount() > was.getCount());
             if (!gained) continue;
-            int hidden = RegionSlots.inHidden(slot);
+            int hidden = acs == null ? -1 : RegionSlots.inHidden(slot);
             if (hidden >= 0) {                                 // landed in a section not shown: its mod decides
                 ContainerRegions.landedHidden(hidden);
                 return;
             }
-            if (!regionsOwn(acs, slot, panel)) return;         // landed in the inventory (or elsewhere in view)
+            // A scrolling slot grid holding it (a section's own, or any panel's) scrolls to it itself.
+            // ponytail: a grid in a section the list has scrolled out of view scrolls, the list doesn't
+            if (com.trevlar.menukit.api.element.SlotScroll.quickMoved(slot)) return;
+            if (acs == null || !regionsOwn(acs, slot, panel)) return;   // landed in the inventory (or elsewhere in view)
             Integer cell = cellTop(slot, state.tops, state.bottoms);
             if (cell != null && RegionLayout.revealScroll(state.scroll, cell, g) == state.scroll
                     && PresentedSlots.lastPanel(slot) == panel && onScreen(acs, slot)) return;     // landed in view
