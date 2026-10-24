@@ -5,6 +5,7 @@ import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.inject.ContainerRegions;
 import com.trevlar.menukit.inject.PanelHost;
+import com.trevlar.menukit.inject.RegionDeclarations;
 import com.trevlar.menukit.inject.RegionLayout;
 
 import net.minecraft.client.gui.screens.Screen;
@@ -364,7 +365,7 @@ public final class ContainerRegion {
      */
     public static void fitted(ModeScope scope, ScreenMatcher screens) {
         Declarations.requireOpen("ContainerRegion.fitted(" + scope + ")");
-        ContainerRegions.declareFitted(Objects.requireNonNull(scope, "scope"), Objects.requireNonNull(screens, "screens"));
+        RegionDeclarations.declareFitted(Objects.requireNonNull(scope, "scope"), Objects.requireNonNull(screens, "screens"));
     }
 
     /**
@@ -502,15 +503,15 @@ public final class ContainerRegion {
          */
         public void declare() {
             Declarations.requireOpen("ContainerRegion.section(" + id + ")");
-            ContainerRegions.declare(build());
+            RegionDeclarations.declare(build());
         }
 
         /** The section as built so far, its mode scope one more condition, read every frame with its own. */
-        private ContainerRegions.Declared build() {
+        private RegionDeclarations.Declared build() {
             if (content == null) throw new IllegalStateException("ContainerRegion section '" + id + "': content(...) is required");
             BooleanSupplier own = visibleWhen;
             BooleanSupplier shown = scope == ModeScope.BOTH ? own : () -> scope.covers(PanelHost.currentMode()) && own.getAsBoolean();
-            return new ContainerRegions.Declared(id, content, matcher, order, shown, texture, title, name, source, onHiddenLanding);
+            return new RegionDeclarations.Declared(id, content, matcher, order, shown, texture, title, name, source, onHiddenLanding);
         }
     }
 
@@ -587,7 +588,7 @@ public final class ContainerRegion {
             BiConsumer<? super K, Builder> sectionOf = section;
             ScreenMatcher screens = matcher;
             // Each key's section is named by the kind and the key, unique on the screen.
-            ContainerRegions.declareFamily(new ContainerRegions.Family(kind, screens, keys::apply,
+            RegionDeclarations.declareFamily(new RegionDeclarations.Family(kind, screens, keys::apply,
                     key -> {
                         Builder b = new Builder(kind + "#" + key, scope);
                         b.matcher = screens;

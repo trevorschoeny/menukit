@@ -78,7 +78,7 @@ public final class ShortFrames {
         SWITCHES.add(new Switch(scope, screens));
         if (!first) return;
         // The region on a short screen: fitted, one section for its grid, first in the list.
-        ContainerRegions.declareFitted(ModeScope.BOTH, ScreenMatcher.where(ShortFrames::isShort));
+        RegionDeclarations.declareFitted(ModeScope.BOTH, ScreenMatcher.where(ShortFrames::isShort));
         ContainerRegion.sections(SECTION, ModeScope.BOTH, s -> isShort(s) ? List.of(gridOf(s)) : null)
                 .section((grid, b) -> b.title(() -> grid.title).content(grid.element).order(Integer.MIN_VALUE))
                 .onMatching(ScreenMatcher.where(ShortFrames::on))

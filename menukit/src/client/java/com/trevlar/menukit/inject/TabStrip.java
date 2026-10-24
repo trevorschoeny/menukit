@@ -79,7 +79,7 @@ public final class TabStrip {
                     .build()
                     .visibleWhen(() -> ContainerRegions.state.geometry != null && ContainerRegions.state.applied != null
                             && ContainerTabRows.hasRow(edge));
-            new ScreenPanelAdapter(row, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
+            new ScreenPanelAdapter(row, 0).onMatching(ScreenMatcher.where(RegionDeclarations::targets));
             if (edge != Edge.CONTAINERS_TOP && edge != Edge.INVENTORY_BOTTOM) continue;
             // And on a screen's own frame, where the region isn't up: an ordinary panel, drawn
             // after the screen's image, so a selected tab opens into it.
