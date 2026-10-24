@@ -1,7 +1,7 @@
 package com.trevlar.menukit.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
-import com.trevlar.menukit.inject.ContainerTabRows;
+import com.trevlar.menukit.inject.FrameCentring;
 
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -29,7 +29,7 @@ import org.spongepowered.asm.mixin.injection.At;
 
 /**
  * The window as vanilla's container screen code reads it while a frame is centered with its tab
- * rows ({@link ContainerTabRows#centre}): {@code 2 * dy} taller, in every method of every
+ * rows ({@link FrameCentring#centre}): {@code 2 * dy} taller, in every method of every
  * vanilla container screen class that reads it, so everything vanilla works out from the
  * window's middle moves {@code dy} down with the frame, with vanilla's own rounding: the
  * frame's {@code topPos}, the images drawn from the window, the recipe book and its button,
@@ -63,6 +63,6 @@ public abstract class MKFrameCentringHeightMixin {
             @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/MerchantScreen;height:I", opcode = Opcodes.GETFIELD),
             @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/ShulkerBoxScreen;height:I", opcode = Opcodes.GETFIELD)})
     private int mk$centredHeight(int height) {
-        return height + 2 * ContainerTabRows.centring((Screen) (Object) this);
+        return height + 2 * FrameCentring.centring((Screen) (Object) this);
     }
 }

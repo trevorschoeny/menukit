@@ -50,7 +50,7 @@ import java.util.function.BooleanSupplier;
  *
  * <p>Short means vanilla's frame, MenuKit's seams included ({@code ScreenFrames}), and the tab rows
  * on its outer edges don't fit between the region's margins: the shared centering rule's block
- * ({@link RegionLayout#up}). The fitted frame of a vanilla-sized grid under its title is vanilla's
+ * ({@link FrameCentring#up}). The fitted frame of a vanilla-sized grid under its title is vanilla's
  * frame, so the region then gives back just the rows the window lacks.
  *
  * <p>The grid's slots are vanilla's own, moved, as the region moves the inventory's: each one the
@@ -105,7 +105,7 @@ public final class ShortFrames {
     /** Whether a frame {@code frame} tall with {@code rows} of tab rows on it leaves the window, {@code window} tall, within the margins. Pure. */
     @VisibleForTesting
     public static boolean tooTall(int frame, int rows, int window) {
-        return frame + rows + RegionLayout.TOP_MARGIN + RegionLayout.BOTTOM_MARGIN > window;
+        return frame + rows > FrameCentring.room(window);
     }
 
     /** Vanilla's frame height, seams included: the region keeps it while its union is the screen's. */

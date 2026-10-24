@@ -26,8 +26,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * {@code ScreenFrames}' machinery (Fluorite): each container screen's seams, its size before
- * vanilla centers it, its slots from each seam down, the recipe book button's place in the
- * stretched frame, and the screen's image drawn in parts around the seams. The public face,
+ * vanilla centers it, its slots from each seam down, and the screen's image drawn in parts
+ * around the seams. The recipe book button's place in the stretched frame is
+ * {@link FrameCentring#place}'s. The public face,
  * and what a stretched screen does, is {@code api.panel.ScreenFrames}. Render thread only.
  */
 @ApiStatus.Internal
@@ -135,22 +136,21 @@ public final class ScreenSeams {
         MOVED.clear();
     }
 
-    /**
-     * {@code y}, a place vanilla worked out on the screen as if it were its own size (the
-     * recipe book button's, from the window's middle), moved to the same place in the
-     * stretched frame. Vanilla works it out from the window as its container screen code reads
-     * it, taller while the frame is centered with tab rows ({@code ContainerTabRows.centre}),
-     * so it has moved with the frame already.
-     */
-    public static int place(Screen screen, int y) {
+    /** Whether {@code screen} has seams, MenuKit's or a mod's. */
+    static boolean stretched(Screen screen) {
+        return of(screen) != null;
+    }
+
+    /** How many rows {@code screen}'s seams add in all (negative: take away); 0 for none. */
+    static int by(Screen screen) {
         Seams seams = of(screen);
-        if (seams == null) return y;
-        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
-        // topPos is vanilla's place for the stretched size in the window as vanilla read it: the row is from vanilla's own.
-        int vanillaTop = (screen.height + 2 * ContainerTabRows.centring(screen) - acc.mk$getImageHeight() + seams.by()) / 2;
-        int row = y - vanillaTop;
-        // ponytail: assumes the place was worked out from the window (vanilla's recipe screens do); one from topPos would move twice
-        return acc.mk$getTopPos() + row + seams.shift(row);
+        return seams == null ? 0 : seams.by();
+    }
+
+    /** How far vanilla's row {@code row} of {@code screen} moves: every seam at or above it. */
+    static int shift(Screen screen, int row) {
+        Seams seams = of(screen);
+        return seams == null ? 0 : seams.shift(row);
     }
 
     /** Set while the image's parts are being drawn, so they draw as given. */

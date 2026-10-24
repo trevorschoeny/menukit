@@ -566,10 +566,9 @@ public final class ContainerRegions {
             if (!(screen instanceof AbstractContainerScreen<?> acs) || adapter == null || !adapter.matches(acs)) return;
             if (state.screen.get() != screen) reset(screen);
             AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) acs;
-            // Vanilla's own place: without the move a screen's own frame takes for its tab rows
-            // (ContainerTabRows.centre), as the region centers its block, rows and all, itself.
-            state.vanilla = new Reference(acc.mk$getLeftPos(), acc.mk$getTopPos() - ContainerTabRows.centring(screen),
-                    acc.mk$getImageWidth(), acc.mk$getImageHeight());
+            // Vanilla's own place: without the move a screen's own frame takes for its tab rows,
+            // as the region centers its block, rows and all, itself.
+            state.vanilla = FrameCentring.vanillaFrame(acs);
             state.vanillaInventoryLabelY = acc.mk$getInventoryLabelY();
             state.screenHeight = screen.height;   // a resize initializes again, so the region re-runs
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> frame(acs, mx, my, false));

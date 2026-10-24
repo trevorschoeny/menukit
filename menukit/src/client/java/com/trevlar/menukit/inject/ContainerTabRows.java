@@ -13,7 +13,6 @@ import com.trevlar.menukit.inject.TabRowLayout.Fit;
 import com.trevlar.menukit.inject.TabRowLayout.Line;
 import com.trevlar.menukit.inject.TabRowLayout.Placed;
 import com.trevlar.menukit.inject.TabRowLayout.Shown;
-import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
@@ -33,7 +32,6 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.WeakHashMap;
 
 /**
  * The container screen's tab rows this frame (7.4.0; the public face is {@code api.panel.ContainerTabs}):
@@ -49,7 +47,7 @@ import java.util.WeakHashMap;
  * the outer two rows stand on the screen's own frame instead ({@link #bare}): the top one on
  * its top edge, the bottom one on its bottom edge, drawn just after the screen's image so a
  * selected tab opens into it. The frame and those rows are centered as one block, by the rule
- * the region's block is ({@link #centre}); the two middle edges have no gap to stand in there
+ * the region's block is ({@link FrameCentring}); the two middle edges have no gap to stand in there
  * and show nothing. So screens of one size that open in place of each other, with the same
  * rows, show one row in one place.
  *
@@ -103,7 +101,7 @@ public final class ContainerTabRows {
     /**
      * One frame of {@code screen} with the region down: the tabs that show there on the outer
      * two edges, standing on the screen's own frame. With the region up, it chose the rows. Rows
-     * other than the ones the frame was centered with ({@link #centre}) lay the screen out
+     * other than the ones the frame was centered with ({@link FrameCentring#centre}) lay the screen out
      * again, as the region does on a layout change, so it centers anew and every mod's widget
      * follows: not at init, which has just centered it.
      */
@@ -119,45 +117,9 @@ public final class ContainerTabRows {
             if (lineNow(edge) == null) rows[edge.ordinal()] = drawn[edge.ordinal()] = new Shown[0];
         }
         afterLayout();
-        int[] c = CENTRED.get(screen);
-        if (!atInit && c != null && (c[1] != height(Edge.CONTAINERS_TOP) || c[2] != height(Edge.INVENTORY_BOTTOM))) {
+        if (!atInit && FrameCentring.stale(screen, height(Edge.CONTAINERS_TOP), height(Edge.INVENTORY_BOTTOM))) {
             ContainerRegions.relayout(screen);
         }
-    }
-
-    // A screen's own frame centered with its rows
-
-    /** Each container screen's centering at its last init: {dy, above, below}, the frame's move down from vanilla's place and the rows it counted. */
-    private static final Map<Screen, int[]> CENTRED = new WeakHashMap<>();
-
-    /**
-     * At the head of each of {@code screen}'s inits ({@code MKFrameCentringMixin}), before
-     * vanilla centers it: how far its frame goes down from vanilla's place so that the frame and
-     * the rows standing on it now, the top one above it and the bottom one below, are centered
-     * as one block ({@link RegionLayout#frameTop}, the region's own rule). Vanilla's container
-     * screen code then centers everything from a window that much taller, so the frame, its
-     * image, its slots and labels, the recipe book and its button all move together, and so
-     * does every widget placed from {@code topPos}. No row, or the region up on it: vanilla's
-     * place. The rows are measured ({@link #settledHeights}), not chosen: nothing slides for it.
-     */
-    public static void centre(AbstractContainerScreen<?> screen) {
-        int above = 0, below = 0;
-        boolean regionUp = ContainerRegions.state.geometry != null && ContainerRegions.state.screen.get() == screen;
-        if (carries(screen) && !regionUp) {
-            int[] h = settledHeights(screen);
-            above = h[Edge.CONTAINERS_TOP.ordinal()];
-            below = h[Edge.INVENTORY_BOTTOM.ordinal()];
-        }
-        int imageHeight = ((AbstractContainerScreenAccessor) screen).mk$getImageHeight();
-        int top = (screen.height - imageHeight) / 2;
-        int dy = RegionLayout.frameTop(new Reference(0, top, 0, imageHeight), screen.height, above, below) - top;
-        CENTRED.put(screen, new int[]{dy, above, below});
-    }
-
-    /** How far {@code screen}'s frame is moved down from vanilla's place for its tab rows ({@link #centre}); 0 for none. */
-    public static int centring(Screen screen) {
-        int[] c = CENTRED.get(screen);
-        return c == null ? 0 : c[0];
     }
 
     // This frame's rows

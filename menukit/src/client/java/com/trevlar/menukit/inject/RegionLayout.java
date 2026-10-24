@@ -202,7 +202,7 @@ public final class RegionLayout {
      * down and the inventory panel up, half each, as it grows. The tab rows on the block's
      * outside edges (above the list, below the inventory panel) are in the block, so the frame
      * and its rows are centered together, as a screen's own frame is centered with its rows
-     * where the region isn't up ({@code FrameCentring}): one rule ({@link #up}), so a region
+     * where the region isn't up: one rule ({@link FrameCentring#up}), so a region
      * screen and a vanilla one of the same size, with the same rows, put frame and rows in the
      * same place. Content {@code wider} pixels wider than {@link #CONTENT_WIDTH} makes the list
      * that much wider, so a section with its own scrollbar beside its grid
@@ -235,7 +235,7 @@ public final class RegionLayout {
         // "Inventory" left out, the inventory panel's slots and label staying on its bottom.
         int trim = shape.joined() ? gapTrim(height + part) : 0;
         int grow = rows + height - ownPart - trim;
-        int blockTop = vanilla.topPos() - up(vanilla, screenHeight, grow);
+        int blockTop = vanilla.topPos() - FrameCentring.up(vanilla, screenHeight, grow);
         int top = blockTop + shape.above();
         // Down the block: the list, the gap with the rows between the panels, the inventory
         // panel as tall as vanilla's part (less a row left out), then the row below it.
@@ -250,36 +250,6 @@ public final class RegionLayout {
         return new Geometry(left, top, width, height, bottom, top + VIEW_TOP, viewHeight, content, scrollable,
                 new Reference(left, inventoryTop, inventoryWidth, inventoryBottom - inventoryTop),
                 new Reference(left, blockTop, Math.max(width, imageWidth), inventoryBottom + shape.below() - blockTop), shape);
-    }
-
-    /**
-     * The one centering rule, for the region's block and a screen's own frame with its tab rows
-     * alike: how far the block's top goes up from vanilla's {@code topPos} when the block is
-     * {@code grow} px taller than vanilla's image (negative: shorter). The room still free once
-     * grown is split evenly above and below (floor, as vanilla centers: an odd pixel goes below),
-     * so with vanilla's image centered the block's top is {@code (screenHeight - block) / 2}.
-     * Clamped so that neither end moves the other way from the block's growth (back, when it
-     * grows), nor past its margin while it has room: where one side has less room than the
-     * other, that side holds and the other moves until the block is centered.
-     */
-    public static int up(Reference vanilla, int screenHeight, int grow) {
-        int imageBottom = vanilla.topPos() + vanilla.imageHeight();
-        int roomBelow = Math.max(0, screenHeight - BOTTOM_MARGIN - imageBottom);
-        int roomAbove = Math.max(0, vanilla.topPos() - TOP_MARGIN);
-        int over = Math.floorDiv(roomAbove + roomBelow - grow, 2);
-        return Math.max(Math.min(0, grow), Math.min(Math.max(0, grow), roomAbove - over));
-    }
-
-    /**
-     * Where a screen's own frame goes ({@code topPos}) with a tab row {@code above} px tall on
-     * its top edge and one {@code below} px on its bottom edge (0: none), the region down: the
-     * frame and the rows are one block, centered by {@link #up} as the region's block is. With
-     * no row it is vanilla's own {@code topPos}.
-     *
-     * @param vanilla the screen's bounds as vanilla centered them
-     */
-    public static int frameTop(Reference vanilla, int screenHeight, int above, int below) {
-        return vanilla.topPos() - up(vanilla, screenHeight, above + below) + above;
     }
 
     /**

@@ -1,7 +1,7 @@
 package com.trevlar.menukit.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
-import com.trevlar.menukit.inject.ScreenSeams;
+import com.trevlar.menukit.inject.FrameCentring;
 
 import net.minecraft.client.gui.navigation.ScreenPosition;
 import net.minecraft.client.gui.screens.Screen;
@@ -24,7 +24,7 @@ public abstract class MKRecipeButtonPlaceMixin {
     @ModifyExpressionValue(method = {"initButton", "lambda$initButton$0"}, require = 2, at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/gui/screens/inventory/AbstractRecipeBookScreen;getRecipeBookButtonPosition()Lnet/minecraft/client/gui/navigation/ScreenPosition;"))
     private ScreenPosition mk$stretchedPlace(ScreenPosition pos) {
-        int y = ScreenSeams.place((Screen) (Object) this, pos.y());
+        int y = FrameCentring.place((Screen) (Object) this, pos.y());
         return y == pos.y() ? pos : new ScreenPosition(pos.x(), y);
     }
 }

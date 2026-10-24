@@ -4,7 +4,6 @@ import com.trevlar.menukit.api.element.Easing;
 import com.trevlar.menukit.api.element.Transition;
 import com.trevlar.menukit.api.panel.Reference;
 import com.trevlar.menukit.core.PackLook;
-import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -96,8 +95,7 @@ public final class ScreenSwap {
     }
 
     private static Reference own(AbstractContainerScreen<?> screen) {
-        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
-        return new Reference(acc.mk$getLeftPos(), acc.mk$getTopPos(), acc.mk$getImageWidth(), acc.mk$getImageHeight());
+        return FrameCentring.frame(screen);
     }
 
     /** How far {@code screen}'s frame has moved, eased, 0 to 1; 1 when it isn't moving. */
