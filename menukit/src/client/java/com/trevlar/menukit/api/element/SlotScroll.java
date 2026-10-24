@@ -137,8 +137,13 @@ public final class SlotScroll {
             this.wide = wide;
             GRIDS.add(this);
             // Its live cells now, so a grid made while a screen lays out (a section made for a key
-            // that just appeared) is laid out at its height, not empty until the next frame.
-            frame();
+            // that just appeared) is laid out at its height, not empty until the next frame. Not
+            // before any screen is open, or while the client is still starting (a mod building its
+            // content at init, when the GUI isn't made yet): slots aren't there to count, and the
+            // first screen's init frames every grid anyway. (No client at all is MenuKit's own
+            // headless checks, which count with a live count.)
+            Minecraft mc = Minecraft.getInstance();
+            if (mc == null || mc.gui != null && mc.gui.screen() != null) frame();
         }
 
         /** The columns a row now: one fewer while a narrowing grid scrolls. */
