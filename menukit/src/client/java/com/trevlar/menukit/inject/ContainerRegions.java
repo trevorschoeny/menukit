@@ -393,6 +393,8 @@ public final class ContainerRegions {
         /** Each section's top and bottom in the content this frame, -1 while hidden. */
         int[] tops = new int[0], bottoms = new int[0];
         long lastFrame = -1;
+        /** Whether the screen lays out again before its next frame, its first init centred for tab rows ({@link #init}). */
+        boolean recentre;
         /** The container the screen was opened on ({@link RegionTitles#openedContainer}): its own sections' source. */
         ContainerRegion.@Nullable Source opened;
     }
@@ -439,6 +441,10 @@ public final class ContainerRegions {
             });
             // Lay out now, so every other mod's init listener and widget reads the union.
             frame(acs, -1, -1, true);
+            // A screen's first init centred its frame for its tab rows before the region was up
+            // on it; vanilla's reads of the window stay that much taller until it inits again.
+            // Laid out again before its first frame, with the region up, it reads the window as is.
+            state.recentre = state.geometry != null && FrameCentring.centring(screen) != 0;
         });
     }
 
@@ -466,6 +472,7 @@ public final class ContainerRegions {
         state.tops = new int[0];
         state.bottoms = new int[0];
         state.lastFrame = -1;
+        state.recentre = false;
         state.opened = RegionTitles.openedContainer(screen);
         state.shape = Shape.LIST;
         RegionReveal.reset();
@@ -538,6 +545,11 @@ public final class ContainerRegions {
         // The player's slots first, every frame, before anything below can return: a slot
         // another mod put into the menu since the last frame goes where the inventory is now.
         if (state.screen.get() == screen) RegionBounds.placeSlots(screen.getMenu().slots, state.shiftX, state.inventoryShiftY);
+        if (!atInit && state.recentre && state.screen.get() == screen) {
+            state.recentre = false;
+            relayout(screen);
+            return;
+        }
         Reference vanilla = state.vanilla;
         if (panel == null || vanilla == null || state.screen.get() != screen) return;
         Geometry g = step(vanilla, state.vanillaInventoryLabelY, !screen.getMenu().getCarried().isEmpty(),
