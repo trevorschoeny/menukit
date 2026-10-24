@@ -36,8 +36,20 @@ import org.spongepowered.asm.mixin.injection.At;
         HopperScreen.class, MerchantScreen.class, ShulkerBoxScreen.class})
 public abstract class MKFrameCentringBackgroundMixin {
 
-    @ModifyExpressionValue(method = "extractBackground", require = 1, at = @At(value = "FIELD",
-            target = "Lnet/minecraft/client/gui/screens/Screen;height:I", opcode = Opcodes.GETFIELD))
+    // Read as each class's own field: javac names the class the read is in as its owner.
+    @ModifyExpressionValue(method = "extractBackground", require = 1, at = {
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/AbstractMountInventoryScreen;height:I", opcode = Opcodes.GETFIELD),
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/BeaconScreen;height:I", opcode = Opcodes.GETFIELD),
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/BrewingStandScreen;height:I", opcode = Opcodes.GETFIELD),
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/ContainerScreen;height:I", opcode = Opcodes.GETFIELD),
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/CrafterScreen;height:I", opcode = Opcodes.GETFIELD),
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/CraftingScreen;height:I", opcode = Opcodes.GETFIELD),
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/DispenserScreen;height:I", opcode = Opcodes.GETFIELD),
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/EnchantmentScreen;height:I", opcode = Opcodes.GETFIELD),
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/GrindstoneScreen;height:I", opcode = Opcodes.GETFIELD),
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/HopperScreen;height:I", opcode = Opcodes.GETFIELD),
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/MerchantScreen;height:I", opcode = Opcodes.GETFIELD),
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/ShulkerBoxScreen;height:I", opcode = Opcodes.GETFIELD)})
     private int mk$centredHeight(int height) {
         return height + 2 * ContainerTabRows.centring((Screen) (Object) this);
     }

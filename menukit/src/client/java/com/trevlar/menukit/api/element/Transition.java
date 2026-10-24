@@ -45,10 +45,10 @@ public final class Transition {
     private final boolean eachWay;
 
     /**
-     * Where a key is going: from {@code from} when it turned at {@code at}, toward 1 or 0. Linear
-     * progress, or for {@link #eachWay} the eased progress it turned at.
+     * Where a key is going: from linear progress {@code from} when it turned at {@code at}, toward
+     * 1 or 0, and for {@link #eachWay} the eased progress {@code eased} it turned at.
      */
-    private record Run(float from, long at, boolean forward) {}
+    private record Run(float from, float eased, long at, boolean forward) {}
 
     private final Map<Object, Run> runs = new HashMap<>();
 
@@ -72,7 +72,7 @@ public final class Transition {
      * A transition like {@link #of}, but eased each way: back runs {@code easing} from where the
      * key is toward 0 as forward runs it toward 1, rather than the forward curve backwards. An
      * ease-out then starts fast and settles either way. A turn mid-way runs the curve again from
-     * where it had got to, over as much of {@code millis} as it has left to go.
+     * where it had got to, and takes as long to get back as it took to come.
      *
      * @throws IllegalArgumentException when {@code millis} is not positive
      */
@@ -99,34 +99,31 @@ public final class Transition {
         Run run = runs.get(key);
         if (run == null) {
             if (!forward) return eachWay ? 0f : easing.apply(0f);
-            run = new Run(0f, now, true);
+            run = new Run(0f, 0f, now, true);
             runs.put(key, run);
         } else if (run.forward() != forward) {
-            run = new Run(eachWay ? eased(run, now) : linear(run, now), now, forward);
+            run = new Run(linear(run, now), eachWay ? eased(run, now) : 0f, now, forward);
             runs.put(key, run);
         }
+        float p = linear(run, now);
         if (eachWay) {
             float e = eased(run, now);
-            if (!forward && left(run, now) == 0f) runs.remove(key);
+            if (!forward && p == 0f) runs.remove(key);
             return e;
         }
-        float p = linear(run, now);
         if (!forward && p == 0f) runs.remove(key);
         return easing.apply(p);
     }
 
-    /** An each-way {@code run}'s eased progress at {@code now}: the curve from where it turned to its end. */
+    /**
+     * An each-way {@code run}'s eased progress at {@code now}: the curve from where it turned to
+     * its end, over the time its linear progress takes to get there.
+     */
     private float eased(Run run, long now) {
         float end = run.forward() ? 1f : 0f;
-        float t = 1f - left(run, now);
-        return t >= 1f ? end : run.from() + (end - run.from()) * easing.apply(t);
-    }
-
-    /** How much of an each-way {@code run} is left at {@code now}, 1 when it turns to 0 at its end. */
-    private float left(Run run, long now) {
-        float span = Math.abs((run.forward() ? 1f : 0f) - run.from());
-        if (span == 0f) return 0f;
-        return 1f - Math.max(0f, Math.min(1f, (now - run.at()) / (millis * span)));
+        float span = Math.abs(end - run.from());
+        float t = span == 0f ? 1f : Math.max(0f, Math.min(1f, (now - run.at()) / (millis * span)));
+        return t >= 1f ? end : run.eased() + (end - run.eased()) * easing.apply(t);
     }
 
     /** {@code run}'s linear progress at {@code now}, held at the end it went to. */

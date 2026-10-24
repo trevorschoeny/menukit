@@ -33,8 +33,10 @@ public abstract class MKFrameCentringMixin {
         ContainerTabRows.centre((AbstractContainerScreen<?>) (Object) this);
     }
 
-    @ModifyExpressionValue(method = "init", require = 1, at = @At(value = "FIELD",
-            target = "Lnet/minecraft/client/gui/screens/Screen;height:I", opcode = Opcodes.GETFIELD))
+    // Read as each class's own field: javac names the class the read is in as its owner.
+    @ModifyExpressionValue(method = "init", require = 1, at = {
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/AbstractContainerScreen;height:I", opcode = Opcodes.GETFIELD),
+            @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/AbstractRecipeBookScreen;height:I", opcode = Opcodes.GETFIELD)})
     private int mk$centredHeight(int height) {
         return height + 2 * ContainerTabRows.centring((Screen) (Object) this);
     }
