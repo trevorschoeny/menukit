@@ -73,11 +73,20 @@ public final class FrameCentring {
 
     /**
      * How far a frame {@code imageHeight} tall on a window {@code window} tall moves down from
-     * vanilla's place for rows {@code above} and {@code below} it ({@link #frameTop}).
+     * vanilla's place for rows {@code above} and {@code below} it ({@link #frameTop}), so that
+     * vanilla's own centring from the taller window puts its top there, odd pixels and windows
+     * shorter than the frame included.
      */
     public static int dy(int window, int imageHeight, int above, int below) {
-        int top = (window - imageHeight) / 2;
-        return frameTop(new Reference(0, top, 0, imageHeight), window, above, below) - top;
+        int n = window - imageHeight, top = n / 2;
+        int target = frameTop(new Reference(0, top, 0, imageHeight), window, above, below);
+        // Vanilla centres from the window read 2 * dy taller, (n + 2 * dy) / 2, rounding toward
+        // zero: on a window shorter than the frame an odd n rounds the other way once the sum
+        // turns positive, a pixel off the target. Stepped until vanilla's own sum lands on it.
+        int dy = target - top;
+        while ((n + 2 * dy) / 2 < target) dy++;
+        while ((n + 2 * dy) / 2 > target) dy--;
+        return dy;
     }
 
     // Each screen's own frame
