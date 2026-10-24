@@ -78,6 +78,22 @@ public final class RegionLayout {
      */
     public static final int TAB_ROW = 25;
 
+    /** The one size of vanilla's container screens: the inventory's and nearly every other's ({@code ScreenFrames}). */
+    public static final int STANDARD_HEIGHT = 166;
+
+    /**
+     * The one rule that makes a frame of a grid over the player's inventory the standard size,
+     * for vanilla's screens ({@code ScreenFrames}) and the fitted frame alike, so the two are
+     * the same frame for the same grid: how many rows of the gap between the grid and the
+     * "Inventory" label under it a frame {@code height} tall (with no blank row under it)
+     * leaves out. One where that is a row over {@link #STANDARD_HEIGHT} (a 3-row chest's 167,
+     * vanilla's 3 px under its grid), so it is the standard size with the shulker box's 2 px;
+     * none otherwise, so a double chest keeps its 3.
+     */
+    public static int gapTrim(int height) {
+        return height == STANDARD_HEIGHT + 1 ? 1 : 0;
+    }
+
     /**
      * How the container list stands on its screen this frame: the numbers that differ
      * between the list and the fitted frame, and the room the tab rows take, as the inputs
@@ -112,9 +128,11 @@ public final class RegionLayout {
          *   <li><b>The fitted frame</b> ({@code fitted} true): the list and the inventory panel are
          *       one frame, as vanilla's image is, as tall as the shown sections need, shorter than
          *       the screen's own container part where they are smaller. The grid ends where
-         *       vanilla's does, {@link #GAP} above "Inventory", and a section's title sits where
-         *       vanilla's does, tab row or not: sections as tall as a vanilla container make
-         *       that container's frame, so a tab row reads the same on both.</li>
+         *       vanilla's does, {@link #GAP} above "Inventory" (a row nearer where that makes
+         *       the frame the standard size, by vanilla's screens' own rule, {@link #gapTrim}),
+         *       and a section's title sits where vanilla's does, tab row or not: sections as
+         *       tall as a vanilla container make that container's frame, so a tab row reads the
+         *       same on both.</li>
          * </ul>
          * A tab row between the two panels ({@code betweenRows} px of them: the list's bottom
          * edge or the inventory panel's top) stands in the gap, widened to hold it; it splits a
@@ -231,6 +249,7 @@ public final class RegionLayout {
         int left = vanilla.leftPos(), imageWidth = vanilla.imageWidth();
         int imageBottom = vanilla.topPos() + vanilla.imageHeight();
         int vanillaInventoryTop = vanilla.topPos() + inventoryLabelY - shape.inventoryLabelTop();
+        int part = imageBottom - vanillaInventoryTop;
         int ownPart = vanillaInventoryTop - shape.panelGap() - vanilla.topPos();
         // The room each way, never negative: the inventory down to the bottom margin, the
         // block's top up to the top margin.
@@ -243,14 +262,17 @@ public final class RegionLayout {
         long least = (long) ownPart - shape.shrink();
         int height = (int) Math.max(least, Math.min(VIEW_TOP + content + shape.viewBottom(),
                 ownPart + roomAbove + roomBelow - rows));
-        int grow = rows + height - ownPart;
+        // One frame is the standard size by vanilla's rule (gapTrim): a row of the gap above
+        // "Inventory" left out, the inventory panel's slots and label staying on its bottom.
+        int trim = shape.joined() ? gapTrim(height + part) : 0;
+        int grow = rows + height - ownPart - trim;
         int blockTop = vanilla.topPos() - up(vanilla, screenHeight, grow);
         int top = blockTop + shape.above();
         // Down the block: the list, the gap with the rows between the panels, the inventory
-        // panel as tall as vanilla's part, then the row below it.
+        // panel as tall as vanilla's part (less a row left out), then the row below it.
         int bottom = top + height;
         int inventoryTop = bottom + shape.panelGap() + shape.between();
-        int inventoryBottom = inventoryTop + imageBottom - vanillaInventoryTop;
+        int inventoryBottom = inventoryTop + part - trim;
         int viewHeight = height - VIEW_TOP - shape.viewBottom();
         boolean scrollable = content > viewHeight;
         int width = imageWidth + Math.max(0, wider) + (scrollable ? LANE : 0);

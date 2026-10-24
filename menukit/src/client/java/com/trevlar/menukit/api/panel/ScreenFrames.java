@@ -3,6 +3,7 @@ package com.trevlar.menukit.api.panel;
 import com.trevlar.menukit.api.Declarations;
 import com.trevlar.menukit.inject.ContainerRegions;
 import com.trevlar.menukit.inject.ContainerTabRows;
+import com.trevlar.menukit.inject.RegionLayout;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevlar.menukit.mixin.SlotAccessor;
 
@@ -117,9 +118,12 @@ public final class ScreenFrames {
         if (screen.getClass() == ContainerScreen.class) {
             int rows = ((ContainerScreen) screen).getMenu().getRowCount();
             // Vanilla's frame is 114 + 18 a row; its image (rows * 18 + 17, then the inventory's 96) a row less.
-            Seam blank = new Seam(113 + rows * 18, -1);
-            // Row 72 is plain gap, under the third row's slots and over the "Inventory" label.
-            return rows == 3 ? List.of(new Seam(72, -1), blank) : List.of(blank);
+            int frame = 113 + rows * 18;
+            Seam blank = new Seam(frame, -1);
+            // Then the standard size's rule, the fitted frame's too: row 18 + 18 a row is plain
+            // gap, under the grid's last row and over the "Inventory" label.
+            int trim = RegionLayout.gapTrim(frame);
+            return trim > 0 ? List.of(new Seam(18 + rows * 18, -trim), blank) : List.of(blank);
         }
         return List.of();
     }
