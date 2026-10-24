@@ -27,6 +27,7 @@
     "MKRecipeBookAccessor",
     "MKRecipeButtonPlaceMixin",
     "MKScreenBackgroundMixin",
+    "MKScreenSwapMixin",
     "MKSlotActiveMixin",
     "MKSlotInputMixin",
     "MKSlotItemLookMixin",

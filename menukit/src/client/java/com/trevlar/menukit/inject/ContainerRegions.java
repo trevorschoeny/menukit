@@ -170,7 +170,7 @@ public final class ContainerRegions {
     /** The inventory panel's panel id. */
     public static final String INVENTORY_PANEL_ID = "menukit:container_region_inventory";
     /** The after-init phase the bounds are set in: before the default one, so other mods' init listeners see them. */
-    private static final Identifier FIRST = Identifier.fromNamespaceAndPath("menukit", "container_region_bounds");
+    public static final Identifier FIRST = Identifier.fromNamespaceAndPath("menukit", "container_region_bounds");
 
     // Anchors: each panel's rectangle on the screen the region is on.
 

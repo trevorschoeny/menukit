@@ -57,6 +57,8 @@ public final class ScreenBackground {
     private static boolean drawn, watching;
     /** Whether the rest of this pass leaves out the screen's own image. */
     private static boolean hidingImage;
+    /** Whether a moving frame's clip is on for the rest of this pass ({@link ScreenSwap}). */
+    private static boolean swapClipped;
     /** The screen's own image in this pass once it is seen, or {@code null} before. */
     private static @Nullable Identifier passImage;
 
@@ -78,20 +80,23 @@ public final class ScreenBackground {
      */
     public static void around(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY, Runnable vanilla) {
         Screen outerPass = pass;
-        boolean outerDrawn = drawn, outerWatching = watching, outerHiding = hidingImage;
+        boolean outerDrawn = drawn, outerWatching = watching, outerHiding = hidingImage, outerClipped = swapClipped;
         Identifier outerImage = passImage;
         pass = screen;
         drawn = watching = false;
         hidingImage = false;
+        swapClipped = false;
         passImage = null;
         try {
             vanilla.run();
             if (!drawn) draw(screen, graphics, mouseX, mouseY);
+            if (swapClipped) graphics.disableScissor();
         } finally {
             pass = outerPass;
             drawn = outerDrawn;
             watching = outerWatching;
             hidingImage = outerHiding;
+            swapClipped = outerClipped;
             passImage = outerImage;
         }
     }
@@ -109,6 +114,9 @@ public final class ScreenBackground {
     private static void draw(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         drawn = true;
         ScreenPanelRegistry.renderBackground(screen, graphics, mouseX, mouseY);
+        // A screen opened in place of another: its frame, moving, where its image goes, and
+        // the rest of the pass clipped inside it. Drawn before the image is looked for.
+        swapClipped = ScreenSwap.drawFrame(screen, graphics);
         // From here to the pass's end the screen's own image comes, and would be drawn over
         // the panels that replace it. The layer's own blits above are not the image: it is
         // only looked for from here.

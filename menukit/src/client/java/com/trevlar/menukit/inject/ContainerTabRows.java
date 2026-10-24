@@ -297,8 +297,8 @@ public final class ContainerTabRows {
             bare = null;
             return;
         }
-        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
-        bare = new Reference(acc.mk$getLeftPos(), acc.mk$getTopPos(), acc.mk$getImageWidth(), acc.mk$getImageHeight());
+        // The frame as it draws: moving, a moment, when the screen opened in place of another.
+        bare = ScreenSwap.frame(screen);
         choose(screen);
         for (Edge edge : Edge.values()) {
             if (lineNow(edge) == null) rows[edge.ordinal()] = drawn[edge.ordinal()] = new Tab[0];

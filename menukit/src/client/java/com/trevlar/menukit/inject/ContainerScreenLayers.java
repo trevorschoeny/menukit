@@ -143,6 +143,9 @@ public final class ContainerScreenLayers {
     /** Whether layer 2 has been drawn this frame. Render thread only. */
     private static boolean flowDrawn = false;
 
+    /** Whether vanilla's contents are clipped inside a moving frame this frame ({@link ScreenSwap}). Render thread only. */
+    private static boolean swapClipped = false;
+
     /** Whether the slot (or highlight) vanilla is drawing now is scissored to its clip. Render thread only. */
     private static boolean slotClipped = false;
 
@@ -159,8 +162,10 @@ public final class ContainerScreenLayers {
      * its slot elements place and report their slots ({@link PresentedSlots}) before
      * vanilla works out the hovered slot and walks the slots.
      */
-    public static void frameStart(AbstractContainerScreen<?> screen, int mouseX, int mouseY) {
+    public static void frameStart(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         flowDrawn = false;
+        // Vanilla's contents (widgets, labels, slots), clipped inside a moving frame, up to the panel layers.
+        swapClipped = ScreenSwap.clip(screen, graphics);
         PresentedSlots.beginFrame(screen, mouseX, mouseY);
         // The container region notes where its slots are now (7.4.0), to show a quick
         // move: its panels are background panels, placed already in this frame's
@@ -215,7 +220,10 @@ public final class ContainerScreenLayers {
             AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
             graphics.pose().pushMatrix();
             graphics.pose().translate(-acc.mk$getLeftPos(), -acc.mk$getTopPos());
+            // The panels aren't vanilla's contents: outside a moving frame's clip, which goes back on after.
+            if (swapClipped) graphics.disableScissor();
             renderFlow(screen, graphics, mouseX, mouseY);
+            if (swapClipped) ScreenSwap.clip(screen, graphics);
             graphics.pose().popMatrix();
             // Vanilla drew the hovered slot's back highlight before the slot pass; for
             // an unreported created slot that is under the chrome just drawn, so draw
@@ -262,6 +270,8 @@ public final class ContainerScreenLayers {
      */
     public static void aboveSlots(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
                                   int mouseX, int mouseY) {
+        if (swapClipped) graphics.disableScissor();
+        swapClipped = false;
         if (!flowDrawn) renderFlow(screen, graphics, mouseX, mouseY);
         ScreenPanelRegistry.renderOverlay(screen, graphics, mouseX, mouseY);
         SlotScreenDispatcher.fireEndFrame(screen);

@@ -35,7 +35,7 @@ public abstract class MKContainerLayersMixin {
     @Inject(method = "extractContents", at = @At("HEAD"), require = 1)
     private void mk$frameStart(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
                                float partialTick, CallbackInfo ci) {
-        ContainerScreenLayers.frameStart((AbstractContainerScreen<?>) (Object) this, mouseX, mouseY);
+        ContainerScreenLayers.frameStart((AbstractContainerScreen<?>) (Object) this, graphics, mouseX, mouseY);
     }
 
     /**
