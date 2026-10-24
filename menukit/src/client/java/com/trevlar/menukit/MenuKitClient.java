@@ -77,6 +77,8 @@ public class MenuKitClient implements ClientModInitializer {
         ContainerRegions.init();
         // After the region's hooks, so a row stands on a screen's own frame only where the region isn't up.
         ContainerTabRows.init();
+        // The frame centring's height mixin may find nothing in a class another mod replaced: say which.
+        MenuKitMixins.checkCentring();
         // Stretched vanilla frames: a screen's size before vanilla centers it, its slots from the seam down.
         ScreenSeams.init();
         // Scrolling slot grids: each one's live cells read once a frame, before the region lays out.

@@ -36,7 +36,9 @@ import org.spongepowered.asm.mixin.injection.At;
  * the anvil's name field, the crafter's arrow, the enchanting table's and the merchant's
  * clicks and offers. What vanilla places from {@code topPos} moves with it already, and no
  * vanilla container screen keeps a place from the window anywhere else. 0 on a screen with no
- * tab row, so nothing moves there.
+ * tab row, so nothing moves there. {@code require = 0}: another mod that replaces one of these
+ * methods outright doesn't stop the game from starting; MenuKit's mixin plugin
+ * ({@code MenuKitMixins}) warns at client start of any class left with nothing injected.
  */
 @ApiStatus.Internal
 @Mixin({AbstractContainerScreen.class, AbstractFurnaceScreen.class, AbstractMountInventoryScreen.class, AbstractRecipeBookScreen.class, AnvilScreen.class, BeaconScreen.class, BrewingStandScreen.class, ContainerScreen.class, CrafterScreen.class, CraftingScreen.class, DispenserScreen.class, EnchantmentScreen.class, GrindstoneScreen.class, HopperScreen.class, InventoryScreen.class, MerchantScreen.class, ShulkerBoxScreen.class})
@@ -44,7 +46,7 @@ public abstract class MKFrameCentringHeightMixin {
 
     // Read as each class's own field: javac names the class the read is in as its owner, so a
     // widget's own height (the beacon's buttons, the recipe book's) is never read taller.
-    @ModifyExpressionValue(method = "*", require = 1, at = {
+    @ModifyExpressionValue(method = "*", require = 0, at = {
             @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/AbstractContainerScreen;height:I", opcode = Opcodes.GETFIELD),
             @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/AbstractFurnaceScreen;height:I", opcode = Opcodes.GETFIELD),
             @At(value = "FIELD", target = "Lnet/minecraft/client/gui/screens/inventory/AbstractMountInventoryScreen;height:I", opcode = Opcodes.GETFIELD),
