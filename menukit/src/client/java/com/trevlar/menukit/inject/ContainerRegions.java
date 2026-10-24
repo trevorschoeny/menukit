@@ -667,19 +667,6 @@ public final class ContainerRegions {
         return g != null && (g.scrollable() || state.sectionScrolls);
     }
 
-    /**
-     * {@code ContainerRegion.contentRoom}: the content height a section on {@code screen} may
-     * grow to before the fitted list would scroll, worked out from {@code screen}'s own size,
-     * this frame's tab rows and whether it is {@link #fitted}, never from this frame's own
-     * layout (a section reads this while building itself, ahead of that layout). 0 while the
-     * region is not on {@code screen} yet (its own init, before {@link #frame} first runs).
-     */
-    public static int contentRoom(Screen screen) {
-        Objects.requireNonNull(screen, "screen");
-        if (state.screen.get() != screen || state.vanilla == null) return 0;
-        return RegionLayout.maxContent(state.vanilla, state.vanillaInventoryLabelY, state.screenHeight, shapeFor(screen));
-    }
-
     /** The open region's scroll, in pixels. */
     public static double scroll() {
         return state.scroll;

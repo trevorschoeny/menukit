@@ -354,22 +354,6 @@ public final class ContainerRegion {
     }
 
     /**
-     * The content height a section on {@code screen} may grow to before the fitted list
-     * ({@link #fitted}) would scroll: the room left there after the tab rows on it, the frame,
-     * the inventory part and the margins, in pixels. For a mod that grows its own scrolling
-     * grid up to the list's room before scrolling inside itself; read it both while building
-     * the grid and on every frame (the room changes with the window). Worked out from
-     * {@code screen}'s own size and this frame's tab rows, never from this frame's own layout,
-     * so it is answerable before that layout runs. 0 while the region is not on {@code screen}
-     * yet. Render thread.
-     *
-     * @throws NullPointerException if {@code screen} is {@code null}
-     */
-    public static int contentRoom(Screen screen) {
-        return ContainerRegions.contentRoom(screen);
-    }
-
-    /**
      * The fitted frame for the screens {@code screens} takes, in {@code scope}'s game mode
      * ({@link ModeScope#BOTH} for either), read every frame: their list and inventory panel are
      * one frame, as tall as the shown sections need (see "The fitted frame"). Every other screen
