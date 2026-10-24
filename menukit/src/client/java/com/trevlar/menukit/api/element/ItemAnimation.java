@@ -1,6 +1,7 @@
 package com.trevlar.menukit.api.element;
 
 import com.trevlar.menukit.core.ItemOpenness;
+import com.trevlar.menukit.core.ItemTurn;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.item.ItemStack;
@@ -41,8 +42,9 @@ public interface ItemAnimation {
     ItemAnimation OPEN_LID = ItemOpenness::draw;
 
     /**
-     * This animation moved and scaled as it plays: at each {@code t}, {@code pose} says how big
-     * the item draws (scaled about its box's center) and how far it moves, in GUI pixels.
+     * This animation moved, scaled and turned as it plays: at each {@code t}, {@code pose} says
+     * how big the item draws (scaled about its box's center), how far it moves, in GUI pixels,
+     * and how far its model turns ({@link Pose#pitch}, {@link Pose#yaw}, {@link Pose#roll}).
      */
     default ItemAnimation posed(Posing pose) {
         Objects.requireNonNull(pose, "pose");
@@ -57,7 +59,8 @@ public interface ItemAnimation {
             g.pose().translate(x + 8f + p.offsetX(), y + 8f + p.offsetY());
             g.pose().scale(p.scale(), p.scale());
             g.pose().translate(-(x + 8f), -(y + 8f));
-            inner.draw(g, stack, x, y, t);
+            if (p.pitch() == 0f && p.yaw() == 0f && p.roll() == 0f) inner.draw(g, stack, x, y, t);
+            else ItemTurn.draw(p.pitch(), p.yaw(), p.roll(), () -> inner.draw(g, stack, x, y, t));
             g.pose().popMatrix();
         };
     }
@@ -74,10 +77,29 @@ public interface ItemAnimation {
         }
     }
 
-    /** How big an item draws, about its box's center (1 is as it is), and how far it moves, in GUI pixels. */
-    record Pose(float scale, float offsetX, float offsetY) {
+    /**
+     * How big an item draws, about its box's center (1 is as it is), how far it moves, in GUI
+     * pixels, and how far its model turns, in degrees about its center. The turn adds to the
+     * rotation the item's model draws with in the GUI (its {@code display.gui.rotation}, x, y
+     * and z, as a resource pack writes it): {@code pitch} to x, {@code yaw} to y, {@code roll}
+     * to z. A block's is {@code [30, 225, 0]} and a head's {@code [30, 45, 0]}; a head faces the
+     * viewer at {@code [0, 0, 0]}, so a pitch of -30 and a yaw of -45 turn it to face front:
+     *
+     * <pre>{@code
+     * ItemAnimation FACE_FRONT = ItemAnimation.PLAIN.posed(t -> new ItemAnimation.Pose(1f, 0f, 0f, -30f * t, -45f * t, 0f));
+     * }</pre>
+     *
+     * A flat item (a sword, a stick) has no depth to show: a yaw or pitch turns it edge on, like
+     * a card, and a roll spins it in the screen's plane. Angles round to whole degrees.
+     */
+    record Pose(float scale, float offsetX, float offsetY, float pitch, float yaw, float roll) {
         /** As it is. */
         public static final Pose NONE = new Pose(1f, 0f, 0f);
+
+        /** Scaled and moved, not turned. */
+        public Pose(float scale, float offsetX, float offsetY) {
+            this(scale, offsetX, offsetY, 0f, 0f, 0f);
+        }
     }
 
     /** The {@link Pose} at each point of an animation. */
