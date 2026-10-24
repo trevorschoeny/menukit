@@ -39,7 +39,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 
 /**
- * {@code ScreenFrames.scrollWhenShort}: a vanilla screen's own container grid scrolls inside its
+ * {@code ScreenFrames.scrollsWhenShort}: a vanilla screen's own container grid scrolls inside its
  * frame when the frame wouldn't fit the window (Fluorite). Off unless a mod turns it on for a screen.
  *
  * <p>It is the container region, fitted, with one section MenuKit makes itself: the screen's own
@@ -72,7 +72,7 @@ public final class ShortFrames {
 
     private static final List<Switch> SWITCHES = new CopyOnWriteArrayList<>();
 
-    /** {@code ScreenFrames.scrollWhenShort}: the screens {@code screens} takes scroll their grid in {@code scope}'s mode. */
+    /** {@code ScreenFrames.scrollsWhenShort}: the screens {@code screens} takes scroll their grid in {@code scope}'s mode. */
     public static synchronized void declare(ModeScope scope, ScreenMatcher screens) {
         boolean first = SWITCHES.isEmpty();
         SWITCHES.add(new Switch(scope, screens));

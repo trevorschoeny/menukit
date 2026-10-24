@@ -103,7 +103,7 @@ public class MenuKitClient implements ClientModInitializer {
 
         // Keeps the cursor where it was across screen changes, undoing vanilla's
         // re-centering. Applies to every screen with no opt-in. See CursorContinuity.
-        CursorContinuity.registerRestoreHook();
+        CursorContinuity.init();
 
         // Cursor lock under a modal. Window has a global allowCursorChanges flag;
         // with it false, every selectCursor call returns CursorType.DEFAULT

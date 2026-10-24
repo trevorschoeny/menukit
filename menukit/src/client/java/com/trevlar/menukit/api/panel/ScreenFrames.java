@@ -53,13 +53,13 @@ import java.util.Objects;
  * </ul>
  *
  * <h3>A grid that scrolls when the frame doesn't fit (Fluorite)</h3>
- * {@link #scrollWhenShort} turns it on for the screens a mod chooses; MenuKit never does on its own.
+ * {@link #scrollsWhenShort} turns it on for the screens a mod chooses; MenuKit never does on its own.
  * On such a screen, while its frame wouldn't fit the window, its own container grid scrolls inside
  * the frame and the frame is as much shorter, so the whole screen fits:
  *
  * <pre>{@code
  * // A large chest on a short window: its six rows scroll, the inventory stays put.
- * ScreenFrames.scrollWhenShort(ModeScope.BOTH, ScreenMatcher.only(ContainerScreen.class));
+ * ScreenFrames.scrollsWhenShort(ModeScope.BOTH, ScreenMatcher.only(ContainerScreen.class));
  * }</pre>
  * <ul>
  *   <li><b>When.</b> The frame (its seams included) and the tab rows on its top and bottom edges
@@ -114,8 +114,8 @@ public final class ScreenFrames {
      *
      * @throws IllegalStateException after declarations froze
      */
-    public static void scrollWhenShort(ModeScope scope, ScreenMatcher screens) {
-        Declarations.requireOpen("ScreenFrames.scrollWhenShort(" + scope + ")");
+    public static void scrollsWhenShort(ModeScope scope, ScreenMatcher screens) {
+        Declarations.requireOpen("ScreenFrames.scrollsWhenShort(" + scope + ")");
         ShortFrames.declare(Objects.requireNonNull(scope, "scope"), Objects.requireNonNull(screens, "screens"));
     }
 }

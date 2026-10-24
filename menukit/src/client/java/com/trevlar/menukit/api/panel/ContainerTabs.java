@@ -122,7 +122,7 @@ import java.util.function.Supplier;
  *   <li><b>Paging</b> counts the tabs out: a closed group is its header, an open one its header
  *       and every sub-tab, and the arrows page through those. A closed group's sub-tabs take no
  *       click.</li>
- *   <li><b>Pinned tabs</b> ({@link Builder#stickyWhen}), a header or a sub-tab, stay in view
+ *   <li><b>Pinned tabs</b> ({@link Builder#pinnedWhen}), a header or a sub-tab, stay in view
  *       while the row is paged either way past them: each stops at the end of the row it would
  *       leave by, the tabs beyond it going on behind it, and pinned tabs of one group stand
  *       there side by side in row order, until the next group's header (at the left end) or
@@ -415,7 +415,7 @@ public final class ContainerTabs {
         private @Nullable Object ref;
         private @Nullable Supplier<@Nullable Component> tooltip;
         private Runnable onClick = () -> {};
-        private BooleanSupplier visibleWhen = () -> true, selectedWhen = () -> false, disabledWhen = () -> false, stickyWhen = () -> false;
+        private BooleanSupplier visibleWhen = () -> true, selectedWhen = () -> false, disabledWhen = () -> false, pinnedWhen = () -> false;
 
         private Builder(String id, ModeScope scope) {
             this.id = Objects.requireNonNull(id, "id");
@@ -527,8 +527,8 @@ public final class ContainerTabs {
          * behind a pinned one is brought out from behind it. Pinning is a group's: a tab outside
          * any group is pushed off by the tab after it, so it pages as before. Default: never.
          */
-        public Builder stickyWhen(BooleanSupplier condition) {
-            this.stickyWhen = Objects.requireNonNull(condition, "condition");
+        public Builder pinnedWhen(BooleanSupplier condition) {
+            this.pinnedWhen = Objects.requireNonNull(condition, "condition");
             return this;
         }
 
@@ -565,7 +565,7 @@ public final class ContainerTabs {
             BooleanSupplier scoped = scope == ModeScope.BOTH ? own : () -> scope.covers(PanelHost.currentMode()) && own.getAsBoolean();
             BooleanSupplier header = under;
             BooleanSupplier shown = header == null ? scoped : () -> header.getAsBoolean() && scoped.getAsBoolean();
-            return new TabRegistry.Tab(id, ref != null ? ref : id, matcher, order, edge, shown, selectedWhen, disabledWhen, stickyWhen,
+            return new TabRegistry.Tab(id, ref != null ? ref : id, matcher, order, edge, shown, selectedWhen, disabledWhen, pinnedWhen,
                     icon, tooltip, onClick, width, height, group, sub);
         }
     }

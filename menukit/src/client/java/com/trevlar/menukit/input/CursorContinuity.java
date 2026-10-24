@@ -94,7 +94,7 @@ public final class CursorContinuity {
      * pointer read is wherever the real mouse happens to be). Call once from client
      * init; a second call would add duplicate listeners.
      */
-    public static void registerRestoreHook() {
+    public static void init() {
         ScreenEvents.AFTER_INIT.register((client, screen, sw, sh) -> {
             ScreenEvents.remove(screen).register(s -> capture());
         });

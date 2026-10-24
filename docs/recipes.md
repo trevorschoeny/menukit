@@ -771,7 +771,7 @@ For a vanilla screen's own grid, turn it on with one line:
 
 ```java
 // A large chest on a short window: its own six rows scroll inside its frame, the inventory stays put.
-ScreenFrames.scrollWhenShort(ModeScope.BOTH, ScreenMatcher.only(ContainerScreen.class));
+ScreenFrames.scrollsWhenShort(ModeScope.BOTH, ScreenMatcher.only(ContainerScreen.class));
 ```
 
 Result: a large chest on a window too short for its frame, at a big GUI scale say, scrolls its six rows inside a frame that fits, within the 4 pixel margins, its tab rows counted. The title, the inventory and the hotbar stay put. On a window the frame fits, the screen is vanilla's to the pixel. Its slots are vanilla's, so recipe viewers and mods reading `slot.x/y` see each one where it is drawn.
