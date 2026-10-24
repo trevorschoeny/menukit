@@ -1,6 +1,7 @@
 package com.trevlar.menukit.inject;
 
 import com.trevlar.menukit.api.element.Easing;
+import com.trevlar.menukit.api.element.Transition;
 import com.trevlar.menukit.api.panel.Reference;
 import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
@@ -51,10 +52,12 @@ public final class ScreenSwap {
 
     /** The frame of a container screen just taken down, until the next frame is drawn or a screen takes its place. */
     private static @Nullable Reference pending;
-    /** The screen whose frame is moving, where from, and when it started; {@code null} when none is. */
+    /** The screen whose frame is moving, where from, and its move; {@code null} when none is. */
     private static @Nullable AbstractContainerScreen<?> moving;
     private static @Nullable Reference from;
-    private static long at;
+    /** The move under way: one key, run forward from the swap, eased out. Made anew for each swap. */
+    private static Transition move = Transition.of(MILLIS, Easing.EASE_OUT);
+    private static final Object MOVE = new Object();
 
     /**
      * The after-init phase a screen is seen in: before the region's, so its taking down is
@@ -77,7 +80,8 @@ public final class ScreenSwap {
             if (was == null || was.equals(own(acs))) return;
             moving = acs;
             from = was;
-            at = ContainerTabRows.clock.getAsLong();
+            move = Transition.of(MILLIS, Easing.EASE_OUT);
+            move.toward(MOVE, true, MenuKitClock.now());
         });
     }
 
@@ -99,12 +103,9 @@ public final class ScreenSwap {
     /** How far {@code screen}'s frame has moved, eased, 0 to 1; 1 when it isn't moving. */
     private static float progress(AbstractContainerScreen<?> screen) {
         if (moving != screen || !moves(screen)) return 1f;
-        float t = (float) (ContainerTabRows.clock.getAsLong() - at) / MILLIS;
-        if (t >= 1f) {
-            moving = null;
-            return 1f;
-        }
-        return Easing.EASE_OUT.apply(Math.max(0f, t));
+        float e = move.toward(MOVE, true, MenuKitClock.now());
+        if (e >= 1f) moving = null;
+        return e;
     }
 
     /** Whether {@code screen}'s frame is moving now. */

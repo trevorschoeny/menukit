@@ -34,7 +34,6 @@ import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.Util;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.VisibleForTesting;
@@ -53,7 +52,6 @@ import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -372,9 +370,6 @@ public final class ContainerTabRows {
 
     // Groups sliding
 
-    /** The clock the slides run on: vanilla's, as every MenuKit animation's. Checks stop it to step through a slide. */
-    @VisibleForTesting
-    public static LongSupplier clock = Util::getMillis;
     /**
      * Each group's slide, by its id, so it carries over to a screen opened in place of another.
      * Eased each way, so a group closing moves from its first frame as one opening does.
@@ -401,7 +396,7 @@ public final class ContainerTabRows {
      * frame it stands at its end: opening the inventory shows its groups as they are.
      */
     private static float openness(String id, boolean expanded) {
-        long now = clock.getAsLong();
+        long now = MenuKitClock.now();
         if (!settle) return slide.toward(id, expanded, now);
         // Started a whole slide ago, so it is already there.
         slide.toward(id, expanded, now - ContainerTabs.SLIDE_MILLIS);
@@ -617,7 +612,7 @@ public final class ContainerTabRows {
 
     /** The arrows' room at each end of {@code edge}'s row this frame, toward theirs while it pages ({@link #pageRoom}). */
     private static int inset(Edge edge, boolean paged) {
-        long now = clock.getAsLong();
+        long now = MenuKitClock.now();
         // No group sliding: the room is where it goes, at once.
         if (!SLIDING[edge.ordinal()]) pageRoom.toward(edge, paged, now - ContainerTabs.SLIDE_MILLIS);
         return Math.round((ARROW_WIDTH + 1) * pageRoom.toward(edge, paged, now));
