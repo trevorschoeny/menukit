@@ -1,5 +1,6 @@
 package com.trevlar.menukit;
 
+import com.trevlar.menukit.api.Declarations;
 import com.trevlar.menukit.api.MK;
 import com.trevlar.menukit.api.panel.Focus;
 import com.trevlar.menukit.core.ControlLook;
@@ -7,15 +8,21 @@ import com.trevlar.menukit.core.OptiGuiRules;
 import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.PackText;
 import com.trevlar.menukit.inject.ContainerRegions;
+import com.trevlar.menukit.inject.ContainerTabRows;
 import com.trevlar.menukit.inject.MenuChrome;
 import com.trevlar.menukit.inject.PanelEditing;
 import com.trevlar.menukit.inject.PanelPositions;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
+import com.trevlar.menukit.inject.ScreenSeams;
+import com.trevlar.menukit.inject.ScreenSwap;
+import com.trevlar.menukit.inject.SharedPanelRegistry;
+import com.trevlar.menukit.inject.SlotScrollGrid;
 import com.trevlar.menukit.input.CursorContinuity;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevlar.menukit.mixin.MKRecipeBookAccessor;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
@@ -50,8 +57,8 @@ public class MenuKitClient implements ClientModInitializer {
         var started = net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STARTED;
         started.addPhaseOrdering(net.fabricmc.fabric.api.event.Event.DEFAULT_PHASE, sharedPanels);
         started.addPhaseOrdering(sharedPanels, freeze);
-        started.register(sharedPanels, client -> com.trevlar.menukit.inject.SharedPanelRegistry.buildAll());
-        started.register(freeze, client -> com.trevlar.menukit.api.Declarations.freeze("client started"));
+        started.register(sharedPanels, client -> SharedPanelRegistry.buildAll());
+        started.register(freeze, client -> Declarations.freeze("client started"));
 
         MK.initClient();
 
@@ -64,18 +71,18 @@ public class MenuKitClient implements ClientModInitializer {
         ScreenPanelRegistry.init();
         // Player-moved panels (7.4.0): where they were put, read once here and written on
         // each drop and reset; and the edit mode they are moved in, with its key.
-        PanelPositions.load(PanelPositions.defaultFile(net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir()));
+        PanelPositions.load(PanelPositions.defaultFile(FabricLoader.getInstance().getConfigDir()));
         PanelEditing.init();
         // The container region's per-screen hooks (7.4.0): its frame, and the wheel, last.
         ContainerRegions.init();
         // After the region's hooks, so a row stands on a screen's own frame only where the region isn't up.
-        com.trevlar.menukit.inject.ContainerTabRows.init();
+        ContainerTabRows.init();
         // Stretched vanilla frames: a screen's size before vanilla centers it, its slots from the seam down.
-        com.trevlar.menukit.api.panel.ScreenFrames.init();
+        ScreenSeams.init();
         // Scrolling slot grids: each one's live cells read once a frame, before the region lays out.
-        com.trevlar.menukit.api.element.SlotScroll.init();
+        SlotScrollGrid.init();
         // A container screen opened in place of another: its frame moves from the old one's.
-        com.trevlar.menukit.inject.ScreenSwap.init();
+        ScreenSwap.init();
 
         // MenuKit's looks follow resource packs: what each reads from the packs (the panels'
         // container art, the controls' sprites, the text shader, OptiGUI's rules) is cached,
@@ -114,7 +121,7 @@ public class MenuKitClient implements ClientModInitializer {
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.getWindow() != null) {
                 client.getWindow().setAllowCursorChanges(
-                        !com.trevlar.menukit.inject.ScreenPanelRegistry.modalGatesInput());
+                        !ScreenPanelRegistry.modalGatesInput());
             }
         });
     }

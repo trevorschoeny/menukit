@@ -4,7 +4,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
 import com.trevlar.menukit.api.element.ItemAnimation;
-import com.trevlar.menukit.api.panel.SlotItemLooks;
+import com.trevlar.menukit.inject.SlotItemLookRegistry;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -31,7 +31,7 @@ public abstract class MKSlotItemLookMixin {
     private void mk$slotItemLook(GuiGraphicsExtractor graphics, ItemStack stack, int x, int y, int seed,
                                  Operation<Void> original, @Local(argsOnly = true) Slot slot) {
         ItemAnimation.Frame frame = stack.isEmpty() ? null
-                : SlotItemLooks.frameFor((AbstractContainerScreen<?>) (Object) this, slot, stack);
+                : SlotItemLookRegistry.frameFor((AbstractContainerScreen<?>) (Object) this, slot, stack);
         if (frame == null) original.call(graphics, stack, x, y, seed);
         else frame.animation().draw(graphics, stack, x, y, frame.t());
     }

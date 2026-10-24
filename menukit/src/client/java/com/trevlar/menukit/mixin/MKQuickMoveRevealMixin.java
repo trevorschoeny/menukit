@@ -2,7 +2,7 @@ package com.trevlar.menukit.mixin;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-import com.trevlar.menukit.api.element.SlotScroll;
+import com.trevlar.menukit.inject.SlotScrollGrid;
 import com.trevlar.menukit.inject.RegionReveal;
 
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
@@ -24,7 +24,7 @@ import java.util.List;
  * server. Around that local play, and only for a quick move while a region is up, the
  * stacks are noted before and compared after; {@link RegionReveal#quickMoved} scrolls
  * the region to the slot that gained items when it is the region's and out of view. The same
- * holds while a scrolling slot grid ({@link SlotScroll}) is on screen, region or not: the grid
+ * holds while a scrolling slot grid ({@code SlotScroll}) is on screen, region or not: the grid
  * holding the slot scrolls to it.
  * The click itself runs exactly as before.
  */
@@ -36,7 +36,7 @@ public abstract class MKQuickMoveRevealMixin {
             target = "Lnet/minecraft/world/inventory/AbstractContainerMenu;clicked(IILnet/minecraft/world/inventory/ContainerInput;Lnet/minecraft/world/entity/player/Player;)V"))
     private void mk$revealQuickMove(AbstractContainerMenu menu, int slot, int button, ContainerInput input,
                                     Player player, Operation<Void> original) {
-        if (input != ContainerInput.QUICK_MOVE || !(RegionReveal.active() || SlotScroll.anyShown())) {
+        if (input != ContainerInput.QUICK_MOVE || !(RegionReveal.active() || SlotScrollGrid.anyShown())) {
             original.call(menu, slot, button, input, player);
             return;
         }

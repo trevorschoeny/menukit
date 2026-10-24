@@ -65,7 +65,7 @@ public final class SlotClips {
         // The same report says which panel shows the slot (7.3.0): it draws after that panel.
         PresentedSlots.record(slot);
         // And, in a scrolling slot grid, which of its cells it is (for a shift-click into it).
-        com.trevlar.menukit.api.element.SlotScroll.noteShown(slot);
+        SlotScrollGrid.noteShown(slot);
         if (clip == null) CLIPS.remove(slot);
         else CLIPS.put(slot, clip);
     }

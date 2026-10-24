@@ -2,19 +2,15 @@ package com.trevlar.menukit.api.panel;
 
 import com.trevlar.menukit.api.Declarations;
 import com.trevlar.menukit.api.element.ItemAnimation;
+import com.trevlar.menukit.inject.SlotItemLookRegistry;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 import org.jspecify.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.util.Comparator;
-import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * What a slot's item draws as on a container screen (Fluorite): a mod says, per slot and per
@@ -51,8 +47,6 @@ public final class SlotItemLooks {
 
     private SlotItemLooks() {}
 
-    private static final Logger LOGGER = LoggerFactory.getLogger("menukit");
-
     /** What one mod draws a slot's item as. */
     @FunctionalInterface
     public interface Look {
@@ -64,41 +58,15 @@ public final class SlotItemLooks {
         ItemAnimation.@Nullable Frame look(AbstractContainerScreen<?> screen, Slot slot, ItemStack stack);
     }
 
-    private record Declared(String id, Look look) {}
-
-    private static final List<Declared> LOOKS = new CopyOnWriteArrayList<>();
-
     /**
      * Declares a look, its id namespaced and unique ({@code "mymod:open_boxes"}).
      *
      * @throws IllegalStateException after declarations froze, or when {@code id} is already declared
      */
-    public static synchronized void declare(String id, Look look) {
+    public static void declare(String id, Look look) {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(look, "look");
         Declarations.requireOpen("SlotItemLooks.declare(" + id + ")");
-        for (Declared d : LOOKS) {
-            if (d.id().equals(id)) throw new IllegalStateException("SlotItemLooks look '" + id + "' is already declared");
-        }
-        LOOKS.add(new Declared(id, look));
-        LOOKS.sort(Comparator.comparing(Declared::id));
-    }
-
-    /**
-     * The first look's frame for {@code slot}, or {@code null} for vanilla's draw. Called by
-     * MenuKit's slot hook; not for mods.
-     */
-    @org.jetbrains.annotations.ApiStatus.Internal
-    public static ItemAnimation.@Nullable Frame frameFor(AbstractContainerScreen<?> screen, Slot slot, ItemStack stack) {
-        for (Declared d : LOOKS) {
-            try {
-                ItemAnimation.Frame f = d.look().look(screen, slot, stack);
-                if (f != null) return f;
-            } catch (RuntimeException e) {
-                LOGGER.error("[MenuKit] Slot item look '{}' threw; skipping it from now on", d.id(), e);
-                LOOKS.remove(d);
-            }
-        }
-        return null;
+        SlotItemLookRegistry.declare(id, look);
     }
 }

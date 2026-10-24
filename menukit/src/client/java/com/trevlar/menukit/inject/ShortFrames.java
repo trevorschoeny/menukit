@@ -188,7 +188,7 @@ public final class ShortFrames {
     /**
      * Hooks every screen a switch may be on, after MenuKit's seams moved its slots and before the
      * region lays it out: the grid takes its slots while the screen is short and gives them back
-     * once it fits or closes. Called once from {@code ScreenFrames.init}, in its init phase.
+     * once it fits or closes. Called once from {@link ScreenSeams#init}, in its init phase.
      */
     public static void init(Identifier phase) {
         ScreenEvents.AFTER_INIT.register(phase, (client, screen, w, h) -> {
