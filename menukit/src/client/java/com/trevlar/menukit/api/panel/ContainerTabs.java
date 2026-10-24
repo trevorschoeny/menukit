@@ -1,12 +1,13 @@
 package com.trevlar.menukit.api.panel;
 
 import com.trevlar.menukit.api.Declarations;
-import com.trevlar.menukit.api.element.ItemAnimation;
 import com.trevlar.menukit.inject.ContainerTabRows;
 import com.trevlar.menukit.inject.PanelHost;
 import com.trevlar.menukit.inject.RegionLayout;
 
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
@@ -25,7 +26,7 @@ import java.util.function.Supplier;
  * on an edge of the {@link ContainerRegion container region}'s container list or inventory
  * panel. MenuKit draws the row, hit-tests it, and pages it with arrows at its ends when it is
  * wider than its frame; everything a tab is and does is the mod's: what a click does, its icon
- * (an item or the mod's own sprite), its tooltip, its order, whether it shows and whether it
+ * (anything the mod draws; an item or a sprite ready made), its tooltip, its order, whether it shows and whether it
  * draws selected. MenuKit keeps no selection of its own.
  *
  * <pre>{@code
@@ -125,7 +126,7 @@ import java.util.function.Supplier;
  *                 .selectedWhen(() -> shown == CHEST)
  *                 .onClick(() -> shown = CHEST))
  *         .tab((box, t) -> t
- *                 .icon(box::stack, () -> OPEN.at(OPENING.toward(box, box.equals(shown))))
+ *                 .icon((g, x, y, w, h) -> drawBox(g, box, x, y, w, h))   // the mod's own drawing
  *                 .selectedWhen(() -> box.equals(shown))
  *                 .onClick(() -> shown = box))
  *         .expandedWhen(() -> keepAllOpen || groupOf(shown) == CHEST)
@@ -135,9 +136,9 @@ import java.util.function.Supplier;
  *
  * <h3>Size and icons</h3>
  * {@link Builder#size} sets a tab's width and height, and {@link Keyed#tabSize} every key's
- * tab's. A tab's icon is 16 px on a full-size tab and smaller in proportion on a smaller one.
- * {@link Builder#icon(Supplier, Supplier)} draws an item as an {@link ItemAnimation}, a box
- * opening on the selected tab, say, scaled whole with the icon.
+ * tab's. A tab's icon is the mod's own drawing ({@link Builder#icon(Icon)}), every frame, in an
+ * icon box 16 px square on a full-size tab and smaller in proportion on a smaller one: an item,
+ * a sprite, an animation, anything. The item and sprite forms are that, ready made.
  *
  * <p>To show one container at a time under the tabs, as the creative inventory shows one
  * page, give each section a {@code visibleWhen} that reads the mod's own pick, have each tab's
@@ -345,6 +346,29 @@ public final class ContainerTabs {
         }
     }
 
+    /**
+     * What a tab's icon draws: the mod's own drawing, every frame, in the icon box at
+     * {@code (x, y)}, {@code width} by {@code height}. The box is 16 px square on a full-size tab
+     * and smaller in proportion on a smaller one (a group's sub-tab's is 10), so the drawing fits
+     * itself to it. Anything goes: an item, a sprite, an {@link com.trevlar.menukit.api.element.ItemAnimation}
+     * at the point the mod's {@link com.trevlar.menukit.api.element.Transition} has got to, a
+     * model the mod turns itself. MenuKit clips it only as a sliding group's tab is clipped.
+     *
+     * <pre>{@code
+     * .icon((g, x, y, w, h) -> {
+     *     g.pose().pushMatrix();
+     *     g.pose().translate(x, y);
+     *     g.pose().scale(w / 16f, h / 16f);
+     *     OPEN.draw(g, box.stack(), 0, 0, OPENING.toward(box, box.equals(shown)));
+     *     g.pose().popMatrix();
+     * })
+     * }</pre>
+     */
+    @FunctionalInterface
+    public interface Icon {
+        void draw(GuiGraphicsExtractor graphics, int x, int y, int width, int height);
+    }
+
     /** Builds one tab. Every part is optional; a tab with no icon is an empty tab. */
     public static final class Builder {
         private final String id;
@@ -355,9 +379,7 @@ public final class ContainerTabs {
         private boolean fixed = false;
         private int order = 0;
         private Edge edge = Edge.CONTAINERS_TOP;
-        private @Nullable Supplier<ItemStack> item;
-        private @Nullable Supplier<ItemAnimation.@Nullable Frame> look;
-        private @Nullable Identifier sprite;
+        private @Nullable Icon icon;
         private int width = ContainerTabRows.TAB_WIDTH, height = RegionLayout.TAB_ROW;
         /** A group's header or sub-tab: its group, whether a sub-tab, and its header's showing, which a sub-tab's adds to. */
         private ContainerTabRows.@Nullable Group group;
@@ -372,41 +394,35 @@ public final class ContainerTabs {
             this.scope = scope;
         }
 
-        /** The tab's icon, an item, read every frame, drawn in the middle of the tab: 16 px on a full-size tab, smaller in proportion on a smaller one. */
-        public Builder icon(Supplier<ItemStack> item) {
-            this.item = Objects.requireNonNull(item, "item");
-            this.look = null;
-            this.sprite = null;
+        /**
+         * The tab's icon, drawn by the mod every frame: anything at all (an item, a sprite, an
+         * animation, a model it turns itself), fitted to the box MenuKit gives it. MenuKit only
+         * says where the box is, and clips it with the tab as a group slides.
+         */
+        public Builder icon(Icon icon) {
+            this.icon = Objects.requireNonNull(icon, "icon");
             return this;
         }
 
-        /**
-         * The tab's icon, an item drawn as an animation: each frame, {@code look} says which
-         * {@link ItemAnimation} and how far through it ({@code null}: the item as it is), run by
-         * the mod's own {@link com.trevlar.menukit.api.element.Transition}, as a slot's look is
-         * ({@link SlotItemLooks}). The whole of it scales with the icon, so a lid standing past
-         * the item's box shrinks with it on a smaller tab.
-         *
-         * <pre>{@code
-         * .icon(box::stack, () -> OPEN.at(OPENING.toward(box, box.equals(shown))))
-         * }</pre>
-         */
-        public Builder icon(Supplier<ItemStack> item, Supplier<ItemAnimation.@Nullable Frame> look) {
-            icon(item);
-            this.look = Objects.requireNonNull(look, "look");
-            return this;
+        /** The tab's icon, an item, read every frame, filling the icon box: 16 px on a full-size tab, smaller in proportion on a smaller one. */
+        public Builder icon(Supplier<ItemStack> item) {
+            Objects.requireNonNull(item, "item");
+            return icon((g, x, y, w, h) -> {
+                g.pose().pushMatrix();
+                g.pose().translate(x, y);
+                g.pose().scale(w / 16f, h / 16f);
+                g.item(item.get(), 0, 0);
+                g.pose().popMatrix();
+            });
         }
 
         /**
          * The tab's icon, a GUI sprite of the mod's own ({@code mymod:tab/backpack}, under
-         * {@code textures/gui/sprites/}), drawn 16 px square in the middle of the tab, where an
-         * item icon goes.
+         * {@code textures/gui/sprites/}), filling the icon box, where an item icon goes.
          */
         public Builder icon(Identifier sprite) {
-            this.sprite = Objects.requireNonNull(sprite, "sprite");
-            this.item = null;
-            this.look = null;
-            return this;
+            Objects.requireNonNull(sprite, "sprite");
+            return icon((g, x, y, w, h) -> g.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, y, w, h));
         }
 
         /**
@@ -506,7 +522,7 @@ public final class ContainerTabs {
             BooleanSupplier header = under;
             BooleanSupplier shown = header == null ? scoped : () -> header.getAsBoolean() && scoped.getAsBoolean();
             return new ContainerTabRows.Tab(id, matcher, order, edge, shown, selectedWhen, disabledWhen,
-                    item, look, sprite, tooltip, onClick, width, height, group, sub);
+                    icon, tooltip, onClick, width, height, group, sub);
         }
     }
 

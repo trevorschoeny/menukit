@@ -4,11 +4,11 @@ import com.mojang.blaze3d.platform.cursor.CursorTypes;
 import com.trevlar.menukit.api.element.Click;
 import com.trevlar.menukit.api.element.Easing;
 import com.trevlar.menukit.api.element.InputContext;
-import com.trevlar.menukit.api.element.ItemAnimation;
 import com.trevlar.menukit.api.element.MKTooltip;
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.element.RenderContext;
 import com.trevlar.menukit.api.element.Transition;
+import com.trevlar.menukit.api.panel.ContainerTabs;
 import com.trevlar.menukit.api.panel.ContainerTabs.Edge;
 import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.menukit.api.panel.Panel;
@@ -35,7 +35,6 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Util;
-import net.minecraft.world.item.ItemStack;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.VisibleForTesting;
@@ -119,15 +118,13 @@ public final class ContainerTabRows {
 
     /**
      * One declared tab ({@code ContainerTabs.tab}). {@code visible} already holds its mode
-     * scope (and, for a sub-tab, its header's showing); its icon is {@code item} (drawn through
-     * {@code look} when that gives a frame) or {@code sprite}, at most one. {@code width} across
-     * and {@code height} out from its frame. A group's header and its sub-tabs carry the
+     * scope (and, for a sub-tab, its header's showing); its icon, the mod's drawing, or none.
+     * {@code width} across and {@code height} out from its frame. A group's header and its sub-tabs carry the
      * {@code group}; {@code sub} marks the sub-tabs.
      */
     public record Tab(String id, ScreenMatcher matcher, int order, Edge edge, BooleanSupplier visible,
-                      BooleanSupplier selected, BooleanSupplier disabled, @Nullable Supplier<ItemStack> item,
-                      @Nullable Supplier<ItemAnimation.@Nullable Frame> look,
-                      @Nullable Identifier sprite, @Nullable Supplier<@Nullable Component> tooltip, Runnable onClick,
+                      BooleanSupplier selected, BooleanSupplier disabled, ContainerTabs.@Nullable Icon icon,
+                      @Nullable Supplier<@Nullable Component> tooltip, Runnable onClick,
                       int width, int height, @Nullable Group group, boolean sub) {}
 
     /** A group of tabs (a keyed list with a header): the list's id, and whether its sub-tabs are out, read every frame. */
@@ -848,29 +845,16 @@ public final class ContainerTabRows {
         }
 
         /**
-         * Tab {@code t}'s icon, centered across it with its near side {@link #ICON_CLEAR} px clear
-         * of the frame: 16 px on a full-size tab, smaller in proportion on a smaller one (an even
-         * size, so it centers on the pixel grid). An item draws through its look's animation at
-         * that frame's point, all of it scaled together, so a lid standing past the item's box
-         * shrinks with it.
+         * Tab {@code t}'s icon box, centered across it with its near side {@link #ICON_CLEAR} px
+         * clear of the frame: 16 px square on a full-size tab, smaller in proportion on a smaller
+         * one (an even size, so it centers on the pixel grid), and the mod's drawing in it.
          */
         private static void icon(GuiGraphicsExtractor graphics, Tab t, int x, Line l) {
-            if (t.item() == null && t.sprite() == null) return;
+            if (t.icon() == null) return;
             float scale = Math.min(1f, Math.min((float) t.width() / TAB_WIDTH, (float) t.height() / RegionLayout.TAB_ROW));
             int size = 2 * Math.round(8f * scale);
             int ix = x + (t.width() - size) / 2, iy = l.top() ? l.y() - ICON_CLEAR - size : l.y() + ICON_CLEAR;
-            graphics.pose().pushMatrix();
-            graphics.pose().translate(ix, iy);
-            graphics.pose().scale(size / 16f, size / 16f);
-            if (t.item() != null) {
-                ItemStack stack = t.item().get();
-                ItemAnimation.Frame frame = t.look() == null ? null : t.look().get();
-                if (frame != null) frame.animation().draw(graphics, stack, 0, 0, frame.t());
-                else graphics.item(stack, 0, 0);
-            } else {
-                graphics.blitSprite(RenderPipelines.GUI_TEXTURED, t.sprite(), 0, 0, 16, 16);
-            }
-            graphics.pose().popMatrix();
+            t.icon().draw(graphics, ix, iy, size, size);
         }
 
         /**
