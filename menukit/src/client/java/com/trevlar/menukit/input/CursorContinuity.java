@@ -12,9 +12,9 @@ import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Keeps the OS cursor where it was across screen transitions. Every screen's
- * {@code removed()} stashes the cursor position, and the next screen's
- * {@code init()} (any screen: vanilla, MenuKit, a slot library's or another mod's) restores it
- * through Fabric's AFTER_INIT hook. No base class and no per-consumer opt-in.
+ * {@code removed()} stashes the cursor position, and the end of the screen change that
+ * opens the next one (any screen: vanilla, MenuKit, a slot library's or another mod's)
+ * restores it. No base class and no per-consumer opt-in.
  *
  * <p>Vanilla moves the cursor to the window center on some screen transitions (in
  * dev, every InventoryScreen open lands at about the center). Capturing only on
@@ -28,7 +28,10 @@ import org.jetbrains.annotations.ApiStatus;
  *   <li><b>Capture:</b> every screen's {@code removed()} stashes the OS cursor
  *       position from {@code MouseHandler.xpos/ypos}. The listener is added in
  *       AFTER_INIT so it exists before removed() fires.</li>
- *   <li><b>Restore:</b> every screen's {@code init()} applies the stash with
+ *   <li><b>Restore:</b> {@code Gui.setScreen}, after the new screen's {@code init()}
+ *       and after vanilla reads the pointer back from the OS
+ *       ({@code resyncMousePosition}, {@link com.trevlar.menukit.mixin.MKCursorContinuityMixin}),
+ *       applies the stash with
  *       {@code InputConstants.releaseMouse} (a cursor warp; the cursor is
  *       already free on a screen) <i>and</i> writes Minecraft's
  *       {@code MouseHandler.xpos/ypos} through the accessor mixin, since the
@@ -58,7 +61,7 @@ public final class CursorContinuity {
         stashed = new double[]{mc.mouseHandler.xpos(), mc.mouseHandler.ypos()};
     }
 
-    /** Restores the stashed cursor position, if any, and clears the stash. Runs on every screen open. */
+    /** Restores the stashed cursor position, if any, and clears the stash. Runs at the end of every screen change. */
     public static void restoreIfAny() {
         if (stashed == null) return;
         Minecraft mc = Minecraft.getInstance();
@@ -66,6 +69,8 @@ public final class CursorContinuity {
             stashed = null; // don't keep a stash if the window is gone
             return;
         }
+        // Back to the HUD: the cursor is grabbed, and the tick listener drops the stash.
+        if (mc.gui.screen() == null) return;
         InputConstants.releaseMouse(mc.getWindow(), stashed[0], stashed[1]);
 
         // The warp doesn't reach MouseHandler before this screen's first frame,
@@ -82,14 +87,16 @@ public final class CursorContinuity {
 
     /**
      * Registers the AFTER_INIT listener, which adds a capture listener to each
-     * screen's {@code removed()} and restores any pending stash, and the tick
-     * listener that clears the stash while no screen is open. Call once from client
+     * screen's {@code removed()}, and the tick listener that clears the stash while
+     * no screen is open. The restore itself is {@link com.trevlar.menukit.mixin.MKCursorContinuityMixin}'s:
+     * at AFTER_INIT vanilla's read of the OS pointer is still to come, and would undo it
+     * wherever the warp hasn't reached the OS (a client gametest blocks it, so the
+     * pointer read is wherever the real mouse happens to be). Call once from client
      * init; a second call would add duplicate listeners.
      */
     public static void registerRestoreHook() {
         ScreenEvents.AFTER_INIT.register((client, screen, sw, sh) -> {
             ScreenEvents.remove(screen).register(s -> capture());
-            restoreIfAny();
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             // No screen open: drop the stash so the next open centers the cursor

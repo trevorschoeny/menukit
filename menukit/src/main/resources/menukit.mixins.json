@@ -15,6 +15,7 @@
     "MKContainerLayersMixin",
     "MKContainerTitleMixin",
     "MKCreativeTabHoverMixin",
+    "MKCursorContinuityMixin",
     "MKFrameCentringBackgroundMixin",
     "MKFrameCentringMixin",
     "MKGuiMixin",
