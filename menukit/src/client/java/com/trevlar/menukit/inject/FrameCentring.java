@@ -88,11 +88,15 @@ public final class FrameCentring {
     /**
      * At the head of each of {@code screen}'s inits, before vanilla centers it: how far its frame
      * goes down from vanilla's place so that the frame and the rows standing on it now, the top
-     * one above it and the bottom one below, are centered as one block. No row, or the region up
-     * on it: vanilla's place. The rows are measured ({@code ContainerTabRows.settledHeights}),
+     * one above it and the bottom one below, are centered as one block. No row, the region up
+     * on it, or a screen of a mod's own class ({@link #vanillas}): vanilla's place. The rows are measured ({@code ContainerTabRows.settledHeights}),
      * not chosen: nothing slides for it.
      */
     public static void centre(AbstractContainerScreen<?> screen) {
+        if (!vanillas(screen)) {
+            CENTRED.remove(screen);
+            return;
+        }
         int above = 0, below = 0;
         boolean regionUp = ContainerRegions.state.geometry != null && ContainerRegions.state.screen.get() == screen;
         if (ContainerTabRows.carries(screen) && !regionUp) {
@@ -103,6 +107,28 @@ public final class FrameCentring {
         int imageHeight = ((AbstractContainerScreenAccessor) screen).mk$getImageHeight();
         CENTRED.put(screen, new int[]{dy(screen.height, imageHeight, above, below), above, below});
     }
+
+    /**
+     * Whether {@code screen} is one of vanilla's own container screens, every class from its own up
+     * to {@code AbstractContainerScreen} vanilla's: the ones {@code MKFrameCentringHeightMixin}
+     * covers, where every place worked out from the window moves with the frame. A mod's own
+     * class (a subclass of vanilla's included) may work out its image's place from the window
+     * itself, {@code (height - imageHeight) / 2}, which the mixin doesn't reach, so its image would
+     * part from its slots: its frame stays where vanilla centers it, rows or not.
+     */
+    static boolean vanillas(AbstractContainerScreen<?> screen) {
+        return VANILLA.get(screen.getClass());
+    }
+
+    private static final ClassValue<Boolean> VANILLA = new ClassValue<>() {
+        @Override
+        protected Boolean computeValue(Class<?> type) {
+            for (Class<?> c = type; c != null && c != AbstractContainerScreen.class; c = c.getSuperclass()) {
+                if (!c.getName().startsWith("net.minecraft.")) return false;
+            }
+            return true;
+        }
+    };
 
     /** How far {@code screen}'s frame is moved down from vanilla's place for its tab rows ({@link #centre}); 0 for none. */
     public static int centring(Screen screen) {

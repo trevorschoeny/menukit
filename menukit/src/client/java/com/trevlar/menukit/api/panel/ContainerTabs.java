@@ -76,8 +76,9 @@ import java.util.function.Supplier;
  *       with it; a row coming or going lays the screen out again. Screens of one size with
  *       the same rows put the row in one place ({@link ScreenFrames} makes a shulker box
  *       and a chest the inventory's 166), and a mod that opens one in place of another
- *       shows a steady row. A mod's own screen that draws its image from the window's middle
- *       rather than from {@code topPos} draws it where vanilla would have centered it.</li>
+ *       shows a steady row. Only vanilla's own screens move: a mod's own container screen
+ *       class, a subclass of vanilla's included, may place things from the window itself, so
+ *       its frame stays where vanilla centers it and its rows stand on it there.</li>
  *   <li>Never on the creative inventory, which has tabs of its own.</li>
  * </ul>
  * A row's page carries over to a screen opened in place of the last, and starts over once
