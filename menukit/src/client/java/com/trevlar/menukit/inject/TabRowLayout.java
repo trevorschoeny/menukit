@@ -134,7 +134,9 @@ public final class TabRowLayout {
      * out by {@code f} between ends {@code inset} in, each group open {@code open} of the way (by
      * its id; 1 where absent): the row's tabs in view, the sub-tabs of a group sliding, and the
      * tabs pinned at the room's ends. A group's sub-tabs move as one, out from under the
-     * header to its right as it opens, and every tab after it moves with their edge. Settled, each tab not pinned
+     * header to its right as it opens, and every tab after it moves with their edge. The row's
+     * first tab in view stands at the room's left end however far the strips before it are out,
+     * so a group opening or closing before the page doesn't move it. Settled, each tab not pinned
      * is where the row's fit puts it. A tab not pinned shows whole or not at all, as paging
      * shows them: one that a slide has pushed past the room's right end is left out until it is
      * back inside.
@@ -176,8 +178,15 @@ public final class TabRowLayout {
             cursor += p * span;
         }
         int left = roomLeft(l, inset), right = roomRight(l, inset);
-        // From the row's first tab, in view at the room's left; tabs before it are off to the left.
-        double shift = left - span(widths(row), 0, f.first());
+        // The row's first tab in view at the room's left end: what draws before it, strips only as far
+        // out as they are, is off to the left, so a group opening or closing there leaves the page be.
+        double shift = left;
+        for (int i = 0; i < n; i++) {
+            if (index[i] == f.first()) {
+                shift = left - x[i];
+                break;
+            }
+        }
         for (int i = 0; i < n; i++) x[i] += shift;
         cursor += shift;
         boolean[] stuck = pin(drew, x, pins, left, right, cursor);
