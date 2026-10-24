@@ -116,7 +116,9 @@ import java.util.function.Supplier;
  *       always, only while the group holds the selected tab, or on the mod's own conditions.</li>
  *   <li><b>How they move</b> is MenuKit's, one way only: they slide out from under the header
  *       to its right as the group opens, the tabs after it moving over to make room, and slide
- *       back under it as it closes. A turn mid-way goes back from where they are. A group stands
+ *       back under it as it closes, eased alike each way. A turn mid-way goes back from where
+ *       they are. A slide that makes the row page opens the arrows' room with it, so the tabs
+ *       move over rather than jump; a tab shows whole or not at all. A group stands
  *       as it is on a screen's first frame, so opening the inventory doesn't play it.</li>
  *   <li><b>Paging</b> counts the tabs out: a closed group is its header, an open one its header
  *       and every sub-tab, and the arrows page through those. A closed group's sub-tabs take no

@@ -25,6 +25,9 @@ import java.util.Objects;
  *       all the way back read alike.</li>
  *   <li><b>Turning mid-way</b> starts back from where it had got to, not from an end.</li>
  * </ul>
+ * The same curve run backwards is how vanilla closes a chest's lid: an ease-out opening closes
+ * slowly at first. {@link #eachWay} instead eases each way toward the end it goes to, so a
+ * slide moves from its first frame whichever way it goes.
  *
  * <p>Progress is a pure function of when the key last turned and now, on vanilla's clock
  * ({@code Util.getMillis()}, the clock every MenuKit animation reads), so it keeps running
@@ -39,15 +42,20 @@ public final class Transition {
 
     private final int millis;
     private final Easing easing;
+    private final boolean eachWay;
 
-    /** Where a key is going: linear progress {@code from} when it turned at {@code at}, toward 1 or 0. */
+    /**
+     * Where a key is going: from {@code from} when it turned at {@code at}, toward 1 or 0. Linear
+     * progress, or for {@link #eachWay} the eased progress it turned at.
+     */
     private record Run(float from, long at, boolean forward) {}
 
     private final Map<Object, Run> runs = new HashMap<>();
 
-    private Transition(int millis, Easing easing) {
+    private Transition(int millis, Easing easing, boolean eachWay) {
         this.millis = millis;
         this.easing = easing;
+        this.eachWay = eachWay;
     }
 
     /**
@@ -57,7 +65,20 @@ public final class Transition {
      */
     public static Transition of(int millis, Easing easing) {
         if (millis <= 0) throw new IllegalArgumentException("Transition: millis must be positive, got " + millis);
-        return new Transition(millis, Objects.requireNonNull(easing, "easing"));
+        return new Transition(millis, Objects.requireNonNull(easing, "easing"), false);
+    }
+
+    /**
+     * A transition like {@link #of}, but eased each way: back runs {@code easing} from where the
+     * key is toward 0 as forward runs it toward 1, rather than the forward curve backwards. An
+     * ease-out then starts fast and settles either way. A turn mid-way runs the curve again from
+     * where it had got to, over as much of {@code millis} as it has left to go.
+     *
+     * @throws IllegalArgumentException when {@code millis} is not positive
+     */
+    public static Transition eachWay(int millis, Easing easing) {
+        if (millis <= 0) throw new IllegalArgumentException("Transition: millis must be positive, got " + millis);
+        return new Transition(millis, Objects.requireNonNull(easing, "easing"), true);
     }
 
     /**
@@ -77,16 +98,35 @@ public final class Transition {
         Objects.requireNonNull(key, "key");
         Run run = runs.get(key);
         if (run == null) {
-            if (!forward) return easing.apply(0f);
+            if (!forward) return eachWay ? 0f : easing.apply(0f);
             run = new Run(0f, now, true);
             runs.put(key, run);
         } else if (run.forward() != forward) {
-            run = new Run(linear(run, now), now, forward);
+            run = new Run(eachWay ? eased(run, now) : linear(run, now), now, forward);
             runs.put(key, run);
+        }
+        if (eachWay) {
+            float e = eased(run, now);
+            if (!forward && left(run, now) == 0f) runs.remove(key);
+            return e;
         }
         float p = linear(run, now);
         if (!forward && p == 0f) runs.remove(key);
         return easing.apply(p);
+    }
+
+    /** An each-way {@code run}'s eased progress at {@code now}: the curve from where it turned to its end. */
+    private float eased(Run run, long now) {
+        float end = run.forward() ? 1f : 0f;
+        float t = 1f - left(run, now);
+        return t >= 1f ? end : run.from() + (end - run.from()) * easing.apply(t);
+    }
+
+    /** How much of an each-way {@code run} is left at {@code now}, 1 when it turns to 0 at its end. */
+    private float left(Run run, long now) {
+        float span = Math.abs((run.forward() ? 1f : 0f) - run.from());
+        if (span == 0f) return 0f;
+        return 1f - Math.max(0f, Math.min(1f, (now - run.at()) / (millis * span)));
     }
 
     /** {@code run}'s linear progress at {@code now}, held at the end it went to. */
