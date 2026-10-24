@@ -285,7 +285,11 @@ public final class ContainerTabRows {
      */
     public static void init() {
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
-            if (!(screen instanceof AbstractContainerScreen<?> acs) || !carries(acs)) return;
+            if (!(screen instanceof AbstractContainerScreen<?> acs)) return;
+            // The first frame is the first one drawn: the layouts at init read a mod's tabs
+            // before the packets that came with the screen (its selected tab) are in.
+            ScreenEvents.afterExtract(screen).register((s, g, mx, my, delta) -> settle = false);
+            if (!carries(acs)) return;
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> onFrame(acs, false));
             ScreenEvents.remove(screen).register(s -> bare = null);
             onFrame(acs, true);
@@ -395,7 +399,10 @@ public final class ContainerTabRows {
     private static final boolean[] SLIDING = new boolean[Edge.values().length];
     /** How far each group showing this frame is open, 0 to 1, by its id. */
     private static final Map<String, Float> OPEN = new HashMap<>();
-    /** The first frame since the player was last in the world: groups stand as they are then, not sliding. */
+    /**
+     * Until the first frame drawn since the player was last in the world: groups stand as they
+     * are, not sliding, through the layouts at init and that frame.
+     */
     private static boolean settle = true;
 
     /**
@@ -466,7 +473,6 @@ public final class ContainerTabRows {
                 out[i] = row.toArray(Tab[]::new);
                 drew[i] = shown.toArray(Tab[]::new);
             }
-            settle = false;
         }
         rows = out;
         drawn = drew;
