@@ -30,7 +30,7 @@ import java.util.WeakHashMap;
 import java.util.function.IntSupplier;
 
 /**
- * A {@link SlotScroll} grid (Fluorite; the public face and what it does are
+ * A {@link SlotScroll} grid (7.4.0; the public face and what it does are
  * {@code api.element.SlotScroll}): a scroll area that fits the room, its cells placed straight in
  * it, and every grid's live cells read once a frame, the slots their cells place, and quick moves
  * into them. Render thread only.

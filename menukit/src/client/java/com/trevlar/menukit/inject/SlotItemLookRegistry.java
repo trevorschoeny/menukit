@@ -21,7 +21,7 @@ import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * The declared {@link SlotItemLooks} (Fluorite), asked in id order by MenuKit's slot hook
+ * The declared {@link SlotItemLooks} (7.4.0), asked in id order by MenuKit's slot hook
  * ({@code MKSlotItemLookMixin}). Render thread, but declared from client init.
  */
 @ApiStatus.Internal

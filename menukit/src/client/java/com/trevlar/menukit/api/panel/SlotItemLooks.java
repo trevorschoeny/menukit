@@ -13,7 +13,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.Objects;
 
 /**
- * What a slot's item draws as on a container screen (Fluorite): a mod says, per slot and per
+ * What a slot's item draws as on a container screen (7.4.0): a mod says, per slot and per
  * frame, which {@link ItemAnimation} the item draws with and how far through it is, and the
  * slot draws that in place of the item. The slot's count and durability bar, its highlight
  * and tooltip, and what a click does stay vanilla's.

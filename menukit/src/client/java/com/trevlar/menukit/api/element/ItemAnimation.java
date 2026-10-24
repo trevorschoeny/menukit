@@ -8,7 +8,7 @@ import net.minecraft.world.item.ItemStack;
 import java.util.Objects;
 
 /**
- * How an item draws at a point in an animation (Fluorite): given the item, its 16 px box and
+ * How an item draws at a point in an animation (7.4.0): given the item, its 16 px box and
  * the animation's progress {@code t}, from 0 to 1, it draws the item. The mod picks an
  * animation, runs its progress with a {@link Transition} (duration, easing, forward or back),
  * and hands both where an item is drawn, a container screen's slot through

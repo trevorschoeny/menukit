@@ -9,7 +9,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.function.LongSupplier;
 
 /**
- * The one clock MenuKit's own container screen motion runs on (Fluorite): the tab groups'
+ * The one clock MenuKit's own container screen motion runs on (7.4.0): the tab groups'
  * slides, the paging arrows' room and a swapped screen's moving frame. Vanilla's
  * {@code Util.getMillis()}, the clock every MenuKit animation reads, unless a check stops it
  * to step through a motion a frame at a time. Render thread only.

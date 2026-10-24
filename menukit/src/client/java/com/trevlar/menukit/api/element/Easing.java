@@ -1,7 +1,7 @@
 package com.trevlar.menukit.api.element;
 
 /**
- * An easing curve (Fluorite): eased progress for a linear progress {@code t}, both from 0 to
+ * An easing curve (7.4.0): eased progress for a linear progress {@code t}, both from 0 to
  * 1. A {@link Transition} runs one; any function of {@code t} with {@code f(0) = 0} and
  * {@code f(1) = 1} is one, so a mod can pass its own as a lambda.
  */

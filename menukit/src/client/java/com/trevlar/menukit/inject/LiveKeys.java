@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * What a list of live keys has made, kept in step with the keys (Fluorite): the one rule a
+ * What a list of live keys has made, kept in step with the keys (7.4.0): the one rule a
  * keyed list of tabs ({@code ContainerTabs.keyed}) and a kind of section per key
  * ({@code ContainerRegion.sections}) both follow. Render thread only.
  */
@@ -32,7 +32,7 @@ final class LiveKeys {
     static <V> @Nullable Map<Object, @Nullable V> resync(Map<Object, @Nullable V> was, @Nullable List<?> keys,
                                                         Function<Object, V> make, String what, String whose) {
         List<?> now = keys == null ? List.of() : keys;
-        // ponytail: a keys list with a repeated key never matches, so it rebuilds the map each frame; the values are kept either way.
+        // A keys list with a repeated key never matches, so it rebuilds the map each frame; the values are kept either way.
         if (was.size() == now.size() && new ArrayList<>(was.keySet()).equals(now)) return null;
         Map<Object, @Nullable V> out = new LinkedHashMap<>();
         for (Object k : now) {

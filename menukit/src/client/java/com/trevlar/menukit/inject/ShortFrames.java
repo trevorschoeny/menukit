@@ -40,7 +40,7 @@ import java.util.function.BooleanSupplier;
 
 /**
  * {@code ScreenFrames.scrollsWhenShort}: a vanilla screen's own container grid scrolls inside its
- * frame when the frame wouldn't fit the window (Fluorite). Off unless a mod turns it on for a screen.
+ * frame when the frame wouldn't fit the window (7.4.0). Off unless a mod turns it on for a screen.
  *
  * <p>It is the container region, fitted, with one section MenuKit makes itself: the screen's own
  * grid as a {@link SlotScroll} under the screen's title. So the frame, the clip, the claims, the

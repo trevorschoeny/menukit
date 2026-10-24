@@ -41,7 +41,7 @@ import java.util.Map;
  * {@link TabRowLayout}'s, how it draws {@link TabStrip}'s, and what a tab does the mod's, through
  * its callbacks, each read once a frame ({@link #choose}), a throw counting as no.
  *
- * <p><b>Two ways to stand</b> (Fluorite). While the region is up, a row stands on its panels'
+ * <p><b>Two ways to stand</b> (7.4.0). While the region is up, a row stands on its panels'
  * edges, drawn in the background layer over the region's panels. On a container screen the
  * region isn't up on (the player's inventory, a shulker box, a chest with no section showing),
  * the outer two rows stand on the screen's own frame instead ({@link #bare}): the top one on

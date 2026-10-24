@@ -9,7 +9,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import java.util.Objects;
 
 /**
- * A vanilla container screen made taller or shorter at a seam (Fluorite): its frame gains
+ * A vanilla container screen made taller or shorter at a seam (7.4.0): its frame gains
  * (or loses) {@code by} rows at row {@code seam} of its own layout, so screens of nearly one
  * size can be made exactly one, and a tab row standing on their frames doesn't move as one
  * opens in place of another.
@@ -52,7 +52,7 @@ import java.util.Objects;
  *       below the seam, is {@code by} off.</li>
  * </ul>
  *
- * <h3>A grid that scrolls when the frame doesn't fit (Fluorite)</h3>
+ * <h3>A grid that scrolls when the frame doesn't fit (7.4.0)</h3>
  * {@link #scrollsWhenShort} turns it on for the screens a mod chooses; MenuKit never does on its own.
  * On such a screen, while its frame wouldn't fit the window, its own container grid scrolls inside
  * the frame and the frame is as much shorter, so the whole screen fits:

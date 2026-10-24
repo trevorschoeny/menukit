@@ -16,7 +16,7 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A container screen opened in place of another (Fluorite): its frame moves from where the
+ * A container screen opened in place of another (7.4.0): its frame moves from where the
  * old screen's was to its own, rather than jumping. Every container screen but the creative
  * inventory, whichever mod opens it.
  *

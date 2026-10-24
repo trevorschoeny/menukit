@@ -9,7 +9,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 
 /**
- * A grid of slots that scrolls inside its panel when it doesn't fit (Fluorite): as tall as its
+ * A grid of slots that scrolls inside its panel when it doesn't fit (7.4.0): as tall as its
  * live rows while there is room, shorter by whole rows when there isn't, never under its
  * minimum rows, scrolling past what shows. The slots are a slot library's elements (SlotKit's
  * {@code SlotElement}, one per cell); MenuKit names no slot type, so each cell is made by the

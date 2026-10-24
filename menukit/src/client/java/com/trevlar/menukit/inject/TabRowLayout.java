@@ -15,14 +15,14 @@ import java.util.Map;
  * groups slide and tabs pin, what a point is on, and how a tab's sprite stretches. Nothing here
  * keeps state or reads the game; {@link ContainerTabRows} hands it this frame's row.
  *
- * <p><b>Groups</b> (Fluorite): the row is the header and, while the group is expanded, its
+ * <p><b>Groups</b> (7.4.0): the row is the header and, while the group is expanded, its
  * sub-tabs; that row is what pages, takes clicks and keeps a selected tab in view, as if every
  * group stood still. Only the drawing moves: each group's sub-tabs, one strip, are drawn as far
  * out from under the header as the group's slide has got ({@link #place}), clipped at the
  * header's left edge and drawn before it, so they come out from behind it; the tabs after the
  * strip follow its edge.
  *
- * <p><b>Pinned tabs</b> (Fluorite): a tab pinned this frame stops at whichever end of the row
+ * <p><b>Pinned tabs</b> (7.4.0): a tab pinned this frame stops at whichever end of the row
  * paging would take it past, and the tabs on the far side of it go on behind it, until the next
  * group's header (at the left end) or the previous group's pinned tabs (at the right end) push
  * it off ({@link #pin}). Pinning moves only the drawing, as a slide does.
@@ -170,7 +170,7 @@ public final class TabRowLayout {
                 Shown s = drew[i];
                 index[i] = r < row.length && row[r] == s ? r++ : -1;
                 x[i] = sx;
-                // ponytail: a sliding group's sub-tabs move as one strip and pin once it settles, so one
+                // A sliding group's sub-tabs move as one strip and pin once it settles, so one
                 // that should pin then steps into its place at the slide's end; pin within the slide if that shows.
                 pins[i] = index[i] >= 0 && p >= 1f && s.pinned();
                 sx += s.width();

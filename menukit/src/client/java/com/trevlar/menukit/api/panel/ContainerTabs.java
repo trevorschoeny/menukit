@@ -66,7 +66,7 @@ import java.util.function.Supplier;
  * <ul>
  *   <li><b>On the region's panels</b> while the region is up (a container screen with a
  *       section showing), on any of the four edges.</li>
- *   <li><b>On the screen's own frame</b> (Fluorite) on every other container screen: the
+ *   <li><b>On the screen's own frame</b> (7.4.0) on every other container screen: the
  *       player's inventory, a shulker box, a chest with no section showing, a mod's own
  *       container screen. A {@link Edge#CONTAINERS_TOP} row stands on the frame's top edge and
  *       an {@link Edge#INVENTORY_BOTTOM} row on its bottom edge; the two middle edges have no

@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 
 /**
  * A mod's callback run from MenuKit's render and input loops, kept from taking the screen down
- * with it (Fluorite), as {@code ScreenMatcher.matches} and {@code SlotItemLooks} keep theirs:
+ * with it (7.4.0), as {@code ScreenMatcher.matches} and {@code SlotItemLooks} keep theirs:
  * one that throws counts as off this time (hidden, not selected, no keys, nothing live), and
  * is logged once, the first time, by what it is and whose. Render thread only.
  */

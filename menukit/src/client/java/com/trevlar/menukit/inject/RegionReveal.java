@@ -145,7 +145,7 @@ public final class RegionReveal {
                 return;
             }
             // A scrolling slot grid holding it (a section's own, or any panel's) scrolls to it itself.
-            // ponytail: a grid in a section the list has scrolled out of view scrolls, the list doesn't
+            // A grid in a section the list has scrolled out of view scrolls, the list doesn't
             if (SlotScrollGrid.quickMoved(slot)) return;
             if (acs == null || !regionsOwn(acs, slot, panel)) return;   // landed in the inventory (or elsewhere in view)
             Integer cell = cellTop(slot, state.tops, state.bottoms);

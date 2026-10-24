@@ -109,7 +109,7 @@ public final class LayerPlan {
         for (PanelHost host : hosts) {
             for (PanelHost.Placed p : host.placed()) {
                 if (layerOf(p.panel()) != layer) continue;
-                // ponytail: per list. A screen's own host draws its FLOW apart from the
+                // Per list. A screen's own host draws its FLOW apart from the
                 // registry's hosts, so a panel in both of those still draws twice there.
                 if (PanelHost.movedTo(p.entry()) != null && !moved.add(p.panel())) continue;
                 out.add(new Drawn(host, p));

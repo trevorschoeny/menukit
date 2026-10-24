@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Where a container screen's frame goes, its tab rows counted (Fluorite): the one centering
+ * Where a container screen's frame goes, its tab rows counted (7.4.0): the one centering
  * rule the container region's block and a screen's own frame share ({@link #up}), and on a
  * screen the region isn't up on, the frame moved from vanilla's place so that it and the rows
  * standing on it are centered as one block ({@link #centre}). Everything that works from where
@@ -177,7 +177,7 @@ public final class FrameCentring {
         // topPos is vanilla's place for the stretched size in the window as vanilla read it: the row is from vanilla's own.
         int vanillaTop = (screen.height + 2 * centring(screen) - acc.mk$getImageHeight() + by) / 2;
         int row = y - vanillaTop;
-        // ponytail: assumes the place was worked out from the window (vanilla's recipe screens do); one from topPos would move twice
+        // Assumes the place was worked out from the window (vanilla's recipe screens do); one from topPos would move twice
         return acc.mk$getTopPos() + row + ScreenSeams.shift(screen, row);
     }
 }

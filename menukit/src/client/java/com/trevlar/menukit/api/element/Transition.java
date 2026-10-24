@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A timed change between two states, kept per key (Fluorite): one duration and one
+ * A timed change between two states, kept per key (7.4.0): one duration and one
  * {@link Easing}, and for each key the mod names (a slot, a container, a tab) where that key
  * is on its way. Each frame the mod says which way each key is going and gets its eased
  * progress back, 0 at the start and 1 at the end:

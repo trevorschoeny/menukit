@@ -572,7 +572,7 @@ public class ScrollContainer extends AbstractPanelElement {
 
     /**
      * Whether it scrolls now: its content is taller than its viewport, so the scrollbar shows and
-     * the wheel over it is its own (Fluorite). For a mod that would do something else with the
+     * the wheel over it is its own (7.4.0). For a mod that would do something else with the
      * wheel there (switch tabs, say) while it doesn't.
      */
     public boolean scrolls() {

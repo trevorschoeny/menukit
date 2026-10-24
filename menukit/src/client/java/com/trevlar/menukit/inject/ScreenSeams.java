@@ -25,7 +25,7 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * {@code ScreenFrames}' machinery (Fluorite): each container screen's seams, its size before
+ * {@code ScreenFrames}' machinery (7.4.0): each container screen's seams, its size before
  * vanilla centers it, its slots from each seam down, and the screen's image drawn in parts
  * around the seams. The recipe book button's place in the stretched frame is
  * {@link FrameCentring#place}'s. The public face,
@@ -170,7 +170,7 @@ public final class ScreenSeams {
         // Rows of the frame as vanilla laid it out, this blit's from a to b; nothing past vanilla's own height.
         int a = y - top, b = Math.min(a + height, vanillaHeight);
         if (vHeight != height) {
-            // ponytail: a scaled blit moves whole, by the seams above where it starts
+            // A scaled blit moves whole, by the seams above where it starts
             int by = seams.shift(a);
             if (by == 0) return false;
             g.blit(pipeline, texture, x, y + by, u, v, width, height, uWidth, vHeight, textureWidth, textureHeight, color);
