@@ -49,6 +49,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -66,9 +67,10 @@ import java.util.function.Supplier;
  * region isn't up on (the player's inventory, a shulker box, a chest with no section showing),
  * the outer two rows stand on the screen's own frame instead ({@link #bare}): the top one on
  * its top edge, the bottom one on its bottom edge, drawn just after the screen's image so a
- * selected tab opens into it. The screen keeps vanilla's layout; the two middle edges have no
- * gap to stand in there and show nothing. So screens of one size that open in place of each
- * other show one row in one place.
+ * selected tab opens into it. The frame and those rows are centered as one block, by the rule
+ * the region's block is ({@link #centre}); the two middle edges have no gap to stand in there
+ * and show nothing. So screens of one size that open in place of each other, with the same
+ * rows, show one row in one place.
  *
  * <p><b>Keyed lists</b> ({@code ContainerTabs.keyed}): each list's keys are read as the rows
  * are chosen, every frame a container screen is open, and its tabs placed among the others as
@@ -279,9 +281,9 @@ public final class ContainerTabRows {
     public static void init() {
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
             if (!(screen instanceof AbstractContainerScreen<?> acs) || !carries(acs)) return;
-            ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> onFrame(acs));
+            ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> onFrame(acs, false));
             ScreenEvents.remove(screen).register(s -> bare = null);
-            onFrame(acs);
+            onFrame(acs, true);
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.gui.screen() == null) resetPaging();
@@ -290,9 +292,12 @@ public final class ContainerTabRows {
 
     /**
      * One frame of {@code screen} with the region down: the tabs that show there on the outer
-     * two edges, standing on the screen's own frame. With the region up, it chose the rows.
+     * two edges, standing on the screen's own frame. With the region up, it chose the rows. Rows
+     * other than the ones the frame was centered with ({@link #centre}) lay the screen out
+     * again, as the region does on a layout change, so it centers anew and every mod's widget
+     * follows: not at init, which has just centered it.
      */
-    private static void onFrame(AbstractContainerScreen<?> screen) {
+    private static void onFrame(AbstractContainerScreen<?> screen, boolean atInit) {
         if (ContainerRegions.state.geometry != null && ContainerRegions.state.screen.get() == screen) {
             bare = null;
             return;
@@ -304,6 +309,44 @@ public final class ContainerTabRows {
             if (lineNow(edge) == null) rows[edge.ordinal()] = drawn[edge.ordinal()] = new Tab[0];
         }
         afterLayout();
+        int[] c = CENTRED.get(screen);
+        if (!atInit && c != null && (c[1] != height(Edge.CONTAINERS_TOP) || c[2] != height(Edge.INVENTORY_BOTTOM))) {
+            ContainerRegions.relayout(screen);
+        }
+    }
+
+    // A screen's own frame centered with its rows
+
+    /** Each container screen's centering at its last init: {dy, above, below}, the frame's move down from vanilla's place and the rows it counted. */
+    private static final Map<Screen, int[]> CENTRED = new WeakHashMap<>();
+
+    /**
+     * At the head of each of {@code screen}'s inits ({@code MKFrameCentringMixin}), before
+     * vanilla centers it: how far its frame goes down from vanilla's place so that the frame and
+     * the rows standing on it now, the top one above it and the bottom one below, are centered
+     * as one block ({@link RegionLayout#frameTop}, the region's own rule). Vanilla's container
+     * screen code then centers everything from a window that much taller, so the frame, its
+     * image, its slots and labels, the recipe book and its button all move together, and so
+     * does every widget placed from {@code topPos}. No row, or the region up on it: vanilla's place.
+     */
+    public static void centre(AbstractContainerScreen<?> screen) {
+        int above = 0, below = 0;
+        boolean regionUp = ContainerRegions.state.geometry != null && ContainerRegions.state.screen.get() == screen;
+        if (carries(screen) && !regionUp) {
+            choose(screen);
+            above = height(Edge.CONTAINERS_TOP);
+            below = height(Edge.INVENTORY_BOTTOM);
+        }
+        int imageHeight = ((AbstractContainerScreenAccessor) screen).mk$getImageHeight();
+        int top = (screen.height - imageHeight) / 2;
+        int dy = RegionLayout.frameTop(new Reference(0, top, 0, imageHeight), screen.height, above, below) - top;
+        CENTRED.put(screen, new int[]{dy, above, below});
+    }
+
+    /** How far {@code screen}'s frame is moved down from vanilla's place for its tab rows ({@link #centre}); 0 for none. */
+    public static int centring(Screen screen) {
+        int[] c = CENTRED.get(screen);
+        return c == null ? 0 : c[0];
     }
 
     // This frame's rows

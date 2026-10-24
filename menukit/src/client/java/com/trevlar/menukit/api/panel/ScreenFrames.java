@@ -2,6 +2,7 @@ package com.trevlar.menukit.api.panel;
 
 import com.trevlar.menukit.api.Declarations;
 import com.trevlar.menukit.inject.ContainerRegions;
+import com.trevlar.menukit.inject.ContainerTabRows;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevlar.menukit.mixin.SlotAccessor;
 
@@ -185,13 +186,15 @@ public final class ScreenFrames {
     /**
      * {@code y}, a place vanilla worked out on the screen as if it were its own size (the
      * recipe book button's, from the window's middle), moved to the same place in the
-     * stretched frame.
+     * stretched frame, and with it where the frame moved for its tab rows
+     * ({@code ContainerTabRows.centre}).
      */
     @ApiStatus.Internal
     public static int place(Screen screen, int y) {
         Seams seams = of(screen);
-        if (seams == null) return y;
+        if (seams == null) return y + ContainerTabRows.centring(screen);
         AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
+        // topPos is vanilla's place for the stretched size, moved for the rows: the row is from vanilla's own.
         int vanillaTop = (screen.height - acc.mk$getImageHeight() + seams.by()) / 2;
         int row = y - vanillaTop;
         // ponytail: assumes the place was worked out from the window (vanilla's recipe screens do); one from topPos would move twice

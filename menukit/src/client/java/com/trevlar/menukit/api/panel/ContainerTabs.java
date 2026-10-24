@@ -71,10 +71,14 @@ import java.util.function.Supplier;
  *       player's inventory, a shulker box, a chest with no section showing, a mod's own
  *       container screen. A {@link Edge#CONTAINERS_TOP} row stands on the frame's top edge and
  *       an {@link Edge#INVENTORY_BOTTOM} row on its bottom edge; the two middle edges have no
- *       gap to stand in there, and their tabs don't show. The screen keeps vanilla's layout,
- *       so screens of one size put the row in one place ({@link ScreenFrames} makes the
- *       inventory, 166 tall, a shulker box's 167), and a mod that opens one in place of another
- *       shows a steady row.</li>
+ *       gap to stand in there, and their tabs don't show. The frame and those two rows are
+ *       centered as one block, as the region's are: the frame moves from vanilla's place (half
+ *       a top row lower, half a bottom row higher), and everything vanilla places from it
+ *       with it; a row coming or going lays the screen out again. Screens of one size with
+ *       the same rows put the row in one place ({@link ScreenFrames} makes a shulker box
+ *       and a chest the inventory's 166), and a mod that opens one in place of another
+ *       shows a steady row. A mod's own screen that draws its image from the window's middle
+ *       rather than from {@code topPos} draws it where vanilla would have centered it.</li>
  *   <li>Never on the creative inventory, which has tabs of its own.</li>
  * </ul>
  * A row's page carries over to a screen opened in place of the last, and starts over once
