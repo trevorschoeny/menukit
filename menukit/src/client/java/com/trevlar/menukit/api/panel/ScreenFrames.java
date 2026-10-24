@@ -4,6 +4,7 @@ import com.trevlar.menukit.api.Declarations;
 import com.trevlar.menukit.inject.ContainerRegions;
 import com.trevlar.menukit.inject.ContainerTabRows;
 import com.trevlar.menukit.inject.RegionLayout;
+import com.trevlar.menukit.inject.ShortFrames;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 import com.trevlar.menukit.mixin.SlotAccessor;
 
@@ -73,6 +74,40 @@ import java.util.concurrent.ConcurrentHashMap;
  *       below the seam, is {@code by} off.</li>
  * </ul>
  *
+ * <h3>A grid that scrolls when the frame doesn't fit (Fluorite)</h3>
+ * {@link #scrollWhenShort} turns it on for the screens a mod chooses; MenuKit never does on its own.
+ * On such a screen, while its frame wouldn't fit the window, its own container grid scrolls inside
+ * the frame and the frame is as much shorter, so the whole screen fits:
+ *
+ * <pre>{@code
+ * // A large chest on a short window: its six rows scroll, the inventory stays put.
+ * ScreenFrames.scrollWhenShort(ModeScope.BOTH, ScreenMatcher.only(ContainerScreen.class));
+ * }</pre>
+ * <ul>
+ *   <li><b>When.</b> The frame (its seams included) and the tab rows on its top and bottom edges
+ *       are taller than the window less the 4 px margins the container region keeps, the same
+ *       block the shared centering rule centers. Read every frame; a resize lays it out again.
+ *       On a window it fits, the screen is vanilla's, pixel for pixel, and nothing on it is moved.</li>
+ *   <li><b>What scrolls.</b> The grid's rows, by pixels, inside the frame, as few given back as
+ *       make the screen fit, never under three; the title, the player's inventory, the hotbar and
+ *       the rest of the frame stay put. The scrollbar's lane is beside the grid, the frame that
+ *       much wider. A window too short even for three rows scrolls the column as the container
+ *       region does.</li>
+ *   <li><b>How.</b> It is the {@link ContainerRegion container region}, fitted, with the screen's
+ *       own grid as its first section, a {@code SlotScroll}: a row cut at the edge shows, hovers and
+ *       takes clicks only where it shows, a row out of view is inert, the wheel scrolls it, a
+ *       shift-click into a hidden row scrolls there, and the screen's bounds are the frame's.</li>
+ *   <li><b>Its slots are vanilla's.</b> Each one shown sits where it is drawn, so a recipe viewer or
+ *       a mod reading {@code slot.x/y} finds it there; one scrolled out of view is parked off the
+ *       screen; all of them go back to vanilla's places once the frame fits again or the screen
+ *       closes.</li>
+ *   <li><b>Which screens.</b> Any container screen whose own container is a full grid of 18 px
+ *       slots under its title at the frame's content edge, as a chest's, a barrel's, a shulker box's
+ *       or a mod's chest's are (slot x 8, y 18). A screen without one is left as it is, and so are
+ *       the player's own inventory screens. While another mod's section shows on the screen too,
+ *       the grid's section is first.</li>
+ * </ul>
+ *
  * <p>Declare from your client initializer: frames freeze with every other declaration.
  */
 public final class ScreenFrames {
@@ -106,6 +141,19 @@ public final class ScreenFrames {
         if (by == 0 || seam <= 0) throw new IllegalArgumentException("ScreenFrames.stretch needs a seam inside the frame and a non-zero size");
         if (SEAMS.putIfAbsent(screen, new Seam(seam, by)) != null)
             throw new IllegalStateException("ScreenFrames: " + screen.getName() + " is already stretched");
+    }
+
+    /**
+     * Lets the screens {@code screens} takes scroll their own container grid inside their frame
+     * while the frame wouldn't fit the window, in {@code scope}'s game mode ({@link ModeScope#BOTH}
+     * for either), read every frame (see "A grid that scrolls when the frame doesn't fit"). Off for
+     * every screen no declaration takes.
+     *
+     * @throws IllegalStateException after declarations froze
+     */
+    public static void scrollWhenShort(ModeScope scope, ScreenMatcher screens) {
+        Declarations.requireOpen("ScreenFrames.scrollWhenShort(" + scope + ")");
+        ShortFrames.declare(Objects.requireNonNull(scope, "scope"), Objects.requireNonNull(screens, "screens"));
     }
 
     /**
@@ -165,6 +213,8 @@ public final class ScreenFrames {
             ScreenEvents.remove(screen).register(s -> unplaceSlots());
             placeSlots(acs, seams);
         });
+        // A short screen's grid takes its slots after the seams moved them, before the region lays out.
+        ShortFrames.init(PHASE);
     }
 
     /**
