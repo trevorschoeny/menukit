@@ -1,7 +1,7 @@
 package com.trevlar.menukit.api.panel;
 
 import com.trevlar.menukit.api.Declarations;
-import com.trevlar.menukit.inject.ContainerTabRows;
+import com.trevlar.menukit.inject.TabRegistry;
 import com.trevlar.menukit.inject.PanelHost;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -339,9 +339,9 @@ public final class ContainerTabs {
             int at = order;
             Edge on = edge;
             // A group's header, built once, its id the list's; its sub-tabs show only with it.
-            ContainerTabRows.Group group = header == null ? null
-                    : new ContainerTabRows.Group(id, expanded != null ? expanded : () -> true);
-            ContainerTabRows.Tab head = null;
+            TabRegistry.Group group = header == null ? null
+                    : new TabRegistry.Group(id, expanded != null ? expanded : () -> true);
+            TabRegistry.Tab head = null;
             if (group != null) {
                 Builder h = forKey(id, scope, screens);
                 h.order = at;
@@ -355,8 +355,9 @@ public final class ContainerTabs {
             int w = tabWidth > 0 ? tabWidth : group != null ? SUB_WIDTH : TAB_WIDTH;
             int ht = tabHeight > 0 ? tabHeight : group != null ? SUB_HEIGHT : TAB_HEIGHT;
             // Each key's tab is named by the list and the key, so what the row keeps by id follows the key.
-            ContainerTabRows.declareKeyed(new ContainerTabRows.Keyed(id, keys::get, key -> {
+            TabRegistry.declareKeyed(new TabRegistry.Keyed(id, keys::get, key -> {
                 Builder b = forKey(id + "#" + key, scope, screens);
+                b.ref = new TabRegistry.KeyRef(id, key);
                 b.order = at;
                 b.edge = on;
                 b.fixed = true;
@@ -407,9 +408,11 @@ public final class ContainerTabs {
         private @Nullable Icon icon;
         private int width = TAB_WIDTH, height = TAB_HEIGHT;
         /** A group's header or sub-tab: its group, whether a sub-tab, and its header's showing, which a sub-tab's adds to. */
-        private ContainerTabRows.@Nullable Group group;
+        private TabRegistry.@Nullable Group group;
         private boolean sub;
         private @Nullable BooleanSupplier under;
+        /** What the rows keep it by: its id, or for a key's tab its list and key. */
+        private @Nullable Object ref;
         private @Nullable Supplier<@Nullable Component> tooltip;
         private Runnable onClick = () -> {};
         private BooleanSupplier visibleWhen = () -> true, selectedWhen = () -> false, disabledWhen = () -> false, stickyWhen = () -> false;
@@ -553,16 +556,16 @@ public final class ContainerTabs {
          */
         public void declare() {
             Declarations.requireOpen("ContainerTabs.tab(" + id + ")");
-            ContainerTabRows.declare(build());
+            TabRegistry.declare(build());
         }
 
         /** The tab as built so far, its mode scope one more condition, read every frame with its own. */
-        ContainerTabRows.Tab build() {
+        TabRegistry.Tab build() {
             BooleanSupplier own = visibleWhen;
             BooleanSupplier scoped = scope == ModeScope.BOTH ? own : () -> scope.covers(PanelHost.currentMode()) && own.getAsBoolean();
             BooleanSupplier header = under;
             BooleanSupplier shown = header == null ? scoped : () -> header.getAsBoolean() && scoped.getAsBoolean();
-            return new ContainerTabRows.Tab(id, matcher, order, edge, shown, selectedWhen, disabledWhen, stickyWhen,
+            return new TabRegistry.Tab(id, ref != null ? ref : id, matcher, order, edge, shown, selectedWhen, disabledWhen, stickyWhen,
                     icon, tooltip, onClick, width, height, group, sub);
         }
     }
