@@ -37,7 +37,8 @@ final class LiveKeys {
         Map<Object, @Nullable V> out = new LinkedHashMap<>();
         for (Object k : now) {
             if (out.containsKey(k)) continue;
-            if (was.containsKey(k)) {
+            // Not on an empty map: an immutable one refuses a null key.
+            if (!was.isEmpty() && was.containsKey(k)) {
                 out.put(k, was.get(k));
                 continue;
             }
