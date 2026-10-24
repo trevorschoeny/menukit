@@ -109,8 +109,8 @@ public final class ContainerTabRows {
     static final int SPRITE_WIDTH = 26, SPRITE_HEIGHT = 32, INTO = 4;
     /** The sprite's left and right edges, kept whole as a tab widens or narrows; the plain columns between repeat or are cut. */
     static final int EDGE_COLUMNS = 4;
-    /** The icon's near side, this far clear of the frame; a 16 px icon then reaches 18 px out, as vanilla's does. */
-    static final int ICON_CLEAR = 2;
+    /** A tab's rows outside its fill, at the tip: the sprite's 2 empty rows, its outline and its 2-row highlight. */
+    static final int TIP = 5;
     /** How long a group takes to slide open or closed. */
     public static final int SLIDE_MILLIS = 200;
     /** The paging arrows: vanilla's recipe book page arrows, at the row's two ends. */
@@ -981,15 +981,17 @@ public final class ContainerTabRows {
         }
 
         /**
-         * Tab {@code t}'s icon box, centered across it with its near side {@link #ICON_CLEAR} px
-         * clear of the frame: 16 px square on a full-size tab, smaller in proportion on a smaller
+         * Tab {@code t}'s icon box, centered across it and centered in its fill, between the frame
+         * and the tip's {@link #TIP} rows (on a full-size tab that is 2 px clear of the frame, as
+         * vanilla's is): 16 px square on a full-size tab, smaller in proportion on a smaller
          * one (an even size, so it centers on the pixel grid), and the mod's drawing in it.
          */
         private static void icon(GuiGraphicsExtractor graphics, Tab t, int x, Line l) {
             if (t.icon() == null) return;
             float scale = Math.min(1f, Math.min((float) t.width() / TAB_WIDTH, (float) t.height() / RegionLayout.TAB_ROW));
             int size = 2 * Math.round(8f * scale);
-            int ix = x + (t.width() - size) / 2, iy = l.top() ? l.y() - ICON_CLEAR - size : l.y() + ICON_CLEAR;
+            int clear = Math.max(0, (t.height() - TIP - size) / 2);
+            int ix = x + (t.width() - size) / 2, iy = l.top() ? l.y() - clear - size : l.y() + clear;
             t.icon().draw(graphics, ix, iy, size, size);
         }
 
