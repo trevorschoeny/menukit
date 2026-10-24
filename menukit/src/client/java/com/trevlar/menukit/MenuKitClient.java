@@ -70,6 +70,8 @@ public class MenuKitClient implements ClientModInitializer {
         ContainerRegions.init();
         // After the region's hooks, so a row stands on a screen's own frame only where the region isn't up.
         com.trevlar.menukit.inject.ContainerTabRows.init();
+        // Stretched vanilla frames: a screen's size before vanilla centers it, its slots from the seam down.
+        com.trevlar.menukit.api.panel.ScreenFrames.init();
 
         // MenuKit's looks follow resource packs: what each reads from the packs (the panels'
         // container art, the controls' sprites, the text shader, OptiGUI's rules) is cached,

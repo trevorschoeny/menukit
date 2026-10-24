@@ -129,4 +129,13 @@ public final class ScreenBackground {
         }
         return hidingImage && texture.equals(passImage);
     }
+
+    /**
+     * The screen whose background pass is running, when {@code texture} is its own image
+     * ({@link #hidesBlit} has seen it), else {@code null}: a stretched frame draws that image
+     * in parts ({@code ScreenFrames}).
+     */
+    public static @Nullable Screen imageOf(Identifier texture) {
+        return pass != null && watching && texture.equals(passImage) ? pass : null;
+    }
 }

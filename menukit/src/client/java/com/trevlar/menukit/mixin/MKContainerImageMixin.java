@@ -1,9 +1,11 @@
 package com.trevlar.menukit.mixin;
 
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.trevlar.menukit.api.panel.ScreenFrames;
 import com.trevlar.menukit.inject.ScreenBackground;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.Identifier;
 
 import org.jetbrains.annotations.ApiStatus;
@@ -17,7 +19,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * noted, and left out while panels replace it (the container region's). Every texture blit
  * by location reaches this overload. Priority 800: its head runs before OptiGUI's (priority
  * 900) swap of the texture, so the screen's own texture is what is seen, and a hidden image
- * is never swapped at all. Outside such a pass, and for any other texture, it draws as always.
+ * is never swapped at all. A stretched screen's image ({@link ScreenFrames}) draws in its parts
+ * instead, each through here and OptiGUI's swap again. Outside such a pass, and for any other
+ * texture, it draws as always.
  */
 @ApiStatus.Internal
 @Mixin(value = GuiGraphicsExtractor.class, priority = 800)
@@ -28,6 +32,12 @@ public abstract class MKContainerImageMixin {
     private void mk$screenImage(RenderPipeline pipeline, Identifier location, int x, int y, float u, float v, int width,
                                 int height, int uWidth, int vHeight, int textureWidth, int textureHeight, int color,
                                 CallbackInfo ci) {
-        if (ScreenBackground.hidesBlit(location)) ci.cancel();
+        if (ScreenBackground.hidesBlit(location)) {
+            ci.cancel();
+            return;
+        }
+        Screen owner = ScreenBackground.imageOf(location);
+        if (owner != null && ScreenFrames.drawParts(owner, (GuiGraphicsExtractor) (Object) this, pipeline, location, x, y,
+                u, v, width, height, uWidth, vHeight, textureWidth, textureHeight, color)) ci.cancel();
     }
 }

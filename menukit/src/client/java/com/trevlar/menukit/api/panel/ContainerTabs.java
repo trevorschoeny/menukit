@@ -68,8 +68,8 @@ import java.util.function.Supplier;
  *       container screen. A {@link Edge#CONTAINERS_TOP} row stands on the frame's top edge and
  *       an {@link Edge#INVENTORY_BOTTOM} row on its bottom edge; the two middle edges have no
  *       gap to stand in there, and their tabs don't show. The screen keeps vanilla's layout,
- *       so screens of one size (the inventory, a shulker box and a single chest are all
- *       176 x 166) put the row in one place, and a mod that opens one in place of another
+ *       so screens of one size put the row in one place ({@link ScreenFrames} makes the
+ *       inventory, 166 tall, a shulker box's 167), and a mod that opens one in place of another
  *       shows a steady row.</li>
  *   <li>Never on the creative inventory, which has tabs of its own.</li>
  * </ul>

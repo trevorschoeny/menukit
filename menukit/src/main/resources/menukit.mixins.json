@@ -25,6 +25,7 @@
     "MKModalMouseHandlerMixin",
     "MKQuickMoveRevealMixin",
     "MKRecipeBookAccessor",
+    "MKRecipeButtonPlaceMixin",
     "MKScreenBackgroundMixin",
     "MKSlotActiveMixin",
     "MKSlotInputMixin",
