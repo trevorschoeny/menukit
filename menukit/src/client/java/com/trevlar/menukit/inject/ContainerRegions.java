@@ -541,6 +541,8 @@ public final class ContainerRegions {
         @Nullable Reference applied;
         /** How far vanilla's own placements are moved now ({@link RegionLayout#counterShift}): the title, and the inventory. */
         int shiftX, shiftY, inventoryShiftY;
+        /** Whether a section's own grid gave rows back this frame, so it scrolls inside the list. */
+        boolean sectionScrolls;
         /** Each section's top and bottom in the content this frame, -1 while hidden. */
         int[] tops = new int[0], bottoms = new int[0];
         long lastFrame = -1;
@@ -614,6 +616,7 @@ public final class ContainerRegions {
         state.scroll = 0;
         state.geometry = null;
         state.frame = null;
+        state.sectionScrolls = false;
         state.vanilla = null;
         state.applied = null;
         state.shiftX = state.shiftY = state.inventoryShiftY = 0;
@@ -667,13 +670,14 @@ public final class ContainerRegions {
     }
 
     /**
-     * Whether the container list on {@code screen} scrolls this frame ({@code ContainerRegion.scrolls}):
-     * {@code false} while the region is not on {@code screen}, or no section shows.
+     * Whether the container list on {@code screen} scrolls this frame, or a section's own grid in
+     * it does ({@code ContainerRegion.scrolls}): {@code false} while the region is not on
+     * {@code screen}, or no section shows.
      */
     public static boolean scrolls(Screen screen) {
         Objects.requireNonNull(screen, "screen");
         Geometry g = geometry(screen);
-        return g != null && g.scrollable();
+        return g != null && (g.scrollable() || state.sectionScrolls);
     }
 
     /**
@@ -828,7 +832,8 @@ public final class ContainerRegions {
         int columnHeight = column.getHeight();   // lays the column out first
         int overflow = state.shape.contentTop() + columnHeight + state.shape.contentBottom()
                 - RegionLayout.maxContent(vanilla, inventoryLabelY, state.screenHeight, state.shape);
-        if (overflow > 0 && ChildDispatch.yieldHeight(holders, overflow) > 0) columnHeight = column.getHeight();
+        state.sectionScrolls = overflow > 0 && ChildDispatch.yieldHeight(holders, overflow) > 0;
+        if (state.sectionScrolls) columnHeight = column.getHeight();
         for (int i = 0; i < n; i++) {
             AbstractPanelElement holder = sections.get(i).holder();
             if (!shown[i]) { tops[i] = bottoms[i] = -1; continue; }

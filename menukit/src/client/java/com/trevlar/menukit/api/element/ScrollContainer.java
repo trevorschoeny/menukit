@@ -553,6 +553,15 @@ public class ScrollContainer extends AbstractPanelElement {
         return contentHeight(kind) > viewHeight(kind);
     }
 
+    /**
+     * Whether it scrolls now: its content is taller than its viewport, so the scrollbar shows and
+     * the wheel over it is its own (Fluorite). For a mod that would do something else with the
+     * wheel there (switch tabs, say) while it doesn't.
+     */
+    public boolean scrolls() {
+        return canScroll(measuredKind);
+    }
+
     /** The scroll in pixels, clamped to the current range. */
     private double scroll(ScreenKind kind) {
         return Scroller.clamp(scrollGet.getAsDouble(), contentHeight(kind), viewHeight(kind));

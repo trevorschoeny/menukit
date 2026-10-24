@@ -72,6 +72,8 @@ public class MenuKitClient implements ClientModInitializer {
         com.trevlar.menukit.inject.ContainerTabRows.init();
         // Stretched vanilla frames: a screen's size before vanilla centers it, its slots from the seam down.
         com.trevlar.menukit.api.panel.ScreenFrames.init();
+        // Scrolling slot grids: each one's live cells read once a frame, before the region lays out.
+        com.trevlar.menukit.api.element.SlotScroll.init();
         // A container screen opened in place of another: its frame moves from the old one's.
         com.trevlar.menukit.inject.ScreenSwap.init();
 

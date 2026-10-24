@@ -1,6 +1,7 @@
 package com.trevlar.menukit.mixin;
 
 import com.trevlar.menukit.inject.PresentedSlots;
+import com.trevlar.menukit.inject.SlotClips;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 import com.trevlar.menukit.api.host.SlotHoverResult;
 import com.trevlar.menukit.inject.SlotScreenDispatcher;
@@ -81,7 +82,11 @@ public abstract class MKSlotInputMixin {
      */
     @Inject(method = "getHoveredSlot", at = @At("RETURN"), cancellable = true)
     private void mk$slotUnderWidget(double mouseX, double mouseY, CallbackInfoReturnable<Slot> cir) {
-        if (PresentedSlots.underWidget((AbstractContainerScreen<?>) (Object) this, cir.getReturnValue(), mouseX, mouseY)) {
+        // And a slot shown in part (across a scroll edge) only where it is shown: with no slot
+        // library's hook, vanilla's own answer is the one that needs the clip (SlotClips).
+        Slot slot = cir.getReturnValue();
+        if (PresentedSlots.underWidget((AbstractContainerScreen<?>) (Object) this, slot, mouseX, mouseY)
+                || SlotClips.hides(slot, mouseX, mouseY)) {
             cir.setReturnValue(null);
         }
     }

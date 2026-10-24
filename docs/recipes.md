@@ -746,6 +746,36 @@ new AnchorPanelAdapter(sortInventory);
 
 Result: each button stays by its panel as the container list grows, shrinks and scrolls, and is gone on screens the region is not on.
 
+## Scroll a slot grid when it doesn't fit
+
+Needs: MenuKit 7.4.0, and a slot library's elements for the cells (SlotKit's `SlotElement`, one per cell). For a container with more rows than a short window shows: a box with extra rows, a bundle, a backpack.
+
+```java
+// A box's rows as a section's content: as tall as its live rows while they fit, scrolling once they don't.
+PanelElement grid = SlotScroll.builder()
+        .cells(27, (i, x, y, shown) -> boxSlot(i, x, y, shown))   // a slot library's element per cell
+        .liveCount(() -> liveSlots)
+        .build();
+ContainerRegion.section("mymod:box", ModeScope.BOTH)
+        .title(() -> Component.translatable("container.shulkerBox"))
+        .content(grid)
+        .on(ContainerScreen.class)
+        .declare();
+// A bundle's slots: eight a row while they scroll, the scrollbar in the ninth column.
+PanelElement bundle = SlotScroll.builder().cells(64, (i, x, y, shown) -> boxSlot(i, x, y, shown)).narrows().build();
+```
+
+Result: the box's section shows every live row while the window has the height, and once it doesn't, gives back whole rows, as few as make the screen fit, and scrolls inside the section, its scrollbar beside the grid and the frame that much wider. The title, the other sections and the inventory stay put. It is never under three rows (`minRows`), so a box with fewer live slots is as tall as a chest. `boxSlot` makes cell `i` at `(x, y)`, shown while `shown` holds: with SlotKit, `SlotElement.builder().slot(groupId, i).at(x, y).visibleWhen(shown).build()`. Without `liveCount`, the live cells are the leading ones visible on their own, so a slot library's element whose slot isn't on the menu ends the grid. A shift-click into a row scrolled out of view scrolls there. The bundle's grid keeps its nine columns' width: while it scrolls it is eight a row, with the scrollbar where the ninth column was. Elsewhere than a container region section, nothing asks the grid for room, so it is as tall as its live rows.
+
+For a vanilla screen's own grid, turn it on with one line:
+
+```java
+// A large chest on a short window: its own six rows scroll inside its frame, the inventory stays put.
+ScreenFrames.scrollWhenShort(ModeScope.BOTH, ScreenMatcher.only(ContainerScreen.class));
+```
+
+Result: a large chest on a window too short for its frame, at a big GUI scale say, scrolls its six rows inside a frame that fits, within the 4 pixel margins, its tab rows counted. The title, the inventory and the hotbar stay put. On a window the frame fits, the screen is vanilla's to the pixel. Its slots are vanilla's, so recipe viewers and mods reading `slot.x/y` see each one where it is drawn.
+
 ## Show one container at a time under tabs
 
 Needs: MenuKit 7.4.0, and a slot library's elements for the grids. For a mod that opens more containers on a chest's screen and shows them one at a time, the way the creative inventory shows one page.

@@ -347,10 +347,11 @@ public final class ContainerRegion {
     }
 
     /**
-     * Whether the container list on {@code screen} scrolls this frame: {@code true} where the
-     * mouse wheel should go to the list rather than anything else a mod would otherwise do with
-     * it (switch tabs, say) while the cursor is over it. {@code false} while the region is not
-     * on {@code screen}, or no section shows. Render thread.
+     * Whether the container list on {@code screen} scrolls this frame, or a section's own grid in
+     * it does (a {@code SlotScroll}, or any scroll area that fits the room, giving rows back):
+     * {@code true} where the mouse wheel should go to the list rather than anything else a mod
+     * would otherwise do with it (switch tabs, say) while the cursor is over it. {@code false}
+     * while the region is not on {@code screen}, or no section shows. Render thread.
      *
      * @throws NullPointerException if {@code screen} is {@code null}
      */
