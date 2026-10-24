@@ -124,9 +124,10 @@ import java.util.function.Supplier;
  *       and every sub-tab, and the arrows page through those. A closed group's sub-tabs take no
  *       click.</li>
  *   <li><b>Pinned tabs</b> ({@link Builder#stickyWhen}), a header or a sub-tab, stay in view
- *       while the row is paged past them: each stops at the row's left end as it gets there,
- *       the tabs after it going on behind it, and pinned tabs of one group stand there side by
- *       side in row order, until the next group's header pushes them off together, as section
+ *       while the row is paged either way past them: each stops at the end of the row it would
+ *       leave by, the tabs beyond it going on behind it, and pinned tabs of one group stand
+ *       there side by side in row order, until the next group's header (at the left end) or
+ *       the previous group's last tab (at the right end) pushes them off together, as section
  *       headers do in a phone's list. Which tabs pin is the mod's, read every frame: a header
  *       while its group is open, a sub-tab while it is selected.</li>
  * </ul>
@@ -502,9 +503,11 @@ public final class ContainerTabs {
 
         /**
          * Pinned while this holds, read every frame: as the row is paged past it, it stops at the
-         * row's left end, still clickable, and the tabs after it go on behind it, until the next
-         * group's header pushes it off to the left. A group's pinned tabs, its header and any of
-         * its sub-tabs, stand there side by side in row order and leave together. A selected tab
+         * end of the row it would leave by, still clickable, and the tabs beyond it go on behind
+         * it. Paged forward, it stops at the left end until the next group's header pushes it
+         * off; paged back, at the right end until the previous group's last tab pushes it off. A
+         * group's pinned tabs, its header and any of its sub-tabs, stand there side by side in
+         * row order and leave together. A selected tab
          * behind a pinned one is brought out from behind it. Pinning is a group's: a tab outside
          * any group is pushed off by the tab after it, so it pages as before. Default: never.
          */
