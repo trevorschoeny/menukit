@@ -6,7 +6,7 @@ import com.trevlar.menukit.api.panel.ContainerRegion;
 import com.trevlar.menukit.api.panel.Reference;
 import com.trevlar.menukit.core.OptiGuiRules;
 import com.trevlar.menukit.core.PackLook;
-import com.trevlar.menukit.inject.ContainerRegions.Declared;
+import com.trevlar.menukit.inject.RegionDeclarations.Declared;
 import com.trevlar.menukit.inject.ContainerRegions.Frame;
 import com.trevlar.menukit.inject.RegionLayout.Geometry;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
@@ -233,7 +233,7 @@ public final class RegionLooks {
                     ctx.originY(), ctx.originY() + inv.imageHeight(), f.inventory());
             AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) acs;
             for (Slot slot : acs.getMenu().slots) {
-                if (ContainerRegions.stays(slot) && slot.isActive()) {
+                if (RegionBounds.stays(slot) && slot.isActive()) {
                     PackLook.drawSlot(ctx.graphics(), acc.mk$getLeftPos() + slot.x - 1, acc.mk$getTopPos() + slot.y - 1, f.inventory());
                 }
             }

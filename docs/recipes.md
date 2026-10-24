@@ -771,7 +771,7 @@ For a vanilla screen's own grid, turn it on with one line:
 
 ```java
 // A large chest on a short window: its own six rows scroll inside its frame, the inventory stays put.
-ScreenFrames.scrollWhenShort(ModeScope.BOTH, ScreenMatcher.only(ContainerScreen.class));
+ScreenFrames.scrollsWhenShort(ModeScope.BOTH, ScreenMatcher.only(ContainerScreen.class));
 ```
 
 Result: a large chest on a window too short for its frame, at a big GUI scale say, scrolls its six rows inside a frame that fits, within the 4 pixel margins, its tab rows counted. The title, the inventory and the hotbar stay put. On a window the frame fits, the screen is vanilla's to the pixel. Its slots are vanilla's, so recipe viewers and mods reading `slot.x/y` see each one where it is drawn.
@@ -818,7 +818,7 @@ ContainerTabs.tab("mymod:opened-box", ModeScope.BOTH)
         .declare();
 ```
 
-Result: with no box open, the chest's screen is the chest alone, in one frame like vanilla's. With a box open, two tabs stand on the frame's top edge, the chest's and the box's, vanilla's creative tabs with each one's icon, and the frame shows the picked container only, as tall as it needs: a 3-row box picked on a double chest's screen shrinks it. The picked tab is open into the frame, and the tabs take the place of the titles. A click on a tab picks it, with vanilla's click sound, an item on the cursor or not. The container not shown has its slots off, so nothing behind it hovers or takes a click, and a shift-click from the inventory that lands in it runs its `onHiddenLanding`, which picks it, so the player sees where the item went. `picked` is the mod's own field: MenuKit keeps no pick, so the mod resets it when its screen opens or a box closes. More tabs than fit are paged by arrows at the row's ends.
+Result: with no box open, the chest's screen is the chest alone, in one frame like vanilla's. With a box open, two tabs stand on the frame's top edge, the chest's and the box's, vanilla's creative tabs with each one's icon, and the frame shows the picked container only, as tall as it needs: a 3-row box picked on a double chest's screen shrinks it. The picked tab is open into the frame, and the picked container's title sits under the row, where vanilla's is. A click on a tab picks it, with vanilla's click sound, an item on the cursor or not. The container not shown has its slots off, so nothing behind it hovers or takes a click, and a shift-click from the inventory that lands in it runs its `onHiddenLanding`, which picks it, so the player sees where the item went. `picked` is the mod's own field: MenuKit keeps no pick, so the mod resets it when its screen opens or a box closes. More tabs than fit are paged by arrows at the row's ends.
 
 A tab can stand on any edge of the two panels and draw a sprite of the mod's own:
 
@@ -833,7 +833,7 @@ ContainerTabs.tab("mymod:sort", ModeScope.BOTH)
         .declare();
 ```
 
-Result: on every container screen the region is on, a bottom tab hangs under the inventory panel with the sprite in it, 16 pixels square. It is grayed and takes no click while the inventory is empty. The region makes room for it below the inventory panel, and the screen's bounds take it in. Several mods' tabs on one edge share its row, by `order`.
+Result: on every container screen, a bottom tab hangs under the inventory panel with the sprite in it, 16 pixels square: under the region's inventory panel where the region is up, and under the screen's own frame everywhere else. It is grayed and takes no click while the inventory is empty. The region makes room for it below the inventory panel, and the screen's bounds take it in. Several mods' tabs on one edge share its row, by `order`.
 
 ## A shulker box from an item, and one placed in the world, each in its own art
 

@@ -68,7 +68,7 @@ public final class RegionSlots {
 
     /** The hidden section {@code slot} is in this frame, by stacking index, or {@code -1} (shown, the player's, or no section's). */
     static int inHidden(Slot slot) {
-        if (ContainerRegions.stays(slot)) return -1;
+        if (RegionBounds.stays(slot)) return -1;
         int s = RegionReveal.sectionOf(slot);
         if (s < 0 && !SlotScreenDispatcher.fireIsCreated(slot)) s = own;
         return s >= 0 && s < hidden.length && hidden[s] ? s : -1;

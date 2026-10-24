@@ -37,6 +37,8 @@ final class RegionColumn extends AbstractPanelElement {
     private @Nullable ScreenKind kind;
     private boolean inDialog, inBand;
     private int height;
+    /** Whether the sections are placed as they stand now: measured once, then again only once something may have moved them ({@link #remeasure}). */
+    private boolean placed;
 
     RegionColumn() {}
 
@@ -45,6 +47,7 @@ final class RegionColumn extends AbstractPanelElement {
      * (its width, its kind of screen) and attached; one that is gone is detached.
      */
     void set(List<AbstractPanelElement> next) {
+        placed = false;
         List<AbstractPanelElement> before = children;
         children = List.copyOf(next);
         for (AbstractPanelElement c : before) if (!children.contains(c)) attachment.removed(c);
@@ -58,8 +61,22 @@ final class RegionColumn extends AbstractPanelElement {
         }
     }
 
-    /** Places the shown sections top to bottom, GAP apart, and notes how tall they are together. */
+    /**
+     * The sections may have moved or changed size (the region's frame step, before it measures):
+     * they are placed again the next time the column is measured.
+     */
+    void remeasure() {
+        placed = false;
+    }
+
+    /**
+     * Places the shown sections top to bottom, GAP apart, and notes how tall they are together:
+     * once, until {@link #remeasure} or a new set of sections. Layout measures the column many
+     * times a frame; drawing places it afresh ({@link #render}).
+     */
     private void place() {
+        if (placed) return;
+        placed = true;
         int y = 0;
         boolean first = true;
         for (AbstractPanelElement c : children) {
@@ -105,6 +122,7 @@ final class RegionColumn extends AbstractPanelElement {
 
     @Override
     public void layoutWithin(int budget) {
+        placed = false;
         this.budget = Math.max(1, budget);
         for (PanelElement c : children) c.layoutWithin(this.budget);
     }
@@ -115,6 +133,8 @@ final class RegionColumn extends AbstractPanelElement {
 
     @Override
     public void render(RenderContext ctx) {
+        // Drawn as the sections stand now: one shown or hidden since the frame's layout goes where it belongs.
+        placed = false;
         place();
         ChildDispatch.render(children, childContext(ctx));
     }

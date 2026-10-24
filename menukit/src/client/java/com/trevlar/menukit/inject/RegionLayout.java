@@ -68,15 +68,7 @@ public final class RegionLayout {
     /** Full speed, in pixels a second. */
     public static final double EDGE_SPEED = 120;
 
-    // Tab rows (ContainerTabs) and the fitted frame (ContainerRegion.fitted).
-
-    /**
-     * A tab row's height beyond the frame edge it stands on: vanilla's creative top tab
-     * stands 28 px above its frame, these 25, room for a full-size icon inside an unpicked
-     * tab with two rows clear above and below it. A double chest with a row above it needs
-     * 245 px (212 + 25 and the two margins), so in a 240 px window its grid scrolls by 5.
-     */
-    public static final int TAB_ROW = 25;
+    // The fitted frame (ContainerRegion.fitted).
 
     /** The one size of vanilla's container screens: the inventory's and nearly every other's ({@code ScreenFrames}). */
     public static final int STANDARD_HEIGHT = 166;
@@ -103,7 +95,6 @@ public final class RegionLayout {
      * @param between           extra room between the two panels, past {@code panelGap}, for the
      *                          tab rows that stand there, counted in the block
      * @param below             the tab row's height below the inventory panel's bottom edge, counted in the block
-     * @param contentTop        the room above the first section, inside the content
      * @param contentBottom     the room below the last section, inside the content
      * @param viewBottom        from the viewport's bottom to the list's bottom edge
      * @param panelGap          between the list's bottom edge and the inventory panel's top, rows apart
@@ -113,7 +104,7 @@ public final class RegionLayout {
      * @param joined            whether the list and the inventory panel are one frame, one
      *                          surface as wide as the list
      */
-    public record Shape(int above, int between, int below, int contentTop, int contentBottom, int viewBottom,
+    public record Shape(int above, int between, int below, int contentBottom, int viewBottom,
                         int panelGap, int inventoryLabelTop, int shrink, boolean joined) {
 
         /** The list with no tab row: every shown section in one column, two panels a gap apart, never shorter than the screen's own part. */
@@ -144,9 +135,9 @@ public final class RegionLayout {
          */
         public static Shape of(boolean fitted, int above, int betweenRows, int below) {
             if (fitted && betweenRows == 0) {
-                return new Shape(above, 0, below, CONTENT_TOP, 0, 0, 0, GAP, Integer.MAX_VALUE, true);
+                return new Shape(above, 0, below, 0, 0, 0, GAP, Integer.MAX_VALUE, true);
             }
-            return new Shape(above, Math.max(0, betweenRows - PANEL_GAP), below, CONTENT_TOP, CONTENT_BOTTOM, VIEW_BOTTOM,
+            return new Shape(above, Math.max(0, betweenRows - PANEL_GAP), below, CONTENT_BOTTOM, VIEW_BOTTOM,
                     PANEL_GAP, INVENTORY_LABEL_TOP, fitted ? Integer.MAX_VALUE : 0, false);
         }
     }
@@ -172,12 +163,6 @@ public final class RegionLayout {
     public record Geometry(int x, int top, int width, int height, int bottom, int viewTop, int viewHeight,
                            int content, boolean scrollable, Reference inventory, Reference bounds, Shape shape) {
 
-        /** A list-mode geometry. */
-        public Geometry(int x, int top, int width, int height, int bottom, int viewTop, int viewHeight,
-                        int content, boolean scrollable, Reference inventory, Reference bounds) {
-            this(x, top, width, height, bottom, viewTop, viewHeight, content, scrollable, inventory, bounds, Shape.LIST);
-        }
-
         /** The viewport's bottom edge: where scrolled content clips. */
         public int viewBottom() { return viewTop + viewHeight; }
 
@@ -190,10 +175,11 @@ public final class RegionLayout {
 
     /**
      * Grow first, then scroll, centered while it fits, from the screen's own bounds as vanilla
-     * laid them out. The container list starts as the screen's own container part, its top at
-     * vanilla's {@code topPos}, and grows with its content. The two panels are one block, and
-     * the room left free around it is shared evenly above and below (to {@link #TOP_MARGIN}
-     * and {@link #BOTTOM_MARGIN}), as far as each side has room:
+     * laid them out, for a list standing as {@code shape} says. The container list starts as
+     * the screen's own container part, its top at vanilla's {@code topPos}, and grows with its
+     * content. The block is the list, the inventory panel and the tab rows on them, and the
+     * room left free around it is shared evenly above and below (to {@link #TOP_MARGIN} and
+     * {@link #BOTTOM_MARGIN}), as far as each side has room:
      * <ul>
      *   <li>while the block fits centered, it is centered: each pixel the list grows moves
      *       its top up half a pixel and the inventory panel down half a pixel, rounded as
@@ -208,41 +194,24 @@ public final class RegionLayout {
      * Each pixel of growth moves each panel by at most one pixel and never back, so a box
      * opening never makes the block jump, at any window height. With vanilla's image
      * centered the block stays centered right up to both margins at once.
-     * Never shorter than the screen's own container part, and neither panel ever moves the
-     * other way from where vanilla put it: on a window with no room (a tiny one) the list
-     * keeps vanilla's height and scrolls.
+     * The list ({@link Shape#LIST}) is never shorter than the screen's own container part, and
+     * neither panel ever moves the other way from where vanilla put it: on a window with no
+     * room (a tiny one) the list keeps vanilla's height and scrolls. In the fitted frame the
+     * block grows or shrinks from vanilla's image by as much as it is taller or shorter: a
+     * 3-row box on a double chest's screen makes it shorter, and then the list's top moves
+     * down and the inventory panel up, half each, as it grows. The tab rows on the block's
+     * outside edges (above the list, below the inventory panel) are in the block, so the frame
+     * and its rows are centered together, as a screen's own frame is centered with its rows
+     * where the region isn't up: one rule ({@link FrameCentring#up}), so a region
+     * screen and a vanilla one of the same size, with the same rows, put frame and rows in the
+     * same place. Content {@code wider} pixels wider than {@link #CONTENT_WIDTH} makes the list
+     * that much wider, so a section with its own scrollbar beside its grid
+     * ({@code ScrollContainer.Builder.laneOutside}) keeps it inside the frame, while it shows.
      *
      * @param vanilla         the screen's bounds as vanilla computed them
      * @param inventoryLabelY vanilla's "Inventory" label, from vanilla's {@code topPos}
      * @param content         the content's height
      * @param screenHeight    the screen's height, for the room below the inventory panel
-     */
-    public static Geometry layout(Reference vanilla, int inventoryLabelY, int content, int screenHeight) {
-        return layout(vanilla, inventoryLabelY, content, screenHeight, Shape.LIST);
-    }
-
-    /**
-     * {@link #layout(Reference, int, int, int)} for a list standing as {@code shape} says. The
-     * block is the list, the inventory panel and the tab rows on them, and it grows or shrinks
-     * from vanilla's image by as much as it is taller or shorter: in the fitted frame a 3-row
-     * box on a double chest's screen makes it shorter, and then the list's top moves down and
-     * the inventory panel up, half each, as it grows. The rule is the one above either way;
-     * the list ({@link Shape#LIST}) never shrinks, as it is never shorter than the screen's own
-     * container part. The tab rows on the block's outside edges (above the list, below the
-     * inventory panel) are in the block, so the frame and its rows are centered together, as
-     * {@link #frameTop} centers a screen's own frame with its rows (where the region isn't up):
-     * one rule ({@link #up}), so a region screen and a vanilla one of the same size, with the
-     * same rows, put frame and rows in the same place.
-     */
-    public static Geometry layout(Reference vanilla, int inventoryLabelY, int content, int screenHeight, Shape shape) {
-        return layout(vanilla, inventoryLabelY, content, screenHeight, shape, 0);
-    }
-
-    /**
-     * {@link #layout(Reference, int, int, int, Shape)} for content {@code wider} pixels wider
-     * than {@link #CONTENT_WIDTH}: the list is that much wider, so a section with its own
-     * scrollbar beside its grid ({@code ScrollContainer.Builder.laneOutside}) keeps it inside
-     * the frame, while it shows.
      */
     public static Geometry layout(Reference vanilla, int inventoryLabelY, int content, int screenHeight, Shape shape,
                                   int wider) {
@@ -266,7 +235,7 @@ public final class RegionLayout {
         // "Inventory" left out, the inventory panel's slots and label staying on its bottom.
         int trim = shape.joined() ? gapTrim(height + part) : 0;
         int grow = rows + height - ownPart - trim;
-        int blockTop = vanilla.topPos() - up(vanilla, screenHeight, grow);
+        int blockTop = vanilla.topPos() - FrameCentring.up(vanilla, screenHeight, grow);
         int top = blockTop + shape.above();
         // Down the block: the list, the gap with the rows between the panels, the inventory
         // panel as tall as vanilla's part (less a row left out), then the row below it.
@@ -284,43 +253,13 @@ public final class RegionLayout {
     }
 
     /**
-     * The one centering rule, for the region's block and a screen's own frame with its tab rows
-     * alike: how far the block's top goes up from vanilla's {@code topPos} when the block is
-     * {@code grow} px taller than vanilla's image (negative: shorter). The room still free once
-     * grown is split evenly above and below (floor, as vanilla centers: an odd pixel goes below),
-     * so with vanilla's image centered the block's top is {@code (screenHeight - block) / 2}.
-     * Clamped so that neither end moves the other way from the block's growth (back, when it
-     * grows), nor past its margin while it has room: where one side has less room than the
-     * other, that side holds and the other moves until the block is centered.
-     */
-    public static int up(Reference vanilla, int screenHeight, int grow) {
-        int imageBottom = vanilla.topPos() + vanilla.imageHeight();
-        int roomBelow = Math.max(0, screenHeight - BOTTOM_MARGIN - imageBottom);
-        int roomAbove = Math.max(0, vanilla.topPos() - TOP_MARGIN);
-        int over = Math.floorDiv(roomAbove + roomBelow - grow, 2);
-        return Math.max(Math.min(0, grow), Math.min(Math.max(0, grow), roomAbove - over));
-    }
-
-    /**
-     * Where a screen's own frame goes ({@code topPos}) with a tab row {@code above} px tall on
-     * its top edge and one {@code below} px on its bottom edge (0: none), the region down: the
-     * frame and the rows are one block, centered by {@link #up} as the region's block is. With
-     * no row it is vanilla's own {@code topPos}.
-     *
-     * @param vanilla the screen's bounds as vanilla centered them
-     */
-    public static int frameTop(Reference vanilla, int screenHeight, int above, int below) {
-        return vanilla.topPos() - up(vanilla, screenHeight, above + below) + above;
-    }
-
-    /**
      * The content height a section may grow to on a screen shaped {@code shape}, this tall,
      * before {@link #layout} would make the list scroll: {@link Geometry#viewHeight()} with
      * the content given all the room there is to take. Can go negative on a window too short
      * for even the tab rows and the margins.
      */
     public static int maxContent(Reference vanilla, int inventoryLabelY, int screenHeight, Shape shape) {
-        return layout(vanilla, inventoryLabelY, Integer.MAX_VALUE / 2, screenHeight, shape).viewHeight();
+        return layout(vanilla, inventoryLabelY, Integer.MAX_VALUE / 2, screenHeight, shape, 0).viewHeight();
     }
 
     /**
@@ -420,13 +359,13 @@ public final class RegionLayout {
      * wholly out of view, so a panel on it hides with it.
      *
      * @param top    the section's top in the column the sections stack in, which starts
-     *               the shape's {@link Shape#contentTop} down the content
+     *               {@link #CONTENT_TOP} down the content
      * @param bottom its bottom, likewise
      */
     public static @Nullable Reference sectionBox(Geometry g, int top, int bottom, double scroll) {
         if (top < 0) return null;
         // The column's top on screen this frame.
-        int origin = g.viewTop() - (int) scroll + g.shape().contentTop();
+        int origin = g.viewTop() - (int) scroll + CONTENT_TOP;
         int y0 = Math.max(g.viewTop(), origin + top), y1 = Math.min(g.viewBottom(), origin + bottom);
         return y0 < y1 ? new Reference(g.x(), y0, g.width(), y1 - y0) : null;
     }

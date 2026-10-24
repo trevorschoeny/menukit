@@ -29,10 +29,12 @@ import java.util.Objects;
  * slowly at first. {@link #eachWay} instead eases each way toward the end it goes to, so a
  * slide moves from its first frame whichever way it goes.
  *
- * <p>Progress is a pure function of when the key last turned and now, on vanilla's clock
- * ({@code Util.getMillis()}, the clock every MenuKit animation reads), so it keeps running
+ * <p>Progress follows from where the key was when it last turned, when that was, and the
+ * time now, on vanilla's clock ({@code Util.getMillis()}, the clock every MenuKit animation
+ * reads) unless the mod passes its own: nothing advances it but the clock, so it keeps running
  * whatever draws or doesn't in between, and a key keeps its place across screens for as long
- * as the mod keeps the same {@code Transition} and passes an equal key. Keys are compared
+ * as the mod keeps the same {@code Transition} and passes an equal key. It isn't pure: asking
+ * with the other direction is what turns a key, so the answer depends on the calls before it. Keys are compared
  * with {@code equals}: a record of the things that name the key works, made fresh each frame.
  * A key held forward is kept until it plays back, so pass keys from a bounded set.
  *
@@ -90,11 +92,10 @@ public final class Transition {
     }
 
     /**
-     * {@link #toward(Object, boolean)} at {@code nowMillis}, on {@code Util.getMillis()}'s
+     * {@link #toward(Object, boolean)} at {@code now}, on {@code Util.getMillis()}'s
      * scale: for a mod running its own clock, and for checks.
      */
-    public float toward(Object key, boolean forward, long nowMillis) {
-        long now = nowMillis;
+    public float toward(Object key, boolean forward, long now) {
         Objects.requireNonNull(key, "key");
         Run run = runs.get(key);
         if (run == null) {

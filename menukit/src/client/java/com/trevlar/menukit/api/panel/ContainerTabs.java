@@ -1,9 +1,8 @@
 package com.trevlar.menukit.api.panel;
 
 import com.trevlar.menukit.api.Declarations;
-import com.trevlar.menukit.inject.ContainerTabRows;
+import com.trevlar.menukit.inject.TabRegistry;
 import com.trevlar.menukit.inject.PanelHost;
-import com.trevlar.menukit.inject.RegionLayout;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -77,8 +76,9 @@ import java.util.function.Supplier;
  *       with it; a row coming or going lays the screen out again. Screens of one size with
  *       the same rows put the row in one place ({@link ScreenFrames} makes a shulker box
  *       and a chest the inventory's 166), and a mod that opens one in place of another
- *       shows a steady row. A mod's own screen that draws its image from the window's middle
- *       rather than from {@code topPos} draws it where vanilla would have centered it.</li>
+ *       shows a steady row. Only vanilla's own screens move: a mod's own container screen
+ *       class, a subclass of vanilla's included, may place things from the window itself, so
+ *       its frame stays where vanilla centers it and its rows stand on it there.</li>
  *   <li>Never on the creative inventory, which has tabs of its own.</li>
  * </ul>
  * A row's page carries over to a screen opened in place of the last, and starts over once
@@ -123,7 +123,7 @@ import java.util.function.Supplier;
  *   <li><b>Paging</b> counts the tabs out: a closed group is its header, an open one its header
  *       and every sub-tab, and the arrows page through those. A closed group's sub-tabs take no
  *       click.</li>
- *   <li><b>Pinned tabs</b> ({@link Builder#stickyWhen}), a header or a sub-tab, stay in view
+ *   <li><b>Pinned tabs</b> ({@link Builder#pinnedWhen}), a header or a sub-tab, stay in view
  *       while the row is paged either way past them: each stops at the end of the row it would
  *       leave by, the tabs beyond it going on behind it, and pinned tabs of one group stand
  *       there side by side in row order, until the next group's header (at the left end) or
@@ -173,13 +173,26 @@ public final class ContainerTabs {
         /** Above the inventory panel's top edge, in the gap below the container list. */
         INVENTORY_TOP,
         /** Below the inventory panel's bottom edge. */
-        INVENTORY_BOTTOM;
-
-        /** Whether the row stands on a top edge, its tabs standing up from it. */
-        public boolean top() {
-            return this == CONTAINERS_TOP || this == INVENTORY_TOP;
-        }
+        INVENTORY_BOTTOM
     }
+
+    // A tab's measures, from vanilla's creative inventory.
+
+    /** A tab's default width: vanilla's 26 px tab. Tabs stand side by side, touching, so no background shows between them. */
+    public static final int TAB_WIDTH = 26;
+    /**
+     * A tab's default height beyond the frame edge it stands on: vanilla's creative top tab
+     * stands 28 px above its frame, these 25, room for a full-size icon inside an unpicked
+     * tab with two rows clear above and below it. A double chest with a row above it needs
+     * 245 px (212 + 25 and the two margins), so in a 240 px window its grid scrolls by 5.
+     */
+    public static final int TAB_HEIGHT = 25;
+    /** A group's sub-tabs by default: about two-thirds of a tab, on the same line. */
+    public static final int SUB_WIDTH = 18, SUB_HEIGHT = 17;
+    /** The smallest a tab can be, either way: its sprite's corners and edges, kept whole. */
+    public static final int MIN_SIZE = 8;
+    /** How long a group's sub-tabs take to slide open or closed, in ms. */
+    public static final int SLIDE_MILLIS = 200;
 
     /**
      * Starts a tab, its id namespaced and unique ({@code "mymod:backpack"}), for one mode scope:
@@ -190,7 +203,7 @@ public final class ContainerTabs {
         return new Builder(id, Objects.requireNonNull(scope, "scope"));
     }
 
-    /** A live key's tab ({@link ContainerRegion#sections}, {@link #keyed}): on the screens its kind of section, or its list, is on. */
+    /** A keyed list's tab ({@link #keyed}): on the screens its list is on. */
     static Builder forKey(String id, ModeScope scope, ScreenMatcher screens) {
         Builder b = new Builder(id, scope);
         b.matcher = screens;
@@ -250,7 +263,7 @@ public final class ContainerTabs {
          * own {@code visibleWhen} holds, with or without keys, and its sub-tabs only with it. What
          * a click on it does is its {@code onClick}, the mod's (show its own page, pick its first
          * sub-tab). Its id is the list's. Without {@link #tabSize}, sub-tabs are
-         * {@value ContainerTabRows#SUB_WIDTH} by {@value ContainerTabRows#SUB_HEIGHT}.
+         * {@value #SUB_WIDTH} by {@value #SUB_HEIGHT}.
          */
         public Keyed<K> header(Consumer<Builder> build) {
             this.header = Objects.requireNonNull(build, "build");
@@ -261,7 +274,7 @@ public final class ContainerTabs {
          * When a group's sub-tabs are out, read every frame: always, only while one of them is
          * selected, or whatever the mod's own rule is. Default: always. MenuKit slides them out
          * from under the header to its right as this starts holding and back under it as it
-         * stops, in {@value ContainerTabRows#SLIDE_MILLIS} ms, a turn mid-way going back from
+         * stops, in {@value #SLIDE_MILLIS} ms, a turn mid-way going back from
          * where they are. Only for a list with a {@link #header}.
          */
         public Keyed<K> expandedWhen(BooleanSupplier condition) {
@@ -327,9 +340,9 @@ public final class ContainerTabs {
             int at = order;
             Edge on = edge;
             // A group's header, built once, its id the list's; its sub-tabs show only with it.
-            ContainerTabRows.Group group = header == null ? null
-                    : new ContainerTabRows.Group(id, expanded != null ? expanded : () -> true);
-            ContainerTabRows.Tab head = null;
+            TabRegistry.Group group = header == null ? null
+                    : new TabRegistry.Group(id, expanded != null ? expanded : () -> true);
+            TabRegistry.Tab head = null;
             if (group != null) {
                 Builder h = forKey(id, scope, screens);
                 h.order = at;
@@ -340,11 +353,12 @@ public final class ContainerTabs {
                 head = h.build();
             }
             BooleanSupplier headShown = head == null ? null : head.visible();
-            int w = tabWidth > 0 ? tabWidth : group != null ? ContainerTabRows.SUB_WIDTH : ContainerTabRows.TAB_WIDTH;
-            int ht = tabHeight > 0 ? tabHeight : group != null ? ContainerTabRows.SUB_HEIGHT : RegionLayout.TAB_ROW;
+            int w = tabWidth > 0 ? tabWidth : group != null ? SUB_WIDTH : TAB_WIDTH;
+            int ht = tabHeight > 0 ? tabHeight : group != null ? SUB_HEIGHT : TAB_HEIGHT;
             // Each key's tab is named by the list and the key, so what the row keeps by id follows the key.
-            ContainerTabRows.declareKeyed(new ContainerTabRows.Keyed(id, keys::get, key -> {
+            TabRegistry.declareKeyed(new TabRegistry.Keyed(id, keys::get, key -> {
                 Builder b = forKey(id + "#" + key, scope, screens);
+                b.ref = new TabRegistry.KeyRef(id, key);
                 b.order = at;
                 b.edge = on;
                 b.fixed = true;
@@ -393,14 +407,16 @@ public final class ContainerTabs {
         private int order = 0;
         private Edge edge = Edge.CONTAINERS_TOP;
         private @Nullable Icon icon;
-        private int width = ContainerTabRows.TAB_WIDTH, height = RegionLayout.TAB_ROW;
+        private int width = TAB_WIDTH, height = TAB_HEIGHT;
         /** A group's header or sub-tab: its group, whether a sub-tab, and its header's showing, which a sub-tab's adds to. */
-        private ContainerTabRows.@Nullable Group group;
+        private TabRegistry.@Nullable Group group;
         private boolean sub;
         private @Nullable BooleanSupplier under;
+        /** What the rows keep it by: its id, or for a key's tab its list and key. */
+        private @Nullable Object ref;
         private @Nullable Supplier<@Nullable Component> tooltip;
         private Runnable onClick = () -> {};
-        private BooleanSupplier visibleWhen = () -> true, selectedWhen = () -> false, disabledWhen = () -> false, stickyWhen = () -> false;
+        private BooleanSupplier visibleWhen = () -> true, selectedWhen = () -> false, disabledWhen = () -> false, pinnedWhen = () -> false;
 
         private Builder(String id, ModeScope scope) {
             this.id = Objects.requireNonNull(id, "id");
@@ -422,10 +438,13 @@ public final class ContainerTabs {
             Objects.requireNonNull(item, "item");
             return icon((g, x, y, w, h) -> {
                 g.pose().pushMatrix();
-                g.pose().translate(x, y);
-                g.pose().scale(w / 16f, h / 16f);
-                g.item(item.get(), 0, 0);
-                g.pose().popMatrix();
+                try {
+                    g.pose().translate(x, y);
+                    g.pose().scale(w / 16f, h / 16f);
+                    g.item(item.get(), 0, 0);
+                } finally {
+                    g.pose().popMatrix();
+                }
             });
         }
 
@@ -440,11 +459,11 @@ public final class ContainerTabs {
 
         /**
          * The tab's size: {@code width} across and {@code height} out from the frame, each at
-         * least {@value ContainerTabRows#MIN_SIZE}. Default 26 by 25, vanilla's creative tab as a
+         * least {@value #MIN_SIZE}. Default 26 by 25, vanilla's creative tab as a
          * row has it. Every tab stands on the frame, so tabs of different heights share their
          * line, and the row is as tall as its tallest.
          *
-         * @throws IllegalArgumentException when either is below {@value ContainerTabRows#MIN_SIZE}
+         * @throws IllegalArgumentException when either is below {@value #MIN_SIZE}
          */
         public Builder size(int width, int height) {
             requireSize("ContainerTabs tab '" + id + "'", width, height);
@@ -512,8 +531,8 @@ public final class ContainerTabs {
          * behind a pinned one is brought out from behind it. Pinning is a group's: a tab outside
          * any group is pushed off by the tab after it, so it pages as before. Default: never.
          */
-        public Builder stickyWhen(BooleanSupplier condition) {
-            this.stickyWhen = Objects.requireNonNull(condition, "condition");
+        public Builder pinnedWhen(BooleanSupplier condition) {
+            this.pinnedWhen = Objects.requireNonNull(condition, "condition");
             return this;
         }
 
@@ -541,24 +560,24 @@ public final class ContainerTabs {
          */
         public void declare() {
             Declarations.requireOpen("ContainerTabs.tab(" + id + ")");
-            ContainerTabRows.declare(build());
+            TabRegistry.declare(build());
         }
 
         /** The tab as built so far, its mode scope one more condition, read every frame with its own. */
-        ContainerTabRows.Tab build() {
+        TabRegistry.Tab build() {
             BooleanSupplier own = visibleWhen;
             BooleanSupplier scoped = scope == ModeScope.BOTH ? own : () -> scope.covers(PanelHost.currentMode()) && own.getAsBoolean();
             BooleanSupplier header = under;
             BooleanSupplier shown = header == null ? scoped : () -> header.getAsBoolean() && scoped.getAsBoolean();
-            return new ContainerTabRows.Tab(id, matcher, order, edge, shown, selectedWhen, disabledWhen, stickyWhen,
+            return new TabRegistry.Tab(id, ref != null ? ref : id, matcher, order, edge, shown, selectedWhen, disabledWhen, pinnedWhen,
                     icon, tooltip, onClick, width, height, group, sub);
         }
     }
 
     private static void requireSize(String what, int width, int height) {
-        if (width < ContainerTabRows.MIN_SIZE || height < ContainerTabRows.MIN_SIZE) {
+        if (width < MIN_SIZE || height < MIN_SIZE) {
             throw new IllegalArgumentException(what + ": size(" + width + ", " + height + ") is below "
-                    + ContainerTabRows.MIN_SIZE + " either way");
+                    + MIN_SIZE + " either way");
         }
     }
 }

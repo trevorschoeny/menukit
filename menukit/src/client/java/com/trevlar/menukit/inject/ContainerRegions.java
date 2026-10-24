@@ -74,7 +74,8 @@ import java.util.function.Supplier;
  * apart, the <b>inventory panel</b>, its own frame around the player's inventory, which
  * never scrolls. The list grows first and scrolls only when there is no room left; while the
  * two panels fit, they are centered on the screen as one block ({@link RegionLayout#layout}).
- * This class keeps the declarations, the open screen's state, its lifecycle and bounds;
+ * This class keeps the open screen's state and its lifecycle; {@link RegionDeclarations} the
+ * sections declared, {@link RegionBounds} the screen's bounds and the player's slots,
  * {@link RegionLayout} is where the panels go, {@link RegionLooks} how they follow
  * resource packs, {@link RegionTitles} what the sections are called, and
  * {@link RegionReveal} the shift-click reveal.
@@ -109,7 +110,7 @@ import java.util.function.Supplier;
  * read while they lay out and draw ({@link Frame}): each section's look and the list's, which
  * sections are blocks of their own, the titles the sections show and how far the first moves
  * clear of the list's corner. Then the column lays out, and the geometry follows. First of all,
- * each kind of section made per live key reads its keys ({@link #syncLive}): the sections are
+ * each kind of section made per live key reads its keys ({@link RegionDeclarations#syncLive}): the sections are
  * the declared ones and one per live key, restacked only when a key comes or goes, and what the
  * region keeps per section (last frame's tops, where each slot was drawn) follows each section
  * to its new place.
@@ -118,21 +119,21 @@ import java.util.function.Supplier;
  * Vanilla's {@code leftPos}, {@code topPos}, {@code imageWidth} and {@code imageHeight}
  * are set to the rectangle around both panels, scrollbar lane included, whenever that
  * rectangle changes (screen init, resize, a section opening or closing), never on a
- * scroll ({@link #applyBounds}). So everything that measures the screen sees both
+ * scroll ({@link RegionBounds#applyBounds}). So everything that measures the screen sees both
  * panels: MenuKit's own menu-frame panels, other mods' buttons by the screen's edges,
  * a recipe viewer keeping clear of it, and vanilla's outside-click check, so a click in
  * the gap with an item held stays inside the screen and drops nothing. Moving the
  * screen's origin would move everything vanilla placed from it; the title is moved back by
  * as much, and the player's inventory slots and "Inventory" label by as much less the
  * distance the inventory panel went down, so they go with it. The slots are placed every
- * frame from the slots the menu holds then ({@link #placeSlots}), so one another mod puts in
+ * frame from the slots the menu holds then ({@link RegionBounds#placeSlots}), so one another mod puts in
  * while the screen is open goes with the panel too, and putting the bounds back moves exactly
  * the slots that were moved. Before the screen initializes again (a resize), the bounds go
  * back to vanilla's, so vanilla centers its own image as always.
  *
  * <h3>Never the player's own inventory</h3>
  * The region is never put on {@code InventoryScreen} or {@code CreativeModeInventoryScreen},
- * whatever a section's matcher says ({@link #targets}).
+ * whatever a section's matcher says ({@link RegionDeclarations#targets}).
  *
  * <h3>Anchors</h3>
  * {@link #CONTAINERS} is the container list's rectangle and {@link #INVENTORY} the
@@ -216,8 +217,8 @@ public final class ContainerRegions {
         Geometry g = geometry(screen);
         if (g == null) return null;
         // This frame's tops are in sections' order; a section declared after the frame has none yet.
-        for (int i = 0; i < sections.size() && i < state.tops.length; i++) {
-            if (sections.get(i).section().id().equals(sectionId)) {
+        for (int i = 0; i < sections().size() && i < state.tops.length; i++) {
+            if (sections().get(i).section().id().equals(sectionId)) {
                 return RegionLayout.sectionBox(g, state.tops[i], state.bottoms[i], state.scroll);
             }
         }
@@ -226,140 +227,28 @@ public final class ContainerRegions {
 
     // Declarations
 
-    /**
-     * One declared section ({@code ContainerRegion.section}). {@code texture} is the
-     * container texture it stands for where its source has no block that gives one
-     * ({@link RegionLooks#sectionTexture}; vanilla's chest by default): its slice of the list and
-     * its slot frames take that texture's look under the active resource packs, or with
-     * OptiGUI the texture its rules give the section's {@code source} (the open screen's,
-     * without one). {@code title}, if any, is drawn above its content; {@code name} stands in
-     * for a blank title while other sections show, ahead of its source's name ({@link RegionTitles#shownTitles}).
-     * {@code onHiddenLanding}, if any, runs when a quick move lands in it while it is hidden ({@link RegionReveal}).
-     */
-    public record Declared(String id, PanelElement content, ScreenMatcher matcher, int order, BooleanSupplier visibleWhen,
-                           Identifier texture, @Nullable Supplier<Component> title, @Nullable Supplier<Component> name,
-                           @Nullable Supplier<ContainerRegion.@Nullable Source> source, @Nullable Runnable onHiddenLanding) {}
-
-    /** A section as placed: what it was declared as, and the element that holds it in the scroll area. */
-    private record Placed(Declared section, AbstractPanelElement holder) {}
-
-    /** The sections declared at init, in stacking order. */
-    private static final List<Placed> DECLARED = new CopyOnWriteArrayList<>();
-    /**
-     * The open screen's sections, in stacking order: the declared ones and one for each live
-     * key of each {@link Family}. Every per-frame array the region keeps is indexed by it.
-     */
-    private static List<Placed> sections = List.of();
     private static @Nullable Panel panel;
     private static @Nullable ScreenPanelAdapter adapter;
     /** The inventory panel: made with the first section, on the same screens. */
     private static @Nullable Panel inventoryPanel;
+    /** The open screen's sections, in stacking order ({@link RegionDeclarations}). */
+    private static List<RegionDeclarations.Placed> sections() {
+        return RegionDeclarations.sections();
+    }
+
     /** The column the sections stack in, inside the scroll area. */
     private static @Nullable RegionColumn column;
     /** The scroll area, for the checks. */
     private static @Nullable ScrollContainer scrollArea;
 
     /**
-     * {@code ContainerRegion.Builder.declare}: adds a section in its place, and the
-     * region's panels with the first one. No screen is open yet, so no live key either.
+     * The open screen's sections were restacked ({@link RegionDeclarations#restack}), from
+     * {@code before}: last frame's tops and bottoms follow each section that stays to its new
+     * place, so the view keeps its place and the slots' cells follow, and the column takes the
+     * new set.
      */
-    public static synchronized void declare(Declared section) {
-        for (Placed p : DECLARED) {
-            if (p.section().id().equals(section.id())) {
-                throw new IllegalStateException("ContainerRegion section '" + section.id() + "' is already declared");
-            }
-        }
-        DECLARED.add(new Placed(section, holderFor(section)));
-        DECLARED.sort(Comparator.comparingInt((Placed p) -> p.section().order()).thenComparing(p -> p.section().id()));
-        buildPanels();
-        restack();
-    }
-
-    /**
-     * One kind of section made per live key ({@code ContainerRegion.sections}). On a screen
-     * {@code matcher} takes, {@code keys} is read once a frame; each key's section (and its
-     * tab, with {@code tab}) is made the frame the key first appears and kept, the same
-     * elements, for as long as the key is there on that screen. Keys are compared with
-     * {@code equals}; a repeated key makes one section, the first.
-     */
-    public record Family(String kind, ScreenMatcher matcher, Function<AbstractContainerScreen<?>, @Nullable List<?>> keys,
-                         Function<Object, Declared> section, @Nullable Function<Object, ContainerTabRows.Tab> tab) {}
-
-    /** What one live key made: its section, placed, and its tab, if the kind has tabs. */
-    private record Instance(Placed placed, ContainerTabRows.@Nullable Tab tab) {}
-
-    private static final List<Family> FAMILIES = new CopyOnWriteArrayList<>();
-    /** Each kind's live keys on the open screen, in the order its keys gave them, and what each made. */
-    private static final Map<Family, Map<Object, Instance>> LIVE = new IdentityHashMap<>();
-
-    /** {@code ContainerRegion.Sections.declare}: adds a kind, and the region's panels (and the tab rows') with the first. */
-    public static synchronized void declareFamily(Family family) {
-        for (Family f : FAMILIES) {
-            if (f.kind().equals(family.kind())) {
-                throw new IllegalStateException("ContainerRegion sections '" + family.kind() + "' is already declared");
-            }
-        }
-        FAMILIES.add(family);
-        buildPanels();
-        if (family.tab() != null) ContainerTabRows.buildPanels();
-    }
-
-    /**
-     * Each kind's keys on {@code screen} now (none off a container screen, or on one the kind
-     * is not on): a key that is new makes its section and tab, one that is gone takes them
-     * with it. Nothing is made, and nothing restacks, while every kind's keys are the ones
-     * it had. Before anything else in the frame reads the sections.
-     */
-    private static void syncLive(@Nullable Screen screen) {
-        boolean changed = false;
-        for (Family f : FAMILIES) {
-            List<?> keys = screen instanceof AbstractContainerScreen<?> acs && f.matcher().matches(acs) ? f.keys().apply(acs) : null;
-            if (keys == null) keys = List.of();
-            Map<Object, Instance> was = LIVE.getOrDefault(f, Map.of());
-            // ponytail: a keys list with a repeated key never matches, so it rebuilds the map each frame; the elements are kept either way.
-            if (was.size() == keys.size() && List.copyOf(was.keySet()).equals(keys)) continue;
-            Map<Object, Instance> now = new LinkedHashMap<>();
-            for (Object k : keys) {
-                if (now.containsKey(k)) continue;
-                Instance made = was.get(k);
-                if (made == null) {
-                    Declared d = f.section().apply(k);
-                    made = new Instance(new Placed(d, holderFor(d)), f.tab() == null ? null : f.tab().apply(k));
-                }
-                now.put(k, made);
-            }
-            if (now.isEmpty()) LIVE.remove(f);
-            else LIVE.put(f, now);
-            changed = true;
-        }
-        if (changed) restack();
-    }
-
-    /**
-     * The open screen's sections again, from the declared ones and every live key: stacked
-     * by order, then by id (a kind's sections by its kind, then in its keys' order). What
-     * the region learned about each section that stays (where it was, where its slots sit)
-     * follows it to its new place; the column and the tab rows take the new set.
-     */
-    private static void restack() {
-        record Entry(Placed placed, int order, String base, int index) {}
-        List<Entry> entries = new ArrayList<>();
-        for (Placed p : DECLARED) entries.add(new Entry(p, p.section().order(), p.section().id(), 0));
-        List<ContainerTabRows.Live> tabs = new ArrayList<>();
-        for (Family f : FAMILIES) {
-            int i = 0;
-            for (Instance in : LIVE.getOrDefault(f, Map.of()).values()) {
-                entries.add(new Entry(in.placed(), in.placed().section().order(), f.kind(), i));
-                if (in.tab() != null) tabs.add(new ContainerTabRows.Live(in.tab(), f.kind(), i));
-                i++;
-            }
-        }
-        entries.sort(Comparator.comparingInt(Entry::order).thenComparing(Entry::base).thenComparingInt(Entry::index));
-        List<Placed> before = sections;
-        List<Placed> next = new ArrayList<>(entries.size());
-        for (Entry e : entries) next.add(e.placed());
-        sections = List.copyOf(next);
-
+    static void sectionsChanged(List<RegionDeclarations.Placed> before) {
+        List<RegionDeclarations.Placed> sections = sections();
         // Old place to new (-1: gone), so last frame's tops keep the view in place and the slots' cells follow.
         int[] to = new int[before.size()];
         for (int i = 0; i < to.length; i++) to[i] = sections.indexOf(before.get(i));
@@ -378,9 +267,8 @@ public final class ContainerRegions {
         RegionReveal.remap(to);
 
         List<AbstractPanelElement> holders = new ArrayList<>(sections.size());
-        for (Placed p : sections) holders.add(p.holder());
+        for (RegionDeclarations.Placed p : sections) holders.add(p.holder());
         if (column != null) column.set(holders);
-        ContainerTabRows.live(tabs);
     }
 
     /**
@@ -390,7 +278,7 @@ public final class ContainerRegions {
      * section is the first shown, and the section moves down when it is a block of its own
      * (this frame's Frame says which).
      */
-    private static AbstractPanelElement holderFor(Declared section) {
+    static AbstractPanelElement holderFor(RegionDeclarations.Declared section) {
         PanelElement body = section.title() == null ? section.content() : Flow.builder().vertical().gap(0, 2)
                 .add(Flow.builder().gap(0, 0).add(new Spacer(() -> titleIndent(section), () -> 0))
                         .add(TextLabel.builder().at(1, 0).text(() -> shownTitle(section)).build()).build())
@@ -401,14 +289,14 @@ public final class ContainerRegions {
     }
 
     /** The region's two panels, made once, with the first section or kind declared. */
-    private static void buildPanels() {
+    static void buildPanels() {
         if (panel != null) return;
         // One column stacks the shown sections, GAP apart; a hidden one takes no room.
         column = new RegionColumn();
         // The content: the column, with the shape's room above its first section and below its
         // last grid (CONTENT_TOP and CONTENT_BOTTOM in the list).
         PanelElement content = Flow.builder().vertical().gap(0, 0)
-                .add(new Spacer(() -> 0, () -> state.shape.contentTop())).add(column)
+                .add(new Spacer(() -> 0, () -> RegionLayout.CONTENT_TOP)).add(column)
                 .add(new Spacer(() -> 0, () -> state.shape.contentBottom())).build();
         // A section is nine slots wide, so its content wraps there. The scroll area has a
         // declared width and lays no children out, so nothing else hands the content its width.
@@ -429,7 +317,7 @@ public final class ContainerRegions {
                 .build()
                 .visibleWhen(() -> state.geometry != null);
         PanelHost.surfaceLooks(panel, RegionLooks::listSurfaceAt);
-        adapter = new ScreenPanelAdapter(panel, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
+        adapter = new ScreenPanelAdapter(panel, 0).onMatching(ScreenMatcher.where(RegionDeclarations::targets));
         if (inventoryPanel == null) {
             inventoryPanel = Panel.builder(INVENTORY_PANEL_ID).style(PanelStyle.NONE).background()
                     .in(ModeScope.BOTH, Placement.screen(PanelPosition.pixel(ContainerRegions::inventoryOrigin)))
@@ -437,49 +325,15 @@ public final class ContainerRegions {
                     .build()
                     .visibleWhen(() -> state.geometry != null && state.applied != null);
             PanelHost.surfaceLooks(inventoryPanel, RegionLooks::inventorySurfaceAt);
-            new ScreenPanelAdapter(inventoryPanel, 0).onMatching(ScreenMatcher.where(ContainerRegions::targets));
+            new ScreenPanelAdapter(inventoryPanel, 0).onMatching(ScreenMatcher.where(RegionDeclarations::targets));
         }
     }
 
-    /** One {@code ContainerRegion.fitted} declaration: the screens {@code matcher} takes, in {@code scope}'s game mode. */
-    private record Fitted(ModeScope scope, ScreenMatcher matcher) {}
-
-    private static final List<Fitted> FITTED = new CopyOnWriteArrayList<>();
-
-    /** {@code ContainerRegion.fitted}: the screens {@code matcher} takes show the fitted frame in {@code scope}. */
-    public static void declareFitted(ModeScope scope, ScreenMatcher matcher) {
-        FITTED.add(new Fitted(Objects.requireNonNull(scope, "scope"), Objects.requireNonNull(matcher, "matcher")));
-    }
-
-    /** Whether {@code screen} shows the fitted frame now: a declaration takes it in the player's mode. */
-    private static boolean fitted(@Nullable Screen screen) {
-        if (!(screen instanceof AbstractContainerScreen<?> acs)) return false;
-        for (Fitted f : FITTED) if (f.scope().covers(PanelHost.currentMode()) && f.matcher().matches(acs)) return true;
-        return false;
-    }
-
-    /** This frame's {@link Shape} for {@code screen}: whether it is {@link #fitted}, and its tab rows' heights now. */
+    /** This frame's {@link Shape} for {@code screen}: whether it is {@link RegionDeclarations#fitted fitted}, and its tab rows' heights now. */
     private static Shape shapeFor(@Nullable Screen screen) {
-        return Shape.of(fitted(screen), ContainerTabRows.height(Edge.CONTAINERS_TOP),
+        return Shape.of(RegionDeclarations.fitted(screen), ContainerTabRows.height(Edge.CONTAINERS_TOP),
                 ContainerTabRows.height(Edge.CONTAINERS_BOTTOM) + ContainerTabRows.height(Edge.INVENTORY_TOP),
                 ContainerTabRows.height(Edge.INVENTORY_BOTTOM));
-    }
-
-    /**
-     * Whether any section, or kind of section, is declared for {@code screen}: the region's panel is put on it.
-     * Never the player's own inventory, survival's or creative's: the region is for screens
-     * that hold a container, and the inventory screens are the player's own (creative swaps
-     * its slots on every tab, so no container list could stand there). Checked by class, not
-     * by slot: the survival inventory's first slot is its crafting result, not the player's.
-     * The after-init gate and both panels' adapters all ask here, so this one test keeps the
-     * region off those screens entirely.
-     */
-    @VisibleForTesting
-    public static boolean targets(AbstractContainerScreen<?> screen) {
-        if (screen instanceof InventoryScreen || screen instanceof CreativeModeInventoryScreen) return false;
-        for (Placed p : DECLARED) if (p.section().matcher().matches(screen)) return true;
-        for (Family f : FAMILIES) if (f.matcher().matches(screen)) return true;
-        return false;
     }
 
     /**
@@ -488,24 +342,17 @@ public final class ContainerRegions {
      * a slot library's element for a group that is not on this menu, or whose slots are
      * all hidden, shows no section, with no condition of the section's own.
      */
-    private static boolean shownOnCurrentScreen(Declared s) {
+    private static boolean shownOnCurrentScreen(RegionDeclarations.Declared s) {
         return state.screen.get() instanceof AbstractContainerScreen<?> acs
                 && s.matcher().matches(acs) && s.visibleWhen().getAsBoolean() && s.content().isVisible();
-    }
-
-    /** The open screen's sections, in stacking order. */
-    static List<Declared> declared() {
-        List<Declared> out = new ArrayList<>(sections.size());
-        for (Placed p : sections) out.add(p.section());
-        return out;
     }
 
     /** Each section shown this frame, by id, and its top in the content, in stacking order, for the checks. */
     @VisibleForTesting
     public static Map<String, Integer> shownForChecks() {
         Map<String, Integer> out = new LinkedHashMap<>();
-        for (int i = 0; i < sections.size() && i < state.tops.length; i++) {
-            if (state.tops[i] >= 0) out.put(sections.get(i).section().id(), state.tops[i]);
+        for (int i = 0; i < sections().size() && i < state.tops.length; i++) {
+            if (state.tops[i] >= 0) out.put(sections().get(i).section().id(), state.tops[i]);
         }
         return out;
     }
@@ -546,7 +393,9 @@ public final class ContainerRegions {
         /** Each section's top and bottom in the content this frame, -1 while hidden. */
         int[] tops = new int[0], bottoms = new int[0];
         long lastFrame = -1;
-        /** The container the screen was opened on ({@link #openedContainer}): its own sections' source. */
+        /** Whether the screen lays out again before its next frame, its first init centred for tab rows ({@link #init}). */
+        boolean recentre;
+        /** The container the screen was opened on ({@link RegionTitles#openedContainer}): its own sections' source. */
         ContainerRegion.@Nullable Source opened;
     }
 
@@ -572,27 +421,30 @@ public final class ContainerRegions {
         // Before a screen initializes again (a resize), its bounds go back to vanilla's, so
         // vanilla centers its own image from its own size.
         ScreenEvents.BEFORE_INIT.register((client, screen, w, h) -> {
-            if (screen instanceof AbstractContainerScreen<?> acs && state.screen.get() == screen) restoreBounds(acs);
+            if (screen instanceof AbstractContainerScreen<?> acs && state.screen.get() == screen) RegionBounds.restoreBounds(acs);
         });
         ScreenEvents.AFTER_INIT.addPhaseOrdering(FIRST, Event.DEFAULT_PHASE);
         ScreenEvents.AFTER_INIT.register(FIRST, (client, screen, w, h) -> {
             if (!(screen instanceof AbstractContainerScreen<?> acs) || adapter == null || !adapter.matches(acs)) return;
             if (state.screen.get() != screen) reset(screen);
             AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) acs;
-            // Vanilla's own place: without the move a screen's own frame takes for its tab rows
-            // (ContainerTabRows.centre), as the region centers its block, rows and all, itself.
-            state.vanilla = new Reference(acc.mk$getLeftPos(), acc.mk$getTopPos() - ContainerTabRows.centring(screen),
-                    acc.mk$getImageWidth(), acc.mk$getImageHeight());
+            // Vanilla's own place: without the move a screen's own frame takes for its tab rows,
+            // as the region centers its block, rows and all, itself.
+            state.vanilla = FrameCentring.vanillaFrame(acs);
             state.vanillaInventoryLabelY = acc.mk$getInventoryLabelY();
             state.screenHeight = screen.height;   // a resize initializes again, so the region re-runs
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> frame(acs, mx, my, false));
             ScreenEvents.remove(screen).register(s -> {
                 if (state.screen.get() != s) return;
-                restoreBounds(acs);   // the menu can outlive the screen
+                RegionBounds.restoreBounds(acs);   // the menu can outlive the screen
                 reset(null);
             });
             // Lay out now, so every other mod's init listener and widget reads the union.
             frame(acs, -1, -1, true);
+            // A screen's first init centred its frame for its tab rows before the region was up
+            // on it; vanilla's reads of the window stay that much taller until it inits again.
+            // Laid out again before its first frame, with the region up, it reads the window as is.
+            state.recentre = state.geometry != null && FrameCentring.centring(screen) != 0;
         });
     }
 
@@ -608,10 +460,7 @@ public final class ContainerRegions {
 
     private static void reset(@Nullable Screen screen) {
         // What the screen before had open was its own: every live key's section goes with it.
-        if (!LIVE.isEmpty()) {
-            LIVE.clear();
-            restack();
-        }
+        RegionDeclarations.clearLive();
         state.screen = new WeakReference<>(screen);
         state.scroll = 0;
         state.geometry = null;
@@ -623,39 +472,13 @@ public final class ContainerRegions {
         state.tops = new int[0];
         state.bottoms = new int[0];
         state.lastFrame = -1;
-        state.opened = openedContainer(screen);
+        state.recentre = false;
+        state.opened = RegionTitles.openedContainer(screen);
         state.shape = Shape.LIST;
         RegionReveal.reset();
         RegionSlots.allOn();
         ContainerTabRows.reset();
         OptiGuiRules.screenClosed();   // its answers were for the screen before
-    }
-
-    /**
-     * The container the player opened {@code screen} on, for the sections that are the
-     * screen's own container (those with no source): the block under the crosshair as the
-     * screen opened, the one the right click used, if it holds a container the size of the
-     * screen's own (the menu's first slot's) and the screen has its title. So a lime box's own
-     * screen knows it is a lime box, for its name, its dye and the pack's rules. {@code null}
-     * for a screen opened from an item, or by a key while looking at a container of another
-     * size or title (a backpack's screen in front of a chest), and on a double chest.
-     *
-     * <p>The title is the container's default name: the client's block entity never knows the
-     * name a player gave it, so a named container is not found, and its section takes what
-     * OptiGUI picked for the screen, which is the same art; its title is its name, so it never
-     * needs another.
-     */
-    // Read from the crosshair at open, not from a use hook, so a screen opened by a key while looking at another unnamed container of the same size and kind takes that one.
-    private static ContainerRegion.@Nullable Source openedContainer(@Nullable Screen screen) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc == null || mc.level == null || !(mc.hitResult instanceof BlockHitResult hit)
-                || hit.getType() != HitResult.Type.BLOCK) return null;
-        if (!(screen instanceof AbstractContainerScreen<?> acs) || acs.getMenu() == null || acs.getMenu().slots.isEmpty()) return null;
-        BlockEntity be = mc.level.getBlockEntity(hit.getBlockPos());
-        Container own = acs.getMenu().getSlot(0).container;
-        if (!(be instanceof Container c) || own instanceof Inventory || c.getContainerSize() != own.getContainerSize()) return null;
-        if (be instanceof Nameable n && !n.getDisplayName().getContents().equals(screen.getTitle().getContents())) return null;
-        return ContainerRegion.Source.of(be);
     }
 
     /** {@link ContainerRegion#openedOn()}: the open screen's opened-on container, while it is the region's screen. */
@@ -678,19 +501,6 @@ public final class ContainerRegions {
         Objects.requireNonNull(screen, "screen");
         Geometry g = geometry(screen);
         return g != null && (g.scrollable() || state.sectionScrolls);
-    }
-
-    /**
-     * {@code ContainerRegion.contentRoom}: the content height a section on {@code screen} may
-     * grow to before the fitted list would scroll, worked out from {@code screen}'s own size,
-     * this frame's tab rows and whether it is {@link #fitted}, never from this frame's own
-     * layout (a section reads this while building itself, ahead of that layout). 0 while the
-     * region is not on {@code screen} yet (its own init, before {@link #frame} first runs).
-     */
-    public static int contentRoom(Screen screen) {
-        Objects.requireNonNull(screen, "screen");
-        if (state.screen.get() != screen || state.vanilla == null) return 0;
-        return RegionLayout.maxContent(state.vanilla, state.vanillaInventoryLabelY, state.screenHeight, shapeFor(screen));
     }
 
     /** The open region's scroll, in pixels. */
@@ -734,7 +544,12 @@ public final class ContainerRegions {
     static void frame(AbstractContainerScreen<?> screen, int mouseX, int mouseY, boolean atInit) {
         // The player's slots first, every frame, before anything below can return: a slot
         // another mod put into the menu since the last frame goes where the inventory is now.
-        if (state.screen.get() == screen) placeSlots(screen.getMenu().slots, state.shiftX, state.inventoryShiftY);
+        if (state.screen.get() == screen) RegionBounds.placeSlots(screen.getMenu().slots, state.shiftX, state.inventoryShiftY);
+        if (!atInit && state.recentre && state.screen.get() == screen) {
+            state.recentre = false;
+            relayout(screen);
+            return;
+        }
         Reference vanilla = state.vanilla;
         if (panel == null || vanilla == null || state.screen.get() != screen) return;
         Geometry g = step(vanilla, state.vanillaInventoryLabelY, !screen.getMenu().getCarried().isEmpty(),
@@ -745,8 +560,8 @@ public final class ContainerRegions {
         // A screen whose re-init did not come back through the region (so the bounds are
         // still not these) gets them written here: never a layout every frame.
         if (Objects.equals(want, state.applied)) return;
-        if (want == null) restoreBounds(screen);
-        else applyBounds(screen, want, g.shape().below());
+        if (want == null) RegionBounds.restoreBounds(screen);
+        else RegionBounds.applyBounds(screen, want, g.shape().below());
     }
 
     private static int relayouts = 0;
@@ -797,13 +612,13 @@ public final class ContainerRegions {
         // Which sections show, each asked with every slot on: a hidden section's slots were off
         // last frame, and a slot library's element with all its slots off hides itself.
         Screen screen = state.screen.get();
-        syncLive(screen);
+        RegionDeclarations.syncLive(screen);
         RegionSlots.allOn();
-        int n = sections.size();
+        int n = sections().size();
         boolean[] shown = new boolean[n];
         int count = 0;
         for (int i = 0; i < n; i++) {
-            shown[i] = sections.get(i).holder().isVisible();
+            shown[i] = sections().get(i).holder().isVisible();
             if (shown[i]) count++;
         }
         if (count == 0) {
@@ -827,27 +642,31 @@ public final class ContainerRegions {
         // a grid shows every row while the window has the height, and the list itself
         // scrolls only once those grids are at their least.
         List<AbstractPanelElement> holders = new ArrayList<>(n);
-        for (Placed p : sections) holders.add(p.holder());
+        for (RegionDeclarations.Placed p : sections()) holders.add(p.holder());
         ChildDispatch.yieldHeight(holders, 0);
+        column.remeasure();
         int columnHeight = column.getHeight();   // lays the column out first
-        int overflow = state.shape.contentTop() + columnHeight + state.shape.contentBottom()
+        int overflow = RegionLayout.CONTENT_TOP + columnHeight + state.shape.contentBottom()
                 - RegionLayout.maxContent(vanilla, inventoryLabelY, state.screenHeight, state.shape);
         state.sectionScrolls = overflow > 0 && ChildDispatch.yieldHeight(holders, overflow) > 0;
-        if (state.sectionScrolls) columnHeight = column.getHeight();
+        if (state.sectionScrolls) {
+            column.remeasure();
+            columnHeight = column.getHeight();
+        }
         for (int i = 0; i < n; i++) {
-            AbstractPanelElement holder = sections.get(i).holder();
+            AbstractPanelElement holder = sections().get(i).holder();
             if (!shown[i]) { tops[i] = bottoms[i] = -1; continue; }
-            // The holder is placed in the column's coordinates; the column starts the shape's contentTop down the content.
+            // The holder is placed in the column's coordinates; the column starts CONTENT_TOP down the content.
             tops[i] = holder.getChildY();
             bottoms[i] = tops[i] + holder.getHeight();
         }
-        int content = state.shape.contentTop() + columnHeight + state.shape.contentBottom();
+        int content = RegionLayout.CONTENT_TOP + columnHeight + state.shape.contentBottom();
         // How much wider than nine slots the widest shown section's content is (a grid with
         // its own scrollbar beside it, while that shows): the list and its scroll area widen
         // by as much. Titles are left out, as vanilla's run past the frame.
         int wider = 0;
         for (int i = 0; i < n; i++) {
-            if (shown[i]) wider = Math.max(wider, sections.get(i).section().content().getWidth() - RegionLayout.CONTENT_WIDTH);
+            if (shown[i]) wider = Math.max(wider, sections().get(i).section().content().getWidth() - RegionLayout.CONTENT_WIDTH);
         }
         if (scrollArea.getWidth() != RegionLayout.CONTENT_WIDTH + wider + RegionLayout.LANE) {
             scrollArea.fillWidth(RegionLayout.CONTENT_WIDTH + wider + RegionLayout.LANE);
@@ -882,10 +701,10 @@ public final class ContainerRegions {
      */
     private static void switchOffHidden(@Nullable Screen screen, boolean[] shown) {
         if (!(screen instanceof AbstractContainerScreen<?> acs) || acs.getMenu() == null) return;
-        boolean[] hidden = new boolean[sections.size()];
+        boolean[] hidden = new boolean[sections().size()];
         int own = -1;
         for (int i = 0; i < hidden.length; i++) {
-            Declared s = sections.get(i).section();
+            RegionDeclarations.Declared s = sections().get(i).section();
             if (!s.matcher().matches(acs)) continue;
             if (own < 0 && s.source() == null) own = i;
             hidden[i] = !s.visibleWhen().getAsBoolean();
@@ -893,7 +712,7 @@ public final class ContainerRegions {
         RegionSlots.switchOff(acs.getMenu().slots, hidden, own);
         if (own < 0) return;
         for (int i = 0; i < hidden.length; i++) {
-            if (shown[i] && !sections.get(i).holder().isVisible()) {
+            if (shown[i] && !sections().get(i).holder().isVisible()) {
                 RegionSlots.switchOff(acs.getMenu().slots, hidden, -1);
                 return;
             }
@@ -902,14 +721,14 @@ public final class ContainerRegions {
 
     /** A quick move landed in section {@code index} while it is hidden: its {@code onHiddenLanding}, if any. */
     static void landedHidden(int index) {
-        Runnable r = index < sections.size() ? sections.get(index).section().onHiddenLanding() : null;
+        Runnable r = index < sections().size() ? sections().get(index).section().onHiddenLanding() : null;
         if (r != null) r.run();
     }
 
     /** This frame's {@link Frame}, with the sections {@code shown} as they are (at least one). */
     private static Frame frameOf(boolean[] shown) {
         Screen screen = state.screen.get();
-        List<Declared> sections = declared();
+        List<RegionDeclarations.Declared> sections = RegionDeclarations.declared();
         PackLook.Look[] looks = RegionLooks.sectionLooks(sections, shown, state.opened);
         PackLook.Look list = RegionLooks.listLook(looks, screen);
         // No screen (MenuKit's checks of the bare layout): no block of its own, no indent.
@@ -924,7 +743,7 @@ public final class ContainerRegions {
         for (int i = 0; i < sections.size(); i++) {
             if (shown[i] && first < 0) first = i;
             if (!shown[i]) continue;
-            Declared s = sections.get(i);
+            RegionDeclarations.Declared s = sections.get(i);
             if (s.title() == null) continue;
             titled.add(i);
             titles.add(s.title().get());
@@ -939,7 +758,7 @@ public final class ContainerRegions {
     }
 
     /** The title section {@code s} draws this frame: its own, or while it comes out blank and other sections show, its name. */
-    private static Component shownTitle(Declared s) {
+    private static Component shownTitle(RegionDeclarations.Declared s) {
         Frame f = state.frame;
         int i = indexOf(s);
         Component t = f == null || i < 0 ? null : f.titles()[i];
@@ -947,131 +766,24 @@ public final class ContainerRegions {
     }
 
     /** The room left of section {@code s}'s title this frame: the first shown section's indent. */
-    private static int titleIndent(Declared s) {
+    private static int titleIndent(RegionDeclarations.Declared s) {
         Frame f = state.frame;
         return f != null && f.first() == indexOf(s) ? f.indent() : 0;
     }
 
     /** Whether section {@code s} is a block of its own this frame, so its title takes vanilla's room above it. */
-    private static boolean ownsBlock(Declared s) {
+    private static boolean ownsBlock(RegionDeclarations.Declared s) {
         Frame f = state.frame;
         int i = indexOf(s);
         return f != null && i >= 0 && f.ownsBlock()[i];
     }
 
     /** Where {@code s} stacks, or {@code -1} (a frame from before it was declared has no entry for it). */
-    private static int indexOf(Declared s) {
+    private static int indexOf(RegionDeclarations.Declared s) {
         Frame f = state.frame;
         int n = f == null ? 0 : f.looks().length;
-        for (int i = 0; i < sections.size() && i < n; i++) if (sections.get(i).section() == s) return i;
+        for (int i = 0; i < sections().size() && i < n; i++) if (sections().get(i).section() == s) return i;
         return -1;
-    }
-
-    // The screen's bounds
-
-    /**
-     * Writes {@code bounds} as the screen's own, and moves vanilla's own placements back by
-     * as much as the origin moved ({@link RegionLayout#counterShift}): the title stays where
-     * vanilla put it on screen, and the player's inventory slots and "Inventory" label go with
-     * the inventory panel. Only on a change of layout. The labels move here, by the change;
-     * the slots are placed from the new shift ({@link #placeSlots}), here and every frame.
-     */
-    private static void applyBounds(AbstractContainerScreen<?> screen, Reference bounds, int below) {
-        Reference vanilla = state.vanilla;
-        if (vanilla == null) return;
-        int[] shift = RegionLayout.counterShift(vanilla, bounds, below);
-        int dx = shift[0] - state.shiftX, dy = shift[1] - state.shiftY, invDy = shift[2] - state.inventoryShiftY;
-        AbstractContainerScreenAccessor acc = (AbstractContainerScreenAccessor) screen;
-        acc.mk$setLeftPos(bounds.leftPos());
-        acc.mk$setTopPos(bounds.topPos());
-        acc.mk$setImageWidth(bounds.imageWidth());
-        acc.mk$setImageHeight(bounds.imageHeight());
-        acc.mk$setInventoryLabelX(acc.mk$getInventoryLabelX() + dx);
-        acc.mk$setInventoryLabelY(acc.mk$getInventoryLabelY() + invDy);
-        acc.mk$setTitleLabelX(acc.mk$getTitleLabelX() + dx);
-        acc.mk$setTitleLabelY(acc.mk$getTitleLabelY() + dy);
-        state.shiftX = shift[0];
-        state.shiftY = shift[1];
-        state.inventoryShiftY = shift[2];
-        state.applied = bounds;
-        // So every mod's init listener after this one reads the slots where they now are.
-        placeSlots(screen.getMenu().slots, state.shiftX, state.inventoryShiftY);
-    }
-
-    /**
-     * Back to vanilla's own bounds and placements, if they are not already. Every slot the
-     * region moved goes back by exactly what it got, whether or not it is still in the menu.
-     */
-    private static void restoreBounds(AbstractContainerScreen<?> screen) {
-        unplaceSlots();
-        if (state.applied == null || state.vanilla == null) return;
-        applyBounds(screen, state.vanilla, 0);
-        state.applied = null;
-    }
-
-    // The player's slots, placed every frame
-
-    /**
-     * How far the region has moved each of the player's slots, {@code {dx, dy}}. Weak and
-     * keyed by the slot object (a slot keeps its identity; a closed menu's slots go with it).
-     * Slots come and go while a screen is open (another mod puts its own into the menu), so
-     * each frame moves every slot by what it lacks, and a restore takes back exactly what was
-     * given: never a slot that was not moved, never twice.
-     */
-    private static final Map<Slot, int[]> MOVED = new WeakHashMap<>();
-
-    /** Moves a slot by {@code (dx, dy)}. Swapped by MenuKit's checks, which have no mixins. */
-    @FunctionalInterface
-    public interface SlotMover {
-        void move(Slot slot, int dx, int dy);
-    }
-
-    private static final SlotMover WRITE = (slot, dx, dy) -> {
-        SlotAccessor pos = (SlotAccessor) slot;
-        pos.mk$setX(slot.x + dx);
-        pos.mk$setY(slot.y + dy);
-    };
-    private static SlotMover mover = WRITE;
-
-    /** For MenuKit's checks: swaps how a slot is moved, and back with {@code null}. */
-    @VisibleForTesting
-    public static void moverForChecks(@Nullable SlotMover m) {
-        mover = m == null ? WRITE : m;
-    }
-
-    /**
-     * Puts every slot of {@code slots} that stays with the inventory ({@link #stays}) at
-     * {@code (shiftX, shiftY)} from where vanilla placed it, by moving it the difference from
-     * what it already got.
-     */
-    @VisibleForTesting
-    public static void placeSlots(List<Slot> slots, int shiftX, int shiftY) {
-        for (Slot slot : slots) {
-            if (!stays(slot)) continue;
-            int[] got = MOVED.get(slot);
-            int gx = got == null ? 0 : got[0], gy = got == null ? 0 : got[1];
-            if (gx == shiftX && gy == shiftY) continue;
-            mover.move(slot, shiftX - gx, shiftY - gy);
-            if (shiftX == 0 && shiftY == 0) MOVED.remove(slot);
-            else MOVED.put(slot, new int[]{shiftX, shiftY});
-        }
-    }
-
-    /** Moves every slot the region moved back by what it got, and forgets them. */
-    @VisibleForTesting
-    public static void unplaceSlots() {
-        for (Map.Entry<Slot, int[]> e : MOVED.entrySet()) mover.move(e.getKey(), -e.getValue()[0], -e.getValue()[1]);
-        MOVED.clear();
-    }
-
-    /**
-     * Whether a slot is one of vanilla's that MenuKit places with the inventory panel: the
-     * player's inventory, which never scrolls. A container's own slots are the region's
-     * (whoever put the region on the screen presents them in a section, and their library
-     * places them); a created slot is its library's.
-     */
-    static boolean stays(Slot slot) {
-        return slot.container instanceof Inventory && !SlotScreenDispatcher.fireIsCreated(slot);
     }
 
     /**

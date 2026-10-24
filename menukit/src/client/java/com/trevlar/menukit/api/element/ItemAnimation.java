@@ -28,9 +28,6 @@ public interface ItemAnimation {
     /** Draws {@code stack} in the 16 px box at {@code (x, y)}, {@code t} of the way through. */
     void draw(GuiGraphicsExtractor graphics, ItemStack stack, int x, int y, float t);
 
-    /** The item as vanilla draws it, at every {@code t}: the start for a {@link #posed} transform alone. */
-    ItemAnimation PLAIN = (g, stack, x, y, t) -> g.item(stack, x, y);
-
     /**
      * A box opening, its lid {@code t} open: the openness vanilla's own shulker box and chest
      * renderers take, so a shulker box's lid lifts and twists open and a chest's (an ender
@@ -54,11 +51,14 @@ public interface ItemAnimation {
                 return;
             }
             g.pose().pushMatrix();
-            g.pose().translate(x + 8f + p.offsetX(), y + 8f + p.offsetY());
-            g.pose().scale(p.scale(), p.scale());
-            g.pose().translate(-(x + 8f), -(y + 8f));
-            inner.draw(g, stack, x, y, t);
-            g.pose().popMatrix();
+            try {
+                g.pose().translate(x + 8f + p.offsetX(), y + 8f + p.offsetY());
+                g.pose().scale(p.scale(), p.scale());
+                g.pose().translate(-(x + 8f), -(y + 8f));
+                inner.draw(g, stack, x, y, t);
+            } finally {
+                g.pose().popMatrix();
+            }
         };
     }
 

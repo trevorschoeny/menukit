@@ -39,7 +39,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 
 /**
- * {@code ScreenFrames.scrollWhenShort}: a vanilla screen's own container grid scrolls inside its
+ * {@code ScreenFrames.scrollsWhenShort}: a vanilla screen's own container grid scrolls inside its
  * frame when the frame wouldn't fit the window (Fluorite). Off unless a mod turns it on for a screen.
  *
  * <p>It is the container region, fitted, with one section MenuKit makes itself: the screen's own
@@ -50,7 +50,7 @@ import java.util.function.BooleanSupplier;
  *
  * <p>Short means vanilla's frame, MenuKit's seams included ({@code ScreenFrames}), and the tab rows
  * on its outer edges don't fit between the region's margins: the shared centering rule's block
- * ({@link RegionLayout#up}). The fitted frame of a vanilla-sized grid under its title is vanilla's
+ * ({@link FrameCentring#up}). The fitted frame of a vanilla-sized grid under its title is vanilla's
  * frame, so the region then gives back just the rows the window lacks.
  *
  * <p>The grid's slots are vanilla's own, moved, as the region moves the inventory's: each one the
@@ -72,13 +72,13 @@ public final class ShortFrames {
 
     private static final List<Switch> SWITCHES = new CopyOnWriteArrayList<>();
 
-    /** {@code ScreenFrames.scrollWhenShort}: the screens {@code screens} takes scroll their grid in {@code scope}'s mode. */
+    /** {@code ScreenFrames.scrollsWhenShort}: the screens {@code screens} takes scroll their grid in {@code scope}'s mode. */
     public static synchronized void declare(ModeScope scope, ScreenMatcher screens) {
         boolean first = SWITCHES.isEmpty();
         SWITCHES.add(new Switch(scope, screens));
         if (!first) return;
         // The region on a short screen: fitted, one section for its grid, first in the list.
-        ContainerRegions.declareFitted(ModeScope.BOTH, ScreenMatcher.where(ShortFrames::isShort));
+        RegionDeclarations.declareFitted(ModeScope.BOTH, ScreenMatcher.where(ShortFrames::isShort));
         ContainerRegion.sections(SECTION, ModeScope.BOTH, s -> isShort(s) ? List.of(gridOf(s)) : null)
                 .section((grid, b) -> b.title(() -> grid.title).content(grid.element).order(Integer.MIN_VALUE))
                 .onMatching(ScreenMatcher.where(ShortFrames::on))
@@ -105,7 +105,7 @@ public final class ShortFrames {
     /** Whether a frame {@code frame} tall with {@code rows} of tab rows on it leaves the window, {@code window} tall, within the margins. Pure. */
     @VisibleForTesting
     public static boolean tooTall(int frame, int rows, int window) {
-        return frame + rows + RegionLayout.TOP_MARGIN + RegionLayout.BOTTOM_MARGIN > window;
+        return frame + rows > FrameCentring.room(window);
     }
 
     /** Vanilla's frame height, seams included: the region keeps it while its union is the screen's. */
@@ -188,7 +188,7 @@ public final class ShortFrames {
     /**
      * Hooks every screen a switch may be on, after MenuKit's seams moved its slots and before the
      * region lays it out: the grid takes its slots while the screen is short and gives them back
-     * once it fits or closes. Called once from {@code ScreenFrames.init}, in its init phase.
+     * once it fits or closes. Called once from {@link ScreenSeams#init}, in its init phase.
      */
     public static void init(Identifier phase) {
         ScreenEvents.AFTER_INIT.register(phase, (client, screen, w, h) -> {

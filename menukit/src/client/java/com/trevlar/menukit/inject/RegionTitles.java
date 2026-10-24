@@ -2,10 +2,19 @@ package com.trevlar.menukit.inject;
 
 import com.trevlar.menukit.api.panel.ContainerRegion;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.world.Container;
+import net.minecraft.world.Nameable;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.VisibleForTesting;
@@ -92,5 +101,32 @@ public final class RegionTitles {
      */
     static int indent(int corner) {
         return Math.max(0, corner + 1 - (RegionLayout.INSET_X + 1));
+    }
+
+    /**
+     * The container the player opened {@code screen} on, for the sections that are the
+     * screen's own container (those with no source): the block under the crosshair as the
+     * screen opened, the one the right click used, if it holds a container the size of the
+     * screen's own (the menu's first slot's) and the screen has its title. So a lime box's own
+     * screen knows it is a lime box, for its name, its dye and the pack's rules. {@code null}
+     * for a screen opened from an item, or by a key while looking at a container of another
+     * size or title (a backpack's screen in front of a chest), and on a double chest.
+     *
+     * <p>The title is the container's default name: the client's block entity never knows the
+     * name a player gave it, so a named container is not found, and its section takes what
+     * OptiGUI picked for the screen, which is the same art; its title is its name, so it never
+     * needs another.
+     */
+    // Read from the crosshair at open, not from a use hook, so a screen opened by a key while looking at another unnamed container of the same size and kind takes that one.
+    static ContainerRegion.@Nullable Source openedContainer(@Nullable Screen screen) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null || mc.level == null || !(mc.hitResult instanceof BlockHitResult hit)
+                || hit.getType() != HitResult.Type.BLOCK) return null;
+        if (!(screen instanceof AbstractContainerScreen<?> acs) || acs.getMenu() == null || acs.getMenu().slots.isEmpty()) return null;
+        BlockEntity be = mc.level.getBlockEntity(hit.getBlockPos());
+        Container own = acs.getMenu().getSlot(0).container;
+        if (!(be instanceof Container c) || own instanceof Inventory || c.getContainerSize() != own.getContainerSize()) return null;
+        if (be instanceof Nameable n && !n.getDisplayName().getContents().equals(screen.getTitle().getContents())) return null;
+        return ContainerRegion.Source.of(be);
     }
 }

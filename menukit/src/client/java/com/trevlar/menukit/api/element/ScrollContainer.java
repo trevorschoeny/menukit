@@ -7,6 +7,7 @@ import com.trevlar.menukit.core.Scroller;
 import com.trevlar.menukit.core.VanillaLook;
 import net.minecraft.resources.Identifier;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
@@ -503,9 +504,25 @@ public class ScrollContainer extends AbstractPanelElement {
      * The band's inset above and below is part of it.
      */
     private int contentHeight(ScreenKind kind) {
-        reflow(kind);
-        int children = fixedContentHeight >= 0 ? fixedContentHeight : autoContentHeight(content);
+        int children;
+        if (fixedContentHeight >= 0) {
+            reflow(kind);
+            children = fixedContentHeight;
+        } else {
+            children = childrenHeight(kind);
+        }
         return children + 2 * insetY(kind);
+    }
+
+    /**
+     * The children's extent, read live: re-stacked first if one changed ({@link #reflow}), then
+     * the lowest shown child's bottom. MenuKit's own scrolling slot grid, whose cells never move,
+     * answers from its live rows instead of asking each cell.
+     */
+    @ApiStatus.Internal
+    protected int childrenHeight(ScreenKind kind) {
+        reflow(kind);
+        return autoContentHeight(content);
     }
 
     /**
