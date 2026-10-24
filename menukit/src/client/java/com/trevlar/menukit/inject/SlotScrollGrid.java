@@ -4,6 +4,7 @@ import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.element.RenderContext;
 import com.trevlar.menukit.api.element.ScrollContainer;
 import com.trevlar.menukit.api.element.SlotScroll;
+import com.trevlar.menukit.api.panel.ScreenKind;
 import com.trevlar.menukit.core.Scroller;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 
@@ -214,7 +215,14 @@ public final class SlotScrollGrid extends ScrollContainer {
     /** The grid drawing now, so a slot its cell places is noted as its. */
     private static @Nullable SlotScrollGrid rendering;
 
-    /** Every grid's live cells, each frame of a container screen before it lays out. Called once from client init. */
+    /**
+     * The grids' live cells before a container screen lays out: every grid's at each init (the
+     * screen opening, a resize, a layout change), since any may show on it, and each frame those
+     * drawn lately's. A grid on a screen that closed isn't asked again each frame, so its live
+     * count isn't read against a menu that is gone; one that comes into view is asked from the
+     * frame after it first draws, and the layout change it brings inits the screen anyway.
+     * Called once from client init.
+     */
     public static void init() {
         // Ahead of the region's own init phase, so this runs before the region lays the list out
         // from the grids' rows each frame, and once at init too, so the screen opens at its height.
@@ -222,13 +230,23 @@ public final class SlotScrollGrid extends ScrollContainer {
         ScreenEvents.AFTER_INIT.addPhaseOrdering(phase, ContainerRegions.FIRST);
         ScreenEvents.AFTER_INIT.register(phase, (client, screen, w, h) -> {
             if (!(screen instanceof AbstractContainerScreen<?>)) return;
-            ScreenEvents.beforeExtract(screen).register((s, g, mx, my, a) -> frameAll());
+            ScreenEvents.beforeExtract(screen).register((s, g, mx, my, a) -> frameShown());
             frameAll();
         });
     }
 
     private static void frameAll() {
         for (SlotScrollGrid grid : new ArrayList<>(GRIDS)) grid.frame();
+    }
+
+    private static void frameShown() {
+        for (SlotScrollGrid grid : new ArrayList<>(GRIDS)) if (grid.drawnLately()) grid.frame();
+    }
+
+    /** The live rows' height: the grid's content, known without measuring each cell. */
+    @Override
+    protected int childrenHeight(ScreenKind kind) {
+        return liveHeight();
     }
 
     /** For MenuKit's checks, which have no screen: one frame of every grid, as a screen's frame starts. */

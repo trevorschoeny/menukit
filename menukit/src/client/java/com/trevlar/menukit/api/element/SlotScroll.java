@@ -39,8 +39,10 @@ import java.util.function.IntSupplier;
  * <h3>Live slots</h3>
  * Only the first {@link Builder#liveCount live} cells show, so the scroll ends at the last live
  * row. Without a live count, it is the leading cells that are visible on their own (a slot
- * library's element hides itself where its slot isn't on the menu). Either is read once a frame,
- * before the screen lays out, never per cell: layout asks each cell many times a frame.
+ * library's element hides itself where its slot isn't on the menu). Either is read before the
+ * screen lays out, once at each of its inits and once a frame while the grid is on screen, never
+ * per cell: layout asks for the grid's height many times a frame. A live count that throws counts
+ * as none live, and is logged once.
  *
  * <h3>Flat cells</h3>
  * Each cell is placed at its own place straight in the scroll area, not in rows of their own: a

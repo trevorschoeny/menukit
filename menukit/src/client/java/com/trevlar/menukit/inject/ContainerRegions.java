@@ -644,11 +644,15 @@ public final class ContainerRegions {
         List<AbstractPanelElement> holders = new ArrayList<>(n);
         for (RegionDeclarations.Placed p : sections()) holders.add(p.holder());
         ChildDispatch.yieldHeight(holders, 0);
+        column.remeasure();
         int columnHeight = column.getHeight();   // lays the column out first
         int overflow = RegionLayout.CONTENT_TOP + columnHeight + state.shape.contentBottom()
                 - RegionLayout.maxContent(vanilla, inventoryLabelY, state.screenHeight, state.shape);
         state.sectionScrolls = overflow > 0 && ChildDispatch.yieldHeight(holders, overflow) > 0;
-        if (state.sectionScrolls) columnHeight = column.getHeight();
+        if (state.sectionScrolls) {
+            column.remeasure();
+            columnHeight = column.getHeight();
+        }
         for (int i = 0; i < n; i++) {
             AbstractPanelElement holder = sections().get(i).holder();
             if (!shown[i]) { tops[i] = bottoms[i] = -1; continue; }
