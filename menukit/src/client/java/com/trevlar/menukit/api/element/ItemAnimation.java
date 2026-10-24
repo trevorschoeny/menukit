@@ -51,11 +51,14 @@ public interface ItemAnimation {
                 return;
             }
             g.pose().pushMatrix();
-            g.pose().translate(x + 8f + p.offsetX(), y + 8f + p.offsetY());
-            g.pose().scale(p.scale(), p.scale());
-            g.pose().translate(-(x + 8f), -(y + 8f));
-            inner.draw(g, stack, x, y, t);
-            g.pose().popMatrix();
+            try {
+                g.pose().translate(x + 8f + p.offsetX(), y + 8f + p.offsetY());
+                g.pose().scale(p.scale(), p.scale());
+                g.pose().translate(-(x + 8f), -(y + 8f));
+                inner.draw(g, stack, x, y, t);
+            } finally {
+                g.pose().popMatrix();
+            }
         };
     }
 

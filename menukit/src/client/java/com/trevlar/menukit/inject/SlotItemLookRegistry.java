@@ -3,6 +3,7 @@ package com.trevlar.menukit.inject;
 import com.trevlar.menukit.api.element.ItemAnimation;
 import com.trevlar.menukit.api.panel.SlotItemLooks;
 
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
@@ -12,8 +13,11 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -55,5 +59,28 @@ public final class SlotItemLookRegistry {
             }
         }
         return null;
+    }
+
+    /**
+     * The animations that have thrown: never drawn again, since a drawing cut off half way can
+     * leave the pose it pushed behind it; the slot draws its item as vanilla does instead.
+     */
+    private static final Set<ItemAnimation> BROKEN = Collections.newSetFromMap(new WeakHashMap<>());
+
+    /**
+     * Draws {@code stack} as {@code frame} says, in the slot's 16 px box at {@code (x, y)}; whether
+     * it did. An animation that throws is logged once and left to vanilla's draw from then on.
+     */
+    public static boolean draw(ItemAnimation.Frame frame, GuiGraphicsExtractor graphics, ItemStack stack, int x, int y) {
+        ItemAnimation animation = frame.animation();
+        if (BROKEN.contains(animation)) return false;
+        try {
+            animation.draw(graphics, stack, x, y, frame.t());
+            return true;
+        } catch (RuntimeException e) {
+            BROKEN.add(animation);
+            Guard.failed(animation, "item animation", "SlotItemLooks", e);
+            return false;
+        }
     }
 }

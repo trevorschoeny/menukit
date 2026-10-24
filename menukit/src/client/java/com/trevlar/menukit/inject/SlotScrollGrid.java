@@ -158,7 +158,8 @@ public final class SlotScrollGrid extends ScrollContainer {
      */
     private void frame() {
         if (liveCount != null) {
-            now.live = Math.max(0, Math.min(count, liveCount.getAsInt()));
+            // A live count that throws counts as none live this frame.
+            now.live = Math.max(0, Math.min(count, Guard.getInt(liveCount, 0, "liveCount", "SlotScroll")));
         } else {
             now.counting = true;
             int live = 0;

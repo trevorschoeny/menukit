@@ -437,10 +437,13 @@ public final class ContainerTabs {
             Objects.requireNonNull(item, "item");
             return icon((g, x, y, w, h) -> {
                 g.pose().pushMatrix();
-                g.pose().translate(x, y);
-                g.pose().scale(w / 16f, h / 16f);
-                g.item(item.get(), 0, 0);
-                g.pose().popMatrix();
+                try {
+                    g.pose().translate(x, y);
+                    g.pose().scale(w / 16f, h / 16f);
+                    g.item(item.get(), 0, 0);
+                } finally {
+                    g.pose().popMatrix();
+                }
             });
         }
 
