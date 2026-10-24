@@ -1,8 +1,10 @@
 package com.trevlar.menukit.api.panel;
 
 import com.trevlar.menukit.api.Declarations;
+import com.trevlar.menukit.api.element.ItemAnimation;
 import com.trevlar.menukit.inject.ContainerTabRows;
 import com.trevlar.menukit.inject.PanelHost;
+import com.trevlar.menukit.inject.RegionLayout;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -15,6 +17,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -97,6 +100,45 @@ import java.util.function.Supplier;
  *         .declare();
  * }</pre>
  *
+ * <h3>Groups</h3>
+ * A keyed list with a {@link Keyed#header header} is a group: a header tab, and the keys' tabs
+ * after it as its sub-tabs, smaller by default and standing on the same line. Groups are the
+ * mod's to use or not, and everything about one is the mod's but how it moves:
+ * <ul>
+ *   <li><b>What a header click does</b> is its own {@code onClick}: show the header's own page,
+ *       or pick its first sub-tab.</li>
+ *   <li><b>When its sub-tabs are out</b> is {@link Keyed#expandedWhen}, read every frame:
+ *       always, only while the group holds the selected tab, or on the mod's own conditions.</li>
+ *   <li><b>How they move</b> is MenuKit's, one way only: they slide out from under the header
+ *       to its right as the group opens, the tabs after it moving over to make room, and slide
+ *       back under it as it closes. A turn mid-way goes back from where they are. A group stands
+ *       as it is on a screen's first frame, so opening the inventory doesn't play it.</li>
+ *   <li><b>Paging</b> counts the tabs out: a closed group is its header, an open one its header
+ *       and every sub-tab, and the arrows page through those. A closed group's sub-tabs take no
+ *       click.</li>
+ * </ul>
+ *
+ * <pre>{@code
+ * ContainerTabs.keyed("mymod:chest", ModeScope.BOTH, () -> chestBoxes())
+ *         .header(h -> h
+ *                 .icon(() -> new ItemStack(Items.CHEST))
+ *                 .selectedWhen(() -> shown == CHEST)
+ *                 .onClick(() -> shown = CHEST))
+ *         .tab((box, t) -> t
+ *                 .icon(box::stack, () -> OPEN.at(OPENING.toward(box, box.equals(shown))))
+ *                 .selectedWhen(() -> box.equals(shown))
+ *                 .onClick(() -> shown = box))
+ *         .expandedWhen(() -> keepAllOpen || groupOf(shown) == CHEST)
+ *         .order(200)
+ *         .declare();
+ * }</pre>
+ *
+ * <h3>Size and icons</h3>
+ * {@link Builder#size} sets a tab's width and height, and {@link Keyed#tabSize} every key's
+ * tab's. A tab's icon is 16 px on a full-size tab and smaller in proportion on a smaller one.
+ * {@link Builder#icon(Supplier, Supplier)} draws an item as an {@link ItemAnimation}, a box
+ * opening on the selected tab, say, scaled whole with the icon.
+ *
  * <p>To show one container at a time under the tabs, as the creative inventory shows one
  * page, give each section a {@code visibleWhen} that reads the mod's own pick, have each tab's
  * {@code onClick} set it, and declare the screen {@link ContainerRegion#fitted fitted}, so the
@@ -165,6 +207,10 @@ public final class ContainerTabs {
         private int order = 0;
         private Edge edge = Edge.CONTAINERS_TOP;
         private @Nullable BiConsumer<? super K, Builder> tab;
+        private @Nullable Consumer<Builder> header;
+        private @Nullable BooleanSupplier expanded;
+        /** Each key's tab's size before its own {@code size}; 0 for the default. */
+        private int tabWidth, tabHeight;
 
         private Keyed(String id, ModeScope scope, Supplier<? extends @Nullable List<? extends K>> keys) {
             this.id = Objects.requireNonNull(id, "id");
@@ -181,6 +227,42 @@ public final class ContainerTabs {
          */
         public Keyed<K> tab(BiConsumer<? super K, Builder> build) {
             this.tab = Objects.requireNonNull(build, "build");
+            return this;
+        }
+
+        /**
+         * Makes the list a group: {@code build} sets up its header tab, as a key's tab is set up,
+         * and the keys' tabs become its sub-tabs, standing after it. The header shows while its
+         * own {@code visibleWhen} holds, with or without keys, and its sub-tabs only with it. What
+         * a click on it does is its {@code onClick}, the mod's (show its own page, pick its first
+         * sub-tab). Its id is the list's. Without {@link #tabSize}, sub-tabs are
+         * {@value ContainerTabRows#SUB_WIDTH} by {@value ContainerTabRows#SUB_HEIGHT}.
+         */
+        public Keyed<K> header(Consumer<Builder> build) {
+            this.header = Objects.requireNonNull(build, "build");
+            return this;
+        }
+
+        /**
+         * When a group's sub-tabs are out, read every frame: always, only while one of them is
+         * selected, or whatever the mod's own rule is. Default: always. MenuKit slides them out
+         * from under the header to its right as this starts holding and back under it as it
+         * stops, in {@value ContainerTabRows#SLIDE_MILLIS} ms, a turn mid-way going back from
+         * where they are. Only for a list with a {@link #header}.
+         */
+        public Keyed<K> expandedWhen(BooleanSupplier condition) {
+            this.expanded = Objects.requireNonNull(condition, "condition");
+            return this;
+        }
+
+        /**
+         * Every key's tab's size, as {@link Builder#size} takes it, before a key's own {@code size}.
+         * Default: a full tab, or a group's sub-tab size with a {@link #header}.
+         */
+        public Keyed<K> tabSize(int width, int height) {
+            requireSize("ContainerTabs keyed '" + id + "'", width, height);
+            this.tabWidth = width;
+            this.tabHeight = height;
             return this;
         }
 
@@ -217,25 +299,49 @@ public final class ContainerTabs {
          * Declares the list.
          *
          * @throws IllegalStateException after declarations froze, when {@code id} is already a
-         *         tab's or a list's, or when no tab was given
+         *         tab's or a list's, when no tab was given, or with {@code expandedWhen} and no header
          */
         @SuppressWarnings("unchecked")
         public void declare() {
             Declarations.requireOpen("ContainerTabs.keyed(" + id + ")");
             if (tab == null) throw new IllegalStateException("ContainerTabs keyed '" + id + "': tab(...) is required");
+            if (expanded != null && header == null) {
+                throw new IllegalStateException("ContainerTabs keyed '" + id + "': expandedWhen(...) is for a group, one with a header(...)");
+            }
             BiConsumer<? super K, Builder> tabOf = tab;
             ScreenMatcher screens = matcher;
             int at = order;
             Edge on = edge;
+            // A group's header, built once, its id the list's; its sub-tabs show only with it.
+            ContainerTabRows.Group group = header == null ? null
+                    : new ContainerTabRows.Group(id, expanded != null ? expanded : () -> true);
+            ContainerTabRows.Tab head = null;
+            if (group != null) {
+                Builder h = forKey(id, scope, screens);
+                h.order = at;
+                h.edge = on;
+                h.fixed = true;
+                h.group = group;
+                header.accept(h);
+                head = h.build();
+            }
+            BooleanSupplier headShown = head == null ? null : head.visible();
+            int w = tabWidth > 0 ? tabWidth : group != null ? ContainerTabRows.SUB_WIDTH : ContainerTabRows.TAB_WIDTH;
+            int ht = tabHeight > 0 ? tabHeight : group != null ? ContainerTabRows.SUB_HEIGHT : RegionLayout.TAB_ROW;
             // Each key's tab is named by the list and the key, so what the row keeps by id follows the key.
             ContainerTabRows.declareKeyed(new ContainerTabRows.Keyed(id, keys::get, key -> {
                 Builder b = forKey(id + "#" + key, scope, screens);
                 b.order = at;
                 b.edge = on;
                 b.fixed = true;
+                b.width = w;
+                b.height = ht;
+                b.group = group;
+                b.sub = group != null;
+                b.under = headShown;
                 tabOf.accept((K) key, b);
                 return b.build();
-            }));
+            }, head));
         }
     }
 
@@ -250,7 +356,13 @@ public final class ContainerTabs {
         private int order = 0;
         private Edge edge = Edge.CONTAINERS_TOP;
         private @Nullable Supplier<ItemStack> item;
+        private @Nullable Supplier<ItemAnimation.@Nullable Frame> look;
         private @Nullable Identifier sprite;
+        private int width = ContainerTabRows.TAB_WIDTH, height = RegionLayout.TAB_ROW;
+        /** A group's header or sub-tab: its group, whether a sub-tab, and its header's showing, which a sub-tab's adds to. */
+        private ContainerTabRows.@Nullable Group group;
+        private boolean sub;
+        private @Nullable BooleanSupplier under;
         private @Nullable Supplier<@Nullable Component> tooltip;
         private Runnable onClick = () -> {};
         private BooleanSupplier visibleWhen = () -> true, selectedWhen = () -> false, disabledWhen = () -> false;
@@ -260,10 +372,28 @@ public final class ContainerTabs {
             this.scope = scope;
         }
 
-        /** The tab's icon, an item, read every frame, drawn full size in the middle of the tab. */
+        /** The tab's icon, an item, read every frame, drawn in the middle of the tab: 16 px on a full-size tab, smaller in proportion on a smaller one. */
         public Builder icon(Supplier<ItemStack> item) {
             this.item = Objects.requireNonNull(item, "item");
+            this.look = null;
             this.sprite = null;
+            return this;
+        }
+
+        /**
+         * The tab's icon, an item drawn as an animation: each frame, {@code look} says which
+         * {@link ItemAnimation} and how far through it ({@code null}: the item as it is), run by
+         * the mod's own {@link com.trevlar.menukit.api.element.Transition}, as a slot's look is
+         * ({@link SlotItemLooks}). The whole of it scales with the icon, so a lid standing past
+         * the item's box shrinks with it on a smaller tab.
+         *
+         * <pre>{@code
+         * .icon(box::stack, () -> OPEN.at(OPENING.toward(box, box.equals(shown))))
+         * }</pre>
+         */
+        public Builder icon(Supplier<ItemStack> item, Supplier<ItemAnimation.@Nullable Frame> look) {
+            icon(item);
+            this.look = Objects.requireNonNull(look, "look");
             return this;
         }
 
@@ -275,6 +405,22 @@ public final class ContainerTabs {
         public Builder icon(Identifier sprite) {
             this.sprite = Objects.requireNonNull(sprite, "sprite");
             this.item = null;
+            this.look = null;
+            return this;
+        }
+
+        /**
+         * The tab's size: {@code width} across and {@code height} out from the frame, each at
+         * least {@value ContainerTabRows#MIN_SIZE}. Default 26 by 25, vanilla's creative tab as a
+         * row has it. Every tab stands on the frame, so tabs of different heights share their
+         * line, and the row is as tall as its tallest.
+         *
+         * @throws IllegalArgumentException when either is below {@value ContainerTabRows#MIN_SIZE}
+         */
+        public Builder size(int width, int height) {
+            requireSize("ContainerTabs tab '" + id + "'", width, height);
+            this.width = width;
+            this.height = height;
             return this;
         }
 
@@ -356,9 +502,18 @@ public final class ContainerTabs {
         /** The tab as built so far, its mode scope one more condition, read every frame with its own. */
         ContainerTabRows.Tab build() {
             BooleanSupplier own = visibleWhen;
-            BooleanSupplier shown = scope == ModeScope.BOTH ? own : () -> scope.covers(PanelHost.currentMode()) && own.getAsBoolean();
+            BooleanSupplier scoped = scope == ModeScope.BOTH ? own : () -> scope.covers(PanelHost.currentMode()) && own.getAsBoolean();
+            BooleanSupplier header = under;
+            BooleanSupplier shown = header == null ? scoped : () -> header.getAsBoolean() && scoped.getAsBoolean();
             return new ContainerTabRows.Tab(id, matcher, order, edge, shown, selectedWhen, disabledWhen,
-                    item, sprite, tooltip, onClick);
+                    item, look, sprite, tooltip, onClick, width, height, group, sub);
+        }
+    }
+
+    private static void requireSize(String what, int width, int height) {
+        if (width < ContainerTabRows.MIN_SIZE || height < ContainerTabRows.MIN_SIZE) {
+            throw new IllegalArgumentException(what + ": size(" + width + ", " + height + ") is below "
+                    + ContainerTabRows.MIN_SIZE + " either way");
         }
     }
 }
