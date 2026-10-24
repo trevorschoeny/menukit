@@ -170,14 +170,14 @@ public final class ScreenFrames {
     /**
      * Every slot of the menu moved by the seams above it, each moved once, however late it
      * joined the menu. Before the region moves any (this phase, and this frame hook, come
-     * first), so a slot is seen where vanilla put it.
+     * first), so a slot is seen where vanilla put it. A slot above every seam is noted too:
+     * once the region has moved it down past a seam, it is not vanilla's below it.
      */
     private static void placeSlots(AbstractContainerScreen<?> screen, Seams seams) {
         for (Slot slot : screen.getMenu().slots) {
             if (MOVED.containsKey(slot)) continue;
             int by = seams.shift(slot.y);
-            if (by == 0) continue;
-            ((SlotAccessor) slot).mk$setY(slot.y + by);
+            if (by != 0) ((SlotAccessor) slot).mk$setY(slot.y + by);
             MOVED.put(slot, by);
         }
     }
