@@ -107,6 +107,12 @@ public final class ContainerTabRows {
     static final int ICON_CLEAR = 2;
     /** How long a group takes to slide open or closed. */
     public static final int SLIDE_MILLIS = 200;
+    /**
+     * mockup: the fan slide in place of the drawer, for Trev to compare (off by default). Delete
+     * this and the code marked {@code mockup:} in {@link #place} once he picks.
+     */
+    @VisibleForTesting
+    public static volatile boolean fan = false;
     /** The paging arrows: vanilla's recipe book page arrows, at the row's two ends. */
     public static final int ARROW_WIDTH = 12, ARROW_HEIGHT = 17;
     /** {@link #hit} answers: nothing, the back arrow, the forward arrow (a tab is its place in the row, 0 up). */
@@ -594,15 +600,25 @@ public final class ContainerTabRows {
             double span = 0;
             while (end < drew.length && drew[end].sub() && drew[end].group() == g) span += drew[end++].width();
             float p = open.getOrDefault(g.id(), 1f);
-            double x = cursor - (1f - p) * span;
+            List<Placed> subs = new ArrayList<>();
+            // Each sub-tab's place in the settled strip, from the header's right edge.
+            double at = 0;
             for (; i < end; i++) {
                 Tab s = drew[i];
                 int index = r < row.length && row[r] == s ? r++ : -1;
+                // The drawer: the strip moves as one, slid under the header by what isn't open yet.
+                double x = cursor - (1f - p) * span + at;
+                // mockup: the fan, each sub-tab on its own from under the header (its right edge at
+                // the header's) to its place, so far ones travel further and they spread like cards.
+                if (fan) x = cursor - s.width() + p * (at + s.width());
                 // In the row, drawn while in view; closing, drawn until it is back under the header.
                 boolean shown = index >= 0 ? index >= f.first() && index < f.first() + f.shown() : p > 0f;
-                if (shown) out.add(new Placed(s, (int) Math.round(x), s.width(), s.height(), index, true, headerX));
-                x += s.width();
+                if (shown) subs.add(new Placed(s, (int) Math.round(x), s.width(), s.height(), index, true, headerX));
+                at += s.width();
             }
+            // mockup: fanned, the sub-tabs overlap on the way, the nearest drawn last, on top.
+            if (fan) subs = subs.reversed();
+            out.addAll(subs);
             cursor += p * span;
         }
         return out;
@@ -619,7 +635,8 @@ public final class ContainerTabRows {
      * {@code f} and drawn at {@code placed}: a tab (its place in the row), an arrow there is one
      * for, or {@link #NONE}. A tab runs from the frame to its height out, and shows only
      * between the arrows; a header is over its sub-tabs, which show only right of it. Tabs
-     * touch, each from its left edge up to the next one's, so a point is on one tab only.
+     * touch, each from its left edge up to the next one's, so a point is on one tab only; where
+     * tabs overlap on the way, the one drawn last, on top, takes it.
      */
     private static int hit(Line l, int count, Fit f, List<Placed> placed, double mx, double my) {
         if (mx < l.x() || mx >= l.x() + l.width()) return NONE;
@@ -629,7 +646,7 @@ public final class ContainerTabRows {
         }
         int left = roomLeft(l, f), right = roomRight(l, f);
         for (boolean subs : new boolean[]{false, true}) {
-            for (Placed p : placed) {
+            for (Placed p : placed.reversed()) {
                 if (p.sub() != subs || p.index() < 0) continue;
                 int from = Math.max(left, Math.max(p.x(), p.clipLeft())), to = Math.min(right, p.x() + p.width());
                 int near = l.top() ? l.y() - p.height() : l.y();
