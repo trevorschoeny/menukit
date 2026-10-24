@@ -94,7 +94,7 @@ public final class ContainerTabRows {
     // The row's measures, from vanilla's creative inventory.
 
     /** A tab's width, and its place in the row: vanilla's 26 px tab, a pixel apart. */
-    public static final int TAB_WIDTH = 26, STEP = 27, GAP = STEP - TAB_WIDTH;
+    public static final int TAB_WIDTH = 26, GAP = 1;
     /** A group's sub-tabs by default: about two-thirds of a tab, on the same line. */
     public static final int SUB_WIDTH = 18, SUB_HEIGHT = 17;
     /** The smallest a tab can be, either way: its sprite's corners and edges, kept whole. */
@@ -448,6 +448,13 @@ public final class ContainerTabRows {
         return p == null ? -1f : p;
     }
 
+    /** What is at {@code (mx, my)} on {@code edge}'s row this frame, as {@link #hit} answers, for the checks. */
+    @VisibleForTesting
+    public static int hitForChecks(Edge edge, double mx, double my) {
+        View v = view(edge);
+        return v == null ? NONE : hit(v.line(), v.row().length, v.fit(), v.placed(), mx, my);
+    }
+
     /** Where {@code edge}'s tabs draw this frame, for the checks. */
     @VisibleForTesting
     public static List<Placed> placedForChecks(Edge edge) {
@@ -545,28 +552,6 @@ public final class ContainerTabRows {
         return from;
     }
 
-    /** {@code count} tabs of the plain size, for the checks. */
-    private static int[] plain(int count) {
-        int[] w = new int[count];
-        Arrays.fill(w, TAB_WIDTH);
-        return w;
-    }
-
-    /** How many of {@code count} plain tabs fit a {@code width} wide frame: all, or with the arrows at its ends, as many as fit between them (one at least). */
-    public static int fits(int width, int count) {
-        return fit(width, plain(count), 0).shown();
-    }
-
-    /** The row for {@code count} plain tabs on a {@code width} wide frame, from {@code first} on, clamped so the last page is full. */
-    public static Fit fit(int width, int count, int first) {
-        return fit(width, plain(count), first);
-    }
-
-    /** Plain tab {@code i}'s left edge (its place in the row, 0 up, in view), for a frame whose left edge is {@code x}. */
-    public static int tabX(int x, Fit f, int i) {
-        return x + (f.paged() ? ARROW_WIDTH + 1 : 0) + (i - f.first()) * STEP;
-    }
-
     /** The left and right ends of the room the tabs draw in on line {@code l}: between the arrows when paged. */
     private static int roomLeft(Line l, Fit f) { return l.x() + (f.paged() ? ARROW_WIDTH + 1 : 0); }
     private static int roomRight(Line l, Fit f) { return l.x() + l.width() - (f.paged() ? ARROW_WIDTH + 1 : 0); }
@@ -576,7 +561,7 @@ public final class ContainerTabRows {
      * for a closing group's sub-tab, which takes no click), and for a sub-tab the left edge it
      * shows from, its header's, so it goes under the header as it slides back.
      */
-    public record Placed(@Nullable Tab tab, int x, int width, int height, int index, boolean sub, int clipLeft) {}
+    public record Placed(Tab tab, int x, int width, int height, int index, boolean sub, int clipLeft) {}
 
     /**
      * Where the tabs {@code drew} draw on line {@code l} this frame, the row {@code row} laid
@@ -635,7 +620,7 @@ public final class ContainerTabRows {
      * for, or {@link #NONE}. A tab runs from the frame to its height out, and shows only
      * between the arrows; a header is over its sub-tabs, which show only right of it.
      */
-    public static int hit(Line l, int count, Fit f, List<Placed> placed, double mx, double my) {
+    private static int hit(Line l, int count, Fit f, List<Placed> placed, double mx, double my) {
         if (mx < l.x() || mx >= l.x() + l.width()) return NONE;
         if (f.paged() && my >= l.rowTop() && my < l.rowTop() + l.height()) {
             if (mx < l.x() + ARROW_WIDTH) return f.first() > 0 ? BACK : NONE;
@@ -651,15 +636,6 @@ public final class ContainerTabRows {
             }
         }
         return NONE;
-    }
-
-    /** {@link #hit(Line, int, Fit, List, double, double)} on a row of {@code count} plain tabs, for the checks. */
-    public static int hit(Line l, int count, Fit f, double mx, double my) {
-        List<Placed> placed = new ArrayList<>();
-        for (int i = f.first(); i < f.first() + f.shown(); i++) {
-            placed.add(new Placed(null, tabX(l.x(), f, i), TAB_WIDTH, RegionLayout.TAB_ROW, i, false, Integer.MIN_VALUE));
-        }
-        return hit(l, count, f, placed, mx, my);
     }
 
     /** {@code edge}'s row this frame: its line, its tabs, how it fits and where each draws; {@code null} where none shows. */
@@ -835,7 +811,6 @@ public final class ContainerTabRows {
         /** Tab {@code p} on line {@code l}: its sprite, its icon, and grayed over both when disabled. */
         private static void draw(GuiGraphicsExtractor graphics, Placed p, Line l, boolean first) {
             Tab t = p.tab();
-            if (t == null) return;
             boolean selected = t.selected().getAsBoolean();
             Identifier sprite = ControlLook.Control.containerTab(!l.top(), selected, first);
             tab(graphics, sprite, p.x(), l, t.width(), t.height(), selected, 0xFFFFFFFF);
