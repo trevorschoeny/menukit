@@ -1,8 +1,10 @@
 package com.trevlar.menukit;
 
 import org.jetbrains.annotations.ApiStatus;
+import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.slf4j.Logger;
@@ -40,13 +42,22 @@ public final class MenuKitMixins implements IMixinConfigPlugin {
         return true;
     }
 
+    /**
+     * Once every mixin is merged into a target (another mod's {@code @Overwrite} included): whether
+     * it still reads the window where the height mixin hooks in, a {@code height} read on one of
+     * its target classes, or already calls its handler. MixinExtras applies its injectors late,
+     * after this, so the read the injector will wrap is what is looked for.
+     */
     @Override
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
         if (!mixinClassName.endsWith("." + HEIGHT_MIXIN)) return;
         for (MethodNode m : targetClass.methods) {
             if (m.name.contains(HANDLER) || m.instructions == null) continue;
             for (AbstractInsnNode insn : m.instructions) {
-                if (insn instanceof MethodInsnNode call && call.name.contains(HANDLER)) {
+                boolean hooked = insn instanceof MethodInsnNode call && call.name.contains(HANDLER)
+                        || insn instanceof FieldInsnNode read && insn.getOpcode() == Opcodes.GETFIELD && read.name.equals("height")
+                        && read.desc.equals("I") && TARGETS.contains(read.owner.replace('/', '.'));
+                if (hooked) {
                     INJECTED.add(targetClassName.replace('/', '.'));
                     return;
                 }
