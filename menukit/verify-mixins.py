@@ -235,6 +235,9 @@ def check_file(path, jar, report):
     # method = "..." on injectors (single string or array)
     for m in re.finditer(r"method\s*=\s*(\{[^}]*\}|\"[^\"]*\")", src):
         for lit in re.findall(r'"([^"]+)"', m.group(1)):
+            if lit == "*":  # every method of each target: nothing to resolve; its @At targets are checked below
+                report("OK", name, lit, "")
+                continue
             mname, _, rest = lit.partition("(")
             desc = "(" + rest if rest else None
             r = check_injector_target(mname, desc)
