@@ -202,7 +202,7 @@ public final class ContainerTabs {
         return new Builder(id, Objects.requireNonNull(scope, "scope"));
     }
 
-    /** A live key's tab ({@link ContainerRegion#sections}, {@link #keyed}): on the screens its kind of section, or its list, is on. */
+    /** A keyed list's tab ({@link #keyed}): on the screens its list is on. */
     static Builder forKey(String id, ModeScope scope, ScreenMatcher screens) {
         Builder b = new Builder(id, scope);
         b.matcher = screens;

@@ -44,7 +44,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -129,14 +128,7 @@ public final class ContainerTabRows {
     private static final List<Tab> TABS = new CopyOnWriteArrayList<>();
     private static boolean panelsBuilt;
 
-    /**
-     * A tab one live key made ({@code ContainerRegion.sections}): placed among the declared
-     * tabs by its order, then by its section kind's id, then by its key's place in the keys.
-     */
-    record Live(Tab tab, String kind, int index) {}
-
-    private static List<Live> live = List.of();
-    /** Every tab there is now, declared and live, in row order. */
+    /** Every tab there is now, declared and keyed, in row order. */
     private static List<Tab> all = List.of();
 
     /** {@code ContainerTabs.Builder.declare}: adds a tab in its place, and the rows' panels with the first one. */
@@ -155,10 +147,8 @@ public final class ContainerTabRows {
     public record Keyed(String id, Supplier<? extends @Nullable List<?>> keys, Function<Object, Tab> tab, @Nullable Tab header) {}
 
     private static final List<Keyed> KEYED = new CopyOnWriteArrayList<>();
-    /** Each list's live keys, in the order its keys gave them, and each one's tab. */
-    private static final Map<Keyed, Map<Object, Tab>> KEYED_LIVE = new IdentityHashMap<>();
-    /** The keyed lists' tabs now, placed as {@link #live} ones are: by order, the list's id, the key's place. */
-    private static List<Live> keyedLive = List.of();
+    /** Each list's live keys, in the order its keys gave them, and each one's tab ({@code null}: its making threw). */
+    private static final Map<Keyed, Map<Object, @Nullable Tab>> KEYED_LIVE = new IdentityHashMap<>();
 
     /** {@code ContainerTabs.Keyed.declare}: adds a list, and the rows' panels with the first. */
     public static synchronized void declareKeyed(Keyed list) {
@@ -186,48 +176,34 @@ public final class ContainerTabRows {
         boolean changed = keyedDirty;
         keyedDirty = false;
         for (Keyed list : KEYED) {
-            List<?> keys = list.keys().get();
-            if (keys == null) keys = List.of();
-            Map<Object, Tab> was = KEYED_LIVE.getOrDefault(list, Map.of());
-            // ponytail: a keys list with a repeated key never matches, so it rebuilds the map each frame; the tabs are kept either way.
-            if (was.size() == keys.size() && List.copyOf(was.keySet()).equals(keys)) continue;
-            Map<Object, Tab> now = new LinkedHashMap<>();
-            for (Object k : keys) {
-                if (now.containsKey(k)) continue;
-                Tab made = was.get(k);
-                now.put(k, made != null ? made : list.tab().apply(k));
-            }
+            List<?> keys = Guard.get(list.keys(), "keys", list.id());
+            Map<Object, @Nullable Tab> now = LiveKeys.resync(KEYED_LIVE.getOrDefault(list, Map.of()), keys, list.tab(), "tab", list.id());
+            if (now == null) continue;
             if (now.isEmpty()) KEYED_LIVE.remove(list);
             else KEYED_LIVE.put(list, now);
             changed = true;
         }
-        if (!changed) return;
-        List<Live> tabs = new ArrayList<>();
+        if (changed) merge();
+    }
+
+    /**
+     * Every tab in row order: by order, then by its id or its list's (a keyed list's tabs
+     * together), then a list's header first and its keys' tabs in the keys' order.
+     */
+    private static void merge() {
+        record Entry(Tab tab, String base, int index) {}
+        List<Entry> every = new ArrayList<>();
+        for (Tab t : TABS) every.add(new Entry(t, t.id(), 0));
         for (Keyed list : KEYED) {
             int i = 0;
-            if (list.header() != null) tabs.add(new Live(list.header(), list.id(), i++));
-            for (Tab t : KEYED_LIVE.getOrDefault(list, Map.of()).values()) tabs.add(new Live(t, list.id(), i++));
+            if (list.header() != null) every.add(new Entry(list.header(), list.id(), i++));
+            for (Tab t : KEYED_LIVE.getOrDefault(list, Map.of()).values()) if (t != null) every.add(new Entry(t, list.id(), i++));
         }
-        keyedLive = List.copyOf(tabs);
-        merge();
+        every.sort(Comparator.comparingInt((Entry e) -> e.tab().order()).thenComparing(Entry::base).thenComparingInt(Entry::index));
+        all = every.stream().map(Entry::tab).toList();
     }
 
-    /** The live keys' tabs now, from the container region whenever its sections restack. */
-    static void live(List<Live> tabs) {
-        live = List.copyOf(tabs);
-        merge();
-    }
-
-    private static void merge() {
-        List<Live> every = new ArrayList<>(TABS.size() + live.size() + keyedLive.size());
-        for (Tab t : TABS) every.add(new Live(t, t.id(), 0));
-        every.addAll(live);
-        every.addAll(keyedLive);
-        every.sort(Comparator.comparingInt((Live l) -> l.tab().order()).thenComparing(Live::kind).thenComparingInt(Live::index));
-        all = every.stream().map(Live::tab).toList();
-    }
-
-    /** The rows' panels, made once, with the first tab or the first kind of section with tabs. */
+    /** The rows' panels, made once, with the first tab or keyed list. */
     static synchronized void buildPanels() {
         if (panelsBuilt) return;
         panelsBuilt = true;

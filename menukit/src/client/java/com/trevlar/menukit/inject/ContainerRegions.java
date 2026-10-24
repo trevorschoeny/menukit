@@ -277,22 +277,19 @@ public final class ContainerRegions {
 
     /**
      * One kind of section made per live key ({@code ContainerRegion.sections}). On a screen
-     * {@code matcher} takes, {@code keys} is read once a frame; each key's section (and its
-     * tab, with {@code tab}) is made the frame the key first appears and kept, the same
-     * elements, for as long as the key is there on that screen. Keys are compared with
-     * {@code equals}; a repeated key makes one section, the first.
+     * {@code matcher} takes, {@code keys} is read once a frame; each key's section is made the
+     * frame the key first appears and kept, the same elements, for as long as the key is there
+     * on that screen. Keys are compared with {@code equals}; a repeated key makes one section,
+     * the first.
      */
     public record Family(String kind, ScreenMatcher matcher, Function<AbstractContainerScreen<?>, @Nullable List<?>> keys,
-                         Function<Object, Declared> section, @Nullable Function<Object, ContainerTabRows.Tab> tab) {}
-
-    /** What one live key made: its section, placed, and its tab, if the kind has tabs. */
-    private record Instance(Placed placed, ContainerTabRows.@Nullable Tab tab) {}
+                         Function<Object, Declared> section) {}
 
     private static final List<Family> FAMILIES = new CopyOnWriteArrayList<>();
-    /** Each kind's live keys on the open screen, in the order its keys gave them, and what each made. */
-    private static final Map<Family, Map<Object, Instance>> LIVE = new IdentityHashMap<>();
+    /** Each kind's live keys on the open screen, in the order its keys gave them, and each one's section ({@code null}: its making threw). */
+    private static final Map<Family, Map<Object, @Nullable Placed>> LIVE = new IdentityHashMap<>();
 
-    /** {@code ContainerRegion.Sections.declare}: adds a kind, and the region's panels (and the tab rows') with the first. */
+    /** {@code ContainerRegion.Sections.declare}: adds a kind, and the region's panels with the first. */
     public static synchronized void declareFamily(Family family) {
         for (Family f : FAMILIES) {
             if (f.kind().equals(family.kind())) {
@@ -301,33 +298,26 @@ public final class ContainerRegions {
         }
         FAMILIES.add(family);
         buildPanels();
-        if (family.tab() != null) ContainerTabRows.buildPanels();
     }
 
     /**
      * Each kind's keys on {@code screen} now (none off a container screen, or on one the kind
-     * is not on): a key that is new makes its section and tab, one that is gone takes them
-     * with it. Nothing is made, and nothing restacks, while every kind's keys are the ones
-     * it had. Before anything else in the frame reads the sections.
+     * is not on): a key that is new makes its section, one that is gone takes it with it
+     * ({@link LiveKeys}). Nothing is made, and nothing restacks, while every kind's keys are
+     * the ones it had. Before anything else in the frame reads the sections.
      */
     private static void syncLive(@Nullable Screen screen) {
         boolean changed = false;
         for (Family f : FAMILIES) {
-            List<?> keys = screen instanceof AbstractContainerScreen<?> acs && f.matcher().matches(acs) ? f.keys().apply(acs) : null;
-            if (keys == null) keys = List.of();
-            Map<Object, Instance> was = LIVE.getOrDefault(f, Map.of());
-            // ponytail: a keys list with a repeated key never matches, so it rebuilds the map each frame; the elements are kept either way.
-            if (was.size() == keys.size() && List.copyOf(was.keySet()).equals(keys)) continue;
-            Map<Object, Instance> now = new LinkedHashMap<>();
-            for (Object k : keys) {
-                if (now.containsKey(k)) continue;
-                Instance made = was.get(k);
-                if (made == null) {
-                    Declared d = f.section().apply(k);
-                    made = new Instance(new Placed(d, holderFor(d)), f.tab() == null ? null : f.tab().apply(k));
-                }
-                now.put(k, made);
+            List<?> keys = null;
+            if (screen instanceof AbstractContainerScreen<?> acs && f.matcher().matches(acs)) {
+                keys = Guard.get(() -> f.keys().apply(acs), "keys", f.kind());
             }
+            Map<Object, @Nullable Placed> now = LiveKeys.resync(LIVE.getOrDefault(f, Map.of()), keys, k -> {
+                Declared d = f.section().apply(k);
+                return new Placed(d, holderFor(d));
+            }, "section", f.kind());
+            if (now == null) continue;
             if (now.isEmpty()) LIVE.remove(f);
             else LIVE.put(f, now);
             changed = true;
@@ -339,18 +329,16 @@ public final class ContainerRegions {
      * The open screen's sections again, from the declared ones and every live key: stacked
      * by order, then by id (a kind's sections by its kind, then in its keys' order). What
      * the region learned about each section that stays (where it was, where its slots sit)
-     * follows it to its new place; the column and the tab rows take the new set.
+     * follows it to its new place; the column takes the new set.
      */
     private static void restack() {
         record Entry(Placed placed, int order, String base, int index) {}
         List<Entry> entries = new ArrayList<>();
         for (Placed p : DECLARED) entries.add(new Entry(p, p.section().order(), p.section().id(), 0));
-        List<ContainerTabRows.Live> tabs = new ArrayList<>();
         for (Family f : FAMILIES) {
             int i = 0;
-            for (Instance in : LIVE.getOrDefault(f, Map.of()).values()) {
-                entries.add(new Entry(in.placed(), in.placed().section().order(), f.kind(), i));
-                if (in.tab() != null) tabs.add(new ContainerTabRows.Live(in.tab(), f.kind(), i));
+            for (Placed p : LIVE.getOrDefault(f, Map.of()).values()) {
+                if (p != null) entries.add(new Entry(p, p.section().order(), f.kind(), i));
                 i++;
             }
         }
@@ -380,7 +368,6 @@ public final class ContainerRegions {
         List<AbstractPanelElement> holders = new ArrayList<>(sections.size());
         for (Placed p : sections) holders.add(p.holder());
         if (column != null) column.set(holders);
-        ContainerTabRows.live(tabs);
     }
 
     /**
