@@ -67,7 +67,7 @@ public abstract class MKContainerLayersMixin {
                 graphics, slot, mouseX, mouseY);
     }
 
-    /** The end of a slot's draw: its over-decorations, then its clip, if it has one, ends here. */
+    /** The end of a slot's draw: its over-decorations draw, then its clip ends, if it has one. */
     @Inject(method = "extractSlot", at = @At("RETURN"), require = 1)
     private void mk$afterSlot(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY,
                               CallbackInfo ci, @Local(ordinal = 0) ItemStack stack) {

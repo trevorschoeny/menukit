@@ -476,7 +476,7 @@ A slot in a `ScrollContainer` (SlotKit's `SlotElement`) scrolls and clips like a
 
 - **Every slot, every frame,** empty or not: vanilla's slots, created ones, the slots a panel shows (inside the panel's clip, scrolled with it) and the creative screen's, which are the creative menu's own wrappers around the inventory's slots. A decoration gets the screen, the slot, the stack the slot is drawing (during a drag, the stack it will get) and the top left of the slot's 16 pixel item box.
 - **They stack.** Unlike looks, every decoration draws, each layer in id order, so two mods' marks on one slot both show. Pick a corner another mod is unlikely to use.
-- **Tooltips.** A decoration may answer a tooltip for where the mouse is on the slot, counted from the item box's top left (−1 to 16 across the slot's frame), so a padlock's tooltip shows only over the padlock. Decorations are asked in id order, under ones first, and the first answer shows in place of the item's own tooltip.
+- **Tooltips.** A decoration may answer a tooltip for where the mouse is on the slot, counted from the item box's top left (-1 to 16 across the slot's frame), so a padlock's tooltip shows only over the padlock. Decorations are asked in id order, under ones first, and the first answer shows in place of the item's own tooltip.
 - A decoration that throws is logged once and skipped from then on. Decorations are declarations and freeze with the rest.
 
 ## Container region
