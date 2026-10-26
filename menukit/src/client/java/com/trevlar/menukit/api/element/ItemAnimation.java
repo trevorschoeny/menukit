@@ -6,6 +6,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Objects;
+import java.util.function.UnaryOperator;
 
 /**
  * How an item draws at a point in an animation (7.4.0): given the item, its 16 px box and
@@ -36,6 +37,23 @@ public interface ItemAnimation {
      * 16 px box, and draws there; to keep it inside, shrink the item with {@link #posed}.
      */
     ItemAnimation OPEN_LID = ItemOpenness::draw;
+
+    /**
+     * The item as it is, at every {@code t}: for a look that only draws another stack in the
+     * slot's ({@link #swapped}), {@code AS_IS.swapped(...).at(1)} (7.5.0).
+     */
+    ItemAnimation AS_IS = (g, stack, x, y, t) -> g.item(stack, x, y);
+
+    /**
+     * This animation drawing {@code swap}'s stack in place of the one it is given: another
+     * model, another item (7.5.0). The slot's count and durability bar stay the slot's own
+     * stack's. {@code swap} gets the slot's stack and returns the one to draw.
+     */
+    default ItemAnimation swapped(UnaryOperator<ItemStack> swap) {
+        Objects.requireNonNull(swap, "swap");
+        ItemAnimation inner = this;
+        return (g, stack, x, y, t) -> inner.draw(g, swap.apply(stack), x, y, t);
+    }
 
     /**
      * This animation moved and scaled as it plays: at each {@code t}, {@code pose} says how big

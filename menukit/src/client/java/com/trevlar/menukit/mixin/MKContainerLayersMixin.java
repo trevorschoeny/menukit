@@ -5,8 +5,10 @@ import com.trevlar.menukit.inject.ContainerScreenLayers;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
 
 import com.llamalad7.mixinextras.injector.WrapWithCondition;
+import com.llamalad7.mixinextras.sugar.Local;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.spongepowered.asm.mixin.Mixin;
@@ -65,11 +67,11 @@ public abstract class MKContainerLayersMixin {
                 graphics, slot, mouseX, mouseY);
     }
 
-    /** The end of a slot's draw: its clip, if it has one, ends here. */
+    /** The end of a slot's draw: its over-decorations, then its clip, if it has one, ends here. */
     @Inject(method = "extractSlot", at = @At("RETURN"), require = 1)
     private void mk$afterSlot(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY,
-                              CallbackInfo ci) {
-        ContainerScreenLayers.afterSlot(graphics);
+                              CallbackInfo ci, @Local(ordinal = 0) ItemStack stack) {
+        ContainerScreenLayers.afterSlot((AbstractContainerScreen<?>) (Object) this, graphics, slot, stack, mouseX, mouseY);
     }
 
     /** Vanilla's hover highlights, clipped as the hovered slot is. */

@@ -9,6 +9,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
@@ -103,6 +104,14 @@ import java.util.List;
  * A slot a panel places across a clip's edge (a {@code ScrollContainer}'s viewport)
  * is drawn scissored to the clip it was placed under ({@link SlotClips}), and so are
  * vanilla's hover highlights on it. A slot no clip cuts is drawn exactly as before.
+ *
+ * <h2>Inside a slot's draw (7.5.0)</h2>
+ *
+ * Wherever a slot draws (any layer above), its own draw is one order: background,
+ * under-decorations, the item (as a {@code SlotItemLooks} look says), count and
+ * durability, over-decorations ({@code SlotDecorations}). The under-decorations and the
+ * look are {@code MKSlotDrawMixin}'s; the over-decorations draw at {@link #afterSlot},
+ * so they stay inside the slot's clip.
  *
  * <h2>Why this class exists</h2>
  *
@@ -240,8 +249,20 @@ public final class ContainerScreenLayers {
         slotClipped = SlotClips.push(graphics, slot);
     }
 
-    /** At {@code extractSlot} RETURN: ends the slot's clip, if {@link #beforeSlot} began one. */
-    public static void afterSlot(GuiGraphicsExtractor graphics) {
+    /**
+     * At {@code extractSlot} RETURN: the slot's over-decorations and their tooltip
+     * ({@link SlotDecorationRegistry}, 7.5.0), still inside the slot's clip, then ends the
+     * clip, if {@link #beforeSlot} began one.
+     */
+    public static void afterSlot(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics, Slot slot,
+                                 ItemStack stack, int mouseX, int mouseY) {
+        SlotDecorationRegistry.draw(false, graphics, screen, slot, stack, slot.x, slot.y);
+        SlotDecorationRegistry.tooltip(graphics, screen, slot, stack, mouseX, mouseY);
+        endClip(graphics);
+    }
+
+    /** Ends the clip a slot's or a highlight's draw began, if it began one. */
+    private static void endClip(GuiGraphicsExtractor graphics) {
         if (slotClipped) graphics.disableScissor();
         slotClipped = false;
     }
@@ -257,7 +278,7 @@ public final class ContainerScreenLayers {
 
     /** At the highlights' RETURN: ends the clip {@link #beforeHighlight} began. */
     public static void afterHighlight(GuiGraphicsExtractor graphics) {
-        afterSlot(graphics);
+        endClip(graphics);
     }
 
     /**

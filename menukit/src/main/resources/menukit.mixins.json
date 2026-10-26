@@ -34,7 +34,7 @@
     "MKScreenSwapMixin",
     "MKSlotActiveMixin",
     "MKSlotInputMixin",
-    "MKSlotItemLookMixin",
+    "MKSlotDrawMixin",
     "MKTooltipSuppressMixin",
     "MKVanillaButtonPressedMixin",
     "MKWidgetHoverSuppressMixin",

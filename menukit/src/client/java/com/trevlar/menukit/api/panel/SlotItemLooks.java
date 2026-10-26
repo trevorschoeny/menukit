@@ -38,7 +38,11 @@ import java.util.Objects;
  *       a screen that opens in place of another picks a finished animation up where it
  *       stood.</li>
  *   <li><b>Several mods</b>: looks are asked in id order and the first that answers draws.</li>
+ *   <li><b>Another stack</b> drawn in the slot's place (an open bundle's model, 7.5.0):
+ *       {@code ItemAnimation.AS_IS.swapped(stack -> openBundle(stack)).at(1)}, or any
+ *       animation {@link ItemAnimation#swapped swapped}, so it animates and swaps at once.</li>
  *   <li>A look that throws is logged once and skipped from then on.</li>
+ *   <li>To draw on the slot rather than in place of its item, see {@link SlotDecorations}.</li>
  * </ul>
  *
  * <p>Declare from your client initializer: looks freeze with every other declaration.

@@ -22,7 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * The declared {@link SlotItemLooks} (7.4.0), asked in id order by MenuKit's slot hook
- * ({@code MKSlotItemLookMixin}). Render thread, but declared from client init.
+ * ({@code MKSlotDrawMixin}). Render thread, but declared from client init.
  */
 @ApiStatus.Internal
 public final class SlotItemLookRegistry {
