@@ -18,6 +18,8 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -147,6 +149,30 @@ import java.util.function.Supplier;
  *         .declare();
  * }</pre>
  *
+ * <h3>Groups that come and go</h3>
+ * A mod whose groups come and go at runtime (one per open box that holds boxes, say) declares a
+ * {@link #groups list of groups}: its group keys are read every frame as a keyed list's keys
+ * are, and each is a group as {@link Keyed#header} makes one, with a header and its own keys'
+ * sub-tabs, built the frame the key first appears and kept for as long as it is there. The groups
+ * stand in the group keys' order, one after another, together at the list's order, so where a
+ * group goes is the mod's: to put an opened box's group right after the group it sits in, give
+ * its key right after that group's. Groups that stand among each other belong in one list.
+ *
+ * <pre>{@code
+ * ContainerTabs.groups("mymod:boxes", ModeScope.BOTH, () -> tree.groups(), group -> group.boxesInside())
+ *         .header((group, h) -> h
+ *                 .icon(group::stack)
+ *                 .selectedWhen(() -> group.equals(shown))
+ *                 .onClick(() -> shown = group))
+ *         .tab((group, box, t) -> t
+ *                 .icon(box::stack)
+ *                 .selectedWhen(() -> box.equals(shown))
+ *                 .onClick(() -> shown = box))
+ *         .expandedWhen(group -> group.holds(shown))
+ *         .order(200)
+ *         .declare();
+ * }</pre>
+ *
  * <h3>Size and icons</h3>
  * {@link Builder#size} sets a tab's width and height, and {@link Keyed#tabSize} every key's
  * tab's. A tab's icon is the mod's own drawing ({@link Builder#icon(Icon)}), every frame, in an
@@ -222,6 +248,150 @@ public final class ContainerTabs {
     }
 
     /**
+     * Starts a list of groups, its id namespaced and unique among tabs and lists
+     * ({@code "mymod:boxes"}), for one mode scope: one group per key {@code groups} gives, read
+     * every frame a container screen is open, in the order it gives them, and in each group one
+     * sub-tab per key {@code keys} gives for it, read every frame as a keyed list's are. Keys of
+     * both kinds compare with {@code equals}; a repeated key has one group or tab, the first. A
+     * {@code null} list is no keys.
+     */
+    public static <G, K> Groups<G, K> groups(String id, ModeScope scope, Supplier<? extends @Nullable List<? extends G>> groups,
+                                             Function<? super G, ? extends @Nullable List<? extends K>> keys) {
+        return new Groups<>(id, Objects.requireNonNull(scope, "scope"), Objects.requireNonNull(groups, "groups"),
+                Objects.requireNonNull(keys, "keys"));
+    }
+
+    /** What a list of groups' sub-tab is ({@link Groups#tab}): its group, its key, and the builder to set up. */
+    @FunctionalInterface
+    public interface GroupTab<G, K> {
+        void build(G group, K key, Builder tab);
+    }
+
+    /**
+     * Builds a list of groups ({@link #groups}). Its screens, order, edge and sub-tab size are the
+     * list's, shared by every group in it; each group's header and each key's tab set the rest.
+     * Each group is a keyed list with a {@link Keyed#header header}, as one declared alone is,
+     * and behaves as one: its header, its sub-tabs sliding out and back, paging and pinning.
+     */
+    public static final class Groups<G, K> {
+        private final String id;
+        private final ModeScope scope;
+        private final Supplier<? extends @Nullable List<? extends G>> groups;
+        private final Function<? super G, ? extends @Nullable List<? extends K>> keys;
+        private ScreenMatcher matcher = ScreenMatcher.all();
+        private boolean targeted = false;
+        private int order = 0;
+        private Edge edge = Edge.CONTAINERS_TOP;
+        private @Nullable BiConsumer<? super G, Builder> header;
+        private @Nullable GroupTab<? super G, ? super K> tab;
+        private @Nullable Predicate<? super G> expanded;
+        private int tabWidth, tabHeight;
+
+        private Groups(String id, ModeScope scope, Supplier<? extends @Nullable List<? extends G>> groups,
+                       Function<? super G, ? extends @Nullable List<? extends K>> keys) {
+            this.id = Objects.requireNonNull(id, "id");
+            this.scope = scope;
+            this.groups = groups;
+            this.keys = keys;
+        }
+
+        /**
+         * Required: each group's header tab, set up as {@link Keyed#header} sets one up, by group.
+         * Run once per group, the frame its key first appears. Its id is {@code id#group}.
+         */
+        public Groups<G, K> header(BiConsumer<? super G, Builder> build) {
+            this.header = Objects.requireNonNull(build, "build");
+            return this;
+        }
+
+        /**
+         * Required: each key's sub-tab in a group, set up as {@link Keyed#tab} sets one up, by
+         * group and key. Run once per key in a group, the frame it first appears there. Its id is
+         * {@code id#group#key}.
+         */
+        public Groups<G, K> tab(GroupTab<? super G, ? super K> build) {
+            this.tab = Objects.requireNonNull(build, "build");
+            return this;
+        }
+
+        /** When a group's sub-tabs are out, by group, read every frame, as {@link Keyed#expandedWhen} reads. Default: always. */
+        public Groups<G, K> expandedWhen(Predicate<? super G> condition) {
+            this.expanded = Objects.requireNonNull(condition, "condition");
+            return this;
+        }
+
+        /** Every sub-tab's size, as {@link Keyed#tabSize} takes it. Default {@value #SUB_WIDTH} by {@value #SUB_HEIGHT}. */
+        public Groups<G, K> tabSize(int width, int height) {
+            requireSize("ContainerTabs groups '" + id + "'", width, height);
+            this.tabWidth = width;
+            this.tabHeight = height;
+            return this;
+        }
+
+        /** Where the groups go in their row, every tab of them together, in the group keys' order: lower is further left; ties go by id. Default 0. */
+        public Groups<G, K> order(int order) {
+            this.order = order;
+            return this;
+        }
+
+        /** The edge their row stands on. Default {@link Edge#CONTAINERS_TOP}. */
+        public Groups<G, K> edge(Edge edge) {
+            this.edge = Objects.requireNonNull(edge, "edge");
+            return this;
+        }
+
+        /** The screens their tabs are on. Without {@code on} or {@link #onMatching}, every container screen (see "Where a row stands"). */
+        @SafeVarargs
+        public final Groups<G, K> on(Class<? extends AbstractContainerScreen<?>>... screens) {
+            if (screens.length == 0) {
+                throw new IllegalArgumentException("ContainerTabs groups '" + id + "': on() needs at least one screen class");
+            }
+            return onMatching(ScreenMatcher.only(screens));
+        }
+
+        /** The screens their tabs are on, by a matcher. */
+        public Groups<G, K> onMatching(ScreenMatcher matcher) {
+            if (targeted) throw new IllegalStateException("ContainerTabs groups '" + id + "': targeting declared twice");
+            this.matcher = Objects.requireNonNull(matcher, "matcher");
+            this.targeted = true;
+            return this;
+        }
+
+        /**
+         * Declares the list.
+         *
+         * @throws IllegalStateException after declarations froze, when {@code id} is already a
+         *         tab's or a list's or its tabs' ids could be another's, or when no header or no
+         *         tab was given
+         */
+        @SuppressWarnings("unchecked")
+        public void declare() {
+            Declarations.requireOpen("ContainerTabs.groups(" + id + ")");
+            if (header == null) throw new IllegalStateException("ContainerTabs groups '" + id + "': header(...) is required");
+            if (tab == null) throw new IllegalStateException("ContainerTabs groups '" + id + "': tab(...) is required");
+            BiConsumer<? super G, Builder> headerOf = header;
+            GroupTab<? super G, ? super K> tabOf = tab;
+            Predicate<? super G> open = expanded;
+            // Each group is a keyed list with a header, kept by the list and its group key, so its
+            // slide and what the row keeps by it follow the key, as a key's tab does.
+            TabRegistry.declareGroups(new TabRegistry.Groups(id, groups::get, key -> {
+                G group = (G) key;
+                Keyed<K> list = new Keyed<>(id + "#" + group, scope, () -> keys.apply(group));
+                list.ref = new TabRegistry.KeyRef(id, group);
+                list.matcher = matcher;
+                list.order = order;
+                list.edge = edge;
+                list.tabWidth = tabWidth;
+                list.tabHeight = tabHeight;
+                list.header = h -> headerOf.accept(group, h);
+                list.tab = (k, b) -> tabOf.build(group, k, b);
+                if (open != null) list.expanded = () -> open.test(group);
+                return list.build();
+            }));
+        }
+    }
+
+    /**
      * Builds a keyed list of tabs ({@link #keyed}). Its screens, order and edge are the
      * list's, shared by every tab in it; each key's tab sets the rest.
      */
@@ -238,11 +408,14 @@ public final class ContainerTabs {
         private @Nullable BooleanSupplier expanded;
         /** Each key's tab's size before its own {@code size}; 0 for the default. */
         private int tabWidth, tabHeight;
+        /** What the rows keep the list's header and slide by: its id, or a list of groups' group's key ref. */
+        private Object ref;
 
         private Keyed(String id, ModeScope scope, Supplier<? extends @Nullable List<? extends K>> keys) {
             this.id = Objects.requireNonNull(id, "id");
             this.scope = scope;
             this.keys = keys;
+            this.ref = id;
         }
 
         /**
@@ -328,9 +501,14 @@ public final class ContainerTabs {
          * @throws IllegalStateException after declarations froze, when {@code id} is already a
          *         tab's or a list's, when no tab was given, or with {@code expandedWhen} and no header
          */
-        @SuppressWarnings("unchecked")
         public void declare() {
             Declarations.requireOpen("ContainerTabs.keyed(" + id + ")");
+            TabRegistry.declareKeyed(build());
+        }
+
+        /** The list as built so far, for the registry: on its own, or as a list of groups' group. */
+        @SuppressWarnings("unchecked")
+        TabRegistry.Keyed build() {
             if (tab == null) throw new IllegalStateException("ContainerTabs keyed '" + id + "': tab(...) is required");
             if (expanded != null && header == null) {
                 throw new IllegalStateException("ContainerTabs keyed '" + id + "': expandedWhen(...) is for a group, one with a header(...)");
@@ -340,8 +518,9 @@ public final class ContainerTabs {
             int at = order;
             Edge on = edge;
             // A group's header, built once, its id the list's; its sub-tabs show only with it.
+            Object kept = ref;
             TabRegistry.Group group = header == null ? null
-                    : new TabRegistry.Group(id, expanded != null ? expanded : () -> true);
+                    : new TabRegistry.Group(id, kept, expanded != null ? expanded : () -> true);
             TabRegistry.Tab head = null;
             if (group != null) {
                 Builder h = forKey(id, scope, screens);
@@ -349,6 +528,7 @@ public final class ContainerTabs {
                 h.edge = on;
                 h.fixed = true;
                 h.group = group;
+                h.ref = kept;
                 header.accept(h);
                 head = h.build();
             }
@@ -356,9 +536,9 @@ public final class ContainerTabs {
             int w = tabWidth > 0 ? tabWidth : group != null ? SUB_WIDTH : TAB_WIDTH;
             int ht = tabHeight > 0 ? tabHeight : group != null ? SUB_HEIGHT : TAB_HEIGHT;
             // Each key's tab is named by the list and the key, so what the row keeps by id follows the key.
-            TabRegistry.declareKeyed(new TabRegistry.Keyed(id, keys::get, key -> {
+            return new TabRegistry.Keyed(id, keys::get, key -> {
                 Builder b = forKey(id + "#" + key, scope, screens);
-                b.ref = new TabRegistry.KeyRef(id, key);
+                b.ref = new TabRegistry.KeyRef(kept, key);
                 b.order = at;
                 b.edge = on;
                 b.fixed = true;
@@ -369,7 +549,7 @@ public final class ContainerTabs {
                 b.under = headShown;
                 tabOf.accept((K) key, b);
                 return b.build();
-            }, head));
+            }, head);
         }
     }
 

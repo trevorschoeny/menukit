@@ -148,7 +148,7 @@ public final class ContainerTabRows {
     // Groups sliding
 
     /**
-     * Each group's slide, by its id, so it carries over to a screen opened in place of another.
+     * Each group's slide, by its {@link Group#ref}, so it carries over to a screen opened in place of another.
      * Eased each way, so a group closing moves from its first frame as one opening does.
      */
     private static Transition slide = Transition.eachWay(ContainerTabs.SLIDE_MILLIS, Easing.EASE_OUT);
@@ -160,8 +160,8 @@ public final class ContainerTabRows {
     private static Transition pageRoom = Transition.eachWay(ContainerTabs.SLIDE_MILLIS, Easing.EASE_OUT);
     /** Each edge's row this frame: whether a group on it is sliding. */
     private static final boolean[] SLIDING = new boolean[EDGES];
-    /** How far each group showing this frame is open, 0 to 1, by its id. */
-    private static final Map<String, Float> OPEN = new HashMap<>();
+    /** How far each group showing this frame is open, 0 to 1, by its {@link Group#ref}. */
+    private static final Map<Object, Float> OPEN = new HashMap<>();
     /**
      * Until the first frame drawn since the player was last in the world: groups stand as they
      * are, not sliding, through the layouts at init and that frame.
@@ -169,14 +169,14 @@ public final class ContainerTabRows {
     private static boolean settle = true;
 
     /**
-     * How far group {@code id} is open now, sliding toward {@code expanded}. On a screen's first
+     * How far the group kept by {@code ref} is open now, sliding toward {@code expanded}. On a screen's first
      * frame it stands at its end: opening the inventory shows its groups as they are.
      */
-    private static float openness(String id, boolean expanded) {
+    private static float openness(Object ref, boolean expanded) {
         long now = MenuKitClock.now();
-        if (!settle) return slide.toward(id, expanded, now);
+        if (!settle) return slide.toward(ref, expanded, now);
         // Started a whole slide ago, so it is already there.
-        slide.toward(id, expanded, now - ContainerTabs.SLIDE_MILLIS);
+        slide.toward(ref, expanded, now - ContainerTabs.SLIDE_MILLIS);
         return expanded ? 1f : 0f;
     }
 
@@ -245,7 +245,7 @@ public final class ContainerTabRows {
                 if (t.sub()) {
                     Group g = t.group();
                     boolean open = expanded(g, expanded);
-                    float p = OPEN.computeIfAbsent(g.id(), id -> openness(id, open));
+                    float p = OPEN.computeIfAbsent(g.ref(), ref -> openness(ref, open));
                     if (p != (open ? 1f : 0f)) SLIDING[i] = true;
                     // Closed and back under its header: not drawn.
                     if (!open && p <= 0f) continue;
@@ -328,11 +328,21 @@ public final class ContainerTabRows {
         return FIRST[edge.ordinal()];
     }
 
-    /** How far group {@code id} is open this frame, 0 to 1, or -1 where none of its sub-tabs shows, for the checks. */
+    /**
+     * How far the group kept by {@code ref} is open this frame, 0 to 1, or -1 where none of its
+     * sub-tabs shows, for the checks: a keyed list's id, or a list of groups' group's
+     * {@link TabRegistry.KeyRef} ({@link #groupRefForChecks}).
+     */
     @VisibleForTesting
-    public static float opennessForChecks(String id) {
-        Float p = OPEN.get(id);
+    public static float opennessForChecks(Object ref) {
+        Float p = OPEN.get(ref);
         return p == null ? -1f : p;
+    }
+
+    /** What a list of groups' group is kept by, for {@link #opennessForChecks}. */
+    @VisibleForTesting
+    public static Object groupRefForChecks(String groups, @Nullable Object group) {
+        return new TabRegistry.KeyRef(groups, group);
     }
 
     /** What is at {@code (mx, my)} on {@code edge}'s row this frame, as {@link TabRowLayout#hit} answers, for the checks. */

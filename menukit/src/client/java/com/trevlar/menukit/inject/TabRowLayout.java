@@ -132,7 +132,7 @@ public final class TabRowLayout {
     /**
      * Where the tabs {@code drew} draw on line {@code l} this frame, the row {@code row} laid
      * out by {@code f} between ends {@code inset} in, each group open {@code open} of the way (by
-     * its id; 1 where absent): the row's tabs in view, the sub-tabs of a group sliding, and the
+     * its {@link Group#ref}; 1 where absent): the row's tabs in view, the sub-tabs of a group sliding, and the
      * tabs pinned at the room's ends. A group's sub-tabs move as one, out from under the
      * header to its right as it opens, and every tab after it moves with their edge. The row's
      * first tab in view stands at the room's left end however far the strips before it are out,
@@ -141,7 +141,7 @@ public final class TabRowLayout {
      * shows them: one that a slide has pushed past the room's right end is left out until it is
      * back inside.
      */
-    static List<Placed> place(Line l, Shown[] drew, Shown[] row, Fit f, Map<String, Float> open, int inset) {
+    static List<Placed> place(Line l, Shown[] drew, Shown[] row, Fit f, Map<Object, Float> open, int inset) {
         int n = drew.length;
         // Each tab's left as the row lays it out from 0, its place in the row, and whether it pins now.
         double[] x = new double[n];
@@ -164,7 +164,7 @@ public final class TabRowLayout {
             int end = i;
             double span = 0;
             while (end < n && drew[end].sub() && drew[end].group() == g) span += drew[end++].width();
-            float p = open.getOrDefault(g.id(), 1f);
+            float p = open.getOrDefault(g.ref(), 1f);
             double sx = cursor - (1f - p) * span;
             for (; i < end; i++) {
                 Shown s = drew[i];
@@ -202,7 +202,7 @@ public final class TabRowLayout {
             boolean whole = at + t.width() <= right && (t.sub() || at >= left);
             boolean shown = stuck[i] ? at + t.width() > left && at < right
                     : whole && (index[i] >= 0 ? index[i] >= f.first() && index[i] < f.first() + f.shown()
-                    : open.getOrDefault(t.group().id(), 1f) > 0f);
+                    : open.getOrDefault(t.group().ref(), 1f) > 0f);
             // A pinned sub-tab isn't clipped at its header: at the right end its header can be behind it.
             int clip = t.sub() && !stuck[i] ? headerX : Integer.MIN_VALUE;
             if (shown) out.add(new Placed(t, at, t.width(), t.height(), index[i], t.sub(), clip, stuck[i]));
