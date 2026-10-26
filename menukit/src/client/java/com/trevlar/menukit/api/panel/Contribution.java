@@ -18,7 +18,8 @@ import java.util.function.BooleanSupplier;
 /**
  * One mod's part of a shared panel ({@link SharedPanels}, 7.4.0): its elements, its order
  * in the panel, the mode it shows in and its own {@code visibleWhen}, plus the panel's own
- * declaration (where it goes per mode, its style, its axis and gap, whether it is fixed). Every contribution
+ * declaration (where it goes per mode, its style, its axis and gap, whether it is fixed,
+ * how many fit in a column per mode). Every contribution
  * carries the whole declaration, so whichever mods are installed can build the panel.
  *
  * <pre>{@code
@@ -49,6 +50,7 @@ public final class Contribution {
     final boolean vertical;
     final int gap;
     final boolean fixed;
+    final Map<ModeScope, Integer> wrapAfter;
 
     private Contribution(Builder b) {
         this.order = b.order;
@@ -60,6 +62,7 @@ public final class Contribution {
         this.vertical = b.vertical;
         this.gap = b.gap;
         this.fixed = b.fixed;
+        this.wrapAfter = Collections.unmodifiableMap(new EnumMap<>(b.wrapAfter));
     }
 
     /**
@@ -92,6 +95,7 @@ public final class Contribution {
         if (vertical != other.vertical) out.add("axis");
         if (gap != other.gap) out.add("gap");
         if (fixed != other.fixed) out.add("fixed");
+        if (!wrapAfter.equals(other.wrapAfter)) out.add("wrapAfter");
         return out;
     }
 
@@ -124,6 +128,7 @@ public final class Contribution {
         private boolean vertical = false;
         private int gap = Flow.DEFAULT_GAP;
         private boolean fixed = false;
+        private final EnumMap<ModeScope, Integer> wrapAfter = new EnumMap<>(ModeScope.class);
 
         private Builder(int order, ModeScope scope) {
             this.order = order;
@@ -178,6 +183,27 @@ public final class Contribution {
         /** The player can't move the panel ({@link Panel.Builder#fixed()}): part of the declaration, so the winning one decides. */
         public Builder fixed() {
             this.fixed = true;
+            return this;
+        }
+
+        /**
+         * In {@code scope}, at most {@code n} shown contributions in the panel's column, with
+         * however many are installed and shown: past that the lowest orders step out into a
+         * column to the right, and the highest keep the first, in order (7.5.0). In a row panel
+         * it is at most {@code n} in a row, the highest orders wrapping onto the next.
+         * Beside the creative armor, {@code wrapAfter(ModeScope.CREATIVE, 2)} keeps elytra and
+         * totem as the column with the ender chest (order 0) beside the elytra, and with two
+         * installed it is one column, as in survival. Part of the declaration; once per scope.
+         * See {@link Flow.Builder#wrapAfter} and {@link Flow.Builder#keepLast()}.
+         *
+         * @throws IllegalStateException when {@code scope} already has a cap
+         */
+        public Builder wrapAfter(ModeScope scope, int n) {
+            Objects.requireNonNull(scope, "scope");
+            if (n < 1) throw new IllegalArgumentException("wrapAfter must be >= 1, was " + n);
+            if (wrapAfter.putIfAbsent(scope, n) != null) {
+                throw new IllegalStateException("Contribution already wraps in " + scope + "; declare each scope once");
+            }
             return this;
         }
 

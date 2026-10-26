@@ -13,6 +13,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.IntSupplier;
 
 /**
  * A run of elements laid out left to right at the panel's runtime width,
@@ -94,6 +95,25 @@ import java.util.Objects;
  * In a vertical Flow {@code gap(horizontal, vertical)} is the gap between columns
  * and the gap between children in a column; a spacer takes no room.
  *
+ * <h3>At most so many in a column (7.5.0)</h3>
+ *
+ * {@link Builder#wrapAfter} caps how many shown children a column holds (a row, in a
+ * row Flow), whatever room is left: a column that would overlap something past two
+ * slots wraps after two. The cap is read every frame, so it can follow the game mode
+ * or a setting. A column fills from its first child, so the latest ones wrap out; with
+ * {@link Builder#keepLast()} the last ones keep the first column and the earliest step
+ * out into the next, to its right:
+ *
+ * <pre>{@code
+ * Flow.builder().vertical().gap(0).wrapAfter(2).keepLast()
+ *         .add(enderSlot)               // steps out, right of the elytra
+ *         .add(elytraSlot)
+ *         .add(totemSlot)               // elytra and totem keep the first column
+ *         .build();
+ * }</pre>
+ *
+ * With two shown, that is one column with the ender slot on top, as without the cap.
+ *
  * <h3>A filling child (7.3.0)</h3>
  *
  * In a vertical Flow a child that fills ({@code ScrollContainer.builder().fillHeight()})
@@ -156,6 +176,10 @@ public final class Flow extends AbstractPanelElement {
     private final boolean boxed;
     /** Where a child sits on its row's line ({@link Builder#crossAlign}); START is today's top alignment. */
     private final CrossAlign crossAlign;
+    /** The most shown children in a column or row, read every frame ({@link Builder#wrapAfter}); null for no cap. */
+    private final @Nullable IntSupplier wrapAfter;
+    /** Vertical only: the last children keep the first column, the earliest wrap out ({@link Builder#keepLast()}). */
+    private final boolean keepLast;
 
     /** The width the panel gives the Flow; until the first pass, one row's worth. */
     private int budget = -1;
@@ -195,6 +219,13 @@ public final class Flow extends AbstractPanelElement {
         this.vertical = b.vertical;
         this.boxed = b.boxed;
         this.crossAlign = b.crossAlign;
+        this.wrapAfter = b.wrapAfter;
+        this.keepLast = b.keepLast;
+    }
+
+    /** The cap on shown children per column or row now; 0 for none. */
+    private int perLine() {
+        return wrapAfter == null ? 0 : Math.max(0, wrapAfter.getAsInt());
     }
 
     /** The card's padding on each side: {@link #BOX_PADDING} when boxed, else none. */
@@ -301,17 +332,20 @@ public final class Flow extends AbstractPanelElement {
 
         List<RowOf> rows = new ArrayList<>();
         List<PanelElement> row = new ArrayList<>();
-        int x = 0;
+        int x = 0, inRow = 0, most = perLine();
         for (PanelElement c : children) {
             if (!c.isVisible()) continue;
             boolean spacer = c instanceof Spacer;
             int w = spacer ? 0 : c.getWidth();
-            boolean hasContent = row.stream().anyMatch(e -> !(e instanceof Spacer));
-            if (!spacer && hasContent && x + gapX + w > cap) {
+            boolean hasContent = inRow > 0;
+            // A row breaks before a child that would pass the width, or one past the cap.
+            if (!spacer && hasContent && (x + gapX + w > cap || (most > 0 && inRow >= most))) {
                 rows.add(new RowOf(row));
                 row = new ArrayList<>();
                 x = 0;
+                inRow = 0;
             }
+            if (!spacer) inRow++;
             // The gap sits between two pieces of content only. A spacer spends no gap
             // of its own (it is the stretchable part of one), so this pass counts the
             // same pixels naturalWidth() does and a row that fits by the natural width
@@ -343,10 +377,12 @@ public final class Flow extends AbstractPanelElement {
 
     /**
      * The vertical layout: shown children top to bottom, each column breaking before
-     * a child that would pass the wrap height (a column always takes its first child,
-     * however tall, so nothing is lost and nothing loops), the next column to the
-     * right of the widest child in the last. Hidden children and spacers take no
-     * room. Records the hug of the columns as the Flow's size.
+     * a child that would pass the wrap height or the cap (a column always takes its first
+     * child, however tall, so nothing is lost and nothing loops), the next column to the
+     * right of the widest child in the last. With {@link #keepLast} the columns are cut
+     * from the last child back, so the last ones keep the first column; each column still
+     * reads top to bottom in the Flow's order. Hidden children and spacers take no room.
+     * Records the hug of the columns as the Flow's size.
      */
     private void layoutColumns() {
         // A filling child takes what the others leave of the height the Flow is given,
@@ -355,31 +391,51 @@ public final class Flow extends AbstractPanelElement {
         boolean filling = ChildDispatch.anyFillsHeight(children);
         if (filling) giveFill();
         int limit = !filling && wrapAt > 0 ? Math.max(1, wrapAt - 2 * pad()) : Integer.MAX_VALUE;
-        int x = 0, y = 0, colW = 0, bottom = 0;
-        boolean columnHasChild = false;
+        int most = filling ? 0 : perLine();
+        List<PanelElement> shown = new ArrayList<>();
         for (PanelElement c : children) {
             if (c instanceof Spacer s) {
                 // No room in a column: parked at the origin with nothing to draw.
                 s.w = 0;
                 s.x = innerX();
                 s.y = innerY();
-                continue;
+            } else if (c.isVisible()) {
+                shown.add(c);
             }
-            if (!c.isVisible()) continue;
+        }
+
+        // Cut into columns, from the first child or (keepLast) from the last.
+        List<List<PanelElement>> columns = new ArrayList<>();
+        List<PanelElement> column = new ArrayList<>();
+        int y = 0;
+        for (int i = 0; i < shown.size(); i++) {
+            PanelElement c = shown.get(keepLast ? shown.size() - 1 - i : i);
             int h = c.getHeight();
-            if (columnHasChild && y + gapY + h > limit) {
-                // Full: the next column starts right of this one's widest child.
-                x += colW + gapX;
+            if (!column.isEmpty() && (y + gapY + h > limit || (most > 0 && column.size() >= most))) {
+                columns.add(column);
+                column = new ArrayList<>();
                 y = 0;
-                colW = 0;
-                columnHasChild = false;
             }
-            if (columnHasChild) y += gapY;
-            if (c instanceof AbstractPanelElement ape) ape.setChildPosition(innerX() + x, innerY() + y);
+            if (!column.isEmpty()) y += gapY;
             y += h;
-            colW = Math.max(colW, c.getWidth());
+            if (keepLast) column.add(0, c);
+            else column.add(c);
+        }
+        if (!column.isEmpty()) columns.add(column);
+
+        // Columns left to right, each top to bottom.
+        int x = 0, colW = 0, bottom = 0;
+        for (List<PanelElement> col : columns) {
+            if (col != columns.get(0)) x += colW + gapX;
+            colW = 0;
+            y = 0;
+            for (PanelElement c : col) {
+                if (c != col.get(0)) y += gapY;
+                if (c instanceof AbstractPanelElement ape) ape.setChildPosition(innerX() + x, innerY() + y);
+                y += c.getHeight();
+                colW = Math.max(colW, c.getWidth());
+            }
             bottom = Math.max(bottom, y);
-            columnHasChild = true;
         }
         lastWidth = x + colW + 2 * pad();
         lastHeight = bottom + 2 * pad();
@@ -499,6 +555,7 @@ public final class Flow extends AbstractPanelElement {
         int sig = 31 + cap();
         sig = sig * 31 + wrapAt;
         sig = sig * 31 + fillTo;
+        sig = sig * 31 + perLine();
         sig = sig * 31 + childX;
         sig = sig * 31 + childY;
         for (PanelElement c : children) {
@@ -766,6 +823,8 @@ public final class Flow extends AbstractPanelElement {
         private boolean vertical = false;
         private boolean boxed = false;
         private CrossAlign crossAlign = CrossAlign.START;
+        private @Nullable IntSupplier wrapAfter;
+        private boolean keepLast = false;
 
         private Builder() {}
 
@@ -832,8 +891,36 @@ public final class Flow extends AbstractPanelElement {
             return this;
         }
 
+        /**
+         * At most {@code n} shown children in a column (in a row, in a row Flow), whatever
+         * room is left. See the class notes.
+         */
+        public Builder wrapAfter(int n) {
+            if (n < 1) throw new IllegalArgumentException("wrapAfter must be >= 1, was " + n);
+            return wrapAfter(() -> n);
+        }
+
+        /**
+         * At most as many shown children in a column (a row) as {@code n} gives, read every
+         * frame; 0 or less for no cap. For a cap that follows the game mode or a setting.
+         */
+        public Builder wrapAfter(IntSupplier n) {
+            this.wrapAfter = Objects.requireNonNull(n, "n");
+            return this;
+        }
+
+        /**
+         * In a vertical Flow that wraps, the last children keep the first column and the
+         * earliest step out into the next, to its right. Default: the first ones keep it.
+         */
+        public Builder keepLast() {
+            this.keepLast = true;
+            return this;
+        }
+
         @Override
         public Flow build() {
+            if (keepLast && !vertical) throw new IllegalStateException("Flow: keepLast() is for a vertical() Flow");
             if (vertical && crossAlign != CrossAlign.START) {
                 throw new IllegalStateException("Flow: crossAlign(" + crossAlign + ") is for a row Flow, not vertical()");
             }

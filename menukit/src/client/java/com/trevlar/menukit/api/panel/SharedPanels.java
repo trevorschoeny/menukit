@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Panels several mods share (7.4.0). Mods that work together put their elements in one
@@ -32,7 +33,7 @@ import java.util.List;
  *       mod id, so the result doesn't depend on load order. A contribution out of its mode
  *       scope or whose {@code visibleWhen} is false takes no room; with all of them hidden the
  *       panel isn't placed, so it draws and claims nothing.</li>
- *   <li><b>The declaration</b> (placements, style, axis, gap, {@code fixed()}) travels with
+ *   <li><b>The declaration</b> (placements, style, axis, gap, {@code fixed()}, {@code wrapAfter}) travels with
  *       every contribution. Where they differ, the lowest order's wins and MenuKit logs a
  *       warning naming both mods. Two {@code pixel(...)} origins are lambdas, which can't be
  *       compared, so they never count as a difference.</li>
@@ -85,6 +86,17 @@ public final class SharedPanels {
         // its elements together and the next moves up into its place.
         Flow.Builder flow = Flow.builder().gap(decl.gap);
         if (decl.vertical) flow.vertical();
+        // The cap for the mode now, as the placement is picked: the mode's own, else BOTH's, else none.
+        // The highest orders keep the first column, so a column the mods already had stays put.
+        if (!decl.wrapAfter.isEmpty()) {
+            Map<ModeScope, Integer> caps = decl.wrapAfter;
+            flow.wrapAfter(() -> {
+                ModeScope mode = PanelHost.currentMode();
+                Integer n = mode != null ? caps.get(mode) : null;
+                return n != null ? n : caps.getOrDefault(ModeScope.BOTH, 0);
+            });
+            if (decl.vertical) flow.keepLast();
+        }
         for (Joined j : sorted) {
             Contribution c = j.contribution();
             Flow.Builder part = Flow.builder().gap(decl.gap).visibleWhen(c::shown);
