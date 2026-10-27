@@ -1,7 +1,9 @@
 package com.trevlar.menukit.inject;
 
 import com.trevlar.menukit.api.panel.ContainerTabs.Edge;
+import com.trevlar.menukit.api.panel.ModeScope;
 import com.trevlar.menukit.api.panel.Reference;
+import com.trevlar.menukit.api.panel.ScreenMatcher;
 import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
 
 import net.minecraft.client.gui.screens.Screen;
@@ -9,14 +11,19 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BooleanSupplier;
 
 /**
  * Where a container screen's frame goes, its tab rows counted (7.4.0): the one centering
  * rule the container region's block and a screen's own frame share ({@link #up}), and on a
  * screen the region isn't up on, the frame moved from vanilla's place so that it and the rows
- * standing on it are centered as one block ({@link #centre}). Everything that works from where
+ * standing on it are centered as one block ({@link #centre}), or, where a mod asks the frame to
+ * stay ({@link #declareStays}), kept at vanilla's place unless its rows wouldn't fit there
+ * ({@link #stayingTop}). Everything that works from where
  * vanilla would have put the frame asks here: the region ({@link #vanillaFrame}), a stretched
  * screen's recipe book button ({@link #place}), a screen too tall for its window
  * ({@link #room}) and a swapped screen's moving frame ({@link #frame}).
@@ -72,14 +79,29 @@ public final class FrameCentring {
     }
 
     /**
-     * How far a frame {@code imageHeight} tall on a window {@code window} tall moves down from
-     * vanilla's place for rows {@code above} and {@code below} it ({@link #frameTop}), so that
-     * vanilla's own centring from the taller window puts its top there, odd pixels and windows
-     * shorter than the frame included.
+     * Where a screen's own frame goes ({@code topPos}) with rows {@code above} and {@code below}
+     * it while it stays ({@code ContainerTabs.frameStaysWhen}): vanilla's own {@code topPos},
+     * moved only as far as brings the rows inside the region's margins, the top row down or the
+     * bottom one up. Where the frame and its rows don't fit the window at all (the block a
+     * {@code scrollsWhenShort} grid scrolls for), or with no row, it is {@link #frameTop}'s.
      */
-    public static int dy(int window, int imageHeight, int above, int below) {
+    public static int stayingTop(Reference vanilla, int screenHeight, int above, int below) {
+        int lo = RegionLayout.TOP_MARGIN + above;
+        int hi = screenHeight - RegionLayout.BOTTOM_MARGIN - below - vanilla.imageHeight();
+        if (above + below == 0 || lo > hi) return frameTop(vanilla, screenHeight, above, below);
+        return Math.max(lo, Math.min(hi, vanilla.topPos()));
+    }
+
+    /**
+     * How far a frame {@code imageHeight} tall on a window {@code window} tall moves down from
+     * vanilla's place for rows {@code above} and {@code below} it ({@link #frameTop}, or
+     * {@link #stayingTop} while it {@code stays}), so that vanilla's own centring from the taller
+     * window puts its top there, odd pixels and windows shorter than the frame included.
+     */
+    public static int dy(int window, int imageHeight, int above, int below, boolean stays) {
         int n = window - imageHeight, top = n / 2;
-        int target = frameTop(new Reference(0, top, 0, imageHeight), window, above, below);
+        Reference vanilla = new Reference(0, top, 0, imageHeight);
+        int target = stays ? stayingTop(vanilla, window, above, below) : frameTop(vanilla, window, above, below);
         // Vanilla centres from the window read 2 * dy taller, (n + 2 * dy) / 2, rounding toward
         // zero: on a window shorter than the frame an odd n rounds the other way once the sum
         // turns positive, a pixel off the target. Stepped until vanilla's own sum lands on it.
@@ -89,15 +111,36 @@ public final class FrameCentring {
         return dy;
     }
 
+    // Frames that stay
+
+    private record Stay(ModeScope scope, ScreenMatcher screens, BooleanSupplier when) {}
+
+    private static final List<Stay> STAYS = new CopyOnWriteArrayList<>();
+
+    /** {@code ContainerTabs.frameStaysWhen}: the screens {@code screens} takes keep vanilla's place in {@code scope}'s mode while {@code when}. */
+    public static void declareStays(ModeScope scope, ScreenMatcher screens, BooleanSupplier when) {
+        STAYS.add(new Stay(scope, screens, when));
+    }
+
+    /** Whether {@code screen}'s frame stays at vanilla's place now: a declaration takes it, in the player's mode, and its condition holds. */
+    static boolean stays(AbstractContainerScreen<?> screen) {
+        for (Stay s : STAYS) {
+            if (s.scope().covers(PanelHost.currentMode()) && s.screens().matches(screen)
+                    && Guard.test(s.when(), "frameStaysWhen", s.screens().toString())) return true;
+        }
+        return false;
+    }
+
     // Each screen's own frame
 
-    /** Each container screen's centering at its last init: {dy, above, below}, the frame's move down from vanilla's place and the rows it counted. */
-    private static final Map<Screen, int[]> CENTRED = new WeakHashMap<>();
+    /** Each container screen's centering at its last init: the frame's move down from vanilla's place. */
+    private static final Map<Screen, Integer> CENTRED = new WeakHashMap<>();
 
     /**
      * At the head of each of {@code screen}'s inits, before vanilla centers it: how far its frame
      * goes down from vanilla's place so that the frame and the rows standing on it now, the top
-     * one above it and the bottom one below, are centered as one block. No row, the region up
+     * one above it and the bottom one below, are centered as one block, or, while it stays
+     * ({@link #stays}), as near vanilla's place as they fit. No row, the region up
      * on it, or a screen of a mod's own class ({@link #vanillas}): vanilla's place. The rows are measured ({@code ContainerTabRows.settledHeights}),
      * not chosen: nothing slides for it.
      */
@@ -113,8 +156,13 @@ public final class FrameCentring {
             above = h[Edge.CONTAINERS_TOP.ordinal()];
             below = h[Edge.INVENTORY_BOTTOM.ordinal()];
         }
+        CENTRED.put(screen, dyNow(screen, above, below));
+    }
+
+    /** {@code screen}'s move down for rows {@code above} and {@code below}, as it stays or centers now. */
+    private static int dyNow(AbstractContainerScreen<?> screen, int above, int below) {
         int imageHeight = ((AbstractContainerScreenAccessor) screen).mk$getImageHeight();
-        CENTRED.put(screen, new int[]{dy(screen.height, imageHeight, above, below), above, below});
+        return dy(screen.height, imageHeight, above, below, stays(screen));
     }
 
     /**
@@ -141,14 +189,19 @@ public final class FrameCentring {
 
     /** How far {@code screen}'s frame is moved down from vanilla's place for its tab rows ({@link #centre}); 0 for none. */
     public static int centring(Screen screen) {
-        int[] c = CENTRED.get(screen);
-        return c == null ? 0 : c[0];
+        Integer c = CENTRED.get(screen);
+        return c == null ? 0 : c;
     }
 
-    /** Whether {@code screen} was centered at its last init with rows other than {@code above} and {@code below}, so it centers anew. */
-    static boolean stale(Screen screen, int above, int below) {
-        int[] c = CENTRED.get(screen);
-        return c != null && (c[1] != above || c[2] != below);
+    /**
+     * Whether {@code screen}'s frame, placed at its last init, goes elsewhere with rows
+     * {@code above} and {@code below} and its {@link #stays} switch as they are now, so it is laid
+     * out again. A row that comes or goes without moving the frame (one that fits above a frame
+     * that stays) lays nothing out.
+     */
+    static boolean stale(AbstractContainerScreen<?> screen, int above, int below) {
+        Integer c = CENTRED.get(screen);
+        return c != null && c != dyNow(screen, above, below);
     }
 
     /** {@code screen}'s frame as it stands: its bounds now. */

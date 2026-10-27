@@ -1,6 +1,7 @@
 package com.trevlar.menukit.api.panel;
 
 import com.trevlar.menukit.api.Declarations;
+import com.trevlar.menukit.inject.FrameCentring;
 import com.trevlar.menukit.inject.TabRegistry;
 import com.trevlar.menukit.inject.PanelHost;
 
@@ -81,6 +82,15 @@ import java.util.function.Supplier;
  *       shows a steady row. Only vanilla's own screens move: a mod's own container screen
  *       class, a subclass of vanilla's included, may place things from the window itself, so
  *       its frame stays where vanilla centers it and its rows stand on it there.</li>
+ *   <li><b>A frame that stays</b> (7.5.0, {@link #frameStaysWhen}): on the screens a mod
+ *       chooses, while its condition holds, the frame keeps vanilla's own place and its rows
+ *       stand in the margin above and below it, so a row coming or going moves nothing. Only
+ *       where a row wouldn't fit on the window there (a double chest on a short window) does the
+ *       frame move, and only as far as brings the row inside the 4 px margin; where the frame and
+ *       its rows don't fit at all, they are centered as above (and a
+ *       {@link ScreenFrames#scrollsWhenShort} grid scrolls). The condition is read every frame:
+ *       when it changes the frame's place, the screen is laid out again as for a row change. On
+ *       the region's panels the region centers its block as before.</li>
  *   <li>Never on the creative inventory, which has tabs of its own.</li>
  * </ul>
  * A row's page carries over to a screen opened in place of the last, and starts over once
@@ -269,6 +279,25 @@ public final class ContainerTabs {
                                              Function<? super G, ? extends @Nullable List<? extends K>> keys) {
         return new Groups<>(id, Objects.requireNonNull(scope, "scope"), Objects.requireNonNull(groups, "groups"),
                 Objects.requireNonNull(keys, "keys"));
+    }
+
+    /**
+     * Keeps the frame of the screens {@code screens} takes at vanilla's own place, its tab rows
+     * on its own frame standing in the margin around it, in {@code scope}'s mode while
+     * {@code when} holds, read every frame (see "Where a row stands"). With several declarations,
+     * a frame stays while any one that takes it holds.
+     *
+     * <pre>{@code
+     * // A row that shows only once a box is open: the inventory doesn't move when it appears.
+     * ContainerTabs.frameStaysWhen(ModeScope.BOTH, ScreenMatcher.all(), () -> settings.tabs() == Tabs.BY_HAND);
+     * }</pre>
+     *
+     * @throws IllegalStateException after declarations froze
+     */
+    public static void frameStaysWhen(ModeScope scope, ScreenMatcher screens, BooleanSupplier when) {
+        Declarations.requireOpen("ContainerTabs.frameStaysWhen(" + scope + ")");
+        FrameCentring.declareStays(Objects.requireNonNull(scope, "scope"), Objects.requireNonNull(screens, "screens"),
+                Objects.requireNonNull(when, "when"));
     }
 
     /** What a list of groups' sub-tab is ({@link Groups#tab}): its group, its key, and the builder to set up. */
