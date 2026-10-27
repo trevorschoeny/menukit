@@ -90,7 +90,9 @@ import java.util.function.Supplier;
  *       its rows don't fit at all, they are centered as above (and a
  *       {@link ScreenFrames#scrollsWhenShort} grid scrolls). The condition is read every frame:
  *       when it changes the frame's place, the screen is laid out again as for a row change. On
- *       the region's panels the region centers its block as before.</li>
+ *       the region's panels the inventory panel stays where it stands on a 166 frame at
+ *       vanilla's place (as on the inventory screen), its sections and rows standing above it,
+ *       moving only as far as they need to fit; where they don't fit at all, centered as before.</li>
  *   <li>Never on the creative inventory, which has tabs of its own.</li>
  * </ul>
  * A row's page carries over to a screen opened in place of the last, and starts over once

@@ -103,9 +103,12 @@ public final class RegionLayout {
      *                          may be: none for the list, any for the fitted frame
      * @param joined            whether the list and the inventory panel are one frame, one
      *                          surface as wide as the list
+     * @param stays             whether the screen's frame stays ({@code ContainerTabs.frameStaysWhen}):
+     *                          the inventory panel holds where a standard frame's bottom is
+     *                          ({@link FrameCentring#stayingBlockTop}), not centered with the list
      */
     public record Shape(int above, int between, int below, int contentBottom, int viewBottom,
-                        int panelGap, int inventoryLabelTop, int shrink, boolean joined) {
+                        int panelGap, int inventoryLabelTop, int shrink, boolean joined, boolean stays) {
 
         /** The list with no tab row: every shown section in one column, two panels a gap apart, never shorter than the screen's own part. */
         public static final Shape LIST = of(false, 0, 0, 0);
@@ -135,10 +138,15 @@ public final class RegionLayout {
          */
         public static Shape of(boolean fitted, int above, int betweenRows, int below) {
             if (fitted && betweenRows == 0) {
-                return new Shape(above, 0, below, 0, 0, 0, GAP, Integer.MAX_VALUE, true);
+                return new Shape(above, 0, below, 0, 0, 0, GAP, Integer.MAX_VALUE, true, false);
             }
             return new Shape(above, Math.max(0, betweenRows - PANEL_GAP), below, CONTENT_BOTTOM, VIEW_BOTTOM,
-                    PANEL_GAP, INVENTORY_LABEL_TOP, fitted ? Integer.MAX_VALUE : 0, false);
+                    PANEL_GAP, INVENTORY_LABEL_TOP, fitted ? Integer.MAX_VALUE : 0, false, false);
+        }
+
+        /** This shape, its frame staying ({@code stays}) or not. */
+        public Shape staying(boolean stays) {
+            return new Shape(above, between, below, contentBottom, viewBottom, panelGap, inventoryLabelTop, shrink, joined, stays);
         }
     }
 
@@ -207,6 +215,10 @@ public final class RegionLayout {
      * same place. Content {@code wider} pixels wider than {@link #CONTENT_WIDTH} makes the list
      * that much wider, so a section with its own scrollbar beside its grid
      * ({@code ScrollContainer.Builder.laneOutside}) keeps it inside the frame, while it shows.
+     * While the frame stays ({@link Shape#stays}) the block isn't centered: the inventory panel
+     * holds where it stands on a standard frame at vanilla's place, as on the inventory screen,
+     * and the list grows up from it, the block moving only as far as the margins ask
+     * ({@link FrameCentring#stayingBlockTop}).
      *
      * @param vanilla         the screen's bounds as vanilla computed them
      * @param inventoryLabelY vanilla's "Inventory" label, from vanilla's {@code topPos}
@@ -236,6 +248,7 @@ public final class RegionLayout {
         int trim = shape.joined() ? gapTrim(height + part) : 0;
         int grow = rows + height - ownPart - trim;
         int blockTop = vanilla.topPos() - FrameCentring.up(vanilla, screenHeight, grow);
+        if (shape.stays()) blockTop = FrameCentring.stayingBlockTop(screenHeight, vanilla.imageHeight() + grow, shape.below(), blockTop);
         int top = blockTop + shape.above();
         // Down the block: the list, the gap with the rows between the panels, the inventory
         // panel as tall as vanilla's part (less a row left out), then the row below it.

@@ -93,6 +93,22 @@ public final class FrameCentring {
     }
 
     /**
+     * Where the region's block goes ({@link RegionLayout#layout}), {@code block} tall with a row
+     * {@code below} px under its inventory panel, while the screen's frame stays: the inventory
+     * panel's bottom where a {@link RegionLayout#STANDARD_HEIGHT} frame's is at vanilla's place,
+     * as on the inventory screen, so going between it and a region screen moves nothing; moved
+     * only as far as brings the block inside the region's margins. Where it doesn't fit at all
+     * (the list at its least on a tiny window), {@code centred}, the block's top as {@link #up} puts it.
+     */
+    public static int stayingBlockTop(int screenHeight, int block, int below, int centred) {
+        int inventoryBottom = (screenHeight - RegionLayout.STANDARD_HEIGHT) / 2 + RegionLayout.STANDARD_HEIGHT;
+        // The block's bottom, at least a block below the top margin, at most on the bottom one.
+        int lo = RegionLayout.TOP_MARGIN + block, hi = screenHeight - RegionLayout.BOTTOM_MARGIN;
+        if (lo > hi) return centred;
+        return Math.max(lo, Math.min(hi, inventoryBottom + below)) - block;
+    }
+
+    /**
      * How far a frame {@code imageHeight} tall on a window {@code window} tall moves down from
      * vanilla's place for rows {@code above} and {@code below} it ({@link #frameTop}, or
      * {@link #stayingTop} while it {@code stays}), so that vanilla's own centring from the taller

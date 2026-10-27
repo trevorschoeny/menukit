@@ -329,11 +329,11 @@ public final class ContainerRegions {
         }
     }
 
-    /** This frame's {@link Shape} for {@code screen}: whether it is {@link RegionDeclarations#fitted fitted}, and its tab rows' heights now. */
+    /** This frame's {@link Shape} for {@code screen}: whether it is {@link RegionDeclarations#fitted fitted}, its tab rows' heights now, and whether its frame stays. */
     private static Shape shapeFor(@Nullable Screen screen) {
         return Shape.of(RegionDeclarations.fitted(screen), ContainerTabRows.height(Edge.CONTAINERS_TOP),
                 ContainerTabRows.height(Edge.CONTAINERS_BOTTOM) + ContainerTabRows.height(Edge.INVENTORY_TOP),
-                ContainerTabRows.height(Edge.INVENTORY_BOTTOM));
+                ContainerTabRows.height(Edge.INVENTORY_BOTTOM)).staying(screen instanceof AbstractContainerScreen<?> acs && FrameCentring.stays(acs));
     }
 
     /**
