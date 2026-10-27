@@ -214,16 +214,15 @@ public final class ContainerTabRows {
         return g != null && read.computeIfAbsent(g, k -> Guard.test(k.expanded(), "expandedWhen", k.id()));
     }
 
-    /** {@code t} as it shows this frame: whether it is selected, disabled and pinned, each read once, a throw counting as no. */
-    private static Shown read(Tab t) {
-        return new Shown(t, Guard.test(t.selected(), "selectedWhen", t.id()), Guard.test(t.disabled(), "disabledWhen", t.id()),
-                Guard.test(t.pinned(), "pinnedWhen", t.id()));
-    }
+    /** A tab that shows this frame, before its {@link Shown}: its callbacks read once, and whether it is in the row. */
+    private record Read(Tab tab, List<Group> path, boolean selected, boolean disabled, boolean pinned, boolean inRow) {}
 
     /**
      * This frame's rows on {@code screen}: on each edge, the tabs that show there now, in order,
-     * a group's sub-tabs while it is expanded or still sliding closed, each tab's callbacks read
-     * once ({@link Shown}). None with no screen (MenuKit's checks of the bare layout).
+     * a group's tabs while it is expanded or still sliding closed (a nested group's while every
+     * group it stands in is too), each tab's callbacks read once ({@link Shown}). A pinned tab in
+     * a nested group pins the headers of the groups its group stands in, so the chain stays in
+     * view with it. None with no screen (MenuKit's checks of the bare layout).
      */
     static void choose(@Nullable Screen screen) {
         Shown[][] out = empty(), drew = empty();
@@ -233,28 +232,44 @@ public final class ContainerTabRows {
         if (screen instanceof AbstractContainerScreen<?> acs) {
             TabRegistry.sync();
             Map<Group, Boolean> expanded = new IdentityHashMap<>();
+            // The groups whose header shows: a tab in a group shows only with it.
+            Map<Group, Boolean> headed = new IdentityHashMap<>();
+            Map<Group, Boolean> chained = new IdentityHashMap<>();
+            List<Read> read = new ArrayList<>();
+            for (Tab t : TabRegistry.all()) {
+                int i = t.edge().ordinal();
+                if (!shows(t, acs)) continue;
+                List<Group> path = TabRegistry.path(t);
+                if (!path.isEmpty() && !headed.containsKey(path.getLast())) continue;
+                boolean inRow = true, drawable = true;
+                for (Group g : path) {
+                    boolean open = expanded(g, expanded);
+                    float p = OPEN.computeIfAbsent(g.ref(), ref -> openness(ref, open));
+                    if (p != (open ? 1f : 0f)) SLIDING[i] = true;
+                    inRow &= open;
+                    // Closed and back under its header: not drawn.
+                    drawable &= open || p > 0f;
+                }
+                if (!drawable) continue;
+                if (t.group() != null && !t.sub()) headed.put(t.group(), true);
+                Read r = new Read(t, path, Guard.test(t.selected(), "selectedWhen", t.id()),
+                        Guard.test(t.disabled(), "disabledWhen", t.id()), Guard.test(t.pinned(), "pinnedWhen", t.id()), inRow);
+                // Pinned in the row: every group its own group stands in pins its header too.
+                if (r.pinned() && inRow) for (Group g : path) if (g != t.group()) chained.put(g, true);
+                read.add(r);
+            }
             List<List<Shown>> row = new ArrayList<>(), shown = new ArrayList<>();
             for (int i = 0; i < EDGES; i++) {
                 row.add(new ArrayList<>());
                 shown.add(new ArrayList<>());
             }
-            for (Tab t : TabRegistry.all()) {
-                int i = t.edge().ordinal();
-                if (!shows(t, acs)) continue;
-                boolean inRow = true;
-                if (t.sub()) {
-                    Group g = t.group();
-                    boolean open = expanded(g, expanded);
-                    float p = OPEN.computeIfAbsent(g.ref(), ref -> openness(ref, open));
-                    if (p != (open ? 1f : 0f)) SLIDING[i] = true;
-                    // Closed and back under its header: not drawn.
-                    if (!open && p <= 0f) continue;
-                    inRow = open;
-                }
-                // One read for the row and the drawing alike: the layout matches the two by identity.
-                Shown s = read(t);
-                if (inRow) row.get(i).add(s);
-                shown.get(i).add(s);
+            for (Read r : read) {
+                Tab t = r.tab();
+                boolean pinned = r.pinned() || t.group() != null && !t.sub() && chained.containsKey(t.group());
+                // One Shown for the row and the drawing alike: the layout matches the two by identity.
+                Shown s = new Shown(t, r.selected(), r.disabled(), pinned, r.path());
+                if (r.inRow()) row.get(t.edge().ordinal()).add(s);
+                shown.get(t.edge().ordinal()).add(s);
             }
             for (int i = 0; i < EDGES; i++) {
                 out[i] = row.get(i).toArray(Shown[]::new);
@@ -267,7 +282,7 @@ public final class ContainerTabRows {
 
     /**
      * Each edge's settled row's height on {@code screen} now, by {@link Edge#ordinal}: its tallest
-     * tab that shows, a group's sub-tabs counted while it is expanded, or 0 with none. Measured
+     * tab that shows, a group's tabs counted while it and every group it stands in are expanded, or 0 with none. Measured
      * without choosing the rows, so nothing slides or pages for it: what centering asks at init.
      */
     static int[] settledHeights(AbstractContainerScreen<?> screen) {
@@ -276,8 +291,10 @@ public final class ContainerTabRows {
         Map<Group, Boolean> expanded = new IdentityHashMap<>();
         for (Tab t : TabRegistry.all()) {
             int i = t.edge().ordinal();
-            if (t.height() <= h[i] || !shows(t, screen) || t.sub() && !expanded(t.group(), expanded)) continue;
-            h[i] = t.height();
+            if (t.height() <= h[i] || !shows(t, screen)) continue;
+            boolean out = true;
+            for (Group g : TabRegistry.path(t)) out &= expanded(g, expanded);
+            if (out) h[i] = t.height();
         }
         return h;
     }

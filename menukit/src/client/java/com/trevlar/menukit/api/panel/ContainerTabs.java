@@ -154,9 +154,19 @@ import java.util.function.Supplier;
  * {@link #groups list of groups}: its group keys are read every frame as a keyed list's keys
  * are, and each is a group as {@link Keyed#header} makes one, with a header and its own keys'
  * sub-tabs, built the frame the key first appears and kept for as long as it is there. The groups
- * stand in the group keys' order, one after another, together at the list's order, so where a
- * group goes is the mod's: to put an opened box's group right after the group it sits in, give
- * its key right after that group's. Groups that stand among each other belong in one list.
+ * stand in the group keys' order, one after another, together at the list's order.
+ *
+ * <p><b>Nested groups</b> (7.5.0). A group whose key is also one of another live group's keys
+ * stands inside that group, in place of the sub-tab that key would have: its header where the
+ * sub-tab was, its own sub-tabs after it, then the rest of the parent's. So a box opened inside
+ * a chest stays where its tab was, {@code [Chest] a b [Box ▸ its boxes] c d}, at any depth. The
+ * nested group slides out from under its own header as any group does, and goes under its
+ * parent's header with the parent's sub-tabs when the parent closes; its tabs are in the row
+ * only while every group above it is expanded. A tab pinned in a nested group pins the headers
+ * of every group its own group stands in, so paged past, the chain stands at the row's end side
+ * by side ({@link Builder#pinnedWhen}). A key that is its own group's key stays a sub-tab, and a
+ * group stands in one place only: the first group to hold it, in row order. Groups that stand
+ * among each other belong in one list.
  *
  * <pre>{@code
  * ContainerTabs.groups("mymod:boxes", ModeScope.BOTH, () -> tree.groups(), group -> group.boxesInside())
@@ -707,7 +717,9 @@ public final class ContainerTabs {
          * off; paged back, at the right end, other groups' tabs going on behind it too, until the
          * previous group's pinned tabs push it off. A
          * group's pinned tabs, its header and any of its sub-tabs, stand there side by side in
-         * row order and leave together. A selected tab
+         * row order and leave together. In a {@link #groups nested group}, a pinned tab pins the
+         * headers of the groups above its own too, and the whole chain stands and leaves
+         * together, pushed off by the next top group's header. A selected tab
          * behind a pinned one is brought out from behind it. Pinning is a group's: a tab outside
          * any group is pushed off by the tab after it, so it pages as before. Default: never.
          */

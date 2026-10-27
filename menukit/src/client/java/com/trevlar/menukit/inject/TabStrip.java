@@ -134,13 +134,11 @@ public final class TabStrip {
             int reach = ContainerTabRows.drawnHeight(edge);
             int bandTop = l.y() - reach - INTO, bandBottom = l.y() + reach + INTO;
             graphics.enableScissor(left, bandTop, right, bandBottom);
-            for (int layer = 0; layer <= 2; layer++) {
-                for (Placed p : v.placed()) {
-                    if (TabRowLayout.layer(p) != layer) continue;
-                    if (p.sub()) graphics.enableScissor(Math.max(left, p.clipLeft()), bandTop, right, bandBottom);
-                    draw(graphics, p, l, !f.paged() && p.index() == 0);
-                    if (p.sub()) graphics.disableScissor();
-                }
+            for (Placed p : TabRowLayout.drawOrder(v.placed())) {
+                boolean clipped = p.clipLeft() != Integer.MIN_VALUE;
+                if (clipped) graphics.enableScissor(Math.max(left, p.clipLeft()), bandTop, right, bandBottom);
+                draw(graphics, p, l, !f.paged() && p.index() == 0);
+                if (clipped) graphics.disableScissor();
             }
             graphics.disableScissor();
             if (f.paged()) {

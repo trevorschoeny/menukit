@@ -7,6 +7,8 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -20,7 +22,8 @@ import java.util.Map;
  * group stood still. Only the drawing moves: each group's sub-tabs, one strip, are drawn as far
  * out from under the header as the group's slide has got ({@link #place}), clipped at the
  * header's left edge and drawn before it, so they come out from behind it; the tabs after the
- * strip follow its edge.
+ * strip follow its edge. A nested group stands in its parent's strip, its header where a sub-tab
+ * would be and its own strip after it, sliding inside the parent's as the parent's slides.
  *
  * <p><b>Pinned tabs</b> (7.4.0): a tab pinned this frame stops at whichever end of the row
  * paging would take it past, and the tabs on the far side of it go on behind it, until the next
@@ -40,12 +43,14 @@ public final class TabRowLayout {
     /**
      * A tab as this frame shows it: its callbacks read once, as the rows are chosen, so the
      * layout, the hit test and the drawing all see one answer ({@link ContainerTabRows#choose}).
+     * {@code path} is the groups it stands in, outermost first ({@link TabRegistry#path}).
      */
-    public record Shown(Tab tab, boolean selected, boolean disabled, boolean pinned) {
+    public record Shown(Tab tab, boolean selected, boolean disabled, boolean pinned, List<Group> path) {
         int width() { return tab.width(); }
         int height() { return tab.height(); }
-        boolean sub() { return tab.sub(); }
         @Nullable Group group() { return tab.group(); }
+        /** How many groups it stands in: 0 for a tab at the top of the row. */
+        int depth() { return path.size(); }
     }
 
     /**
@@ -67,11 +72,12 @@ public final class TabRowLayout {
 
     /**
      * One tab where it draws this frame: its left edge, its size, its place in the row ({@code -1}
-     * for a closing group's sub-tab, which takes no click), for a sub-tab the left edge it shows
-     * from, its header's, so it goes under the header as it slides back, and whether it is
-     * {@link #pin pinned} at either end of the row, drawn over the tabs going on behind it.
+     * for a closing group's sub-tab, which takes no click), how many groups it stands in, for a
+     * tab in a group the left edge it shows from, the rightmost of its groups' headers', so it
+     * goes under the header as it slides back ({@link Integer#MIN_VALUE}: none), and whether it
+     * is {@link #pin pinned} at either end of the row, drawn over the tabs going on behind it.
      */
-    public record Placed(Shown shown, int x, int width, int height, int index, boolean sub, int clipLeft, boolean stuck) {
+    public record Placed(Shown shown, int x, int width, int height, int index, int depth, int clipLeft, boolean stuck) {
 
         /** The tab placed. */
         public Tab tab() { return shown.tab(); }
@@ -134,7 +140,8 @@ public final class TabRowLayout {
      * out by {@code f} between ends {@code inset} in, each group open {@code open} of the way (by
      * its {@link Group#ref}; 1 where absent): the row's tabs in view, the sub-tabs of a group sliding, and the
      * tabs pinned at the room's ends. A group's sub-tabs move as one, out from under the
-     * header to its right as it opens, and every tab after it moves with their edge. The row's
+     * header to its right as it opens, and every tab after it moves with their edge; a nested
+     * group's strip does so inside its parent's, which carries it. The row's
      * first tab in view stands at the room's left end however far the strips before it are out,
      * so a group opening or closing before the page doesn't move it. Settled, each tab not pinned
      * is where the row's fit puts it. A tab not pinned shows whole or not at all, as paging
@@ -147,35 +154,18 @@ public final class TabRowLayout {
         double[] x = new double[n];
         int[] index = new int[n];
         boolean[] pins = new boolean[n];
-        double cursor = 0;
+        double[] end = {0};
+        lay(drew, 0, 0, end, x, open);
+        double cursor = end[0];
         int r = 0;
-        for (int i = 0; i < n; ) {
+        for (int i = 0; i < n; i++) {
             Shown t = drew[i];
-            if (!t.sub()) {
-                index[i] = r < row.length && row[r] == t ? r++ : -1;
-                x[i] = cursor;
-                pins[i] = index[i] >= 0 && t.pinned();
-                cursor += t.width();
-                i++;
-                continue;
-            }
-            // A group's sub-tabs together: as wide as they are open, slid under the header by the rest.
-            Group g = t.group();
-            int end = i;
-            double span = 0;
-            while (end < n && drew[end].sub() && drew[end].group() == g) span += drew[end++].width();
-            float p = open.getOrDefault(g.ref(), 1f);
-            double sx = cursor - (1f - p) * span;
-            for (; i < end; i++) {
-                Shown s = drew[i];
-                index[i] = r < row.length && row[r] == s ? r++ : -1;
-                x[i] = sx;
-                // A sliding group's sub-tabs move as one strip and pin once it settles, so one
-                // that should pin then steps into its place at the slide's end; pin within the slide if that shows.
-                pins[i] = index[i] >= 0 && p >= 1f && s.pinned();
-                sx += s.width();
-            }
-            cursor += p * span;
+            index[i] = r < row.length && row[r] == t ? r++ : -1;
+            // A sliding group's tabs move as one strip and pin once it settles, so one that
+            // should pin then steps into its place at the slide's end; pin within the slide if that shows.
+            boolean settled = true;
+            for (Group g : t.path()) settled &= open.getOrDefault(g.ref(), 1f) >= 1f;
+            pins[i] = index[i] >= 0 && settled && t.pinned();
         }
         int left = roomLeft(l, inset), right = roomRight(l, inset);
         // The row's first tab in view at the room's left end: what draws before it, strips only as far
@@ -191,30 +181,61 @@ public final class TabRowLayout {
         cursor += shift;
         boolean[] stuck = pin(drew, x, pins, left, right, cursor);
         List<Placed> out = new ArrayList<>();
-        int headerX = Integer.MIN_VALUE;
+        Map<Group, Integer> headerX = new IdentityHashMap<>();
         for (int i = 0; i < n; i++) {
             Shown t = drew[i];
             int at = (int) Math.round(x[i]);
-            if (!t.sub()) headerX = at;
+            if (t.group() != null && !t.tab().sub()) headerX.put(t.group(), at);
             // Pinned, drawn while any of it is in the room; in the row, drawn while in view;
-            // closing, drawn until it is back under the header.
+            // closing, drawn until it is back under the header (the rows draw it only until then).
             // A tab shows whole or not at all: one a slide has pushed past the room's end is left out.
-            boolean whole = at + t.width() <= right && (t.sub() || at >= left);
+            boolean whole = at + t.width() <= right && (t.depth() > 0 || at >= left);
             boolean shown = stuck[i] ? at + t.width() > left && at < right
-                    : whole && (index[i] >= 0 ? index[i] >= f.first() && index[i] < f.first() + f.shown()
-                    : open.getOrDefault(t.group().ref(), 1f) > 0f);
-            // A pinned sub-tab isn't clipped at its header: at the right end its header can be behind it.
-            int clip = t.sub() && !stuck[i] ? headerX : Integer.MIN_VALUE;
-            if (shown) out.add(new Placed(t, at, t.width(), t.height(), index[i], t.sub(), clip, stuck[i]));
+                    : whole && (index[i] < 0 || index[i] >= f.first() && index[i] < f.first() + f.shown());
+            // Clipped at each of its groups' headers, so it goes under whichever it slides back under.
+            // A pinned one isn't: at the right end its header can be behind it.
+            int clip = Integer.MIN_VALUE;
+            if (!stuck[i]) for (Group g : t.path()) clip = Math.max(clip, headerX.getOrDefault(g, Integer.MIN_VALUE));
+            if (shown) out.add(new Placed(t, at, t.width(), t.height(), index[i], t.depth(), clip, stuck[i]));
         }
         return out;
     }
 
     /**
+     * Lays out {@code drew}'s tabs from {@code from} that stand {@code depth} groups in or deeper,
+     * from {@code cursor[0]} on, moving it past them: a tab at {@code depth} takes its width, and
+     * a group's strip inside it (its tabs one deeper and on) is laid out as a row of its own, then
+     * slid under its header by as much of it as isn't open, taking only the part that is. Sets
+     * each tab's left in {@code x}; where they end.
+     */
+    private static int lay(Shown[] drew, int from, int depth, double[] cursor, double[] x, Map<Object, Float> open) {
+        int i = from;
+        while (i < drew.length && drew[i].depth() >= depth) {
+            Shown t = drew[i];
+            if (t.depth() == depth) {
+                x[i] = cursor[0];
+                cursor[0] += t.width();
+                i++;
+                continue;
+            }
+            // A group's strip together: as wide as it is open, slid under the header by the rest.
+            Group g = t.path().get(depth);
+            double[] span = {0};
+            int end = lay(drew, i, depth + 1, span, x, open);
+            float p = open.getOrDefault(g.ref(), 1f);
+            double sx = cursor[0] - (1f - p) * span[0];
+            for (int j = i; j < end; j++) x[j] += sx;
+            cursor[0] += p * span[0];
+            i = end;
+        }
+        return i;
+    }
+
+    /**
      * Pins tabs: of {@code tabs}, laid out from lefts {@code x}, those that {@code pins} stop at
      * {@code left} or {@code right} as they reach it, and the tabs beyond them go on behind. A
-     * run is a tab and the sub-tabs of its group after it (a tab outside any group is a run of
-     * its own). At the left end a run's pinned tabs stack from {@code left} in its order, and
+     * run is a tab at the top of the row and every tab standing in its group after it, nested
+     * groups' too (a tab outside any group is a run of its own). At the left end a run's pinned tabs stack from {@code left} in its order, and
      * its end, the next run's left or {@code end} for the last, pushes the stack off to the left
      * as it arrives, so a pinned sub-tab leaves with its group's header. At the right end a
      * group's pinned tabs stack up to {@code right}, still in row order, and the tabs before
@@ -232,7 +253,7 @@ public final class TabRowLayout {
         double pusher = Double.NEGATIVE_INFINITY;
         for (int from = 0; from < tabs.length; ) {
             int to = from + 1;
-            while (to < tabs.length && tabs[to].sub() && tabs[to].group() == tabs[from].group()) to++;
+            while (to < tabs.length && tabs[to].depth() > 0) to++;
             double runEnd = to < tabs.length ? x[to] : end;
             boolean grouped = tabs[from].group() != null;
             // How wide the run's pinned tabs before this one are, and this one and those after it.
@@ -300,20 +321,25 @@ public final class TabRowLayout {
             if (mx >= l.x() + l.width() - ARROW_WIDTH) return f.first() + f.shown() < count ? FORWARD : NONE;
         }
         int left = roomLeft(l, inset), right = roomRight(l, inset);
-        for (int layer = 2; layer >= 0; layer--) {
-            for (Placed p : placed) {
-                if (layer(p) != layer || p.index() < 0) continue;
-                int from = Math.max(left, Math.max(p.x(), p.clipLeft())), to = Math.min(right, p.x() + p.width());
-                int near = l.top() ? l.y() - p.height() : l.y();
-                if (mx >= from && mx < to && my >= near && my < near + p.height()) return p.index();
-            }
+        // From the top down: the last drawn is over the rest.
+        for (Placed p : drawOrder(placed).reversed()) {
+            if (p.index() < 0) continue;
+            int from = Math.max(left, Math.max(p.x(), p.clipLeft())), to = Math.min(right, p.x() + p.width());
+            int near = l.top() ? l.y() - p.height() : l.y();
+            if (mx >= from && mx < to && my >= near && my < near + p.height()) return p.index();
         }
         return NONE;
     }
 
-    /** Which tabs draw over which, from the bottom: sub-tabs, then the other tabs, then pinned ones. */
-    static int layer(Placed p) {
-        return p.stuck() ? 2 : p.sub() ? 0 : 1;
+    /**
+     * {@code placed} in the order they draw, each over the ones before: the deepest in groups
+     * first, so a strip goes under the header it slides back under, a nested group's under its
+     * parent's, and pinned tabs last, over every other.
+     */
+    static List<Placed> drawOrder(List<Placed> placed) {
+        List<Placed> out = new ArrayList<>(placed);
+        out.sort(Comparator.comparing(Placed::stuck).thenComparing(Comparator.comparingInt(Placed::depth).reversed()));
+        return out;
     }
 
     /**

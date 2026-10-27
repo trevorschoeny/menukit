@@ -11,9 +11,12 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
@@ -32,7 +35,9 @@ import java.util.function.Supplier;
  *
  * <p><b>Lists of groups</b> ({@code ContainerTabs.groups}): each one's group keys are read the
  * same way, and each live group is a keyed list with a header, made the frame its key first
- * appears and kept while it is there; its own keys are then read as a declared list's are.
+ * appears and kept while it is there; its own keys are then read as a declared list's are. A
+ * group whose key is also among another live group's keys stands nested in that group, in place
+ * of the sub-tab that key would have ({@link #path}).
  */
 @ApiStatus.Internal
 public final class TabRegistry {
@@ -89,6 +94,8 @@ public final class TabRegistry {
     private static final Map<Groups, Map<Object, @Nullable Keyed>> GROUPS_LIVE = new IdentityHashMap<>();
     /** Every tab there is now, declared and keyed, in row order. */
     private static List<Tab> all = List.of();
+    /** Each nested group, as of the last merge, and the group it stands in. */
+    private static Map<Group, Group> within = Map.of();
     /** A list was declared: its header stands before any key comes, so the next frame places the lists anew. */
     private static boolean keyedDirty;
 
@@ -149,6 +156,21 @@ public final class TabRegistry {
     }
 
     /**
+     * The groups {@code t} stands in, as of the last {@link #sync}, outermost first: none for a
+     * tab outside any group or a group's header at the top of its row, its group for a sub-tab,
+     * and for a nested group's header or sub-tab every group above it as well. A tab shows in
+     * the row only while each of them is expanded.
+     */
+    static List<Group> path(Tab t) {
+        Group g = t.group();
+        if (g == null) return List.of();
+        List<Group> out = new ArrayList<>();
+        if (t.sub()) out.add(g);
+        for (Group up = within.get(g); up != null; up = within.get(up)) out.add(up);
+        return out.reversed();
+    }
+
+    /**
      * Each keyed list's keys now ({@link LiveKeys}): a key that is new makes its tab, one that is
      * gone takes it with it, and one that stays keeps the tab it had. Each list of groups' group
      * keys likewise make and keep its groups, and then each live group's keys its tabs. The tabs
@@ -190,17 +212,53 @@ public final class TabRegistry {
      * Every tab in row order: by order, then by its id or its list's (a keyed list's tabs
      * together, and a list of groups' every group's), then a list's header first and its keys'
      * tabs in the keys' order, a list of groups' groups one after another in its group keys' order.
+     * A list of groups' group whose key is among another live group's keys stands in that group
+     * instead, its header and sub-tabs where that key's sub-tab would be.
      */
     private static void merge() {
         List<Entry> every = new ArrayList<>();
+        Map<Group, Group> nested = new IdentityHashMap<>();
         for (Tab t : TABS) every.add(new Entry(t, t.id(), 0));
         for (Keyed list : KEYED) add(every, list, list.id(), 0);
         for (Groups list : GROUPS) {
-            int i = 0;
-            for (Keyed g : GROUPS_LIVE.getOrDefault(list, Map.of()).values()) if (g != null) i = add(every, g, list.id(), i);
+            Map<Object, @Nullable Keyed> live = GROUPS_LIVE.getOrDefault(list, Map.of());
+            // The group keys that are another group's keys too: those stand in it, not at the top.
+            Set<Object> inside = new HashSet<>();
+            live.forEach((key, g) -> {
+                if (g != null) for (Object k : KEYED_LIVE.getOrDefault(g, Map.of()).keySet()) {
+                    if (!Objects.equals(k, key) && live.get(k) != null) inside.add(k);
+                }
+            });
+            Set<Object> placed = new HashSet<>();
+            int[] i = {0};
+            for (Object key : live.keySet()) if (!inside.contains(key)) i[0] = nest(every, list.id(), live, key, null, placed, nested, i[0]);
+            // Groups that only stand in each other, a loop no top group reaches: the first of them stands at the top.
+            for (Object key : live.keySet()) i[0] = nest(every, list.id(), live, key, null, placed, nested, i[0]);
         }
         every.sort(Comparator.comparingInt((Entry e) -> e.tab().order()).thenComparing(Entry::base).thenComparingInt(Entry::index));
         all = every.stream().map(Entry::tab).toList();
+        within = nested;
+    }
+
+    /**
+     * Adds group {@code key} of a list of groups ({@code live}) to {@code every} under {@code base},
+     * numbered on from {@code i}, standing in {@code in} ({@code null}: at the top): its header,
+     * then its keys' tabs, a key that is another live group not yet placed standing as that group,
+     * nested, in its sub-tab's place. A group is placed once; the next number.
+     */
+    private static int nest(List<Entry> every, String base, Map<Object, @Nullable Keyed> live, @Nullable Object key,
+                            @Nullable Group in, Set<Object> placed, Map<Group, Group> nested, int i) {
+        Keyed list = live.get(key);
+        if (list == null || !placed.add(key)) return i;
+        Tab head = list.header();
+        if (in != null) nested.put(head.group(), in);
+        every.add(new Entry(head, base, i++));
+        for (Map.Entry<Object, @Nullable Tab> e : KEYED_LIVE.getOrDefault(list, Map.of()).entrySet()) {
+            Object k = e.getKey();
+            if (!Objects.equals(k, key) && live.get(k) != null && !placed.contains(k)) i = nest(every, base, live, k, head.group(), placed, nested, i);
+            else if (e.getValue() != null) every.add(new Entry(e.getValue(), base, i++));
+        }
+        return i;
     }
 
     private record Entry(Tab tab, String base, int index) {}
