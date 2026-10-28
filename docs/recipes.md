@@ -379,17 +379,18 @@ Result: the heading and "Rows" are dark gray in the Panel look and white in the 
 
 ## Outline an item in its group's color
 
-Needs: MenuKit.
+Needs: MenuKit (7.4.0 for the slot look).
 
 ```java
-// In a slot decoration, where the item would be drawn:
-SlotRendering.drawItemOutline(graphics, stack, x, y, 0xFFE0A030);
+// As a slot's look, which draws the item in its place:
+ItemAnimation outlined = (g, s, x, y, t) -> SlotRendering.drawItemOutline(g, s, x, y, lockColor(s));
+SlotItemLooks.declare("mymod:outline", (screen, slot, s) -> lockColor(s) != 0 ? outlined.at(1) : null);
 
 // Or as an element:
 ItemDisplay.builder().item(() -> stack).outline(() -> lockColor(stack)).build();
 ```
 
-Result: the item is drawn with a one pixel line of that color around its own shape (not its square). A color of 0 draws the item alone.
+Result: the item is drawn with a one pixel line of that color around its own shape (not its square). A color of 0 draws the item alone. `drawItemOutline` draws the item itself, so call it where the item is drawn: a slot look, under the slot's count and durability bar, not a slot decoration, whose `over` layer draws after them.
 
 ## Mark a slot
 
@@ -401,12 +402,12 @@ SlotDecorations.over("mymod:locked", new SlotDecorations.Decoration() {
         if (isLocked(slot)) g.fill(x + 11, y, x + 16, y + 5, 0xFFE0A030);
     }
     public List<Component> tooltip(AbstractContainerScreen<?> screen, Slot slot, ItemStack stack, int mouseX, int mouseY) {
-        return isLocked(slot) ? List.of(Component.literal("Locked")) : null;
+        return isLocked(slot) && mouseX >= 11 && mouseY < 5 ? List.of(Component.literal("Locked")) : null;
     }
 });
 ```
 
-Result: a 5 by 5 amber mark sits in the top right corner of every slot `isLocked` returns true for, on every container screen — vanilla's slots, created ones, a panel's own slots, and the creative screen's — drawn after the item's count and durability bar. Hovering that corner shows "Locked" instead of the item's own tooltip. `SlotDecorations.under(...)` draws before the item instead, for a ghost of what would land there or a tint behind it. Two mods' marks on one slot both show, each in its declaration's id order. Declare from the client entry point; decorations freeze with every other declaration.
+Result: a 5 by 5 amber mark sits in the top right corner of every slot `isLocked` returns true for, on every container screen — vanilla's slots, created ones, a panel's own slots, and the creative screen's — drawn after the item's count and durability bar. Hovering that corner shows "Locked" instead of the item's own tooltip: `mouseX` and `mouseY` count from the slot's top left, and the rest of the slot keeps the item's. `SlotDecorations.under(...)` draws before the item instead, for a ghost of what would land there or a tint behind it. Two mods' marks on one slot both show, each in its declaration's id order. Declare from the client entry point; decorations freeze with every other declaration.
 
 ## Handle a right click and tint a button
 
@@ -793,7 +794,7 @@ ContainerTabs.groups("mymod:boxes", ModeScope.BOTH, () -> tree.openBoxes(), box 
         .declare();
 ```
 
-Result: every box in `tree.openBoxes()` that holds other boxes gets its own group tab, in that list's order, built the frame it first appears and gone the frame it leaves the list. Each group's sub-tabs are the boxes `boxesInside()` gives for it, read every frame, the same as a single `keyed` list's keys. A sub-tab that is itself a live group, a shulker opened inside an open ender chest say, stands in its own group's place instead of as a plain sub-tab, at any depth (nested groups). `expandedWhen` opens and closes a group's sub-tabs the way `Keyed.expandedWhen` does for one. Declare from the client entry point; tabs freeze with every other declaration.
+Result: every key `tree.openBoxes()` gives gets its own group tab, in that list's order, built the frame it first appears and gone the frame it leaves the list. MenuKit makes a group of every key it is given, so the list holds only the boxes that should be groups: here, the open boxes that hold other boxes. Each group's sub-tabs are the boxes `boxesInside()` gives for it, read every frame, the same as a single `keyed` list's keys. A sub-tab that is itself a live group, a shulker opened inside an open ender chest say, stands in its own group's place instead of as a plain sub-tab, at any depth (nested groups). `expandedWhen` opens and closes a group's sub-tabs the way `Keyed.expandedWhen` does for one. Declare from the client entry point; tabs freeze with every other declaration.
 
 ## Scroll a slot grid when it doesn't fit
 

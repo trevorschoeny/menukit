@@ -60,7 +60,8 @@ public final class SlotRendering {
     /**
      * Draws {@code stack} at {@code (x, y)} with a one-pixel outline of
      * {@code argb} around the item's own silhouette, the shape of its sprite, not
-     * its 16x16 box. For a slot decoration or any hand-drawn item; an
+     * its 16x16 box. For a slot's look ({@link com.trevlar.menukit.api.panel.SlotItemLooks}) or any
+     * hand-drawn item, not a slot decoration: it draws the item itself; an
      * {@link ItemDisplay} takes it as {@code outline(...)}.
      *
      * <p>How: the item is drawn four times, one pixel left, right, up and down,

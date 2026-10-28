@@ -169,9 +169,17 @@ Neither changes what a mod's code does: a moved panel still shows only where its
 
 ## To 7.5.0
 
-Nothing was removed and nothing that compiled against 7.4.0 changes behavior. 7.5.0 only adds: `SlotDecorations` (draw under or over a slot's item), `ContainerTabs.groups` (a keyed list of groups, for tabs whose number changes at runtime), and `Flow.Builder.wrapAfter`/`keepLast` (cap how many children a column or row holds). Nothing here is needed to upgrade.
+Nothing was removed and nothing that compiled against 7.4.0 changes behavior. 7.5.0 only adds:
 
-Raise the floor only when the mod calls one of these ([Versioning](versioning.md#what-to-declare)):
+- `SlotDecorations` (draw under or over a slot's item).
+- `ContainerTabs.groups` (a keyed list of groups, for tabs whose number changes at runtime). A group whose key is one of another group's keys nests inside it.
+- `ContainerTabs.frameStaysWhen` (keep a frame at vanilla's place while its tab rows come and go).
+- `Flow.Builder.wrapAfter`/`keepLast` (cap how many children a column or row holds), and `Contribution.Builder.wrapAfter` (the same cap for a shared panel's contributions).
+- `ItemAnimation.swapped` and `ItemAnimation.AS_IS` (a slot item look that draws another stack).
+
+Nothing here is needed to upgrade. A mod that calls any of them needs 7.5.0 at run time: on 7.4.0 the call fails with `NoSuchMethodError` or `NoClassDefFoundError`.
+
+Raise the floor when the mod calls one of these ([Versioning](versioning.md#what-to-declare)):
 
 ```diff
 -    implementation 'maven.modrinth:menukit:7.4.0+26.3'

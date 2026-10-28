@@ -1,6 +1,6 @@
 # Upgrading from older versions
 
-What changes for a mod moving to each MenuKit release, newest first. The latest release's notes are on the [README](https://github.com/trevorschoeny/menukit#upgrading), and [Upgrading to 7.0.0](upgrading-7.md) walks through the move from 6.x and the 7.4.0 changes step by step. The [changelog](https://github.com/trevorschoeny/menukit/blob/main/menukit/changelog.md) has the full list for each.
+What changes for a mod moving to each MenuKit release, newest first. The latest release's notes are on the [README](https://github.com/trevorschoeny/menukit#upgrading), and [Upgrading to 7.0.0](upgrading-7.md) walks through the move from 6.x and the 7.4.0 and 7.5.0 changes step by step. The [changelog](https://github.com/trevorschoeny/menukit/blob/main/menukit/changelog.md) has the full list for each.
 
 ## To 7.3.0
 
