@@ -2,7 +2,7 @@
 
 MenuKit is a UI library for Fabric mods. It has the parts of a Minecraft interface (buttons, sliders, tabs, panels, HUD readouts, and settings controls) and places them on the HUD, on vanilla screens, or on screens a mod opens itself. A mod builds its menus and overlays with it instead of writing vanilla screen code from scratch.
 
-I built it for my own mods, then opened it up so other modders can use it too. If you're a player and another mod asked you to install MenuKit, put it in your mods folder alongside that mod and you're done. On its own it changes very little. Buttons get a pressed look while you hold them down, chest, barrel, ender chest, and shulker box screens are trimmed to the inventory screen's height so your inventory sits in the same place on all of them, and Controls gets a Move panels key that does nothing until you bind it.
+I built it for my own mods, then opened it up so other modders can use it too. If you're a player and another mod asked you to install MenuKit, put it in your mods folder alongside that mod and you're done. On its own it changes very little. Buttons get a pressed look while you hold them down, single chest, barrel, ender chest, and shulker box screens are trimmed to the inventory screen's height so your inventory sits in the same place on all of them, and Controls gets a Move panels key that does nothing until you bind it.
 
 The UI draws on the client. MenuKit also loads on a server, because libraries built on it run server code, but a mod that only draws UI can stay client-only. For slots, there is [SlotKit](https://modrinth.com/mod/slotkit), a separate library built on MenuKit that finds and acts on the slots in any menu and builds real slots and custom menus.
 
@@ -13,14 +13,15 @@ The UI draws on the client. MenuKit also loads on a server, because libraries bu
 - Every builder uses the same method names (`at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state`, `onClick`). Every control that shows a value reads and writes a field the mod owns.
 - Components are grouped into panels. A panel renders, takes input, and shows or hides as a unit, and one `disabledWhen` grays the whole panel.
 - A panel's placement is one declaration on the panel, and it can differ by game mode, so a panel can sit somewhere else in creative. The panel sizes itself to fit at any GUI scale, wrapping and scrolling as needed.
-- Several mods can add UI to the same screen. Panels that share a region stack in priority order instead of overlapping, in the same order on every launch. Mods that work together can also share one panel.
+- Several mods can add UI to the same screen. Panels that share a region stack in priority order instead of overlapping, in the same order on every launch. Mods that work together can also share one panel, which wraps into a second column past a count the mod sets.
 - What a panel covers is inert. An opaque panel takes every point of its rectangle, and a see-through one takes only its controls. A slot or widget under a panel does not highlight, take a click, or show a tooltip.
 - Controls have vanilla's click sound, narration, and keyboard focus.
 - Each element draws for the kind of screen it is on. Inventories and chests get the Panel look, and Options, Controls, and similar screens get the Default look, which is vanilla's pause-menu look. Text is colored by role (heading, body, muted, or disabled), so it reads on either kind.
 - On container screens, a chest and the boxes opened below it can stack in one scrolling list, above an inventory panel that stays put. Other mods' buttons and recipe viewers keep working around both.
 - Tabs like the creative inventory's can go on every container screen except the creative inventory itself, one per box the player has open if a mod wants, in groups that slide open under a header.
 - A grid of slots scrolls inside its panel when the window is too short for it, and a mod can turn this on for a vanilla chest's own rows.
-- A mod can change what a slot's item draws as, such as a shulker box whose lid opens, timed with its own easing.
+- A mod can change what a slot's item draws as, such as a shulker box whose lid opens or a different item in its place, timed with its own easing.
+- A mod can draw marks under or over the item in any container slot, such as a padlock or a faded ghost of what belongs there, with a tooltip of its own. Several mods' marks on one slot all show.
 - When one container screen opens in place of another, the frame moves from the old size and place to the new one instead of jumping.
 - Panels can sit behind everything on a screen, so they never block other mods' buttons.
 - Players can move panels. A Move panels key, unbound by default, lets them drag any panel a mod hasn't fixed in place, and MenuKit remembers where they put it.
@@ -68,14 +69,14 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    implementation 'maven.modrinth:menukit:7.4.0+26.3'
+    implementation 'maven.modrinth:menukit:7.5.0+26.3'
 }
 ```
 
 Declare it in `fabric.mod.json` with both bounds, separated by a space ([why](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md)).
 
 ```json
-"depends": { "menukit": ">=7.4.0 <8.0.0" }
+"depends": { "menukit": ">=7.5.0 <8.0.0" }
 ```
 
 Players install MenuKit separately. The Trevlar mods list it as a required dependency on their Modrinth pages rather than bundling it.
@@ -116,8 +117,8 @@ The API is every type in a package named `api` (`com.trevlar.menukit.api.*`), an
 | --- | --- |
 | `api` | `MK`, the HUD facade, which registers HUD panels and notifications, sends a notification, and reads or sets the recipe book. `Declarations`, the one freeze that MenuKit and every library built on it declare through. |
 | `api.element` | Every element, and the contexts they render and take input in |
-| `api.layout`, `api.dialog` | Rows and columns placed once, and confirm and alert dialogs |
-| `api.panel` | `Panel`, placement (`Placement`, `PanelPosition` and the regions) and `ModeScope`, the adapters that put panels on vanilla screens and around anchors, the container list (`ContainerRegion`), shared panels (`SharedPanels`), and `MKScreen` |
+| `api.layout`, `api.dialog` | Rows and columns placed once, and confirm, alert, and edit dialogs |
+| `api.panel` | `Panel`, placement (`Placement`, `PanelPosition` and the regions) and `ModeScope`, the adapters that put panels on vanilla screens and around anchors, the container list (`ContainerRegion`), container tabs (`ContainerTabs`), screen frames (`ScreenFrames`), slot item looks and decorations (`SlotItemLooks`, `SlotDecorations`), shared panels (`SharedPanels`), and `MKScreen` |
 | `api.hud` | HUD panels, notifications, and the cycle strip |
 | `api.host` | For a library that ships its own screens. It holds the host of a screen's own panels, the hook that routes input to slots drawn in panels, and `SlotClip`, which clips those slots to a scroll area |
 
@@ -149,7 +150,7 @@ For boxes the player opens while the screen is up, `ContainerRegion.sections(kin
 
 #### Tabs on container screens
 
-`ContainerTabs.tab(id, scope)` puts a tab like the creative inventory's on an edge of a container screen: above or below the container list, or above or below the inventory panel. Every mod's tabs on one edge share one row, ordered by `order`. MenuKit draws the row, makes room for it, and pages it with arrows when it overflows. Everything else is the mod's, read every frame: `onClick`, the icon (an item, a sprite, or the mod's own drawing with `icon(Icon)`), `tooltip`, `visibleWhen`, `selectedWhen`, and `disabledWhen`. MenuKit keeps no selection. Where the container region isn't up, the top and bottom rows stand on the screen's own frame. `ContainerTabs.keyed(id, scope, keys)` makes one tab per key, and a keyed list with a `header(...)` is a group whose sub-tabs slide out from under the header while `expandedWhen(...)` holds. See [Container tabs](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md#container-tabs).
+`ContainerTabs.tab(id, scope)` puts a tab like the creative inventory's on an edge of a container screen: above or below the container list, or above or below the inventory panel. Every mod's tabs on one edge share one row, ordered by `order`. MenuKit draws the row, makes room for it, and pages it with arrows when it overflows. Everything else is the mod's, read every frame: `onClick`, the icon (an item, a sprite, or the mod's own drawing with `icon(Icon)`), `tooltip`, `visibleWhen`, `selectedWhen`, and `disabledWhen`. MenuKit keeps no selection. Where the container region isn't up, the top and bottom rows stand on the screen's own frame. `ContainerTabs.keyed(id, scope, keys)` makes one tab per key, and a keyed list with a `header(...)` is a group whose sub-tabs slide out from under the header while `expandedWhen(...)` holds. `ContainerTabs.groups(id, scope, groups, keys)` declares groups that come and go at runtime, one per group key, each with its own header and sub-tabs, in the order the mod gives. A group whose key is one of another group's keys nests inside it. `ContainerTabs.frameStaysWhen(scope, screens, when)` keeps the screen's frame at vanilla's place while tab rows come and go, moving it only when a row wouldn't fit. See [Container tabs](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md#container-tabs).
 
 #### A grid of slots that scrolls
 
@@ -157,7 +158,9 @@ For boxes the player opens while the screen is up, `ContainerRegion.sections(kin
 
 #### What a slot's item draws as
 
-`SlotItemLooks.declare(id, look)` lets a mod say, per slot and per frame, which `ItemAnimation` a slot's item draws with and how far through it is. The count, durability bar, highlight, tooltip, and clicks stay vanilla's. `ItemAnimation.OPEN_LID` opens a shulker box's or chest's lid in the resource pack's model, `posed(...)` scales and moves the item as it plays, and `Transition.of(millis, easing)` times it per key. See [Slot item looks](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md#slot-item-looks).
+`SlotItemLooks.declare(id, look)` lets a mod say, per slot and per frame, which `ItemAnimation` a slot's item draws with and how far through it is. The count, durability bar, highlight, tooltip, and clicks stay vanilla's. `ItemAnimation.OPEN_LID` opens a shulker box's or chest's lid in the resource pack's model, `posed(...)` scales and moves the item as it plays, and `Transition.of(millis, easing)` times it per key. A look can also draw another stack in the item's place. See [Slot item looks](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md#slot-item-looks).
+
+`SlotDecorations.under(id, decoration)` and `SlotDecorations.over(id, decoration)` draw on every container slot, empty or not, without a mixin of the mod's own. A slot draws its background, then the under decorations, then the item and its count, then the over decorations, so a ghost of the item that belongs in an empty slot goes under and a padlock goes over. Every mod's decorations draw, in id order. A decoration can answer a tooltip for the part of the slot under the mouse, in place of the item's own. See [Slot decorations](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md#slot-decorations).
 
 #### Panels behind everything
 
@@ -165,7 +168,7 @@ For boxes the player opens while the screen is up, `ContainerRegion.sections(kin
 
 #### Shared panels and moving panels
 
-Mods that work together can put their elements in one panel. Each joins it from its client initializer with `SharedPanels.join(id, contribution)` under an agreed id, and MenuKit builds one panel from every contribution, in order. With one mod installed it is an ordinary panel. Players can move panels once they bind MenuKit's Move panels key: they drag a panel where they want it, for both game modes or only the current one, and MenuKit keeps the position by panel id. A mod marks a panel `fixed()` where its place is part of what it means. The [Shared panels](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md#shared-panels) and [Moving panels](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md#moving-panels) sections of Concepts cover both.
+Mods that work together can put their elements in one panel. Each joins it from its client initializer with `SharedPanels.join(id, contribution)` under an agreed id, and MenuKit builds one panel from every contribution, in order. `Contribution.Builder.wrapAfter(scope, n)` caps how many contributions the shared panel holds in a row, or in a column for a vertical panel, for a game mode, and the rest wrap. With one mod installed it is an ordinary panel. Players can move panels once they bind MenuKit's Move panels key: they drag a panel where they want it, for both game modes or only the current one, and MenuKit keeps the position by panel id. A mod marks a panel `fixed()` where its place is part of what it means. The [Shared panels](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md#shared-panels) and [Moving panels](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md#moving-panels) sections of Concepts cover both.
 
 #### Standalone screens and screen kinds
 
@@ -173,7 +176,7 @@ A mod's own screen subclasses `MKScreen`. Elements draw for the kind of screen t
 
 #### Layout, tabs, and sections
 
-`Row` and `Column` place elements once, at the panel's first layout pass. `Flow` is the runtime row, and `Flow.spacer()` pins a control to the right edge of a settings row at any width. `Flow.builder().boxed()` draws a card behind a row, so a list of them lines up like vanilla's world list. `Tabs` has three modes, `WRAP`, `SIDE_SCROLL`, and `SIDEBAR`, and the selected tab is the mod's own state. `tabColumn(false)` on a `SIDEBAR` menu hides the tab column so a one-page menu looks like its tabbed siblings, and `fitShownTab()` sizes a `Tabs` to the tab it shows. `Section` is a collapsible group. Other mods can add tabs to a named menu with `Tabs.addTo(id, tab)`. The Tabs, Section, and Layout helpers sections of [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md) cover them.
+`Row` and `Column` place elements once, at the panel's first layout pass. `Flow` is the runtime row, and `Flow.spacer()` pins a control to the right edge of a settings row at any width. `Flow.Builder.wrapAfter(n)` caps how many children a column or row holds before it wraps, and `keepLast()` keeps the last ones in a vertical Flow's first column. `Flow.builder().boxed()` draws a card behind a row, so a list of them lines up like vanilla's world list. `Tabs` has three modes, `WRAP`, `SIDE_SCROLL`, and `SIDEBAR`, and the selected tab is the mod's own state. `tabColumn(false)` on a `SIDEBAR` menu hides the tab column so a one-page menu looks like its tabbed siblings, and `fitShownTab()` sizes a `Tabs` to the tab it shows. `Section` is a collapsible group. Other mods can add tabs to a named menu with `Tabs.addTo(id, tab)`. The Tabs, Section, and Layout helpers sections of [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md) cover them.
 
 #### Color settings
 
@@ -204,6 +207,10 @@ MenuKit keeps no slot code. A mod that needs slot groups, created slots, or cust
 [Limits](https://github.com/trevorschoeny/menukit/blob/main/docs/limits.md) lists what MenuKit doesn't do and the open gaps. [Versioning](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md) explains what a version number promises and why both bounds matter. The [reference](https://trevorschoeny.github.io/menukit/) is the generated javadoc for the `api` packages. Every Java sample in the README and in `docs/` is compiled against the release before it ships.
 
 ### Upgrading
+
+#### To 7.5.0
+
+Mods built for 7.4.0 work as before, with nothing to change. A mod that uses anything new in 7.5.0 declares `"menukit": ">=7.5.0 <8.0.0"`. [Upgrading](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading-7.md#to-750).
 
 #### To 7.4.0
 
