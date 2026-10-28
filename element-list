@@ -1,12 +1,7 @@
 com.trevlar.menukit.api
 com.trevlar.menukit.api.dialog
 com.trevlar.menukit.api.element
+com.trevlar.menukit.api.host
 com.trevlar.menukit.api.hud
 com.trevlar.menukit.api.layout
 com.trevlar.menukit.api.panel
-com.trevlar.menukit.api.slot
-com.trevlar.menukit.api.window
-com.trevlar.menukit.containers.api.menu
-com.trevlar.menukit.containers.api.slot
-com.trevlar.menukit.containers.api.state
-com.trevlar.menukit.containers.api.storage
