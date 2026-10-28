@@ -407,7 +407,7 @@ SlotDecorations.over("mymod:locked", new SlotDecorations.Decoration() {
 });
 ```
 
-Result: a 5 by 5 amber mark sits in the top right corner of every slot `isLocked` returns true for, on every container screen — vanilla's slots, created ones, a panel's own slots, and the creative screen's — drawn after the item's count and durability bar. Hovering that corner shows "Locked" instead of the item's own tooltip: `mouseX` and `mouseY` count from the slot's top left, and the rest of the slot keeps the item's. `SlotDecorations.under(...)` draws before the item instead, for a ghost of what would land there or a tint behind it. Two mods' marks on one slot both show, each in its declaration's id order. Declare from the client entry point; decorations freeze with every other declaration.
+Result: a 5 by 5 amber mark sits in the top right corner of every slot `isLocked` returns true for, on every container screen (vanilla's slots, created ones, a panel's own slots, and the creative screen's), drawn after the item's count and durability bar. Hovering that corner shows "Locked" instead of the item's own tooltip: `mouseX` and `mouseY` count from the slot's top left, and the rest of the slot keeps the item's. `SlotDecorations.under(...)` draws before the item instead, for a ghost of what would land there or a tint behind it. Two mods' marks on one slot both show, each in its declaration's id order. Declare from the client entry point; decorations freeze with every other declaration.
 
 ## Handle a right click and tint a button
 
