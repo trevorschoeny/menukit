@@ -167,6 +167,24 @@ Where a panel used to check `instanceof CreativeModeInventoryScreen`, or build a
 
 Neither changes what a mod's code does: a moved panel still shows only where its declaration would place it, and a pack changes only how a panel draws.
 
+## To 7.5.0
+
+Nothing was removed and nothing that compiled against 7.4.0 changes behavior. 7.5.0 only adds: `SlotDecorations` (draw under or over a slot's item), `ContainerTabs.groups` (a keyed list of groups, for tabs whose number changes at runtime), and `Flow.Builder.wrapAfter`/`keepLast` (cap how many children a column or row holds). Nothing here is needed to upgrade.
+
+Raise the floor only when the mod calls one of these ([Versioning](versioning.md#what-to-declare)):
+
+```diff
+-    implementation 'maven.modrinth:menukit:7.4.0+26.3'
++    implementation 'maven.modrinth:menukit:7.5.0+26.3'
+```
+
+```diff
+-"depends": { "menukit": ">=7.4.0 <8.0.0" }
++"depends": { "menukit": ">=7.5.0 <8.0.0" }
+```
+
+[Recipes](recipes.md) has one example each.
+
 ## Errors you may see
 
 | Error | Cause | Fix |

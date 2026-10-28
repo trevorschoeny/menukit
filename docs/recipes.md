@@ -272,6 +272,18 @@ body.add(Flow.builder().at(0, 50).disabledWhen(off).crossAlign(CrossAlign.CENTER
 
 Result: the switch sits at the left and Reset at the right edge of the tab body. Each setting's control sits at the right edge beside its label, whatever the window's width. When the window is too narrow the control drops under its label. The divider spans the body. While the feature is off, every setting row is gray and ignores the mouse and keys. `Panel.disabledWhen(...)` grays a whole panel the same way.
 
+## Cap how many fit in a column
+
+Needs: MenuKit 7.5.0.
+
+```java
+PanelElement icons = Flow.builder().vertical().gap(2).wrapAfter(4).keepLast()
+        .add(buffIcon(1)).add(buffIcon(2)).add(buffIcon(3)).add(buffIcon(4)).add(buffIcon(5))
+        .build();
+```
+
+Result: the five icons stand in two columns, 2 pixels apart: the first holds icons 2 through 5 and the second holds icon 1, since `keepLast()` keeps the newest ones in the first column and steps the oldest out into the next. Without `keepLast()` the first column holds icons 1 through 4 instead and icon 5 steps out. `wrapAfter(() -> n)` reads the cap every frame, to follow a setting or a count that changes; `keepLast()` is for a vertical `Flow` only.
+
 ## A settings screen in the Default look
 
 Needs: MenuKit 6.1.0. This follows the shape of Inventory Plus's settings. It has the mod's name at the top, tabs across, sections of settings, items the player picks, and Done at the bottom. It draws as Options, Video Settings and Controls do, not as an inventory. The screen declares the Default look once, and every element on it draws in that look.
@@ -378,6 +390,23 @@ ItemDisplay.builder().item(() -> stack).outline(() -> lockColor(stack)).build();
 ```
 
 Result: the item is drawn with a one pixel line of that color around its own shape (not its square). A color of 0 draws the item alone.
+
+## Mark a slot
+
+Needs: MenuKit 7.5.0. Call from the client entry point.
+
+```java
+SlotDecorations.over("mymod:locked", new SlotDecorations.Decoration() {
+    public void draw(GuiGraphicsExtractor g, AbstractContainerScreen<?> screen, Slot slot, ItemStack stack, int x, int y) {
+        if (isLocked(slot)) g.fill(x + 11, y, x + 16, y + 5, 0xFFE0A030);
+    }
+    public List<Component> tooltip(AbstractContainerScreen<?> screen, Slot slot, ItemStack stack, int mouseX, int mouseY) {
+        return isLocked(slot) ? List.of(Component.literal("Locked")) : null;
+    }
+});
+```
+
+Result: a 5 by 5 amber mark sits in the top right corner of every slot `isLocked` returns true for, on every container screen — vanilla's slots, created ones, a panel's own slots, and the creative screen's — drawn after the item's count and durability bar. Hovering that corner shows "Locked" instead of the item's own tooltip. `SlotDecorations.under(...)` draws before the item instead, for a ghost of what would land there or a tint behind it. Two mods' marks on one slot both show, each in its declaration's id order. Declare from the client entry point; decorations freeze with every other declaration.
 
 ## Handle a right click and tint a button
 
@@ -745,6 +774,26 @@ new AnchorPanelAdapter(sortInventory);
 ```
 
 Result: each button stays by its panel as the container list grows, shrinks and scrolls, and is gone on screens the region is not on.
+
+## Groups of tabs that come and go
+
+Needs: MenuKit 7.5.0, and a slot library's elements for what each box shows. For a mod whose number of tab groups changes at runtime: one group per open box that holds other boxes, collapsing out of existence when it closes.
+
+```java
+ContainerTabs.groups("mymod:boxes", ModeScope.BOTH, () -> tree.openBoxes(), box -> box.boxesInside())
+        .header((box, h) -> h
+                .icon(() -> box.stack())
+                .selectedWhen(() -> box.equals(shownBox))
+                .onClick(() -> shownBox = box))
+        .tab((box, inner, t) -> t
+                .icon(() -> inner.stack())
+                .selectedWhen(() -> inner.equals(shownBox))
+                .onClick(() -> shownBox = inner))
+        .expandedWhen(box -> box.holds(shownBox))
+        .declare();
+```
+
+Result: every box in `tree.openBoxes()` that holds other boxes gets its own group tab, in that list's order, built the frame it first appears and gone the frame it leaves the list. Each group's sub-tabs are the boxes `boxesInside()` gives for it, read every frame, the same as a single `keyed` list's keys. A sub-tab that is itself a live group, a shulker opened inside an open ender chest say, stands in its own group's place instead of as a plain sub-tab, at any depth (nested groups). `expandedWhen` opens and closes a group's sub-tabs the way `Keyed.expandedWhen` does for one. Declare from the client entry point; tabs freeze with every other declaration.
 
 ## Scroll a slot grid when it doesn't fit
 
