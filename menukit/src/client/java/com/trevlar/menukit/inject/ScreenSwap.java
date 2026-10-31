@@ -7,6 +7,7 @@ import com.trevlar.menukit.core.PackLook;
 
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
@@ -140,16 +141,23 @@ public final class ScreenSwap {
         if (!(screen instanceof AbstractContainerScreen<?> acs) || !moving(acs)) return false;
         Reference f = frame(acs);
         PackLook.drawPanel(g, f.leftPos(), f.topPos(), f.imageWidth(), f.imageHeight(), look(acs));
-        return clip(acs, g);
+        ScreenRectangle c = clip(acs);
+        // The move can end between the check above and this one (it runs on the clock, not
+        // per frame): then nothing is pushed, and the caller pops nothing.
+        if (c == null) return false;
+        g.scissorStack.push(c);
+        return true;
     }
 
     /**
-     * Clips what draws next to inside both the moving frame's border and the screen's own
-     * image's, and says so; {@code false}, with no clip, when the frame isn't moving. In the
-     * pose the screen draws its background in (the window's own).
+     * The clip inside both the moving frame's border and the screen's own image's, in screen
+     * space (the window's own pose, the one the screen draws its background in); {@code null}
+     * when the frame isn't moving. It's asked once per pass: the move runs on the clock, so it
+     * can end mid-frame, and a caller that pushes the clip pops what it pushed, not what this
+     * says later.
      */
-    public static boolean clip(AbstractContainerScreen<?> screen, GuiGraphicsExtractor g) {
-        if (!moving(screen)) return false;
+    public static @Nullable ScreenRectangle clip(AbstractContainerScreen<?> screen) {
+        if (!moving(screen)) return null;
         Reference f = frame(screen), o = own(screen);
         PackLook.Look look = look(screen);
         PackLook.Cut c = look.drawsCut() ? look.cut() : null;
@@ -158,7 +166,6 @@ public final class ScreenSwap {
         int x0 = Math.max(f.leftPos(), o.leftPos()) + l, y0 = Math.max(f.topPos(), o.topPos()) + t;
         int x1 = Math.min(f.leftPos() + f.imageWidth(), o.leftPos() + o.imageWidth()) - r;
         int y1 = Math.min(f.topPos() + f.imageHeight(), o.topPos() + o.imageHeight()) - b;
-        g.enableScissor(x0, y0, Math.max(x0, x1), Math.max(y0, y1));
-        return true;
+        return new ScreenRectangle(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
     }
 }

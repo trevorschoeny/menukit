@@ -6,6 +6,7 @@ import com.trevlar.menukit.core.OverlayDraws;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
@@ -152,8 +153,13 @@ public final class ContainerScreenLayers {
     /** Whether layer 2 has been drawn this frame. Render thread only. */
     private static boolean flowDrawn = false;
 
-    /** Whether vanilla's contents are clipped inside a moving frame this frame ({@link ScreenSwap}). Render thread only. */
-    private static boolean swapClipped = false;
+    /**
+     * The clip vanilla's contents are drawn in this frame, inside a moving frame
+     * ({@link ScreenSwap}); {@code null} when the frame isn't moving. Asked once, at the
+     * frame's start: the move can end mid-frame, and every pop and re-push after that is of
+     * this rectangle. Render thread only.
+     */
+    private static @Nullable ScreenRectangle swapClip = null;
 
     /** Whether the slot (or highlight) vanilla is drawing now is scissored to its clip. Render thread only. */
     private static boolean slotClipped = false;
@@ -174,7 +180,8 @@ public final class ContainerScreenLayers {
     public static void frameStart(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
         flowDrawn = false;
         // Vanilla's contents (widgets, labels, slots), clipped inside a moving frame, up to the panel layers.
-        swapClipped = ScreenSwap.clip(screen, graphics);
+        swapClip = ScreenSwap.clip(screen);
+        if (swapClip != null) graphics.scissorStack.push(swapClip);
         PresentedSlots.beginFrame(screen, mouseX, mouseY);
         // The container region notes where its slots are now (7.4.0), to show a quick
         // move: its panels are background panels, placed already in this frame's
@@ -230,9 +237,9 @@ public final class ContainerScreenLayers {
             graphics.pose().pushMatrix();
             graphics.pose().translate(-acc.mk$getLeftPos(), -acc.mk$getTopPos());
             // The panels aren't vanilla's contents: outside a moving frame's clip, which goes back on after.
-            if (swapClipped) graphics.disableScissor();
+            if (swapClip != null) graphics.disableScissor();
             renderFlow(screen, graphics, mouseX, mouseY);
-            if (swapClipped) ScreenSwap.clip(screen, graphics);
+            if (swapClip != null) graphics.scissorStack.push(swapClip);
             graphics.pose().popMatrix();
             // Vanilla drew the hovered slot's back highlight before the slot pass; for
             // an unreported created slot that is under the chrome just drawn, so draw
@@ -291,8 +298,8 @@ public final class ContainerScreenLayers {
      */
     public static void aboveSlots(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
                                   int mouseX, int mouseY) {
-        if (swapClipped) graphics.disableScissor();
-        swapClipped = false;
+        if (swapClip != null) graphics.disableScissor();
+        swapClip = null;
         if (!flowDrawn) renderFlow(screen, graphics, mouseX, mouseY);
         ScreenPanelRegistry.renderOverlay(screen, graphics, mouseX, mouseY);
         SlotScreenDispatcher.fireEndFrame(screen);
