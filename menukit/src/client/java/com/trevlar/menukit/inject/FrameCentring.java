@@ -72,10 +72,21 @@ public final class FrameCentring {
      * frame and the rows are one block, centered by {@link #up} as the region's block is. With
      * no row it is vanilla's own {@code topPos}.
      *
+     * <p>Where the frame and its rows are taller than the window, the frame stays whole and the
+     * rows go off the window's edge instead: its bottom sits on the window's (the bottom row
+     * under it), but never higher than the window's top, so the top row is the one cut off.
+     * Centred, each end would go off by half the overflow, the frame's bottom with it. A frame
+     * taller than the window keeps vanilla's place.
+     *
      * @param vanilla the screen's bounds as vanilla centered them
      */
     public static int frameTop(Reference vanilla, int screenHeight, int above, int below) {
-        return vanilla.topPos() - up(vanilla, screenHeight, above + below) + above;
+        int h = vanilla.imageHeight();
+        if (above + below == 0 || h + above + below <= screenHeight) {
+            return vanilla.topPos() - up(vanilla, screenHeight, above + below) + above;
+        }
+        // At a window exactly the block's height, centring puts the frame here too: no jump.
+        return Math.max(screenHeight - below - h, Math.min(0, vanilla.topPos()));
     }
 
     /**
