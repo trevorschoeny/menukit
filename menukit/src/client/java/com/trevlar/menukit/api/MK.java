@@ -177,7 +177,7 @@ public class MK {
 
     /**
      * Triggers a notification by key. It slides in, stays for its configured
-     * duration, then fades out.
+     * duration, then slides back out.
      *
      * @param key  notification key (must match a
      *             {@link HudNotification#builder(String)} registration)

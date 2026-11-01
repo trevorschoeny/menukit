@@ -13,10 +13,13 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.VisibleForTesting;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A timed HUD popup that slides in, stays for a while, then fades out.
+ * A timed HUD popup that slides in, stays for a while, then slides back out past the
+ * screen edge it came from, as vanilla's toasts do.
  *
  * <p>Built as a template at mod init and triggered at runtime with
  * {@link MK#notify(String, String)} or {@link MK#notify(String, String, ItemStack)}.
@@ -82,7 +85,7 @@ public class HudNotification {
     /** The unique key this notification was registered under. */
     public String id() { return key; }
 
-    /** Total display duration in milliseconds (excludes slide-in but includes fade-out). */
+    /** Total display duration in milliseconds (includes the slide-out). */
     public int getDurationMs() { return durationMs; }
 
     /**
@@ -109,33 +112,11 @@ public class HudNotification {
         int baseX = origin.x() + offsetX;
         int baseY = origin.y() + offsetY;
 
-        float slideProgress = Math.min(1f, (float) elapsed / SLIDE_IN_MS);
-        // Ease out: 1 - (1 - t)^2
-        slideProgress = 1f - (1f - slideProgress) * (1f - slideProgress);
+        ScreenOrigin at = drawnAt(elapsed, baseX, baseY, panelW, panelH, screenW, screenH,
+                slideFrom, slideDistance, durationMs, fadeMs);
+        int drawX = at.x(), drawY = at.y();
 
-        int slideOffsetX = 0, slideOffsetY = 0;
-        float remaining = 1f - slideProgress;
-        switch (slideFrom) {
-            case TOP -> slideOffsetY = (int) (-slideDistance * remaining);
-            case BOTTOM -> slideOffsetY = (int) (slideDistance * remaining);
-            case LEFT -> slideOffsetX = (int) (-slideDistance * remaining);
-            case RIGHT -> slideOffsetX = (int) (slideDistance * remaining);
-        }
-
-        int drawX = baseX + slideOffsetX;
-        int drawY = baseY + slideOffsetY;
-
-        // Fade out over the last fadeMs
-        float alpha = 1f;
-        long fadeStart = durationMs - fadeMs;
-        if (elapsed > fadeStart && fadeMs > 0) {
-            alpha = 1f - (float) (elapsed - fadeStart) / fadeMs;
-            alpha = Math.max(0f, alpha);
-        }
-
-        int alphaInt = (int) (alpha * 255) << 24;
-
-        if (style != PanelStyle.NONE && alpha > 0.01f) {
+        if (style != PanelStyle.NONE) {
             PanelRendering.renderPanel(graphics, drawX, drawY, panelW, panelH, style);
         }
 
@@ -148,10 +129,47 @@ public class HudNotification {
         }
 
         if (text != null && !text.isEmpty()) {
-            int textColor = (alphaInt & 0xFF000000) | 0xFFFFFF;
             graphics.text(mc.font, Component.literal(text),
-                    contentX, contentY, textColor, true);
+                    contentX, contentY, 0xFFFFFFFF, true);
         }
+    }
+
+    /**
+     * Where the panel, {@code panelW} x {@code panelH} with its place at {@code x, y}, is drawn
+     * {@code elapsed} ms into {@code durationMs}: sliding in from {@code slideDistance} px toward
+     * its edge {@code from} (eased out), then over the last {@code outMs} toward it again (eased in),
+     * until it is wholly off the screen. The panel, its item and its text move as one, all
+     * opaque: nothing fades, so nothing is left behind (vanilla can't fade an item icon).
+     */
+    @ApiStatus.Internal
+    @VisibleForTesting
+    public static ScreenOrigin drawnAt(long elapsed, int x, int y, int panelW, int panelH, int screenW, int screenH,
+                                       SlideDirection from, int slideDistance, int durationMs, int outMs) {
+        float in = Math.min(1f, (float) elapsed / SLIDE_IN_MS);
+        // Ease out: 1 - (1 - t)^2
+        float away = slideDistance * (1f - in) * (1f - in);
+
+        long outStart = durationMs - outMs;
+        if (outMs > 0 && elapsed > outStart) {
+            float t = Math.min(1f, (float) (elapsed - outStart) / outMs);
+            // How far it goes to be off the screen past its edge.
+            int off = switch (from) {
+                case TOP -> y + panelH;
+                case BOTTOM -> screenH - y;
+                case LEFT -> x + panelW;
+                case RIGHT -> screenW - x;
+            };
+            // Ease in: t^2, so it leaves as it came, slow near its place and quick at the edge.
+            away = Math.max(away, Math.max(0, off) * t * t);
+        }
+
+        int d = (int) away;
+        return switch (from) {
+            case TOP -> new ScreenOrigin(x, y - d);
+            case BOTTOM -> new ScreenOrigin(x, y + d);
+            case LEFT -> new ScreenOrigin(x - d, y);
+            case RIGHT -> new ScreenOrigin(x + d, y);
+        };
     }
 
     private int computeContentWidth(Minecraft mc, @Nullable String text, @Nullable ItemStack item) {
@@ -206,10 +224,13 @@ public class HudNotification {
             return this;
         }
 
-        /** Total display duration in milliseconds; includes fade-out (default 3000). */
+        /** Total display duration in milliseconds; includes the slide-out (default 3000). */
         public Builder duration(int ms) { this.durationMs = ms; return this; }
 
-        /** Fade-out duration at the tail end of the total duration (default 500). */
+        /**
+         * How long it takes to slide out, at the tail end of the total duration (default 500).
+         * The name is from when notifications faded out; they slide out now, as vanilla's toasts do.
+         */
         public Builder fadeOut(int ms) { this.fadeMs = ms; return this; }
 
         /** Direction the notification slides in from (default TOP). */
