@@ -76,7 +76,9 @@ public final class ScreenSwap {
                 pending = moves(acs) ? frame(acs) : null;
                 if (moving == acs) moving = null;
             });
-            // A resize initializes again with nothing taken down: no move.
+            // A resize initializes again with nothing taken down: no move, and a move under
+            // way ends, since where it started was in the old window's coordinates.
+            if (moving == acs) moving = null;
             if (was == null || was.equals(own(acs))) return;
             moving = acs;
             from = was;
