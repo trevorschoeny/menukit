@@ -472,7 +472,9 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
 
     private void clickPopover(InputContext in, int[] p) {
         int px = p[0], py = p[1], pw = p[2];
-        int y = (int) (in.mouseY() - py - 1);
+        // Floored, not truncated: on the top border y is in [-1, 0), which truncates to row 0's 0.
+        int y = (int) Math.floor(in.mouseY() - py - 1);
+        if (y < 0) return;                                                     // the popover's top border: no row
         int pinnedRows = pinnedRowCount() * ROW_HEIGHT;
         if (y < pinnedRows) {
             pickPinned(y / ROW_HEIGHT);
@@ -530,7 +532,14 @@ abstract class PopoverControl<T> extends AbstractPanelElement {
      */
     @Override
     public boolean keyPressed(InputContext in, int keyCode, int scanCode, int modifiers) {
-        if (!open || items().isEmpty() || disabled(in)) return false;
+        if (!open || disabled(in)) return false;
+        // Escape closes even a popover with no items yet (a supplier "may be empty for a
+        // while"): left unclaimed, it would fall through and close the whole screen.
+        if (keyCode == InputConstants.KEY_ESCAPE) {
+            closePopover();
+            return true;
+        }
+        if (items().isEmpty()) return false;
         // Everything else (Backspace, the arrow-within-text keys, paste, ...) is not
         // claimed here, so it falls through to vanilla's own focused-widget routing,
         // which is how the search field's own editing keys reach it (see the class doc).
