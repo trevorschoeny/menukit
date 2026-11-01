@@ -1134,6 +1134,7 @@ public final class ListView<T> extends AbstractPanelElement {
      */
     @Override
     public boolean keyPressed(InputContext in, int keyCode, int scanCode, int modifiers) {
+        settle();   // the items may have changed since the last frame, as for a click
         InputContext inner = in.disabledIf(ownDisabled());
         if (ChildDispatch.keyPressed(children(), inner, keyCode, scanCode, modifiers)) return true;
         if (inner.disabled() || !focused || selectedSet == null) return false;
