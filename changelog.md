@@ -1,4 +1,10 @@
-## 7.5.0
+## 7.5.1
+
+#### Fixed
+
+- A scissor-stack underflow crash from tabbing fast between swapped container screens.
+
+### 7.5.0
 
 #### Added
 
