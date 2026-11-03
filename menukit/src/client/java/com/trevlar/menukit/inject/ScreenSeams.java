@@ -109,7 +109,7 @@ public final class ScreenSeams {
             AbstractContainerScreen<?> acs = (AbstractContainerScreen<?>) screen;
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> placeSlots(acs, seams));
             // The menu can outlive the screen (the player's inventory menu does): its slots go back.
-            ScreenEvents.remove(screen).register(s -> unplaceSlots());
+            KeptScreens.onTakenDown(screen, ScreenSeams::unplaceSlots);
             placeSlots(acs, seams);
         });
         // A short screen's grid takes its slots after the seams moved them, before the region lays out.

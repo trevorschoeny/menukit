@@ -90,7 +90,7 @@ public final class ContainerTabRows {
             ScreenEvents.afterExtract(screen).register((s, g, mx, my, delta) -> settle = false);
             if (!carries(acs)) return;
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> onFrame(acs, false));
-            ScreenEvents.remove(screen).register(s -> bare = null);
+            KeptScreens.onTakenDown(screen, () -> bare = null);
             onFrame(acs, true);
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {

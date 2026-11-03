@@ -6,11 +6,14 @@ import com.trevlar.menukit.api.hud.HudNotification;
 import com.trevlar.menukit.inject.HudHosts;
 import com.trevlar.menukit.inject.LayerPlan;
 import com.trevlar.menukit.inject.PanelHost;
+import com.trevlar.menukit.inject.ScreenBackground;
 import com.trevlar.menukit.api.Declarations;
 
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.util.Util;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
@@ -262,5 +265,41 @@ public class MK {
      */
     public static void setRecipeBookOpen(boolean open) {
         MenuKitClient.setRecipeBookOpen(open);
+    }
+
+    // Backdrops
+
+    /**
+     * Draws {@code screen}, which is not the open screen, as it looks open: its background
+     * (on a container screen, the container region's panels where its image goes), its
+     * widgets, slots and items, and every panel on it, sections and tab rows included. It
+     * takes no input and nothing on it is hovered. Call it from the open screen's
+     * {@code extractBackground}, usually with the screen it was opened from, then draw
+     * over it (a dim, say):
+     *
+     * <pre>{@code
+     * @Override
+     * public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
+     *     MK.drawBackdrop(parent, graphics, a);
+     *     graphics.fill(0, 0, width, height, 0x80000000);
+     * }
+     * }</pre>
+     *
+     * A container screen keeps its MenuKit layout (its region, where its slots are) while
+     * the screen over it is not a container screen, so it draws as the player left it.
+     * Under a container screen it draws without it, as vanilla lays it out. Its Fabric
+     * {@code beforeExtract} and {@code afterExtract} listeners run around it, as they do
+     * around the open screen.
+     *
+     * @param screen      the screen to draw; not the open screen
+     * @param graphics    the open screen's graphics
+     * @param partialTick the frame's partial tick
+     * @since 7.6.0
+     */
+    public static void drawBackdrop(Screen screen, GuiGraphicsExtractor graphics, float partialTick) {
+        // -1, -1: no pointer, so nothing hovers and no tooltip draws.
+        ScreenEvents.beforeExtract(screen).invoker().beforeExtract(screen, graphics, -1, -1, partialTick);
+        ScreenBackground.outside(() -> screen.extractRenderStateWithTooltipAndSubtitles(graphics, -1, -1, partialTick));
+        ScreenEvents.afterExtract(screen).invoker().afterExtract(screen, graphics, -1, -1, partialTick);
     }
 }

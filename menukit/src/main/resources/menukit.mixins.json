@@ -25,6 +25,7 @@
     "MKItemOutlineDrawMixin",
     "MKItemOutlineMarkMixin",
     "MKItemTooltipMarkMixin",
+    "MKKeptScreensMixin",
     "MKListHoverSuppressMixin",
     "MKModalMouseHandlerMixin",
     "MKQuickMoveRevealMixin",

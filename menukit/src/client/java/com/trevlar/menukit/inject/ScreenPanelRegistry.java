@@ -249,8 +249,8 @@ public final class ScreenPanelRegistry {
         // and an element that owns a dialog puts it on the dialog host, so the routed
         // list is read after this.
         for (PanelHost host : declared) host.attach(screen);
-        ScreenEvents.remove(screen).register(removed -> {
-            for (PanelHost host : declared) host.detach(removed);
+        KeptScreens.onTakenDown(screen, () -> {
+            for (PanelHost host : declared) host.detach(screen);
         });
 
         List<PanelHost> routed = hosts.routed();
