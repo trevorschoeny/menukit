@@ -77,6 +77,38 @@ HudCycleStrip.slide(PocketStrip.INSTANCE, hotbarSlot,
 
 If the ring turns on the server, the new order reaches the client a moment later. Have your source return the order you expect until it arrives, or the strip slides the old order and then jumps.
 
+## Arcs
+
+New in 7.6.0. An arc draws a ring over the hotbar slot itself instead of beside the hotbar. Its members sit as icons a third of their size, each in a 7 pixel miniature slot, in an arc just above the slot. Member 0, the next one a forward turn brings in, is on the right. An empty member draws its miniature slot alone. Arcs draw over every hotbar slot that has a ring, not only the selected one, for rings of two to four stacks.
+
+A source asks for an arc through `axis()`. A mod that offers both looks (an arc, and a mini hotbar as an option) registers two sources, each returning `null` while its own setting is off, and slides both after a turn:
+
+```java
+final class PocketArc implements HudCycleStrip.Source {
+    @Override
+    public HudCycleStrip.@Nullable View viewFor(int hotbarSlot) {
+        return arcEnabled() ? PocketStrip.INSTANCE.viewFor(hotbarSlot) : null;
+    }
+
+    @Override
+    public HudCycleStrip.Axis axis() {
+        return HudCycleStrip.Axis.ARC;
+    }
+}
+```
+
+A turn moves every stack in a straight line to the next point: arc to arc, arc to the slot, the slot to arc. Each one grows or shrinks between a third and full size on the way, on the same 220 ms spring as the strip. While a turn runs, and while your source returns a held stack the slot doesn't have yet (a turn it predicted), the arc draws the slot's stack and the hotbar draws that slot empty.
+
+A screen draws the same arc over a hotbar slot's place on it, turn included, from a panel's custom element. Pass the center of that slot's 16 pixel item:
+
+```java
+HudCycleStrip.drawArc(graphics, arcSource, hotbarSlot, slotX + 8, slotY + 8);
+```
+
+On a screen the slot keeps drawing its own stack. The arc is for looking only and takes no input.
+
+To move an arc's stacks somewhere yourself, `HudCycleStrip.arc(source, hotbarSlot)` lists them as they draw this frame, the held one first, each with an `ItemAnimation.Pose` relative to the held item's center. `arcPoints(members)` gives the resting points alone. Draw a stack anywhere at any size with `drawArcItem` and a miniature slot with `drawArcSlot`, and time your own move with a `Transition` on `Easing.EASE_OUT_BACK`, the strip's spring.
+
 ## A change that moved only the held stack
 
 A mod that moves the held stack without turning a ring (one that rotates whole inventory rows through the hotbar, say) can slide every ring that changed. Take a snapshot before the change and hand it back after:
@@ -87,7 +119,7 @@ rotateHotbarRows();
 HudCycleStrip.slideChanged(hotbarSlot, HudCycleStrip.Direction.FORWARD, before);
 ```
 
-Only rings whose stacks changed move, and only their held cell slides, up or down as the vanilla hotbar would. The mod never needs to know which sources exist.
+Only rings whose stacks changed move, and only their held cell slides, up or down as the vanilla hotbar would. An arc doesn't move for these: the vanilla slot shows the change itself. The mod never needs to know which sources exist.
 
 For a mod that draws its own slide, in the vanilla hotbar for example, stamp the turn with `HudCycleStrip.SlideStart start = HudCycleStrip.begin();`, hold it (a field is fine), and read `HudCycleStrip.slideProgress(start)` and `slideDone(start)` each frame for the strip's timing and spring, so the two move together. `SLIDE_MILLIS` is the length of one slide. `begin()` stamps the slide with MenuKit's own clock, so there is no raw millis value to accidentally stamp with the wrong one, vanilla's `System.currentTimeMillis()` included.
 
@@ -95,3 +127,4 @@ For a mod that draws its own slide, in the vanilla hotbar for example, stamp the
 
 - The strip has one place, right of the vanilla hotbar. Vanilla draws the offhand slot there for a left-handed player, and the attack indicator when it is set to the hotbar. They overlap.
 - The strip is never clickable, like every HUD panel.
+- A spectator's hotbar is the spectator menu, so no strip or arc draws for a spectator.

@@ -1,8 +1,10 @@
 package com.trevlar.menukit.api.hud;
 
 import com.trevlar.menukit.api.Declarations;
+import com.trevlar.menukit.api.element.ItemAnimation;
 import com.trevlar.menukit.core.CycleStrip;
 
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.util.Util;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
@@ -30,6 +32,15 @@ import java.util.Map;
  * draw as a cross that shares the held cell, so the held stack is drawn once. At most
  * one ring per axis draws: if two sources of the same axis are active on one slot, the
  * one registered first wins.
+ *
+ * <h3>Arcs</h3>
+ *
+ * An {@link Axis#ARC} ring (7.6.0) is drawn over the hotbar slot itself: its members sit
+ * as small icons in an arc just above the slot, on every hotbar slot that has a ring, not
+ * only the selected one. A turn moves each stack in a straight line to the next point
+ * (arc to arc, arc to slot, slot to arc), growing or shrinking as it goes. Screens draw
+ * the same arc with {@link #drawArc}. A mod that offers both looks registers two sources,
+ * one per axis, and slides both.
  *
  * <h3>The slide</h3>
  *
@@ -65,7 +76,14 @@ public final class HudCycleStrip {
         /** A mini hotbar beside the vanilla one, at the same height. */
         ROW,
         /** One cell beside the hotbar holding the held stack, the rest of the ring above it. */
-        COLUMN
+        COLUMN,
+        /**
+         * The ring's members as icons at a third of their size, in an arc just above the
+         * hotbar slot, member 0 (the next one a forward turn brings in) on the right
+         * (7.6.0). Drawn over every hotbar slot with a ring, for rings of two to four
+         * stacks; a bigger ring draws no arc. Not part of the cross.
+         */
+        ARC
     }
 
     /**
@@ -93,7 +111,8 @@ public final class HudCycleStrip {
 
         /**
          * The ring to draw for {@code hotbarSlot} (0 to 8), or {@code null} for none.
-         * Called every frame the HUD draws while the slot is selected, so keep it cheap.
+         * Called every frame the HUD draws while the slot is selected, and for an
+         * {@link Axis#ARC} source for every hotbar slot, so keep it cheap.
          */
         @Nullable View viewFor(int hotbarSlot);
 
@@ -167,6 +186,65 @@ public final class HudCycleStrip {
     public static void slideChanged(int hotbarSlot, Direction direction, Map<Source, @Nullable View> before) {
         CycleStrip.slideChanged(hotbarSlot, direction, before);
     }
+
+    /**
+     * One stack of an arc as it draws this frame (7.6.0). {@code pose} is relative to the
+     * center of the held item's 16 px box, in GUI px: {@link ItemAnimation.Pose#NONE} is
+     * the stack in the slot, a member at rest is at a third of its size above it.
+     */
+    public record ArcItem(ItemStack stack, ItemAnimation.Pose pose) {}
+
+    /**
+     * {@code source}'s arc on {@code hotbarSlot} this frame, the held stack first and then
+     * member 0, 1, 2, each where it is in a running turn. Empty when the source has no
+     * ring there that fits an arc. For a mod that moves the arc's stacks somewhere itself
+     * (into a row of slots, say): start from these poses, and draw with {@link #drawArcItem}.
+     */
+    public static List<ArcItem> arc(Source source, int hotbarSlot) {
+        View view = source.viewFor(hotbarSlot);
+        return view == null ? List.of() : CycleStrip.arcItems(source, view, hotbarSlot);
+    }
+
+    /**
+     * Where an arc's members rest, member 0 first, for an arc of one to three members;
+     * empty for any other count. Poses as in {@link ArcItem}.
+     */
+    public static List<ItemAnimation.Pose> arcPoints(int members) {
+        return CycleStrip.arcPoints(members);
+    }
+
+    /**
+     * Draws {@code source}'s arc on {@code hotbarSlot} around a held item centered at
+     * {@code (centerX, centerY)}, turn included: what the HUD draws over that hotbar slot,
+     * for a screen to draw over the slot's place on it. For looking only; it takes no input.
+     *
+     * <p>At rest it draws the members and leaves the held stack to the slot. During a turn
+     * it draws the stacks coming into and leaving the slot too; the HUD hides the hotbar
+     * slot's own stack meanwhile, a screen's slot keeps drawing its own.
+     */
+    public static void drawArc(GuiGraphicsExtractor graphics, Source source, int hotbarSlot,
+                               float centerX, float centerY) {
+        View view = source.viewFor(hotbarSlot);
+        if (view != null) CycleStrip.renderArc(graphics, source, view, hotbarSlot, centerX, centerY);
+    }
+
+    /**
+     * Draws {@code stack} centered at {@code (centerX, centerY)}, {@code scale} times its
+     * 16 px size, without its count: an arc's icon at {@link #ARC_SCALE}, or anywhere
+     * between that and 1 while it moves.
+     */
+    public static void drawArcItem(GuiGraphicsExtractor graphics, ItemStack stack,
+                                   float centerX, float centerY, float scale) {
+        CycleStrip.renderArcItem(graphics, stack, centerX, centerY, scale);
+    }
+
+    /** Draws an arc's miniature slot (gray, its edges as vanilla's) centered at {@code (centerX, centerY)}. */
+    public static void drawArcSlot(GuiGraphicsExtractor graphics, float centerX, float centerY) {
+        CycleStrip.renderArcSlot(graphics, centerX, centerY);
+    }
+
+    /** How big an arc's icons draw: a third of the 16 px item. */
+    public static final float ARC_SCALE = CycleStrip.ARC_SCALE;
 
     /**
      * A slide's start, from {@link #begin}. For a mod that draws its own slide (in the

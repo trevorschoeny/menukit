@@ -1,7 +1,9 @@
 package com.trevlar.menukit.core;
 
 import com.trevlar.menukit.api.element.Easing;
+import com.trevlar.menukit.api.element.ItemAnimation.Pose;
 
+import com.trevlar.menukit.api.hud.HudCycleStrip;
 import com.trevlar.menukit.api.hud.HudCycleStrip.Axis;
 import com.trevlar.menukit.api.hud.HudCycleStrip.Direction;
 import com.trevlar.menukit.api.hud.HudCycleStrip.Source;
@@ -44,6 +46,11 @@ import java.util.Map;
  *       sliding (it draws last, on top). A column turn slides it vertically, a row turn
  *       horizontally, and the held stack is never drawn twice.</li>
  * </ul>
+ *
+ * <p>An {@link Axis#ARC} ring is drawn apart from those three (7.6.0): small icons in an
+ * arc just above the hotbar slot itself, on every hotbar slot that has one, not only the
+ * held one. During its turn the arc owns the vanilla slot's stack (the hotbar draws that
+ * slot empty, see {@link #ownsHeld}) so the stacks can move between the slot and the arc.
  *
  * Slot frames stay fixed; only stacks slide. The pure parts (ring order, easing, slide
  * offsets, cell positions) are public statics so validator-mk's elementCheck can assert
@@ -337,7 +344,11 @@ public final class CycleStrip {
 
     private static boolean shouldShow() {
         Minecraft mc = Minecraft.getInstance();
-        if (mc == null || mc.player == null) return false;
+        // A spectator's hotbar is the spectator menu: no strip and no arcs beside it.
+        if (mc == null || mc.player == null || mc.player.isSpectator()) return false;
+        for (int slot = 0; slot < HOTBAR_SLOTS; slot++) {
+            if (arcOn(slot) != null) return true;
+        }
         int selected = mc.player.getInventory().getSelectedSlot();
         if (selected < 0 || selected > 8) return false;
         return !active(selected).isEmpty();
@@ -349,12 +360,14 @@ public final class CycleStrip {
         int activeSlot = mc.player.getInventory().getSelectedSlot();
         if (activeSlot < 0 || activeSlot > 8) return;
 
+        renderArcs(graphics, mc);
+
         // One ring per axis: the first registered source of each wins.
         Active row = null, column = null;
         for (Active a : active(activeSlot)) {
             if (a.source().axis() == Axis.COLUMN) {
                 if (column == null) column = a;
-            } else if (row == null) {
+            } else if (a.source().axis() == Axis.ROW && row == null) {
                 row = a;
             }
         }
@@ -512,6 +525,197 @@ public final class CycleStrip {
             }
         } finally {
             graphics.disableScissor();
+        }
+    }
+
+    // The arc (7.6.0). Every position is in GUI px relative to the center of the held
+    // item's 16 px box, as an ItemAnimation.Pose: (0, 0) at scale 1 is the stack in the
+    // slot. The hotbar's top edge is at y = -11 and the XP bar's bottom at y = -13, so the
+    // middle icon's outline touches the XP bar and the arc covers the top of the slot.
+
+    /** Hotbar slots an arc can stand over. */
+    public static final int HOTBAR_SLOTS = 9;
+    /** How big an arc's icons draw: the 16 px item at a third. */
+    public static final float ARC_SCALE = 1f / 3f;
+    /** The miniature vanilla slot under each arc icon. */
+    public static final int ARC_SLOT_PX = 7;
+    /** An arc holds up to three members (a ring of four); a bigger ring draws no arc. */
+    public static final int ARC_MAX_MEMBERS = 3;
+
+    // Vanilla's slot colors: the gray fill, the dark top-left edge, the light bottom-right.
+    private static final int SLOT_FILL = 0xFF8B8B8B;
+    private static final int SLOT_DARK = 0xFF373737;
+    private static final int SLOT_LIGHT = 0xFFFFFFFF;
+
+    /**
+     * Where each member of an arc of {@code members} rests, member 0 (the one a forward
+     * turn brings to the hand) first. Member 0 is on the right, so a forward turn moves
+     * the arc right and drops its right end into the slot.
+     */
+    public static List<Pose> arcPoints(int members) {
+        return switch (members) {
+            case 1 -> List.of(new Pose(ARC_SCALE, 0f, -9.5f));
+            case 2 -> List.of(new Pose(ARC_SCALE, 3.5f, -9f), new Pose(ARC_SCALE, -3.5f, -9f));
+            case 3 -> List.of(new Pose(ARC_SCALE, 7f, -8f), new Pose(ARC_SCALE, 0f, -9.5f),
+                    new Pose(ARC_SCALE, -7f, -8f));
+            default -> List.of();
+        };
+    }
+
+    /** Whether a ring of {@code size} stacks draws as an arc: the held one plus one to three members. */
+    public static boolean arcFits(int size) {
+        return size >= 2 && size <= ARC_MAX_MEMBERS + 1;
+    }
+
+    /**
+     * Each stack's pose at eased progress {@code p} of a turn in {@code direction}, or at
+     * rest for a null direction, for a ring of {@code size}. Index {@code j} is the stack
+     * {@code j} steps after the held one ({@code ring.get(current + j)}): 0 is the held
+     * one, {@code j} is member {@code j - 1}. Each moves in a straight line from the pose
+     * it held before the turn to its pose now, its scale going linearly between the two.
+     * Forward, the stack now at {@code j} was at {@code j + 1}; backward, at {@code j - 1}.
+     */
+    public static List<Pose> arcPoses(int size, @Nullable Direction direction, float p) {
+        List<Pose> rest = new ArrayList<>(size);
+        rest.add(Pose.NONE);
+        rest.addAll(arcPoints(size - 1));
+        if (direction == null) return rest;
+        int step = direction == Direction.FORWARD ? 1 : -1;
+        List<Pose> out = new ArrayList<>(size);
+        for (int j = 0; j < size; j++) {
+            Pose from = rest.get(Math.floorMod(j + step, size)), to = rest.get(j);
+            out.add(new Pose(lerp(from.scale(), to.scale(), p),
+                    lerp(from.offsetX(), to.offsetX(), p), lerp(from.offsetY(), to.offsetY(), p)));
+        }
+        return out;
+    }
+
+    private static float lerp(float a, float b, float p) {
+        return a * (1f - p) + b * p; // exact at both ends, so a turn ends exactly at rest
+    }
+
+    /** The center x of hotbar slot {@code slot}'s item, as vanilla places it ({@code w / 2 - 90 + slot * 20 + 2}, plus 8). */
+    public static int hotbarItemCenterX(int screenW, int slot) {
+        return screenW / 2 - 80 + slot * SLOT_PX;
+    }
+
+    /** The center y of a hotbar item ({@code h - 19}, plus 8). */
+    public static int hotbarItemCenterY(int screenH) {
+        return screenH - 11;
+    }
+
+    /** The arc on {@code hotbarSlot}: the first registered arc source with a ring that fits, or null. */
+    public static @Nullable Active arcOn(int hotbarSlot) {
+        for (Source s : SOURCES) {
+            if (s.axis() != Axis.ARC) continue;
+            View view = s.viewFor(hotbarSlot);
+            if (view != null && arcFits(view.ring().size())) return new Active(s, view);
+        }
+        return null;
+    }
+
+    /**
+     * The turn running for an arc on {@code hotbarSlot}, or null. A held-only slide
+     * ({@link #slideChanged}) is no turn for an arc: the vanilla slot shows the held
+     * stack change itself.
+     */
+    private static @Nullable Slide arcTurn(Source source, int hotbarSlot) {
+        Slide slide = running(source, hotbarSlot);
+        return slide == null || slide.heldOnly() ? null : slide;
+    }
+
+    /** Every stack of {@code view}'s arc on {@code hotbarSlot} this frame, held one first, with its pose. */
+    public static List<HudCycleStrip.ArcItem> arcItems(Source source, View view, int hotbarSlot) {
+        int n = view.ring().size();
+        if (!arcFits(n)) return List.of();
+        Slide turn = arcTurn(source, hotbarSlot);
+        List<Pose> poses = turn == null ? arcPoses(n, null, 1f)
+                : arcPoses(n, turn.direction(), progress(turn.startMillis(), Util.getMillis()));
+        List<HudCycleStrip.ArcItem> out = new ArrayList<>(n);
+        for (int j = 0; j < n; j++) {
+            out.add(new HudCycleStrip.ArcItem(view.ring().get((view.current() + j) % n), poses.get(j)));
+        }
+        return out;
+    }
+
+    /**
+     * Whether the arc on {@code hotbarSlot} draws the slot's stack itself, so the vanilla
+     * hotbar draws that slot empty: during a turn, and while the source's view holds a
+     * stack other than {@code inSlot} (a turn it predicted that the server has not yet
+     * confirmed). Asked by the hotbar for each slot as it draws.
+     */
+    public static boolean ownsHeld(int hotbarSlot, ItemStack inSlot) {
+        Active arc = arcOn(hotbarSlot);
+        if (arc == null) return false;
+        if (arcTurn(arc.source(), hotbarSlot) != null) return true;
+        return !ItemStack.matches(arc.view().ring().get(arc.view().current()), inSlot);
+    }
+
+    /** The arcs over every hotbar slot that has one, with the held stack where the arc owns it. */
+    private static void renderArcs(GuiGraphicsExtractor graphics, Minecraft mc) {
+        int w = mc.getWindow().getGuiScaledWidth(), h = mc.getWindow().getGuiScaledHeight();
+        for (int slot = 0; slot < HOTBAR_SLOTS; slot++) {
+            Active arc = arcOn(slot);
+            if (arc == null) continue;
+            int cx = hotbarItemCenterX(w, slot), cy = hotbarItemCenterY(h);
+            renderArc(graphics, arc.source(), arc.view(), slot, cx, cy);
+            // At rest but owning the slot: a predicted turn the server hasn't confirmed.
+            // The hotbar drew the slot empty, so the predicted held stack goes there, as
+            // vanilla would draw it.
+            ItemStack held = arc.view().ring().get(arc.view().current());
+            if (arcTurn(arc.source(), slot) == null && ownsHeld(slot, mc.player.getInventory().getItem(slot))) {
+                graphics.item(held, cx - 8, cy - 8);
+                graphics.itemDecorations(mc.font, held, cx - 8, cy - 8);
+            }
+        }
+    }
+
+    /**
+     * One arc around the held item centered at {@code (cx, cy)}: the miniature slots at
+     * rest, then the stacks. At rest the held stack is the slot's to draw; during a turn
+     * every stack moves, the held ones included, and the one coming into the hand draws last.
+     * Moving stacks draw without their count: at a third of the size it can't be read.
+     */
+    public static void renderArc(GuiGraphicsExtractor graphics, Source source, View view, int hotbarSlot,
+                                 float cx, float cy) {
+        List<HudCycleStrip.ArcItem> items = arcItems(source, view, hotbarSlot);
+        if (items.isEmpty()) return;
+        for (Pose rest : arcPoints(items.size() - 1)) renderArcSlot(graphics, cx + rest.offsetX(), cy + rest.offsetY());
+        boolean turning = arcTurn(source, hotbarSlot) != null;
+        for (int j = items.size() - 1; j >= 0; j--) {
+            if (j == 0 && !turning) continue;
+            HudCycleStrip.ArcItem item = items.get(j);
+            renderArcItem(graphics, item.stack(), cx + item.pose().offsetX(), cy + item.pose().offsetY(),
+                    item.pose().scale());
+        }
+    }
+
+    /** A miniature vanilla slot, {@link #ARC_SLOT_PX} square, centered at {@code (cx, cy)}. */
+    public static void renderArcSlot(GuiGraphicsExtractor graphics, float cx, float cy) {
+        int s = ARC_SLOT_PX;
+        graphics.pose().pushMatrix();
+        try {
+            graphics.pose().translate(cx - s / 2f, cy - s / 2f);
+            graphics.fill(0, 0, s, s, SLOT_FILL);
+            graphics.fill(0, 0, s - 1, 1, SLOT_DARK);
+            graphics.fill(0, 1, 1, s - 1, SLOT_DARK);
+            graphics.fill(1, s - 1, s, s, SLOT_LIGHT);
+            graphics.fill(s - 1, 1, s, s - 1, SLOT_LIGHT);
+        } finally {
+            graphics.pose().popMatrix();
+        }
+    }
+
+    /** {@code stack} centered at {@code (cx, cy)} at {@code scale} (1 is the 16 px item), without its count. */
+    public static void renderArcItem(GuiGraphicsExtractor graphics, ItemStack stack, float cx, float cy, float scale) {
+        if (stack.isEmpty()) return;
+        graphics.pose().pushMatrix();
+        try {
+            graphics.pose().translate(cx, cy);
+            graphics.pose().scale(scale, scale);
+            graphics.item(stack, -8, -8);
+        } finally {
+            graphics.pose().popMatrix();
         }
     }
 
