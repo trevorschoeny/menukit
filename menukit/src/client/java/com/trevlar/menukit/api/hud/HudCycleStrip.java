@@ -46,7 +46,7 @@ import java.util.Map;
  *
  * The strip slides only when told to. After a source's ring turns, call
  * {@link #slide}; the strip animates from where each stack was to where the view now
- * puts it, over {@link #SLIDE_MILLIS} on an ease-out-back spring. A ring that changes
+ * puts it, over {@link #SLIDE_MILLIS} on a damped spring ({@link com.trevlar.menukit.api.element.Easing#SPRING}). A ring that changes
  * because something else moved the held stack (a mod that rotates whole hotbar rows,
  * say) uses {@link #snapshot} before and {@link #slideChanged} after: only the rings
  * whose contents actually changed slide, and only their held cell moves.
@@ -78,9 +78,9 @@ public final class HudCycleStrip {
         /** One cell beside the hotbar holding the held stack, the rest of the ring above it. */
         COLUMN,
         /**
-         * The ring's members as icons at a third of their size, in an arc just above the
-         * hotbar slot, member 0 (the next one a forward turn brings in) on the right
-         * (7.6.0). Drawn over every hotbar slot with a ring, for rings of two to four
+         * The ring's members as icons at half their size, each floating over a soft shadow, in
+         * an arc just above the hotbar slot, member 0 (the next one a forward turn brings in)
+         * on the left (7.6.0). Drawn over every hotbar slot with a ring, for rings of two to four
          * stacks; a bigger ring draws no arc. Not part of the cross.
          */
         ARC
@@ -190,7 +190,7 @@ public final class HudCycleStrip {
     /**
      * One stack of an arc as it draws this frame (7.6.0). {@code pose} is relative to the
      * center of the held item's 16 px box, in GUI px: {@link ItemAnimation.Pose#NONE} is
-     * the stack in the slot, a member at rest is at a third of its size above it.
+     * the stack in the slot, a member at rest is at half its size above it.
      */
     public record ArcItem(ItemStack stack, ItemAnimation.Pose pose) {}
 
@@ -206,8 +206,8 @@ public final class HudCycleStrip {
     }
 
     /**
-     * Where an arc's members rest, member 0 first, for an arc of one to three members;
-     * empty for any other count. Poses as in {@link ArcItem}.
+     * Where an arc's members rest, member 0 first and leftmost, for an arc of one to three
+     * members; empty for any other count. Poses as in {@link ArcItem}.
      */
     public static List<ItemAnimation.Pose> arcPoints(int members) {
         return CycleStrip.arcPoints(members);
@@ -231,19 +231,15 @@ public final class HudCycleStrip {
     /**
      * Draws {@code stack} centered at {@code (centerX, centerY)}, {@code scale} times its
      * 16 px size, without its count: an arc's icon at {@link #ARC_SCALE}, or anywhere
-     * between that and 1 while it moves.
+     * between that and 1 while it moves. Its shadow comes with it, full at {@link #ARC_SCALE}
+     * and fading out as it grows to 1, so a stack flown into a slot lands with none.
      */
     public static void drawArcItem(GuiGraphicsExtractor graphics, ItemStack stack,
                                    float centerX, float centerY, float scale) {
         CycleStrip.renderArcItem(graphics, stack, centerX, centerY, scale);
     }
 
-    /** Draws an arc's miniature slot (gray, its edges as vanilla's) centered at {@code (centerX, centerY)}. */
-    public static void drawArcSlot(GuiGraphicsExtractor graphics, float centerX, float centerY) {
-        CycleStrip.renderArcSlot(graphics, centerX, centerY);
-    }
-
-    /** How big an arc's icons draw: a third of the 16 px item. */
+    /** How big an arc's icons draw: half the 16 px item. */
     public static final float ARC_SCALE = CycleStrip.ARC_SCALE;
 
     /**
@@ -268,7 +264,8 @@ public final class HudCycleStrip {
 
     /**
      * The strip's eased progress since {@code slide} began: 0 at the start, exactly 1
-     * at rest, with the spring's overshoot to about 1.1 just before it settles.
+     * at rest, on {@link com.trevlar.menukit.api.element.Easing#SPRING}: past 1 by about
+     * 9%, back under by about 3%, then settled.
      */
     public static float slideProgress(SlideStart slide) {
         return CycleStrip.progress(slide.startMillis, Util.getMillis());

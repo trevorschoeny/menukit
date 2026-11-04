@@ -30,8 +30,8 @@ import java.util.Map;
  * What stands behind {@link com.trevlar.menukit.api.hud.HudCycleStrip}: the registered
  * sources, each source's slide clock, the pure layout and easing math, and the drawing.
  * Lifted from Inventory Plus's cycle HUD (its {@code CycleHud}, {@code CycleSlide} and
- * {@code CycleHudRegistry}) with the look and timing unchanged, so a ring drawn here
- * looks exactly as Inventory Plus drew it.
+ * {@code CycleHudRegistry}) with the look unchanged, so a ring drawn here looks as Inventory
+ * Plus drew it; the slide's timing is MenuKit's own spring since 7.6.0.
  *
  * <h3>Three layouts</h3>
  *
@@ -89,8 +89,8 @@ public final class CycleStrip {
     private static final int SELECTION_SPRITE_W = 24;
     private static final int SELECTION_SPRITE_H = 23;
 
-    /** One slide: 220 ms on an ease-out-back spring, Inventory Plus's timing. */
-    public static final long SLIDE_MILLIS = 220L;
+    /** One slide: 150 ms on {@link Easing#SPRING} (7.6.0; 220 ms on an ease-out-back before). */
+    public static final long SLIDE_MILLIS = 150L;
 
     // Registry
 
@@ -233,14 +233,14 @@ public final class CycleStrip {
     // Pure: timing
 
     /**
-     * Eased progress at {@code nowMillis} of a slide that started at {@code startMillis}: ease-out-back
-     * ({@link Easing#EASE_OUT_BACK}), overshooting about 10% then settling, exactly 0 and 1 at its ends.
+     * Eased progress at {@code nowMillis} of a slide that started at {@code startMillis}: the damped
+     * spring ({@link Easing#SPRING}), about 9% over and 3% back before settling, exactly 0 and 1 at its ends.
      */
     public static float progress(long startMillis, long nowMillis) {
         float t = (float) (nowMillis - startMillis) / SLIDE_MILLIS;
         if (t <= 0f) return 0f;
         if (t >= 1f) return 1f;
-        return Easing.EASE_OUT_BACK.apply(t);
+        return Easing.SPRING.apply(t);
     }
 
     public static boolean done(long startMillis, long nowMillis) {
@@ -531,33 +531,31 @@ public final class CycleStrip {
     // The arc (7.6.0). Every position is in GUI px relative to the center of the held
     // item's 16 px box, as an ItemAnimation.Pose: (0, 0) at scale 1 is the stack in the
     // slot. The hotbar's top edge is at y = -11 and the XP bar's bottom at y = -13, so the
-    // middle icon's outline touches the XP bar and the arc covers the top of the slot.
+    // middle 8 px icon's top reaches the XP bar and the arc covers the top of the slot (its
+    // border and the top of its item, which Trev accepted).
 
     /** Hotbar slots an arc can stand over. */
     public static final int HOTBAR_SLOTS = 9;
-    /** How big an arc's icons draw: the 16 px item at a third. */
-    public static final float ARC_SCALE = 1f / 3f;
-    /** The miniature vanilla slot under each arc icon. */
-    public static final int ARC_SLOT_PX = 7;
+    /** How big an arc's icons draw: the 16 px item at half, 8 px. */
+    public static final float ARC_SCALE = 0.5f;
     /** An arc holds up to three members (a ring of four); a bigger ring draws no arc. */
     public static final int ARC_MAX_MEMBERS = 3;
 
-    // Vanilla's slot colors: the gray fill, the dark top-left edge, the light bottom-right.
-    private static final int SLOT_FILL = 0xFF8B8B8B;
-    private static final int SLOT_DARK = 0xFF373737;
-    private static final int SLOT_LIGHT = 0xFFFFFFFF;
+    /** An arc icon's shadow: the darkest it gets, at its middle, as alpha over black. */
+    private static final int SHADOW_ALPHA = 0x70;
 
     /**
      * Where each member of an arc of {@code members} rests, member 0 (the one a forward
-     * turn brings to the hand) first. Member 0 is on the right, so a forward turn moves
-     * the arc right and drops its right end into the slot.
+     * turn brings to the hand) first. Member 0 is on the left, as depth 0 is leftmost in a
+     * row of pockets, so a forward turn moves the arc left and drops its left end into the
+     * slot. The 8 px icons sit 8 or 9 px apart, so they touch but never overlap.
      */
     public static List<Pose> arcPoints(int members) {
         return switch (members) {
             case 1 -> List.of(new Pose(ARC_SCALE, 0f, -9.5f));
-            case 2 -> List.of(new Pose(ARC_SCALE, 3.5f, -9f), new Pose(ARC_SCALE, -3.5f, -9f));
-            case 3 -> List.of(new Pose(ARC_SCALE, 7f, -8f), new Pose(ARC_SCALE, 0f, -9.5f),
-                    new Pose(ARC_SCALE, -7f, -8f));
+            case 2 -> List.of(new Pose(ARC_SCALE, -4.5f, -9f), new Pose(ARC_SCALE, 4.5f, -9f));
+            case 3 -> List.of(new Pose(ARC_SCALE, -8f, -8f), new Pose(ARC_SCALE, 0f, -9.5f),
+                    new Pose(ARC_SCALE, 8f, -8f));
             default -> List.of();
         };
     }
@@ -671,16 +669,15 @@ public final class CycleStrip {
     }
 
     /**
-     * One arc around the held item centered at {@code (cx, cy)}: the miniature slots at
-     * rest, then the stacks. At rest the held stack is the slot's to draw; during a turn
-     * every stack moves, the held ones included, and the one coming into the hand draws last.
-     * Moving stacks draw without their count: at a third of the size it can't be read.
+     * One arc around the held item centered at {@code (cx, cy)}: the stacks floating on
+     * their own, each over its shadow. At rest the held stack is the slot's to draw; during a
+     * turn every stack moves, the held ones included, and the one coming into the hand draws
+     * last. Moving stacks draw without their count: at half the size it can't be read.
      */
     public static void renderArc(GuiGraphicsExtractor graphics, Source source, View view, int hotbarSlot,
                                  float cx, float cy) {
         List<HudCycleStrip.ArcItem> items = arcItems(source, view, hotbarSlot);
         if (items.isEmpty()) return;
-        for (Pose rest : arcPoints(items.size() - 1)) renderArcSlot(graphics, cx + rest.offsetX(), cy + rest.offsetY());
         boolean turning = arcTurn(source, hotbarSlot) != null;
         for (int j = items.size() - 1; j >= 0; j--) {
             if (j == 0 && !turning) continue;
@@ -690,30 +687,52 @@ public final class CycleStrip {
         }
     }
 
-    /** A miniature vanilla slot, {@link #ARC_SLOT_PX} square, centered at {@code (cx, cy)}. */
-    public static void renderArcSlot(GuiGraphicsExtractor graphics, float cx, float cy) {
-        int s = ARC_SLOT_PX;
-        graphics.pose().pushMatrix();
-        try {
-            graphics.pose().translate(cx - s / 2f, cy - s / 2f);
-            graphics.fill(0, 0, s, s, SLOT_FILL);
-            graphics.fill(0, 0, s - 1, 1, SLOT_DARK);
-            graphics.fill(0, 1, 1, s - 1, SLOT_DARK);
-            graphics.fill(1, s - 1, s, s, SLOT_LIGHT);
-            graphics.fill(s - 1, 1, s, s - 1, SLOT_LIGHT);
-        } finally {
-            graphics.pose().popMatrix();
-        }
-    }
-
-    /** {@code stack} centered at {@code (cx, cy)} at {@code scale} (1 is the 16 px item), without its count. */
+    /**
+     * {@code stack} centered at {@code (cx, cy)} at {@code scale} (1 is the 16 px item), without
+     * its count, over its shadow. The shadow is full at {@link #ARC_SCALE} and fades out as the
+     * stack grows to its slot size, where vanilla draws none. An empty stack draws nothing.
+     */
     public static void renderArcItem(GuiGraphicsExtractor graphics, ItemStack stack, float cx, float cy, float scale) {
         if (stack.isEmpty()) return;
+        renderArcShadow(graphics, cx, cy, scale, shadowStrength(scale));
         graphics.pose().pushMatrix();
         try {
             graphics.pose().translate(cx, cy);
             graphics.pose().scale(scale, scale);
             graphics.item(stack, -8, -8);
+        } finally {
+            graphics.pose().popMatrix();
+        }
+    }
+
+    /** How strong an icon's shadow is at {@code scale}: 1 at {@link #ARC_SCALE} and below, 0 at full size. */
+    public static float shadowStrength(float scale) {
+        return Math.clamp((1f - scale) / (1f - ARC_SCALE), 0f, 1f);
+    }
+
+    /**
+     * The soft shadow under an icon centered at {@code (cx, cy)} drawn {@code scale} times
+     * 16 px: a dark ellipse 3/4 of the icon wide and 1/4 tall, its middle one pixel below
+     * the icon's bottom edge (8 px wide, 2 tall, at an icon's rest size). Drawn in quarter
+     * pixels (the pose scaled by 1/4) as rows of an ellipse, darkest in the middle row and
+     * fading toward the top and bottom, so it reads soft at any GUI scale.
+     */
+    private static void renderArcShadow(GuiGraphicsExtractor graphics, float cx, float cy, float scale, float strength) {
+        if (strength <= 0f) return;
+        float halfW = 6f * scale, halfH = 2f * scale; // in GUI px: 12 x 4 at full size, 6 x 2 at half
+        float shadowY = cy + 8f * scale + 1f;
+        int rowsHalf = Math.max(1, Math.round(halfH * 4f)); // quarter-pixel rows above and below the middle
+        graphics.pose().pushMatrix();
+        try {
+            graphics.pose().translate(cx, shadowY);
+            graphics.pose().scale(0.25f, 0.25f);
+            for (int row = -rowsHalf; row < rowsHalf; row++) {
+                float v = (row + 0.5f) / rowsHalf; // -1 at the top edge, 1 at the bottom
+                int half = Math.round(halfW * 4f * (float) Math.sqrt(1f - v * v));
+                int alpha = Math.round(SHADOW_ALPHA * strength * (1f - v * v));
+                if (half <= 0 || alpha <= 0) continue;
+                graphics.fill(-half, row, half, row + 1, alpha << 24);
+            }
         } finally {
             graphics.pose().popMatrix();
         }

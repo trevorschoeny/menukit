@@ -183,6 +183,10 @@ public class Panel {
     // what is inside is inert.
     private @Nullable BooleanSupplier disabledSupplier;
 
+    // How the panel draws this frame apart from its layout (7.6.0): a scale about a
+    // point and an alpha, read every frame. Null draws it as laid out.
+    private @Nullable Supplier<PanelTransform> transformSupplier;
+
     // Three independent flags make up "modal", so other kinds of panel (popovers,
     // dropdowns) can take only the parts they need.
     //
@@ -1276,6 +1280,35 @@ public class Panel {
     /** Whether the panel is disabled right now. */
     public boolean isDisabled() {
         return disabledSupplier != null && disabledSupplier.getAsBoolean();
+    }
+
+    // Transform
+
+    /**
+     * Draws the panel under {@code transform}'s scale and alpha, read every frame (7.6.0;
+     * pass {@code null} to clear). The layout is untouched: the panel and the slots it
+     * presents are placed as always, then drawn scaled about the pivot and faded. While
+     * the transform isn't {@link PanelTransform#IDENTITY} the panel takes no input at
+     * all, its slots included. See {@link PanelTransform}.
+     *
+     * <p>Several panels given the same transform (a backing box and the slot panels over
+     * it, say) grow and fade as one, since a scale about a screen point moves each of
+     * them the same way.
+     */
+    public Panel transform(@Nullable Supplier<PanelTransform> transform) {
+        this.transformSupplier = transform;
+        return this;
+    }
+
+    /** The panel's transform this frame: {@link PanelTransform#IDENTITY} with none set, or a null from the supplier. */
+    public PanelTransform currentTransform() {
+        PanelTransform t = transformSupplier == null ? null : transformSupplier.get();
+        return t == null ? PanelTransform.IDENTITY : t;
+    }
+
+    /** Whether the panel draws under a transform other than the identity this frame, so takes no input. */
+    public boolean isTransformed() {
+        return !currentTransform().isIdentity();
     }
 
     // Opacity, dim and modal tracking

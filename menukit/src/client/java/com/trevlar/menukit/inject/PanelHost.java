@@ -11,7 +11,9 @@ import com.trevlar.menukit.api.panel.OutsideRegion;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.panel.PanelPosition;
+import com.trevlar.menukit.api.panel.PanelTransform;
 import com.trevlar.menukit.api.panel.Placement;
+import com.trevlar.menukit.core.DrawAlpha;
 import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.api.panel.PanelStyle;
@@ -646,6 +648,8 @@ public final class PanelHost {
         // A background panel (7.4.0) is under everything on the screen, so it takes no
         // point from anything: whatever lies over it stays live.
         if (panel.isBackground()) return false;
+        // Nor does one drawn under a transform (7.6.0): what shows isn't where it is laid out.
+        if (panel.isTransformed()) return false;
         InputContext in = input(placed, mouseX, mouseY);
         List<PanelElement> shown = shownElements(panel);
         if (ChildDispatch.overlayOwner(shown, in) != null) return true;
@@ -1178,6 +1182,30 @@ public final class PanelHost {
      */
     public void render(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
                        Placed p, PointerPolicy pointer) {
+        // A panel under a transform (7.6.0) draws scaled about its pivot and faded, its
+        // slots included (they draw inside renderPanel), and is never live: it takes no
+        // input until it is back at the identity. The layout under it is untouched.
+        PanelTransform t = p.panel().currentTransform();
+        if (t.isIdentity()) {
+            renderPanel(graphics, mouseX, mouseY, p, pointer);
+            return;
+        }
+        if (t.alpha() <= 0f) return;
+        graphics.pose().pushMatrix();
+        float alphaBefore = DrawAlpha.push(t.alpha());
+        try {
+            graphics.pose().translate(t.pivotX(), t.pivotY());
+            graphics.pose().scale(t.scale(), t.scale());
+            graphics.pose().translate(-t.pivotX(), -t.pivotY());
+            renderPanel(graphics, -1, -1, p, (host, placed) -> false);
+        } finally {
+            DrawAlpha.pop(alphaBefore);
+            graphics.pose().popMatrix();
+        }
+    }
+
+    private void renderPanel(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+                             Placed p, PointerPolicy pointer) {
         Panel panel = p.panel();
         boolean live = kind != Kind.HUD && pointer.live(this, p);
         int mx = live ? mouseX : -1;
@@ -1269,6 +1297,7 @@ public final class PanelHost {
         for (LayerPlan.Drawn d : LayerPlan.topDown(hosts)) {
             if (d.host().kind == Kind.HUD) continue;
             if (modalUp && !d.placed().panel().tracksAsModal()) continue;
+            if (d.placed().panel().isTransformed()) continue; // drawn transformed: no input (7.6.0)
             out.add(d);
         }
         return out;
@@ -1337,6 +1366,7 @@ public final class PanelHost {
         for (int i = placed.size() - 1; i >= 0; i--) {
             Placed p = placed.get(i);
             if (modalUp && !p.panel().tracksAsModal()) continue;
+            if (p.panel().isTransformed()) continue;
             if (ChildDispatch.keyPressed(shownElements(p.panel()), input(p, mx, my), keyCode, scanCode, modifiers)) {
                 return true;
             }
