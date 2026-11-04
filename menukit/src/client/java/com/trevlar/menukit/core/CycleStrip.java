@@ -7,6 +7,7 @@ import com.trevlar.menukit.api.hud.HudCycleStrip;
 import com.trevlar.menukit.api.hud.HudCycleStrip.Axis;
 import com.trevlar.menukit.api.hud.HudCycleStrip.Direction;
 import com.trevlar.menukit.api.hud.HudCycleStrip.Source;
+import com.trevlar.menukit.api.hud.HudCycleStrip.Style;
 import com.trevlar.menukit.api.hud.HudCycleStrip.View;
 import com.trevlar.menukit.api.hud.HudPanel;
 import com.trevlar.menukit.api.panel.InsideRegion;
@@ -89,8 +90,8 @@ public final class CycleStrip {
     private static final int SELECTION_SPRITE_W = 24;
     private static final int SELECTION_SPRITE_H = 23;
 
-    /** One slide: 150 ms on {@link Easing#SPRING} (7.6.0; 220 ms on an ease-out-back before). */
-    public static final long SLIDE_MILLIS = 150L;
+    /** The default slide's length ({@link Style#DEFAULT}, on {@link Easing#SPRING}; 7.6.0, 220 ms on an ease-out-back before). */
+    public static final long SLIDE_MILLIS = 300L;
 
     // Registry
 
@@ -144,15 +145,20 @@ public final class CycleStrip {
      * One slide in flight for a source. {@code heldOnly}: only the held cell changed,
      * from {@code heldBefore}, because something else moved the held stack; that cell
      * slides up or down, as the vanilla hotbar would, and the rest of the strip stays.
+     * {@code style} is the source's when it started, so a slide keeps its timing to the end.
      */
     public record Slide(int hotbarSlot, long startMillis, Direction direction,
-                        boolean heldOnly, ItemStack heldBefore) {}
+                        boolean heldOnly, ItemStack heldBefore, Style style) {
+        float progress() {
+            return CycleStrip.progress(startMillis, Util.getMillis(), style);
+        }
+    }
 
     private static final Map<Source, Slide> SLIDES = new HashMap<>();
 
     public static void slide(Source source, int hotbarSlot, Direction direction) {
         if (source == null || direction == null) return;
-        SLIDES.put(source, new Slide(hotbarSlot, Util.getMillis(), direction, false, ItemStack.EMPTY));
+        SLIDES.put(source, new Slide(hotbarSlot, Util.getMillis(), direction, false, ItemStack.EMPTY, source.style()));
     }
 
     public static Map<Source, @Nullable View> snapshot(int hotbarSlot) {
@@ -168,7 +174,8 @@ public final class CycleStrip {
             View now = s.viewFor(hotbarSlot);
             if (changed(was, now)) {
                 SLIDES.put(s, new Slide(hotbarSlot, Util.getMillis(), direction,
-                        true, was == null || was.ring().isEmpty() ? ItemStack.EMPTY : was.ring().get(was.current())));
+                        true, was == null || was.ring().isEmpty() ? ItemStack.EMPTY : was.ring().get(was.current()),
+                        s.style()));
             }
         }
     }
@@ -177,7 +184,7 @@ public final class CycleStrip {
     private static @Nullable Slide running(Source source, int activeSlot) {
         Slide slide = SLIDES.get(source);
         if (slide == null || slide.hotbarSlot() != activeSlot) return null;
-        return done(slide.startMillis(), Util.getMillis()) ? null : slide;
+        return done(slide.startMillis(), Util.getMillis(), slide.style()) ? null : slide;
     }
 
     // Pure: ring order. Generic over the element type so the order can be checked
@@ -233,18 +240,19 @@ public final class CycleStrip {
     // Pure: timing
 
     /**
-     * Eased progress at {@code nowMillis} of a slide that started at {@code startMillis}: the damped
-     * spring ({@link Easing#SPRING}), about 9% over and 3% back before settling, exactly 0 and 1 at its ends.
+     * Eased progress at {@code nowMillis} of a slide in {@code style} that started at
+     * {@code startMillis}, exactly 0 and 1 at its ends. The default is the damped spring
+     * ({@link Easing#SPRING}), about 9% over and 3% back before settling.
      */
-    public static float progress(long startMillis, long nowMillis) {
-        float t = (float) (nowMillis - startMillis) / SLIDE_MILLIS;
+    public static float progress(long startMillis, long nowMillis, Style style) {
+        float t = (float) (nowMillis - startMillis) / style.slideMillis();
         if (t <= 0f) return 0f;
         if (t >= 1f) return 1f;
-        return Easing.SPRING.apply(t);
+        return style.easing().apply(t);
     }
 
-    public static boolean done(long startMillis, long nowMillis) {
-        return nowMillis - startMillis >= SLIDE_MILLIS;
+    public static boolean done(long startMillis, long nowMillis, Style style) {
+        return nowMillis - startMillis >= style.slideMillis();
     }
 
     /**
@@ -413,7 +421,7 @@ public final class CycleStrip {
      */
     private static void renderHeldVertical(GuiGraphicsExtractor graphics, Minecraft mc,
                                            Slide slide, ItemStack now, int cellX, int stripY) {
-        float p = progress(slide.startMillis(), Util.getMillis());
+        float p = slide.progress();
         int traveled = Math.round(SLOT_PX * p);
         int remaining = Math.round(SLOT_PX * (1f - p));
         boolean down = slide.direction() == Direction.FORWARD;
@@ -438,7 +446,7 @@ public final class CycleStrip {
         // still and that one cell slides vertically.
         boolean heldOnly = slide != null && slide.heldOnly();
         int offset = (slide == null || heldOnly) ? 0
-                : rowSlideOffset(slide.direction(), progress(slide.startMillis(), Util.getMillis()));
+                : rowSlideOffset(slide.direction(), slide.progress());
 
         renderBar(graphics, stripX, stripY, stripWidth);
 
@@ -489,7 +497,7 @@ public final class CycleStrip {
         int n = visual.size();
         Slide slide = running(cycle.source(), activeSlot);
         Direction direction = slide == null ? null : slide.direction();
-        float p = slide == null ? 1f : progress(slide.startMillis(), Util.getMillis());
+        float p = slide == null ? 1f : slide.progress();
         int topY = columnCellY(heldTop, 0, n);
         // The floating cells share the held cell's x, so their frames stack exactly over
         // the hotbar cell below (frame at cellX - 1, 22 wide, as the bar's own outline is)
@@ -536,48 +544,24 @@ public final class CycleStrip {
 
     /** Hotbar slots an arc can stand over. */
     public static final int HOTBAR_SLOTS = 9;
-    /** How big an arc's icons draw: the 16 px item at 2/5, 6.4 px. */
-    public static final float ARC_SCALE = 0.4f;
-    /** An arc holds up to three members (a ring of four); a bigger ring draws no arc. */
-    public static final int ARC_MAX_MEMBERS = 3;
 
-    /** An arc icon's glow: the darkest it gets, at its center, as alpha over black. */
-    private static final int GLOW_ALPHA = 0x50;
-
-    /**
-     * Where each member of an arc of {@code members} rests, member 0 (the one a forward
-     * turn brings to the hand) first. Member 0 is on the left, as depth 0 is leftmost in a
-     * row of pockets, so a forward turn moves the arc left and drops its left end into the
-     * slot. The 6.4 px icons sit 6.4 or 7.2 px apart, so they touch but never overlap, and
-     * a three-member arc stays inside the hotbar slot's own 20 px pitch.
-     */
-    public static List<Pose> arcPoints(int members) {
-        return switch (members) {
-            case 1 -> List.of(new Pose(ARC_SCALE, 0f, -9.5f));
-            case 2 -> List.of(new Pose(ARC_SCALE, -3.6f, -9f), new Pose(ARC_SCALE, 3.6f, -9f));
-            case 3 -> List.of(new Pose(ARC_SCALE, -6.4f, -8f), new Pose(ARC_SCALE, 0f, -9.5f),
-                    new Pose(ARC_SCALE, 6.4f, -8f));
-            default -> List.of();
-        };
-    }
-
-    /** Whether a ring of {@code size} stacks draws as an arc: the held one plus one to three members. */
-    public static boolean arcFits(int size) {
-        return size >= 2 && size <= ARC_MAX_MEMBERS + 1;
+    /** Whether a ring of {@code size} stacks draws as an arc in {@code style}: the held one plus a member count it has points for. */
+    public static boolean arcFits(Style style, int size) {
+        return size >= 2 && !style.points(size - 1).isEmpty();
     }
 
     /**
      * Each stack's pose at eased progress {@code p} of a turn in {@code direction}, or at
-     * rest for a null direction, for a ring of {@code size}. Index {@code j} is the stack
+     * rest for a null direction, for a ring of {@code size} in {@code style}. Index {@code j} is the stack
      * {@code j} steps after the held one ({@code ring.get(current + j)}): 0 is the held
      * one, {@code j} is member {@code j - 1}. Each moves in a straight line from the pose
      * it held before the turn to its pose now, its scale going linearly between the two.
      * Forward, the stack now at {@code j} was at {@code j + 1}; backward, at {@code j - 1}.
      */
-    public static List<Pose> arcPoses(int size, @Nullable Direction direction, float p) {
+    public static List<Pose> arcPoses(Style style, int size, @Nullable Direction direction, float p) {
         List<Pose> rest = new ArrayList<>(size);
         rest.add(Pose.NONE);
-        rest.addAll(arcPoints(size - 1));
+        rest.addAll(style.points(size - 1));
         if (direction == null) return rest;
         int step = direction == Direction.FORWARD ? 1 : -1;
         List<Pose> out = new ArrayList<>(size);
@@ -608,7 +592,7 @@ public final class CycleStrip {
         for (Source s : SOURCES) {
             if (s.axis() != Axis.ARC) continue;
             View view = s.viewFor(hotbarSlot);
-            if (view != null && arcFits(view.ring().size())) return new Active(s, view);
+            if (view != null && arcFits(s.style(), view.ring().size())) return new Active(s, view);
         }
         return null;
     }
@@ -626,10 +610,12 @@ public final class CycleStrip {
     /** Every stack of {@code view}'s arc on {@code hotbarSlot} this frame, held one first, with its pose. */
     public static List<HudCycleStrip.ArcItem> arcItems(Source source, View view, int hotbarSlot) {
         int n = view.ring().size();
-        if (!arcFits(n)) return List.of();
+        Style style = source.style();
+        if (!arcFits(style, n)) return List.of();
         Slide turn = arcTurn(source, hotbarSlot);
-        List<Pose> poses = turn == null ? arcPoses(n, null, 1f)
-                : arcPoses(n, turn.direction(), progress(turn.startMillis(), Util.getMillis()));
+        // A turn keeps the timing it started with; the arc's points are this frame's.
+        List<Pose> poses = turn == null ? arcPoses(style, n, null, 1f)
+                : arcPoses(style, n, turn.direction(), turn.progress());
         List<HudCycleStrip.ArcItem> out = new ArrayList<>(n);
         for (int j = 0; j < n; j++) {
             out.add(new HudCycleStrip.ArcItem(view.ring().get((view.current() + j) % n), poses.get(j)));
@@ -671,7 +657,7 @@ public final class CycleStrip {
 
     /**
      * One arc around the held item centered at {@code (cx, cy)}: the stacks floating on
-     * their own, each with a faint glow behind it. At rest the held stack is the slot's to
+     * their own, each with a faint shadow of its own shape. At rest the held stack is the slot's to
      * draw; during a turn every stack moves, the held ones included, and the one coming into
      * the hand draws last. Moving stacks draw without their count: at this size it can't be read.
      */
@@ -683,56 +669,45 @@ public final class CycleStrip {
         for (int j = items.size() - 1; j >= 0; j--) {
             if (j == 0 && !turning) continue;
             HudCycleStrip.ArcItem item = items.get(j);
-            renderArcItem(graphics, item.stack(), cx + item.pose().offsetX(), cy + item.pose().offsetY(),
+            renderArcItem(graphics, source.style(), item.stack(), cx + item.pose().offsetX(), cy + item.pose().offsetY(),
                     item.pose().scale());
         }
     }
 
     /**
      * {@code stack} centered at {@code (cx, cy)} at {@code scale} (1 is the 16 px item), without
-     * its count, over its glow. The glow is full at {@link #ARC_SCALE} and fades out as the
-     * stack grows to its slot size, where vanilla draws none. An empty stack draws nothing.
+     * its count, over its shadow in {@code style}. An empty stack draws nothing.
      */
-    public static void renderArcItem(GuiGraphicsExtractor graphics, ItemStack stack, float cx, float cy, float scale) {
+    public static void renderArcItem(GuiGraphicsExtractor graphics, Style style, ItemStack stack,
+                                     float cx, float cy, float scale) {
         if (stack.isEmpty()) return;
-        renderArcGlow(graphics, cx, cy, scale, glowStrength(scale));
+        // The shadow is the item itself drawn as a dark silhouette (ItemOutline, the same
+        // path the colored item outline uses), offset down and right in the icon's own
+        // pixels, like vanilla's text shadow. Recorded first, so the item lands on top of it.
+        int alpha = style.shadow() ? Math.round(255 * style.shadowOpacity() * shadowStrength(style, scale)) : 0;
+        if (alpha > 0) {
+            float offset = style.shadowOffset() * scale;
+            ItemOutline.silhouettes(alpha << 24, () -> drawScaledItem(graphics, stack, cx + offset, cy + offset, scale));
+        }
+        drawScaledItem(graphics, stack, cx, cy, scale);
+    }
+
+    /**
+     * How strong an icon's shadow is at {@code scale} in {@code style}: 1 at its icon scale
+     * and below; when the style fades it, falling to 0 at the slot's size (vanilla's slot
+     * draws none there), else 1 throughout.
+     */
+    public static float shadowStrength(Style style, float scale) {
+        if (!style.shadowFades() || scale <= style.iconScale()) return 1f;
+        return Math.clamp((1f - scale) / (1f - style.iconScale()), 0f, 1f);
+    }
+
+    private static void drawScaledItem(GuiGraphicsExtractor graphics, ItemStack stack, float cx, float cy, float scale) {
         graphics.pose().pushMatrix();
         try {
             graphics.pose().translate(cx, cy);
             graphics.pose().scale(scale, scale);
             graphics.item(stack, -8, -8);
-        } finally {
-            graphics.pose().popMatrix();
-        }
-    }
-
-    /** How strong an icon's glow is at {@code scale}: 1 at {@link #ARC_SCALE} and below, 0 at full size. */
-    public static float glowStrength(float scale) {
-        return Math.clamp((1f - scale) / (1f - ARC_SCALE), 0f, 1f);
-    }
-
-    /**
-     * The faint glow behind an icon centered at {@code (cx, cy)} drawn {@code scale} times
-     * 16 px: a soft dark circle at the icon's own center, a little past its edge, so it only
-     * lifts the icon off a busy background rather than reading as a cast shadow. Drawn in
-     * quarter pixels (the pose scaled by 1/4) as rings, darkest at the center and fading
-     * toward the edge, so it reads soft at any GUI scale.
-     */
-    private static void renderArcGlow(GuiGraphicsExtractor graphics, float cx, float cy, float scale, float strength) {
-        if (strength <= 0f) return;
-        float radius = 10f * scale; // a little past the icon's own half-size (8 * scale)
-        int rowsHalf = Math.max(1, Math.round(radius * 4f)); // quarter-pixel rows above and below the middle
-        graphics.pose().pushMatrix();
-        try {
-            graphics.pose().translate(cx, cy);
-            graphics.pose().scale(0.25f, 0.25f);
-            for (int row = -rowsHalf; row < rowsHalf; row++) {
-                float v = (row + 0.5f) / rowsHalf; // -1 at the top edge, 1 at the bottom
-                int half = Math.round(radius * 4f * (float) Math.sqrt(1f - v * v));
-                int alpha = Math.round(GLOW_ALPHA * strength * (1f - v * v));
-                if (half <= 0 || alpha <= 0) continue;
-                graphics.fill(-half, row, half, row + 1, alpha << 24);
-            }
         } finally {
             graphics.pose().popMatrix();
         }
