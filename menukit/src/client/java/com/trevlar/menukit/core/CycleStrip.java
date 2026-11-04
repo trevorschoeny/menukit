@@ -536,26 +536,27 @@ public final class CycleStrip {
 
     /** Hotbar slots an arc can stand over. */
     public static final int HOTBAR_SLOTS = 9;
-    /** How big an arc's icons draw: the 16 px item at half, 8 px. */
-    public static final float ARC_SCALE = 0.5f;
+    /** How big an arc's icons draw: the 16 px item at 2/5, 6.4 px. */
+    public static final float ARC_SCALE = 0.4f;
     /** An arc holds up to three members (a ring of four); a bigger ring draws no arc. */
     public static final int ARC_MAX_MEMBERS = 3;
 
-    /** An arc icon's shadow: the darkest it gets, at its middle, as alpha over black. */
-    private static final int SHADOW_ALPHA = 0x70;
+    /** An arc icon's glow: the darkest it gets, at its center, as alpha over black. */
+    private static final int GLOW_ALPHA = 0x50;
 
     /**
      * Where each member of an arc of {@code members} rests, member 0 (the one a forward
      * turn brings to the hand) first. Member 0 is on the left, as depth 0 is leftmost in a
      * row of pockets, so a forward turn moves the arc left and drops its left end into the
-     * slot. The 8 px icons sit 8 or 9 px apart, so they touch but never overlap.
+     * slot. The 6.4 px icons sit 6.4 or 7.2 px apart, so they touch but never overlap, and
+     * a three-member arc stays inside the hotbar slot's own 20 px pitch.
      */
     public static List<Pose> arcPoints(int members) {
         return switch (members) {
             case 1 -> List.of(new Pose(ARC_SCALE, 0f, -9.5f));
-            case 2 -> List.of(new Pose(ARC_SCALE, -4.5f, -9f), new Pose(ARC_SCALE, 4.5f, -9f));
-            case 3 -> List.of(new Pose(ARC_SCALE, -8f, -8f), new Pose(ARC_SCALE, 0f, -9.5f),
-                    new Pose(ARC_SCALE, 8f, -8f));
+            case 2 -> List.of(new Pose(ARC_SCALE, -3.6f, -9f), new Pose(ARC_SCALE, 3.6f, -9f));
+            case 3 -> List.of(new Pose(ARC_SCALE, -6.4f, -8f), new Pose(ARC_SCALE, 0f, -9.5f),
+                    new Pose(ARC_SCALE, 6.4f, -8f));
             default -> List.of();
         };
     }
@@ -670,9 +671,9 @@ public final class CycleStrip {
 
     /**
      * One arc around the held item centered at {@code (cx, cy)}: the stacks floating on
-     * their own, each over its shadow. At rest the held stack is the slot's to draw; during a
-     * turn every stack moves, the held ones included, and the one coming into the hand draws
-     * last. Moving stacks draw without their count: at half the size it can't be read.
+     * their own, each with a faint glow behind it. At rest the held stack is the slot's to
+     * draw; during a turn every stack moves, the held ones included, and the one coming into
+     * the hand draws last. Moving stacks draw without their count: at this size it can't be read.
      */
     public static void renderArc(GuiGraphicsExtractor graphics, Source source, View view, int hotbarSlot,
                                  float cx, float cy) {
@@ -689,12 +690,12 @@ public final class CycleStrip {
 
     /**
      * {@code stack} centered at {@code (cx, cy)} at {@code scale} (1 is the 16 px item), without
-     * its count, over its shadow. The shadow is full at {@link #ARC_SCALE} and fades out as the
+     * its count, over its glow. The glow is full at {@link #ARC_SCALE} and fades out as the
      * stack grows to its slot size, where vanilla draws none. An empty stack draws nothing.
      */
     public static void renderArcItem(GuiGraphicsExtractor graphics, ItemStack stack, float cx, float cy, float scale) {
         if (stack.isEmpty()) return;
-        renderArcShadow(graphics, cx, cy, scale, shadowStrength(scale));
+        renderArcGlow(graphics, cx, cy, scale, glowStrength(scale));
         graphics.pose().pushMatrix();
         try {
             graphics.pose().translate(cx, cy);
@@ -705,31 +706,30 @@ public final class CycleStrip {
         }
     }
 
-    /** How strong an icon's shadow is at {@code scale}: 1 at {@link #ARC_SCALE} and below, 0 at full size. */
-    public static float shadowStrength(float scale) {
+    /** How strong an icon's glow is at {@code scale}: 1 at {@link #ARC_SCALE} and below, 0 at full size. */
+    public static float glowStrength(float scale) {
         return Math.clamp((1f - scale) / (1f - ARC_SCALE), 0f, 1f);
     }
 
     /**
-     * The soft shadow under an icon centered at {@code (cx, cy)} drawn {@code scale} times
-     * 16 px: a dark ellipse 3/4 of the icon wide and 1/4 tall, its middle one pixel below
-     * the icon's bottom edge (8 px wide, 2 tall, at an icon's rest size). Drawn in quarter
-     * pixels (the pose scaled by 1/4) as rows of an ellipse, darkest in the middle row and
-     * fading toward the top and bottom, so it reads soft at any GUI scale.
+     * The faint glow behind an icon centered at {@code (cx, cy)} drawn {@code scale} times
+     * 16 px: a soft dark circle at the icon's own center, a little past its edge, so it only
+     * lifts the icon off a busy background rather than reading as a cast shadow. Drawn in
+     * quarter pixels (the pose scaled by 1/4) as rings, darkest at the center and fading
+     * toward the edge, so it reads soft at any GUI scale.
      */
-    private static void renderArcShadow(GuiGraphicsExtractor graphics, float cx, float cy, float scale, float strength) {
+    private static void renderArcGlow(GuiGraphicsExtractor graphics, float cx, float cy, float scale, float strength) {
         if (strength <= 0f) return;
-        float halfW = 6f * scale, halfH = 2f * scale; // in GUI px: 12 x 4 at full size, 6 x 2 at half
-        float shadowY = cy + 8f * scale + 1f;
-        int rowsHalf = Math.max(1, Math.round(halfH * 4f)); // quarter-pixel rows above and below the middle
+        float radius = 10f * scale; // a little past the icon's own half-size (8 * scale)
+        int rowsHalf = Math.max(1, Math.round(radius * 4f)); // quarter-pixel rows above and below the middle
         graphics.pose().pushMatrix();
         try {
-            graphics.pose().translate(cx, shadowY);
+            graphics.pose().translate(cx, cy);
             graphics.pose().scale(0.25f, 0.25f);
             for (int row = -rowsHalf; row < rowsHalf; row++) {
                 float v = (row + 0.5f) / rowsHalf; // -1 at the top edge, 1 at the bottom
-                int half = Math.round(halfW * 4f * (float) Math.sqrt(1f - v * v));
-                int alpha = Math.round(SHADOW_ALPHA * strength * (1f - v * v));
+                int half = Math.round(radius * 4f * (float) Math.sqrt(1f - v * v));
+                int alpha = Math.round(GLOW_ALPHA * strength * (1f - v * v));
                 if (half <= 0 || alpha <= 0) continue;
                 graphics.fill(-half, row, half, row + 1, alpha << 24);
             }

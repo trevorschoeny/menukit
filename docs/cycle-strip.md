@@ -79,7 +79,7 @@ If the ring turns on the server, the new order reaches the client a moment later
 
 ## Arcs
 
-New in 7.6.0. An arc draws a ring over the hotbar slot itself instead of beside the hotbar. Its members float as icons half their size, 8 pixels, each over a soft shadow, in an arc just above the slot. Member 0, the next one a forward turn brings in, is on the left. An empty member draws nothing. Arcs draw over every hotbar slot that has a ring, not only the selected one, for rings of two to four stacks.
+New in 7.6.0. An arc draws a ring over the hotbar slot itself instead of beside the hotbar. Its members float as icons 2/5 their size, 6.4 pixels, each with a faint glow behind it, in an arc just above the slot. Member 0, the next one a forward turn brings in, is on the left. An empty member draws nothing. Arcs draw over every hotbar slot that has a ring, not only the selected one, for rings of two to four stacks.
 
 A source asks for an arc through `axis()`. A mod that offers both looks (an arc, and a mini hotbar as an option) registers two sources, each returning `null` while its own setting is off, and slides both after a turn:
 
@@ -97,7 +97,7 @@ final class PocketArc implements HudCycleStrip.Source {
 }
 ```
 
-A turn moves every stack in a straight line to the next point: arc to arc, arc to the slot, the slot to arc. Each one grows or shrinks between half and full size on the way, its shadow fading as it grows, on the same 150 ms spring as the strip. While a turn runs, and while your source returns a held stack the slot doesn't have yet (a turn it predicted), the arc draws the slot's stack and the hotbar draws that slot empty.
+A turn moves every stack in a straight line to the next point: arc to arc, arc to the slot, the slot to arc. Each one grows or shrinks between arc size and full size on the way, its glow fading as it grows, on the same 150 ms spring as the strip. While a turn runs, and while your source returns a held stack the slot doesn't have yet (a turn it predicted), the arc draws the slot's stack and the hotbar draws that slot empty.
 
 A screen draws the same arc over a hotbar slot's place on it, turn included, from a panel's custom element. Pass the center of that slot's 16 pixel item:
 
@@ -107,7 +107,7 @@ HudCycleStrip.drawArc(graphics, arcSource, hotbarSlot, slotX + 8, slotY + 8);
 
 On a screen the slot keeps drawing its own stack. The arc is for looking only and takes no input.
 
-To move an arc's stacks somewhere yourself, `HudCycleStrip.arc(source, hotbarSlot)` lists them as they draw this frame, the held one first, each with an `ItemAnimation.Pose` relative to the held item's center. `arcPoints(members)` gives the resting points alone. Draw a stack anywhere at any size, with its shadow, with `drawArcItem`, and time your own move with `slideProgress`, or a `Transition` on `Easing.SPRING`, the strip's spring.
+To move an arc's stacks somewhere yourself, `HudCycleStrip.arc(source, hotbarSlot)` lists them as they draw this frame, the held one first, each with an `ItemAnimation.Pose` relative to the held item's center. `arcPoints(members)` gives the resting points alone. Draw a stack anywhere at any size, with its glow, with `drawArcItem`, and time your own move with `slideProgress`, or a `Transition` on `Easing.SPRING`, the strip's spring.
 
 ## A change that moved only the held stack
 

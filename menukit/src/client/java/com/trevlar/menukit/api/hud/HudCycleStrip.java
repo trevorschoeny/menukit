@@ -231,7 +231,7 @@ public final class HudCycleStrip {
     /**
      * Draws {@code stack} centered at {@code (centerX, centerY)}, {@code scale} times its
      * 16 px size, without its count: an arc's icon at {@link #ARC_SCALE}, or anywhere
-     * between that and 1 while it moves. Its shadow comes with it, full at {@link #ARC_SCALE}
+     * between that and 1 while it moves. Its glow comes with it, full at {@link #ARC_SCALE}
      * and fading out as it grows to 1, so a stack flown into a slot lands with none.
      */
     public static void drawArcItem(GuiGraphicsExtractor graphics, ItemStack stack,
@@ -239,7 +239,7 @@ public final class HudCycleStrip {
         CycleStrip.renderArcItem(graphics, stack, centerX, centerY, scale);
     }
 
-    /** How big an arc's icons draw: half the 16 px item. */
+    /** How big an arc's icons draw: 2/5 of the 16 px item. */
     public static final float ARC_SCALE = CycleStrip.ARC_SCALE;
 
     /**
