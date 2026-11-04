@@ -30,6 +30,8 @@
     "MKModalMouseHandlerMixin",
     "MKQuickMoveRevealMixin",
     "MKRecipeBookAccessor",
+    "MKRecipeBookInputMixin",
+    "MKRecipeBookLayersMixin",
     "MKRecipeButtonPlaceMixin",
     "MKScreenBackgroundMixin",
     "MKScreenSwapMixin",
