@@ -12,9 +12,9 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
 /**
- * Draws a hotbar slot empty while a cycle-strip arc owns its stack (7.6.0): during a turn
- * the arc moves the stacks between the slot and itself, and while a predicted turn waits
- * for the server it draws the predicted stack there. The hotbar reads each slot's stack
+ * Draws a hotbar slot empty where a cycle-strip arc stands (7.6.0): the arc draws the
+ * slot's stack itself, over its icons at rest and moving between the slot and itself
+ * during a turn. The hotbar reads each slot's stack
  * through {@code Inventory.getItem(slot)} once in {@code extractItemHotbar}'s loop; this
  * hands back an empty stack for an owned slot, so vanilla draws neither item nor count.
  */
@@ -26,6 +26,6 @@ public abstract class MKHotbarArcMixin {
             target = "Lnet/minecraft/world/entity/player/Inventory;getItem(I)Lnet/minecraft/world/item/ItemStack;"))
     private ItemStack mk$arcOwnsSlot(Inventory inventory, int slot, Operation<ItemStack> original) {
         ItemStack stack = original.call(inventory, slot);
-        return CycleStrip.ownsHeld(slot, stack) ? ItemStack.EMPTY : stack;
+        return CycleStrip.ownsHeld(slot) ? ItemStack.EMPTY : stack;
     }
 }

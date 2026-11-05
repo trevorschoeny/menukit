@@ -5,6 +5,7 @@ import com.trevlar.menukit.api.element.Easing;
 import com.trevlar.menukit.api.element.ItemAnimation;
 import com.trevlar.menukit.core.CycleStrip;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.util.Util;
 import net.minecraft.world.item.ItemStack;
@@ -431,14 +432,15 @@ public final class HudCycleStrip {
      * {@code (centerX, centerY)}, turn included: what the HUD draws over that hotbar slot,
      * for a screen to draw over the slot's place on it. For looking only; it takes no input.
      *
-     * <p>At rest it draws the members and leaves the held stack to the slot. During a turn
-     * it draws the stacks coming into and leaving the slot too; the HUD hides the hotbar
-     * slot's own stack meanwhile, a screen's slot keeps drawing its own.
+     * <p>It draws the held stack too, last, so it sits over the icons that reach into the
+     * slot: at rest at its full size with its count and durability, over the slot's own
+     * (which looks the same); during a turn, moving into and out of the slot. The HUD hides
+     * the hotbar slot's own stack where an arc stands; a screen's slot keeps drawing its own.
      */
     public static void drawArc(GuiGraphicsExtractor graphics, Source source, int hotbarSlot,
                                float centerX, float centerY) {
         View view = source.viewFor(hotbarSlot);
-        if (view != null) CycleStrip.renderArc(graphics, source, view, hotbarSlot, centerX, centerY);
+        if (view != null) CycleStrip.renderArc(graphics, Minecraft.getInstance().font, source, view, hotbarSlot, centerX, centerY);
     }
 
     /**
