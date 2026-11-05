@@ -99,10 +99,16 @@ final class PocketArc implements HudCycleStrip.Source {
 
 A turn moves every stack in a straight line to the next point: arc to arc, arc to the slot, the slot to arc. Each one grows or shrinks between arc size and full size on the way, its shadow fading as it grows, on the source's slide, 300 ms on a spring by default. While a turn runs, and while your source returns a held stack the slot doesn't have yet (a turn it predicted), the arc draws the slot's stack and the hotbar draws that slot empty.
 
-A screen draws the same arc over a hotbar slot's place on it, turn included, from a panel's custom element. Pass the center of that slot's 16 pixel item:
+On the HUD the arcs draw on the hotbar's bar, under its items, so each slot's own stack covers the icons that reach into it.
+
+A screen draws the same arc on a hotbar slot, turn included, as an under-decoration of that slot, so it sits on the screen's image and under the slot's item, as on the HUD. Pass the center of the slot's 16 pixel item:
 
 ```java
-HudCycleStrip.drawArc(graphics, arcSource, hotbarSlot, slotX + 8, slotY + 8);
+SlotDecorations.under("mymod:arcs", (graphics, screen, slot, stack, x, y) -> {
+    if (slot.container instanceof Inventory && slot.getContainerSlot() < 9) {
+        HudCycleStrip.drawArc(graphics, arcSource, slot.getContainerSlot(), x + 8, y + 8);
+    }
+});
 ```
 
 On a screen the slot keeps drawing its own stack. The arc is for looking only and takes no input.

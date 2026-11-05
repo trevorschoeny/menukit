@@ -429,7 +429,10 @@ public final class HudCycleStrip {
     /**
      * Draws {@code source}'s arc on {@code hotbarSlot} around a held item centered at
      * {@code (centerX, centerY)}, turn included: what the HUD draws over that hotbar slot,
-     * for a screen to draw over the slot's place on it. For looking only; it takes no input.
+     * for a screen to draw on the slot's place on it. For looking only; it takes no input.
+     * On a screen, draw it from a {@link com.trevlar.menukit.api.panel.SlotDecorations#under
+     * SlotDecorations.under} decoration of the hotbar slot, so it sits under the slot's
+     * item as it does on the HUD.
      *
      * <p>At rest it draws the members and leaves the held stack to the slot. During a turn
      * it draws the stacks coming into and leaving the slot too; the HUD hides the hotbar

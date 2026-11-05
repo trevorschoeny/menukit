@@ -50,8 +50,10 @@ import java.util.Map;
  *
  * <p>An {@link Axis#ARC} ring is drawn apart from those three (7.6.0): small icons in an
  * arc just above the hotbar slot itself, on every hotbar slot that has one, not only the
- * held one. During its turn the arc owns the vanilla slot's stack (the hotbar draws that
- * slot empty, see {@link #ownsHeld}) so the stacks can move between the slot and the arc.
+ * held one. It draws in vanilla's hotbar pass, on the bar and under the slots' items
+ * ({@link #renderArcs}), not with the strip's HUD panel. During its turn the arc owns the
+ * vanilla slot's stack (the hotbar draws that slot empty, see {@link #ownsHeld}) so the
+ * stacks can move between the slot and the arc.
  *
  * Slot frames stay fixed; only stacks slide. The pure parts (ring order, easing, slide
  * offsets, cell positions) are public statics so validator-mk's elementCheck can assert
@@ -352,11 +354,8 @@ public final class CycleStrip {
 
     private static boolean shouldShow() {
         Minecraft mc = Minecraft.getInstance();
-        // A spectator's hotbar is the spectator menu: no strip and no arcs beside it.
+        // A spectator's hotbar is the spectator menu: no strip beside it.
         if (mc == null || mc.player == null || mc.player.isSpectator()) return false;
-        for (int slot = 0; slot < HOTBAR_SLOTS; slot++) {
-            if (arcOn(slot) != null) return true;
-        }
         int selected = mc.player.getInventory().getSelectedSlot();
         if (selected < 0 || selected > 8) return false;
         return !active(selected).isEmpty();
@@ -367,8 +366,6 @@ public final class CycleStrip {
         if (mc == null || mc.player == null) return;
         int activeSlot = mc.player.getInventory().getSelectedSlot();
         if (activeSlot < 0 || activeSlot > 8) return;
-
-        renderArcs(graphics, mc);
 
         // One ring per axis: the first registered source of each wins.
         Active row = null, column = null;
@@ -636,8 +633,15 @@ public final class CycleStrip {
         return !ItemStack.matches(arc.view().ring().get(arc.view().current()), inSlot);
     }
 
-    /** The arcs over every hotbar slot that has one, with the held stack where the arc owns it. */
-    private static void renderArcs(GuiGraphicsExtractor graphics, Minecraft mc) {
+    /**
+     * The arcs over every hotbar slot that has one, with the held stack where the arc owns
+     * it. Drawn inside vanilla's hotbar ({@code MKHotbarArcMixin}), after its bar and
+     * selection sprites and before its items, so each slot's own stack, bob included,
+     * draws over the icons that reach into it.
+     */
+    public static void renderArcs(GuiGraphicsExtractor graphics) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return;
         int w = mc.getWindow().getGuiScaledWidth(), h = mc.getWindow().getGuiScaledHeight();
         for (int slot = 0; slot < HOTBAR_SLOTS; slot++) {
             Active arc = arcOn(slot);
