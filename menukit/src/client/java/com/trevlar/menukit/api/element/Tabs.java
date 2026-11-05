@@ -1107,7 +1107,7 @@ public final class Tabs extends AbstractPanelElement {
 
         // The header, then the strip under it. A disabled one draws as if nothing were hovered.
         RenderContext stripCtx = disabled
-                ? new RenderContext(g, ctx.originX(), ctx.originY(), -1, -1, true, ctx.kind()) : ctx;
+                ? new RenderContext(g, ctx.originX(), ctx.originY(), -1, -1, true, ctx.kind(), ctx.panelRight()) : ctx;
         ChildDispatch.render(header, childContext(stripCtx.at(sx, sy)));
         // A Default-look screen's page: the list band from the strip's bottom down (or
         // from the sidebar column's right edge across), with the footer separator

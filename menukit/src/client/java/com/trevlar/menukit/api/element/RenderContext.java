@@ -43,6 +43,14 @@ import java.util.Objects;
  * element built from other elements hands it on without knowing it is there. An
  * element draws for {@code ctx.kind()}.
  *
+ * <h3>The panel's edge (7.6.0)</h3>
+ *
+ * {@code panelRight} is where the panel's background ends on the right, in screen
+ * space: the host that renders the panel sets it, and {@link #at} and
+ * {@link #disabledIf} keep it, as they keep {@code kind}. An element that hangs
+ * something outside its panel ({@link PanelElement#outboardWidth}) places it from
+ * here. {@link #NO_PANEL} where nothing set it.
+ *
  * @param graphics  the graphics handle
  * @param originX   screen-space X of the element's containing content origin
  *                  (the panel's content area after padding). The element adds
@@ -53,6 +61,7 @@ import java.util.Objects;
  * @param disabled  whether the element's panel or container is disabled
  * @param kind      the kind of screen the element is on ({@link ScreenKind#PANEL}
  *                  on the HUD and in a context built without one)
+ * @param panelRight screen-space X of the panel's outer right edge, or {@link #NO_PANEL}
  */
 public record RenderContext(
         GuiGraphicsExtractor graphics,
@@ -61,11 +70,21 @@ public record RenderContext(
         int mouseX,
         int mouseY,
         boolean disabled,
-        ScreenKind kind
+        ScreenKind kind,
+        int panelRight
 ) {
+
+    /** {@code panelRight} in a context built without a panel. */
+    public static final int NO_PANEL = Integer.MIN_VALUE;
 
     public RenderContext {
         Objects.requireNonNull(kind, "kind");
+    }
+
+    /** A context with no panel edge: the 7.5 shape. */
+    public RenderContext(GuiGraphicsExtractor graphics, int originX, int originY, int mouseX, int mouseY,
+                         boolean disabled, ScreenKind kind) {
+        this(graphics, originX, originY, mouseX, mouseY, disabled, kind, NO_PANEL);
     }
 
     /** A context in the Panel look: the 6.0.0 shape. */
@@ -110,7 +129,7 @@ public record RenderContext(
      * what a container hands the children it positions from its own top-left.
      */
     public RenderContext at(int originX, int originY) {
-        return new RenderContext(graphics, originX, originY, mouseX, mouseY, disabled, kind);
+        return new RenderContext(graphics, originX, originY, mouseX, mouseY, disabled, kind, panelRight);
     }
 
     /**
@@ -120,16 +139,16 @@ public record RenderContext(
      */
     public RenderContext disabledIf(boolean alsoDisabled) {
         return alsoDisabled && !disabled
-                ? new RenderContext(graphics, originX, originY, mouseX, mouseY, true, kind)
+                ? new RenderContext(graphics, originX, originY, mouseX, mouseY, true, kind, panelRight)
                 : this;
     }
 
     /**
      * The input context for the same origin, mouse and flag: the bridge for a
      * render-time decision that needs an input question answered (whether an open
-     * popover sits under the mouse, say). It keeps the kind.
+     * popover sits under the mouse, say). It keeps the kind and the panel's edge.
      */
     public InputContext input() {
-        return new InputContext(originX, originY, mouseX, mouseY, disabled, kind);
+        return new InputContext(originX, originY, mouseX, mouseY, disabled, kind, panelRight);
     }
 }

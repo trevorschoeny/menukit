@@ -735,6 +735,14 @@ public final class Flow extends AbstractPanelElement {
         return ChildDispatch.hitTest(children, in);
     }
 
+    /** The widest lane a child hangs past the panel's edge (7.6.0), so a scroll area around this Flow keeps it. */
+    @Override
+    public int outboardWidth() {
+        int w = 0;
+        for (PanelElement c : children) if (c.isVisible()) w = Math.max(w, c.outboardWidth());
+        return w;
+    }
+
     @Override
     public boolean mouseClicked(InputContext in, int button) {
         relayout();

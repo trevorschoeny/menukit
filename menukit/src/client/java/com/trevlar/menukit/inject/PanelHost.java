@@ -629,7 +629,9 @@ public final class PanelHost {
      *       element inside it never lets a point through to what is behind the
      *       panel. (A panel's own slots stay live through
      *       {@link #yieldsToSlot}, which is about the claimant's own content, not
-     *       about what lies beneath.)</li>
+     *       about what lies beneath.) Past its rectangle it claims what its elements
+     *       hang outside it ({@link PanelElement#outboardWidth}, 7.6.0), by their hit
+     *       test, as a transparent panel claims its solid elements.</li>
      *   <li>A <b>transparent</b> panel claims only its solid elements: shown, opaque
      *       and interactive ones, by their hit test. A render-only decoration on a
      *       transparent panel claims nothing, so it never eats a click it does
@@ -654,7 +656,9 @@ public final class PanelHost {
         List<PanelElement> shown = shownElements(panel);
         if (ChildDispatch.overlayOwner(shown, in) != null) return true;
         if (panel.isOpaque()) {
-            return placed.contains(mouseX, mouseY);
+            if (placed.contains(mouseX, mouseY)) return true;
+            // An element hanging past the panel's edge claims only itself there (7.6.0).
+            return ChildDispatch.hitTest(shown, in);
         }
         for (PanelElement el : shown) {
             if (!el.isElementOpaque() || !el.isInteractive()) continue;
@@ -688,7 +692,7 @@ public final class PanelHost {
      */
     public InputContext input(Placed placed, double mouseX, double mouseY) {
         return new InputContext(placed.contentX(), placed.contentY(), mouseX, mouseY, placed.panel().isDisabled(),
-                screenKind);
+                screenKind, placed.x() + placed.w());
     }
 
     /** The panel's shown elements (the one isShown for elements). */
@@ -1240,7 +1244,7 @@ public final class PanelHost {
         }
         if (decoration != null) decoration.draw(graphics, p);
         RenderContext ctx = new RenderContext(graphics, p.contentX(), p.contentY(), mx, my, panel.isDisabled(),
-                screenKind);
+                screenKind, p.x() + p.w());
         if (live) liveRenderDepth++;
         PresentedSlots.beginPanel(panel);
         PackLook.SurfaceLooks surfaceBefore = PackLook.beginSurface(surfaceLooks);

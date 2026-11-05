@@ -215,6 +215,8 @@ The options share one toolbar, `list.toolbar()`, an ordinary element the mod pla
 
 For a short list where each row is its own thing to edit, such as a config list of text fields, `controlsInRows()` puts up, down and a remove cross in every row instead, after a thin divider line: inside a card, on a `Section`'s header line, or beside a bare row. No selection is needed. Add stays in the toolbar.
 
+`controlsOutside()` puts the same controls outside the panel instead. Each row keeps the list's whole width with no divider, and its up, down and remove sit a button's gap past the panel's right edge, level with the row's first line. The panel's background and claim stop at its edge, and out there each button claims only itself, so a click beside them still reaches whatever is behind the panel. Pinned rows, `confirmRemove` and `removeDisabledWhen` work as they do in the rows. In a scroll area the controls scroll with their rows and are clipped to its height. The panel doesn't make room for them: place it so the screen has `list.outboardWidth()` free on its right. The rule underneath is general: an element whose `outboardWidth()` is more than 0 draws past its panel's edge, from `RenderContext.panelRight()`, and the panel claims those points by the element's hit test.
+
 `addDisabledWhen(condition)` grays the add buttons and `removeDisabledWhen(condition)` grays the remove, the toolbar's `- Remove item` and every row's cross alike, while the condition holds, read every frame: a list at its longest or shortest. A click on a grayed one does nothing.
 
 `disabledReason(text)` shows above the rows while the list's `disabledWhen` holds.

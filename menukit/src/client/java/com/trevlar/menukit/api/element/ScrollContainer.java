@@ -684,7 +684,12 @@ public class ScrollContainer extends AbstractPanelElement {
         // child entirely outside the window is skipped, unless its popover is open
         // (the popover draws on the overlay pass from the same origin); a skipped one
         // is told it is held out of view (renderCulled), not hidden.
-        g.enableScissor(sx, sy, sx + viewportWidth(), sy + height);
+        // A child hanging past the panel's edge (7.6.0) is clipped to the viewport's
+        // height only, so its lane out there scrolls with it.
+        int clipRight = sx + viewportWidth();
+        int out = outboardWidth();
+        if (out > 0) clipRight = Math.max(clipRight, outboardRight(ctx.panelRight(), sx, out));
+        g.enableScissor(sx, sy, clipRight, sy + height);
         RenderContext inner = childRender(ctx);
         int top = (int) scroll(kind) - insetY(kind);  // the window's top, in the children's coordinates
         InputContext probe = inner.input();
@@ -742,6 +747,8 @@ public class ScrollContainer extends AbstractPanelElement {
         double lx = in.mouseX() - (in.originX() + childX);
         double ly = in.mouseY() - (in.originY() + childY);
         int trackLeft = getWidth() - TRACK_WIDTH;
+        // Past the container: a child's lane outside the panel (7.6.0), where hitTest let it in.
+        if (lx >= getWidth()) return ChildDispatch.mouseClicked(content, inner, button);
         if (lx >= viewportWidth()) {
             // The gutter and the track eat their own clicks. A left press on the
             // track holds the handle: where it was pressed, on the handle; else by its
@@ -756,6 +763,34 @@ public class ScrollContainer extends AbstractPanelElement {
             return true;
         }
         return ChildDispatch.mouseClicked(content, inner, button);
+    }
+
+    /** The widest lane a child hangs past the panel's edge: they hang past it with it. */
+    @Override
+    public int outboardWidth() {
+        int w = 0;
+        for (PanelElement e : content) if (e.isVisible()) w = Math.max(w, e.outboardWidth());
+        return w;
+    }
+
+    /** Where the children's lanes outside the panel end, screen space: from the panel's edge, or this container's right without one. */
+    private int outboardRight(int panelRight, int sx, int out) {
+        return (panelRight == RenderContext.NO_PANEL ? sx + getWidth() : panelRight) + out;
+    }
+
+    /**
+     * Its box, and past it a child's lane outside the panel (7.6.0), level with the
+     * viewport: a row scrolled out of view has no controls out there to click.
+     */
+    @Override
+    public boolean hitTest(InputContext in) {
+        if (in.isOver(this)) return true;
+        int out = outboardWidth();
+        if (out == 0) return false;
+        int sx = in.originX() + childX, sy = in.originY() + childY;
+        if (in.mouseX() < sx + getWidth() || in.mouseX() >= outboardRight(in.panelRight(), sx, out)
+                || in.mouseY() < sy || in.mouseY() >= sy + viewHeight(in.kind())) return false;
+        return ChildDispatch.hitTest(content, childInput(in));
     }
 
     /**
