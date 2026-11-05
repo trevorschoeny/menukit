@@ -662,20 +662,34 @@ public final class CycleStrip {
     /**
      * One arc around the held item centered at {@code (cx, cy)}: the stacks floating on
      * their own, each with a faint shadow of its own shape. At rest the held stack is the slot's to
-     * draw; during a turn every stack moves, the held ones included, and the one coming into
-     * the hand draws last. Moving stacks draw without their count: at this size it can't be read.
+     * draw; during a turn every stack moves, the held ones included. The leaving stack (the one
+     * that was held, now headed for a member point) was on top at rest a moment ago, so drawing
+     * it under the members it's crossing would pop it visibly behind them the instant the turn
+     * starts; drawing it over them instead, with the entering stack (headed for the hand) last
+     * on top of that, keeps both continuous through the turn. Moving stacks draw without their
+     * count: at this size it can't be read.
      */
     public static void renderArc(GuiGraphicsExtractor graphics, Source source, View view, int hotbarSlot,
                                  float cx, float cy) {
         List<HudCycleStrip.ArcItem> items = arcItems(source, view, hotbarSlot);
         if (items.isEmpty()) return;
-        boolean turning = arcTurn(source, hotbarSlot) != null;
-        for (int j = items.size() - 1; j >= 0; j--) {
-            if (j == 0 && !turning) continue;
-            HudCycleStrip.ArcItem item = items.get(j);
-            renderArcItem(graphics, source.style(), item.stack(), cx + item.pose().offsetX(), cy + item.pose().offsetY(),
-                    item.pose().scale());
+        Slide turn = arcTurn(source, hotbarSlot);
+        int n = items.size();
+        // The leaving stack is whichever position animates away from the held pose: the one
+        // step(s) back from the held slot in the turn's direction (arcPoses' "from" index).
+        int leaving = turn == null ? -1 : Math.floorMod(-(turn.direction() == Direction.FORWARD ? 1 : -1), n);
+        for (int j = n - 1; j >= 1; j--) {
+            if (j == leaving) continue;
+            drawArcItem(graphics, source.style(), items.get(j), cx, cy);
         }
+        if (leaving >= 0) drawArcItem(graphics, source.style(), items.get(leaving), cx, cy);
+        if (turn != null) drawArcItem(graphics, source.style(), items.get(0), cx, cy);
+    }
+
+    private static void drawArcItem(GuiGraphicsExtractor graphics, Style style, HudCycleStrip.ArcItem item,
+                                    float cx, float cy) {
+        renderArcItem(graphics, style, item.stack(), cx + item.pose().offsetX(), cy + item.pose().offsetY(),
+                item.pose().scale());
     }
 
     /**
