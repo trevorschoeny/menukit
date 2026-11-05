@@ -10,7 +10,9 @@ package com.trevlar.menukit.api.panel;
  * slots it presents with their items. The alpha takes the fills, sprites and text; items
  * (a slot's stack, an {@code Icon} of an item) still draw opaque, since vanilla draws an
  * item with no color of its own to fade. Hide them meanwhile with a
- * {@link SlotItemLooks} look if they would show.
+ * {@link SlotItemLooks} look if they would show: {@code ItemAnimation.HIDDEN} hides a slot's
+ * count and durability bar along with its item. At alpha 0 the panel draws nothing but is
+ * still laid out, so its slots stay its own and nothing of them shows.
  *
  * <p>While a transform isn't {@link #IDENTITY} the panel takes no input: it claims no
  * point, its elements see no hover, click, wheel or key, and its slots are never hovered

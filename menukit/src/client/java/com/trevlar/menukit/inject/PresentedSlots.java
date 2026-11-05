@@ -174,6 +174,11 @@ public final class PresentedSlots {
         recording = on;
     }
 
+    /** Whether this is the place pass: panels lay out into a scratch state, nothing is shown. */
+    static boolean recording() {
+        return recording;
+    }
+
     /** The host starts laying out or drawing {@code panel}'s elements. */
     public static void beginPanel(Panel panel) {
         current = panel;
