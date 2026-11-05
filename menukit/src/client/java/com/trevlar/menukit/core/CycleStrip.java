@@ -13,7 +13,6 @@ import com.trevlar.menukit.api.hud.HudPanel;
 import com.trevlar.menukit.api.panel.InsideRegion;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
@@ -51,9 +50,8 @@ import java.util.Map;
  *
  * <p>An {@link Axis#ARC} ring is drawn apart from those three (7.6.0): small icons in an
  * arc just above the hotbar slot itself, on every hotbar slot that has one, not only the
- * held one. The arc owns the vanilla slot's stack (the hotbar draws that slot empty, see
- * {@link #ownsHeld}): during a turn so the stacks can move between the slot and the arc,
- * and at rest so the held stack draws over the arc's icons, which reach into the slot.
+ * held one. During its turn the arc owns the vanilla slot's stack (the hotbar draws that
+ * slot empty, see {@link #ownsHeld}) so the stacks can move between the slot and the arc.
  *
  * Slot frames stay fixed; only stacks slide. The pure parts (ring order, easing, slide
  * offsets, cell positions) are public statics so validator-mk's elementCheck can assert
@@ -626,43 +624,51 @@ public final class CycleStrip {
     }
 
     /**
-     * Whether an arc stands on {@code hotbarSlot}, and so draws the slot's stack itself: the
-     * vanilla hotbar draws that slot empty. At rest the arc draws the held stack over its
-     * icons, as vanilla would draw it; during a turn it moves it. Asked by the hotbar for
-     * each slot as it draws.
+     * Whether the arc on {@code hotbarSlot} draws the slot's stack itself, so the vanilla
+     * hotbar draws that slot empty: during a turn, and while the source's view holds a
+     * stack other than {@code inSlot} (a turn it predicted that the server has not yet
+     * confirmed). Asked by the hotbar for each slot as it draws.
      */
-    public static boolean ownsHeld(int hotbarSlot) {
-        return arcOn(hotbarSlot) != null;
+    public static boolean ownsHeld(int hotbarSlot, ItemStack inSlot) {
+        Active arc = arcOn(hotbarSlot);
+        if (arc == null) return false;
+        if (arcTurn(arc.source(), hotbarSlot) != null) return true;
+        return !ItemStack.matches(arc.view().ring().get(arc.view().current()), inSlot);
     }
 
-    /** The arcs over every hotbar slot that has one. */
+    /** The arcs over every hotbar slot that has one, with the held stack where the arc owns it. */
     private static void renderArcs(GuiGraphicsExtractor graphics, Minecraft mc) {
         int w = mc.getWindow().getGuiScaledWidth(), h = mc.getWindow().getGuiScaledHeight();
         for (int slot = 0; slot < HOTBAR_SLOTS; slot++) {
             Active arc = arcOn(slot);
-            if (arc != null) renderArc(graphics, mc.font, arc.source(), arc.view(), slot, hotbarItemCenterX(w, slot), hotbarItemCenterY(h));
+            if (arc == null) continue;
+            int cx = hotbarItemCenterX(w, slot), cy = hotbarItemCenterY(h);
+            renderArc(graphics, arc.source(), arc.view(), slot, cx, cy);
+            // At rest but owning the slot: a predicted turn the server hasn't confirmed.
+            // The hotbar drew the slot empty, so the predicted held stack goes there, as
+            // vanilla would draw it.
+            ItemStack held = arc.view().ring().get(arc.view().current());
+            if (arcTurn(arc.source(), slot) == null && ownsHeld(slot, mc.player.getInventory().getItem(slot))) {
+                graphics.item(held, cx - 8, cy - 8);
+                graphics.itemDecorations(mc.font, held, cx - 8, cy - 8);
+            }
         }
     }
 
     /**
      * One arc around the held item centered at {@code (cx, cy)}: the stacks floating on
-     * their own, each with a faint shadow of its own shape. The held stack draws last, over
-     * the icons: at rest at its full size with its count and durability, as a slot draws it
-     * (the view's stack, so a turn predicted ahead of the server shows already); during a
-     * turn every stack moves, the held ones included, and the one coming into the hand draws
-     * last. Moving stacks draw without their count: at this size it can't be read.
+     * their own, each with a faint shadow of its own shape. At rest the held stack is the slot's to
+     * draw; during a turn every stack moves, the held ones included, and the one coming into
+     * the hand draws last. Moving stacks draw without their count: at this size it can't be read.
      */
-    public static void renderArc(GuiGraphicsExtractor graphics, Font font, Source source, View view, int hotbarSlot,
+    public static void renderArc(GuiGraphicsExtractor graphics, Source source, View view, int hotbarSlot,
                                  float cx, float cy) {
         List<HudCycleStrip.ArcItem> items = arcItems(source, view, hotbarSlot);
         if (items.isEmpty()) return;
         boolean turning = arcTurn(source, hotbarSlot) != null;
         for (int j = items.size() - 1; j >= 0; j--) {
+            if (j == 0 && !turning) continue;
             HudCycleStrip.ArcItem item = items.get(j);
-            if (j == 0 && !turning) {
-                drawSlotStack(graphics, font, item.stack(), cx, cy);
-                continue;
-            }
             renderArcItem(graphics, source.style(), item.stack(), cx + item.pose().offsetX(), cy + item.pose().offsetY(),
                     item.pose().scale());
         }
@@ -694,19 +700,6 @@ public final class CycleStrip {
     public static float shadowStrength(Style style, float scale) {
         if (!style.shadowFades() || scale <= style.iconScale()) return 1f;
         return Math.clamp((1f - scale) / (1f - style.iconScale()), 0f, 1f);
-    }
-
-    /** {@code stack} as a slot draws it, its 16 px box centered at {@code (cx, cy)}: item, count and durability. */
-    private static void drawSlotStack(GuiGraphicsExtractor graphics, Font font, ItemStack stack, float cx, float cy) {
-        if (stack.isEmpty()) return;
-        graphics.pose().pushMatrix();
-        try {
-            graphics.pose().translate(cx, cy);
-            graphics.item(stack, -8, -8);
-            graphics.itemDecorations(font, stack, -8, -8);
-        } finally {
-            graphics.pose().popMatrix();
-        }
     }
 
     private static void drawScaledItem(GuiGraphicsExtractor graphics, ItemStack stack, float cx, float cy, float scale) {

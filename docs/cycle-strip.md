@@ -97,7 +97,7 @@ final class PocketArc implements HudCycleStrip.Source {
 }
 ```
 
-A turn moves every stack in a straight line to the next point: arc to arc, arc to the slot, the slot to arc. Each one grows or shrinks between arc size and full size on the way, its shadow fading as it grows, on the source's slide, 300 ms on a spring by default. Where an arc stands, the arc draws the slot's stack and the hotbar draws that slot empty. At rest the held stack draws last, at full size with its count and durability, so it sits over the icons that reach into the slot. It is your source's held stack, so a turn you predicted shows before the server confirms it.
+A turn moves every stack in a straight line to the next point: arc to arc, arc to the slot, the slot to arc. Each one grows or shrinks between arc size and full size on the way, its shadow fading as it grows, on the source's slide, 300 ms on a spring by default. While a turn runs, and while your source returns a held stack the slot doesn't have yet (a turn it predicted), the arc draws the slot's stack and the hotbar draws that slot empty.
 
 A screen draws the same arc over a hotbar slot's place on it, turn included, from a panel's custom element. Pass the center of that slot's 16 pixel item:
 
@@ -105,7 +105,7 @@ A screen draws the same arc over a hotbar slot's place on it, turn included, fro
 HudCycleStrip.drawArc(graphics, arcSource, hotbarSlot, slotX + 8, slotY + 8);
 ```
 
-On a screen the slot keeps drawing its own stack, and the arc draws the held one again over its icons, which looks the same. The arc is for looking only and takes no input.
+On a screen the slot keeps drawing its own stack. The arc is for looking only and takes no input.
 
 To move an arc's stacks somewhere yourself, `HudCycleStrip.arc(source, hotbarSlot)` lists them as they draw this frame, the held one first, each with an `ItemAnimation.Pose` relative to the held item's center. `style.points(members)` gives the resting points alone. Draw a stack anywhere at any size, with its shadow, with `drawArcItem(graphics, style, stack, x, y, scale)`, and time your own move with `slideProgress(start, style)`, passing your source's style so the move keeps the arc's timing.
 
