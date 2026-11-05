@@ -711,6 +711,31 @@ public final class CycleStrip {
     }
 
     /**
+     * {@code stack} centered at {@code (cx, cy)} at {@code scale}, like {@link
+     * #renderArcItem(GuiGraphicsExtractor, Style, ItemStack, float, float, float)}, plus its
+     * count, durability bar and cooldown scaled and centered with it, at {@code decorationsAlpha}
+     * ({@link DrawAlpha}): 0 draws none, 1 as a slot draws them.
+     */
+    public static void renderArcItem(GuiGraphicsExtractor graphics, Style style, ItemStack stack,
+                                     float cx, float cy, float scale, float decorationsAlpha) {
+        renderArcItem(graphics, style, stack, cx, cy, scale);
+        if (stack.isEmpty() || decorationsAlpha <= 0f) return;
+        float before = DrawAlpha.push(decorationsAlpha);
+        try {
+            graphics.pose().pushMatrix();
+            try {
+                graphics.pose().translate(cx, cy);
+                graphics.pose().scale(scale, scale);
+                graphics.itemDecorations(Minecraft.getInstance().font, stack, -8, -8);
+            } finally {
+                graphics.pose().popMatrix();
+            }
+        } finally {
+            DrawAlpha.pop(before);
+        }
+    }
+
+    /**
      * How strong an icon's shadow is at {@code scale} in {@code style}: 1 at its icon scale
      * and below; when the style fades it, falling to 0 at the slot's size (vanilla's slot
      * draws none there), else 1 throughout.

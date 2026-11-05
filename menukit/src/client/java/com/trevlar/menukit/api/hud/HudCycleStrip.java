@@ -458,6 +458,20 @@ public final class HudCycleStrip {
     }
 
     /**
+     * {@link #drawArcItem(GuiGraphicsExtractor, Style, ItemStack, float, float, float)}, plus
+     * {@code stack}'s count, durability bar and cooldown, scaled and centered with it, at
+     * {@code decorationsAlpha} (7.6.0): 0 draws none, 1 as a slot draws them, in between fades
+     * continuously (no threshold). For a copy flown from the arc into a row of slots: pass the
+     * flight's progress so the count fades in on the way in and out on the way back, while the
+     * slot's own stack stays {@link com.trevlar.menukit.api.element.ItemAnimation#HIDDEN} until
+     * it lands.
+     */
+    public static void drawArcItem(GuiGraphicsExtractor graphics, Style style, ItemStack stack,
+                                   float centerX, float centerY, float scale, float decorationsAlpha) {
+        CycleStrip.renderArcItem(graphics, style, stack, centerX, centerY, scale, decorationsAlpha);
+    }
+
+    /**
      * A slide's start, from {@link #begin}. For a mod that draws its own slide (in the
      * vanilla hotbar, say) and wants it to move with the strip: hold one (a field is
      * fine) and pass it to {@link #slideProgress(SlideStart)} / {@link #slideDone(SlideStart)}.
