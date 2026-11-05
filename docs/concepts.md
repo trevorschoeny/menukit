@@ -416,6 +416,12 @@ A background panel, `Panel.builder(id).background()` (7.4.0), is the other end: 
 
 A popover, `Panel.builder(id).popover()`, is a panel that pops up over the screen. It draws above every ordinary panel of every host, whichever registered first, and below a modal and its dim. Its placements are still its own. On a container screen, popovers draw after the ordinary panels and before the slots a slot library adds to panels (SlotKit's created slots), so a popover's own slots draw on it. Another panel's created slot under a popover still draws over it.
 
+## Outside the panel
+
+`Floating.at(() -> new ScreenOrigin(x, y), element)` (7.6.0) puts one element of a panel at a screen point of its own, read every frame, such as a dialog's Save button beside the screen's hotbar. It belongs to its panel: it shows, hides and grays with it, draws in the panel's layer (so a modal's floats above the dim), and takes input as the panel's own, with a modal up too. It takes no room in the panel's layout, so the panel's size and background leave it out. Keep it among the panel's top-level elements, since inside a scroll area it would scroll and clip with the content.
+
+A panel that dims behind it can leave parts of the screen lit: `panel.litWhileDimmed(() -> List.of(rect))` takes screen-space `ScreenRectangle`s, read every frame, and the dim covers the rest of the screen. The hotbar row a dialog saves from shows at full brightness, but it is still as inert as everything else under a modal. Only the look changes.
+
 ## Claims
 
 What a panel covers is inert. A point on the screen is claimed by the topmost panel that takes it. Topmost follows the draw order above (OVERLAY, then POPOVER, then FLOW), so what is drawn on top takes the point:
@@ -424,6 +430,7 @@ What a panel covers is inert. A point on the screen is claimed by the topmost pa
 - A see-through panel, `opaque(false)`, takes only its solid elements, meaning the shown, opaque and interactive ones, such as a button. A label on it takes nothing.
 - An element's open overlay, such as a `Dropdown`'s list, takes its area whatever its panel's opacity.
 - A shown modal (`tracksAsModal`) takes every point on its screen.
+- An element can hang outside its panel (7.6.0), such as a list's `controlsOutside()` or a `Floating` element. An opaque panel takes those points too, but only where the element's own hit test does, so a point beside it goes to whatever is behind. Under a modal they are the modal's own points, live where the rest of the screen is inert.
 - A background panel (7.4.0) takes no point at all, opaque or not. It is drawn under everything on the screen, so nothing on the screen is behind it: whatever lies over it, another mod's widget included, is drawn on top and keeps the point, which is this same rule. Its own elements get input last: a click once the screen's widgets (every mod's) and every panel above have declined it, never on a slot it shows (that is vanilla's to click), and the wheel once the screen and every other handler have. Only its own slots are cut, at the edges of the clip they are shown under.
 
 Under a claim, vanilla gets nothing. There is no slot highlight, click or tooltip, no widget or list hover, and no creative tab. The claim routes the point to the claiming panel instead. A panel's own slots stay live under its own claim (a created slot it presents, or a standalone screen's own slot group). A standalone screen's own widgets stay live under its own panels too. Every surface runs the same check, so an anchored panel and a standalone screen's panels block what they cover exactly as an adapter's panel does.

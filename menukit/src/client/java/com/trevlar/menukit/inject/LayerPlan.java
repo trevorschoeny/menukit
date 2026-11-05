@@ -4,6 +4,7 @@ import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.core.OverlayDraws;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 
 import org.jetbrains.annotations.ApiStatus;
 
@@ -162,16 +163,58 @@ public final class LayerPlan {
         dimAndOverlay(hosts, graphics, mouseX, mouseY, screenW, screenH, pointer);
     }
 
+    /** The dim over the whole screen but the lit rectangles ({@link Panel#litWhileDimmed}, 7.6.0). */
+    static void dimAround(GuiGraphicsExtractor graphics, int screenW, int screenH, List<ScreenRectangle> lit) {
+        for (ScreenRectangle r : dimRects(screenW, screenH, lit)) {
+            graphics.fill(r.left(), r.top(), r.right(), r.bottom(), DIM_COLOR);
+        }
+    }
+
+    /**
+     * Where the dim goes: the screen less the lit rectangles. Band by band between their
+     * top and bottom edges, it covers each band where no rectangle crosses it, so nothing
+     * is dimmed twice and the holes are exact. The whole screen when nothing is lit.
+     */
+    public static List<ScreenRectangle> dimRects(int screenW, int screenH, List<ScreenRectangle> lit) {
+        List<ScreenRectangle> out = new ArrayList<>();
+        java.util.TreeSet<Integer> ys = new java.util.TreeSet<>(List.of(0, screenH));
+        for (ScreenRectangle r : lit) {
+            ys.add(Math.clamp(r.top(), 0, screenH));
+            ys.add(Math.clamp(r.bottom(), 0, screenH));
+        }
+        Integer top = null;
+        for (int y : ys) {
+            if (top != null && y > top) {
+                // This band's lit spans, left to right; the dim fills between them.
+                int bandTop = top;
+                List<ScreenRectangle> across = new ArrayList<>();
+                for (ScreenRectangle r : lit) if (r.top() <= bandTop && r.bottom() > bandTop) across.add(r);
+                across.sort(java.util.Comparator.comparingInt(ScreenRectangle::left));
+                int x = 0;
+                for (ScreenRectangle r : across) {
+                    int left = Math.min(r.left(), screenW);
+                    if (left > x) out.add(new ScreenRectangle(x, top, left - x, y - top));
+                    x = Math.max(x, r.right());
+                }
+                if (x < screenW) out.add(new ScreenRectangle(x, top, screenW - x, y - top));
+            }
+            top = y;
+        }
+        return out;
+    }
+
     /** The upper half of the plan: the dim (when any host needs it), then OVERLAY. */
     public static void dimAndOverlay(List<PanelHost> hosts, GuiGraphicsExtractor graphics,
                                      int mouseX, int mouseY, int screenW, int screenH,
                                      PanelHost.PointerPolicy pointer) {
+        boolean dim = false;
+        List<ScreenRectangle> lit = new ArrayList<>();
         for (PanelHost host : hosts) {
-            if (host.anyShown(Panel::dimsBehind)) {
-                graphics.fill(0, 0, screenW, screenH, DIM_COLOR);
-                break;
-            }
+            if (!host.anyShown(Panel::dimsBehind)) continue;
+            dim = true;
+            for (PanelHost.Placed p : host.placed()) lit.addAll(p.panel().litRects());
         }
+        if (dim) dimAround(graphics, screenW, screenH, lit);
         render(hosts, Layer.OVERLAY, graphics, mouseX, mouseY, pointer);
         // Last: what the panels handed to the top of the frame (an overflowing
         // widget's open popup), above the dialogs.

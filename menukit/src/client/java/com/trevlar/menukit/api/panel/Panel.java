@@ -11,6 +11,7 @@ import com.trevlar.menukit.inject.PanelHost;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -208,6 +209,10 @@ public class Panel {
     // combinations (popovers, click blockers and so on).
     private boolean opaque = true;
     private boolean dimsBehind = false;
+
+    // Rectangles of the screen the dim leaves lit while this panel dims (7.6.0), read
+    // every frame; null for none.
+    private @Nullable Supplier<List<ScreenRectangle>> litWhileDimmed;
     private boolean tracksAsModal = false;
 
     // Popover layer (6.1.0), declared once on the builder (Builder.popover()). A
@@ -1372,6 +1377,27 @@ public class Panel {
     /** Whether this panel dims the screen behind it. See {@link #dimsBehind(boolean)}. */
     public boolean dimsBehind() {
         return dimsBehind;
+    }
+
+    /**
+     * Parts of the screen the dim leaves lit while this panel dims behind it (7.6.0),
+     * screen-space rectangles read every frame: the hotbar row a dialog saves from,
+     * say, so the player sees it at full brightness. Only the look changes: what is
+     * there stays as inert as the rest of the screen under a modal. Nothing while the
+     * panel doesn't {@link #dimsBehind(boolean) dim}.
+     *
+     * @return this panel, for chaining
+     */
+    public Panel litWhileDimmed(@Nullable Supplier<List<ScreenRectangle>> rects) {
+        this.litWhileDimmed = rects;
+        return this;
+    }
+
+    /** What the dim leaves lit this frame ({@link #litWhileDimmed}): empty for none. */
+    public List<ScreenRectangle> litRects() {
+        if (!dimsBehind || litWhileDimmed == null) return List.of();
+        List<ScreenRectangle> rects = litWhileDimmed.get();
+        return rects == null ? List.of() : rects;
     }
 
     /**
