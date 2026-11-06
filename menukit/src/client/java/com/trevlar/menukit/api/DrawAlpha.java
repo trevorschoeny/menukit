@@ -1,19 +1,19 @@
-package com.trevlar.menukit.core;
+package com.trevlar.menukit.api;
 
 import net.minecraft.util.ARGB;
 
-import org.jetbrains.annotations.ApiStatus;
-
 /**
- * An opacity every GUI draw takes while it is set (7.6.0): what fades a panel under a
- * {@link com.trevlar.menukit.api.panel.PanelTransform}. Vanilla's GUI draws have no alpha of
- * their own, so {@code MKDrawAlphaMixin} multiplies it into the color of each fill, sprite,
- * tiled sprite and text as it is recorded. Items have no color to multiply and stay opaque.
+ * An opacity every GUI draw takes while it is set (public since 8.0.0; introduced 7.6.0 for
+ * {@link com.trevlar.menukit.api.panel.PanelTransform}'s panel fade). Vanilla's GUI draws have
+ * no alpha of their own, so {@code MKDrawAlphaMixin} multiplies it into the color of each fill,
+ * sprite, tiled sprite and text as it is recorded while {@link #push} is in effect. Items have
+ * no color to multiply and stay opaque; a mod fading a decoration drawn beside an item copy
+ * (a count, a durability bar, an {@link ItemOutline#silhouettes} outline) gets the fade by
+ * wrapping that draw in {@link #push}/{@link #pop} — the item itself stays opaque either way.
  *
  * <p>Nests: {@link #push} multiplies into what is set and returns it for {@link #pop}.
  * Render thread only.
  */
-@ApiStatus.Internal
 public final class DrawAlpha {
 
     private DrawAlpha() {}

@@ -1,6 +1,6 @@
 package com.trevlar.menukit.api.element;
 
-import com.trevlar.menukit.core.ItemOutline;
+import com.trevlar.menukit.api.ItemOutline;
 import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.api.panel.PanelStyle;

@@ -1,6 +1,6 @@
 package com.trevlar.menukit.mixin;
 
-import com.trevlar.menukit.core.DrawAlpha;
+import com.trevlar.menukit.api.DrawAlpha;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 

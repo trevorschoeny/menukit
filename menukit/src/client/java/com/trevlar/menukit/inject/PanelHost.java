@@ -13,7 +13,7 @@ import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.panel.PanelPosition;
 import com.trevlar.menukit.api.panel.PanelTransform;
 import com.trevlar.menukit.api.panel.Placement;
-import com.trevlar.menukit.core.DrawAlpha;
+import com.trevlar.menukit.api.DrawAlpha;
 import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.api.panel.PanelStyle;
