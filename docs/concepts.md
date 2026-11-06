@@ -88,6 +88,14 @@ Some state is the element's own view state, not the consumer's. Examples are whe
 
 New in 7.6.0. `Panel.transform(supplier)` draws a panel scaled about a screen point and faded, without moving its layout. The supplier returns a `PanelTransform(scale, pivotX, pivotY, alpha)` every frame, so a mod can grow a panel out of a point and fade it in, or shrink and fade it away. The scale takes everything the panel draws: its background, its elements and the slots it shows, items included. The alpha takes fills, sprites and text. Items have no color of their own to fade, so they stay opaque; hide them during the animation with a slot item look if they would show (`ItemAnimation.HIDDEN` hides a slot's count and durability bar with its item). At alpha 0 the panel draws nothing but is still laid out, so its slots stay its own and none of them shows. While the transform isn't `PanelTransform.IDENTITY` the panel takes no input. It claims no point, its elements see no hover, click, wheel or key, and its slots are never hovered or clicked. Give several panels the same supplier, a backing box and the slot panels over it for example, and they grow and fade as one.
 
+## Item copies
+
+New public API in 8.0.0, for a mod drawing its own copy of an item (one flying into a slot, a ring of stacks). `DrawAlpha.push(alpha)` fades every fill, sprite and text drawn until `DrawAlpha.pop(before)`, which takes what `push` returned; pushes nest by multiplying. It is what `Panel.transform` fades with, so a count or durability bar drawn beside a copy can fade with it. Items have no color to fade and stay opaque. `ItemOutline.silhouettes(argb, draws)` draws every item recorded inside `draws` as a flat silhouette in that color, the outline `SlotRendering.drawItemOutline` draws. Both are render-thread only.
+
+## Backdrop
+
+`MK.drawBackdrop(screen, graphics, partialTick)` (7.6.0) draws a screen that isn't open as it would look open: its background, widgets, slots and items, and every MenuKit panel on it. Nothing on it is hovered and it takes no input. Call it from the open screen's `extractBackground` with the screen it was opened from, then draw over it, a dim for example. A container screen keeps its MenuKit layout while a screen that isn't a container screen is over it, so it draws as the player left it; going back to it picks up as after a resize.
+
 ## Looks
 
 There are two looks, the Panel look and the Default look, and every element draws in the look of the screen it is on (since 6.1.0). There is one set of elements, and nothing else picks a look. Before 7.3.0 the two were `ScreenKind.CONTAINER` and `ScreenKind.OPTIONS`; those names still work, deprecated, until 8.0.0.
@@ -385,7 +393,7 @@ Panel tabs = Panel.builder("mymod:tab_strip")
         .build();
 ```
 
-`HudPanel.Builder.fixed()` does the same for a HUD panel, and `Contribution.Builder.fixed()` for a shared panel, where the winning declaration decides. `Panel.isFixed()` reads it back. Some panels are never movable, `fixed()` or not: background panels (the container region's two included), overlays (centered, dimming or modal, which every MenuKit dialog is), popovers, and a standalone screen's `main()` panel. The cycle strip is fixed, since it draws from the window's size rather than from where it is placed.
+`HudPanel.Builder.fixed()` does the same for a HUD panel, and `Contribution.Builder.fixed()` for a shared panel, where the winning declaration decides. `Panel.isFixed()` reads it back. Some panels are never movable, `fixed()` or not: background panels (the container region's two included), overlays (centered, dimming or modal, which every MenuKit dialog is), popovers, and a standalone screen's `main()` panel.
 
 A player's position is stored under the panel's id, and a shared panel's under its shared id, so moving it moves every mod's part together. Ids key across every mod the player has, so namespace them: `mymod:elytra`, not `elytra`. Two panels with one id share one position.
 
@@ -500,7 +508,7 @@ A slot in a `ScrollContainer` (SlotKit's `SlotElement`) scrolls and clips like a
 
 - **The animation is the mod's pick.** An `ItemAnimation` draws an item at `t`. `ItemAnimation.OPEN_LID` opens a box's lid: the openness vanilla's own shulker box and chest item renderers take, so a shulker box's lid lifts and twists and a chest's, an ender chest's or a copper chest's swings up, in the resource pack's model and texture. A mod writes its own as a lambda: another stack, a sprite, the item with something over it.
 - **The transform is the mod's too.** `animation.posed(t -> new ItemAnimation.Pose(scale, offsetX, offsetY))` scales the item about its box's center and moves it, at each point. An open lid stands past the 16 pixel box and draws there, so a mod that wants it inside the slot shrinks the item as it opens.
-- **Timing is a `Transition`.** `Transition.of(millis, easing)` keeps, per key the mod names, which way a change is going: `toward(key, true)` plays toward 1 and holds there, `toward(key, false)` plays back toward 0, and turning mid-way goes on from where it got to. Back is the same curve run backwards, as vanilla closes a chest's lid, so an ease-out starts back slowly; `Transition.eachWay(millis, easing)` eases each way toward the end it goes to instead, so a slide moves from its first frame either way. It reads vanilla's clock, so it runs whatever draws in between. Key it by something that outlives the screen (the container, not the `Slot`), and a screen opened in place of another picks a finished animation up where it stood. `Easing` has `LINEAR`, `EASE_OUT`, `EASE_IN_OUT`, `EASE_OUT_BACK` and `SPRING` (a damped spring with a small rebound, the cycle strip's), and any function of `t` is one.
+- **Timing is a `Transition`.** `Transition.of(millis, easing)` keeps, per key the mod names, which way a change is going: `toward(key, true)` plays toward 1 and holds there, `toward(key, false)` plays back toward 0, and turning mid-way goes on from where it got to. Back is the same curve run backwards, as vanilla closes a chest's lid, so an ease-out starts back slowly; `Transition.eachWay(millis, easing)` eases each way toward the end it goes to instead, so a slide moves from its first frame either way. It reads vanilla's clock, so it runs whatever draws in between. Key it by something that outlives the screen (the container, not the `Slot`), and a screen opened in place of another picks a finished animation up where it stood. `Easing` has `LINEAR`, `EASE_OUT`, `EASE_IN_OUT`, `EASE_OUT_BACK` and `SPRING` (a damped spring with a small rebound), and any function of `t` is one.
 - **Another stack in the slot's place** (7.5.0). `animation.swapped(stack -> other)` draws `other` where the slot's stack would go, so a look can show an open bundle's model, animated or not: `ItemAnimation.AS_IS.swapped(...)` draws the swapped stack as it is. The count and durability bar stay the slot's own stack's.
 - **Nothing at all** (7.6.0). `ItemAnimation.HIDDEN.at(1)` hides the item and its count, durability bar and cooldown, for an item shown somewhere else meanwhile, such as a copy flying into the slot. Return `null` once it lands and the slot shows its stack whole. Slot decorations still draw. Only `HIDDEN` itself hides the count: an animation built from it (`HIDDEN.posed(...)`) draws no item but leaves the count drawn.
 
@@ -512,6 +520,17 @@ A slot in a `ScrollContainer` (SlotKit's `SlotElement`) scrolls and clips like a
 - **They stack.** Unlike looks, every decoration draws, each layer in id order, so two mods' marks on one slot both show. Pick a corner another mod is unlikely to use.
 - **Tooltips.** A decoration may answer a tooltip for where the mouse is on the slot, counted from the item box's top left (-1 to 16 across the slot's frame), so a padlock's tooltip shows only over the padlock. Decorations are asked in id order, under ones first, and the first answer shows in place of the item's own tooltip.
 - A decoration that throws is logged once and skipped from then on. Decorations are declarations and freeze with the rest.
+
+## Hotbar decorations
+
+`HotbarDecorations.under(id, decoration)` and `HotbarDecorations.hideItem(id, rule)` are the HUD hotbar's counterpart of slot decorations (8.0.0), so no mod mixes into vanilla's hotbar. The hotbar draws its bar and selection sprites, then every **under** decoration for all nine slots, then the nine items with their counts and durability bars. Because every slot's decorations draw before any item, a decoration that reaches past its slot (icons in an arc above it, a stack moving into it) is still covered by each slot's own item.
+
+- **Every slot, every frame** the hotbar draws, empty or not, but not while the spectator menu takes the hotbar's place. A decoration gets the hotbar slot (0 to 8), its stack and the top left of its item box.
+- **They all draw,** in id order, so two mods' decorations on one slot both show.
+- **`hideItem`** leaves a slot's item, count and bar out while a rule says so, for a stack a mod is drawing somewhere else meanwhile. Any rule hiding it hides it. The decoration still gets the slot's own stack, so it can draw that stack where it is going.
+- A decoration or rule that throws is logged once and skipped from then on. They are declarations and freeze with the rest.
+
+On a container screen, draw on the hotbar's slots with `SlotDecorations`. Beside the hotbar rather than on it, claim room with a HUD panel in a side region.
 
 ## Container region
 

@@ -40,7 +40,7 @@ These are MenuKit's own sprites, under `assets/menukit/textures/gui/sprites/`. T
 | Sprite | What it draws | What it follows when a pack doesn't override it |
 |---|---|---|
 | `menukit:panel_raised` | A Panel-look `RAISED` panel: panels on container screens and Panel-look screens, dialogs, the container region's two panels, HUD panels | The pack's container art: the chest's for a plain panel, each section's own texture in the container list, the inventory half of the screen's texture for the inventory panel. HUD panels follow nothing but this sprite. |
-| `menukit:control_raised` | A raised control at rest: `Button`, `Toggle`, `Dropdown`, `DropdownMulti` and `MenuButton` (trigger and list), `ColorField`'s swatch, the item dialog's controls. Also `InfoBox` | `minecraft:widget/button`. `InfoBox` follows only this sprite. |
+| `menukit:control_raised` | A raised control at rest: `Button`, `Toggle`, `Dropdown`, `DropdownMulti` and `MenuButton` (trigger and list), `ColorField`'s swatch, the item dialog's controls | `minecraft:widget/button`. |
 | `menukit:control_raised_highlighted` | The same control hovered or focused | `minecraft:widget/button_highlighted` |
 | `menukit:control_raised_pressed` | The same control held down, or a toggle that is on | Nothing. Vanilla's set has no pressed sprite, so its press is derived. |
 | `menukit:control_raised_disabled` | The same control disabled | `minecraft:widget/button_disabled` |

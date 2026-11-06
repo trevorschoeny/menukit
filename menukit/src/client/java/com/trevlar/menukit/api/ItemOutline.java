@@ -12,7 +12,7 @@ import java.util.WeakHashMap;
  * Marks an item drawn through {@link #silhouettes} to render as a flat-colored outline
  * instead of its texture (public since 8.0.0): the bookkeeping behind
  * {@link SlotRendering#drawItemOutline}, open to any mod drawing its own item copy
- * (a flying arc, a cycle strip) that wants the same outline.
+ * (a flying arc, a ring of stacks) that wants the same outline.
  *
  * <h3>Why two steps</h3>
  *
