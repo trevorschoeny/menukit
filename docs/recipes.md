@@ -510,7 +510,7 @@ ItemPicker reserve = ItemPicker.builder()
         .label(Component.literal("Reserve slot"))
         .rule(config::draft, config::setDraft)
         .name().enchantments().components()
-        .count(1, ItemStack::getMaxStackSize).fullStack()
+        .count()
         .onDone(config::apply)
         .build();
 reserve.open(screen);
@@ -519,7 +519,7 @@ reserve.open(screen);
 boolean locked = config.locks().stream().anyMatch(rule -> rule.matches(stack));
 ```
 
-Result: one slot with the item, and two rows of slots, each with an empty slot marked with a plus at the end. Clicking a slot opens a dialog over the screen: the setting's slots at the top, the selected one framed by the hotbar's selection, then a search box over every item and variant. Click a slot in the row to select it, then click an item in the grid to put it there. The small minus in a filled slot's corner, or a right click, removes it, on the page and in the dialog. The locks have advanced settings, shown in a column beside the grid while "Show advanced settings" is ticked, for the selected slot: a name, a dropdown of the enchantments that fit the item with a level for each (blank for any level), and the other components in `/give` syntax. The item always counts; each field filled in narrows the match and a blank one is not checked, so a lock on a diamond sword with nothing filled in holds every diamond sword, worn or not. The reserve popup opens with no picker on the page, and adds a count slider up to the item's stack size with a Full stack box beside it; the count is the consumer's, never matched. Every change is written at once. Done keeps it, and Cancel or Escape puts back the value from before. Save a rule with `ItemMatch.CODEC`, which also reads MenuKit 7's.
+Result: one slot with the item, and two rows of slots, each with an empty slot marked with a plus at the end. Clicking a slot opens a dialog over the screen: the setting's slots at the top, the selected one framed by the hotbar's selection, then a search box over every item and variant. Click a slot in the row to select it, then click an item in the grid to put it there. The small minus in a filled slot's corner, or a right click, removes it, on the page and in the dialog. The locks have advanced settings, shown in a column beside the grid while "Show advanced settings" is ticked, for the selected slot: a name, a dropdown of the enchantments that fit the item with a level for each (blank for any level), and the other components in `/give` syntax. The item always counts; each field filled in narrows the match and a blank one is not checked, so a lock on a diamond sword with nothing filled in holds every diamond sword, worn or not. The reserve popup opens with no picker on the page, and adds a count slider from N/A, no count, to the item's stack size, with no slider for an item that doesn't stack; the count is the consumer's, never matched. Every change is written at once. Done keeps it, and Cancel or Escape puts back the value from before. Save a rule with `ItemMatch.CODEC`, which also reads MenuKit 7's.
 
 ## A list that changes while the screen is open
 

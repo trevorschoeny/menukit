@@ -4,12 +4,12 @@ What changes for a mod moving to each MenuKit release, newest first. The latest 
 
 ## To 8.0.0
 
-The item picker's match modes are gone. `ItemMatch.Match`, `match(...)`, `playerChoosesMatch()`, `ignoring(...)`, `ignoringCount()` and the dialog's Search and Edit tabs are replaced by one rule: the item always counts, each field filled in narrows the match, and a blank one is not checked. The dialog's advanced settings open in a column beside the grid, behind a "Show advanced settings" box MenuKit remembers for the player, and what they offer is now the picker's choice: `name()`, `enchantments()`, `components()`, `count(...)` and `fullStack()`. Then:
+The item picker's match modes are gone. `ItemMatch.Match`, `match(...)`, `playerChoosesMatch()`, `ignoring(...)`, `ignoringCount()` and the dialog's Search and Edit tabs are replaced by one rule: the item always counts, each field filled in narrows the match, and a blank one is not checked. The dialog's advanced settings open in a column beside the grid, behind a "Show advanced settings" box MenuKit remembers for the player, and what they offer is now the picker's choice: `name()`, `enchantments()`, `components()` and `count()`. Then:
 
 - `new ItemMatch(stack, Match.X)` becomes `new ItemMatch(stack)`, and `ItemMatch.matches(rule, Match.X, stack)` becomes `ItemMatch.matches(rule, stack)`.
 - An `EXACT` picker that edited names, enchantments and components turns on `name().enchantments().components()`. One that ignored damage needs nothing, since damage is checked only when the player lists it. An `ITEM` picker needs nothing.
 - An enchantment's level can be left blank, which matches any level: `ItemMatch.anyLevel()`, saved as `any_level`. `ItemMatch` gained that third component; `new ItemMatch(stack, count)` still makes a rule with none.
-- A count was part of `EXACT`. It is now a number for the mod, never matched: `count(least, most)` on a `rule` or `rules` picker, read with `rule.count()`.
+- A count was part of `EXACT`. It is now a number for the mod, never matched: `count()` on a `rule` or `rules` picker, read with `rule.count()`: `ItemMatch.NONE` when the player left it at N/A, else 1 up to the item's stack size.
 - Rules saved by 7.x load through `ItemMatch.CODEC` as they matched, with one exception. An `exact` rule refused a stack that had more than the rule (a plain sword refused an enchanted one), and now that stack matches.
 
 `ItemPicker.open(screen)` opens the dialog over any screen with no picker on a page, and `button(...)` and `onDone(...)` let a mod put its own button in the dialog and apply a draft on Done.

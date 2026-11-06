@@ -33,10 +33,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 /**
- * The dialog an {@link ItemPicker} opens, one panel: the title, then the slot row, a
- * search box over a grid of every item and a "Show advanced settings" checkbox, with the
- * advanced settings the picker turns on in a second column to the right of the grid
- * while the box is ticked, then the buttons. The box is one remembered value for the
+ * The dialog an {@link ItemPicker} opens, one panel: the title, then the slot row,
+ * centered on the whole dialog, then a search box over a grid of every item and a "Show
+ * advanced settings" checkbox, with the advanced settings the picker turns on in a second
+ * column to the right of the grid, its top level with the search box, while the box is
+ * ticked, then the buttons. The box is one remembered value for the
  * player ({@link ItemPickerMemory}). Built of MenuKit's own elements ({@link TextField},
  * {@link ScrollContainer}, {@link Checkbox}, {@link Slider}, {@link DropdownMulti},
  * {@link Dropdown}, {@link ListView}, {@link Button}) plus the slot row and the grid
@@ -84,6 +85,8 @@ final class ItemDialog {
     /** The advanced column's width, and the gap between it and the grid's. */
     static final int SIDE_WIDTH = 176;
     static final int COLUMN_GAP = 2 * GAP;
+    /** The room under the slot row, past the dialog's gap, setting it apart from the search box. */
+    static final int ROW_PAD = GAP;
     /** An enchantment row's level dropdown, and the gap between rows. */
     static final int LEVEL_W = 44, LEVEL_H = 16;
     static final int ENCHANT_GAP = 2;
@@ -103,7 +106,6 @@ final class ItemDialog {
     /** The longer how-to, on hover. */
     static final Component COMPONENTS_TOOLTIP = Component.literal(
             "Any other components, as in /give: [unbreakable={},lore=[\"Hi\"]]. Put ! before one for \"must not have it\": [!food].");
-    static final Component FULL_STACK = Component.literal("Full stack");
     /** The advanced column with an empty slot selected. */
     static final Component EMPTY_HINT = Component.literal("Pick an item first.");
     static final Component ENCHANTMENTS = Component.literal("Enchantments");
@@ -194,10 +196,12 @@ final class ItemDialog {
             return;
         }
 
-        // The grid's column: the slot row, the search over the grid, and the box that
-        // shows the advanced column beside it.
+        // The grid's column: the search over the grid, and the box that shows the advanced
+        // column beside it. The slot row sits above both columns, so it stays centered on
+        // the dialog whether the advanced column shows or not, and the advanced column's
+        // first control lines up with the search box.
         this.showBox = Checkbox.builder().label(SHOW_ADVANCED).state(() -> advanced, this::setAdvanced).build();
-        this.left = Flow.builder().vertical().gap(GAP, GAP).add(row).add(search).add(gridBox).add(showBox).build();
+        this.left = Flow.builder().vertical().gap(GAP, GAP).add(search).add(gridBox).add(showBox).build();
 
         Flow.Builder col = Flow.builder().vertical().gap(GAP, GAP).visibleWhen(() -> advanced);
         TextLabel emptyHint = TextLabel.builder().role(TextRole.MUTED).text(EMPTY_HINT).fill()
@@ -206,26 +210,19 @@ final class ItemDialog {
         advancedParts.add(emptyHint);
 
         if (options.count()) {
-            // The count: a slider over the setting's range for this item, and beside it,
-            // where the setting offers it, "Full stack", which stands for the item's stack
-            // size whatever it is. Not shown for an item whose range is one number.
-            Checkbox full = options.fullStack() ? Checkbox.builder().label(FULL_STACK)
-                    .state(() -> currentCount() == ItemMatch.STACK, this::setFullStack).build() : null;
+            // The count: a slider from N/A (no count) to the item's stack size, as wide as
+            // the column. Not shown for an item that doesn't stack.
             Slider<Double> slider = new Slider<>(Slider.builder().size(FIELD_MIN_WIDTH, FIELD_HEIGHT)
                     .state(this::countFraction, this::setCountFraction)
-                    .label(f -> ItemPicker.countText(new ItemMatch(current(), Math.max(0, currentCount()))))
-                    .disabledWhen(() -> currentCount() == ItemMatch.STACK)) {
+                    .label(f -> ItemPicker.countText(slot()))
+                    .visibleWhen(this::countShown)) {
                 @Override
                 public void layoutWithin(int budget) {
-                    width = Math.max(1, budget - (full != null ? full.getWidth() + GAP : 0));
+                    width = Math.max(1, budget);
                 }
             };
-            Flow.Builder countRow = Flow.builder().gap(GAP, GAP).visibleWhen(this::countShown).add(slider);
-            if (full != null) countRow.add(full);
-            Flow built = countRow.build();
-            col.add(built);
-            advancedParts.addAll(List.of(built, slider));
-            if (full != null) advancedParts.add(full);
+            col.add(slider);
+            advancedParts.add(slider);
         }
 
         if (options.name()) {
@@ -293,7 +290,7 @@ final class ItemDialog {
         }
         this.column = col.build();
         this.body = Flow.builder().ownWidths().gap(COLUMN_GAP, GAP).add(left).add(column).build();
-        this.panel = DialogLayout.panel(id, picker::cancel, title, body, buttons)
+        this.panel = DialogLayout.panel(id, picker::cancel, title, row, body, buttons)
                 .visibleWhen(this::isOpen);
     }
 
@@ -383,9 +380,9 @@ final class ItemDialog {
 
     // The value
 
-    /** A slot with nothing in it, at a new slot's count. */
-    private ItemMatch emptySlot() {
-        return new ItemMatch(ItemStack.EMPTY, options.newCount());
+    /** A slot with nothing in it, and no count. */
+    private static ItemMatch emptySlot() {
+        return new ItemMatch(ItemStack.EMPTY, ItemMatch.NONE);
     }
 
     /** The selected slot (empty past the end). */
@@ -402,45 +399,34 @@ final class ItemDialog {
         return !current().isEmpty();
     }
 
-    /** The selected slot's count, as stored: a number, or {@link ItemMatch#STACK}. */
-    private int currentCount() {
-        return slot().count();
-    }
-
-    /** Whether the count row shows: an item is selected, and its range is more than one number. */
+    /** Whether the count slider shows: an item is selected, and it stacks. */
     private boolean countShown() {
-        return hasItem() && options.most(current()) > options.countLeast();
+        return hasItem() && current().getMaxStackSize() > 1;
     }
 
-    /** {@code n} inside the count's range for the selected item. */
-    private int clampCount(int n, ItemStack stack) {
-        return Math.max(options.countLeast(), Math.min(options.most(stack), n));
+    /**
+     * {@code n} as a count for {@code stack}: {@link ItemMatch#NONE} stays none, a number
+     * comes down to the item's stack size, and an item that doesn't stack has no count.
+     */
+    private static int clampCount(int n, ItemStack stack) {
+        int most = stack.getMaxStackSize();
+        return most <= 1 ? ItemMatch.NONE : Math.max(ItemMatch.NONE, Math.min(most, n));
     }
 
-    /** The slider's place: the count (a full stack at the far end) along the range. */
+    /** The slider's place: N/A (none) at the far left, the stack size at the far right. */
     private double countFraction() {
-        int least = options.countLeast(), most = options.most(current());
-        if (most <= least) return 0;
-        int n = currentCount() == ItemMatch.STACK ? most : clampCount(currentCount(), current());
-        return (n - least) / (double) (most - least);
+        int most = current().getMaxStackSize();
+        return most <= 1 ? 0 : clampCount(slot().count(), current()) / (double) most;
     }
 
     private void setCountFraction(double f) {
-        int least = options.countLeast(), most = options.most(current());
-        setCount(least + (int) Math.round(f * (most - least)));
+        setCount((int) Math.round(f * current().getMaxStackSize()));
     }
 
-    /** The slider: the selected slot's count, inside its range. */
+    /** The slider: the selected slot's count, {@link ItemMatch#NONE} or up to the item's stack size. */
     void setCount(int n) {
         if (selected >= slots.size() || !hasItem()) return;
         slots.set(selected, slot().withCount(clampCount(n, current())));
-        commit();
-    }
-
-    /** "Full stack": ticked, the count is {@link ItemMatch#STACK}; cleared, the far end of the slider. */
-    void setFullStack(boolean full) {
-        if (selected >= slots.size() || !hasItem()) return;
-        slots.set(selected, slot().withCount(full ? ItemMatch.STACK : options.most(current())));
         commit();
     }
 
@@ -495,22 +481,21 @@ final class ItemDialog {
      * A click on a grid entry: it into the selected slot, replacing what was there, its
      * count kept inside the new item's range. The slot stays selected, so another click
      * swaps the item; a list grows a new empty slot at its end, to select and fill next.
+     * A count over the new item's stack size comes down to it (none for one that doesn't stack).
      */
     void fill(ItemStack entry) {
         if (selected >= slots.size()) return;
         ElementWidget.playClickSound();
         ItemStack one = entry.copyWithCount(1);
-        int n = slot().count();
-        if (options.count() && n != ItemMatch.STACK) n = clampCount(n, one);
         // A new item starts with every level it shows (none left blank).
-        slots.set(selected, new ItemMatch(one, n));
+        slots.set(selected, new ItemMatch(one, clampCount(slot().count(), one)));
         changed();
     }
 
     /**
      * Slot {@code i}'s remove button: a list drops the entry, the ones after it
      * shifting left in their order, and the selection follows the slot it was on; a
-     * single picker's slot is emptied, back to a new slot's count.
+     * single picker's slot is emptied.
      */
     void remove(int i) {
         if (i < 0 || i >= slots.size() || slots.get(i).stack().isEmpty()) return;
@@ -704,7 +689,7 @@ final class ItemDialog {
     List<ItemPicker.Box> boxes(ScreenKind kind) {
         Font font = Minecraft.getInstance().font;
         List<ItemPicker.Box> out = new ArrayList<>();
-        List<PanelElement> rows = body != null ? List.of(title, body, buttons) : List.of(title, row, search, gridBox, buttons);
+        List<PanelElement> rows = body != null ? List.of(title, row, body, buttons) : List.of(title, row, search, gridBox, buttons);
         int w = 0, h = 0;
         for (PanelElement e : rows) {
             w = Math.max(w, e.getChildX() + e.getWidth());
@@ -715,7 +700,7 @@ final class ItemDialog {
 
         // The grid's column, and what is in it (the dialog's rows, with no advanced settings).
         int[] leftRect = left != null ? rect(left, 0, 0) : dialog;
-        List<PanelElement> leftParts = new ArrayList<>(List.of(row, search, gridBox));
+        List<PanelElement> leftParts = new ArrayList<>(List.of(search, gridBox));
         if (showBox != null) leftParts.add(showBox);
         if (left != null) {
             out.add(box("grid column", leftRect, dialog));
@@ -810,7 +795,7 @@ final class ItemDialog {
     // The slot row
 
     /**
-     * The setting's slots, nine to a row, centered: the selected one framed by the
+     * The setting's slots, nine to a row, centered, with {@link #ROW_PAD} under them: the selected one framed by the
      * hotbar's selection, a list's last (empty) one marked with a plus, each filled one
      * with its remove button in the top-right corner. A click on a slot selects it (the
      * grid fills it, Advanced edits it); a click on a remove button, or a right click,
@@ -819,14 +804,14 @@ final class ItemDialog {
     private final class SlotRow extends AbstractPanelElement {
 
         SlotRow() {
-            this.height = ItemPicker.SIZE;
+            this.height = ItemPicker.SIZE + ROW_PAD;
         }
 
         private int rows() {
             return Math.max(1, (slots.size() + COLUMNS - 1) / COLUMNS);
         }
 
-        /** Left edge of the slots, from the row's: centered under the title. */
+        /** Left edge of the slots, from the row's: centered on the dialog, under the title. */
         int left() {
             return (getWidth() - naturalWidth()) / 2;
         }
@@ -842,8 +827,8 @@ final class ItemDialog {
 
         @Override public int naturalWidth() { return Math.min(Math.max(1, slots.size()), COLUMNS) * ItemPicker.SIZE; }
         @Override public int getWidth() { return Math.max(width, naturalWidth()); }
-        @Override public int getHeight() { return rows() * ItemPicker.SIZE; }
-        @Override public int extraLayoutHeight() { return getHeight() - ItemPicker.SIZE; }
+        @Override public int getHeight() { return rows() * ItemPicker.SIZE + ROW_PAD; }
+        @Override public int extraLayoutHeight() { return getHeight() - height; }
         @Override public void layoutWithin(int budget) { width = budget; }
         @Override public void fillWidth(int width) {}
         @Override public boolean isInteractive() { return true; }

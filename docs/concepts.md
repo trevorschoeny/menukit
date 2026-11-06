@@ -151,7 +151,7 @@ The value is read from `get` every frame and handed to `set` on every change:
 
 So a diamond sword picked from the grid matches every diamond sword, worn or renamed, and a potion picked from the grid matches every potion of that kind.
 
-A rule's `count()` is never part of the match. It is a number for the mod, such as a reserved slot's cap, and `ItemMatch.STACK` stands for a full stack of whatever the item is (`count(stack)` reads it as the stack size). `ItemMatch.CODEC` saves a rule with vanilla's stack codec and its count beside it, so a count can go past 99. A blank level is saved as `any_level`. It also reads rules MenuKit 7 saved. An `item` rule keeps only the item. A `contains` or `exact` rule keeps every field it had, less the components it ignored, and its stack's count becomes its count.
+A rule's `count()` is never part of the match. It is a number for the mod, such as a reserved slot's cap, and `ItemMatch.NONE` (0) means the player set none. `ItemMatch.CODEC` saves a rule with vanilla's stack codec and its count beside it, so a count can go past 99. A blank level is saved as `any_level`. It also reads rules MenuKit 7 saved. An `item` rule keeps only the item. A `contains` or `exact` rule keeps every field it had, less the components it ignored, and its stack's count becomes its count.
 
 What the dialog's advanced settings offer is the picker's choice. Each option is off until the builder turns it on:
 
@@ -160,8 +160,7 @@ What the dialog's advanced settings offer is the picker's choice. Each option is
 | `name()` | A name field. |
 | `enchantments()` | A dropdown of the enchantments that fit the selected item, and a level dropdown for each one picked. A blank level (any level) needs `rule` or `rules`; with a stack lens each is at a level. |
 | `components()` | Every other component as text in vanilla's `/give` syntax. |
-| `count(least, most)`, `count(least, stack -> most)` | A count slider over that range, which can depend on the item (`ItemStack::getMaxStackSize` for "up to a stack"). Not shown for an item whose range is one number. Needs `rule` or `rules`. |
-| `fullStack()` | With `count`, a "Full stack" box beside the slider. A new slot starts with it ticked. |
+| `count()` | A count slider from N/A (no count, `ItemMatch.NONE`) at its far left to the item's stack size at its far right: 64 for diamonds, 16 for ender pearls. Not shown for an item that doesn't stack, which has no count. A new slot starts at N/A. Needs `rule` or `rules`. |
 | `advanced(row)` | A row of the mod's own under the fields, as wide as the column. |
 
 `button(label, onClick)` puts a button of the mod's own in the button row, left of Cancel and Done ("Remove"), and `onDone(...)` runs after Done closes the dialog, where a mod that edits a draft applies it.

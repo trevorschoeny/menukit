@@ -35,7 +35,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.function.ToIntFunction;
 
 /**
  * A setting whose value is an item, or a list of items: slots showing the items the
@@ -60,7 +59,7 @@ import java.util.function.ToIntFunction;
  * ItemPicker reserve = ItemPicker.builder()
  *         .rule(() -> draft, r -> draft = r)
  *         .name().enchantments().components()
- *         .count(1, ItemStack::getMaxStackSize).fullStack()
+ *         .count()
  *         .button(Component.literal("Remove"), () -> { clear(); reserve.cancel(); })
  *         .onDone(() -> apply(draft))
  *         .build();
@@ -117,8 +116,8 @@ import java.util.function.ToIntFunction;
  *       settings show as a second column to the right of the grid, so the dialog grows
  *       wider, not taller. The player's choice is remembered for every picker (and the
  *       column shows anyway for a slot that has fields filled in). It holds the options
- *       the setting turns on, for the selected slot: {@link Builder#count} (a slider, and
- *       with {@link Builder#fullStack} a "Full stack" box), {@link Builder#name},
+ *       the setting turns on, for the selected slot: {@link Builder#count} (a slider from
+ *       N/A, no count, to the item's stack size), {@link Builder#name},
  *       {@link Builder#enchantments} (a dropdown of those that fit the item, each one
  *       picked a row under it with a level dropdown, blank for any level),
  *       {@link Builder#components} (every other component as text in vanilla's
@@ -179,31 +178,15 @@ public class ItemPicker extends AbstractPanelElement {
     /**
      * What the dialog's advanced settings offer, as the builder turned them on: the name,
      * the enchantments (with a blank level for any level where the lens keeps rules, which
-     * can say so; a plain stack can't), the components box, the count slider (its least
-     * and, for an item, its most) with or without "Full stack", and the consumer's own
-     * rows and buttons.
+     * can say so; a plain stack can't), the components box, the count slider, and the
+     * consumer's own rows and buttons.
      */
     record Options(boolean name, boolean enchantments, boolean blankLevels, boolean components,
-                   int countLeast, @Nullable ToIntFunction<ItemStack> countMost, boolean fullStack,
-                   List<PanelElement> advanced, List<Button> buttons) {
-
-        boolean count() {
-            return countMost != null;
-        }
+                   boolean count, List<PanelElement> advanced, List<Button> buttons) {
 
         /** Whether the dialog has advanced settings at all. */
         boolean any() {
-            return name || enchantments || components || count() || !advanced.isEmpty();
-        }
-
-        /** The count slider's most for {@code stack}, never under its least. */
-        int most(ItemStack stack) {
-            return countMost == null ? 1 : Math.max(countLeast, countMost.applyAsInt(stack));
-        }
-
-        /** A new slot's count: a full stack where that is on offer, else the slider's least. */
-        int newCount() {
-            return fullStack ? ItemMatch.STACK : countLeast;
+            return name || enchantments || components || count || !advanced.isEmpty();
         }
     }
 
@@ -213,7 +196,7 @@ public class ItemPicker extends AbstractPanelElement {
         this.stateSet = set;
         this.list = b.list;
         this.kindsOnly = b.lens == Lens.ITEM;
-        this.options = new Options(b.name, b.enchantments, b.lens == Lens.RULE || b.lens == Lens.RULES, b.components, b.countLeast, b.countMost, b.fullStack,
+        this.options = new Options(b.name, b.enchantments, b.lens == Lens.RULE || b.lens == Lens.RULES, b.components, b.count,
                 List.copyOf(b.advanced), List.copyOf(b.buttons));
         this.label = b.label != null ? b.label
                 : Component.literal(b.list ? "Choose items" : "Choose an item");
@@ -419,7 +402,7 @@ public class ItemPicker extends AbstractPanelElement {
     /**
      * A slot's tooltip: vanilla's own for the stack (name, enchantments, lore), an
      * enchantment whose level the rule leaves blank reading "Sharpness (any level)", and
-     * under it the rule's count, when the setting has one.
+     * under it the rule's count, when the setting has one and it is set.
      */
     static void itemTooltip(GuiGraphicsExtractor g, ItemMatch slot, Options options, int mx, int my) {
         List<Component> lines = new ArrayList<>(Screen.getTooltipFromItem(Minecraft.getInstance(), slot.stack()));
@@ -432,13 +415,13 @@ public class ItemPicker extends AbstractPanelElement {
                 lines.set(at, e.value().description().copy().append(" (any level)").withStyle(color));
             }
         }
-        if (options.count()) lines.add(countText(slot).copy().withStyle(ChatFormatting.GRAY));
+        if (options.count() && slot.count() != ItemMatch.NONE) lines.add(countText(slot).copy().withStyle(ChatFormatting.GRAY));
         g.setTooltipForNextFrame(Minecraft.getInstance().font, lines, Optional.empty(), mx, my);
     }
 
-    /** "Count: 12", or "Count: full stack". */
+    /** "Count: 12", or "Count: N/A" for none set. */
     static Component countText(ItemMatch slot) {
-        return Component.literal("Count: " + (slot.count() == ItemMatch.STACK ? "full stack" : String.valueOf(slot.count())));
+        return Component.literal("Count: " + (slot.count() == ItemMatch.NONE ? "N/A" : String.valueOf(slot.count())));
     }
 
     /**
@@ -603,16 +586,10 @@ public class ItemPicker extends AbstractPanelElement {
         return dialog.componentsError();
     }
 
-    /** Sets the selected slot's count, as the slider does (clamped to its range). */
+    /** Sets the selected slot's count, as the slider does: {@link ItemMatch#NONE}, or up to the item's stack size. */
     @ApiStatus.Internal
     public void setCount(int count) {
         dialog.setCount(count);
-    }
-
-    /** Ticks or clears "Full stack" for the selected slot, as its box does. */
-    @ApiStatus.Internal
-    public void setFullStack(boolean full) {
-        dialog.setFullStack(full);
     }
 
     /** The enchantments that fit the selected slot's item, by name, each with its level on it (0: not on it). */
@@ -702,9 +679,7 @@ public class ItemPicker extends AbstractPanelElement {
         private @Nullable Supplier<?> get;
         private @Nullable Consumer<?> set;
         private boolean list = false;
-        private boolean name, enchantments, components, fullStack;
-        private int countLeast = 1;
-        private @Nullable ToIntFunction<ItemStack> countMost;
+        private boolean name, enchantments, components, count;
         private final List<PanelElement> advanced = new ArrayList<>();
         private final List<Button> buttons = new ArrayList<>();
         private @Nullable Runnable onDone;
@@ -786,33 +761,14 @@ public class ItemPicker extends AbstractPanelElement {
         }
 
         /**
-         * The advanced settings offer a count slider from {@code least} to {@code most}: a number for
-         * the consumer ({@link ItemMatch#count()}), never matched. Needs {@code rule} or
-         * {@code rules}, which store it.
+         * The advanced settings offer a count slider: a number for the consumer
+         * ({@link ItemMatch#count()}), never matched. Its far left is N/A, no count
+         * ({@link ItemMatch#NONE}); its far right the item's stack size (64 diamonds,
+         * 16 ender pearls). An item that doesn't stack (a sword) has no slider, and no
+         * count. Needs {@code rule} or {@code rules}, which store it.
          */
-        public Builder count(int least, int most) {
-            require(most > least, "count needs most above least, got " + least + ".." + most);
-            return count(least, s -> most);
-        }
-
-        /**
-         * A count slider whose most depends on the item ({@code ItemStack::getMaxStackSize}
-         * for "up to a stack"). For an item whose most is no more than {@code least} (a
-         * sword's stack of one), the slider is not shown.
-         */
-        public Builder count(int least, ToIntFunction<ItemStack> most) {
-            require(least >= 1, "count's least must be at least 1, got " + least);
-            this.countLeast = least;
-            this.countMost = Objects.requireNonNull(most, "most");
-            return this;
-        }
-
-        /**
-         * Beside the count slider, a "Full stack" box: ticked, the count is
-         * {@link ItemMatch#STACK}, a stack of whatever the item is. A new slot starts ticked.
-         */
-        public Builder fullStack() {
-            this.fullStack = true;
+        public Builder count() {
+            this.count = true;
             return this;
         }
 
@@ -855,11 +811,10 @@ public class ItemPicker extends AbstractPanelElement {
         @Override
         public ItemPicker build() {
             require(lens != null, "a lens is required (state, stack, stacks, rule or rules); an ItemPicker shows the consumer's value");
-            require(lens != Lens.ITEM || !(name || enchantments || components || countMost != null || !advanced.isEmpty()),
+            require(lens != Lens.ITEM || !(name || enchantments || components || count || !advanced.isEmpty()),
                     "state(Supplier<Item>, Consumer<Item>) holds an Item, which has no name, enchantments, components or count: use stack, stacks, rule or rules");
-            require(countMost == null || lens == Lens.RULE || lens == Lens.RULES,
-                    "count(...) needs rule(...) or rules(...), which store each slot's count");
-            require(!fullStack || countMost != null, "fullStack() goes with count(...)");
+            require(!count || lens == Lens.RULE || lens == Lens.RULES,
+                    "count() needs rule(...) or rules(...), which store each slot's count");
             // A list is a row of slots wide; a single picker one slot.
             if (list) this.width = columns * SIZE;
             Supplier<List<ItemMatch>> g;

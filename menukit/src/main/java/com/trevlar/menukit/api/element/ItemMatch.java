@@ -62,8 +62,8 @@ import java.util.Set;
  * <h3>The count is the consumer's</h3>
  *
  * {@link #count()} is never part of the match. It is a number the consumer reads (a
- * reserved slot's cap), from the picker's count slider; {@link #STACK} for "a full stack
- * of the item, whatever its stack size". The rule's {@link #stack()} is always one item.
+ * reserved slot's cap), from the picker's count slider; {@link #NONE} when the player
+ * set none (the slider's N/A). The rule's {@link #stack()} is always one item.
  *
  * <p>An empty rule ({@link ItemStack#EMPTY}, or air) matches nothing, and an empty
  * stack matches no rule: an empty picker slot is not a rule.
@@ -91,13 +91,13 @@ import java.util.Set;
  * leave the same levels blank.
  *
  * @param stack the rule's item and the fields it fills in, one of it
- * @param count the consumer's number, never matched: 1 or more, or {@link #STACK}
+ * @param count the consumer's number, never matched: 1 or more, or {@link #NONE}
  * @param anyLevel the enchantments the stack needs at any level (8.0.0), empty for none
  */
 public record ItemMatch(ItemStack stack, int count, Set<Holder<Enchantment>> anyLevel) {
 
-    /** {@link #count()} for "a full stack of the item": 16 ender pearls, 64 stone, 1 sword. */
-    public static final int STACK = 0;
+    /** {@link #count()} when none is set: the count slider's N/A. */
+    public static final int NONE = 0;
 
     /**
      * Saves a rule as {@code {stack: <vanilla's stack>, count: 12}}, with
@@ -117,7 +117,7 @@ public record ItemMatch(ItemStack stack, int count, Set<Holder<Enchantment>> any
 
     public ItemMatch {
         Objects.requireNonNull(stack, "stack");
-        if (count < 0) throw new IllegalArgumentException("count must be 1 or more, or ItemMatch.STACK, got " + count);
+        if (count < 0) throw new IllegalArgumentException("count must be 1 or more, or ItemMatch.NONE, got " + count);
         stack = stack.isEmpty() ? ItemStack.EMPTY : stack.copyWithCount(1);
         // Kept in the order given, so a saved rule writes back the same.
         anyLevel = stack.isEmpty() ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(anyLevel));
@@ -141,11 +141,6 @@ public record ItemMatch(ItemStack stack, int count, Set<Holder<Enchantment>> any
     /** This rule needing {@code enchantments} at any level, in place of the ones it named. */
     public ItemMatch withAnyLevel(Set<Holder<Enchantment>> enchantments) {
         return new ItemMatch(stack, count, enchantments);
-    }
-
-    /** {@link #count()} as a number for {@code stack}'s item: {@link #STACK} reads as its stack size. */
-    public int count(ItemStack of) {
-        return count == STACK ? of.getMaxStackSize() : count;
     }
 
     /** Whether {@code candidate} matches this rule. */
@@ -259,7 +254,7 @@ public record ItemMatch(ItemStack stack, int count, Set<Holder<Enchantment>> any
 
     @Override
     public String toString() {
-        return "ItemMatch[" + stack + ", count " + (count == STACK ? "stack" : count)
+        return "ItemMatch[" + stack + ", count " + (count == NONE ? "none" : count)
                 + (anyLevel.isEmpty() ? "" : ", any level " + anyLevel) + "]";
     }
 }
