@@ -1453,6 +1453,10 @@ public class Panel {
      * {@code center()}, while a non-dim, non-modal overlay opts in with
      * {@code in(ModeScope.BOTH, Placement.screen(PanelPosition.center()))}.
      *
+     * <p>One exception to the centering (since 7.6.0): a dim or modal panel placed with
+     * {@link PanelPosition#pixel} or {@link PanelPosition#pixelBottomLeft} sits at its
+     * point, still in the overlay layer and still dimming and modal.
+     *
      * <p>This is about position only. The dim is still drawn only for
      * {@link #dimsBehind()}, so an overlay can be centered on top without
      * dimming.

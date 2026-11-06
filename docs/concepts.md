@@ -320,6 +320,7 @@ The positions:
 | `PanelPosition.screenAnchor(InsideRegion)` | On one of nine spots of the screen or game window, inset from the edges it touches. |
 | `PanelPosition.center()` | Centered on the screen as an overlay, drawn on top. |
 | `PanelPosition.pixel(Supplier<ScreenOrigin>)` | At an absolute origin re-evaluated each frame. Returning `null` skips the frame. It does not stack and does not wrap. |
+| `PanelPosition.pixelBottomLeft(Supplier<ScreenOrigin>)` | Like `pixel`, but the origin is the panel's bottom-left corner, so a panel that grows taller grows upward. |
 
 Any placement takes two modifiers. `.priority(n)` orders panels that share a region (lower sits nearer the anchor edge) and is the z-order within a host (lower draws underneath). The default is 100. Ties go by the registering mod's id, then by registration order, so the order is the same on every launch. `.offset(dx, dy)` nudges one panel after it is placed, and its siblings stack on its un-nudged position.
 
@@ -410,7 +411,7 @@ A context answers one question: what is this panel placed against? Each context 
 
 A placement a context cannot resolve is rejected at registration. HUD panels do not receive input. For a clickable HUD control, open a standalone screen from a key binding.
 
-Every surface draws in the same order across all its hosts. FLOW panels come first, then POPOVER panels, then a dim when any shown panel dims behind it. OVERLAY panels (those that `center()`, dim behind, or track as modal) draw on top. Within a layer, a lower host draws before an upper one: a standalone screen's own host, then the screen's adapters, then the anchors. Within a host the sorted order holds. An element renders the same in every context.
+Every surface draws in the same order across all its hosts. FLOW panels come first, then POPOVER panels, then a dim when any shown panel dims behind it. OVERLAY panels (those that `center()`, dim behind, or track as modal) draw on top. An overlay sits centered on the screen, unless a dimming or modal panel is placed with `pixel` or `pixelBottomLeft`, which keeps its point. Within a layer, a lower host draws before an upper one: a standalone screen's own host, then the screen's adapters, then the anchors. Within a host the sorted order holds. An element renders the same in every context.
 
 A background panel, `Panel.builder(id).background()` (7.4.0), is the other end: it is drawn as part of the screen's own background, right where the screen draws its image (after its dim, before the chest texture), so everything else on the screen draws over it: vanilla's labels and slots, every other mod's widgets and buttons, every other panel, tooltips. The slots it shows draw with it, right after its elements, over it and clipped to what it shows of them (Slot rendering), so they are under every widget too: another mod's button over one of them hides its item, and over the button the slot is not hovered. What a mod draws into the screen's own background after vanilla's image still lands over it. It is meant for a panel that takes the place of part of the screen, as the container region's two panels do, and never gets in another mod's way. A panel is background or popover, not both; asking for both throws at build.
 

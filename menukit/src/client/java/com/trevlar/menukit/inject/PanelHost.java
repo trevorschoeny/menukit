@@ -868,10 +868,12 @@ public final class PanelHost {
         int x, y;
         int[] size;
 
-        if (panel.isOverlayPositioned()) {
-            // The single overlay rule: whatever its declared mode, an overlay (a
-            // center() panel, or any dim or modal panel) floats centered on the screen
-            // window and draws on top. It grows to the screen width, not an anchor's.
+        if (panel.isOverlayPositioned() && pos.mode() != PanelPosition.Mode.PIXEL) {
+            // The single overlay rule: an overlay (a center() panel, or any dim or
+            // modal panel) floats centered on the screen window and draws on top. It
+            // grows to the screen width, not an anchor's. A dim or modal panel placed
+            // by pixel(...) keeps its point instead (still an overlay: on top, dimming,
+            // modal), placed below like any pixel panel.
             feedWidth(panel, RegionMath.availableScreenEdgeWidth(sw, RegionConstants.SCREEN_EDGE_MARGIN), pad);
             panel.setFrameHeight(-1);
             size = measure(panel, pad);
@@ -895,7 +897,8 @@ public final class PanelHost {
                     panel.setFrameHeight(-1);
                     size = measure(panel, pad);
                     x = o.x();
-                    y = o.y();
+                    // pixelBottomLeft: the point is the bottom-left, so the panel grows upward.
+                    y = pos.bottomLeft() ? o.y() - size[1] : o.y();
                 }
                 case REGION -> {
                     if (reference == null) return null;
