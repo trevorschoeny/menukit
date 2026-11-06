@@ -37,7 +37,7 @@ import org.jetbrains.annotations.ApiStatus;
  *   <li><b>Standalone screens:</b> {@link com.trevlar.menukit.api.panel.MKScreen}</li>
  *   <li><b>Layout:</b> {@link com.trevlar.menukit.api.layout.Row},
  *       {@link com.trevlar.menukit.api.layout.Column}</li>
- *   <li><b>Drawing your own item copy</b> (a flying arc, a cycle strip):
+ *   <li><b>Drawing your own item copy</b> (a flying arc, a ring of stacks):
  *       {@link com.trevlar.menukit.api.ItemOutline} for a colored silhouette,
  *       {@link com.trevlar.menukit.api.DrawAlpha} to fade its decorations</li>
  * </ul>

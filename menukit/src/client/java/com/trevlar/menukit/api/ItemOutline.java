@@ -3,6 +3,7 @@ package com.trevlar.menukit.api;
 import com.trevlar.menukit.api.element.SlotRendering;
 import com.trevlar.menukit.core.MKRenderPipelines;
 import net.minecraft.client.renderer.state.gui.GuiItemRenderState;
+import org.jetbrains.annotations.ApiStatus;
 
 import java.util.Collections;
 import java.util.Map;
@@ -54,11 +55,13 @@ public final class ItemOutline {
     }
 
     /** Called as an item state is recorded: marks it when a silhouette is being drawn. */
+    @ApiStatus.Internal
     public static void mark(GuiItemRenderState state) {
         if (pending != 0) MARKED.put(state, pending);
     }
 
     /** The silhouette color of {@code state}, removing the mark; 0 for an ordinary item. */
+    @ApiStatus.Internal
     public static int take(GuiItemRenderState state) {
         Integer argb = MARKED.remove(state);
         return argb == null ? 0 : argb;
