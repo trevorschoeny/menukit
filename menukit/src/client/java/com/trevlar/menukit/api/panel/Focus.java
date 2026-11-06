@@ -12,6 +12,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 
 import org.jetbrains.annotations.ApiStatus;
+import org.jspecify.annotations.Nullable;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -34,7 +35,9 @@ import java.util.WeakHashMap;
  *       {@link #init}, does the same after vanilla's dispatch.</li>
  * </ol>
  * Both only touch widgets registered through {@link #addWidget}; other widgets on
- * the screen keep vanilla's focus behavior.
+ * the screen keep vanilla's focus behavior. Both blur only the focus the click found
+ * (8.0.0): focus the click itself hands out stays, wherever it went, so a click that
+ * opens a searchable dropdown leaves its search field (below the click) focused.
  *
  * <p>The second path is a Fabric event rather than a mixin because in 26.2
  * {@code Screen} doesn't override {@code mouseClicked}; it inherits the default
@@ -62,6 +65,8 @@ public final class Focus {
     // don't leak. Render thread only, so no synchronization.
     private static final WeakHashMap<Screen, Set<GuiEventListener>> MANAGED =
             new WeakHashMap<>();
+    /** Per screen, what was focused as the last click vanilla dispatched began (null for nothing). */
+    private static final WeakHashMap<Screen, @Nullable GuiEventListener> BEFORE_CLICK = new WeakHashMap<>();
 
     private Focus() {}
 
@@ -77,14 +82,36 @@ public final class Focus {
 
     private static void onScreenInit(Minecraft client, Screen screen,
                                       int scaledWidth, int scaledHeight) {
+        ScreenMouseEvents.beforeMouseClick(screen).register((s, event) -> BEFORE_CLICK.put(s, s.getFocused()));
         ScreenMouseEvents.afterMouseClick(screen).register(Focus::onAfterMouseClick);
     }
 
     // For clicks vanilla handled; same rule as the panel click paths.
     private static boolean onAfterMouseClick(Screen screen, MouseButtonEvent event,
                                               boolean consumed) {
-        blurOnOutsideBounds(screen, event.x(), event.y());
+        blurAfterClick(screen, focusBeforeClick(screen), event.x(), event.y());
         return false;  // after-events can't consume; the value is unused
+    }
+
+    /**
+     * What was focused as the click vanilla is dispatching began, for a path that runs
+     * after vanilla's (the background panels'); what is focused now, before any click.
+     */
+    @ApiStatus.Internal
+    public static @Nullable GuiEventListener focusBeforeClick(Screen screen) {
+        return BEFORE_CLICK.containsKey(screen) ? BEFORE_CLICK.get(screen) : screen.getFocused();
+    }
+
+    /**
+     * {@link #blurOnOutsideBounds} for the focus a click found: {@code before}, what was
+     * focused as the click began. When the click moved focus (a field clicked, or a
+     * dropdown that focused its search field as it opened), that focus is the click's own
+     * doing and stays.
+     */
+    @ApiStatus.Internal
+    public static void blurAfterClick(Screen screen, @Nullable GuiEventListener before, double mouseX, double mouseY) {
+        if (screen.getFocused() != before) return;
+        blurOnOutsideBounds(screen, mouseX, mouseY);
     }
 
     /**

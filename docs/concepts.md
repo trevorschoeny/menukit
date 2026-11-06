@@ -138,31 +138,31 @@ The value is read from `get` every frame and handed to `set` on every change:
 
 | Lens | Value |
 |---|---|
-| `state(Supplier<Item>, Consumer<Item>)` | One item, the kind only. `Items.AIR` is none. The grid lists each item once, and there is no Advanced section. |
+| `state(Supplier<Item>, Consumer<Item>)` | One item, the kind only. `Items.AIR` is none. The grid lists each item once, and there are no advanced settings. |
 | `stack(get, set)` | One `ItemStack`, one of it. `ItemStack.EMPTY` is none. |
 | `stacks(get, set)` | A `List<ItemStack>` in the player's order, never with empty entries. |
-| `rule(get, set)`, `rules(get, set)` | The same as `ItemMatch` rules, which also carry the count slider's number. |
+| `rule(get, set)`, `rules(get, set)` | The same as `ItemMatch` rules, which also carry the count slider's number and the enchantments whose level is left blank. |
 
 `ItemMatch` does the comparing, so a mod never writes its own. Call `rule.matches(stack)`, or `ItemMatch.matches(config.stack, stack)` for a plain stack. The item always counts. Past that, each field the rule fills in narrows the match, and a blank field is not checked:
 
 - A name: only stacks with that name match.
-- Enchantments (an enchanted book's stored ones too): each must be on the stack at that level. Others may be there as well.
+- Enchantments (an enchanted book's stored ones too): each must be on the stack at that level, or at any level when the rule leaves its level blank (`anyLevel()`). Others may be there as well.
 - Any other component the rule sets: it must match, compared as vanilla's item predicates compare it. Custom data must contain the rule's tag, anything else must be equal, and a component the rule removes (`!food`) must be absent. Damage is a component like any other, so it is checked only when the rule lists it.
 
 So a diamond sword picked from the grid matches every diamond sword, worn or renamed, and a potion picked from the grid matches every potion of that kind.
 
-A rule's `count()` is never part of the match. It is a number for the mod, such as a reserved slot's cap, and `ItemMatch.STACK` stands for a full stack of whatever the item is (`count(stack)` reads it as the stack size). `ItemMatch.CODEC` saves a rule with vanilla's stack codec and its count beside it, so a count can go past 99. It also reads rules MenuKit 7 saved. An `item` rule keeps only the item. A `contains` or `exact` rule keeps every field it had, less the components it ignored, and its stack's count becomes its count.
+A rule's `count()` is never part of the match. It is a number for the mod, such as a reserved slot's cap, and `ItemMatch.STACK` stands for a full stack of whatever the item is (`count(stack)` reads it as the stack size). `ItemMatch.CODEC` saves a rule with vanilla's stack codec and its count beside it, so a count can go past 99. A blank level is saved as `any_level`. It also reads rules MenuKit 7 saved. An `item` rule keeps only the item. A `contains` or `exact` rule keeps every field it had, less the components it ignored, and its stack's count becomes its count.
 
-What the dialog's Advanced section offers is the picker's choice. Each option is off until the builder turns it on:
+What the dialog's advanced settings offer is the picker's choice. Each option is off until the builder turns it on:
 
-| Builder | In Advanced |
+| Builder | In the advanced settings |
 |---|---|
 | `name()` | A name field. |
-| `enchantments()` | The enchantments that apply to the selected item, each added at a level. |
+| `enchantments()` | A dropdown of the enchantments that fit the selected item, and a level dropdown for each one picked. A blank level (any level) needs `rule` or `rules`; with a stack lens each is at a level. |
 | `components()` | Every other component as text in vanilla's `/give` syntax. |
 | `count(least, most)`, `count(least, stack -> most)` | A count slider over that range, which can depend on the item (`ItemStack::getMaxStackSize` for "up to a stack"). Not shown for an item whose range is one number. Needs `rule` or `rules`. |
 | `fullStack()` | With `count`, a "Full stack" box beside the slider. A new slot starts with it ticked. |
-| `advanced(row)` | A row of the mod's own under the fields. |
+| `advanced(row)` | A row of the mod's own under the fields, as wide as the column. |
 
 `button(label, onClick)` puts a button of the mod's own in the button row, left of Cancel and Done ("Remove"), and `onDone(...)` runs after Done closes the dialog, where a mod that edits a draft applies it.
 
@@ -170,9 +170,11 @@ What the dialog's Advanced section offers is the picker's choice. Each option is
 
 The dialog is a modal dialog of the screen, in its kind, laid out as every dialog is. It is one panel. At the top is the title, then the slot row: the setting's slots, the selected one framed by the hotbar's selection. A click on a slot selects it, and it stays selected until another is clicked. Each filled slot has the same remove button as on the page, and a right click empties a slot too. In a list that also drops the slot, so the slots after it move left. Under the row is a search box, focused so typing starts at once, over a grid of every item from the creative inventory's search tab. Each potion, tipped arrow, enchanted book level, goat horn, firework duration and ominous bottle is its own entry. Search reads names, ids and tooltips. A click on an entry puts it straight into the selected slot, replacing what was there, and the slot stays selected. Enter in the search box puts the first match in the same way. In a list, filling the slot at the end adds a new empty one after it, to select and fill next. The grid asks for its nine columns, so the dialog is always wide enough to show them whole. It is five rows tall and keeps that size as a search changes its results.
 
-Advanced comes next, closed until the player opens it, or open from the start on a slot with fields filled in. It edits the selected slot: the count, the name, then the enchantments in two lists. Under "Added" are those on the item, each with its level, `-` and `+` buttons from I to its highest, and a remove button. Under "Not Added" are those that apply to the item, each with an add button. One that an enchantment on the item excludes is grayed and says what it conflicts with. An item nothing enchants lists none, and an enchanted book lists its stored ones. Last is the components box, `[unbreakable={},!food]`. The box's hint is a short example, and its tooltip explains the syntax. Vanilla's own item parser reads the text, and it is checked as `/give` checks a stack. While it is not valid it shows red with vanilla's error under it, and nothing is written. Blank fields are not checked.
+Under the grid is a "Show advanced settings" box. Ticked, the advanced settings appear as a second column to the right of the grid, so the dialog grows wider, not taller, and the grid stays where it is. The box is one remembered value for the player, kept by MenuKit for every picker in every mod (`config/menukit/item-picker.json`), and the column also shows from the start on a slot with fields filled in. On a screen too narrow for both columns the advanced one goes under the grid.
 
-On a screen too short for all of it, the grid gives rows back first, down to two, then the enchantment list, down to two rows. Only then does the dialog scroll. On 1080p at GUI scale 4 (270 pixels tall) everything fits with Advanced open.
+The column edits the selected slot: the count, the name, then the enchantments. A dropdown lists those that fit the item; one that a picked enchantment excludes is left out until that one is unpicked. An item nothing enchants shows no dropdown, and an enchanted book lists every enchantment for its stored ones. Each one picked gets a row under the dropdown, its name and a level dropdown. Blank ("Any") matches any level, and a level picked means exactly that level, I to its highest. An enchantment with one level has no level dropdown. A newly picked one starts blank. Last is the components box, `[unbreakable={},!food]`. The box's hint is a short example, and its tooltip explains the syntax. Vanilla's own item parser reads the text, and it is checked as `/give` checks a stack. While it is not valid it shows red with vanilla's error under it, and nothing is written. Blank fields are not checked. No list in the dialog scrolls but the grid.
+
+On a screen too short for the dialog, the grid gives rows back, down to two. Only then does the dialog scroll. At 240 pixels tall the grid keeps its five rows with the column shown.
 
 Changes are written as they are made. Done keeps them, and Cancel and Escape write back the value from before the dialog opened. The value is a setting, never the player's item. The dialog's slots are not real slots, nothing touches the inventory or a container, and nothing is sent to the server, so the picker belongs to MenuKit, not a slot library. With no world open (a settings screen on the title screen) the picker uses vanilla's own data, loaded once.
 

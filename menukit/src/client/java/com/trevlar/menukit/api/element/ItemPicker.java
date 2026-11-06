@@ -16,17 +16,21 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
+import net.minecraft.tags.EnchantmentTags;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 
 import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -69,12 +73,13 @@ import java.util.function.ToIntFunction;
  * <ul>
  *   <li>{@code state(Supplier<Item>, Consumer<Item>)}: one item, the kind only;
  *       {@link Items#AIR} is none. The grid lists each item once, and the dialog has no
- *       Advanced section.</li>
+ *       advanced settings.</li>
  *   <li>{@code stack(get, set)}: one {@link ItemStack}, one of it; {@link ItemStack#EMPTY} is none.</li>
  *   <li>{@code stacks(get, set)}: a {@code List<ItemStack>}, in the player's order,
  *       with no empty entries.</li>
  *   <li>{@code rule(get, set)} and {@code rules(get, set)}: the same as {@link ItemMatch}
- *       rules, which carry the count slider's number too. Needed for {@link Builder#count}.</li>
+ *       rules, which carry the count slider's number too, and the enchantments whose level
+ *       is left blank. Needed for {@link Builder#count}.</li>
  * </ul>
  * Test a stack in play against the value with {@link ItemMatch}, never with a
  * comparison of your own: {@code rule.matches(stack)}, or
@@ -94,7 +99,8 @@ import java.util.function.ToIntFunction;
  * <h3>The dialog</h3>
  *
  * A modal dialog of the screen, in its kind, laid out as every MenuKit dialog (equal
- * margins, the buttons centered), top to bottom:
+ * margins, the buttons centered): the title, the grid's column with the advanced
+ * column beside it, and the buttons.
  * <ul>
  *   <li><b>The title</b>, the setting's {@link Builder#label}.</li>
  *   <li><b>The slot row</b>: the setting's slots (a list's wrapped, with an empty one at
@@ -107,15 +113,18 @@ import java.util.function.ToIntFunction;
  *       entry puts it straight into the selected slot, replacing what was there; the slot
  *       stays selected. Enter in the search box puts the first match in the same way. The
  *       grid is five rows tall, fewer on a screen too short for the dialog.</li>
- *   <li><b>Advanced</b>, closed until the player opens it (open from the start for a
- *       slot that has fields filled in), with the options the setting turns on, for the
- *       selected slot: {@link Builder#count} (a slider, and with {@link Builder#fullStack}
- *       a "Full stack" box), {@link Builder#name}, {@link Builder#enchantments} (under
- *       "Added" those on the item at their levels, under "Not Added" those that apply to
- *       it, the ones a chosen enchantment excludes grayed), {@link Builder#components}
- *       (every other component as text in vanilla's {@code /give} syntax, read by
- *       vanilla's own item parser, its errors shown as a command's), then the setting's
- *       own {@link Builder#advanced} rows. A blank field is not checked.</li>
+ *   <li><b>"Show advanced settings"</b>, a box under the grid. Ticked, the advanced
+ *       settings show as a second column to the right of the grid, so the dialog grows
+ *       wider, not taller. The player's choice is remembered for every picker (and the
+ *       column shows anyway for a slot that has fields filled in). It holds the options
+ *       the setting turns on, for the selected slot: {@link Builder#count} (a slider, and
+ *       with {@link Builder#fullStack} a "Full stack" box), {@link Builder#name},
+ *       {@link Builder#enchantments} (a dropdown of those that fit the item, each one
+ *       picked a row under it with a level dropdown, blank for any level),
+ *       {@link Builder#components} (every other component as text in vanilla's
+ *       {@code /give} syntax, read by vanilla's own item parser, its errors shown as a
+ *       command's), then the setting's own {@link Builder#advanced} rows. A blank field
+ *       is not checked.</li>
  *   <li><b>The buttons</b>: the setting's own {@link Builder#button}s, then Cancel and Done.</li>
  * </ul>
  * Changes are written as they are made; Done keeps them (and runs {@link Builder#onDone}),
@@ -168,12 +177,13 @@ public class ItemPicker extends AbstractPanelElement {
     private final ItemDialog dialog;
 
     /**
-     * What the dialog's Advanced section offers, as the builder turned it on: the name,
-     * the enchantments, the components box, the count slider (its least and, for an
-     * item, its most) with or without "Full stack", and the consumer's own rows and
-     * buttons.
+     * What the dialog's advanced settings offer, as the builder turned them on: the name,
+     * the enchantments (with a blank level for any level where the lens keeps rules, which
+     * can say so; a plain stack can't), the components box, the count slider (its least
+     * and, for an item, its most) with or without "Full stack", and the consumer's own
+     * rows and buttons.
      */
-    record Options(boolean name, boolean enchantments, boolean components,
+    record Options(boolean name, boolean enchantments, boolean blankLevels, boolean components,
                    int countLeast, @Nullable ToIntFunction<ItemStack> countMost, boolean fullStack,
                    List<PanelElement> advanced, List<Button> buttons) {
 
@@ -181,7 +191,7 @@ public class ItemPicker extends AbstractPanelElement {
             return countMost != null;
         }
 
-        /** Whether the dialog has an Advanced section at all. */
+        /** Whether the dialog has advanced settings at all. */
         boolean any() {
             return name || enchantments || components || count() || !advanced.isEmpty();
         }
@@ -203,7 +213,7 @@ public class ItemPicker extends AbstractPanelElement {
         this.stateSet = set;
         this.list = b.list;
         this.kindsOnly = b.lens == Lens.ITEM;
-        this.options = new Options(b.name, b.enchantments, b.components, b.countLeast, b.countMost, b.fullStack,
+        this.options = new Options(b.name, b.enchantments, b.lens == Lens.RULE || b.lens == Lens.RULES, b.components, b.countLeast, b.countMost, b.fullStack,
                 List.copyOf(b.advanced), List.copyOf(b.buttons));
         this.label = b.label != null ? b.label
                 : Component.literal(b.list ? "Choose items" : "Choose an item");
@@ -407,11 +417,21 @@ public class ItemPicker extends AbstractPanelElement {
     }
 
     /**
-     * A slot's tooltip: vanilla's own for the stack (name, enchantments, lore), and
+     * A slot's tooltip: vanilla's own for the stack (name, enchantments, lore), an
+     * enchantment whose level the rule leaves blank reading "Sharpness (any level)", and
      * under it the rule's count, when the setting has one.
      */
     static void itemTooltip(GuiGraphicsExtractor g, ItemMatch slot, Options options, int mx, int my) {
         List<Component> lines = new ArrayList<>(Screen.getTooltipFromItem(Minecraft.getInstance(), slot.stack()));
+        ItemEnchantments on = EnchantmentHelper.getEnchantmentsForCrafting(slot.stack());
+        for (Holder<Enchantment> e : slot.anyLevel()) {
+            // Vanilla's line for it (its level as the stack holds it), swapped for one with no level.
+            int at = lines.indexOf(Enchantment.getFullname(e, on.getLevel(e)));
+            if (at >= 0 && e.value().getMaxLevel() > 1) {
+                ChatFormatting color = e.is(EnchantmentTags.CURSE) ? ChatFormatting.RED : ChatFormatting.GRAY;
+                lines.set(at, e.value().description().copy().append(" (any level)").withStyle(color));
+            }
+        }
         if (options.count()) lines.add(countText(slot).copy().withStyle(ChatFormatting.GRAY));
         g.setTooltipForNextFrame(Minecraft.getInstance().font, lines, Optional.empty(), mx, my);
     }
@@ -553,25 +573,25 @@ public class ItemPicker extends AbstractPanelElement {
         dialog.select(slot);
     }
 
-    /** Opens or closes the Advanced section, as a click on its header does. */
+    /** Ticks or clears "Show advanced settings", as a click on it does (remembered for every picker). */
     @ApiStatus.Internal
     public void setAdvancedOpen(boolean open) {
         dialog.setAdvanced(open);
     }
 
-    /** Whether the Advanced section is open. */
+    /** Whether the advanced column shows. */
     @ApiStatus.Internal
     public boolean advancedOpen() {
         return dialog.advanced();
     }
 
-    /** Types into a field of the Advanced section ({@code "name"}, {@code "components"}), as a player does. */
+    /** Types into an advanced field ({@code "name"}, {@code "components"}), as a player does. */
     @ApiStatus.Internal
     public void typeEdit(String field, String text) {
         dialog.typeEdit(field, text);
     }
 
-    /** What a field of the Advanced section shows now. */
+    /** What an advanced field shows now. */
     @ApiStatus.Internal
     public String editText(String field) {
         return dialog.editText(field);
@@ -595,28 +615,34 @@ public class ItemPicker extends AbstractPanelElement {
         dialog.setFullStack(full);
     }
 
-    /** The selected slot's enchantment choices, as Advanced lists them (on it, then those that can be added). */
+    /** The enchantments that fit the selected slot's item, by name, each with its level on it (0: not on it). */
     @ApiStatus.Internal
     public List<EnchantChoice> enchantChoices() {
         return dialog.enchantChoices();
     }
 
-    /** The add control of an enchantment not on the selected item. */
+    /** The enchantments the dropdown has ticked for the selected slot. */
     @ApiStatus.Internal
-    public void addEnchant(Holder<Enchantment> enchantment) {
-        dialog.addEnchant(enchantment);
+    public Set<Holder<Enchantment>> pickedEnchants() {
+        return dialog.picked();
     }
 
-    /** The minus ({@code by} -1) or plus (1) control of an enchantment on the selected item. */
+    /** Ticks exactly {@code enchantments} in the dropdown, as the player's toggles do. */
     @ApiStatus.Internal
-    public void stepEnchant(Holder<Enchantment> enchantment, int by) {
-        dialog.stepEnchant(enchantment, by);
+    public void pickEnchants(Set<Holder<Enchantment>> enchantments) {
+        dialog.setPicked(enchantments);
     }
 
-    /** The remove control of an enchantment on the selected item. */
+    /** A picked enchantment's level dropdown: 0 blank (any level), else that level. */
     @ApiStatus.Internal
-    public void removeEnchant(Holder<Enchantment> enchantment) {
-        dialog.removeEnchant(enchantment);
+    public int enchantLevel(Holder<Enchantment> enchantment) {
+        return dialog.enchantLevel(enchantment);
+    }
+
+    /** Picks {@code level} in a picked enchantment's level dropdown (0: blank, any level). */
+    @ApiStatus.Internal
+    public void setEnchantLevel(Holder<Enchantment> enchantment, int level) {
+        dialog.setEnchantLevel(enchantment, level);
     }
 
     /**
@@ -641,7 +667,7 @@ public class ItemPicker extends AbstractPanelElement {
         return dialog.boxes(kind);
     }
 
-    /** Whether the dialog has an Advanced section: only when the setting turns on something for it. */
+    /** Whether the dialog has advanced settings: only when the setting turns on something for them. */
     @ApiStatus.Internal
     public boolean hasAdvanced() {
         return options.any();
@@ -705,7 +731,7 @@ public class ItemPicker extends AbstractPanelElement {
          * One item, the kind only. {@code get} is read every frame ({@link Items#AIR}, or
          * {@code null}, for none); {@code set} receives the item the player picks, or
          * {@link Items#AIR} when they empty it. The grid lists each item once, and the
-         * Advanced options are not on offer.
+         * advanced settings are not on offer.
          */
         public Builder state(Supplier<Item> get, Consumer<Item> set) {
             return lens(Lens.ITEM, get, set, false);
@@ -731,15 +757,18 @@ public class ItemPicker extends AbstractPanelElement {
             return lens(Lens.RULES, get, set, true);
         }
 
-        /** Advanced offers a name field: filled in, the stack must have that name. */
+        /** The advanced settings offer a name field: filled in, the stack must have that name. */
         public Builder name() {
             this.name = true;
             return this;
         }
 
         /**
-         * Advanced offers the enchantments that apply to the selected item, each to add
-         * at a level: each one added must be on the stack at that level.
+         * The advanced settings offer the enchantments that fit the selected item, in a
+         * dropdown, each one picked with a level: each must be on the stack at that level,
+         * or at any level when it is left blank ({@link ItemMatch#anyLevel()}). A blank
+         * level needs {@code rule} or {@code rules}, which store it; with a stack lens
+         * every level is picked.
          */
         public Builder enchantments() {
             this.enchantments = true;
@@ -747,7 +776,7 @@ public class ItemPicker extends AbstractPanelElement {
         }
 
         /**
-         * Advanced offers a box for every other component, in vanilla's {@code /give}
+         * The advanced settings offer a box for every other component, in vanilla's {@code /give}
          * syntax ({@code [unbreakable={},!food]}): each one listed must match, and
          * {@code !x} means the stack must not have it.
          */
@@ -757,7 +786,7 @@ public class ItemPicker extends AbstractPanelElement {
         }
 
         /**
-         * Advanced offers a count slider from {@code least} to {@code most}: a number for
+         * The advanced settings offer a count slider from {@code least} to {@code most}: a number for
          * the consumer ({@link ItemMatch#count()}), never matched. Needs {@code rule} or
          * {@code rules}, which store it.
          */
@@ -787,7 +816,7 @@ public class ItemPicker extends AbstractPanelElement {
             return this;
         }
 
-        /** A row of the consumer's own under Advanced's fields, laid out to the dialog's width. */
+        /** A row of the consumer's own under the advanced fields, laid out to the column's width. */
         public Builder advanced(PanelElement row) {
             advanced.add(Objects.requireNonNull(row, "row"));
             return this;

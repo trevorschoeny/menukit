@@ -5,6 +5,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import net.minecraft.advancements.predicates.EnchantmentPredicate;
 import net.minecraft.advancements.predicates.MinMaxBounds;
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.component.DataComponentType;
@@ -13,9 +14,13 @@ import net.minecraft.core.component.TypedDataComponent;
 import net.minecraft.core.component.predicates.EnchantmentsPredicate;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -42,7 +47,8 @@ import java.util.Set;
  *   <li><b>Name:</b> a rule with a custom name matches only stacks with that name.
  *       Without one, any name (or none) matches.</li>
  *   <li><b>Enchantments</b> (and an enchanted book's stored ones): each one the rule
- *       lists must be on the stack at that level. Others may be there too.</li>
+ *       lists must be on the stack at that level, or at any level for one in
+ *       {@link #anyLevel()} (its level left blank). Others may be there too.</li>
  *   <li><b>Every other component</b> the rule sets (its patch over the item's
  *       defaults, the picker's {@code /give}-syntax box) must match, compared as
  *       vanilla's item predicates compare it: {@code custom_data} contained in the
@@ -71,20 +77,31 @@ import java.util.Set;
  * with components the rule did not have (a plain sword refused an enchanted one), and now
  * those are allowed, since a blank field is not checked.
  *
+ * <h3>Any level</h3>
+ *
+ * {@link #anyLevel()} names enchantments whose level is left blank: the stack needs
+ * each one at some level. The rule's stack holds them too, at a level that is not read
+ * (the picker puts them on at I), so the rule's item draws enchanted and an enchantment
+ * that conflicts with one of them is still kept off it. One named there that the stack
+ * does not hold still counts.
+ *
  * <p>Common code: it reads only the stacks, so a mod's server side can use it too.
  * The record copies its stack; treat {@link #stack()} as read-only. Two rules are equal
- * when their stacks have the same item and components and their counts are equal.
+ * when their stacks have the same item and components, their counts are equal and they
+ * leave the same levels blank.
  *
  * @param stack the rule's item and the fields it fills in, one of it
  * @param count the consumer's number, never matched: 1 or more, or {@link #STACK}
+ * @param anyLevel the enchantments the stack needs at any level (8.0.0), empty for none
  */
-public record ItemMatch(ItemStack stack, int count) {
+public record ItemMatch(ItemStack stack, int count, Set<Holder<Enchantment>> anyLevel) {
 
     /** {@link #count()} for "a full stack of the item": 16 ender pearls, 64 stone, 1 sword. */
     public static final int STACK = 0;
 
     /**
-     * Saves a rule as {@code {stack: <vanilla's stack>, count: 12}}. The stack goes through
+     * Saves a rule as {@code {stack: <vanilla's stack>, count: 12}}, with
+     * {@code any_level: ["minecraft:sharpness"]} when it leaves levels blank. The stack goes through
      * vanilla's {@link ItemStack#OPTIONAL_CODEC}, so encode it with the world's registry ops
      * (enchantments are registry entries), as vanilla saves a stack. The count is its own
      * field, so it can be past a stack's 99. Reads MenuKit 7's rules too (see the class
@@ -93,6 +110,7 @@ public record ItemMatch(ItemStack stack, int count) {
     public static final Codec<ItemMatch> CODEC = RecordCodecBuilder.<Saved>create(i -> i.group(
             ItemStack.OPTIONAL_CODEC.fieldOf("stack").forGetter(Saved::stack),
             Codec.INT.optionalFieldOf("count").forGetter(Saved::count),
+            Enchantment.CODEC.listOf().optionalFieldOf("any_level", List.of()).forGetter(Saved::anyLevel),
             Codec.STRING.optionalFieldOf("match").forGetter(Saved::match),
             DataComponentType.CODEC.listOf().optionalFieldOf("ignoring", List.of()).forGetter(Saved::ignoring)
     ).apply(i, Saved::new)).xmap(Saved::rule, Saved::of);
@@ -101,6 +119,13 @@ public record ItemMatch(ItemStack stack, int count) {
         Objects.requireNonNull(stack, "stack");
         if (count < 0) throw new IllegalArgumentException("count must be 1 or more, or ItemMatch.STACK, got " + count);
         stack = stack.isEmpty() ? ItemStack.EMPTY : stack.copyWithCount(1);
+        // Kept in the order given, so a saved rule writes back the same.
+        anyLevel = stack.isEmpty() ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(anyLevel));
+    }
+
+    /** A rule from {@code stack} and the consumer's {@code count}, every enchantment at its level. */
+    public ItemMatch(ItemStack stack, int count) {
+        this(stack, count, Set.of());
     }
 
     /** A rule from {@code stack}: its item and components, its count as the count. */
@@ -110,7 +135,12 @@ public record ItemMatch(ItemStack stack, int count) {
 
     /** This rule with the consumer's count {@code count}. */
     public ItemMatch withCount(int count) {
-        return new ItemMatch(stack, count);
+        return new ItemMatch(stack, count, anyLevel);
+    }
+
+    /** This rule needing {@code enchantments} at any level, in place of the ones it named. */
+    public ItemMatch withAnyLevel(Set<Holder<Enchantment>> enchantments) {
+        return new ItemMatch(stack, count, enchantments);
     }
 
     /** {@link #count()} as a number for {@code stack}'s item: {@link #STACK} reads as its stack size. */
@@ -120,7 +150,7 @@ public record ItemMatch(ItemStack stack, int count) {
 
     /** Whether {@code candidate} matches this rule. */
     public boolean matches(ItemStack candidate) {
-        return matches(stack, candidate);
+        return matches(stack, anyLevel, candidate);
     }
 
     /**
@@ -129,6 +159,11 @@ public record ItemMatch(ItemStack stack, int count) {
      * that stores a plain stack.
      */
     public static boolean matches(ItemStack rule, ItemStack candidate) {
+        return matches(rule, Set.of(), candidate);
+    }
+
+    /** The match, with {@code anyLevel} the enchantments whose level is not read. */
+    private static boolean matches(ItemStack rule, Set<Holder<Enchantment>> anyLevel, ItemStack candidate) {
         if (rule == null || candidate == null || rule.isEmpty() || candidate.isEmpty()) return false;
         if (!candidate.is(rule.getItem())) return false;
         DataComponentPatch.SplitResult patch = rule.getComponentsPatch().split();
@@ -140,9 +175,9 @@ public record ItemMatch(ItemStack stack, int count) {
             DataComponentType<?> type = set.type();
             Object want = set.value();
             if (type == DataComponents.ENCHANTMENTS) {
-                if (!enchantmentsPredicate((ItemEnchantments) want, false).matches(candidate)) return false;
+                if (!enchantmentsPredicate((ItemEnchantments) want, anyLevel, false).matches(candidate)) return false;
             } else if (type == DataComponents.STORED_ENCHANTMENTS) {
-                if (!enchantmentsPredicate((ItemEnchantments) want, true).matches(candidate)) return false;
+                if (!enchantmentsPredicate((ItemEnchantments) want, anyLevel, true).matches(candidate)) return false;
             } else if (type == DataComponents.CUSTOM_DATA) {
                 // The rule's tag contained in the stack's: vanilla's NBT predicate.
                 CustomData data = candidate.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
@@ -151,18 +186,35 @@ public record ItemMatch(ItemStack stack, int count) {
                 return false;
             }
         }
+        // Any level: each one present at some level, on the component the rule's item
+        // uses (stored on a book), whether or not the rule's stack holds it.
+        if (!anyLevel.isEmpty()) {
+            boolean stored = EnchantmentHelper.getComponentType(rule) == DataComponents.STORED_ENCHANTMENTS;
+            if (!atAnyLevel(anyLevel, stored).matches(candidate)) return false;
+        }
         return true;
     }
 
     /**
      * Vanilla's enchantments predicate (the {@code ~enchantments} of a command) for
-     * the rule's enchantments: each one present at exactly its level.
+     * the rule's enchantments: each one present at exactly its level, less those in
+     * {@code anyLevel}, which {@link #atAnyLevel} checks.
      */
-    private static EnchantmentsPredicate enchantmentsPredicate(ItemEnchantments want, boolean stored) {
+    private static EnchantmentsPredicate enchantmentsPredicate(ItemEnchantments want, Set<Holder<Enchantment>> anyLevel, boolean stored) {
         List<EnchantmentPredicate> each = new ArrayList<>();
         for (var entry : want.entrySet()) {
+            if (anyLevel.contains(entry.getKey())) continue;   // checked once, at any level, after the patch
             each.add(new EnchantmentPredicate(Optional.of(HolderSet.direct(entry.getKey())),
                     MinMaxBounds.Ints.exactly(entry.getIntValue())));
+        }
+        return stored ? EnchantmentsPredicate.storedEnchantments(each) : EnchantmentsPredicate.enchantments(each);
+    }
+
+    /** Vanilla's enchantments predicate for {@code enchantments}: each one present at some level. */
+    private static EnchantmentsPredicate atAnyLevel(Set<Holder<Enchantment>> enchantments, boolean stored) {
+        List<EnchantmentPredicate> each = new ArrayList<>();
+        for (Holder<Enchantment> e : enchantments) {
+            each.add(new EnchantmentPredicate(Optional.of(HolderSet.direct(e)), MinMaxBounds.Ints.atLeast(1)));
         }
         return stored ? EnchantmentsPredicate.storedEnchantments(each) : EnchantmentsPredicate.enchantments(each);
     }
@@ -172,11 +224,11 @@ public record ItemMatch(ItemStack stack, int count) {
      * are only ever read: a 7.x rule's mode and the components it left out of the
      * comparison. A 7.x {@code ignore_count} needs nothing, since no count is matched now.
      */
-    private record Saved(ItemStack stack, Optional<Integer> count, Optional<String> match,
-                         List<DataComponentType<?>> ignoring) {
+    private record Saved(ItemStack stack, Optional<Integer> count, List<Holder<Enchantment>> anyLevel,
+                         Optional<String> match, List<DataComponentType<?>> ignoring) {
 
         static Saved of(ItemMatch rule) {
-            return new Saved(rule.stack(), Optional.of(rule.count()), Optional.empty(), List.of());
+            return new Saved(rule.stack(), Optional.of(rule.count()), List.copyOf(rule.anyLevel()), Optional.empty(), List.of());
         }
 
         ItemMatch rule() {
@@ -188,7 +240,7 @@ public record ItemMatch(ItemStack stack, int count) {
             // "contains" and "exact": every field the stack filled in, less what the rule ignored.
             Set<DataComponentType<?>> ignored = Set.copyOf(ignoring);
             DataComponentPatch kept = stack.getComponentsPatch().forget(ignored::contains);
-            return new ItemMatch(new ItemStack(stack.typeHolder(), 1, kept), n);
+            return new ItemMatch(new ItemStack(stack.typeHolder(), 1, kept), n, new LinkedHashSet<>(anyLevel));
         }
     }
 
@@ -196,16 +248,18 @@ public record ItemMatch(ItemStack stack, int count) {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof ItemMatch other && count == other.count && ItemStack.isSameItemSameComponents(stack, other.stack);
+        return o instanceof ItemMatch other && count == other.count && anyLevel.equals(other.anyLevel)
+                && ItemStack.isSameItemSameComponents(stack, other.stack);
     }
 
     @Override
     public int hashCode() {
-        return 31 * ItemStack.hashItemAndComponents(stack) + count;
+        return 31 * (31 * ItemStack.hashItemAndComponents(stack) + count) + anyLevel.hashCode();
     }
 
     @Override
     public String toString() {
-        return "ItemMatch[" + stack + ", count " + (count == STACK ? "stack" : count) + "]";
+        return "ItemMatch[" + stack + ", count " + (count == STACK ? "stack" : count)
+                + (anyLevel.isEmpty() ? "" : ", any level " + anyLevel) + "]";
     }
 }
