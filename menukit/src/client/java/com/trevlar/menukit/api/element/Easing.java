@@ -23,9 +23,24 @@ public interface Easing {
     /** Slow at both ends: a cubic ease-in-out. */
     Easing EASE_IN_OUT = t -> t < 0.5f ? 4f * t * t * t : 1f - (float) Math.pow(-2f * t + 2f, 3) / 2f;
 
-    /** Past the end and back, a small spring: the ease-out-back MenuKit's hotbar slides use. */
+    /** Past the end and back once: an ease-out-back, about 10% over. */
     Easing EASE_OUT_BACK = t -> {
         float c1 = 1.70158f, c3 = c1 + 1f, u = t - 1f;
         return 1f + c3 * u * u * u + c1 * u * u;
+    };
+
+    /**
+     * A damped spring (7.6.0), for a slide that settles: most of the way in the first sixth,
+     * about 9% past the end at 0.3, back about 3% short at 0.68, settled at 1. A wave
+     * under an envelope that loosens as it goes ({@code e^(-4.6 t^0.6)}), so the overshoot
+     * stays small while the rebound still shows; the last term takes the leftover
+     * {@code r(1)} out linearly, so it ends at exactly 1.
+     */
+    Easing SPRING = t -> {
+        if (t <= 0f) return 0f;
+        if (t >= 1f) return 1f;
+        double r = Math.exp(-4.6 * Math.pow(t, 0.6)) * Math.cos(2.8 * Math.PI * t);
+        double r1 = Math.exp(-4.6) * Math.cos(2.8 * Math.PI);
+        return (float) (1.0 - r + r1 * t);
     };
 }

@@ -110,7 +110,7 @@ public final class Contribution {
         placements.forEach((scope, p) -> {
             PanelPosition at = p.position();
             if (at.pixelOrigin() != null && !PanelHost.fromBox(at)) {
-                at = new PanelPosition(at.mode(), at.screenAnchor(), at.region(), null, at.dx(), at.dy(), at.priority(), at.gap());
+                at = new PanelPosition(at.mode(), at.screenAnchor(), at.region(), null, at.dx(), at.dy(), at.priority(), at.gap(), at.bottomLeft());
             }
             out.put(scope, new Placement(p.anchor(), at));
         });

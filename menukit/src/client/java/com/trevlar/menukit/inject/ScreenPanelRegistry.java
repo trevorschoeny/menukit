@@ -249,8 +249,8 @@ public final class ScreenPanelRegistry {
         // and an element that owns a dialog puts it on the dialog host, so the routed
         // list is read after this.
         for (PanelHost host : declared) host.attach(screen);
-        ScreenEvents.remove(screen).register(removed -> {
-            for (PanelHost host : declared) host.detach(removed);
+        KeptScreens.onTakenDown(screen, () -> {
+            for (PanelHost host : declared) host.detach(screen);
         });
 
         List<PanelHost> routed = hosts.routed();
@@ -273,9 +273,10 @@ public final class ScreenPanelRegistry {
         // Both walk the panels in the one draw order read top down, across the
         // routed hosts, so a popover on a lower host is offered the click first.
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
+            var before = s.getFocused();
             for (PanelHost host : routed) host.notifyOutsideClick(event.x(), event.y());
             if (PanelHost.mouseClicked(routed, event.x(), event.y(), event.button(), modalUpOn(s))) {
-                Focus.blurOnOutsideBounds(s, event.x(), event.y());
+                Focus.blurAfterClick(s, before, event.x(), event.y());
                 return false;
             }
             return true;
@@ -303,7 +304,7 @@ public final class ScreenPanelRegistry {
                 }
             }
             // Escape with an injected modal up dismisses the topmost modal (its
-            // onEscape; ConfirmDialog/AlertDialog wire theirs) instead of closing the
+            // onEscape; ConfirmDialog wires its) instead of closing the
             // screen out from under it. Eaten either way while the modal is up.
             Panel topModal = topmostModal(routed);
             if (topModal == null) return true;
@@ -673,13 +674,14 @@ public final class ScreenPanelRegistry {
     public static boolean dispatchCoveredClick(Screen screen, double mouseX, double mouseY, int button) {
         Claim claim = claimAt(screen, mouseX, mouseY);
         if (claim == null || claim.host() == ownHost(screen) || claim.yieldsToSlot()) return false;
+        var before = screen.getFocused();
         for (PanelHost host : routedOn(screen)) host.notifyOutsideClick(mouseX, mouseY);
         if (claim.placed() != null) {
             claim.host().mouseClicked(claim.placed(), mouseX, mouseY, button);
             // Vanilla never sees this click, so the natural focus hand-over can't
             // run: blur a focused MenuKit widget the click landed outside of. (Outside a
             // modal, placed is null and the modal's own widgets keep focus.)
-            Focus.blurOnOutsideBounds(screen, mouseX, mouseY);
+            Focus.blurAfterClick(screen, before, mouseX, mouseY);
         }
         return true;
     }
@@ -740,8 +742,9 @@ public final class ScreenPanelRegistry {
      * @return whether an element took it
      */
     public static boolean dispatchBackgroundClick(Screen screen, double mouseX, double mouseY, int button) {
+        var before = Focus.focusBeforeClick(screen);
         if (!dispatchBackgroundClick(routedOn(screen), mouseX, mouseY, button, modalUpOn(screen))) return false;
-        Focus.blurOnOutsideBounds(screen, mouseX, mouseY);
+        Focus.blurAfterClick(screen, before, mouseX, mouseY);
         return true;
     }
 

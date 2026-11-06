@@ -2,6 +2,7 @@ package com.trevlar.menukit.api.panel;
 
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.element.AbstractPanelElement;
+import com.trevlar.menukit.api.element.ChildDispatch;
 import com.trevlar.menukit.api.element.MKTooltip;
 import com.trevlar.menukit.core.RegionMath;
 import com.trevlar.menukit.api.element.ScrollContainer;
@@ -11,6 +12,7 @@ import com.trevlar.menukit.inject.PanelHost;
 import com.trevlar.menukit.inject.ScreenPanelRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -128,6 +130,12 @@ public class Panel {
     // changes nothing (no scrolling, no scrollbar room). lastFitAvailHeight works
     // like lastFitAvail.
     private int effectiveContentHeight = -1;
+    /**
+     * The most the content may be before it fits the room and then scrolls, without
+     * giving filling elements a viewport to fill (a centered dialog's screen height,
+     * {@link #setHeightCeiling}); -1 for none.
+     */
+    private int heightCeiling = -1;
     private int lastFitAvailHeight = Integer.MIN_VALUE;
 
     // The frame band (6.1.0): the content height from the panel's top down to where
@@ -183,6 +191,10 @@ public class Panel {
     // what is inside is inert.
     private @Nullable BooleanSupplier disabledSupplier;
 
+    // How the panel draws this frame apart from its layout (7.6.0): a scale about a
+    // point and an alpha, read every frame. Null draws it as laid out.
+    private @Nullable Supplier<PanelTransform> transformSupplier;
+
     // Three independent flags make up "modal", so other kinds of panel (popovers,
     // dropdowns) can take only the parts they need.
     //
@@ -204,6 +216,10 @@ public class Panel {
     // combinations (popovers, click blockers and so on).
     private boolean opaque = true;
     private boolean dimsBehind = false;
+
+    // Rectangles of the screen the dim leaves lit while this panel dims (7.6.0), read
+    // every frame; null for none.
+    private @Nullable Supplier<List<ScreenRectangle>> litWhileDimmed;
     private boolean tracksAsModal = false;
 
     // Popover layer (6.1.0), declared once on the builder (Builder.popover()). A
@@ -219,8 +235,8 @@ public class Panel {
     // Optional Escape action. When this is the topmost visible tracksAsModal panel
     // and the player presses Escape, the host (MKScreen, or ScreenPanelRegistry's
     // key listener for injected panels) runs it to dismiss the modal instead of
-    // closing the screen under an open dialog. ConfirmDialog and AlertDialog put
-    // their onCancel / onAcknowledge here. With none set, the host still eats
+    // closing the screen under an open dialog. ConfirmDialog puts
+    // its onCancel here. With none set, the host still eats
     // Escape while a modal is up so it can't close the screen.
     private @Nullable Runnable escapeAction;
 
@@ -731,6 +747,10 @@ public class Panel {
         } else {
             viewportHeight = -1;
         }
+        // The height the content is held to: the viewport, or with none a ceiling, which
+        // bounds the content without being room a filling element takes.
+        int limit = viewportHeight > 0 ? viewportHeight
+                : heightCeiling >= MIN_SCROLL_VIEWPORT ? heightCeiling : -1;
 
         // Lay out against the full content width (no scrollbar room) and reflow,
         // then measure the content height. Scrollbar room is taken only if the
@@ -757,16 +777,28 @@ public class Panel {
         for (PanelElement e : elements) {
             e.wrapHeight(frameHeight >= 0 ? Math.max(1, frameHeight - e.getChildY()) : -1);
         }
+        // Fitting the room (8.0.0): content taller than the viewport first asks the
+        // elements that fit the room (ScrollContainer.fitRoom) to give back what it
+        // overflows by, in whole rows, as a container region asks its sections; only what
+        // is still too tall scrolls. Each pass starts from their full height, so a panel
+        // that has room again (a section closed) gets its rows back.
+        ChildDispatch.yieldHeight(elements, 0);
+        reflowForWrap();
         int naturalContentHeight = aggregateRawContentHeight();
+        if (limit > 0 && naturalContentHeight > limit
+                && ChildDispatch.yieldHeight(elements, naturalContentHeight - limit) > 0) {
+            reflowForWrap();
+            naturalContentHeight = aggregateRawContentHeight();
+        }
 
         cachedScrollContainer = null;
-        boolean overflow = viewportHeight > 0 && naturalContentHeight > viewportHeight;
+        boolean overflow = limit > 0 && naturalContentHeight > limit;
         // Everything fits a real viewport, so the scroll is at the top; reset it, as
         // the container would write back its clamp. Otherwise the old offset would
         // come back the moment the panel overflowed again (a section closed so all
         // fits, then reopened), jumping from the top to where it once was. Tabs'
         // bodies do the same.
-        if (!overflow && viewportHeight > 0) scrollOffset = 0;
+        if (!overflow && limit > 0) scrollOffset = 0;
         if (overflow) {
             // Lay out again with room for the scrollbar so wrapped content clears
             // the track, reflow, then wrap everything in a ScrollContainer the size
@@ -793,7 +825,7 @@ public class Panel {
             if (outerWidth > minScrollWidth) {
                 cachedScrollContainer = ScrollContainer.builder()
                         .at(0, 0)
-                        .size(outerWidth, viewportHeight)
+                        .size(outerWidth, limit)
                         .content(elements)
                         .state(() -> scrollOffset, v -> scrollOffset = v)
                         .build();
@@ -1089,6 +1121,22 @@ public class Panel {
         this.cachedScrollContainer = null;
     }
 
+    /**
+     * The most the content may be (8.0.0): taller, the elements that fit the room give
+     * back height ({@link ScrollContainer.Builder#fitRoom}) and past that the panel
+     * scrolls, but unlike {@link #setAvailableContentHeight} no filling element is handed
+     * it to fill. Fed to a centered dialog by its host, the screen's height less its
+     * margins, so a dialog never runs off the window. -1 for none. Internal.
+     */
+    @ApiStatus.Internal
+    public void setHeightCeiling(int height) {
+        int value = height < 0 ? -1 : height;
+        if (value == heightCeiling) return;
+        heightCeiling = value;
+        configurationDirty = true;
+        cachedScrollContainer = null;
+    }
+
     // Minimum for setAvailableContentHeight, so a degenerate frame can't collapse
     // the scroll viewport to nothing.
     private static final int MIN_FIT_HEIGHT = 16;
@@ -1278,6 +1326,35 @@ public class Panel {
         return disabledSupplier != null && disabledSupplier.getAsBoolean();
     }
 
+    // Transform
+
+    /**
+     * Draws the panel under {@code transform}'s scale and alpha, read every frame (7.6.0;
+     * pass {@code null} to clear). The layout is untouched: the panel and the slots it
+     * presents are placed as always, then drawn scaled about the pivot and faded. While
+     * the transform isn't {@link PanelTransform#IDENTITY} the panel takes no input at
+     * all, its slots included. See {@link PanelTransform}.
+     *
+     * <p>Several panels given the same transform (a backing box and the slot panels over
+     * it, say) grow and fade as one, since a scale about a screen point moves each of
+     * them the same way.
+     */
+    public Panel transform(@Nullable Supplier<PanelTransform> transform) {
+        this.transformSupplier = transform;
+        return this;
+    }
+
+    /** The panel's transform this frame: {@link PanelTransform#IDENTITY} with none set, or a null from the supplier. */
+    public PanelTransform currentTransform() {
+        PanelTransform t = transformSupplier == null ? null : transformSupplier.get();
+        return t == null ? PanelTransform.IDENTITY : t;
+    }
+
+    /** Whether the panel draws under a transform other than the identity this frame, so takes no input. */
+    public boolean isTransformed() {
+        return !currentTransform().isIdentity();
+    }
+
     // Opacity, dim and modal tracking
 
     /**
@@ -1342,6 +1419,27 @@ public class Panel {
     }
 
     /**
+     * Parts of the screen the dim leaves lit while this panel dims behind it (7.6.0),
+     * screen-space rectangles read every frame: the hotbar row a dialog saves from,
+     * say, so the player sees it at full brightness. Only the look changes: what is
+     * there stays as inert as the rest of the screen under a modal. Nothing while the
+     * panel doesn't {@link #dimsBehind(boolean) dim}.
+     *
+     * @return this panel, for chaining
+     */
+    public Panel litWhileDimmed(@Nullable Supplier<List<ScreenRectangle>> rects) {
+        this.litWhileDimmed = rects;
+        return this;
+    }
+
+    /** What the dim leaves lit this frame ({@link #litWhileDimmed}): empty for none. */
+    public List<ScreenRectangle> litRects() {
+        if (!dimsBehind || litWhileDimmed == null) return List.of();
+        List<ScreenRectangle> rects = litWhileDimmed.get();
+        return rects == null ? List.of() : rects;
+    }
+
+    /**
      * Sets whether this panel acts as a modal for the whole window.
      *
      * <p>When {@code true} and the panel is visible:
@@ -1394,6 +1492,10 @@ public class Panel {
      * {@code center()}, while a non-dim, non-modal overlay opts in with
      * {@code in(ModeScope.BOTH, Placement.screen(PanelPosition.center()))}.
      *
+     * <p>One exception to the centering (since 7.6.0): a dim or modal panel placed with
+     * {@link PanelPosition#pixel} or {@link PanelPosition#pixelBottomLeft} sits at its
+     * point, still in the overlay layer and still dimming and modal.
+     *
      * <p>This is about position only. The dim is still drawn only for
      * {@link #dimsBehind()}, so an overlay can be centered on top without
      * dimming.
@@ -1443,9 +1545,8 @@ public class Panel {
      * dismisses the modal instead of closing the screen under it.
      *
      * <p>The dialog builders set it for you:
-     * {@link com.trevlar.menukit.api.dialog.ConfirmDialog} to its {@code onCancel}
-     * and {@link com.trevlar.menukit.api.dialog.AlertDialog} to its
-     * {@code onAcknowledge}, so Escape does what the button does. For a modal you
+     * {@link com.trevlar.menukit.api.dialog.ConfirmDialog} to its {@code onCancel},
+     * so Escape does what the button does. For a modal you
      * build yourself, pass your dismiss callback here.
      *
      * <p>Without an action, a visible {@code tracksAsModal} panel still makes the

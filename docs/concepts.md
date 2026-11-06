@@ -24,9 +24,9 @@ A `PanelElement` is one item inside a panel. Its position is relative to the pan
 
 | Kind | Types |
 |---|---|
-| Render only | `TextLabel`, `Icon`, `Divider`, `ItemDisplay`, `ProgressBar`, `InfoBox` |
+| Render only | `TextLabel`, `Icon`, `Divider`, `ItemDisplay`, `ProgressBar` |
 | Interactive | `Button`, `Toggle`, `Checkbox`, `Radio` (with `RadioGroup`), `Slider`, `TextField`, `Dropdown`, `DropdownMulti`, `ItemPicker`, `ColorField` |
-| Composite | `ScrollContainer`, `SlotScroll`, `Flow`, `Section`, `Tabs`, `ListView`, `ConfirmDialog`, `AlertDialog`, `EditDialog` |
+| Composite | `ScrollContainer`, `SlotScroll`, `Flow`, `Section`, `Tabs`, `ListView`, `ConfirmDialog`, `EditDialog` |
 | Host | `WidgetHost`, for a vanilla-style widget made outside MenuKit |
 | Slot (SlotKit) | `SlotElement`, `SlotFlowElement`, in SlotKit |
 
@@ -82,7 +82,11 @@ Some state is the element's own view state, not the consumer's. Examples are whe
 
 ## Disabled
 
-`disabledWhen` on an element grays it and makes it inert. `Panel.disabledWhen(supplier)` does the same for every element of the panel, and a container's own `disabledWhen` (a `Section`, `Tabs`, `ScrollContainer` or `Flow`) does it for everything inside. Text grays too. `TextLabel`, `InfoBox` and a section's header draw in the disabled gray, which is the screen kind's `TextRole.DISABLED` color. A disabled panel still claims its area, so what is behind it stays inert. Its elements take no clicks, wheel or keys. Mouse releases still arrive, so a drag can end.
+`disabledWhen` on an element grays it and makes it inert. `Panel.disabledWhen(supplier)` does the same for every element of the panel, and a container's own `disabledWhen` (a `Section`, `Tabs`, `ScrollContainer` or `Flow`) does it for everything inside. Text grays too. `TextLabel` and a section's header draw in the disabled gray, which is the screen kind's `TextRole.DISABLED` color. A disabled panel still claims its area, so what is behind it stays inert. Its elements take no clicks, wheel or keys. Mouse releases still arrive, so a drag can end.
+
+## Transform
+
+New in 7.6.0. `Panel.transform(supplier)` draws a panel scaled about a screen point and faded, without moving its layout. The supplier returns a `PanelTransform(scale, pivotX, pivotY, alpha)` every frame, so a mod can grow a panel out of a point and fade it in, or shrink and fade it away. The scale takes everything the panel draws: its background, its elements and the slots it shows, items included. The alpha takes fills, sprites and text. Items have no color of their own to fade, so they stay opaque; hide them during the animation with a slot item look if they would show (`ItemAnimation.HIDDEN` hides a slot's count and durability bar with its item). At alpha 0 the panel draws nothing but is still laid out, so its slots stay its own and none of them shows. While the transform isn't `PanelTransform.IDENTITY` the panel takes no input. It claims no point, its elements see no hover, click, wheel or key, and its slots are never hovered or clicked. Give several panels the same supplier, a backing box and the slot panels over it for example, and they grow and fade as one.
 
 ## Looks
 
@@ -122,36 +126,54 @@ What each piece draws in the Default look, from vanilla's 26.2 sprites:
 | `ColorField` | Its swatch is a vanilla button with the color inside. Its dialog is a dialog of the screen, so its tabs, buttons and hex field draw for the kind |
 | `WidgetHost` | Whatever the hosted widget draws. It draws itself, the same in both looks |
 
-Where vanilla has no counterpart (a radio button, an info box, a progress bar, a consumer's sprite), the element keeps MenuKit's drawing in both looks. While a world is open the separators and the list band use vanilla's in-world textures, as vanilla does.
+Where vanilla has no counterpart (a radio button, a progress bar, a consumer's sprite), the element keeps MenuKit's drawing in both looks. While a world is open the separators and the list band use vanilla's in-world textures, as vanilla does.
 
 The Panel look follows the active resource pack (7.4.0). A raised panel's frame, fill and slot frames are cut from the pack's chest art, controls draw vanilla's button and checkbox sprites where a pack restyled them, and text on a panel keeps its role's color wherever that reads on the pack's fill and takes one made from the fill where it doesn't. A pack can also override MenuKit's own sprites to theme it directly. A mod has nothing to do. With no pack the Panel look is exactly as before. [Resource packs](resource-packs.md) has the order a look is chosen in and the sprites a pack can override.
 
 ## Item picker
 
-An `ItemPicker` is a setting whose value is an item or a list of items. On the page it is one slot. For a list it is a wrapping row of slots in order, `columns(n)` to a row (9 by default), ending in an empty slot marked with a plus. Each filled slot has a small remove button over its top-right corner, a few pixels showing a minus, with the tooltip "Remove". A click on it, or a right click anywhere on the slot, empties the slot. In a list that drops the slot, and the items after it move up one place. A left click anywhere else on a slot (or Enter on the focused picker) opens a dialog at that slot. On hover a slot shows the item's own tooltip, followed by how the setting compares it.
+An `ItemPicker` is a setting whose value is an item or a list of items. On the page it is one slot. For a list it is a wrapping row of slots in order, `columns(n)` to a row (9 by default), ending in an empty slot marked with a plus. Each filled slot has a small remove button over its top-right corner, a few pixels showing a minus, with the tooltip "Remove". A click on it, or a right click anywhere on the slot, empties the slot. In a list that drops the slot, and the items after it move up one place. A left click anywhere else on a slot (or Enter on the focused picker) opens a dialog at that slot. On hover a slot shows the item's own tooltip, followed by its count when the setting has one.
 
-The value is always whole stacks, read from `get` every frame and handed to `set` on every change:
+The value is read from `get` every frame and handed to `set` on every change:
 
 | Lens | Value |
 |---|---|
-| `state(Supplier<Item>, Consumer<Item>)` | One item, the kind only. `Items.AIR` is none. The 6.1.0 lens, unchanged. |
-| `stack(get, set)` | One `ItemStack`. `ItemStack.EMPTY` is none. |
+| `state(Supplier<Item>, Consumer<Item>)` | One item, the kind only. `Items.AIR` is none. The grid lists each item once, and there are no advanced settings. |
+| `stack(get, set)` | One `ItemStack`, one of it. `ItemStack.EMPTY` is none. |
 | `stacks(get, set)` | A `List<ItemStack>` in the player's order, never with empty entries. |
-| `rule(get, set)`, `rules(get, set)` | The same as `ItemMatch` values, each a stack and its own match mode. |
+| `rule(get, set)`, `rules(get, set)` | The same as `ItemMatch` rules, which also carry the count slider's number and the enchantments whose level is left blank. |
 
-`match(ItemMatch.Match)` declares how the setting compares stacks. `ItemMatch` does the comparing, so a mod never writes its own. Call `rule.matches(stack)`, or `ItemMatch.matches(config.stack, ItemMatch.Match.EXACT, stack)` for a plain stack.
+`ItemMatch` does the comparing, so a mod never writes its own. Call `rule.matches(stack)`, or `ItemMatch.matches(config.stack, stack)` for a plain stack. The item always counts. Past that, each field the rule fills in narrows the match, and a blank field is not checked:
 
-- `ITEM`, the default: the kind of item only. Count and components are ignored. The dialog has no Edit tab, and every slot holds one plain item.
-- `EXACT`: vanilla's own stack equality, the same item, count and components. A rule with nothing set is a plain item, so an enchanted or renamed one does not match.
-- `CONTAINS`: the same item and at least the components the rule sets. The count is ignored. A rule with nothing set matches any variant. Components compare as vanilla's item predicates compare them: enchantments must be there at their level (more may be), custom data must contain the rule's tag, a component the rule removes must be absent, anything else must be equal.
+- A name: only stacks with that name match.
+- Enchantments (an enchanted book's stored ones too): each must be on the stack at that level, or at any level when the rule leaves its level blank (`anyLevel()`). Others may be there as well.
+- Any other component the rule sets: it must match, compared as vanilla's item predicates compare it. Custom data must contain the rule's tag, anything else must be equal, and a component the rule removes (`!food`) must be absent. Damage is a component like any other, so it is checked only when the rule lists it.
 
-A rule can leave chosen component types out of `EXACT` and `CONTAINS`: `rule.ignoring(DataComponents.DAMAGE)` still matches the item once it is worn, since neither side's damage is looked at. The count is not a component, so `rule.ignoringCount()` leaves it out of `EXACT` (the other modes never compare it). The picker's `ignoring(...)` and `ignoringCount()` declare the same once: every rule it writes carries them, and with `ignoringCount()` the Edit tab has no count. A `stack` or `stacks` lens stores plain stacks, so test those with a rule built the same way, `new ItemMatch(stack, EXACT).ignoring(DataComponents.DAMAGE)`. `ItemMatch.CODEC` saves what a rule ignores, and a rule saved without it loads ignoring nothing.
+So a diamond sword picked from the grid matches every diamond sword, worn or renamed, and a potion picked from the grid matches every potion of that kind.
 
-The mode decides whether an empty rule means "any" or "plain", so MenuKit never guesses. `playerChoosesMatch()` lets the player choose per slot between `Any <item>` (`CONTAINS`) and "Exactly this" (`EXACT`). It needs `rule` or `rules`, which store the choice, and `match` sets the choice for a new slot. `ItemMatch.CODEC` saves a rule with vanilla's stack codec.
+A rule's `count()` is never part of the match. It is a number for the mod, such as a reserved slot's cap, and `ItemMatch.NONE` (0) means the player set none. `ItemMatch.CODEC` saves a rule with vanilla's stack codec and its count beside it, so a count can go past 99. A blank level is saved as `any_level`. It also reads rules MenuKit 7 saved. An `item` rule keeps only the item. A `contains` or `exact` rule keeps every field it had, less the components it ignored, and its stack's count becomes its count.
 
-The dialog is a modal dialog of the screen, in its kind. It is laid out as every dialog is, and is as wide and as tall as the tab it shows. At the top is the slot row, the setting's slots with the selected one outlined. A click on a slot selects it, and it stays selected until another is clicked. Each filled slot has the same remove button as on the page. It empties the slot, and in a list it also drops the slot, so the slots after it move left. The Search tab comes first. It has a search box, focused so typing starts at once, over a grid of every item from the creative inventory's search tab. Each potion, tipped arrow, enchanted book level, goat horn, firework duration and ominous bottle is its own entry (with `ITEM`, each item appears once). Search reads names, ids and tooltips. A click on an entry puts one of it straight into the selected slot, replacing what was there, and the slot stays selected. The Edit tab's count sets more (with `ITEM` there is no count). Enter in the search box puts the first match in the selected slot the same way. The grid asks for its nine columns, so the dialog is always wide enough to show them whole. In a list, filling the slot at the end adds a new empty one after it, to select and fill next.
+What the dialog's advanced settings offer is the picker's choice. Each option is off until the builder turns it on:
 
-The Edit tab, for `EXACT` and `CONTAINS`, edits the selected slot. It has the slot's name and count, then its enchantments in two lists. Under "Added" are those on the item, each with its level, `-` and `+` buttons from I to its highest, and a remove button. Under "Not Added" are those that fit the item and can be added, each with an add button. One that an enchantment on the item excludes is grayed and says what it conflicts with. An item nothing enchants lists none, and an enchanted book lists its stored ones. When the player has the match choice, it follows as two round radio buttons, Any and Exactly this. Last is every other component as text in vanilla's `/give` syntax, `[unbreakable={},!food]`. The box's hint is a short example, and its tooltip explains the syntax. Vanilla's own item parser reads the text, and it is checked as `/give` checks a stack. While it is not valid it shows red with vanilla's error under it, and nothing is written.
+| Builder | In the advanced settings |
+|---|---|
+| `name()` | A name field. |
+| `enchantments()` | A dropdown of the enchantments that fit the selected item, and a level dropdown for each one picked. A blank level (any level) needs `rule` or `rules`; with a stack lens each is at a level. |
+| `components()` | Every other component as text in vanilla's `/give` syntax. |
+| `count()` | A count slider from N/A (no count, `ItemMatch.NONE`) at its far left to the item's stack size at its far right: 64 for diamonds, 16 for ender pearls. Not shown for an item that doesn't stack, which has no count. A new slot starts at N/A. Needs `rule` or `rules`. |
+| `advanced(row)` | A row of the mod's own under the fields, as wide as the column. |
+
+`button(label, onClick)` puts a button of the mod's own in the button row, left of Cancel and Done ("Remove"), and `onDone(...)` runs after Done closes the dialog, where a mod that edits a draft applies it.
+
+`open(screen)` opens the dialog over any screen with no picker on a page, for a dialog that opens from a key press over a slot. Build the picker once and open it as often as needed. Escape, Cancel and Done work the same as they do from the page.
+
+The dialog is a modal dialog of the screen, in its kind, laid out as every dialog is. It is one panel. At the top is the title, then the slot row: the setting's slots, the selected one framed by the hotbar's selection. A click on a slot selects it, and it stays selected until another is clicked. Each filled slot has the same remove button as on the page, and a right click empties a slot too. In a list that also drops the slot, so the slots after it move left. Under the row is a search box, focused so typing starts at once, over a grid of every item from the creative inventory's search tab. Each potion, tipped arrow, enchanted book level, goat horn, firework duration and ominous bottle is its own entry. Search reads names, ids and tooltips. A click on an entry puts it straight into the selected slot, replacing what was there, and the slot stays selected. Enter in the search box puts the first match in the same way. In a list, filling the slot at the end adds a new empty one after it, to select and fill next. The grid asks for its nine columns, so the dialog is always wide enough to show them whole. It is five rows tall and keeps that size as a search changes its results.
+
+Under the grid is a "Show advanced settings" box. Ticked, the advanced settings appear as a second column to the right of the grid, so the dialog grows wider, not taller, and the grid stays where it is. The box is one remembered value for the player, kept by MenuKit for every picker in every mod (`config/menukit/item-picker.json`), and the column also shows from the start on a slot with fields filled in. On a screen too narrow for both columns the advanced one goes under the grid.
+
+The column edits the selected slot: the count, the name, then the enchantments. A dropdown lists those that fit the item; one that a picked enchantment excludes is left out until that one is unpicked. An item nothing enchants shows no dropdown, and an enchanted book lists every enchantment for its stored ones. Each one picked gets a row under the dropdown, its name and a level dropdown. Blank ("Any") matches any level, and a level picked means exactly that level, I to its highest. An enchantment with one level has no level dropdown. A newly picked one starts blank. Last is the components box, `[unbreakable={},!food]`. The box's hint is a short example, and its tooltip explains the syntax. Vanilla's own item parser reads the text, and it is checked as `/give` checks a stack. While it is not valid it shows red with vanilla's error under it, and nothing is written. Blank fields are not checked. No list in the dialog scrolls but the grid.
+
+On a screen too short for the dialog, the grid gives rows back, down to two. Only then does the dialog scroll. At 240 pixels tall the grid keeps its five rows with the column shown.
 
 Changes are written as they are made. Done keeps them, and Cancel and Escape write back the value from before the dialog opened. The value is a setting, never the player's item. The dialog's slots are not real slots, nothing touches the inventory or a container, and nothing is sent to the server, so the picker belongs to MenuKit, not a slot library. With no world open (a settings screen on the title screen) the picker uses vanilla's own data, loaded once.
 
@@ -211,6 +233,8 @@ The options share one toolbar, `list.toolbar()`, an ordinary element the mod pla
 
 For a short list where each row is its own thing to edit, such as a config list of text fields, `controlsInRows()` puts up, down and a remove cross in every row instead, after a thin divider line: inside a card, on a `Section`'s header line, or beside a bare row. No selection is needed. Add stays in the toolbar.
 
+`controlsOutside()` puts the same controls outside the panel instead. Each row keeps the list's whole width with no divider, and its up, down and remove sit a button's gap past the panel's right edge, level with the row's first line. The panel's background and claim stop at its edge, and out there each button claims only itself, so a click beside them still reaches whatever is behind the panel. Pinned rows, `confirmRemove` and `removeDisabledWhen` work as they do in the rows. In a scroll area the controls scroll with their rows and are clipped to its height. The panel doesn't make room for them: place it so the screen has `list.outboardWidth()` free on its right. The rule underneath is general: an element whose `outboardWidth()` is more than 0 draws past its panel's edge, from `RenderContext.panelRight()`, and the panel claims those points by the element's hit test.
+
 `addDisabledWhen(condition)` grays the add buttons and `removeDisabledWhen(condition)` grays the remove, the toolbar's `- Remove item` and every row's cross alike, while the condition holds, read every frame: a list at its longest or shortest. A click on a grayed one does nothing.
 
 `disabledReason(text)` shows above the rows while the list's `disabledWhen` holds.
@@ -263,7 +287,7 @@ Position the row after a section where it sits while the section is closed. When
 
 ## Layout helpers
 
-`Row` and `Column` compute positions once and return a `List<PanelElement>`. They do not exist at runtime. The positions are computed on the panel's first layout pass, when the game's font can measure text. A panel or dialog laid out with them can therefore be built at mod init. An element enters a layout built: `.add(Button.builder()...build())`, and the helper moves it into place. A custom element that can only be constructed once its position is known implements `ElementSpec`. `.build()` returns positioned elements that go into a panel with `.add(...)` or `.elements(...)`.
+`Row` and `Column` compute positions once and return a `List<PanelElement>`. They do not exist at runtime. The positions are computed on the panel's first layout pass, when the game's font can measure text. A panel or dialog laid out with them can therefore be built at mod init. An element enters a layout built: `.add(Button.builder()...build())`, and the helper moves it into place. `.build()` returns positioned elements that go into a panel with `.add(...)` or `.elements(...)`.
 
 `Flow` is the runtime row. Its children flow left to right at the panel's width and wrap to new rows. `Flow.spacer()` takes whatever a row's other children leave of that width. A label, a spacer and a control make a settings row with the control pinned to the right edge at any window width, with no width written anywhere. A spacer at each end of a row centers what is between them. When the row wraps, the control drops under its label. A row top-aligns its children. `crossAlign(CrossAlign.CENTER)` (7.3.0) centers each on its row's line instead, so a label sits level with the middle of a taller control and controls of different heights line up, with no pixel offsets; `CrossAlign.END` sets them on the line's bottom. The line is the tallest child's first line, so an open `Section` in the row keeps its header on it and grows downward.
 
@@ -314,6 +338,7 @@ The positions:
 | `PanelPosition.screenAnchor(InsideRegion)` | On one of nine spots of the screen or game window, inset from the edges it touches. |
 | `PanelPosition.center()` | Centered on the screen as an overlay, drawn on top. |
 | `PanelPosition.pixel(Supplier<ScreenOrigin>)` | At an absolute origin re-evaluated each frame. Returning `null` skips the frame. It does not stack and does not wrap. |
+| `PanelPosition.pixelBottomLeft(Supplier<ScreenOrigin>)` | Like `pixel`, but the origin is the panel's bottom-left corner, so a panel that grows taller grows upward. |
 
 Any placement takes two modifiers. `.priority(n)` orders panels that share a region (lower sits nearer the anchor edge) and is the z-order within a host (lower draws underneath). The default is 100. Ties go by the registering mod's id, then by registration order, so the order is the same on every launch. `.offset(dx, dy)` nudges one panel after it is placed, and its siblings stack on its un-nudged position.
 
@@ -404,11 +429,17 @@ A context answers one question: what is this panel placed against? Each context 
 
 A placement a context cannot resolve is rejected at registration. HUD panels do not receive input. For a clickable HUD control, open a standalone screen from a key binding.
 
-Every surface draws in the same order across all its hosts. FLOW panels come first, then POPOVER panels, then a dim when any shown panel dims behind it. OVERLAY panels (those that `center()`, dim behind, or track as modal) draw on top. Within a layer, a lower host draws before an upper one: a standalone screen's own host, then the screen's adapters, then the anchors. Within a host the sorted order holds. An element renders the same in every context.
+Every surface draws in the same order across all its hosts. FLOW panels come first, then POPOVER panels, then a dim when any shown panel dims behind it. OVERLAY panels (those that `center()`, dim behind, or track as modal) draw on top. An overlay sits centered on the screen, unless a dimming or modal panel is placed with `pixel` or `pixelBottomLeft`, which keeps its point. Within a layer, a lower host draws before an upper one: a standalone screen's own host, then the screen's adapters, then the anchors. Within a host the sorted order holds. An element renders the same in every context.
 
 A background panel, `Panel.builder(id).background()` (7.4.0), is the other end: it is drawn as part of the screen's own background, right where the screen draws its image (after its dim, before the chest texture), so everything else on the screen draws over it: vanilla's labels and slots, every other mod's widgets and buttons, every other panel, tooltips. The slots it shows draw with it, right after its elements, over it and clipped to what it shows of them (Slot rendering), so they are under every widget too: another mod's button over one of them hides its item, and over the button the slot is not hovered. What a mod draws into the screen's own background after vanilla's image still lands over it. It is meant for a panel that takes the place of part of the screen, as the container region's two panels do, and never gets in another mod's way. A panel is background or popover, not both; asking for both throws at build.
 
 A popover, `Panel.builder(id).popover()`, is a panel that pops up over the screen. It draws above every ordinary panel of every host, whichever registered first, and below a modal and its dim. Its placements are still its own. On a container screen, popovers draw after the ordinary panels and before the slots a slot library adds to panels (SlotKit's created slots), so a popover's own slots draw on it. Another panel's created slot under a popover still draws over it.
+
+## Outside the panel
+
+`Floating.at(() -> new ScreenOrigin(x, y), element)` (7.6.0) puts one element of a panel at a screen point of its own, read every frame, such as a dialog's Save button beside the screen's hotbar. A `null` point skips the element that frame, as `PanelPosition.pixel` does for a panel. It belongs to its panel: it shows, hides and grays with it, draws in the panel's layer (so a modal's floats above the dim), and takes input as the panel's own, with a modal up too. It takes no room in the panel's layout, so the panel's size and background leave it out. Keep it among the panel's top-level elements, since inside a scroll area it would scroll and clip with the content.
+
+A panel that dims behind it can leave parts of the screen lit: `panel.litWhileDimmed(() -> List.of(rect))` takes screen-space `ScreenRectangle`s, read every frame, and the dim covers the rest of the screen. The hotbar row a dialog saves from shows at full brightness, but it is still as inert as everything else under a modal. Only the look changes.
 
 ## Claims
 
@@ -418,6 +449,7 @@ What a panel covers is inert. A point on the screen is claimed by the topmost pa
 - A see-through panel, `opaque(false)`, takes only its solid elements, meaning the shown, opaque and interactive ones, such as a button. A label on it takes nothing.
 - An element's open overlay, such as a `Dropdown`'s list, takes its area whatever its panel's opacity.
 - A shown modal (`tracksAsModal`) takes every point on its screen.
+- An element can hang outside its panel (7.6.0), such as a list's `controlsOutside()` or a `Floating` element. An opaque panel takes those points too, but only where the element's own hit test does, so a point beside it goes to whatever is behind. Under a modal they are the modal's own points, live where the rest of the screen is inert.
 - A background panel (7.4.0) takes no point at all, opaque or not. It is drawn under everything on the screen, so nothing on the screen is behind it: whatever lies over it, another mod's widget included, is drawn on top and keeps the point, which is this same rule. Its own elements get input last: a click once the screen's widgets (every mod's) and every panel above have declined it, never on a slot it shows (that is vanilla's to click), and the wheel once the screen and every other handler have. Only its own slots are cut, at the edges of the clip they are shown under.
 
 Under a claim, vanilla gets nothing. There is no slot highlight, click or tooltip, no widget or list hover, and no creative tab. The claim routes the point to the claiming panel instead. A panel's own slots stay live under its own claim (a created slot it presents, or a standalone screen's own slot group). A standalone screen's own widgets stay live under its own panels too. Every surface runs the same check, so an anchored panel and a standalone screen's panels block what they cover exactly as an adapter's panel does.
@@ -468,8 +500,9 @@ A slot in a `ScrollContainer` (SlotKit's `SlotElement`) scrolls and clips like a
 
 - **The animation is the mod's pick.** An `ItemAnimation` draws an item at `t`. `ItemAnimation.OPEN_LID` opens a box's lid: the openness vanilla's own shulker box and chest item renderers take, so a shulker box's lid lifts and twists and a chest's, an ender chest's or a copper chest's swings up, in the resource pack's model and texture. A mod writes its own as a lambda: another stack, a sprite, the item with something over it.
 - **The transform is the mod's too.** `animation.posed(t -> new ItemAnimation.Pose(scale, offsetX, offsetY))` scales the item about its box's center and moves it, at each point. An open lid stands past the 16 pixel box and draws there, so a mod that wants it inside the slot shrinks the item as it opens.
-- **Timing is a `Transition`.** `Transition.of(millis, easing)` keeps, per key the mod names, which way a change is going: `toward(key, true)` plays toward 1 and holds there, `toward(key, false)` plays back toward 0, and turning mid-way goes on from where it got to. Back is the same curve run backwards, as vanilla closes a chest's lid, so an ease-out starts back slowly; `Transition.eachWay(millis, easing)` eases each way toward the end it goes to instead, so a slide moves from its first frame either way. It reads vanilla's clock, so it runs whatever draws in between. Key it by something that outlives the screen (the container, not the `Slot`), and a screen opened in place of another picks a finished animation up where it stood. `Easing` has `LINEAR`, `EASE_OUT`, `EASE_IN_OUT` and `EASE_OUT_BACK`, and any function of `t` is one.
+- **Timing is a `Transition`.** `Transition.of(millis, easing)` keeps, per key the mod names, which way a change is going: `toward(key, true)` plays toward 1 and holds there, `toward(key, false)` plays back toward 0, and turning mid-way goes on from where it got to. Back is the same curve run backwards, as vanilla closes a chest's lid, so an ease-out starts back slowly; `Transition.eachWay(millis, easing)` eases each way toward the end it goes to instead, so a slide moves from its first frame either way. It reads vanilla's clock, so it runs whatever draws in between. Key it by something that outlives the screen (the container, not the `Slot`), and a screen opened in place of another picks a finished animation up where it stood. `Easing` has `LINEAR`, `EASE_OUT`, `EASE_IN_OUT`, `EASE_OUT_BACK` and `SPRING` (a damped spring with a small rebound, the cycle strip's), and any function of `t` is one.
 - **Another stack in the slot's place** (7.5.0). `animation.swapped(stack -> other)` draws `other` where the slot's stack would go, so a look can show an open bundle's model, animated or not: `ItemAnimation.AS_IS.swapped(...)` draws the swapped stack as it is. The count and durability bar stay the slot's own stack's.
+- **Nothing at all** (7.6.0). `ItemAnimation.HIDDEN.at(1)` hides the item and its count, durability bar and cooldown, for an item shown somewhere else meanwhile, such as a copy flying into the slot. Return `null` once it lands and the slot shows its stack whole. Slot decorations still draw. Only `HIDDEN` itself hides the count: an animation built from it (`HIDDEN.posed(...)`) draws no item but leaves the count drawn.
 
 ## Slot decorations
 

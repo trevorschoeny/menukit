@@ -51,12 +51,12 @@ HudPanel.builder("mymod:totem-status", ModeScope.BOTH)
         .statusColumn()
         .priority(10)
         .visibleWhen(() -> !totemShown().isEmpty())
-        .slot(0, 0).item(() -> totemShown())
-                .hideCount().hideDurability().scale(HudPanel.STATUS_SCALE).done()
+        .item(0, 0).item(() -> totemShown()).size(10)
+                .hideCount().hideDurability().done()
         .build();
 ```
 
-Result: while `totemShown()` holds a stack, the totem sits in a hotbar slot scaled to 11 x 12, centered in the 20 pixel gap between the hearts and the hunger bar, resting on the XP level number, level with the hearts and armor rows (2 pixels above the hotbar in creative). Icons from several mods in the column stack upward 2 pixels apart in `.priority(n)` order, lowest nearest the number; a hidden one takes no room. While the column reaches them, vanilla's held-item name, action-bar message and the chat move up by exactly as far as it rises above their bottom edge, and back down when it no longer does, so none of them lands on it. Keep `.scale(HudPanel.STATUS_SCALE)` so every mod's icons match, and leave durability on (drop `.hideDurability()`) for items that wear, such as an elytra.
+Result: while `totemShown()` holds a stack, a 10 pixel totem sits centered in the 20 pixel gap between the hearts and the hunger bar, resting on the XP level number, level with the hearts and armor rows (2 pixels above the hotbar in creative). Icons from several mods in the column stack upward 2 pixels apart in `.priority(n)` order, lowest nearest the number; a hidden one takes no room. While the column reaches them, vanilla's held-item name, action-bar message and the chat move up by exactly as far as it rises above their bottom edge, and back down when it no longer does, so none of them lands on it. Leave durability on (drop `.hideDurability()`) for items that wear, such as an elytra.
 
 ## Put a button on every container screen
 
@@ -484,7 +484,7 @@ Result: a swatch of the color, over a checkerboard because it has alpha. Clickin
 
 ## An item setting
 
-Needs: MenuKit 7.2.0, and 7.3.0 for `ignoring` and `ignoringCount`.
+Needs: MenuKit 8.0.0.
 
 ```java
 // One item, the kind only.
@@ -492,35 +492,34 @@ PanelElement lockedItem = ItemPicker.builder()
         .state(config::lockedItem, config::setLockedItem)
         .build();
 
-// A list of exact stacks, edited in full.
+// A list of stacks: the items the player picks, a potion as that potion.
 PanelElement kit = ItemPicker.builder()
         .label(Component.literal("Starting kit"))
         .stacks(config::kit, config::setKit)
-        .match(ItemMatch.Match.EXACT)
         .build();
 
-// A list the player matches per slot: "Any Diamond Sword" or "Exactly this".
+// A list of rules, each with a name, enchantments and components to match.
 PanelElement locks = ItemPicker.builder()
         .label(Component.literal("Locked items"))
         .rules(config::locks, config::setLocks)
-        .match(ItemMatch.Match.CONTAINS)
-        .playerChoosesMatch()
+        .name().enchantments().components()
         .build();
 
-// Exact items that still match once worn, in any count (7.3.0).
-PanelElement exactLocks = ItemPicker.builder()
-        .label(Component.literal("Exact locks"))
-        .rules(config::exactLocks, config::setExactLocks)
-        .match(ItemMatch.Match.EXACT)
-        .ignoring(DataComponents.DAMAGE)
-        .ignoringCount()
+// One rule with a count, opened from a key press over any screen.
+ItemPicker reserve = ItemPicker.builder()
+        .label(Component.literal("Reserve slot"))
+        .rule(config::draft, config::setDraft)
+        .name().enchantments().components()
+        .count()
+        .onDone(config::apply)
         .build();
+reserve.open(screen);
 
-// In play, one matcher for every mode.
+// In play, one matcher for every rule.
 boolean locked = config.locks().stream().anyMatch(rule -> rule.matches(stack));
 ```
 
-Result: one slot with the item, and three rows of slots, each with an empty slot marked with a plus at the end. Clicking a slot opens a dialog over the screen: the setting's slots at the top, then a search box over every item and variant. Click a slot in the row to select it, then click an item in the grid to put it there. The small minus in a filled slot's corner removes it, on the page and in the dialog. The two lists have an Edit tab for the selected slot: name, count, enchantments that fit the item, the other components in `/give` syntax, and for the locks the choice between Any and Exactly. The exact locks have no count, and their rules leave damage out, so a locked sword stays locked as it wears. The first picker never shows a count or an Edit tab. Every change is written at once. Cancel or Escape puts back the value from before. Save a rule with `ItemMatch.CODEC`.
+Result: one slot with the item, and two rows of slots, each with an empty slot marked with a plus at the end. Clicking a slot opens a dialog over the screen: the setting's slots at the top, the selected one framed by the hotbar's selection, then a search box over every item and variant. Click a slot in the row to select it, then click an item in the grid to put it there. The small minus in a filled slot's corner, or a right click, removes it, on the page and in the dialog. The locks have advanced settings, shown in a column beside the grid while "Show advanced settings" is ticked, for the selected slot: a name, a dropdown of the enchantments that fit the item with a level for each (blank for any level), and the other components in `/give` syntax. The item always counts; each field filled in narrows the match and a blank one is not checked, so a lock on a diamond sword with nothing filled in holds every diamond sword, worn or not. The reserve popup opens with no picker on the page, and adds a count slider from N/A, no count, to the item's stack size, with no slider for an item that doesn't stack; the count is the consumer's, never matched. Every change is written at once. Done keeps it, and Cancel or Escape puts back the value from before. Save a rule with `ItemMatch.CODEC`, which also reads MenuKit 7's.
 
 ## A list that changes while the screen is open
 

@@ -194,7 +194,7 @@ public final class ShortFrames {
         ScreenEvents.AFTER_INIT.register(phase, (client, screen, w, h) -> {
             if (SWITCHES.isEmpty() || !(screen instanceof AbstractContainerScreen<?> acs)) return;
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> sync(acs));
-            ScreenEvents.remove(screen).register(s -> {
+            KeptScreens.onTakenDown(screen, () -> {
                 Grid grid = known(acs);
                 if (grid != null && grid.holds) grid.home();
             });

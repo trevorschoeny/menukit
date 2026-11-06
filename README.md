@@ -115,11 +115,11 @@ The API is every type in a package named `api` (`com.trevlar.menukit.api.*`), an
 
 | Package | Holds |
 | --- | --- |
-| `api` | `MK`, the HUD facade, which registers HUD panels and notifications, sends a notification, and reads or sets the recipe book. `Declarations`, the one freeze that MenuKit and every library built on it declare through. |
+| `api` | `MK`, the HUD facade, which registers HUD panels and reads or sets the recipe book. `Declarations`, the one freeze that MenuKit and every library built on it declare through. |
 | `api.element` | Every element, and the contexts they render and take input in |
-| `api.layout`, `api.dialog` | Rows and columns placed once, and confirm, alert, and edit dialogs |
+| `api.layout`, `api.dialog` | Rows and columns placed once, and confirm and edit dialogs |
 | `api.panel` | `Panel`, placement (`Placement`, `PanelPosition` and the regions) and `ModeScope`, the adapters that put panels on vanilla screens and around anchors, the container list (`ContainerRegion`), container tabs (`ContainerTabs`), screen frames (`ScreenFrames`), slot item looks and decorations (`SlotItemLooks`, `SlotDecorations`), shared panels (`SharedPanels`), and `MKScreen` |
-| `api.hud` | HUD panels, notifications, and the cycle strip |
+| `api.hud` | HUD panels, and decorations on the hotbar's slots |
 | `api.host` | For a library that ships its own screens. It holds the host of a screen's own panels, the hook that routes input to slots drawn in panels, and `SlotClip`, which clips those slots to a scroll area |
 
 #### A first panel on the HUD
@@ -194,9 +194,9 @@ A mod's own screen subclasses `MKScreen`. Elements draw for the kind of screen t
 
 `MKTooltip.hideWhen(...)` hides every tooltip, or only item tooltips or only the others, while a condition holds. `wrapWhen`, `clampWhen`, and `avoidCoverWhen` keep tooltips on screen and out of the way, and `onWheel` with `scrollBy` lets a mod scroll a long one. All of them are off unless a mod registers them from client init. The Claims section of [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md) explains each switch.
 
-#### The cycle strip
+#### Beside and on the hotbar
 
-`HudCycleStrip` draws a small hotbar just right of the vanilla one, showing a ring of stacks that turns through the held slot. A mod writes a source that returns the ring for a hotbar slot, registers it once with `HudCycleStrip.register(...)`, and calls `slide` after the ring turns. [Cycle strip](https://github.com/trevorschoeny/menukit/blob/main/docs/cycle-strip.md) has the full guide.
+A HUD panel in a side region, `region(OutsideRegion.RIGHT_ALIGN_BOTTOM)` or `LEFT_ALIGN_BOTTOM`, takes room beside the hotbar. Every mod's panels there stack instead of overlapping, step past the offhand slot, and follow their content's size. `HotbarDecorations.under(...)` draws on the hotbar's own slots, under their items, and `HotbarDecorations.hideItem(...)` leaves a slot's item out while a mod draws it somewhere else.
 
 #### Slots
 

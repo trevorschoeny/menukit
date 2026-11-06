@@ -56,14 +56,6 @@ public class HudPanel {
     private HudPanel() {} // static API only
 
     /**
-     * The scale for a {@link SlotBuilder#scale scaled} hotbar slot in the
-     * {@link Builder#statusColumn status column} (since 7.3.0): 6/11, so the 20 x 22
-     * slot takes 11 x 12 and its item is about a heart's size. Use it rather than a
-     * number of your own, so every mod's icons in the column match.
-     */
-    public static final float STATUS_SCALE = 6f / 11f;
-
-    /**
      * Starts a HUD panel builder for one mode scope (7.4.0): the panel shows only in that
      * mode ({@link ModeScope#BOTH} for either), read every frame, so it comes and goes with
      * {@code /gamemode}.
@@ -160,8 +152,7 @@ public class HudPanel {
          * message and the chat move up by exactly as far as it rises above their
          * bottom edge, and back when it doesn't, whichever mods put panels there.
          *
-         * <p>Meant for small things such as a status icon in a {@link #slot hotbar
-         * slot} scaled by {@link HudPanel#STATUS_SCALE}: a panel wider than 20 px
+         * <p>Meant for small things such as a status icon: a panel wider than 20 px
          * overlaps the hearts and hunger.
          */
         public Builder statusColumn() {
@@ -300,23 +291,6 @@ public class HudPanel {
         /** Adds an item icon and returns an ItemBuilder to configure it. */
         public ItemBuilder item(int x, int y) {
             return new ItemBuilder(this, x, y);
-        }
-
-        /**
-         * Adds a hotbar slot, drawn with vanilla's hotbar sprite, holding an item.
-         *
-         * @param x    panel-relative X position
-         * @param y    panel-relative Y position
-         * @param item supplier that returns the ItemStack to display each frame
-         */
-        public Builder slot(int x, int y, Supplier<ItemStack> item) {
-            elements.add(new HudSlot(x, y, item, true, true, null, 1f));
-            return this;
-        }
-
-        /** Adds a hotbar slot and returns a SlotBuilder to configure it. */
-        public SlotBuilder slot(int x, int y) {
-            return new SlotBuilder(this, x, y);
         }
 
         /** Adds a progress bar and returns a BarBuilder to configure it. */
@@ -472,7 +446,7 @@ public class HudPanel {
 
         public ItemBuilder item(Supplier<ItemStack> item) { this.item = item; return this; }
         public ItemBuilder size(int size) { this.size = size; return this; }
-        // Count and durability show by default; these hide them, as on SlotBuilder.
+        // Count and durability show by default; these hide them.
         public ItemBuilder hideCount() { this.showCount = false; return this; }
         public ItemBuilder hideDurability() { this.showDurability = false; return this; }
 
@@ -515,47 +489,6 @@ public class HudPanel {
                     .value(value).direction(direction).fillColor(fillColor).bgColor(bgColor);
             if (label != null) bar.label(label);
             parent.elements.add(bar.build());
-            return parent;
-        }
-    }
-
-    /** Configures a HUD slot element. */
-    public static class SlotBuilder {
-        private final Builder parent;
-        private final int x, y;
-        private Supplier<ItemStack> item = () -> ItemStack.EMPTY;
-        private boolean showCount = true;
-        private boolean showDurability = true;
-        private @Nullable Runnable onRender;
-        private float scale = 1f;
-
-        SlotBuilder(Builder parent, int x, int y) {
-            this.parent = parent;
-            this.x = x;
-            this.y = y;
-        }
-
-        public SlotBuilder item(Supplier<ItemStack> item) { this.item = item; return this; }
-        public SlotBuilder hideCount() { this.showCount = false; return this; }
-        public SlotBuilder hideDurability() { this.showDurability = false; return this; }
-        public SlotBuilder onRender(Runnable callback) { this.onRender = callback; return this; }
-
-        /**
-         * Draws the slot, item and decorations together at {@code scale} (since 7.3.0),
-         * 1 by default. The element's size follows, rounded up: at
-         * {@link HudPanel#STATUS_SCALE}, the {@link Builder#statusColumn status
-         * column}'s size, the 20 x 22 slot takes 11 x 12.
-         *
-         * @throws IllegalArgumentException unless {@code scale} is above 0
-         */
-        public SlotBuilder scale(float scale) {
-            if (!(scale > 0f)) throw new IllegalArgumentException("MenuKit: a HUD slot's scale must be above 0, got " + scale);
-            this.scale = scale;
-            return this;
-        }
-
-        public Builder done() {
-            parent.elements.add(new HudSlot(x, y, item, showCount, showDurability, onRender, scale));
             return parent;
         }
     }

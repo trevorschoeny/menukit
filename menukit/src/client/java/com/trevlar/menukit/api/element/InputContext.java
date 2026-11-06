@@ -42,6 +42,12 @@ import java.util.Objects;
  * {@link ScrollContainer}'s content inset in the Default look's list band) answers
  * input with the geometry it drew.
  *
+ * <h3>The panel's edge (7.6.0)</h3>
+ *
+ * {@code panelRight} is the same one its {@link RenderContext} carries: where the
+ * panel's background ends on the right, so an element hanging past it answers input
+ * where it drew.
+ *
  * @param originX  screen-space X of the element's containing content origin
  * @param originY  screen-space Y of the element's containing content origin
  * @param mouseX   screen-space mouse X of the event
@@ -49,12 +55,18 @@ import java.util.Objects;
  * @param disabled whether the element's panel or container is disabled
  * @param kind     the kind of screen the element is on ({@link ScreenKind#PANEL}
  *                 in a context built without one)
+ * @param panelRight screen-space X of the panel's outer right edge, or {@link RenderContext#NO_PANEL}
  */
 public record InputContext(int originX, int originY, double mouseX, double mouseY, boolean disabled,
-                           ScreenKind kind) {
+                           ScreenKind kind, int panelRight) {
 
     public InputContext {
         Objects.requireNonNull(kind, "kind");
+    }
+
+    /** A context with no panel edge: the 7.5 shape. */
+    public InputContext(int originX, int originY, double mouseX, double mouseY, boolean disabled, ScreenKind kind) {
+        this(originX, originY, mouseX, mouseY, disabled, kind, RenderContext.NO_PANEL);
     }
 
     /** A context in the Panel look: the 6.0.0 shape. */
@@ -82,11 +94,11 @@ public record InputContext(int originX, int originY, double mouseX, double mouse
 
     /** The same event with the content origin moved: what a container hands its children. */
     public InputContext at(int originX, int originY) {
-        return new InputContext(originX, originY, mouseX, mouseY, disabled, kind);
+        return new InputContext(originX, originY, mouseX, mouseY, disabled, kind, panelRight);
     }
 
     /** This context, disabled as well when {@code alsoDisabled} holds. Never re-enables. */
     public InputContext disabledIf(boolean alsoDisabled) {
-        return alsoDisabled && !disabled ? new InputContext(originX, originY, mouseX, mouseY, true, kind) : this;
+        return alsoDisabled && !disabled ? new InputContext(originX, originY, mouseX, mouseY, true, kind, panelRight) : this;
     }
 }

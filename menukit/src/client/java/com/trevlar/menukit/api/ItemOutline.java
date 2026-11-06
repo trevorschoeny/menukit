@@ -1,17 +1,18 @@
-package com.trevlar.menukit.core;
+package com.trevlar.menukit.api;
 
 import com.trevlar.menukit.api.element.SlotRendering;
+import com.trevlar.menukit.core.MKRenderPipelines;
 import net.minecraft.client.renderer.state.gui.GuiItemRenderState;
-
-import org.jetbrains.annotations.ApiStatus;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * The bookkeeping behind {@link SlotRendering#drawItemOutline}: which of this
- * frame's item draws are silhouettes, and in what color.
+ * Marks an item drawn through {@link #silhouettes} to render as a flat-colored outline
+ * instead of its texture (public since 8.0.0): the bookkeeping behind
+ * {@link SlotRendering#drawItemOutline}, open to any mod drawing its own item copy
+ * (a flying arc, a cycle strip) that wants the same outline.
  *
  * <h3>Why two steps</h3>
  *
@@ -32,7 +33,6 @@ import java.util.WeakHashMap;
  * <p>Render thread only. The marks are weak, so states a frame discards are
  * collected with it.
  */
-@ApiStatus.Internal
 public final class ItemOutline {
 
     private ItemOutline() {}

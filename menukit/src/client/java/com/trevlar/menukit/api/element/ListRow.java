@@ -27,6 +27,9 @@ import java.util.function.Supplier;
  *       consumer's row, then a vertical divider line, then up, down and remove. The
  *       list makes one per key only when the list has controls in its rows, so any
  *       other list keeps the consumer's row as it is.</li>
+ *   <li><b>A row with its controls outside</b> ({@link ListView.Builder#controlsOutside()},
+ *       7.6.0): the row keeps the list's whole width, no divider, and the controls hang
+ *       a button's gap past the panel's right edge, on the row's first line.</li>
  *   <li><b>The toolbar</b>: the list's title if it has one, then the search field,
  *       then the sort, add, remove and arrow buttons as its controls, a button's gap
  *       after it, no divider.</li>
@@ -102,12 +105,15 @@ final class ListRow extends AbstractPanelElement {
     /** The title's slot at the last placing, so a title that changes width moves the search field with it. */
     private int placedLead = -1;
 
+    /** Whether the controls hang past the panel's right edge ({@link ListView.Builder#controlsOutside()}) rather than sit in the row. */
+    private final boolean outside;
+
     /** The width its container gives it (the list, or the mod's layout for a placed toolbar); until the first pass, its natural width. */
     private int budget = -1;
 
-    /** A list row and its controls, behind a divider. */
-    ListRow(PanelElement row, List<PanelElement> controls) {
-        this(row, controls, true, null, null, () -> false, false);
+    /** A list row and its controls: behind a divider, or {@code outside} the panel. */
+    ListRow(PanelElement row, List<PanelElement> controls, boolean outside) {
+        this(row, controls, !outside, null, null, () -> false, false, outside);
     }
 
     /**
@@ -118,12 +124,13 @@ final class ListRow extends AbstractPanelElement {
     static ListRow toolbar(@Nullable Supplier<Component> title, @Nullable Supplier<Component> titleTooltip,
                            BooleanSupplier off, @Nullable PanelElement search, List<PanelElement> buttons) {
         PanelElement row = search != null ? search : Flow.builder().build();   // nothing there: the buttons keep the right end
-        return new ListRow(row, buttons, false, title, titleTooltip, off, search != null);
+        return new ListRow(row, buttons, false, title, titleTooltip, off, search != null, false);
     }
 
     private ListRow(PanelElement row, List<PanelElement> controls, boolean divider,
                     @Nullable Supplier<Component> title, @Nullable Supplier<Component> titleTooltip,
-                    BooleanSupplier titleOff, boolean searched) {
+                    BooleanSupplier titleOff, boolean searched, boolean outside) {
+        this.outside = outside;
         this.divider = divider;
         this.title = title;
         this.titleTooltip = titleTooltip;
@@ -151,6 +158,7 @@ final class ListRow extends AbstractPanelElement {
     // Layout
 
     private boolean inside() {
+        if (outside) return true;   // the row keeps its whole width; nothing reserved on its line
         if (inside == null) inside = row instanceof AbstractPanelElement r && r.reserveTrailing(room());
         return inside;
     }
@@ -175,7 +183,7 @@ final class ListRow extends AbstractPanelElement {
 
     /** The row's first line, {@code {top, height, right}}: where it keeps the room, or its baseline height. */
     private int[] line() {
-        if (inside()) return ((AbstractPanelElement) row).trailingLine();
+        if (!outside && inside()) return ((AbstractPanelElement) row).trailingLine();
         return new int[]{0, row.getHeight() - Math.max(0, row.extraLayoutHeight()), 0};
     }
 
@@ -193,6 +201,30 @@ final class ListRow extends AbstractPanelElement {
     /** The left edge of the controls, from this element's left. */
     private int laneX() {
         return getWidth() - line()[2] - laneWidth();
+    }
+
+    /** Outside: from the panel's right edge a button's gap out, or this row's own right edge with no panel. */
+    private int outsideLaneX(int originX, int panelRight) {
+        int edge = panelRight == RenderContext.NO_PANEL ? originX + getChildX() + getWidth() : panelRight;
+        return edge + CONTROL_GAP - originX;
+    }
+
+    /** How far the controls reach past the panel's edge: a button's gap and the lane; 0 inside. */
+    @Override
+    public int outboardWidth() {
+        return outside ? CONTROL_GAP + laneWidth() : 0;
+    }
+
+    /** Moves the controls to the lane outside the panel for this origin; nothing inside, or when they are already there. */
+    private void placeOutside(int originX, int panelRight) {
+        if (!outside) return;
+        int cx = outsideLaneX(originX, panelRight);
+        if (!controls.isEmpty() && controls.get(0).getChildX() == cx) return;
+        int top = getChildY() + rowDrop() + centered(), laneH = laneHeight();
+        for (PanelElement c : controls) {
+            if (c instanceof AbstractPanelElement e) e.setChildPosition(cx, top + (laneH - c.getHeight()) / 2);
+            cx += c.getWidth() + CONTROL_GAP;
+        }
     }
 
     // The title (toolbar only)
@@ -264,7 +296,7 @@ final class ListRow extends AbstractPanelElement {
     public int naturalWidth() {
         int titleW = title == null || title.get() == null ? 0 : Minecraft.getInstance().font.width(title.get());
         int lead = titleW > 0 ? titleW + LANE_GAP : 0;
-        return lead + (inside() ? row.naturalWidth() : row.naturalWidth() + room());
+        return lead + (inside() ? row.naturalWidth() : row.naturalWidth() + room());   // outside counts as inside
     }
 
     /** The width it was given, as any element: the list's for a row, its container's for a placed toolbar. */
@@ -307,7 +339,7 @@ final class ListRow extends AbstractPanelElement {
         placedLead = lead();
         if (row instanceof AbstractPanelElement r) r.setChildPosition(x + placedLead, y + drop);
         int top = y + drop + centered(), laneH = laneHeight();
-        int cx = x + laneX();
+        int cx = outside ? x + getWidth() + CONTROL_GAP : x + laneX();   // outside: moved past the panel's edge when drawn
         for (PanelElement c : controls) {
             if (c instanceof AbstractPanelElement e) e.setChildPosition(cx, top + (laneH - c.getHeight()) / 2);
             cx += c.getWidth() + CONTROL_GAP;
@@ -320,6 +352,7 @@ final class ListRow extends AbstractPanelElement {
     @Override
     public void render(RenderContext ctx) {
         refit();
+        placeOutside(ctx.originX(), ctx.panelRight());
         if (title != null) titleLine(ctx);
         ChildDispatch.render(List.of(row), ctx);
         if (divider && row.isVisible()) dividerLine(ctx);
@@ -386,11 +419,13 @@ final class ListRow extends AbstractPanelElement {
 
     @Override
     public boolean hitTest(InputContext in) {
+        placeOutside(in.originX(), in.panelRight());
         return ChildDispatch.hitTest(input, in);
     }
 
     @Override
     public boolean mouseClicked(InputContext in, int button) {
+        placeOutside(in.originX(), in.panelRight());
         return ChildDispatch.mouseClicked(input, in, button);
     }
 

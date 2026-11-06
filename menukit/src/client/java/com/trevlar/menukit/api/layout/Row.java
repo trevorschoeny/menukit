@@ -19,9 +19,7 @@ import java.util.function.Consumer;
  * first read of any emitted element's position (in practice the panel's first
  * layout pass), not in {@code build()}: a label's or button's size needs the
  * game's font, which does not exist yet at mod init, where panels and dialogs
- * are declared. So a Row builds anywhere. A Row holding a custom
- * {@link ElementSpec}, whose element exists only once placed, is laid out in
- * {@code build()} instead, measuring then.
+ * are declared. So a Row builds anywhere.
  *
  * <p><b>Helper, not container.</b> Row is not a {@link PanelElement}, does not
  * render, and is gone once built. The Panel draws the elements directly, so a
@@ -67,7 +65,6 @@ import java.util.function.Consumer;
  * flat list of positioned elements.
  *
  * @see Column
- * @see ElementSpec
  * @see CrossAlign
  */
 public final class Row {
@@ -148,13 +145,12 @@ public final class Row {
             return this;
         }
 
-        /** Appends an element. */
-        public Builder add(ElementSpec spec) {
-            entries.add(LayoutEntry.fromSpec(spec));
-            return this;
-        }
-
-        /** Appends an element that is already built. See {@link ElementSpec#of(PanelElement)}. */
+        /**
+         * Appends an element. It must extend
+         * {@link com.trevlar.menukit.api.element.AbstractPanelElement} (every
+         * MenuKit element does) so the layout can move it; a bare custom
+         * {@link PanelElement} throws when the layout runs.
+         */
         public Builder add(PanelElement element) {
             entries.add(LayoutEntry.fromElement(element));
             return this;

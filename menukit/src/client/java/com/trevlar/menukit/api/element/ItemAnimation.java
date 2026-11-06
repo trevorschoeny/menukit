@@ -21,7 +21,8 @@ import java.util.function.UnaryOperator;
  *
  * <p>A mod writes its own as a lambda: draw whatever the item should look like at {@code t}
  * (another stack, a sprite, the item with something over it). MenuKit draws the item's count
- * and durability bar after it, where vanilla would, unmoved by the animation.
+ * and durability bar after it, where vanilla would, unmoved by the animation; {@link #HIDDEN}
+ * hides those too.
  */
 @FunctionalInterface
 public interface ItemAnimation {
@@ -43,6 +44,15 @@ public interface ItemAnimation {
      * slot's ({@link #swapped}), {@code AS_IS.swapped(...).at(1)} (7.5.0).
      */
     ItemAnimation AS_IS = (g, stack, x, y, t) -> g.item(stack, x, y);
+
+    /**
+     * Nothing at all, at every {@code t}: not the item, nor its count, durability bar or
+     * cooldown (7.6.0). For an item shown somewhere else meanwhile, a copy flying into the
+     * slot: {@code HIDDEN.at(1)} until it lands, then {@code null} and the slot shows its
+     * stack whole. MenuKit knows this constant itself; an animation built from it
+     * ({@code HIDDEN.posed(...)}) draws nothing but leaves the count and bar drawn.
+     */
+    ItemAnimation HIDDEN = (g, stack, x, y, t) -> {};
 
     /**
      * This animation drawing {@code swap}'s stack in place of the one it is given: another

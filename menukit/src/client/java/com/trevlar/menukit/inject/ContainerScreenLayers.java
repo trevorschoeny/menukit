@@ -40,6 +40,7 @@ import java.util.List;
  *   <tr><td>2</td><td><b>flow panels</b>, then <b>popover panels</b> of every host, <b>each followed by the slots it shows</b></td><td>MenuKit: {@link #aboveSlots} (or {@link #beforeSlot}, below); each slot through the screen's own {@code extractSlot}</td></tr>
  *   <tr><td>3</td><td>created slots no panel shows (a slot library that does not report its slots)</td><td>vanilla ({@code extractSlots}, after the first such slot)</td></tr>
  *   <tr><td>4</td><td>modal dim, <b>overlay panels</b> of every host, each followed by its slots</td><td>MenuKit: {@link #aboveSlots}</td></tr>
+ *   <tr><td>4b</td><td>on a recipe-book screen, the <b>recipe book</b> draws between 1 and 2 instead: layers 2 and 4 wait for it (7.6.0)</td><td>vanilla ({@code recipeBookComponent.extractRenderState}, the next stratum); MenuKit then draws 2 and 4 at {@link #aboveRecipeBook}</td></tr>
  *   <tr><td>5</td><td>carried item, cursor</td><td>vanilla ({@code extractCarriedItem}, next stratum)</td></tr>
  *   <tr><td>6</td><td>tooltips</td><td>vanilla ({@code extractTooltip})</td></tr>
  * </table>
@@ -140,6 +141,19 @@ import java.util.List;
  * before every {@code nextStratum()} and before {@code extractTooltip}, so cursor and
  * tooltip layering, and same-frame tooltip flushing, are unchanged.
  *
+ * <h2>The recipe book (7.6.0)</h2>
+ *
+ * A recipe-book screen draws its book after {@code extractContents}, in a stratum of
+ * its own, and offers it every click and drag before the screen's own handling. Panels
+ * already claim the points they cover from the book (its buttons don't highlight, its
+ * tooltips don't show), so they draw over it too: at {@code extractContents} RETURN the
+ * panel layers wait ({@link #aboveSlots}), and draw right after the book, in its stratum,
+ * still before the carried item and the tooltips ({@link #aboveRecipeBook}). A click or
+ * drag on a point a panel claims skips the book ({@code MKRecipeBookLayersMixin}). Where
+ * the screen is too narrow and the book is up, vanilla skips {@code extractContents}, so
+ * no panel draws there, as before. Flow panels that drew early for an unreported created
+ * slot ({@link #beforeSlot}) stay under the book.
+ *
  * <p>Non-container screens have no slot pass: {@link ScreenPanelRegistry} composes
  * the whole plan in one renderable there.
  *
@@ -152,6 +166,15 @@ public final class ContainerScreenLayers {
 
     /** Whether layer 2 has been drawn this frame. Render thread only. */
     private static boolean flowDrawn = false;
+
+    /**
+     * Whether this frame is a recipe-book screen's, which draws its book after the
+     * contents and then calls {@link #aboveRecipeBook}. Render thread only.
+     */
+    private static boolean bookFrame = false;
+
+    /** Layers 2 and 4 waited at {@code extractContents} RETURN for the book to draw. Render thread only. */
+    private static boolean waitingForBook = false;
 
     /**
      * The clip vanilla's contents are drawn in this frame, inside a moving frame
@@ -300,6 +323,36 @@ public final class ContainerScreenLayers {
                                   int mouseX, int mouseY) {
         if (swapClip != null) graphics.disableScissor();
         swapClip = null;
+        // A recipe-book screen draws its book next: the panels wait for it, to draw over it.
+        if (bookFrame) {
+            waitingForBook = true;
+            return;
+        }
+        drawPanelLayers(screen, graphics, mouseX, mouseY);
+    }
+
+    /** At a recipe-book screen's {@code extractRenderState} HEAD: this frame's book comes after the contents. */
+    public static void recipeBookFrameStart() {
+        bookFrame = true;
+        waitingForBook = false;
+    }
+
+    /**
+     * Right after a recipe-book screen's book has drawn, in its stratum: the panel layers
+     * that waited at {@link #aboveSlots}. Nothing when the contents didn't draw (a narrow
+     * screen with the book up).
+     */
+    public static void aboveRecipeBook(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
+                                       int mouseX, int mouseY) {
+        bookFrame = false;
+        if (!waitingForBook) return;
+        waitingForBook = false;
+        drawPanelLayers(screen, graphics, mouseX, mouseY);
+    }
+
+    /** Layer 2 unless it drew early, layer 4, then the end-of-frame park. */
+    private static void drawPanelLayers(AbstractContainerScreen<?> screen, GuiGraphicsExtractor graphics,
+                                        int mouseX, int mouseY) {
         if (!flowDrawn) renderFlow(screen, graphics, mouseX, mouseY);
         ScreenPanelRegistry.renderOverlay(screen, graphics, mouseX, mouseY);
         SlotScreenDispatcher.fireEndFrame(screen);

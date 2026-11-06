@@ -434,8 +434,8 @@ public final class ContainerRegions {
             state.vanillaInventoryLabelY = acc.mk$getInventoryLabelY();
             state.screenHeight = screen.height;   // a resize initializes again, so the region re-runs
             ScreenEvents.beforeExtract(screen).register((s, g, mx, my, delta) -> frame(acs, mx, my, false));
-            ScreenEvents.remove(screen).register(s -> {
-                if (state.screen.get() != s) return;
+            KeptScreens.onTakenDown(screen, () -> {
+                if (state.screen.get() != screen) return;
                 RegionBounds.restoreBounds(acs);   // the menu can outlive the screen
                 reset(null);
             });

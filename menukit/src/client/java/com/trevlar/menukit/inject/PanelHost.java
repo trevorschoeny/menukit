@@ -11,7 +11,9 @@ import com.trevlar.menukit.api.panel.OutsideRegion;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.element.PanelElement;
 import com.trevlar.menukit.api.panel.PanelPosition;
+import com.trevlar.menukit.api.panel.PanelTransform;
 import com.trevlar.menukit.api.panel.Placement;
+import com.trevlar.menukit.api.DrawAlpha;
 import com.trevlar.menukit.core.PackLook;
 import com.trevlar.menukit.core.PanelRendering;
 import com.trevlar.menukit.api.panel.PanelStyle;
@@ -627,7 +629,9 @@ public final class PanelHost {
      *       element inside it never lets a point through to what is behind the
      *       panel. (A panel's own slots stay live through
      *       {@link #yieldsToSlot}, which is about the claimant's own content, not
-     *       about what lies beneath.)</li>
+     *       about what lies beneath.) Past its rectangle it claims what its elements
+     *       hang outside it ({@link PanelElement#outboardWidth}, 7.6.0), by their hit
+     *       test, as a transparent panel claims its solid elements.</li>
      *   <li>A <b>transparent</b> panel claims only its solid elements: shown, opaque
      *       and interactive ones, by their hit test. A render-only decoration on a
      *       transparent panel claims nothing, so it never eats a click it does
@@ -646,11 +650,15 @@ public final class PanelHost {
         // A background panel (7.4.0) is under everything on the screen, so it takes no
         // point from anything: whatever lies over it stays live.
         if (panel.isBackground()) return false;
+        // Nor does one drawn under a transform (7.6.0): what shows isn't where it is laid out.
+        if (panel.isTransformed()) return false;
         InputContext in = input(placed, mouseX, mouseY);
         List<PanelElement> shown = shownElements(panel);
         if (ChildDispatch.overlayOwner(shown, in) != null) return true;
         if (panel.isOpaque()) {
-            return placed.contains(mouseX, mouseY);
+            if (placed.contains(mouseX, mouseY)) return true;
+            // An element hanging past the panel's edge claims only itself there (7.6.0).
+            return ChildDispatch.hitTest(shown, in);
         }
         for (PanelElement el : shown) {
             if (!el.isElementOpaque() || !el.isInteractive()) continue;
@@ -684,7 +692,7 @@ public final class PanelHost {
      */
     public InputContext input(Placed placed, double mouseX, double mouseY) {
         return new InputContext(placed.contentX(), placed.contentY(), mouseX, mouseY, placed.panel().isDisabled(),
-                screenKind);
+                screenKind, placed.x() + placed.w());
     }
 
     /** The panel's shown elements (the one isShown for elements). */
@@ -860,11 +868,17 @@ public final class PanelHost {
         int x, y;
         int[] size;
 
-        if (panel.isOverlayPositioned()) {
-            // The single overlay rule: whatever its declared mode, an overlay (a
-            // center() panel, or any dim or modal panel) floats centered on the screen
-            // window and draws on top. It grows to the screen width, not an anchor's.
+        if (panel.isOverlayPositioned() && pos.mode() != PanelPosition.Mode.PIXEL) {
+            // The single overlay rule: an overlay (a center() panel, or any dim or
+            // modal panel) floats centered on the screen window and draws on top. It
+            // grows to the screen width, not an anchor's. A dim or modal panel placed
+            // by pixel(...) keeps its point instead (still an overlay: on top, dimming,
+            // modal), placed below like any pixel panel.
             feedWidth(panel, RegionMath.availableScreenEdgeWidth(sw, RegionConstants.SCREEN_EDGE_MARGIN), pad);
+            // And the screen's height as a ceiling (8.0.0): a dialog taller than the window
+            // gives back rows from what fits the room, and past that scrolls, rather than
+            // running off it.
+            panel.setHeightCeiling(sh - 2 * RegionConstants.SCREEN_EDGE_MARGIN - 2 * pad);
             panel.setFrameHeight(-1);
             size = measure(panel, pad);
             x = (sw - size[0]) / 2;
@@ -887,7 +901,8 @@ public final class PanelHost {
                     panel.setFrameHeight(-1);
                     size = measure(panel, pad);
                     x = o.x();
-                    y = o.y();
+                    // pixelBottomLeft: the point is the bottom-left, so the panel grows upward.
+                    y = pos.bottomLeft() ? o.y() - size[1] : o.y();
                 }
                 case REGION -> {
                     if (reference == null) return null;
@@ -1178,6 +1193,35 @@ public final class PanelHost {
      */
     public void render(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
                        Placed p, PointerPolicy pointer) {
+        // A panel under a transform (7.6.0) draws scaled about its pivot and faded, its
+        // slots included (they draw inside renderPanel), and is never live: it takes no
+        // input until it is back at the identity. The layout under it is untouched.
+        PanelTransform t = p.panel().currentTransform();
+        if (t.isIdentity()) {
+            renderPanel(graphics, mouseX, mouseY, p, pointer);
+            return;
+        }
+        // At alpha 0 it isn't drawn, but the place pass (which draws into a scratch state)
+        // still lays it out, so its slots are reported as its own and vanilla's slot pass
+        // doesn't draw them, count and all, where they're laid out.
+        // ponytail: a background panel places its slots in its real draw, so at alpha 0 its
+        // slots still fall to vanilla's pass; lay it out into a scratch state if one is ever transformed.
+        if (t.alpha() <= 0f && !PresentedSlots.recording()) return;
+        graphics.pose().pushMatrix();
+        float alphaBefore = DrawAlpha.push(t.alpha());
+        try {
+            graphics.pose().translate(t.pivotX(), t.pivotY());
+            graphics.pose().scale(t.scale(), t.scale());
+            graphics.pose().translate(-t.pivotX(), -t.pivotY());
+            renderPanel(graphics, -1, -1, p, (host, placed) -> false);
+        } finally {
+            DrawAlpha.pop(alphaBefore);
+            graphics.pose().popMatrix();
+        }
+    }
+
+    private void renderPanel(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
+                             Placed p, PointerPolicy pointer) {
         Panel panel = p.panel();
         boolean live = kind != Kind.HUD && pointer.live(this, p);
         int mx = live ? mouseX : -1;
@@ -1207,7 +1251,7 @@ public final class PanelHost {
         }
         if (decoration != null) decoration.draw(graphics, p);
         RenderContext ctx = new RenderContext(graphics, p.contentX(), p.contentY(), mx, my, panel.isDisabled(),
-                screenKind);
+                screenKind, p.x() + p.w());
         if (live) liveRenderDepth++;
         PresentedSlots.beginPanel(panel);
         PackLook.SurfaceLooks surfaceBefore = PackLook.beginSurface(surfaceLooks);
@@ -1269,6 +1313,7 @@ public final class PanelHost {
         for (LayerPlan.Drawn d : LayerPlan.topDown(hosts)) {
             if (d.host().kind == Kind.HUD) continue;
             if (modalUp && !d.placed().panel().tracksAsModal()) continue;
+            if (d.placed().panel().isTransformed()) continue; // drawn transformed: no input (7.6.0)
             out.add(d);
         }
         return out;
@@ -1337,6 +1382,7 @@ public final class PanelHost {
         for (int i = placed.size() - 1; i >= 0; i--) {
             Placed p = placed.get(i);
             if (modalUp && !p.panel().tracksAsModal()) continue;
+            if (p.panel().isTransformed()) continue;
             if (ChildDispatch.keyPressed(shownElements(p.panel()), input(p, mx, my), keyCode, scanCode, modifiers)) {
                 return true;
             }

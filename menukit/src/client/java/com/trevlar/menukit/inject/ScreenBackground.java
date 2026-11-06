@@ -79,6 +79,24 @@ public final class ScreenBackground {
      * after it when the screen's background never reached the base method.
      */
     public static void around(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY, Runnable vanilla) {
+        in(screen, () -> {
+            vanilla.run();
+            if (!drawn) draw(screen, graphics, mouseX, mouseY);
+            if (swapClipped) graphics.disableScissor();
+        });
+    }
+
+    /**
+     * Runs {@code draw} outside any background pass: a screen drawn as another's backdrop
+     * ({@code MK.drawBackdrop}), whose own background pass runs inside it, while the pass it
+     * is drawn in sees none of what it blits.
+     */
+    public static void outside(Runnable draw) {
+        in(null, draw);
+    }
+
+    // The pass of `screen` (or none) for the length of `body`; the outer pass's state goes back after.
+    private static void in(@Nullable Screen screen, Runnable body) {
         Screen outerPass = pass;
         boolean outerDrawn = drawn, outerWatching = watching, outerHiding = hidingImage, outerClipped = swapClipped;
         Identifier outerImage = passImage;
@@ -88,9 +106,7 @@ public final class ScreenBackground {
         swapClipped = false;
         passImage = null;
         try {
-            vanilla.run();
-            if (!drawn) draw(screen, graphics, mouseX, mouseY);
-            if (swapClipped) graphics.disableScissor();
+            body.run();
         } finally {
             pass = outerPass;
             drawn = outerDrawn;

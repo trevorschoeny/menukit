@@ -1,5 +1,7 @@
 package com.trevlar.menukit.inject;
 
+import com.trevlar.menukit.api.panel.Panel;
+
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.world.inventory.Slot;
@@ -77,11 +79,15 @@ public final class SlotClips {
 
     /**
      * Whether {@code slot} is placed under a clip that leaves the screen point out: the
-     * part of a slot past a {@code ScrollContainer}'s edge. False for {@code null} and
-     * for a slot no clip cuts.
+     * part of a slot past a {@code ScrollContainer}'s edge. Also true everywhere for a slot
+     * whose panel draws under a transform (7.6.0, {@code Panel.transform}): it isn't where
+     * it is laid out, so it is a gap until the panel is back at the identity. False for
+     * {@code null} and for a slot nothing cuts.
      */
     public static boolean hides(@Nullable Slot slot, double mouseX, double mouseY) {
         if (slot == null) return false;
+        Panel panel = PresentedSlots.lastPanel(slot);
+        if (panel != null && panel.isTransformed()) return true;
         ScreenRectangle clip = CLIPS.get(slot);
         return clip != null && !clip.containsPoint((int) Math.floor(mouseX), (int) Math.floor(mouseY));
     }

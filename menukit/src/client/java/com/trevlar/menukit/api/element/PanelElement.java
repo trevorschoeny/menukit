@@ -324,6 +324,20 @@ public interface PanelElement {
     default void notifyClickOutsideOverlay(InputContext in) {}
 
     /**
+     * How far this element reaches past its panel's right edge (7.6.0): a lane of
+     * its own it draws there and takes input in, from
+     * {@link RenderContext#panelRight()} out, outside the panel's background. The
+     * panel's size leaves it out, so the background stops at the edge; the panel
+     * claims it only where this element's {@link #hitTest} does, and a
+     * {@link ScrollContainer} holding it clips it to the viewport's height only.
+     * Default 0: nothing outside. A {@link ListView} with
+     * {@link ListView.Builder#controlsOutside()} reports its controls' lane.
+     */
+    default int outboardWidth() {
+        return 0;
+    }
+
+    /**
      * Whether this element wants the input event at the context's mouse
      * position. Default: the element's layout bounds. Override when the
      * interaction surface differs from the layout bounds (a container that only

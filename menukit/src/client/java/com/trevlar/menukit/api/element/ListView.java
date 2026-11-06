@@ -219,6 +219,14 @@ import java.util.function.Supplier;
  * slot whether or not it shows (a pinned row has none), so they line up down the list.
  * Add stays in the toolbar.
  *
+ * <p>{@link Builder#controlsOutside()} (7.6.0) hangs the same controls outside the
+ * panel instead: each row keeps the list's whole width, with no divider, and its up,
+ * down and remove sit a button's gap past the panel's right edge, level with the
+ * row's first line. The panel's background and claim cover the rows; out there each
+ * button claims only itself, and in a {@link ScrollContainer} they scroll and clip
+ * with their rows. Give the panel room on its right for them
+ * ({@link #outboardWidth()} wide): the screen edge doesn't move the panel for them.
+ *
  * <h3>The row is yours</h3>
  *
  * The list draws nothing in a row but the selection and, with {@code controlsInRows},
@@ -282,6 +290,8 @@ public final class ListView<T> extends AbstractPanelElement {
     private final @Nullable Supplier<Component> titleTooltip;
     /** Up, down and remove in each row ({@link Builder#controlsInRows}) instead of in the toolbar. */
     private final boolean controlsInRows;
+    /** Those controls hang past the panel's right edge ({@link Builder#controlsOutside}). */
+    private final boolean controlsOutside;
     /** Whether the toolbar's remove or arrows act on the selected row: then a click anywhere in a row selects it. */
     private final boolean barActs;
     /** Whether any editing option is on: only then does the list track items by key every frame. */
@@ -366,6 +376,7 @@ public final class ListView<T> extends AbstractPanelElement {
         this.title = b.title;
         this.titleTooltip = b.titleTooltip;
         this.controlsInRows = b.controlsInRows;
+        this.controlsOutside = b.controlsOutside;
         this.edits = !b.adds.isEmpty() || remove != null || move != null || pinned != null
                 || searchText != null || !sorts.isEmpty();
         this.adds = List.copyOf(b.adds);
@@ -635,7 +646,7 @@ public final class ListView<T> extends AbstractPanelElement {
             throw new IllegalStateException("ListView: a row must be an AbstractPanelElement (a Flow, a Button, ...) "
                     + "so the list can place it; got " + row.getClass().getName());
         }
-        if (controlsInRows) row = new ListRow(row, rowControls(k));
+        if (controlsInRows) row = new ListRow(row, rowControls(k), controlsOutside);
         row.screenKind(kind);
         row.inDialog(inDialog);
         row.inBand(inBand);
@@ -1051,13 +1062,22 @@ public final class ListView<T> extends AbstractPanelElement {
 
     @Override public boolean isInteractive() { return true; }
 
-    /** The shown row under the point, its whole width, or {@code null} (a gap, or outside). */
+    /** The shown row under the point, its whole width or its controls outside the panel, or {@code null} (a gap, or outside). */
     private @Nullable PanelElement rowAt(InputContext in) {
         for (PanelElement row : shown) {
             if (!row.isVisible()) continue;
             if (in.isOver(childX, row.getChildY(), getWidth(), row.getHeight())) return row;
+            if (controlsOutside && row.hitTest(in)) return row;
         }
         return null;
+    }
+
+    /** With {@link Builder#controlsOutside()}: a button's gap and the controls' lane, past the panel's edge. */
+    @Override
+    public int outboardWidth() {
+        if (!controlsOutside) return 0;
+        int n = (move != null ? 2 : 0) + (remove != null ? 1 : 0);
+        return ListRow.CONTROL_GAP + n * ListRow.CONTROL + (n - 1) * ListRow.CONTROL_GAP;
     }
 
     /** Over a row's whole width (its empty area selects it), over the empty element, or over the toolbar or the reason. */
@@ -1384,6 +1404,7 @@ public final class ListView<T> extends AbstractPanelElement {
         private @Nullable BiConsumer<Object, Integer> move;
         private @Nullable Predicate<? super T> pinned;
         private boolean controlsInRows = false;
+        private boolean controlsOutside = false;
         private @Nullable Component disabledReason;
         private @Nullable Function<? super T, String> searchText;
         private final List<SortBy<T>> sorts = new ArrayList<>();
@@ -1592,6 +1613,19 @@ public final class ListView<T> extends AbstractPanelElement {
          */
         public Builder<T, K> controlsInRows() {
             this.controlsInRows = true;
+            return this;
+        }
+
+        /**
+         * {@link #controlsInRows()}'s up, down and remove, hung outside the panel (7.6.0):
+         * a button's gap past its right edge, level with each row's first line, the rows
+         * keeping the list's whole width. The panel's background and claim stop at its
+         * edge; each button out there claims only itself. Needs {@link #remove} or
+         * {@link #move}.
+         */
+        public Builder<T, K> controlsOutside() {
+            this.controlsInRows = true;
+            this.controlsOutside = true;
             return this;
         }
 

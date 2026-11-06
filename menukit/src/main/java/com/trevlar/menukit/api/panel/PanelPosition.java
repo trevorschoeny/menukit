@@ -66,7 +66,14 @@ public record PanelPosition(Mode mode,
                             int dx,
                             int dy,
                             int priority,
-                            int gap) {
+                            int gap,
+                            boolean bottomLeft) {
+
+    /** A position whose pixel origin, if it has one, is the panel's top-left. */
+    public PanelPosition(Mode mode, @Nullable InsideRegion screenAnchor, @Nullable OutsideRegion region,
+                         @Nullable Supplier<ScreenOrigin> pixelOrigin, int dx, int dy, int priority, int gap) {
+        this(mode, screenAnchor, region, pixelOrigin, dx, dy, priority, gap, false);
+    }
 
     /**
      * Default stacking priority. A middle value, so a consumer can move up (lower
@@ -176,12 +183,24 @@ public record PanelPosition(Mode mode,
     }
 
     /**
+     * Exact pixel placement by the bottom edge (since 7.6.0): {@code origin} supplies the
+     * panel's <b>outer bottom-left</b> corner, so a panel whose height changes (a list that
+     * grows) keeps its bottom where it is and grows upward. Otherwise as {@link #pixel}.
+     *
+     * @param origin per-frame supplier of the panel's outer bottom-left (the pixel row just
+     *               below the panel); returning {@code null} skips the panel that frame
+     */
+    public static PanelPosition pixelBottomLeft(Supplier<ScreenOrigin> origin) {
+        return new PanelPosition(Mode.PIXEL, null, null, origin, 0, 0, DEFAULT_PRIORITY, HOST_GAP, true);
+    }
+
+    /**
      * This position nudged by {@code (dx, dy)} pixels after placement (positive x
      * right, positive y down). Replaces any earlier offset. Only this panel moves;
      * siblings in the same region stack as if it had not.
      */
     public PanelPosition offset(int dx, int dy) {
-        return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority, gap);
+        return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority, gap, bottomLeft);
     }
 
     /**
@@ -189,7 +208,7 @@ public record PanelPosition(Mode mode,
      * nearer the anchor edge, and underneath). Default {@link #DEFAULT_PRIORITY}.
      */
     public PanelPosition priority(int priority) {
-        return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority, gap);
+        return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority, gap, bottomLeft);
     }
 
     /**
@@ -230,7 +249,7 @@ public record PanelPosition(Mode mode,
             throw new IllegalArgumentException("PanelPosition.gap(" + gap + ") on " + describe()
                     + ": a gap is 0 or more pixels. To overlap a neighbor, use offset(dx, dy).");
         }
-        return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority, gap);
+        return new PanelPosition(mode, screenAnchor, region, pixelOrigin, dx, dy, priority, gap, bottomLeft);
     }
 
     /**

@@ -2,6 +2,27 @@
 
 What changes for a mod moving to each MenuKit release, newest first. The latest release's notes are on the [README](https://github.com/trevorschoeny/menukit#upgrading), and [Upgrading to 7.0.0](upgrading-7.md) walks through the move from 6.x and the 7.4.0 and 7.5.0 changes step by step. The [changelog](https://github.com/trevorschoeny/menukit/blob/main/menukit/changelog.md) has the full list for each.
 
+## To 8.0.0
+
+The item picker's match modes are gone. `ItemMatch.Match`, `match(...)`, `playerChoosesMatch()`, `ignoring(...)`, `ignoringCount()` and the dialog's Search and Edit tabs are replaced by one rule: the item always counts, each field filled in narrows the match, and a blank one is not checked. The dialog's advanced settings open in a column beside the grid, behind a "Show advanced settings" box MenuKit remembers for the player, and what they offer is now the picker's choice: `name()`, `enchantments()`, `components()` and `count()`. Then:
+
+- `new ItemMatch(stack, Match.X)` becomes `new ItemMatch(stack)`, and `ItemMatch.matches(rule, Match.X, stack)` becomes `ItemMatch.matches(rule, stack)`.
+- An `EXACT` picker that edited names, enchantments and components turns on `name().enchantments().components()`. One that ignored damage needs nothing, since damage is checked only when the player lists it. An `ITEM` picker needs nothing.
+- An enchantment's level can be left blank, which matches any level: `ItemMatch.anyLevel()`, saved as `any_level`. `ItemMatch` gained that third component; `new ItemMatch(stack, count)` still makes a rule with none.
+- A count was part of `EXACT`. It is now a number for the mod, never matched: `count()` on a `rule` or `rules` picker, read with `rule.count()`: `ItemMatch.NONE` when the player left it at N/A, else 1 up to the item's stack size.
+- Rules saved by 7.x load through `ItemMatch.CODEC` as they matched, with one exception. An `exact` rule refused a stack that had more than the rule (a plain sword refused an enchanted one), and now that stack matches.
+
+`ItemPicker.open(screen)` opens the dialog over any screen with no picker on a page, and `button(...)` and `onDone(...)` let a mod put its own button in the dialog and apply a draft on Done.
+
+A centered dialog taller than the window now gives back rows from a list that fits the room (`ScrollContainer.Builder.fitRoom`), and past that it scrolls, instead of running off the window. `fitRoom(step, least)` holds a list at its declared height while there is room and gives rows back down to `least`. A `Slider`'s label is made every frame, so it may read more than the value. `Flow.Builder.ownWidths()` lays a row's children out at their own widths, a row of columns. A mod built for 7.x declares `"menukit": ">=8.0.0 <9.0.0"` once it is rebuilt.
+
+The cycle strip is gone: a ring of stacks beside the hotbar is the mod's own look now, drawn on two building blocks. `HudCycleStrip` and everything in it (sources, views, styles, the arc, `slide`, `begin` and `slideProgress`) are removed:
+
+- A row, column or cross beside the hotbar is a `HudPanel` in `region(OutsideRegion.RIGHT_ALIGN_BOTTOM)` holding one element of the ring's live size, `.gap(4)` to sit where the strip did. Another mod's panel there stacks above it. Time a slide with `Easing.SPRING` and `Util.getMillis()`.
+- An arc over the hotbar's slots is a `HotbarDecorations.under(id, decoration)`, drawn after the hotbar's sprites and before its items. While a turn moves the held stack, `HotbarDecorations.hideItem(id, rule)` leaves the slot's own item out. On a screen, the same arc is a `SlotDecorations.under` on the hotbar's slots, as before.
+
+Also removed, unused: `AlertDialog` (use `ConfirmDialog`, or a `Panel.modal()` of your own), `InfoBox` (a `TextLabel`), `HudNotification` with `MK.notify` and `MK.registerNotification`, `HudPanel.Builder.slot(...)` with `HudPanel.STATUS_SCALE` (use `item(...)`, sized), and `ElementSpec` with `Row`/`Column.add(ElementSpec)`: a layout takes built elements only.
+
 ## To 7.3.0
 
 Nothing breaks, and mods built for 7.2.0 work as before. The looks have new names: `ScreenKind.OPTIONS` is now `DEFAULT` and `CONTAINER` is now `PANEL`. The old names still work and go in 8.0.0, but a `switch` over `ScreenKind` must name the new ones. Slots shown in a panel now draw on top of it, so a mod that hooks vanilla's whole slot pass sees those slots drawn after it. A mod that uses anything new in 7.3.0 declares `"menukit": ">=7.3.0 <8.0.0"`.

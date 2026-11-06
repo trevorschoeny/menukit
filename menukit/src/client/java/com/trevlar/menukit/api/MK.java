@@ -2,31 +2,26 @@ package com.trevlar.menukit.api;
 
 import com.trevlar.menukit.MenuKitClient;
 import com.trevlar.menukit.api.panel.Panel;
-import com.trevlar.menukit.api.hud.HudNotification;
 import com.trevlar.menukit.inject.HudHosts;
 import com.trevlar.menukit.inject.LayerPlan;
 import com.trevlar.menukit.inject.PanelHost;
+import com.trevlar.menukit.inject.ScreenBackground;
 import com.trevlar.menukit.api.Declarations;
 
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.util.Util;
-import net.minecraft.world.item.ItemStack;
-import org.jspecify.annotations.Nullable;
+import net.minecraft.client.gui.screens.Screen;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 
 import org.jetbrains.annotations.ApiStatus;
 
 /**
- * Mod entry point for MenuKit and the process-wide facade for HUD panels,
- * notifications, and the recipe-book query.
+ * Mod entry point for MenuKit and the process-wide facade for HUD panels
+ * and the recipe-book query.
  *
  * <p>The consumer surface by task:
  * <ul>
@@ -37,18 +32,20 @@ import org.jetbrains.annotations.ApiStatus;
  *   <li><b>Panels on vanilla container screens:</b>
  *       {@link com.trevlar.menukit.api.panel.ScreenPanelAdapter},
  *       {@link com.trevlar.menukit.api.panel.AnchorPanelAdapter}</li>
- *   <li><b>HUD panels:</b> {@link com.trevlar.menukit.api.hud.HudPanel}, and the cycle
- *       strip beside the hotbar, {@link com.trevlar.menukit.api.hud.HudCycleStrip}</li>
+ *   <li><b>HUD panels:</b> {@link com.trevlar.menukit.api.hud.HudPanel}, and what a mod
+ *       draws on the hotbar's slots, {@link com.trevlar.menukit.api.hud.HotbarDecorations}</li>
  *   <li><b>Standalone screens:</b> {@link com.trevlar.menukit.api.panel.MKScreen}</li>
  *   <li><b>Layout:</b> {@link com.trevlar.menukit.api.layout.Row},
  *       {@link com.trevlar.menukit.api.layout.Column}</li>
+ *   <li><b>Drawing your own item copy</b> (a flying arc, a cycle strip):
+ *       {@link com.trevlar.menukit.api.ItemOutline} for a colored silhouette,
+ *       {@link com.trevlar.menukit.api.DrawAlpha} to fade its decorations</li>
  * </ul>
  * Slot groups, slot operations, created slots and custom menus are SlotKit's, a
  * separate library built on MenuKit.
  *
  * <p>Supported static methods on this class: {@link #registerHud},
- * {@link #registerNotification}, {@link #notify}, {@link #isRecipeBookOpen},
- * {@link #setRecipeBookOpen}. HUD panels and notifications register from a client
+ * {@link #isRecipeBookOpen}, {@link #setRecipeBookOpen}. HUD panels register from a client
  * initializer; registration freezes at client start.
  */
 public class MK {
@@ -57,27 +54,13 @@ public class MK {
     @ApiStatus.Internal
     public static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
-    // Notification definitions, registered at mod init
-    private static final Map<String, HudNotification> notificationDefs = new LinkedHashMap<>();
-
-    // Active notifications. Written by notify() from any thread (a server-side feature in singleplayer
-    // notifies from the server thread) and read by the HUD on the render thread:
-    // synchronized, and render works on a snapshot.
-    private static final Map<String, ActiveNotification> activeNotifications =
-            java.util.Collections.synchronizedMap(new LinkedHashMap<>());
-
-    /** Snapshot of what a caller passed to {@link #notify}, plus trigger time. */
-    record ActiveNotification(long triggerTimeMs,
-                              @Nullable String textData,
-                              @Nullable ItemStack itemData) {}
-
     /** Called from {@link MenuKitClient#onInitializeClient()}; only logs. */
     @ApiStatus.Internal
     public static void initClient() {
         LOGGER.info("[MenuKit] Client initialized");
     }
 
-    // HUD panels and notifications
+    // HUD panels
 
     /**
      * Registers a HUD panel into the HUD's host. Called by
@@ -143,22 +126,7 @@ public class MK {
     }
 
     /**
-     * Registers a notification definition. Called by
-     * {@link HudNotification.Builder#build()}.
-     *
-     * @throws IllegalStateException after MenuKit's declarations froze, or for a
-     *         second notification with the same key
-     */
-    public static void registerNotification(HudNotification def) {
-        Declarations.requireOpen("MK.registerNotification(" + def.id() + ")");
-        if (notificationDefs.putIfAbsent(def.id(), def) != null) {
-            throw new IllegalStateException("MenuKit: a notification '" + def.id() + "' is already registered.");
-        }
-        LOGGER.info("[MenuKit] Registered notification '{}'", def.id());
-    }
-
-    /**
-     * Renders the HUD panels, then the active notifications. Called at RETURN of the
+     * Renders the HUD panels. Called at RETURN of the
      * HUD's render by {@code MKGuiMixin}. The HUD host follows the one
      * {@link LayerPlan} with no pointer: HUD panels never take input.
      */
@@ -171,73 +139,6 @@ public class MK {
         int screenH = mc.getWindow().getGuiScaledHeight();
 
         LayerPlan.compose(HudHosts.all(), graphics, -1, -1, screenW, screenH, (host, placed) -> false);
-
-        renderActiveNotifications(graphics, deltaTracker, screenW, screenH);
-    }
-
-    /**
-     * Triggers a notification by key. It slides in, stays for its configured
-     * duration, then slides back out.
-     *
-     * @param key  notification key (must match a
-     *             {@link HudNotification#builder(String)} registration)
-     * @param text text to display, or null for icon-only
-     */
-    public static void notify(String key, String text) {
-        notify(key, text, (ItemStack) null);
-    }
-
-    /** Triggers a notification with text and an item icon. */
-    public static void notify(String key, String text, @Nullable ItemStack item) {
-        if (!notificationDefs.containsKey(key)) {
-            LOGGER.warn("[MenuKit] Unknown notification key '{}'", key);
-            return;
-        }
-        activeNotifications.put(key, new ActiveNotification(
-                Util.getMillis(), text, item));
-    }
-
-    /** Triggers a notification with text and an item type. */
-    public static void notify(String key, String text, net.minecraft.world.item.Item item) {
-        notify(key, text, new ItemStack(item));
-    }
-
-    // Draws the active notifications and removes expired ones. Each one's
-    // HudNotification.render animates itself from the time since it was triggered.
-    private static void renderActiveNotifications(GuiGraphicsExtractor graphics,
-                                                   DeltaTracker deltaTracker,
-                                                   int screenW, int screenH) {
-        if (activeNotifications.isEmpty()) return;
-
-        var expired = new ArrayList<String>();
-        long now = Util.getMillis();
-        List<Map.Entry<String, ActiveNotification>> snapshot;
-        synchronized (activeNotifications) {
-            snapshot = new ArrayList<>(activeNotifications.entrySet());
-        }
-
-        for (var entry : snapshot) {
-            String key = entry.getKey();
-            ActiveNotification active = entry.getValue();
-            HudNotification def = notificationDefs.get(key);
-            if (def == null) { expired.add(key); continue; }
-
-            long elapsed = now - active.triggerTimeMs();
-            if (elapsed > def.getDurationMs()) {
-                expired.add(key);
-                continue;
-            }
-
-            def.render(graphics, deltaTracker, screenW, screenH,
-                    elapsed, active.textData(), active.itemData());
-        }
-
-        // Remove only the entry that expired: a notify() since the snapshot replaced it.
-        synchronized (activeNotifications) {
-            for (var entry : snapshot) {
-                if (expired.contains(entry.getKey())) activeNotifications.remove(entry.getKey(), entry.getValue());
-            }
-        }
     }
 
     // Recipe book
@@ -262,5 +163,41 @@ public class MK {
      */
     public static void setRecipeBookOpen(boolean open) {
         MenuKitClient.setRecipeBookOpen(open);
+    }
+
+    // Backdrops
+
+    /**
+     * Draws {@code screen}, which is not the open screen, as it looks open: its background
+     * (on a container screen, the container region's panels where its image goes), its
+     * widgets, slots and items, and every panel on it, sections and tab rows included. It
+     * takes no input and nothing on it is hovered. Call it from the open screen's
+     * {@code extractBackground}, usually with the screen it was opened from, then draw
+     * over it (a dim, say):
+     *
+     * <pre>{@code
+     * @Override
+     * public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
+     *     MK.drawBackdrop(parent, graphics, a);
+     *     graphics.fill(0, 0, width, height, 0x80000000);
+     * }
+     * }</pre>
+     *
+     * A container screen keeps its MenuKit layout (its region, where its slots are) while
+     * the screen over it is not a container screen, so it draws as the player left it.
+     * Under a container screen it draws without it, as vanilla lays it out. Its Fabric
+     * {@code beforeExtract} and {@code afterExtract} listeners run around it, as they do
+     * around the open screen.
+     *
+     * @param screen      the screen to draw; not the open screen
+     * @param graphics    the open screen's graphics
+     * @param partialTick the frame's partial tick
+     * @since 7.6.0
+     */
+    public static void drawBackdrop(Screen screen, GuiGraphicsExtractor graphics, float partialTick) {
+        // -1, -1: no pointer, so nothing hovers and no tooltip draws.
+        ScreenEvents.beforeExtract(screen).invoker().beforeExtract(screen, graphics, -1, -1, partialTick);
+        ScreenBackground.outside(() -> screen.extractRenderStateWithTooltipAndSubtitles(graphics, -1, -1, partialTick));
+        ScreenEvents.afterExtract(screen).invoker().afterExtract(screen, graphics, -1, -1, partialTick);
     }
 }

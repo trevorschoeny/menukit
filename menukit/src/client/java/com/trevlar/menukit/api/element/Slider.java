@@ -220,7 +220,8 @@ public class Slider<V> extends AbstractPanelElement {
         }
 
         /**
-         * The text inside the track for a value; the narrator reads it too.
+         * The text inside the track for a value; the narrator reads it too. Made every
+         * frame (8.0.0), so it may read other state as well.
          * Default: empty for a fraction, the value for an integer or enum scale.
          */
         public Builder<V> label(Function<V, Component> label) {
@@ -256,12 +257,14 @@ public class Slider<V> extends AbstractPanelElement {
             this.scale = scale;
         }
 
-        /** The consumer's value, shown without being written back. */
+        /**
+         * The consumer's value, shown without being written back, and the label made
+         * again every frame (8.0.0), as every lens is read, so a label that reads more
+         * than the value (a count that can also be "full stack") follows it.
+         */
         void syncFromSupplier(double fraction) {
-            if (fraction != this.value) {
-                this.value = fraction;
-                updateMessage();
-            }
+            this.value = fraction;
+            updateMessage();
         }
 
         /** On a stepped scale the arrow keys move one step (vanilla's per-pixel step could stay on one value). */

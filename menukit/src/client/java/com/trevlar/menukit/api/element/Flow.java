@@ -121,6 +121,22 @@ import java.util.function.IntSupplier;
  * "New" row sit above a list that takes the rest and scrolls by itself. Such a Flow
  * fills too, and does not wrap into columns.
  *
+ * <h3>A row of columns (8.0.0)</h3>
+ *
+ * {@link Builder#ownWidths()} lays each child out to the width it asks for (its
+ * {@link #naturalWidth()}) instead of the row's, and leaves a hidden child out of the
+ * row's own width. So two vertical Flows side by side stay two columns, each as wide
+ * as its widest child, a field that fills filling its own column only, and the row
+ * narrows when a column hides. On a screen too narrow for both, the second still wraps
+ * under the first.
+ *
+ * <pre>{@code
+ * Flow.builder().ownWidths()
+ *         .add(Flow.builder().vertical().add(search).add(grid).build())
+ *         .add(Flow.builder().vertical().visibleWhen(() -> more).add(name).add(lore).build())
+ *         .build();
+ * }</pre>
+ *
  * <h3>Hidden children</h3>
  *
  * Either way a hidden child takes no room: the next one moves up into its place, so
@@ -180,6 +196,8 @@ public final class Flow extends AbstractPanelElement {
     private final @Nullable IntSupplier wrapAfter;
     /** Vertical only: the last children keep the first column, the earliest wrap out ({@link Builder#keepLast()}). */
     private final boolean keepLast;
+    /** Row only: each child laid out to its own natural width, hidden ones not counted ({@link Builder#ownWidths()}). */
+    private final boolean ownWidths;
 
     /** The width the panel gives the Flow; until the first pass, one row's worth. */
     private int budget = -1;
@@ -221,6 +239,7 @@ public final class Flow extends AbstractPanelElement {
         this.crossAlign = b.crossAlign;
         this.wrapAfter = b.wrapAfter;
         this.keepLast = b.keepLast;
+        this.ownWidths = b.ownWidths;
     }
 
     /** The cap on shown children per column or row now; 0 for none. */
@@ -294,7 +313,7 @@ public final class Flow extends AbstractPanelElement {
         }
         int total = 0, count = 0;
         for (PanelElement c : children) {
-            if (c instanceof Spacer) continue;
+            if (c instanceof Spacer || (ownWidths && !c.isVisible())) continue;
             total += c.naturalWidth();
             count++;
         }
@@ -321,7 +340,7 @@ public final class Flow extends AbstractPanelElement {
         // Inside a card the children wrap at the width less the padding on both sides.
         int cap = Math.max(1, cap() - 2 * pad() - trailing);
         for (PanelElement c : children) {
-            if (c.isVisible() && !(c instanceof Spacer)) c.layoutWithin(cap);
+            if (c.isVisible() && !(c instanceof Spacer)) c.layoutWithin(ownWidths ? Math.min(cap, c.naturalWidth()) : cap);
         }
         if (vertical) {
             layoutColumns();
@@ -735,6 +754,14 @@ public final class Flow extends AbstractPanelElement {
         return ChildDispatch.hitTest(children, in);
     }
 
+    /** The widest lane a child hangs past the panel's edge (7.6.0), so a scroll area around this Flow keeps it. */
+    @Override
+    public int outboardWidth() {
+        int w = 0;
+        for (PanelElement c : children) if (c.isVisible()) w = Math.max(w, c.outboardWidth());
+        return w;
+    }
+
     @Override
     public boolean mouseClicked(InputContext in, int button) {
         relayout();
@@ -800,10 +827,18 @@ public final class Flow extends AbstractPanelElement {
         ChildDispatch.inBand(children, inBand);
     }
 
-    /** A vertical Flow is as much shorter as its children give; a row is as tall as its tallest, so it gives nothing. */
+    /**
+     * A vertical Flow is as much shorter as its children give. A row is as tall as its
+     * tallest, so it gives nothing, unless it is a row of columns ({@link Builder#ownWidths()}):
+     * then each column is asked for the whole overflow, and the row gives the most any gave.
+     */
     @Override
     public int yieldHeight(int overflow) {
-        return vertical ? ChildDispatch.yieldHeight(children, overflow) : 0;
+        if (vertical) return ChildDispatch.yieldHeight(children, overflow);
+        if (!ownWidths) return 0;
+        int most = 0;
+        for (PanelElement c : children) most = Math.max(most, c.yieldHeight(c.isVisible() ? overflow : 0));
+        return most;
     }
 
     @Override
@@ -825,6 +860,7 @@ public final class Flow extends AbstractPanelElement {
         private CrossAlign crossAlign = CrossAlign.START;
         private @Nullable IntSupplier wrapAfter;
         private boolean keepLast = false;
+        private boolean ownWidths = false;
 
         private Builder() {}
 
@@ -918,8 +954,19 @@ public final class Flow extends AbstractPanelElement {
             return this;
         }
 
+        /**
+         * In a row Flow, each child is laid out to the width it asks for, not the row's,
+         * and a hidden child takes none of the row's width: a row of columns. See the
+         * class notes.
+         */
+        public Builder ownWidths() {
+            this.ownWidths = true;
+            return this;
+        }
+
         @Override
         public Flow build() {
+            if (ownWidths && vertical) throw new IllegalStateException("Flow: ownWidths() is for a row Flow, not vertical()");
             if (keepLast && !vertical) throw new IllegalStateException("Flow: keepLast() is for a vertical() Flow");
             if (vertical && crossAlign != CrossAlign.START) {
                 throw new IllegalStateException("Flow: crossAlign(" + crossAlign + ") is for a row Flow, not vertical()");

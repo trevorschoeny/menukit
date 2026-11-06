@@ -1,6 +1,6 @@
 package com.trevlar.menukit.mixin;
 
-import com.trevlar.menukit.core.ItemOutline;
+import com.trevlar.menukit.api.ItemOutline;
 
 import net.minecraft.client.renderer.state.gui.GuiItemRenderState;
 import net.minecraft.client.renderer.state.gui.GuiRenderState;
