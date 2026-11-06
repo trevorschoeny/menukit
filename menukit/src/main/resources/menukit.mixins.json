@@ -21,7 +21,7 @@
     "MKFrameCentringHeightMixin",
     "MKFrameCentringMixin",
     "MKGuiMixin",
-    "MKHotbarArcMixin",
+    "MKHotbarDecorationsMixin",
     "MKHudStatusLiftMixin",
     "MKItemOpennessMixin",
     "MKItemOutlineDrawMixin",

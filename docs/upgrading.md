@@ -16,6 +16,13 @@ The item picker's match modes are gone. `ItemMatch.Match`, `match(...)`, `player
 
 A centered dialog taller than the window now gives back rows from a list that fits the room (`ScrollContainer.Builder.fitRoom`), and past that it scrolls, instead of running off the window. `fitRoom(step, least)` holds a list at its declared height while there is room and gives rows back down to `least`. A `Slider`'s label is made every frame, so it may read more than the value. `Flow.Builder.ownWidths()` lays a row's children out at their own widths, a row of columns. A mod built for 7.x declares `"menukit": ">=8.0.0 <9.0.0"` once it is rebuilt.
 
+The cycle strip is gone: a ring of stacks beside the hotbar is the mod's own look now, drawn on two building blocks. `HudCycleStrip` and everything in it (sources, views, styles, the arc, `slide`, `begin` and `slideProgress`) are removed:
+
+- A row, column or cross beside the hotbar is a `HudPanel` in `region(OutsideRegion.RIGHT_ALIGN_BOTTOM)` holding one element of the ring's live size, `.gap(4)` to sit where the strip did. Another mod's panel there stacks above it. Time a slide with `Easing.SPRING` and `Util.getMillis()`.
+- An arc over the hotbar's slots is a `HotbarDecorations.under(id, decoration)`, drawn after the hotbar's sprites and before its items. While a turn moves the held stack, `HotbarDecorations.hideItem(id, rule)` leaves the slot's own item out. On a screen, the same arc is a `SlotDecorations.under` on the hotbar's slots, as before.
+
+Also removed, unused: `AlertDialog` (use `ConfirmDialog`, or a `Panel.modal()` of your own), `InfoBox` (a `TextLabel`), `HudNotification` with `MK.notify` and `MK.registerNotification`, `HudPanel.Builder.slot(...)` with `HudPanel.STATUS_SCALE` (use `item(...)`, sized), and `ElementSpec` with `Row`/`Column.add(ElementSpec)`: a layout takes built elements only.
+
 ## To 7.3.0
 
 Nothing breaks, and mods built for 7.2.0 work as before. The looks have new names: `ScreenKind.OPTIONS` is now `DEFAULT` and `CONTAINER` is now `PANEL`. The old names still work and go in 8.0.0, but a `switch` over `ScreenKind` must name the new ones. Slots shown in a panel now draw on top of it, so a mod that hooks vanilla's whole slot pass sees those slots drawn after it. A mod that uses anything new in 7.3.0 declares `"menukit": ">=7.3.0 <8.0.0"`.

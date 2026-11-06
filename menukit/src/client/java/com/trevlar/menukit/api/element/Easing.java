@@ -30,7 +30,7 @@ public interface Easing {
     };
 
     /**
-     * A damped spring (7.6.0), the cycle strip's slide: most of the way in the first sixth,
+     * A damped spring (7.6.0), for a slide that settles: most of the way in the first sixth,
      * about 9% past the end at 0.3, back about 3% short at 0.68, settled at 1. A wave
      * under an envelope that loosens as it goes ({@code e^(-4.6 t^0.6)}), so the overshoot
      * stays small while the rebound still shows; the last term takes the leftover

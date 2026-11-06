@@ -75,7 +75,7 @@ Behavior that is incomplete in the current release.
 
 - `build()` freezes a panel's element list, and every element is immutable after its own `build()`. Build a new panel to change the list, or show the changing part in a `ListView`.
 - A `ScreenPanelAdapter` with no target renders on every container screen. An `AnchorPanelAdapter` or `VanillaScreenPanelAdapter` with no `.on(...)` fails at the first screen open with the panel id in the message.
-- Adapters, anchors, HUD panels and notifications are declarations. Constructing, targeting or unregistering one after the client starts throws. Gate a panel at runtime with `visibleWhen`.
+- Adapters, anchors, HUD panels and hotbar decorations are declarations. Constructing, targeting or unregistering one after the client starts throws. Gate a panel at runtime with `visibleWhen`.
 - A panel with no placement is rejected by adapters and the HUD. Only `MKScreen` and a library's own screen (`OwnHost`) place an unplaced panel.
 - Panel ids are global across mods. Prefix them with the mod id.
 - Only the `api` packages are public. Everything else is internal and may change in any release.

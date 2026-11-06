@@ -126,7 +126,7 @@ What each piece draws in the Default look, from vanilla's 26.2 sprites:
 | `ColorField` | Its swatch is a vanilla button with the color inside. Its dialog is a dialog of the screen, so its tabs, buttons and hex field draw for the kind |
 | `WidgetHost` | Whatever the hosted widget draws. It draws itself, the same in both looks |
 
-Where vanilla has no counterpart (a radio button, an info box, a progress bar, a consumer's sprite), the element keeps MenuKit's drawing in both looks. While a world is open the separators and the list band use vanilla's in-world textures, as vanilla does.
+Where vanilla has no counterpart (a radio button, a progress bar, a consumer's sprite), the element keeps MenuKit's drawing in both looks. While a world is open the separators and the list band use vanilla's in-world textures, as vanilla does.
 
 The Panel look follows the active resource pack (7.4.0). A raised panel's frame, fill and slot frames are cut from the pack's chest art, controls draw vanilla's button and checkbox sprites where a pack restyled them, and text on a panel keeps its role's color wherever that reads on the pack's fill and takes one made from the fill where it doesn't. A pack can also override MenuKit's own sprites to theme it directly. A mod has nothing to do. With no pack the Panel look is exactly as before. [Resource packs](resource-packs.md) has the order a look is chosen in and the sprites a pack can override.
 
