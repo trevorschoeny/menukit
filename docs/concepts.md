@@ -419,7 +419,7 @@ A popover, `Panel.builder(id).popover()`, is a panel that pops up over the scree
 
 ## Outside the panel
 
-`Floating.at(() -> new ScreenOrigin(x, y), element)` (7.6.0) puts one element of a panel at a screen point of its own, read every frame, such as a dialog's Save button beside the screen's hotbar. It belongs to its panel: it shows, hides and grays with it, draws in the panel's layer (so a modal's floats above the dim), and takes input as the panel's own, with a modal up too. It takes no room in the panel's layout, so the panel's size and background leave it out. Keep it among the panel's top-level elements, since inside a scroll area it would scroll and clip with the content.
+`Floating.at(() -> new ScreenOrigin(x, y), element)` (7.6.0) puts one element of a panel at a screen point of its own, read every frame, such as a dialog's Save button beside the screen's hotbar. A `null` point skips the element that frame, as `PanelPosition.pixel` does for a panel. It belongs to its panel: it shows, hides and grays with it, draws in the panel's layer (so a modal's floats above the dim), and takes input as the panel's own, with a modal up too. It takes no room in the panel's layout, so the panel's size and background leave it out. Keep it among the panel's top-level elements, since inside a scroll area it would scroll and clip with the content.
 
 A panel that dims behind it can leave parts of the screen lit: `panel.litWhileDimmed(() -> List.of(rect))` takes screen-space `ScreenRectangle`s, read every frame, and the dim covers the rest of the screen. The hotbar row a dialog saves from shows at full brightness, but it is still as inert as everything else under a modal. Only the look changes.
 

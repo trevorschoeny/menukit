@@ -19,7 +19,9 @@ import java.util.function.Supplier;
  * Floating.at(() -> new ScreenOrigin(screen.leftPos() + 198, hotbarY), saveButton)
  * }</pre>
  *
- * The point is read every frame, so it follows what it sits by. The element belongs
+ * The point is read every frame, so it follows what it sits by; a {@code null} point
+ * skips the element that frame (nothing to sit by), as {@code PanelPosition.pixel}
+ * does for a panel. The element belongs
  * to its panel: it shows and hides with it, draws in its layer (a modal's, above the
  * dim), grays with it, and takes input as the panel's own, a modal's included. It
  * takes no room in the panel's layout, so the panel's size and background leave it
@@ -29,30 +31,33 @@ import java.util.function.Supplier;
  */
 public final class Floating extends AbstractPanelElement {
 
-    private final Supplier<ScreenOrigin> origin;
+    private final Supplier<@Nullable ScreenOrigin> origin;
     private final PanelElement element;
     private final List<PanelElement> one;
 
-    private Floating(Supplier<ScreenOrigin> origin, PanelElement element) {
+    private Floating(Supplier<@Nullable ScreenOrigin> origin, PanelElement element) {
         this.origin = Objects.requireNonNull(origin, "origin");
         this.element = Objects.requireNonNull(element, "element");
         this.one = List.of(element);
     }
 
-    /** {@code element} with its top-left at the screen point {@code origin} gives, read every frame. */
-    public static Floating at(Supplier<ScreenOrigin> origin, PanelElement element) {
+    /** {@code element} with its top-left at the screen point {@code origin} gives, read every frame; {@code null} skips it. */
+    public static Floating at(Supplier<@Nullable ScreenOrigin> origin, PanelElement element) {
         return new Floating(origin, element);
     }
 
     // The element's own origin is the screen point; the panel's is left behind.
+    // isVisible() reads the point and keeps it, and every dispatch asks isVisible()
+    // before it renders or routes input, so a frame never places at a null point.
+    private @Nullable ScreenOrigin point;
 
     private RenderContext placed(RenderContext ctx) {
-        ScreenOrigin o = origin.get();
+        ScreenOrigin o = point != null ? point : origin.get();
         return ctx.at(o.x(), o.y());
     }
 
     private InputContext placed(InputContext in) {
-        ScreenOrigin o = origin.get();
+        ScreenOrigin o = point != null ? point : origin.get();
         return in.at(o.x(), o.y());
     }
 
@@ -61,8 +66,12 @@ public final class Floating extends AbstractPanelElement {
     @Override public int getHeight() { return 0; }
     @Override public int naturalWidth() { return 0; }
 
-    /** Shown while the element is. */
-    @Override public boolean isVisible() { return element.isVisible(); }
+    /** Shown while the element is and there is a point to sit at. */
+    @Override
+    public boolean isVisible() {
+        point = origin.get();
+        return point != null && element.isVisible();
+    }
 
     @Override public boolean isInteractive() { return element.isInteractive(); }
 
