@@ -27,7 +27,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *       background, an active element overlay, or a solid interactive element;
  *       see {@link Focus#isCursorCovered}), and</li>
  *   <li>the widget was not registered through {@link Focus#addWidget}. Registered
- *       widgets (TextField's wrapped EditBox, Keybindery's SearchBox EditBox, any
+ *       widgets (TextField's wrapped EditBox, a mod's own search box EditBox, any
  *       consumer widget placed inside a panel) keep their hover feedback.</li>
  * </ul>
  *

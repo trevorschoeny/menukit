@@ -286,7 +286,7 @@ Result: the five icons stand in two columns, 2 pixels apart: the first holds ico
 
 ## A settings screen in the Default look
 
-Needs: MenuKit 6.1.0. This follows the shape of Inventory Plus's settings. It has the mod's name at the top, tabs across, sections of settings, items the player picks, and Done at the bottom. It draws as Options, Video Settings and Controls do, not as an inventory. The screen declares the Default look once, and every element on it draws in that look.
+Needs: MenuKit 6.1.0. This follows the shape of a typical mod settings screen. It has the mod's name at the top, tabs across, sections of settings, items the player picks, and Done at the bottom. It draws as Options, Video Settings and Controls do, not as an inventory. The screen declares the Default look once, and every element on it draws in that look.
 
 ```java
 public final class ModSettingsScreen extends MKScreen {

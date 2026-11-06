@@ -52,7 +52,7 @@ import java.util.function.Supplier;
  *
  * <h3>Extension points for consumer subclasses</h3>
  *
- * A subclass (Keybindery's chord face is one) builds through
+ * A subclass (a mod's own keybind-chord face is one) builds through
  * {@link #Button(Builder)} and overrides {@link #renderBackground} and
  * {@link #renderContent}, which receive this frame's {@link Look}. The
  * orchestrating {@link #render} is final.

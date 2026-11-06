@@ -83,8 +83,8 @@ public abstract class MKTooltipSuppressMixin {
         // content (an element tooltip, the panel tooltip): it passes, even over the
         // panel's own claim.
         // A mod can ask for no tooltips right now, or none of one kind (MKTooltip.hideWhen:
-        // Inventory Plus while Ctrl is held, Dock and Hide Tooltips' item and other
-        // switches). That is checked first, so a live panel's own element tooltips hide
+        // a mod hiding tooltips while a key is held, another offering separate item
+        // and other-tooltip switches). That is checked first, so a live panel's own element tooltips hide
         // too. The kind is taken on every tooltip, hidden or not, so an item path's mark
         // never carries over to the next one (MKTooltip.itemTooltipNext).
         if (MKTooltip.hidden(MKTooltip.takeKind())) {

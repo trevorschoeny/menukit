@@ -21,7 +21,7 @@ import java.util.function.Supplier;
  * <ul>
  *   <li>{@link Mode#UNPLACED}: no placement declared (the default). A host throws on
  *       an unplaced panel, except the standalone-screen builders
- *       ({@code MKScreen}, {@code CustomContainerMenu}), which normalize it: the first
+ *       ({@code MKScreen} and custom container-menu hosts), which normalize it: the first
  *       unplaced panel becomes {@link #main()}, each later one
  *       {@code region(BOTTOM_CENTER)}.</li>
  *   <li>{@link Mode#MAIN}: a standalone screen's frame. One per screen, centered,
@@ -254,7 +254,7 @@ public record PanelPosition(Mode mode,
      * declared), and each later one {@code region(BOTTOM_CENTER)}, offset so it sits
      * {@link #STANDALONE_STACK_GAP} below the one before, through its {@link #gap(int)}.
      * Declared positions pass through untouched. Used by {@code MKScreen} and
-     * {@code CustomContainerMenu}, the only hosts that accept an unplaced panel.
+     * other custom container-menu hosts, the only hosts that accept an unplaced panel.
      *
      * <p>Since the gap is the panel's own, a hidden panel takes its gap with it: the
      * next one closes up to {@link #STANDALONE_STACK_GAP} below the last shown panel,

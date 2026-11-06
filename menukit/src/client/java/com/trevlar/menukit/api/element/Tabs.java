@@ -46,10 +46,10 @@ import java.util.function.Supplier;
  *         .align(Tabs.Align.FILL)
  *         .state(() -> state.tab, id -> state.tab = id)
  *         .tab("general", Component.literal("General"), generalBody)
- *         .tab(Tabs.tab("pockets")
- *                 .label(Component.literal("Pockets"))
- *                 .visibleWhen(() -> config.showMaxTabs)
- *                 .body(pocketsBody))
+ *         .tab(Tabs.tab("advanced")
+ *                 .label(Component.literal("Advanced"))
+ *                 .visibleWhen(() -> config.showAdvanced)
+ *                 .body(advancedBody))
  *         .build();
  * }</pre>
  *

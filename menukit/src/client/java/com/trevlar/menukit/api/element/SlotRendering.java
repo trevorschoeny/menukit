@@ -22,7 +22,7 @@ import net.minecraft.world.item.ItemStack;
  *
  * <p>It also holds the one item-decoration primitive a slot decoration needs and
  * vanilla lacks, {@link #drawItemOutline}: a colored outline around an item's own
- * silhouette (Inventory Plus marks locked items with their lock group's color).
+ * silhouette (a mod marking a locked or flagged item with a color, say).
  */
 public final class SlotRendering {
 

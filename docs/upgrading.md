@@ -46,7 +46,7 @@ Elements draw for the kind of screen they are on (`ScreenKind`), and nothing els
 - Declarations happen at init. Adapters, HUD panels, operations, slot groups, channels, and menus declared after startup throw.
 - Custom menus split by side. A menu's slots are common code. How its panels look, and its screen class, are declared on the client with `ClientMenu.of(menu)`.
 - A shared slot-state channel names its writers. Without a `canWrite` rule the server refuses every client write to it.
-- Item Tips left MenuKit. Durability and food lines on tooltips are a feature of Inventory Plus.
+- Item Tips left MenuKit. Durability and food lines on tooltips are now a consuming mod's feature.
 
 | 5.x | 6.0.0 |
 | --- | --- |

@@ -27,9 +27,9 @@ import java.util.Map;
 /**
  * What stands behind {@link com.trevlar.menukit.api.hud.HudCycleStrip}: the registered
  * sources, each source's slide clock, the pure layout and easing math, and the drawing.
- * Lifted from Inventory Plus's cycle HUD (its {@code CycleHud}, {@code CycleSlide} and
- * {@code CycleHudRegistry}) with the look and timing unchanged, so a ring drawn here
- * looks exactly as Inventory Plus drew it.
+ * Lifted from an earlier cycle HUD built by a consuming mod (its {@code CycleHud},
+ * {@code CycleSlide} and {@code CycleHudRegistry}) with the look and timing unchanged,
+ * so a ring drawn here looks exactly as that original drew it.
  *
  * <h3>Three layouts</h3>
  *
@@ -82,7 +82,7 @@ public final class CycleStrip {
     private static final int SELECTION_SPRITE_W = 24;
     private static final int SELECTION_SPRITE_H = 23;
 
-    /** One slide: 220 ms on an ease-out-back spring, Inventory Plus's timing. */
+    /** One slide: 220 ms on an ease-out-back spring, the original's timing. */
     public static final long SLIDE_MILLIS = 220L;
 
     // Registry

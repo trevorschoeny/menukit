@@ -18,7 +18,7 @@ import java.util.function.Supplier;
  * at that scale.
  *
  * <p>Display only. For a slot the player can use, put a {@code CreatedSlot} in a
- * {@code Panel} on a {@code CustomContainerMenu}.
+ * {@code Panel} on a custom container-menu host.
  */
 public class HudSlot implements PanelElement {
 

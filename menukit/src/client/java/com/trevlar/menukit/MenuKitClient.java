@@ -40,7 +40,7 @@ import org.jetbrains.annotations.ApiStatus;
  *
  * <p>Also holds the recipe-book utilities behind {@code MK.isRecipeBookOpen} and
  * {@code MK.setRecipeBookOpen}. Item Tips (durability and food lines on every
- * tooltip) moved from MenuKit to Inventory Plus in 6.0.0: it is a feature, and
+ * tooltip) moved out of MenuKit to a consuming mod in 6.0.0: it is a feature, and
  * MenuKit leaves features to the mods that use it.
  */
 @ApiStatus.Internal
@@ -97,7 +97,7 @@ public class MenuKitClient implements ClientModInitializer {
                     OptiGuiRules.onReload();
                 });
 
-        // A focused MenuKit widget (such as TextField or Keybindery's SearchBox)
+        // A focused MenuKit widget (such as TextField or a mod's own search box)
         // loses focus when the player clicks outside it. Vanilla only moves focus
         // when something claims the click, and panels eat clicks, so this has to be
         // done by hand. See Focus.

@@ -10,7 +10,7 @@ These are not planned. Use vanilla or another library.
 - Chat and the F3 overlay. Both render outside the `Screen` system `VanillaScreenPanelAdapter` targets.
 - Nested panels. A panel holds elements only.
 - Themes and skins. `PanelStyle` and the two looks (`ScreenKind.PANEL` and `ScreenKind.DEFAULT`) are the full set. An element's look follows its screen's and cannot be picked per element, panel or screen. A resource pack can restyle the Panel look ([resource packs](resource-packs.md)), but a mod can't. MenuKit restyles nothing of vanilla's except the pressed look of buttons ([concepts](concepts.md#one-styling-change)).
-- Tooltip content. Item Tips (durability and food lines) left MenuKit in 6.0.0 and is a feature of Inventory Plus.
+- Tooltip content. Item Tips (durability and food lines) left MenuKit in 6.0.0 and is now a consuming mod's feature.
 - A cross-mod event bus.
 - Drag and drop between elements.
 - In-world rendering.

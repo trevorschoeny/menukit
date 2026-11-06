@@ -66,8 +66,8 @@ public final class MKTooltip {
     // a vanilla method gets only one such hook, so a mod that wants tooltips gone
     // registers a predicate here instead of adding a second mixin. MenuKit supplies the
     // mechanism and says what kind of tooltip is coming; the mod supplies the policy
-    // (Inventory Plus: "a setting is on and Ctrl is held"; Dock and Hide Tooltips: "hide
-    // item tooltips" and "hide all other tooltips" as two settings).
+    // (a mod that wants tooltips gone while a key is held, say, or one that offers
+    // separate settings for item tooltips and every other kind).
 
     /**
      * What a tooltip shows, as {@link #hideWhen(Predicate)} sees it. By the time vanilla
@@ -175,7 +175,7 @@ public final class MKTooltip {
     // Keeping a tooltip on screen. Vanilla 26.2's positioner only moves a tooltip's
     // corner: a line wider than the screen runs off the right, a tooltip taller than
     // the screen runs off the top. Two switches, same split as hideWhen (MenuKit
-    // places, the mod decides when; Inventory Plus: "keep tooltips on screen"), both
+    // places, the mod decides when; a mod might want tooltips kept on screen), both
     // off unless a mod registers.
 
     /** Registered "wrap while" and "clamp while" predicates. Written only during init, read every frame. */
@@ -314,7 +314,7 @@ public final class MKTooltip {
     // inventory lands over the slots the player is reading. Docked, it sits at the bottom
     // center of the screen instead, or the top center when the cursor is where the bottom
     // one would be. Same split as hideWhen: MenuKit places, the mod decides when
-    // (Inventory Plus: "keep long tooltips out of the way").
+    // (a mod that wants long tooltips kept out of the way).
 
     /** Registered "dock while" predicates. Written only during init, read every frame. */
     private static final Set<BooleanSupplier> DOCK_WHEN = new LinkedHashSet<>();
@@ -381,8 +381,7 @@ public final class MKTooltip {
     // Scrolling a tooltip. Same split as hideWhen: MenuKit owns where a tooltip lands
     // (MKTooltipSuppressMixin wraps vanilla's GuiGraphicsExtractor.tooltip, the one
     // method that positions and draws every tooltip), the mod owns when and how far
-    // to move it (Inventory Plus: "scroll long tooltips", the wheel scrolls a tooltip
-    // taller than the screen).
+    // to move it (a mod that lets the wheel scroll a tooltip taller than the screen).
     //
     // The state is one offset for "the tooltip on screen now". MenuKit clears it
     // whenever that tooltip changes: different text (another stack, a line added) or

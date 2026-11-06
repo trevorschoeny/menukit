@@ -400,8 +400,8 @@ public class Panel {
         /**
          * Sets where the panel sits in both modes; every host reads this. Unplaced by
          * default: adapters and the HUD reject an unplaced panel; {@code MKScreen} and
-         * {@code CustomContainerMenu} make the first unplaced panel their {@code main()} and
-         * stack later ones below it.
+         * other custom container-menu hosts make the first unplaced panel their
+         * {@code main()} and stack later ones below it.
          *
          * @deprecated Replaced in 7.4.0 by {@link #in(ModeScope, Placement)}, which picks the
          *             mode scope; removed in 8.0.0.
@@ -453,7 +453,7 @@ public class Panel {
 
         /**
          * Makes the panel a popover: something that pops up over the screen while it
-         * is shown (a row of pockets over a hovered hotbar slot, a flyout from a
+         * is shown (a row of icons over a hovered hotbar slot, a flyout from a
          * button). It draws above every ordinary panel on the screen, whichever host
          * holds it or them (a container screen's adapters, an anchor's, a
          * standalone screen's own) and whichever registered first, and below a modal
