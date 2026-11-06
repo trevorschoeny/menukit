@@ -875,6 +875,10 @@ public final class PanelHost {
             // by pixel(...) keeps its point instead (still an overlay: on top, dimming,
             // modal), placed below like any pixel panel.
             feedWidth(panel, RegionMath.availableScreenEdgeWidth(sw, RegionConstants.SCREEN_EDGE_MARGIN), pad);
+            // And the screen's height as a ceiling (8.0.0): a dialog taller than the window
+            // gives back rows from what fits the room, and past that scrolls, rather than
+            // running off it.
+            panel.setHeightCeiling(sh - 2 * RegionConstants.SCREEN_EDGE_MARGIN - 2 * pad);
             panel.setFrameHeight(-1);
             size = measure(panel, pad);
             x = (sw - size[0]) / 2;

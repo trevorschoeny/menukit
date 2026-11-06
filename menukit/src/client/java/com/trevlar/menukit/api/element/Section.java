@@ -223,6 +223,17 @@ public final class Section extends AbstractPanelElement {
     }
 
     /**
+     * Open, as much shorter as its content gives back when its panel is short of room
+     * (8.0.0; a {@link ScrollContainer.Builder#fitRoom} list in it), as a vertical
+     * {@link Flow} is. Closed, it shows none of its content, so it gives nothing, and its
+     * content is back at its full height for when it opens.
+     */
+    @Override
+    public int yieldHeight(int overflow) {
+        return ChildDispatch.yieldHeight(children, isOpen() ? overflow : 0);
+    }
+
+    /**
      * A list row's controls go on the header line, at its trailing edge: the header
      * (its summary, its hover, its click) stops short of them, and the content under it
      * keeps the whole width. The header line grows to the controls' height.

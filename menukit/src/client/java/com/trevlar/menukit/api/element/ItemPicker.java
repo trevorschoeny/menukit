@@ -1,9 +1,9 @@
 package com.trevlar.menukit.api.element;
 
-import com.trevlar.menukit.api.element.ItemMatch.Match;
 import com.trevlar.menukit.api.panel.Focus;
 import com.trevlar.menukit.api.panel.Panel;
 import com.trevlar.menukit.api.panel.ScreenKind;
+import com.trevlar.menukit.core.DialogLayout;
 import com.trevlar.menukit.core.ItemEditing.EnchantChoice;
 import com.trevlar.menukit.core.ItemSources;
 import com.trevlar.menukit.core.VanillaLook;
@@ -15,7 +15,6 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.core.Holder;
-import net.minecraft.core.component.DataComponentType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
@@ -27,65 +26,60 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 
 /**
  * A setting whose value is an item, or a list of items: slots showing the items the
  * setting is about, and a lens onto them. Clicking a slot opens a dialog over the
- * screen to choose and edit them. Made for settings pages.
+ * screen to choose them and, with the options the setting turns on, the fields a
+ * stack has to share with each. Made for settings pages, and openable on its own over
+ * any screen ({@link #open(Screen)}).
  *
  * <pre>{@code
- * // One item, the kind only (the 6.1.0 shape).
+ * // One item, the kind only.
  * ItemPicker.builder()
  *         .state(() -> config.lockedItem(), config::setLockedItem)
  *         .build();
  *
- * // A list of exact stacks.
+ * // A list of rules, each with a name, enchantments and components to match.
  * ItemPicker.builder()
- *         .stacks(() -> config.kit, kit -> config.kit = kit)
- *         .match(ItemMatch.Match.EXACT)
+ *         .rules(() -> config.locks, locks -> config.locks = locks)
+ *         .name().enchantments().components()
  *         .build();
+ *
+ * // One rule with a count, opened straight over a container screen from a key press.
+ * ItemPicker reserve = ItemPicker.builder()
+ *         .rule(() -> draft, r -> draft = r)
+ *         .name().enchantments().components()
+ *         .count(1, ItemStack::getMaxStackSize).fullStack()
+ *         .button(Component.literal("Remove"), () -> { clear(); reserve.cancel(); })
+ *         .onDone(() -> apply(draft))
+ *         .build();
+ * reserve.open(screen);
  * }</pre>
  *
  * <h3>The value</h3>
  *
- * Always full stacks, the consumer's, read every frame and written on every change:
+ * Always the consumer's, read every frame and written on every change:
  * <ul>
- *   <li>{@code state(Supplier<Item>, Consumer<Item>)}: one item, the kind only
- *       ({@link Match#ITEM}); {@link Items#AIR} is none. The 6.1.0 lens, kept.</li>
- *   <li>{@code stack(get, set)}: one {@link ItemStack}; {@link ItemStack#EMPTY} is none.</li>
+ *   <li>{@code state(Supplier<Item>, Consumer<Item>)}: one item, the kind only;
+ *       {@link Items#AIR} is none. The grid lists each item once, and the dialog has no
+ *       Advanced section.</li>
+ *   <li>{@code stack(get, set)}: one {@link ItemStack}, one of it; {@link ItemStack#EMPTY} is none.</li>
  *   <li>{@code stacks(get, set)}: a {@code List<ItemStack>}, in the player's order,
  *       with no empty entries.</li>
- *   <li>{@code rule(get, set)} and {@code rules(get, set)}: the same with each slot's
- *       {@link ItemMatch}, a stack and its own match mode. Needed when the player
- *       chooses the match ({@link Builder#playerChoosesMatch}).</li>
+ *   <li>{@code rule(get, set)} and {@code rules(get, set)}: the same as {@link ItemMatch}
+ *       rules, which carry the count slider's number too. Needed for {@link Builder#count}.</li>
  * </ul>
  * Test a stack in play against the value with {@link ItemMatch}, never with a
  * comparison of your own: {@code rule.matches(stack)}, or
- * {@code ItemMatch.matches(config.stack, ItemMatch.Match.EXACT, stack)}.
- *
- * <h3>The match mode</h3>
- *
- * {@link Builder#match} declares how the setting compares stacks ({@link ItemMatch}
- * has the rules). {@link Match#ITEM} (the default) keeps the kind of item only: the
- * dialog has no Edit tab and no counts. {@link Match#EXACT} and {@link Match#CONTAINS}
- * keep the whole stack, and the dialog's Edit tab edits it. With
- * {@link Builder#playerChoosesMatch} the player picks, per slot, between "Any
- * &lt;item&gt;" ({@code CONTAINS}) and "Exactly this" ({@code EXACT}); the declared
- * mode is a new slot's.
- *
- * <p>{@link Builder#ignoring} and {@link Builder#ignoringCount} declare once what the
- * setting leaves out of the comparison ({@link ItemMatch#ignoring}): every rule the
- * picker writes carries it, so {@code rule.matches(stack)} honors it, and with
- * {@code ignoringCount} the Edit tab has no count. A {@code stack} or {@code stacks}
- * lens stores plain stacks, so test those with a rule that ignores the same:
- * {@code new ItemMatch(stack, EXACT).ignoring(DataComponents.DAMAGE).matches(candidate)}.
+ * {@code ItemMatch.matches(config.stack, stack)}. The item always counts; each field the
+ * player fills in narrows the match, and a blank one is not checked.
  *
  * <h3>On the page</h3>
  *
@@ -99,31 +93,33 @@ import java.util.function.Supplier;
  *
  * <h3>The dialog</h3>
  *
- * A modal dialog of the screen, in its kind, laid out as every MenuKit dialog
- * (equal margins, Cancel and Done centered, as tall as the shown tab):
+ * A modal dialog of the screen, in its kind, laid out as every MenuKit dialog (equal
+ * margins, the buttons centered), top to bottom:
  * <ul>
- *   <li><b>The slot row</b> at the top: the setting's slots (a list's wrapped, with
- *       an empty one at the end to add to). A click on a slot selects it, outlined;
- *       the grid fills it and the Edit tab edits it. Each filled slot has the same
- *       remove button as on the page: it empties the slot, and a list drops it, the
- *       ones after it moving left.</li>
- *   <li><b>Search</b>, the default tab: a search box, focused so typing starts at
- *       once, over a grid of every item from the creative inventory's search tab,
- *       so each variant (potions, tipped arrows, enchanted book levels, goat horns,
- *       firework durations, ominous bottles) is its own entry. A click on an entry
- *       puts one of it straight into the selected slot, replacing what was there;
- *       the slot stays selected. Enter in the search box puts the first match in
- *       the same way.</li>
- *   <li><b>Edit</b>, for {@code EXACT} and {@code CONTAINS}: the selected slot's
- *       name, count, enchantments (under "Added" those on the item, under "Not Added"
- *       those that fit it, up to their highest level, the ones a chosen enchantment
- *       excludes grayed; none for an item nothing enchants; an enchanted book's
- *       stored ones), every other component as text in vanilla's {@code /give}
- *       syntax (read by vanilla's own item parser, its errors shown as a
- *       command's), and the match choice when the player has one.</li>
+ *   <li><b>The title</b>, the setting's {@link Builder#label}.</li>
+ *   <li><b>The slot row</b>: the setting's slots (a list's wrapped, with an empty one at
+ *       the end to add to), the selected one framed by the hotbar's selection. A click on
+ *       a slot selects it; the remove button or a right click empties it, and a list
+ *       drops it, the ones after it moving left.</li>
+ *   <li><b>The search box</b>, focused so typing starts at once, over <b>a grid</b> of
+ *       every item from the creative inventory's search tab, so each variant (potions,
+ *       tipped arrows, enchanted book levels, goat horns) is its own entry. A click on an
+ *       entry puts it straight into the selected slot, replacing what was there; the slot
+ *       stays selected. Enter in the search box puts the first match in the same way. The
+ *       grid is five rows tall, fewer on a screen too short for the dialog.</li>
+ *   <li><b>Advanced</b>, closed until the player opens it (open from the start for a
+ *       slot that has fields filled in), with the options the setting turns on, for the
+ *       selected slot: {@link Builder#count} (a slider, and with {@link Builder#fullStack}
+ *       a "Full stack" box), {@link Builder#name}, {@link Builder#enchantments} (under
+ *       "Added" those on the item at their levels, under "Not Added" those that apply to
+ *       it, the ones a chosen enchantment excludes grayed), {@link Builder#components}
+ *       (every other component as text in vanilla's {@code /give} syntax, read by
+ *       vanilla's own item parser, its errors shown as a command's), then the setting's
+ *       own {@link Builder#advanced} rows. A blank field is not checked.</li>
+ *   <li><b>The buttons</b>: the setting's own {@link Builder#button}s, then Cancel and Done.</li>
  * </ul>
- * Changes are written as they are made; Done keeps them, Cancel and Escape write
- * back the value from before the dialog opened.
+ * Changes are written as they are made; Done keeps them (and runs {@link Builder#onDone}),
+ * Cancel and Escape write back the value from before the dialog opened.
  *
  * <h3>A setting value, never a player's item</h3>
  *
@@ -156,33 +152,63 @@ public class ItemPicker extends AbstractPanelElement {
     private final Supplier<List<ItemMatch>> stateGet;
     private final Consumer<List<ItemMatch>> stateSet;
     private final boolean list;
-    private final Match match;
-    private final boolean playerChoosesMatch;
-    private final Set<DataComponentType<?>> ignored;
-    private final boolean countIgnored;
+    private final boolean kindsOnly;
+    private final Options options;
     private final Component label;
     private final int columns;
+    private final @Nullable Runnable onDone;
 
     // The vanilla stand-in for sound, focus and narration (ElementWidget), made at the
     // first screen attach, as a Button's is.
     private @Nullable ElementWidget widget;
+    /** The screen the dialog is on: the page's, or the one {@link #open(Screen)} put it on. */
     private @Nullable Screen screen;
 
     /** The dialog, built once with the picker; shown on whatever screen the picker is on. */
     private final ItemDialog dialog;
+
+    /**
+     * What the dialog's Advanced section offers, as the builder turned it on: the name,
+     * the enchantments, the components box, the count slider (its least and, for an
+     * item, its most) with or without "Full stack", and the consumer's own rows and
+     * buttons.
+     */
+    record Options(boolean name, boolean enchantments, boolean components,
+                   int countLeast, @Nullable ToIntFunction<ItemStack> countMost, boolean fullStack,
+                   List<PanelElement> advanced, List<Button> buttons) {
+
+        boolean count() {
+            return countMost != null;
+        }
+
+        /** Whether the dialog has an Advanced section at all. */
+        boolean any() {
+            return name || enchantments || components || count() || !advanced.isEmpty();
+        }
+
+        /** The count slider's most for {@code stack}, never under its least. */
+        int most(ItemStack stack) {
+            return countMost == null ? 1 : Math.max(countLeast, countMost.applyAsInt(stack));
+        }
+
+        /** A new slot's count: a full stack where that is on offer, else the slider's least. */
+        int newCount() {
+            return fullStack ? ItemMatch.STACK : countLeast;
+        }
+    }
 
     protected ItemPicker(Builder b, Supplier<List<ItemMatch>> get, Consumer<List<ItemMatch>> set) {
         super(b);
         this.stateGet = get;
         this.stateSet = set;
         this.list = b.list;
-        this.match = b.match;
-        this.playerChoosesMatch = b.playerChoosesMatch;
-        this.ignored = Set.copyOf(b.ignored);
-        this.countIgnored = b.countIgnored;
+        this.kindsOnly = b.lens == Lens.ITEM;
+        this.options = new Options(b.name, b.enchantments, b.components, b.countLeast, b.countMost, b.fullStack,
+                List.copyOf(b.advanced), List.copyOf(b.buttons));
         this.label = b.label != null ? b.label
                 : Component.literal(b.list ? "Choose items" : "Choose an item");
         this.columns = b.columns;
+        this.onDone = b.onDone;
         this.dialog = new ItemDialog(this);
     }
 
@@ -193,13 +219,13 @@ public class ItemPicker extends AbstractPanelElement {
 
     // The value
 
-    /** The first slot's item, the kind only ({@link Items#AIR} when empty): what a 6.1.0 picker shows. */
+    /** The first slot's item, the kind only ({@link Items#AIR} when empty). */
     public Item getCurrentItem() {
         List<ItemMatch> v = value();
         return v.isEmpty() ? Items.AIR : v.get(0).stack().getItem();
     }
 
-    /** The setting's slots now, in order, none empty: each a stack and its match mode. */
+    /** The setting's slots now, in order, none empty: each a rule and its count. */
     public List<ItemMatch> value() {
         ItemSources.ready();   // stacks need items' components, which no world may have bound yet
         List<ItemMatch> v = stateGet.get();
@@ -209,47 +235,32 @@ public class ItemPicker extends AbstractPanelElement {
         return out;
     }
 
-    /** The declared match mode: every slot's, or a new slot's when the player chooses. */
-    public Match match() {
-        return match;
-    }
-
     /** Whether the setting is a list (else one item). */
     public boolean isList() {
         return list;
     }
 
-    /** Whether the setting leaves the count out of {@code EXACT} ({@link Builder#ignoringCount}): the Edit tab has no count. */
-    public boolean countIgnored() {
-        return countIgnored;
+    /** Whether the setting keeps the kind of item only ({@code state(Item)}): the grid lists each item once. */
+    boolean kindsOnly() {
+        return kindsOnly;
     }
 
-    /** Whether the player chooses each slot's match between Any and Exactly. */
-    public boolean playerChoosesMatch() {
-        return playerChoosesMatch;
+    Options options() {
+        return options;
     }
 
     /**
      * Writes the slots through the lens: empties dropped, at most one for a single
-     * picker, in {@code ITEM} mode each the plain item, one of it, and otherwise each
-     * ignoring what the setting declares.
+     * picker, the plain item for a kind-only one.
      */
     void write(List<ItemMatch> slots) {
         List<ItemMatch> out = new ArrayList<>();
         for (ItemMatch m : slots) {
             if (m.stack().isEmpty()) continue;
-            out.add(match == Match.ITEM ? new ItemMatch(new ItemStack(m.stack().getItem()), Match.ITEM) : declared(m));
+            out.add(kindsOnly ? new ItemMatch(new ItemStack(m.stack().getItem())) : m);
             if (!list) break;
         }
         stateSet.accept(List.copyOf(out));
-    }
-
-    /** {@code m}, also ignoring what the builder declared. */
-    private ItemMatch declared(ItemMatch m) {
-        if (m.ignored().containsAll(ignored) && (m.countIgnored() || !countIgnored)) return m;
-        Set<DataComponentType<?>> all = new HashSet<>(m.ignored());
-        all.addAll(ignored);
-        return new ItemMatch(m.stack(), m.match(), all, m.countIgnored() || countIgnored);
     }
 
     /** What the setting is called: the dialog's title. */
@@ -324,7 +335,7 @@ public class ItemPicker extends AbstractPanelElement {
         if (hovered < 0) return;
         if (onRemove) MKTooltip.queue(g, REMOVE_TOOLTIP, ctx.mouseX(), ctx.mouseY());
         else if (tooltipSupplier() != null) queueTooltip(ctx);
-        else if (hovered < v.size()) itemTooltip(g, v.get(hovered), match, ctx.mouseX(), ctx.mouseY());
+        else if (hovered < v.size()) itemTooltip(g, v.get(hovered), options, ctx.mouseX(), ctx.mouseY());
     }
 
     /** What the narrator reads for the value: the items' names, or "Empty". */
@@ -397,21 +408,17 @@ public class ItemPicker extends AbstractPanelElement {
 
     /**
      * A slot's tooltip: vanilla's own for the stack (name, enchantments, lore), and
-     * under it how the setting compares it, when that is more than the kind.
+     * under it the rule's count, when the setting has one.
      */
-    static void itemTooltip(GuiGraphicsExtractor g, ItemMatch slot, Match declared, int mx, int my) {
+    static void itemTooltip(GuiGraphicsExtractor g, ItemMatch slot, Options options, int mx, int my) {
         List<Component> lines = new ArrayList<>(Screen.getTooltipFromItem(Minecraft.getInstance(), slot.stack()));
-        if (declared != Match.ITEM) lines.add(matchName(slot.match(), slot.stack()).copy().withStyle(ChatFormatting.GRAY));
+        if (options.count()) lines.add(countText(slot).copy().withStyle(ChatFormatting.GRAY));
         g.setTooltipForNextFrame(Minecraft.getInstance().font, lines, Optional.empty(), mx, my);
     }
 
-    /** How a slot matches, as the player reads it: "Any Diamond Sword", "Exactly this", "Diamond Sword". */
-    static Component matchName(Match match, ItemStack stack) {
-        return switch (match) {
-            case CONTAINS -> Component.literal("Any ").append(new ItemStack(stack.getItem()).getHoverName());
-            case EXACT -> Component.literal("Exactly this");
-            case ITEM -> new ItemStack(stack.getItem()).getHoverName();
-        };
+    /** "Count: 12", or "Count: full stack". */
+    static Component countText(ItemMatch slot) {
+        return Component.literal("Count: " + (slot.count() == ItemMatch.STACK ? "full stack" : String.valueOf(slot.count())));
     }
 
     /**
@@ -444,39 +451,64 @@ public class ItemPicker extends AbstractPanelElement {
         if (!ownDisabled()) openDialog(0);
     }
 
-    // The dialog. Public for MenuKit's checks; the page and the dialog's own elements
-    // are what call these in play.
+    // The dialog
+
+    /**
+     * Opens the dialog over {@code screen}, its first slot selected, with no picker on the
+     * screen's page: from a key press over a slot, say. The picker needs no {@code at} or
+     * panel for this. Build it once and open it as often as needed; it stays on a screen
+     * until that screen closes, and a dialog open on another screen closes first. Escape,
+     * Cancel and Done close it as they do from the page.
+     */
+    public void open(Screen screen) {
+        Objects.requireNonNull(screen, "screen");
+        if (this.screen != screen) dialog.close();
+        this.screen = screen;
+        ScreenPanelRegistry.attachDialog(screen, dialog.panel());
+        openDialog(0);
+    }
+
+    /** Whether the dialog is open. */
+    public boolean isDialogOpen() {
+        return dialog.isOpen();
+    }
+
+    /** Done: keeps the value, closes the dialog, and runs {@link Builder#onDone}. */
+    public void done() {
+        if (!dialog.isOpen()) return;
+        dialog.close();
+        if (onDone != null) onDone.run();
+    }
+
+    /** Cancel (and Escape): writes back the value from before the dialog opened, and closes it. */
+    public void cancel() {
+        if (!dialog.isOpen()) return;
+        List<ItemMatch> before = dialog.before();
+        dialog.close();
+        stateSet.accept(before);   // exactly as it was, not through write's tidying
+    }
+
+    // The rest of the dialog is public for MenuKit's checks; the page and the dialog's
+    // own elements are what call these in play.
 
     /** Opens the dialog with slot {@code slot} selected. Does nothing while it is open. */
     @ApiStatus.Internal
     public void openDialog(int slot) {
         if (dialog.isOpen()) return;
         dialog.open(slot);
-        if (screen != null) {
-            // Focus leaves the page, and typing goes straight to the search box.
-            Focus.clear(screen);
-            if (dialog.searchWidget() != null) screen.setFocused(dialog.searchWidget());
-        }
+        focusSearch();
     }
 
-    @ApiStatus.Internal
-    public boolean isDialogOpen() {
-        return dialog.isOpen();
-    }
-
-    /** Done: keeps the value and closes the dialog. */
-    @ApiStatus.Internal
-    public void done() {
-        dialog.close();
-    }
-
-    /** Cancel (and Escape): writes back the value from before the dialog opened, and closes it. */
-    @ApiStatus.Internal
-    public void cancel() {
-        if (!dialog.isOpen()) return;
-        List<ItemMatch> before = dialog.before();
-        dialog.close();
-        stateSet.accept(before);   // exactly as it was, not through write's tidying
+    /**
+     * Focus leaves the page, and typing goes straight to the search box. Run when the
+     * dialog opens and again as it first draws: a click on the page's slot opens it from
+     * inside the screen's click, and the screen then focuses what it clicked (the page's
+     * stand-in), which would leave typing with the page.
+     */
+    void focusSearch() {
+        if (screen == null || dialog.searchWidget() == null) return;
+        Focus.clear(screen);
+        screen.setFocused(dialog.searchWidget());
     }
 
     /** The dialog's panel: a modal on the screen the picker is on, open while {@link #isDialogOpen}. */
@@ -497,13 +529,13 @@ public class ItemPicker extends AbstractPanelElement {
         return dialog.selected();
     }
 
-    /** The Search tab's entries for a query: the creative search contents, searched. */
+    /** The grid's entries for a query: the creative search contents, searched. */
     @ApiStatus.Internal
     public List<ItemStack> searchEntries(String query) {
         return dialog.entries(query);
     }
 
-    /** A click on a grid entry: one of it into the selected slot. */
+    /** A click on a grid entry: it into the selected slot. */
     @ApiStatus.Internal
     public void pickEntry(ItemStack entry) {
         dialog.fill(entry);
@@ -521,19 +553,25 @@ public class ItemPicker extends AbstractPanelElement {
         dialog.select(slot);
     }
 
-    /** Shows a tab of the dialog ({@code "search"} or {@code "edit"}), as a click on it does. */
+    /** Opens or closes the Advanced section, as a click on its header does. */
     @ApiStatus.Internal
-    public void showDialogTab(String id) {
-        dialog.showTab(id);
+    public void setAdvancedOpen(boolean open) {
+        dialog.setAdvanced(open);
     }
 
-    /** Types into a field of the Edit tab ({@code "name"}, {@code "count"}, {@code "components"}), as a player does. */
+    /** Whether the Advanced section is open. */
+    @ApiStatus.Internal
+    public boolean advancedOpen() {
+        return dialog.advanced();
+    }
+
+    /** Types into a field of the Advanced section ({@code "name"}, {@code "components"}), as a player does. */
     @ApiStatus.Internal
     public void typeEdit(String field, String text) {
         dialog.typeEdit(field, text);
     }
 
-    /** What a field of the Edit tab shows now. */
+    /** What a field of the Advanced section shows now. */
     @ApiStatus.Internal
     public String editText(String field) {
         return dialog.editText(field);
@@ -545,13 +583,19 @@ public class ItemPicker extends AbstractPanelElement {
         return dialog.componentsError();
     }
 
-    /** Picks the selected slot's match (the player's choice), as its radio does. */
+    /** Sets the selected slot's count, as the slider does (clamped to its range). */
     @ApiStatus.Internal
-    public void chooseMatch(Match match) {
-        dialog.chooseMatch(match);
+    public void setCount(int count) {
+        dialog.setCount(count);
     }
 
-    /** The selected slot's enchantment choices, as the Edit tab lists them (on it, then those that can be added). */
+    /** Ticks or clears "Full stack" for the selected slot, as its box does. */
+    @ApiStatus.Internal
+    public void setFullStack(boolean full) {
+        dialog.setFullStack(full);
+    }
+
+    /** The selected slot's enchantment choices, as Advanced lists them (on it, then those that can be added). */
     @ApiStatus.Internal
     public List<EnchantChoice> enchantChoices() {
         return dialog.enchantChoices();
@@ -591,16 +635,16 @@ public class ItemPicker extends AbstractPanelElement {
         }
     }
 
-    /** Everything the dialog draws on the shown tab, laid out for {@code kind}, each with the box it must stay inside. */
+    /** Everything the dialog draws, laid out for {@code kind}, each with the box it must stay inside. */
     @ApiStatus.Internal
     public List<Box> dialogBoxes(ScreenKind kind) {
         return dialog.boxes(kind);
     }
 
-    /** Whether the dialog has an Edit tab: only when the match mode keeps more than the item. */
+    /** Whether the dialog has an Advanced section: only when the setting turns on something for it. */
     @ApiStatus.Internal
-    public boolean hasEditTab() {
-        return match != Match.ITEM;
+    public boolean hasAdvanced() {
+        return options.any();
     }
 
     /**
@@ -632,10 +676,12 @@ public class ItemPicker extends AbstractPanelElement {
         private @Nullable Supplier<?> get;
         private @Nullable Consumer<?> set;
         private boolean list = false;
-        private Match match = Match.ITEM;
-        private boolean playerChoosesMatch = false;
-        private final Set<DataComponentType<?>> ignored = new HashSet<>();
-        private boolean countIgnored = false;
+        private boolean name, enchantments, components, fullStack;
+        private int countLeast = 1;
+        private @Nullable ToIntFunction<ItemStack> countMost;
+        private final List<PanelElement> advanced = new ArrayList<>();
+        private final List<Button> buttons = new ArrayList<>();
+        private @Nullable Runnable onDone;
         private @Nullable Component label;
         private int columns = DEFAULT_COLUMNS;
 
@@ -656,15 +702,16 @@ public class ItemPicker extends AbstractPanelElement {
         }
 
         /**
-         * The 6.1.0 lens: one item, the kind only ({@link Match#ITEM}). {@code get} is
-         * read every frame ({@link Items#AIR}, or {@code null}, for none); {@code set}
-         * receives the item the player picks, or {@link Items#AIR} when they empty it.
+         * One item, the kind only. {@code get} is read every frame ({@link Items#AIR}, or
+         * {@code null}, for none); {@code set} receives the item the player picks, or
+         * {@link Items#AIR} when they empty it. The grid lists each item once, and the
+         * Advanced options are not on offer.
          */
         public Builder state(Supplier<Item> get, Consumer<Item> set) {
             return lens(Lens.ITEM, get, set, false);
         }
 
-        /** One stack: {@code get} read every frame, {@code set} handed every change ({@link ItemStack#EMPTY} for none). */
+        /** One stack, one of it: {@code get} read every frame, {@code set} handed every change ({@link ItemStack#EMPTY} for none). */
         public Builder stack(Supplier<ItemStack> get, Consumer<ItemStack> set) {
             return lens(Lens.STACK, get, set, false);
         }
@@ -674,54 +721,91 @@ public class ItemPicker extends AbstractPanelElement {
             return lens(Lens.STACKS, get, set, true);
         }
 
-        /** One slot with its own match mode ({@code set} gets an empty stack for none). */
+        /** One rule ({@code set} gets an empty one for none). */
         public Builder rule(Supplier<ItemMatch> get, Consumer<ItemMatch> set) {
             return lens(Lens.RULE, get, set, false);
         }
 
-        /** A list of slots, each with its own match mode. */
+        /** A list of rules, in the player's order. */
         public Builder rules(Supplier<List<ItemMatch>> get, Consumer<List<ItemMatch>> set) {
             return lens(Lens.RULES, get, set, true);
         }
 
-        /**
-         * How the setting compares stacks ({@link ItemMatch}): {@link Match#ITEM} (the
-         * default) keeps the kind of item only and shows no Edit tab; {@link Match#EXACT}
-         * and {@link Match#CONTAINS} keep the whole stack and edit it.
-         */
-        public Builder match(Match match) {
-            this.match = Objects.requireNonNull(match, "match");
+        /** Advanced offers a name field: filled in, the stack must have that name. */
+        public Builder name() {
+            this.name = true;
             return this;
         }
 
         /**
-         * The player chooses each slot's match, "Any &lt;item&gt;" ({@link Match#CONTAINS})
-         * or "Exactly this" ({@link Match#EXACT}), in the Edit tab; {@link #match} is a
-         * new slot's. Needs {@code rule} or {@code rules}, which store the choice.
+         * Advanced offers the enchantments that apply to the selected item, each to add
+         * at a level: each one added must be on the stack at that level.
          */
-        public Builder playerChoosesMatch() {
-            this.playerChoosesMatch = true;
+        public Builder enchantments() {
+            this.enchantments = true;
             return this;
         }
 
         /**
-         * Component types the setting leaves out of the comparison, in {@code EXACT}
-         * and {@code CONTAINS} ({@link ItemMatch#ignoring}): every rule the picker
-         * writes ignores them. {@code ignoring(DataComponents.DAMAGE)} for a rule that
-         * still holds once the item is worn.
+         * Advanced offers a box for every other component, in vanilla's {@code /give}
+         * syntax ({@code [unbreakable={},!food]}): each one listed must match, and
+         * {@code !x} means the stack must not have it.
          */
-        public Builder ignoring(DataComponentType<?>... types) {
-            ignored.addAll(List.of(types));
+        public Builder components() {
+            this.components = true;
             return this;
         }
 
         /**
-         * The setting leaves the count out of {@code EXACT} ({@link ItemMatch#ignoringCount}):
-         * every rule the picker writes ignores it, and the Edit tab has no count, so a
-         * slot holds one.
+         * Advanced offers a count slider from {@code least} to {@code most}: a number for
+         * the consumer ({@link ItemMatch#count()}), never matched. Needs {@code rule} or
+         * {@code rules}, which store it.
          */
-        public Builder ignoringCount() {
-            this.countIgnored = true;
+        public Builder count(int least, int most) {
+            require(most > least, "count needs most above least, got " + least + ".." + most);
+            return count(least, s -> most);
+        }
+
+        /**
+         * A count slider whose most depends on the item ({@code ItemStack::getMaxStackSize}
+         * for "up to a stack"). For an item whose most is no more than {@code least} (a
+         * sword's stack of one), the slider is not shown.
+         */
+        public Builder count(int least, ToIntFunction<ItemStack> most) {
+            require(least >= 1, "count's least must be at least 1, got " + least);
+            this.countLeast = least;
+            this.countMost = Objects.requireNonNull(most, "most");
+            return this;
+        }
+
+        /**
+         * Beside the count slider, a "Full stack" box: ticked, the count is
+         * {@link ItemMatch#STACK}, a stack of whatever the item is. A new slot starts ticked.
+         */
+        public Builder fullStack() {
+            this.fullStack = true;
+            return this;
+        }
+
+        /** A row of the consumer's own under Advanced's fields, laid out to the dialog's width. */
+        public Builder advanced(PanelElement row) {
+            advanced.add(Objects.requireNonNull(row, "row"));
+            return this;
+        }
+
+        /**
+         * A dialog button of the consumer's, left of Cancel and Done ("Remove"). Its action
+         * runs as it is; call {@link ItemPicker#done()} or {@link ItemPicker#cancel()} from
+         * it to close the dialog.
+         */
+        public Builder button(Component label, Runnable onClick) {
+            buttons.add(DialogLayout.button(Objects.requireNonNull(label, "label"), Objects.requireNonNull(onClick, "onClick")));
+            return this;
+        }
+
+        /** Runs after Done closes the dialog: where a consumer that edits a draft applies it. */
+        public Builder onDone(Runnable onDone) {
+            this.onDone = Objects.requireNonNull(onDone, "onDone");
             return this;
         }
 
@@ -742,17 +826,13 @@ public class ItemPicker extends AbstractPanelElement {
         @Override
         public ItemPicker build() {
             require(lens != null, "a lens is required (state, stack, stacks, rule or rules); an ItemPicker shows the consumer's value");
-            require(lens != Lens.ITEM || match == Match.ITEM,
-                    "state(Supplier<Item>, Consumer<Item>) holds an Item, which has no count or components: use stack or stacks with match(" + match + ")");
-            require(!playerChoosesMatch || lens == Lens.RULE || lens == Lens.RULES,
-                    "playerChoosesMatch() needs rule(...) or rules(...), which store each slot's choice");
-            require(!playerChoosesMatch || match != Match.ITEM,
-                    "playerChoosesMatch() chooses between CONTAINS and EXACT: declare match(CONTAINS) or match(EXACT) for a new slot");
+            require(lens != Lens.ITEM || !(name || enchantments || components || countMost != null || !advanced.isEmpty()),
+                    "state(Supplier<Item>, Consumer<Item>) holds an Item, which has no name, enchantments, components or count: use stack, stacks, rule or rules");
+            require(countMost == null || lens == Lens.RULE || lens == Lens.RULES,
+                    "count(...) needs rule(...) or rules(...), which store each slot's count");
+            require(!fullStack || countMost != null, "fullStack() goes with count(...)");
             // A list is a row of slots wide; a single picker one slot.
             if (list) this.width = columns * SIZE;
-            Match m = match;
-            Set<DataComponentType<?>> ign = Set.copyOf(ignored);
-            boolean cnt = countIgnored;
             Supplier<List<ItemMatch>> g;
             Consumer<List<ItemMatch>> s;
             switch (lens) {
@@ -761,7 +841,7 @@ public class ItemPicker extends AbstractPanelElement {
                     Consumer<Item> set0 = (Consumer<Item>) set;
                     g = () -> {
                         Item item = get0.get();
-                        return item == null || item == Items.AIR ? List.of() : List.of(new ItemMatch(new ItemStack(item), Match.ITEM));
+                        return item == null || item == Items.AIR ? List.of() : List.of(new ItemMatch(new ItemStack(item)));
                     };
                     s = v -> set0.accept(v.isEmpty() ? Items.AIR : v.get(0).stack().getItem());
                 }
@@ -770,7 +850,7 @@ public class ItemPicker extends AbstractPanelElement {
                     Consumer<ItemStack> set0 = (Consumer<ItemStack>) set;
                     g = () -> {
                         ItemStack st = get0.get();
-                        return st == null || st.isEmpty() ? List.of() : List.of(new ItemMatch(st, m, ign, cnt));
+                        return st == null || st.isEmpty() ? List.of() : List.of(new ItemMatch(st, 1));
                     };
                     s = v -> set0.accept(v.isEmpty() ? ItemStack.EMPTY : v.get(0).stack());
                 }
@@ -781,7 +861,7 @@ public class ItemPicker extends AbstractPanelElement {
                         List<ItemStack> sts = get0.get();
                         if (sts == null) return List.of();
                         List<ItemMatch> out = new ArrayList<>();
-                        for (ItemStack st : sts) if (st != null && !st.isEmpty()) out.add(new ItemMatch(st, m, ign, cnt));
+                        for (ItemStack st : sts) if (st != null && !st.isEmpty()) out.add(new ItemMatch(st, 1));
                         return out;
                     };
                     s = v -> set0.accept(v.stream().map(ItemMatch::stack).toList());
@@ -793,7 +873,7 @@ public class ItemPicker extends AbstractPanelElement {
                         ItemMatch r = get0.get();
                         return r == null || r.stack().isEmpty() ? List.of() : List.of(r);
                     };
-                    s = v -> set0.accept(v.isEmpty() ? new ItemMatch(ItemStack.EMPTY, m) : v.get(0));
+                    s = v -> set0.accept(v.isEmpty() ? new ItemMatch(ItemStack.EMPTY, 1) : v.get(0));
                 }
                 case RULES -> {
                     g = (Supplier<List<ItemMatch>>) get;

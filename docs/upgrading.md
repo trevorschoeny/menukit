@@ -2,6 +2,19 @@
 
 What changes for a mod moving to each MenuKit release, newest first. The latest release's notes are on the [README](https://github.com/trevorschoeny/menukit#upgrading), and [Upgrading to 7.0.0](upgrading-7.md) walks through the move from 6.x and the 7.4.0 and 7.5.0 changes step by step. The [changelog](https://github.com/trevorschoeny/menukit/blob/main/menukit/changelog.md) has the full list for each.
 
+## To 8.0.0
+
+The item picker's match modes are gone. `ItemMatch.Match`, `match(...)`, `playerChoosesMatch()`, `ignoring(...)`, `ignoringCount()` and the dialog's Search and Edit tabs are replaced by one rule: the item always counts, each field filled in narrows the match, and a blank one is not checked. What the dialog's Advanced section offers is now the picker's choice: `name()`, `enchantments()`, `components()`, `count(...)` and `fullStack()`. Then:
+
+- `new ItemMatch(stack, Match.X)` becomes `new ItemMatch(stack)`, and `ItemMatch.matches(rule, Match.X, stack)` becomes `ItemMatch.matches(rule, stack)`.
+- An `EXACT` picker that edited names, enchantments and components turns on `name().enchantments().components()`. One that ignored damage needs nothing, since damage is checked only when the player lists it. An `ITEM` picker needs nothing.
+- A count was part of `EXACT`. It is now a number for the mod, never matched: `count(least, most)` on a `rule` or `rules` picker, read with `rule.count()`.
+- Rules saved by 7.x load through `ItemMatch.CODEC` as they matched, with one exception. An `exact` rule refused a stack that had more than the rule (a plain sword refused an enchanted one), and now that stack matches.
+
+`ItemPicker.open(screen)` opens the dialog over any screen with no picker on a page, and `button(...)` and `onDone(...)` let a mod put its own button in the dialog and apply a draft on Done.
+
+A centered dialog taller than the window now gives back rows from a list that fits the room (`ScrollContainer.Builder.fitRoom`), and past that it scrolls, instead of running off the window. `fitRoom(step, least)` holds a list at its declared height while there is room and gives rows back down to `least`. A `Slider`'s label is made every frame, so it may read more than the value. A mod built for 7.x declares `"menukit": ">=8.0.0 <9.0.0"` once it is rebuilt.
+
 ## To 7.3.0
 
 Nothing breaks, and mods built for 7.2.0 work as before. The looks have new names: `ScreenKind.OPTIONS` is now `DEFAULT` and `CONTAINER` is now `PANEL`. The old names still work and go in 8.0.0, but a `switch` over `ScreenKind` must name the new ones. Slots shown in a panel now draw on top of it, so a mod that hooks vanilla's whole slot pass sees those slots drawn after it. A mod that uses anything new in 7.3.0 declares `"menukit": ">=7.3.0 <8.0.0"`.
