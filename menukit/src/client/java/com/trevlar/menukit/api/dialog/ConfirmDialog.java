@@ -71,7 +71,6 @@ import java.util.function.Supplier;
  * The body is a single {@link Component}. For a multi-line body, build the Panel
  * yourself the way this builder does.
  *
- * @see AlertDialog single-button variant
  */
 public final class ConfirmDialog {
 

@@ -304,7 +304,7 @@ public final class ScreenPanelRegistry {
                 }
             }
             // Escape with an injected modal up dismisses the topmost modal (its
-            // onEscape; ConfirmDialog/AlertDialog wire theirs) instead of closing the
+            // onEscape; ConfirmDialog wires its) instead of closing the
             // screen out from under it. Eaten either way while the modal is up.
             Panel topModal = topmostModal(routed);
             if (topModal == null) return true;

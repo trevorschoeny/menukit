@@ -29,7 +29,6 @@ import java.util.function.Consumer;
  * }</pre>
  *
  * @see Row
- * @see ElementSpec
  * @see CrossAlign
  */
 public final class Column {
@@ -83,19 +82,12 @@ public final class Column {
             return this;
         }
 
-        /** Appends an element. */
-        public Builder add(ElementSpec spec) {
-            entries.add(LayoutEntry.fromSpec(spec));
-            return this;
-        }
-
         /**
-         * Appends an element that is already built, including under
+         * Appends an element, including under
          * {@link CrossAlign#FILL}. It must extend
          * {@link com.trevlar.menukit.api.element.AbstractPanelElement} (every
          * MenuKit element does) so the layout can move it; a bare custom
-         * {@link PanelElement} throws at build time. See
-         * {@link ElementSpec#of(PanelElement)}.
+         * {@link PanelElement} throws when the layout runs.
          */
         public Builder add(PanelElement element) {
             entries.add(LayoutEntry.fromElement(element));

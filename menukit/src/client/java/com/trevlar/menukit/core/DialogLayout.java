@@ -14,7 +14,7 @@ import org.jetbrains.annotations.ApiStatus;
 
 /**
  * The one layout every MenuKit dialog uses ({@code ConfirmDialog},
- * {@code AlertDialog}, a {@code ColorField}'s and an {@code ItemPicker}'s dialog):
+ * a {@code ColorField}'s and an {@code ItemPicker}'s dialog):
  * rows top to bottom, a title, the body, and the button row last, in a centered
  * modal {@link PanelStyle#RAISED} panel.
  *

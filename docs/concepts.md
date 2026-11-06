@@ -24,9 +24,9 @@ A `PanelElement` is one item inside a panel. Its position is relative to the pan
 
 | Kind | Types |
 |---|---|
-| Render only | `TextLabel`, `Icon`, `Divider`, `ItemDisplay`, `ProgressBar`, `InfoBox` |
+| Render only | `TextLabel`, `Icon`, `Divider`, `ItemDisplay`, `ProgressBar` |
 | Interactive | `Button`, `Toggle`, `Checkbox`, `Radio` (with `RadioGroup`), `Slider`, `TextField`, `Dropdown`, `DropdownMulti`, `ItemPicker`, `ColorField` |
-| Composite | `ScrollContainer`, `SlotScroll`, `Flow`, `Section`, `Tabs`, `ListView`, `ConfirmDialog`, `AlertDialog`, `EditDialog` |
+| Composite | `ScrollContainer`, `SlotScroll`, `Flow`, `Section`, `Tabs`, `ListView`, `ConfirmDialog`, `EditDialog` |
 | Host | `WidgetHost`, for a vanilla-style widget made outside MenuKit |
 | Slot (SlotKit) | `SlotElement`, `SlotFlowElement`, in SlotKit |
 
@@ -82,7 +82,7 @@ Some state is the element's own view state, not the consumer's. Examples are whe
 
 ## Disabled
 
-`disabledWhen` on an element grays it and makes it inert. `Panel.disabledWhen(supplier)` does the same for every element of the panel, and a container's own `disabledWhen` (a `Section`, `Tabs`, `ScrollContainer` or `Flow`) does it for everything inside. Text grays too. `TextLabel`, `InfoBox` and a section's header draw in the disabled gray, which is the screen kind's `TextRole.DISABLED` color. A disabled panel still claims its area, so what is behind it stays inert. Its elements take no clicks, wheel or keys. Mouse releases still arrive, so a drag can end.
+`disabledWhen` on an element grays it and makes it inert. `Panel.disabledWhen(supplier)` does the same for every element of the panel, and a container's own `disabledWhen` (a `Section`, `Tabs`, `ScrollContainer` or `Flow`) does it for everything inside. Text grays too. `TextLabel` and a section's header draw in the disabled gray, which is the screen kind's `TextRole.DISABLED` color. A disabled panel still claims its area, so what is behind it stays inert. Its elements take no clicks, wheel or keys. Mouse releases still arrive, so a drag can end.
 
 ## Transform
 
@@ -287,7 +287,7 @@ Position the row after a section where it sits while the section is closed. When
 
 ## Layout helpers
 
-`Row` and `Column` compute positions once and return a `List<PanelElement>`. They do not exist at runtime. The positions are computed on the panel's first layout pass, when the game's font can measure text. A panel or dialog laid out with them can therefore be built at mod init. An element enters a layout built: `.add(Button.builder()...build())`, and the helper moves it into place. A custom element that can only be constructed once its position is known implements `ElementSpec`. `.build()` returns positioned elements that go into a panel with `.add(...)` or `.elements(...)`.
+`Row` and `Column` compute positions once and return a `List<PanelElement>`. They do not exist at runtime. The positions are computed on the panel's first layout pass, when the game's font can measure text. A panel or dialog laid out with them can therefore be built at mod init. An element enters a layout built: `.add(Button.builder()...build())`, and the helper moves it into place. `.build()` returns positioned elements that go into a panel with `.add(...)` or `.elements(...)`.
 
 `Flow` is the runtime row. Its children flow left to right at the panel's width and wrap to new rows. `Flow.spacer()` takes whatever a row's other children leave of that width. A label, a spacer and a control make a settings row with the control pinned to the right edge at any window width, with no width written anywhere. A spacer at each end of a row centers what is between them. When the row wraps, the control drops under its label. A row top-aligns its children. `crossAlign(CrossAlign.CENTER)` (7.3.0) centers each on its row's line instead, so a label sits level with the middle of a taller control and controls of different heights line up, with no pixel offsets; `CrossAlign.END` sets them on the line's bottom. The line is the tallest child's first line, so an open `Section` in the row keeps its header on it and grows downward.
 

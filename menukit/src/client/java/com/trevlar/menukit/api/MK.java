@@ -2,7 +2,6 @@ package com.trevlar.menukit.api;
 
 import com.trevlar.menukit.MenuKitClient;
 import com.trevlar.menukit.api.panel.Panel;
-import com.trevlar.menukit.api.hud.HudNotification;
 import com.trevlar.menukit.inject.HudHosts;
 import com.trevlar.menukit.inject.LayerPlan;
 import com.trevlar.menukit.inject.PanelHost;
@@ -14,22 +13,15 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.util.Util;
-import net.minecraft.world.item.ItemStack;
-import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 
 import org.jetbrains.annotations.ApiStatus;
 
 /**
- * Mod entry point for MenuKit and the process-wide facade for HUD panels,
- * notifications, and the recipe-book query.
+ * Mod entry point for MenuKit and the process-wide facade for HUD panels
+ * and the recipe-book query.
  *
  * <p>The consumer surface by task:
  * <ul>
@@ -50,8 +42,7 @@ import org.jetbrains.annotations.ApiStatus;
  * separate library built on MenuKit.
  *
  * <p>Supported static methods on this class: {@link #registerHud},
- * {@link #registerNotification}, {@link #notify}, {@link #isRecipeBookOpen},
- * {@link #setRecipeBookOpen}. HUD panels and notifications register from a client
+ * {@link #isRecipeBookOpen}, {@link #setRecipeBookOpen}. HUD panels register from a client
  * initializer; registration freezes at client start.
  */
 public class MK {
@@ -60,27 +51,13 @@ public class MK {
     @ApiStatus.Internal
     public static final Logger LOGGER = LoggerFactory.getLogger("menukit");
 
-    // Notification definitions, registered at mod init
-    private static final Map<String, HudNotification> notificationDefs = new LinkedHashMap<>();
-
-    // Active notifications. Written by notify() from any thread (a server-side feature in singleplayer
-    // notifies from the server thread) and read by the HUD on the render thread:
-    // synchronized, and render works on a snapshot.
-    private static final Map<String, ActiveNotification> activeNotifications =
-            java.util.Collections.synchronizedMap(new LinkedHashMap<>());
-
-    /** Snapshot of what a caller passed to {@link #notify}, plus trigger time. */
-    record ActiveNotification(long triggerTimeMs,
-                              @Nullable String textData,
-                              @Nullable ItemStack itemData) {}
-
     /** Called from {@link MenuKitClient#onInitializeClient()}; only logs. */
     @ApiStatus.Internal
     public static void initClient() {
         LOGGER.info("[MenuKit] Client initialized");
     }
 
-    // HUD panels and notifications
+    // HUD panels
 
     /**
      * Registers a HUD panel into the HUD's host. Called by
@@ -146,22 +123,7 @@ public class MK {
     }
 
     /**
-     * Registers a notification definition. Called by
-     * {@link HudNotification.Builder#build()}.
-     *
-     * @throws IllegalStateException after MenuKit's declarations froze, or for a
-     *         second notification with the same key
-     */
-    public static void registerNotification(HudNotification def) {
-        Declarations.requireOpen("MK.registerNotification(" + def.id() + ")");
-        if (notificationDefs.putIfAbsent(def.id(), def) != null) {
-            throw new IllegalStateException("MenuKit: a notification '" + def.id() + "' is already registered.");
-        }
-        LOGGER.info("[MenuKit] Registered notification '{}'", def.id());
-    }
-
-    /**
-     * Renders the HUD panels, then the active notifications. Called at RETURN of the
+     * Renders the HUD panels. Called at RETURN of the
      * HUD's render by {@code MKGuiMixin}. The HUD host follows the one
      * {@link LayerPlan} with no pointer: HUD panels never take input.
      */
@@ -174,73 +136,6 @@ public class MK {
         int screenH = mc.getWindow().getGuiScaledHeight();
 
         LayerPlan.compose(HudHosts.all(), graphics, -1, -1, screenW, screenH, (host, placed) -> false);
-
-        renderActiveNotifications(graphics, deltaTracker, screenW, screenH);
-    }
-
-    /**
-     * Triggers a notification by key. It slides in, stays for its configured
-     * duration, then slides back out.
-     *
-     * @param key  notification key (must match a
-     *             {@link HudNotification#builder(String)} registration)
-     * @param text text to display, or null for icon-only
-     */
-    public static void notify(String key, String text) {
-        notify(key, text, (ItemStack) null);
-    }
-
-    /** Triggers a notification with text and an item icon. */
-    public static void notify(String key, String text, @Nullable ItemStack item) {
-        if (!notificationDefs.containsKey(key)) {
-            LOGGER.warn("[MenuKit] Unknown notification key '{}'", key);
-            return;
-        }
-        activeNotifications.put(key, new ActiveNotification(
-                Util.getMillis(), text, item));
-    }
-
-    /** Triggers a notification with text and an item type. */
-    public static void notify(String key, String text, net.minecraft.world.item.Item item) {
-        notify(key, text, new ItemStack(item));
-    }
-
-    // Draws the active notifications and removes expired ones. Each one's
-    // HudNotification.render animates itself from the time since it was triggered.
-    private static void renderActiveNotifications(GuiGraphicsExtractor graphics,
-                                                   DeltaTracker deltaTracker,
-                                                   int screenW, int screenH) {
-        if (activeNotifications.isEmpty()) return;
-
-        var expired = new ArrayList<String>();
-        long now = Util.getMillis();
-        List<Map.Entry<String, ActiveNotification>> snapshot;
-        synchronized (activeNotifications) {
-            snapshot = new ArrayList<>(activeNotifications.entrySet());
-        }
-
-        for (var entry : snapshot) {
-            String key = entry.getKey();
-            ActiveNotification active = entry.getValue();
-            HudNotification def = notificationDefs.get(key);
-            if (def == null) { expired.add(key); continue; }
-
-            long elapsed = now - active.triggerTimeMs();
-            if (elapsed > def.getDurationMs()) {
-                expired.add(key);
-                continue;
-            }
-
-            def.render(graphics, deltaTracker, screenW, screenH,
-                    elapsed, active.textData(), active.itemData());
-        }
-
-        // Remove only the entry that expired: a notify() since the snapshot replaced it.
-        synchronized (activeNotifications) {
-            for (var entry : snapshot) {
-                if (expired.contains(entry.getKey())) activeNotifications.remove(entry.getKey(), entry.getValue());
-            }
-        }
     }
 
     // Recipe book

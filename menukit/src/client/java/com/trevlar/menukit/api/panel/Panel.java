@@ -235,8 +235,8 @@ public class Panel {
     // Optional Escape action. When this is the topmost visible tracksAsModal panel
     // and the player presses Escape, the host (MKScreen, or ScreenPanelRegistry's
     // key listener for injected panels) runs it to dismiss the modal instead of
-    // closing the screen under an open dialog. ConfirmDialog and AlertDialog put
-    // their onCancel / onAcknowledge here. With none set, the host still eats
+    // closing the screen under an open dialog. ConfirmDialog puts
+    // its onCancel here. With none set, the host still eats
     // Escape while a modal is up so it can't close the screen.
     private @Nullable Runnable escapeAction;
 
@@ -1545,9 +1545,8 @@ public class Panel {
      * dismisses the modal instead of closing the screen under it.
      *
      * <p>The dialog builders set it for you:
-     * {@link com.trevlar.menukit.api.dialog.ConfirmDialog} to its {@code onCancel}
-     * and {@link com.trevlar.menukit.api.dialog.AlertDialog} to its
-     * {@code onAcknowledge}, so Escape does what the button does. For a modal you
+     * {@link com.trevlar.menukit.api.dialog.ConfirmDialog} to its {@code onCancel},
+     * so Escape does what the button does. For a modal you
      * build yourself, pass your dismiss callback here.
      *
      * <p>Without an action, a visible {@code tracksAsModal} panel still makes the

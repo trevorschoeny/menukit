@@ -13,12 +13,11 @@ import java.util.function.Supplier;
 
 /**
  * Something a {@link Row} or {@link Column} can place, so the builders can mix
- * element specs and nested layouts in {@code build()}.
+ * elements and nested layouts in {@code build()}.
  *
  * <ul>
- *   <li>{@link #fromSpec(ElementSpec)} wraps an {@link ElementSpec}; its
- *       {@code emitAt(x, y)} returns one element from
- *       {@link ElementSpec#at(int, int)}.</li>
+ *   <li>{@link #fromElement} wraps a built element; its {@code emitAt(x, y)}
+ *       moves it there and returns it.</li>
  *   <li>{@link #fromNested} wraps a nested Row or Column builder; its
  *       {@code emitAt(x, y)} returns the nested layout's elements, offset by the
  *       outer position.</li>
@@ -35,9 +34,8 @@ final class LayoutEntry {
     private final boolean leaf;
     private final boolean spacer;
     private final BiFunction<Integer, Integer, List<PanelElement>> emitter;
-    // The built elements this entry places, or null when it constructs them at
-    // layout (a custom ElementSpec) or cannot move them (a bare PanelElement); then
-    // the whole layout runs at build.
+    // The built elements this entry places, or null when it cannot move them (a bare
+    // PanelElement); then the whole layout runs at build, and throws there.
     private final @Nullable List<AbstractPanelElement> members;
 
     private LayoutEntry(IntSupplier width, IntSupplier height, boolean leaf, boolean spacer,
@@ -69,17 +67,28 @@ final class LayoutEntry {
         return emitter.apply(x, y);
     }
 
-    /** Wraps a custom {@link ElementSpec}, which constructs its element at layout. */
-    static LayoutEntry fromSpec(ElementSpec spec) {
-        return new LayoutEntry(spec::width, spec::height, true, false,
-                (x, y) -> List.of(spec.at(x, y)), null);
-    }
-
-    /** Wraps an already-built element, moved into place when the layout runs. */
+    /**
+     * Wraps a built element, moved into place with {@code setChildPosition} when the
+     * layout runs. Its height is its baseline: what it grew by (a wrapped label, a
+     * vertical Flow's stack below its first child) is the panel's reflow to add, so
+     * the layout counts it once, not twice.
+     *
+     * <p>A bare {@link PanelElement} (not an {@link AbstractPanelElement}) cannot be
+     * moved, so it throws when the layout runs rather than sit at its built position
+     * over its siblings.
+     */
     static LayoutEntry fromElement(PanelElement element) {
-        ElementSpec spec = ElementSpec.of(element);
-        return new LayoutEntry(spec::width, spec::height, true, false,
-                (x, y) -> List.of(spec.at(x, y)),
+        return new LayoutEntry(element::getWidth, () -> element.getHeight() - element.extraLayoutHeight(),
+                true, false, (x, y) -> {
+                    if (element instanceof AbstractPanelElement a) {
+                        a.setChildPosition(x, y);
+                        return List.of(element);
+                    }
+                    throw new IllegalStateException(
+                            "MenuKit: " + element.getClass().getName()
+                            + " is a bare PanelElement with no setChildPosition, so a Row or Column cannot "
+                            + "position it. Extend AbstractPanelElement, or add the element to the panel directly.");
+                },
                 element instanceof AbstractPanelElement a ? List.of(a) : null);
     }
 
@@ -115,8 +124,8 @@ final class LayoutEntry {
      * What {@code Row.build()} and {@code Column.build()} return: the placed
      * elements, placed on the first read of any one's position (the panel's first
      * layout pass, when the font exists), so a Row or Column of labels and buttons
-     * builds at mod init. A layout with a custom {@link ElementSpec}, whose element
-     * exists only once placed, runs now, measuring now.
+     * builds at mod init. A layout holding a bare {@link PanelElement} runs now, so
+     * it throws at build.
      */
     static List<PanelElement> placeOnFirstRead(List<LayoutEntry> entries, Supplier<List<PanelElement>> layout) {
         List<AbstractPanelElement> members = members(entries);
