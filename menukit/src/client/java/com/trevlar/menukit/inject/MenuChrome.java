@@ -78,14 +78,18 @@ public final class MenuChrome {
     }
 
     /**
-     * The chrome extents for the screen, matched on its exact class, or
-     * {@link ChromeExtents#NONE} without a provider. Called every frame when
-     * computing origins, so it must be cheap.
+     * The chrome extents for the screen: its provider's, matched on its exact class
+     * ({@link ChromeExtents#NONE} without one), plus the tab rows standing on its own
+     * frame (8.0.0, {@link ContainerTabRows#bareRows}), so a panel above or below the
+     * frame sits past the row instead of under it. While the region is up its bounds
+     * already hold its rows. Called every frame when computing origins, so it must be
+     * cheap.
      */
     public static ChromeExtents of(AbstractContainerScreen<?> screen) {
         if (screen == null) return ChromeExtents.NONE;
         ChromeProvider provider = PROVIDERS.get(screen.getClass());
-        if (provider == null) return ChromeExtents.NONE;
-        return provider.compute(screen);
+        ChromeExtents own = provider == null ? ChromeExtents.NONE : provider.compute(screen);
+        int[] rows = ContainerTabRows.bareRows(screen);
+        return new ChromeExtents(own.top() + rows[0], own.left(), own.right(), own.bottom() + rows[1]);
     }
 }

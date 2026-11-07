@@ -79,6 +79,17 @@ public final class ContainerTabRows {
     }
 
     /**
+     * How far the rows standing on {@code screen}'s own frame reach past it this frame,
+     * {@code {above, below}}: its top row's height and its bottom row's, or 0 where none
+     * stands (the region up, another screen's rows, no row). {@link MenuChrome} counts
+     * them as the frame's chrome.
+     */
+    static int[] bareRows(AbstractContainerScreen<?> screen) {
+        if (bare == null || Minecraft.getInstance().gui.screen() != screen) return new int[]{0, 0};
+        return new int[]{height(Edge.CONTAINERS_TOP), height(Edge.INVENTORY_BOTTOM)};
+    }
+
+    /**
      * Hooks every container screen's frame, after the region's own frame hook, and clears the
      * rows' paging once the player is back in the world. Called once from client init.
      */
