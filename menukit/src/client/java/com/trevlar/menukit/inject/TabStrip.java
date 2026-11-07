@@ -82,14 +82,17 @@ public final class TabStrip {
             new ScreenPanelAdapter(row, 0).onMatching(ScreenMatcher.where(RegionDeclarations::targets));
             if (edge != Edge.CONTAINERS_TOP && edge != Edge.INVENTORY_BOTTOM) continue;
             // And on a screen's own frame, where the region isn't up: an ordinary panel, drawn
-            // after the screen's image, so a selected tab opens into it.
+            // after the screen's image, so a selected tab opens into it. Transparent, so it
+            // claims only its tabs and arrows (the strip's hit test): the rest of the band
+            // stays the screen's, where a click with an item held drops it as vanilla does.
             Panel onFrame = Panel.builder(id + "_on_frame")
                     .style(PanelStyle.NONE)
                     .in(ModeScope.BOTH, Placement.screen(PanelPosition.pixel(() -> ContainerTabRows.origin(edge))
                             .priority(PanelPosition.DEFAULT_PRIORITY + 1)))
                     .add(new Strip(edge))
                     .build()
-                    .visibleWhen(() -> ContainerTabRows.onBareFrame() && ContainerTabRows.hasRow(edge));
+                    .visibleWhen(() -> ContainerTabRows.onBareFrame() && ContainerTabRows.hasRow(edge))
+                    .opaque(false);
             new ScreenPanelAdapter(onFrame, 0).onMatching(ScreenMatcher.where(ContainerTabRows::carries));
         }
     }
@@ -116,6 +119,12 @@ public final class TabStrip {
         @Override public int getWidth() { Line l = ContainerTabRows.lineNow(edge); return l == null ? 0 : l.width(); }
         @Override public int getHeight() { return ContainerTabRows.drawnHeight(edge) + INTO; }
         @Override public boolean isInteractive() { return true; }
+
+        /** Only a tab or a live arrow is the strip's; the band between and past them isn't. */
+        @Override
+        public boolean hitTest(InputContext in) {
+            return ContainerTabRows.hitForChecks(edge, in.mouseX(), in.mouseY()) != TabRowLayout.NONE;
+        }
 
         @Override
         public void render(RenderContext ctx) {

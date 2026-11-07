@@ -30,6 +30,7 @@
     "MKKeptScreensMixin",
     "MKListHoverSuppressMixin",
     "MKModalMouseHandlerMixin",
+    "MKOutsideClickMixin",
     "MKQuickMoveRevealMixin",
     "MKRecipeBookAccessor",
     "MKRecipeBookComponentAccessor",

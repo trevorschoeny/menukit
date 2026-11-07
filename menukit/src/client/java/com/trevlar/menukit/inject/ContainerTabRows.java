@@ -373,7 +373,7 @@ public final class ContainerTabRows {
         return new TabRegistry.KeyRef(groups, group);
     }
 
-    /** What is at {@code (mx, my)} on {@code edge}'s row this frame, as {@link TabRowLayout#hit} answers, for the checks. */
+    /** What is at {@code (mx, my)} on {@code edge}'s row this frame, as {@link TabRowLayout#hit} answers: the strip's hit test, and the checks'. */
     @VisibleForTesting
     public static int hitForChecks(Edge edge, double mx, double my) {
         View v = view(edge);
@@ -508,6 +508,23 @@ public final class ContainerTabRows {
     }
 
     // The row, clicked
+
+    /**
+     * Whether {@code (mx, my)} on {@code screen} is in the band of a tab row on the region's
+     * outer edges (above the list, below the inventory panel) and not on one of its tabs or
+     * arrows. The screen's bounds take in those rows, so that other mods keep clear of them,
+     * but the band isn't the frame: vanilla's outside-click check counts it as outside, so a
+     * click there with an item held drops it ({@code MKOutsideClickMixin}). The gap between the
+     * two panels stays inside.
+     */
+    public static boolean pastFrame(Screen screen, double mx, double my) {
+        Geometry g = ContainerRegions.geometry(screen);
+        if (g == null) return false;
+        Reference inv = g.inventory();
+        boolean above = my < g.top(), below = my >= inv.topPos() + inv.imageHeight();
+        if (!above && !below) return false;
+        return hitForChecks(above ? Edge.CONTAINERS_TOP : Edge.INVENTORY_BOTTOM, mx, my) == TabRowLayout.NONE;
+    }
 
     /**
      * A left click at {@code (mx, my)} on {@code edge}'s row: on an enabled tab it runs the
