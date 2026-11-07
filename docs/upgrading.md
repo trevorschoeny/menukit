@@ -21,7 +21,7 @@ The cycle strip is gone: a ring of stacks beside the hotbar is the mod's own loo
 - A row, column or cross beside the hotbar is a `HudPanel` in `region(OutsideRegion.RIGHT_ALIGN_BOTTOM)` holding one element of the ring's live size, `.gap(4)` to sit where the strip did. Another mod's panel there stacks above it. Time a slide with `Easing.SPRING` and `Util.getMillis()`.
 - An arc over the hotbar's slots is a `HotbarDecorations.under(id, decoration)`, drawn after the hotbar's sprites and before its items. While a turn moves the held stack, `HotbarDecorations.hideItem(id, rule)` leaves the slot's own item out. On a screen, the same arc is a `SlotDecorations.under` on the hotbar's slots, as before.
 
-Also removed, unused: `AlertDialog` (use `ConfirmDialog`, or a `Panel.modal()` of your own), `InfoBox` (a `TextLabel`), `HudNotification` with `MK.notify` and `MK.registerNotification`, `HudPanel.Builder.slot(...)` with `HudPanel.STATUS_SCALE` (use `item(...)`, sized), and `ElementSpec` with `Row`/`Column.add(ElementSpec)`: a layout takes built elements only.
+Also removed, unused: `AlertDialog` (use `ConfirmDialog`, or a `Panel.modal()` of your own), `InfoBox` (a `TextLabel`), `HudNotification` with `MK.notify` and `MK.registerNotification`, `HudPanel.Builder.slot(...)` with `HudPanel.STATUS_SCALE` (use `item(...)`, sized), `ElementSpec` with `Row`/`Column.add(ElementSpec)` (a layout takes built elements only), `ScreenKind.OPTIONS` and `CONTAINER` (use `DEFAULT`/`PANEL`), `ScrollContainer.OPTIONS_INSET_X`/`OPTIONS_INSET_Y` (use `DEFAULT_INSET_X`/`DEFAULT_INSET_Y`), and `OwnHost.add(Panel, PanelPosition, int)` (use `add(Panel, int)`, which reads the position from the panel's placements).
 
 ## To 7.3.0
 

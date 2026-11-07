@@ -177,24 +177,6 @@ public final class OwnHost {
     /** Whether a main panel was added: an unplaced panel then stacks below it. */
     private boolean mainAdded = false;
 
-    /**
-     * Adds a panel at {@code position}, in both modes. Panels order by their priority, then
-     * by the order they were added.
-     *
-     * @param position the position to place it at (the panel's own, or a default the
-     *                 screen picks for an unplaced one)
-     * @param padding  content padding between the panel's edge and its elements
-     * @deprecated Replaced in 7.4.0 by {@link #add(Panel, int)}, which reads where the panel
-     *             goes in each mode from its placements; to be removed in a later major release. This is
-     *             {@code position} in both modes, whatever placements the panel declares.
-     */
-    @Deprecated(since = "7.4.0", forRemoval = true)
-    public void add(Panel panel, PanelPosition position, int padding) {
-        // The caller's own position: shown in every mode, whatever placements the panel has.
-        host.add(panel, position, padding, "", order++);
-        if (position.mode() == PanelPosition.Mode.MAIN) mainAdded = true;
-    }
-
     /** This frame's placements and main rectangle. Cheap: call it every frame. */
     public Layout layout() {
         PanelHost.Layout layout = host.layout();

@@ -28,10 +28,7 @@ import org.jspecify.annotations.Nullable;
  * <h3>Renamed in 7.3.0</h3>
  *
  * The looks were {@code OPTIONS} (now {@link #DEFAULT}) and {@code CONTAINER} (now
- * {@link #PANEL}). The old names stay until 8.0.0 as deprecated aliases: static
- * fields holding the same two constants, so a mod built against 7.2.0 keeps working,
- * and {@code ScreenKind.OPTIONS == ScreenKind.DEFAULT}. They are not enum constants:
- * {@link #values()} lists only the two looks, and a {@code switch} names the new ones.
+ * {@link #PANEL}). The old names were removed in 8.0.0.
  *
  * <h3>Where the look comes from ({@link #of})</h3>
  *
@@ -60,18 +57,6 @@ public enum ScreenKind {
     PANEL,
     /** The Default look: vanilla's Options, Controls, Create World and the like. The pause-menu look. */
     DEFAULT;
-
-    // The 7.2.0 names. Enum constants can't alias each other, so these are plain static
-    // fields holding the same instances: bytecode that reads ScreenKind.OPTIONS (a getstatic)
-    // resolves to DEFAULT, and == against either name agrees. To be removed in a later major release.
-
-    /** @deprecated Renamed {@link #DEFAULT} in 7.3.0; to be removed in a later major release. */
-    @Deprecated(since = "7.3.0", forRemoval = true)
-    public static final ScreenKind OPTIONS = DEFAULT;
-
-    /** @deprecated Renamed {@link #PANEL} in 7.3.0; to be removed in a later major release. */
-    @Deprecated(since = "7.3.0", forRemoval = true)
-    public static final ScreenKind CONTAINER = PANEL;
 
     /**
      * The look of {@code screen}. Every host on a screen, and every screen MenuKit

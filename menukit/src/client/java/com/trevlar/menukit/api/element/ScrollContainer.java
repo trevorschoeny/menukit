@@ -216,12 +216,6 @@ public class ScrollContainer extends AbstractPanelElement {
      * content, as vanilla's does.
      */
     public static final int DEFAULT_INSET_Y = 10;
-    /** @deprecated Renamed {@link #DEFAULT_INSET_X} in 7.3.0 (the Default look); to be removed in a later major release. */
-    @Deprecated(since = "7.3.0", forRemoval = true)
-    public static final int OPTIONS_INSET_X = DEFAULT_INSET_X;
-    /** @deprecated Renamed {@link #DEFAULT_INSET_Y} in 7.3.0 (the Default look); to be removed in a later major release. */
-    @Deprecated(since = "7.3.0", forRemoval = true)
-    public static final int OPTIONS_INSET_Y = DEFAULT_INSET_Y;
     /**
      * In a dialog in the Default look, the band's inset on every side it insets:
      * {@link DialogLayout#GAP}, the room the dialog keeps between everything else.

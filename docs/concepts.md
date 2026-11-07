@@ -98,7 +98,7 @@ New public API in 8.0.0, for a mod drawing its own copy of an item (one flying i
 
 ## Looks
 
-There are two looks, the Panel look and the Default look, and every element draws in the look of the screen it is on (since 6.1.0). There is one set of elements, and nothing else picks a look. Before 7.3.0 the two were `ScreenKind.CONTAINER` and `ScreenKind.OPTIONS`; those names still work, deprecated, until 8.0.0.
+There are two looks, the Panel look and the Default look, and every element draws in the look of the screen it is on (since 6.1.0). There is one set of elements, and nothing else picks a look. Before 7.3.0 the two were `ScreenKind.CONTAINER` and `ScreenKind.OPTIONS`; those names were removed in 8.0.0.
 
 | Look | Screens | How it draws |
 |---|---|---|
