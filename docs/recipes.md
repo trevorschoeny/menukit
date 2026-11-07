@@ -733,7 +733,7 @@ Result: the tray draws right where the chest screen draws its own image, before 
 
 ## Stack containers in one scrolling column above the inventory
 
-Needs: MenuKit 7.4.0, and a slot library's elements for the grids (SlotKit's `SlotGroupElement`). For a mod that opens more containers on a chest's screen, the way Shulkers in Inventory opens a shulker box below the chest.
+Needs: MenuKit 7.4.0, and a slot library's elements for the grids (SlotKit's `SlotGroupElement`). For a mod that opens more containers on a chest's screen, the way a mod that lets you open a shulker box from inside a chest would show that box below the chest.
 
 ```java
 // The chest's own grid, then the box the player opened below it: one column above the inventory.
