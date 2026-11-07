@@ -12,7 +12,7 @@ The item picker's match modes are gone. `ItemMatch.Match`, `match(...)`, `player
 - A count was part of `EXACT`. It is now a number for the mod, never matched: `count()` on a `rule` or `rules` picker, read with `rule.count()`: `ItemMatch.NONE` when the player left it at N/A, else 1 up to the item's stack size.
 - Rules saved by 7.x load through `ItemMatch.CODEC` as they matched, with one exception. An `exact` rule refused a stack that had more than the rule (a plain sword refused an enchanted one), and now that stack matches.
 
-`ItemPicker.open(screen)` opens the dialog over any screen with no picker on a page, and `button(...)` and `onDone(...)` let a mod put its own button in the dialog and apply a draft on Done.
+A picker's `open(screen)` opens the dialog over any screen with no picker on a page, and `button(...)` and `onDone(...)` let a mod put its own button in the dialog and apply a draft on Done.
 
 A centered dialog taller than the window now gives back rows from a list that fits the room (`ScrollContainer.Builder.fitRoom`), and past that it scrolls, instead of running off the window. `fitRoom(step, least)` holds a list at its declared height while there is room and gives rows back down to `least`. A `Slider`'s label is made every frame, so it may read more than the value. `Flow.Builder.ownWidths()` lays a row's children out at their own widths, a row of columns. A mod built for 7.x declares `"menukit": ">=8.0.0 <9.0.0"` once it is rebuilt.
 

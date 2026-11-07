@@ -9,7 +9,7 @@ import net.minecraft.util.ARGB;
  * sprite, tiled sprite and text as it is recorded while {@link #push} is in effect. Items have
  * no color to multiply and stay opaque; a mod fading a decoration drawn beside an item copy
  * (a count, a durability bar, an {@link ItemOutline#silhouettes} outline) gets the fade by
- * wrapping that draw in {@link #push}/{@link #pop} — the item itself stays opaque either way.
+ * wrapping that draw in {@link #push}/{@link #pop}. The item itself stays opaque either way.
  *
  * <p>Nests: {@link #push} multiplies into what is set and returns it for {@link #pop}.
  * Render thread only.

@@ -1204,7 +1204,7 @@ public final class PanelHost {
         // At alpha 0 it isn't drawn, but the place pass (which draws into a scratch state)
         // still lays it out, so its slots are reported as its own and vanilla's slot pass
         // doesn't draw them, count and all, where they're laid out.
-        // ponytail: a background panel places its slots in its real draw, so at alpha 0 its
+        // Limit: a background panel places its slots in its real draw, so at alpha 0 its
         // slots still fall to vanilla's pass; lay it out into a scratch state if one is ever transformed.
         if (t.alpha() <= 0f && !PresentedSlots.recording()) return;
         graphics.pose().pushMatrix();
