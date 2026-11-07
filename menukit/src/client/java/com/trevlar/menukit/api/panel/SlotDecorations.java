@@ -103,4 +103,16 @@ public final class SlotDecorations {
         Declarations.requireOpen("SlotDecorations." + (under ? "under" : "over") + "(" + id + ")");
         SlotDecorationRegistry.declare(id, under, decoration);
     }
+
+    /**
+     * Runs every declared {@code under} (or every declared {@code over}) decoration for
+     * {@code slot}, its item box at {@code (x, y)} in whatever pose the caller has set. For
+     * mods that draw a slot somewhere other than its screen position (an arc, a custom
+     * layout) and still want the other decorations declared on it, such as a look's dim or a
+     * reservation mark, to show there too. No tooltip and no clip: the caller's own.
+     */
+    public static void draw(boolean under, GuiGraphicsExtractor graphics, AbstractContainerScreen<?> screen,
+                             Slot slot, ItemStack stack, int x, int y) {
+        SlotDecorationRegistry.draw(under, graphics, screen, slot, stack, x, y);
+    }
 }

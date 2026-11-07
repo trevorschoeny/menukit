@@ -1,5 +1,9 @@
 ## 8.0.0
 
+#### Added
+
+- `SlotDecorations.draw(under, graphics, screen, slot, stack, x, y)` draws a slot's under or over decorations at a place of your choosing, for a mod that draws a slot somewhere other than its screen position. [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md#slot-decorations).
+
 #### Fixed
 
 - A tab row's band beside its tabs took a click meant to drop a held item outside the frame, so nothing dropped there.
