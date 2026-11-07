@@ -63,13 +63,13 @@ public enum ScreenKind {
 
     // The 7.2.0 names. Enum constants can't alias each other, so these are plain static
     // fields holding the same instances: bytecode that reads ScreenKind.OPTIONS (a getstatic)
-    // resolves to DEFAULT, and == against either name agrees. Removed in 8.0.0.
+    // resolves to DEFAULT, and == against either name agrees. To be removed in a later major release.
 
-    /** @deprecated Renamed {@link #DEFAULT} in 7.3.0; removed in 8.0.0. */
+    /** @deprecated Renamed {@link #DEFAULT} in 7.3.0; to be removed in a later major release. */
     @Deprecated(since = "7.3.0", forRemoval = true)
     public static final ScreenKind OPTIONS = DEFAULT;
 
-    /** @deprecated Renamed {@link #PANEL} in 7.3.0; removed in 8.0.0. */
+    /** @deprecated Renamed {@link #PANEL} in 7.3.0; to be removed in a later major release. */
     @Deprecated(since = "7.3.0", forRemoval = true)
     public static final ScreenKind CONTAINER = PANEL;
 

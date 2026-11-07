@@ -216,10 +216,10 @@ public class ScrollContainer extends AbstractPanelElement {
      * content, as vanilla's does.
      */
     public static final int DEFAULT_INSET_Y = 10;
-    /** @deprecated Renamed {@link #DEFAULT_INSET_X} in 7.3.0 (the Default look); removed in 8.0.0. */
+    /** @deprecated Renamed {@link #DEFAULT_INSET_X} in 7.3.0 (the Default look); to be removed in a later major release. */
     @Deprecated(since = "7.3.0", forRemoval = true)
     public static final int OPTIONS_INSET_X = DEFAULT_INSET_X;
-    /** @deprecated Renamed {@link #DEFAULT_INSET_Y} in 7.3.0 (the Default look); removed in 8.0.0. */
+    /** @deprecated Renamed {@link #DEFAULT_INSET_Y} in 7.3.0 (the Default look); to be removed in a later major release. */
     @Deprecated(since = "7.3.0", forRemoval = true)
     public static final int OPTIONS_INSET_Y = DEFAULT_INSET_Y;
     /**
@@ -708,7 +708,7 @@ public class ScrollContainer extends AbstractPanelElement {
         // child entirely outside the window is skipped, unless its popover is open
         // (the popover draws on the overlay pass from the same origin); a skipped one
         // is told it is held out of view (renderCulled), not hidden.
-        // A child hanging past the panel's edge (7.6.0) is clipped to the viewport's
+        // A child hanging past the panel's edge (8.0.0) is clipped to the viewport's
         // height only, so its lane out there scrolls with it.
         int clipRight = sx + viewportWidth();
         int out = outboardWidth();
@@ -771,7 +771,7 @@ public class ScrollContainer extends AbstractPanelElement {
         double lx = in.mouseX() - (in.originX() + childX);
         double ly = in.mouseY() - (in.originY() + childY);
         int trackLeft = getWidth() - TRACK_WIDTH;
-        // Past the container: a child's lane outside the panel (7.6.0), where hitTest let it in.
+        // Past the container: a child's lane outside the panel (8.0.0), where hitTest let it in.
         if (lx >= getWidth()) return ChildDispatch.mouseClicked(content, inner, button);
         if (lx >= viewportWidth()) {
             // The gutter and the track eat their own clicks. A left press on the
@@ -803,7 +803,7 @@ public class ScrollContainer extends AbstractPanelElement {
     }
 
     /**
-     * Its box, and past it a child's lane outside the panel (7.6.0), level with the
+     * Its box, and past it a child's lane outside the panel (8.0.0), level with the
      * viewport: a row scrolled out of view has no controls out there to click.
      */
     @Override

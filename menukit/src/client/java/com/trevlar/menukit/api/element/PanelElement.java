@@ -324,7 +324,7 @@ public interface PanelElement {
     default void notifyClickOutsideOverlay(InputContext in) {}
 
     /**
-     * How far this element reaches past its panel's right edge (7.6.0): a lane of
+     * How far this element reaches past its panel's right edge (8.0.0): a lane of
      * its own it draws there and takes input in, from
      * {@link RenderContext#panelRight()} out, outside the panel's background. The
      * panel's size leaves it out, so the background stops at the edge; the panel

@@ -460,12 +460,12 @@ public class ItemPicker extends AbstractPanelElement {
      * Opens the dialog over {@code screen}, its first slot selected, with no picker on the
      * screen's page: from a key press over a slot, say. The picker needs no {@code at} or
      * panel for this. Build it once and open it as often as needed; it stays on a screen
-     * until that screen closes, and a dialog open on another screen closes first. Escape,
+     * until that screen closes, and a dialog open on another screen is cancelled first. Escape,
      * Cancel and Done close it as they do from the page.
      */
     public void open(Screen screen) {
         Objects.requireNonNull(screen, "screen");
-        if (this.screen != screen) dialog.close();
+        if (this.screen != screen) cancel();
         this.screen = screen;
         ScreenPanelRegistry.attachDialog(screen, dialog.panel());
         openDialog(0);
@@ -659,7 +659,7 @@ public class ItemPicker extends AbstractPanelElement {
     public void onAttach(Screen screen) {
         if (widget == null) widget = new ElementWidget(this::press);
         widget.attach(screen);
-        if (this.screen != screen) dialog.close();
+        if (this.screen != screen) cancel();
         this.screen = screen;
         ScreenPanelRegistry.attachDialog(screen, dialog.panel());
     }

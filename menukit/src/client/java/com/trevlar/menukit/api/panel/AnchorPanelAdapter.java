@@ -99,7 +99,7 @@ public final class AnchorPanelAdapter {
      * {@code anchors}, in their own mode scopes. Call at most once.
      *
      * @deprecated Replaced in 7.4.0 by {@link Placement#around(Anchor, PanelPosition)}, the
-     *             anchor in the placement; removed in 8.0.0.
+     *             anchor in the placement; to be removed in a later major release.
      *             {@code in(ModeScope.BOTH, Placement.around(anchor, position))} on the panel
      *             is {@code position(position)} with this call, and needs no {@code on}.
      */

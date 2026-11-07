@@ -3,7 +3,7 @@ package com.trevlar.menukit.api;
 import net.minecraft.util.ARGB;
 
 /**
- * An opacity every GUI draw takes while it is set (public since 8.0.0; introduced 7.6.0 for
+ * An opacity every GUI draw takes while it is set (8.0.0, used by
  * {@link com.trevlar.menukit.api.panel.PanelTransform}'s panel fade). Vanilla's GUI draws have
  * no alpha of their own, so {@code MKDrawAlphaMixin} multiplies it into the color of each fill,
  * sprite, tiled sprite and text as it is recorded while {@link #push} is in effect. Items have

@@ -191,7 +191,7 @@ public class Panel {
     // what is inside is inert.
     private @Nullable BooleanSupplier disabledSupplier;
 
-    // How the panel draws this frame apart from its layout (7.6.0): a scale about a
+    // How the panel draws this frame apart from its layout (8.0.0): a scale about a
     // point and an alpha, read every frame. Null draws it as laid out.
     private @Nullable Supplier<PanelTransform> transformSupplier;
 
@@ -217,7 +217,7 @@ public class Panel {
     private boolean opaque = true;
     private boolean dimsBehind = false;
 
-    // Rectangles of the screen the dim leaves lit while this panel dims (7.6.0), read
+    // Rectangles of the screen the dim leaves lit while this panel dims (8.0.0), read
     // every frame; null for none.
     private @Nullable Supplier<List<ScreenRectangle>> litWhileDimmed;
     private boolean tracksAsModal = false;
@@ -420,7 +420,7 @@ public class Panel {
          * {@code main()} and stack later ones below it.
          *
          * @deprecated Replaced in 7.4.0 by {@link #in(ModeScope, Placement)}, which picks the
-         *             mode scope; removed in 8.0.0.
+         *             mode scope; to be removed in a later major release.
          *             {@code in(ModeScope.BOTH, Placement.screen(position))} is this call.
          * @throws IllegalStateException with {@link #in}
          */
@@ -1329,7 +1329,7 @@ public class Panel {
     // Transform
 
     /**
-     * Draws the panel under {@code transform}'s scale and alpha, read every frame (7.6.0;
+     * Draws the panel under {@code transform}'s scale and alpha, read every frame (8.0.0;
      * pass {@code null} to clear). The layout is untouched: the panel and the slots it
      * presents are placed as always, then drawn scaled about the pivot and faded. While
      * the transform isn't {@link PanelTransform#IDENTITY} the panel takes no input at
@@ -1419,7 +1419,7 @@ public class Panel {
     }
 
     /**
-     * Parts of the screen the dim leaves lit while this panel dims behind it (7.6.0),
+     * Parts of the screen the dim leaves lit while this panel dims behind it (8.0.0),
      * screen-space rectangles read every frame: the hotbar row a dialog saves from,
      * say, so the player sees it at full brightness. Only the look changes: what is
      * there stays as inert as the rest of the screen under a modal. Nothing while the
@@ -1492,7 +1492,7 @@ public class Panel {
      * {@code center()}, while a non-dim, non-modal overlay opts in with
      * {@code in(ModeScope.BOTH, Placement.screen(PanelPosition.center()))}.
      *
-     * <p>One exception to the centering (since 7.6.0): a dim or modal panel placed with
+     * <p>One exception to the centering (since 8.0.0): a dim or modal panel placed with
      * {@link PanelPosition#pixel} or {@link PanelPosition#pixelBottomLeft} sits at its
      * point, still in the overlay layer and still dimming and modal.
      *

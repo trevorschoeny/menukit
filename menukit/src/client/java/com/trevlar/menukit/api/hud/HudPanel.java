@@ -72,7 +72,7 @@ public class HudPanel {
      *
      * @param name unique id for this panel
      * @deprecated Replaced in 7.4.0 by {@link #builder(String, ModeScope)}, which picks the
-     *             mode scope; removed in 8.0.0. {@code builder(name, ModeScope.BOTH)} is this call.
+     *             mode scope; to be removed in a later major release. {@code builder(name, ModeScope.BOTH)} is this call.
      */
     @Deprecated(since = "7.4.0", forRemoval = true)
     public static Builder builder(String name) {

@@ -185,7 +185,7 @@ public final class OwnHost {
      *                 screen picks for an unplaced one)
      * @param padding  content padding between the panel's edge and its elements
      * @deprecated Replaced in 7.4.0 by {@link #add(Panel, int)}, which reads where the panel
-     *             goes in each mode from its placements; removed in 8.0.0. This is
+     *             goes in each mode from its placements; to be removed in a later major release. This is
      *             {@code position} in both modes, whatever placements the panel declares.
      */
     @Deprecated(since = "7.4.0", forRemoval = true)

@@ -13,7 +13,7 @@ import java.util.function.Supplier;
 
 /**
  * One element of a panel drawn at a screen point of its own, outside the panel
- * (7.6.0): a dialog's button beside the screen's hotbar, say.
+ * (8.0.0): a dialog's button beside the screen's hotbar, say.
  *
  * <pre>{@code
  * Floating.at(() -> new ScreenOrigin(screen.leftPos() + 198, hotbarY), saveButton)

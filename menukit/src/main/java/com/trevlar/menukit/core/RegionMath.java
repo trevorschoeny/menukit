@@ -251,9 +251,6 @@ public final class RegionMath {
         /** Screen chrome on a standalone or container screen: the safe-area margin, always placed. */
         public static final Insets CHROME = new Insets(RegionConstants.SCREEN_EDGE_MARGIN,
                 RegionConstants.MENU_STACK_GAP, 0, false);
-        /** A notification: HUD geometry, but always shown (a toast never silently vanishes). */
-        public static final Insets NOTIFICATION = new Insets(RegionConstants.EDGE_INSET,
-                RegionConstants.MENU_STACK_GAP, RegionConstants.CENTER_CROSSHAIR_CLEARANCE, false);
     }
 
     /**

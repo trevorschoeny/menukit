@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 
 /**
- * {@link DrawAlpha}'s opacity on every color vanilla's GUI records (7.6.0). Each hook is on
+ * {@link DrawAlpha}'s opacity on every color vanilla's GUI records (8.0.0). Each hook is on
  * the one private method a kind of draw funnels through, so a draw is faded once: the fill
  * ({@code innerFill}, both gradient colors), the blit every sprite, nine-slice and texture
  * ends in ({@code innerBlit} with a texture view), the tiled blit, and text. At full opacity

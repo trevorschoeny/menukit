@@ -40,7 +40,7 @@ import java.util.List;
  *   <tr><td>2</td><td><b>flow panels</b>, then <b>popover panels</b> of every host, <b>each followed by the slots it shows</b></td><td>MenuKit: {@link #aboveSlots} (or {@link #beforeSlot}, below); each slot through the screen's own {@code extractSlot}</td></tr>
  *   <tr><td>3</td><td>created slots no panel shows (a slot library that does not report its slots)</td><td>vanilla ({@code extractSlots}, after the first such slot)</td></tr>
  *   <tr><td>4</td><td>modal dim, <b>overlay panels</b> of every host, each followed by its slots</td><td>MenuKit: {@link #aboveSlots}</td></tr>
- *   <tr><td>4b</td><td>on a recipe-book screen, the <b>recipe book</b> draws between 1 and 2 instead: layers 2 and 4 wait for it (7.6.0)</td><td>vanilla ({@code recipeBookComponent.extractRenderState}, the next stratum); MenuKit then draws 2 and 4 at {@link #aboveRecipeBook}</td></tr>
+ *   <tr><td>4b</td><td>on a recipe-book screen, the <b>recipe book</b> draws between 1 and 2 instead: layers 2 and 4 wait for it (8.0.0)</td><td>vanilla ({@code recipeBookComponent.extractRenderState}, the next stratum); MenuKit then draws 2 and 4 at {@link #aboveRecipeBook}</td></tr>
  *   <tr><td>5</td><td>carried item, cursor</td><td>vanilla ({@code extractCarriedItem}, next stratum)</td></tr>
  *   <tr><td>6</td><td>tooltips</td><td>vanilla ({@code extractTooltip})</td></tr>
  * </table>
@@ -141,7 +141,7 @@ import java.util.List;
  * before every {@code nextStratum()} and before {@code extractTooltip}, so cursor and
  * tooltip layering, and same-frame tooltip flushing, are unchanged.
  *
- * <h2>The recipe book (7.6.0)</h2>
+ * <h2>The recipe book (8.0.0)</h2>
  *
  * A recipe-book screen draws its book after {@code extractContents}, in a stratum of
  * its own, and offers it every click and drag before the screen's own handling. Panels
@@ -329,6 +329,27 @@ public final class ContainerScreenLayers {
             return;
         }
         drawPanelLayers(screen, graphics, mouseX, mouseY);
+    }
+
+    /**
+     * Runs {@code draw}, another screen's whole frame drawn inside this one ({@code MK.drawBackdrop}),
+     * with fresh frame state, and puts this frame's back after: the backdrop's own frame start,
+     * book and slot clips would otherwise end or stall the frame it is drawn in.
+     */
+    public static void nested(Runnable draw) {
+        boolean outerFlow = flowDrawn, outerBook = bookFrame, outerWaiting = waitingForBook, outerSlot = slotClipped;
+        ScreenRectangle outerClip = swapClip;
+        flowDrawn = bookFrame = waitingForBook = slotClipped = false;
+        swapClip = null;
+        try {
+            draw.run();
+        } finally {
+            flowDrawn = outerFlow;
+            bookFrame = outerBook;
+            waitingForBook = outerWaiting;
+            slotClipped = outerSlot;
+            swapClip = outerClip;
+        }
     }
 
     /** At a recipe-book screen's {@code extractRenderState} HEAD: this frame's book comes after the contents. */

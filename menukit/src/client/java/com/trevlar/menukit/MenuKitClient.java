@@ -10,6 +10,7 @@ import com.trevlar.menukit.core.PackText;
 import com.trevlar.menukit.inject.ContainerRegions;
 import com.trevlar.menukit.inject.ContainerTabRows;
 import com.trevlar.menukit.inject.ItemPickerMemory;
+import com.trevlar.menukit.inject.KeptScreens;
 import com.trevlar.menukit.inject.MenuChrome;
 import com.trevlar.menukit.inject.PanelEditing;
 import com.trevlar.menukit.inject.PanelPositions;
@@ -70,6 +71,7 @@ public class MenuKitClient implements ClientModInitializer {
         // One ScreenEvents.AFTER_INIT listener for every panel adapter, so
         // consumers don't each register their own.
         ScreenPanelRegistry.init();
+        KeptScreens.init();
         // Player-moved panels (7.4.0): where they were put, read once here and written on
         // each drop and reset; and the edit mode they are moved in, with its key.
         PanelPositions.load(PanelPositions.defaultFile(FabricLoader.getInstance().getConfigDir()));

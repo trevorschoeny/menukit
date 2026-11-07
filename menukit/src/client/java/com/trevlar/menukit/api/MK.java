@@ -2,6 +2,7 @@ package com.trevlar.menukit.api;
 
 import com.trevlar.menukit.MenuKitClient;
 import com.trevlar.menukit.api.panel.Panel;
+import com.trevlar.menukit.inject.ContainerScreenLayers;
 import com.trevlar.menukit.inject.HudHosts;
 import com.trevlar.menukit.inject.LayerPlan;
 import com.trevlar.menukit.inject.PanelHost;
@@ -20,8 +21,8 @@ import org.slf4j.LoggerFactory;
 import org.jetbrains.annotations.ApiStatus;
 
 /**
- * Mod entry point for MenuKit and the process-wide facade for HUD panels
- * and the recipe-book query.
+ * Mod entry point for MenuKit and the process-wide facade for HUD panels,
+ * the recipe-book query and backdrops.
  *
  * <p>The consumer surface by task:
  * <ul>
@@ -34,7 +35,8 @@ import org.jetbrains.annotations.ApiStatus;
  *       {@link com.trevlar.menukit.api.panel.AnchorPanelAdapter}</li>
  *   <li><b>HUD panels:</b> {@link com.trevlar.menukit.api.hud.HudPanel}, and what a mod
  *       draws on the hotbar's slots, {@link com.trevlar.menukit.api.hud.HotbarDecorations}</li>
- *   <li><b>Standalone screens:</b> {@link com.trevlar.menukit.api.panel.MKScreen}</li>
+ *   <li><b>Standalone screens:</b> {@link com.trevlar.menukit.api.panel.MKScreen}, and
+ *       the screen it opened over drawn behind it, {@link #drawBackdrop}</li>
  *   <li><b>Layout:</b> {@link com.trevlar.menukit.api.layout.Row},
  *       {@link com.trevlar.menukit.api.layout.Column}</li>
  *   <li><b>Drawing your own item copy</b> (a flying arc, a ring of stacks):
@@ -45,7 +47,7 @@ import org.jetbrains.annotations.ApiStatus;
  * separate library built on MenuKit.
  *
  * <p>Supported static methods on this class: {@link #registerHud},
- * {@link #isRecipeBookOpen}, {@link #setRecipeBookOpen}. HUD panels register from a client
+ * {@link #isRecipeBookOpen}, {@link #setRecipeBookOpen}, {@link #drawBackdrop}. HUD panels register from a client
  * initializer; registration freezes at client start.
  */
 public class MK {
@@ -189,15 +191,19 @@ public class MK {
      * {@code beforeExtract} and {@code afterExtract} listeners run around it, as they do
      * around the open screen.
      *
+     * <p>It draws at the size it was last laid out at: a window resized while the screen
+     * over it is open leaves it at its old size until it opens again.
+     *
      * @param screen      the screen to draw; not the open screen
      * @param graphics    the open screen's graphics
      * @param partialTick the frame's partial tick
-     * @since 7.6.0
+     * @since 8.0.0
      */
     public static void drawBackdrop(Screen screen, GuiGraphicsExtractor graphics, float partialTick) {
         // -1, -1: no pointer, so nothing hovers and no tooltip draws.
         ScreenEvents.beforeExtract(screen).invoker().beforeExtract(screen, graphics, -1, -1, partialTick);
-        ScreenBackground.outside(() -> screen.extractRenderStateWithTooltipAndSubtitles(graphics, -1, -1, partialTick));
+        ScreenBackground.outside(() -> ContainerScreenLayers.nested(
+                () -> screen.extractRenderStateWithTooltipAndSubtitles(graphics, -1, -1, partialTick)));
         ScreenEvents.afterExtract(screen).invoker().afterExtract(screen, graphics, -1, -1, partialTick);
     }
 }

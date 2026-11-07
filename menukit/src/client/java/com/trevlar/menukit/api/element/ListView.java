@@ -38,13 +38,13 @@ import java.util.function.Supplier;
  * kept for as long as its item's key is in the list.
  *
  * <pre>{@code
- * ListView.<Sandbox>builder()
- *         .items(() -> sandboxes.list())                       // read every frame; the data is yours
- *         .key(Sandbox::id)                                    // stable identity across refreshes
- *         .row(s -> sandboxRow(s))                             // one row element per item
+ * ListView.<Waypoint>builder()
+ *         .items(() -> waypoints.list())                       // read every frame; the data is yours
+ *         .key(Waypoint::id)                                   // stable identity across refreshes
+ *         .row(w -> waypointRow(w))                            // one row element per item
  *         .selection(() -> selectedId, id -> selectedId = id)  // optional: one selected key
  *         .gap(2)
- *         .empty(TextLabel.builder().text(Component.literal("No sandboxes yet")).build())
+ *         .empty(TextLabel.builder().text(Component.literal("No waypoints yet")).build())
  *         .build();
  * }</pre>
  *
@@ -219,7 +219,7 @@ import java.util.function.Supplier;
  * slot whether or not it shows (a pinned row has none), so they line up down the list.
  * Add stays in the toolbar.
  *
- * <p>{@link Builder#controlsOutside()} (7.6.0) hangs the same controls outside the
+ * <p>{@link Builder#controlsOutside()} (8.0.0) hangs the same controls outside the
  * panel instead: each row keeps the list's whole width, with no divider, and its up,
  * down and remove sit a button's gap past the panel's right edge, level with the
  * row's first line. The panel's background and claim cover the rows; out there each
@@ -1617,7 +1617,7 @@ public final class ListView<T> extends AbstractPanelElement {
         }
 
         /**
-         * {@link #controlsInRows()}'s up, down and remove, hung outside the panel (7.6.0):
+         * {@link #controlsInRows()}'s up, down and remove, hung outside the panel (8.0.0):
          * a button's gap past its right edge, level with each row's first line, the rows
          * keeping the list's whole width. The panel's background and claim stop at its
          * edge; each button out there claims only itself. Needs {@link #remove} or

@@ -30,7 +30,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *       drag preview's tint, the count and durability bar, is vanilla's draw as before. With
  *       no look for the slot, or an animation that has thrown, the item draw goes through
  *       untouched.</li>
- *   <li>A look of {@link ItemAnimation#HIDDEN} (7.6.0) skips the slot's count, durability
+ *   <li>A look of {@link ItemAnimation#HIDDEN} (8.0.0) skips the slot's count, durability
  *       bar and cooldown too: the item draw notes it, and the decorations draw right after
  *       it in the same {@code extractSlot} reads and clears the note.</li>
  *   <li>An empty slot with an icon (an armor slot's) draws the icon and no item: its

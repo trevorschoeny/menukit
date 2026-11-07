@@ -1,5 +1,6 @@
 package com.trevlar.menukit.inject;
 
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -14,7 +15,7 @@ import java.util.Map;
 
 /**
  * A container screen taken down for a screen that isn't one keeps its MenuKit layout
- * (7.6.0): its region, its hosts, where its slots are. The screen over it can then draw
+ * (8.0.0): its region, its hosts, where its slots are. The screen over it can then draw
  * it as its backdrop ({@code MK.drawBackdrop}) as it looked while it was open.
  *
  * <p>Its taking down waits until a container screen opens, or no screen: that is when its
@@ -33,6 +34,15 @@ import java.util.Map;
 public final class KeptScreens {
 
     private KeptScreens() {}
+
+    /**
+     * Leaving the world keeps nothing: a disconnect opens a title or disconnected screen,
+     * which isn't a container screen, so without this the last world's screen, its menu
+     * and its layout would stay kept until the next container screen.
+     */
+    public static void init() {
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> takeDownKept());
+    }
 
     /** The screen {@code Gui.setScreen} is opening, while it runs; {@code null} outside it (and for no screen). */
     private static @Nullable Screen incoming;

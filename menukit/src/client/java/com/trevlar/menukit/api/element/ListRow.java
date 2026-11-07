@@ -28,7 +28,7 @@ import java.util.function.Supplier;
  *       list makes one per key only when the list has controls in its rows, so any
  *       other list keeps the consumer's row as it is.</li>
  *   <li><b>A row with its controls outside</b> ({@link ListView.Builder#controlsOutside()},
- *       7.6.0): the row keeps the list's whole width, no divider, and the controls hang
+ *       8.0.0): the row keeps the list's whole width, no divider, and the controls hang
  *       a button's gap past the panel's right edge, on the row's first line.</li>
  *   <li><b>The toolbar</b>: the list's title if it has one, then the search field,
  *       then the sort, add, remove and arrow buttons as its controls, a button's gap

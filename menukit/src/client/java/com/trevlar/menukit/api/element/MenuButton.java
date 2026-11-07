@@ -14,8 +14,8 @@ import java.util.Objects;
  * <pre>{@code
  * MenuButton.builder().size(20, 20)
  *         .label(Component.literal("..."))
- *         .action(Component.literal("Duplicate"), () -> sandboxes.duplicate(id))
- *         .danger(Component.literal("Delete"), () -> sandboxes.delete(id))
+ *         .action(Component.literal("Duplicate"), () -> waypoints.duplicate(id))
+ *         .danger(Component.literal("Delete"), () -> waypoints.delete(id))
  *         .build();
  * }</pre>
  *

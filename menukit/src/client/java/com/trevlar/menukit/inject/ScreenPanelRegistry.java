@@ -242,7 +242,6 @@ public final class ScreenPanelRegistry {
         }
 
         List<PanelHost> declared = buildHosts(screen);
-        ScreenHosts hosts = HOSTS.get(screen);
 
         // Element lifecycle for the hosts the registry builds (the own host attaches in
         // its screen's init). Widget-wrapping elements register their vanilla widget,
@@ -253,9 +252,10 @@ public final class ScreenPanelRegistry {
             for (PanelHost host : declared) host.detach(screen);
         });
 
-        List<PanelHost> routed = hosts.routed();
-        if (routed.isEmpty() && hosts.own == null) return;
-
+        // Wired on every screen, and each listener reads the routed hosts as the event
+        // comes: a dialog attached after init (ItemPicker.open from a key press) gets its
+        // render, keys and Escape like one an element attached during init.
+        //
         // Render: container screens compose through ContainerScreenLayers (the slot
         // pass sits between FLOW and OVERLAY). Every other screen composes here, in
         // one renderable, so its own panels and injected ones share one LayerPlan.
@@ -265,7 +265,6 @@ public final class ScreenPanelRegistry {
             ((ScreenAccessor) screen).mk$addRenderableOnly(composite);
         }
 
-        if (routed.isEmpty()) return;
 
         // Input the MouseHandler-level claim did not take: element dispatch for points
         // no panel claims (a transparent panel's click-through elements), plus closing
@@ -274,15 +273,15 @@ public final class ScreenPanelRegistry {
         // routed hosts, so a popover on a lower host is offered the click first.
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
             var before = s.getFocused();
-            for (PanelHost host : routed) host.notifyOutsideClick(event.x(), event.y());
-            if (PanelHost.mouseClicked(routed, event.x(), event.y(), event.button(), modalUpOn(s))) {
+            for (PanelHost host : routedOn(s)) host.notifyOutsideClick(event.x(), event.y());
+            if (PanelHost.mouseClicked(routedOn(s), event.x(), event.y(), event.button(), modalUpOn(s))) {
                 Focus.blurAfterClick(s, before, event.x(), event.y());
                 return false;
             }
             return true;
         });
         ScreenMouseEvents.allowMouseScroll(screen).register((s, mouseX, mouseY, hAmount, vAmount) ->
-                !PanelHost.mouseScrolled(routed, mouseX, mouseY, hAmount, vAmount, modalUpOn(s)));
+                !PanelHost.mouseScrolled(routedOn(s), mouseX, mouseY, hAmount, vAmount, modalUpOn(s)));
         // Last of all (7.4.0): a turn nobody used goes to the background panels' elements,
         // then scrolls the container region. A click the screen's widgets declined goes to
         // the background panels too: on a container screen from its own mouseClicked
@@ -293,10 +292,11 @@ public final class ScreenPanelRegistry {
                     consumed || dispatchBackgroundClick(s, event.x(), event.y(), event.button()));
         }
         ScreenMouseEvents.allowMouseRelease(screen).register((s, event) -> {
-            for (PanelHost host : routed) host.mouseReleased(event.x(), event.y(), event.button());
+            for (PanelHost host : routedOn(s)) host.mouseReleased(event.x(), event.y(), event.button());
             return true;
         });
         ScreenKeyboardEvents.allowKeyPress(screen).register((s, keyEvent) -> {
+            List<PanelHost> routed = routedOn(s);
             boolean modal = modalUpOn(s);
             for (int i = routed.size() - 1; i >= 0; i--) {
                 if (routed.get(i).keyPressed(keyEvent.key(), keyEvent.keycode(), keyEvent.modifiers(), modal)) {

@@ -43,7 +43,7 @@ import java.util.Objects;
  * element built from other elements hands it on without knowing it is there. An
  * element draws for {@code ctx.kind()}.
  *
- * <h3>The panel's edge (7.6.0)</h3>
+ * <h3>The panel's edge (8.0.0)</h3>
  *
  * {@code panelRight} is where the panel's background ends on the right, in screen
  * space: the host that renders the panel sets it, and {@link #at} and

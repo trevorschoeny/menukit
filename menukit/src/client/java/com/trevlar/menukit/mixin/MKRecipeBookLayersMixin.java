@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Panels over the recipe book (7.6.0): they draw right after the book, in its stratum
+ * Panels over the recipe book (8.0.0): they draw right after the book, in its stratum
  * ({@link ContainerScreenLayers#aboveRecipeBook}). The book's input under them is
  * {@code MKRecipeBookInputMixin}'s.
  */

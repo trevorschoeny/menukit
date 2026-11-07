@@ -28,9 +28,9 @@ import java.util.function.Supplier;
  * private boolean confirmDeleteOpen = false;
  *
  * Panel deleteDialog = ConfirmDialog.builder()
- *     .title(Component.literal("Delete sandbox?"))
+ *     .title(Component.literal("Delete waypoint?"))
  *     .body(Component.literal("This cannot be undone."))
- *     .onConfirm(() -> { confirmDeleteOpen = false; deleteSandbox(); })
+ *     .onConfirm(() -> { confirmDeleteOpen = false; deleteWaypoint(); })
  *     .onCancel(() -> confirmDeleteOpen = false)
  *     .build()
  *     .visibleWhen(() -> confirmDeleteOpen);
@@ -61,7 +61,7 @@ import java.util.function.Supplier;
  *
  * <pre>{@code
  * ConfirmDialog.builder()
- *     .title(Component.literal("Delete sandbox?"))
+ *     .title(Component.literal("Delete waypoint?"))
  *     .body(() -> Component.literal("Delete " + pending.name() + "? This cannot be undone."))
  *     ...
  * }</pre>

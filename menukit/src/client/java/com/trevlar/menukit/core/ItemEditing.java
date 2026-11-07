@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * The edits an item picker's Edit tab makes to a stack, as pure functions: each takes
+ * The edits an item picker's advanced settings make to a stack, as pure functions: each takes
  * a stack and returns a new one, never changing the one it was given. The name, the
  * enchantments (adapted to the item), the count, and every other component as text
  * in vanilla's {@code /give} syntax, read by vanilla's own item parser.
@@ -63,7 +63,7 @@ public final class ItemEditing {
     // Enchantments
 
     /**
-     * One enchantment the Edit tab offers for a stack: its level on the stack (0 for
+     * One enchantment the advanced settings offer for a stack: its level on the stack (0 for
      * none: not applied), its highest level, and, when it is not on the stack, the
      * ones on it that exclude it (vanilla's exclusive sets: Sharpness and Smite,
      * Protection and Blast Protection), by name.
@@ -88,7 +88,7 @@ public final class ItemEditing {
      * The enchantments that fit the stack, by name: those that support the item, or
      * every one for an enchanted book (which stores them). Any already on the stack
      * are listed too, so none is hidden. Empty for an item nothing can enchant (a
-     * stick): the Edit tab then shows no enchantments at all.
+     * stick): the advanced settings then show no enchantments at all.
      */
     public static List<EnchantChoice> enchantChoices(ItemStack stack, HolderLookup.Provider registries) {
         if (stack.isEmpty()) return List.of();
@@ -128,22 +128,10 @@ public final class ItemEditing {
         return enchantChoices(stack, registries).isEmpty() ? null : EnchantmentHelper.getComponentType(stack);
     }
 
-    // The count
-
-    /** The count {@code text} gives this stack, or -1 when it is not a whole number from 1 to its stack size. */
-    public static int parseCount(ItemStack stack, String text) {
-        try {
-            int n = Integer.parseInt(text.trim());
-            return n >= 1 && n <= stack.getMaxStackSize() ? n : -1;
-        } catch (NumberFormatException e) {
-            return -1;
-        }
-    }
-
     // Every other component, in /give syntax
 
     /**
-     * The stack's components that the tab does not edit with its own controls (the
+     * The stack's components that the advanced settings do not edit with their own controls (the
      * name, and the enchantments while the list shows them), in vanilla's
      * {@code /give} syntax: {@code [unbreakable={},!food]}, ids without the
      * {@code minecraft:} prefix, in id order. "" when there are none.
@@ -168,8 +156,8 @@ public final class ItemEditing {
 
     /**
      * What typing {@code text} into the components box gives: the stack with exactly
-     * those components, keeping its count and the components the tab edits with its
-     * own controls (unless the text sets them), or an error as vanilla's item parser
+     * those components, keeping its count and the components the advanced settings edit
+     * with their own controls (unless the text sets them), or an error as vanilla's item parser
      * reports it (as a command would show it, with where it went wrong). Empty text
      * clears every other component. Vanilla's strict check runs too, so a stack the
      * game would refuse (a stack size over its maximum) is an error.
@@ -189,7 +177,7 @@ public final class ItemEditing {
                 throw CommandSyntaxException.BUILT_IN_EXCEPTIONS.dispatcherExpectedArgumentSeparator().createWithContext(reader);
             }
             ItemStack out = input.createItemStack(stack.getCount());
-            // The tab's own controls keep their values unless the text names them.
+            // The advanced settings' own controls keep their values unless the text names them.
             DataComponentPatch.SplitResult typed = input.components().split();
             for (DataComponentType<?> t : ownControls(stack, registries)) {
                 if (!typed.added().has(t) && !typed.removed().contains(t)) copy(stack, out, t);
@@ -203,7 +191,7 @@ public final class ItemEditing {
     /** A components edit: the new stack, or the error to show instead (red, as a command's). */
     public record Edit(@Nullable ItemStack stack, @Nullable Component error) {}
 
-    /** The components the tab edits with its own controls, kept out of the text. */
+    /** The components the advanced settings edit with their own controls, kept out of the text. */
     private static Set<DataComponentType<?>> ownControls(ItemStack stack, HolderLookup.Provider registries) {
         DataComponentType<ItemEnchantments> listed = listedEnchantments(stack, registries);
         return listed == null ? Set.of(DataComponents.CUSTOM_NAME) : Set.of(DataComponents.CUSTOM_NAME, listed);

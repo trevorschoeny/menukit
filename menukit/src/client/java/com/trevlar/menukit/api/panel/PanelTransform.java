@@ -1,7 +1,7 @@
 package com.trevlar.menukit.api.panel;
 
 /**
- * How a panel draws this frame, apart from where it is laid out (7.6.0): scaled by
+ * How a panel draws this frame, apart from where it is laid out (8.0.0): scaled by
  * {@code scale} about the screen point {@code (pivotX, pivotY)}, in GUI px, and at
  * {@code alpha} opacity. A mod hands {@link Panel#transform} a supplier of these and
  * changes what it returns each frame, to grow a panel out of a point and fade it in.

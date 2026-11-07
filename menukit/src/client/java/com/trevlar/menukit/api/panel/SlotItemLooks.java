@@ -41,7 +41,7 @@ import java.util.Objects;
  *   <li><b>Another stack</b> drawn in the slot's place (an open bundle's model, 7.5.0):
  *       {@code ItemAnimation.AS_IS.swapped(stack -> openBundle(stack)).at(1)}, or any
  *       animation {@link ItemAnimation#swapped swapped}, so it animates and swaps at once.</li>
- *   <li><b>Nothing at all</b> (7.6.0): {@code ItemAnimation.HIDDEN.at(1)} hides the item and
+ *   <li><b>Nothing at all</b> (8.0.0): {@code ItemAnimation.HIDDEN.at(1)} hides the item and
  *       its count, durability bar and cooldown, for an item shown elsewhere meanwhile (a
  *       copy flying into the slot). The slot's decorations still draw.</li>
  *   <li>A look that throws is logged once and skipped from then on.</li>

@@ -80,7 +80,7 @@ public final class SlotClips {
     /**
      * Whether {@code slot} is placed under a clip that leaves the screen point out: the
      * part of a slot past a {@code ScrollContainer}'s edge. Also true everywhere for a slot
-     * whose panel draws under a transform (7.6.0, {@code Panel.transform}): it isn't where
+     * whose panel draws under a transform (8.0.0, {@code Panel.transform}): it isn't where
      * it is laid out, so it is a gap until the panel is back at the identity. False for
      * {@code null} and for a slot nothing cuts.
      */

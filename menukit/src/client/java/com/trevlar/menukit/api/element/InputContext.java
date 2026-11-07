@@ -42,7 +42,7 @@ import java.util.Objects;
  * {@link ScrollContainer}'s content inset in the Default look's list band) answers
  * input with the geometry it drew.
  *
- * <h3>The panel's edge (7.6.0)</h3>
+ * <h3>The panel's edge (8.0.0)</h3>
  *
  * {@code panelRight} is the same one its {@link RenderContext} carries: where the
  * panel's background ends on the right, so an element hanging past it answers input

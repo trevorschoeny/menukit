@@ -183,7 +183,7 @@ public record PanelPosition(Mode mode,
     }
 
     /**
-     * Exact pixel placement by the bottom edge (since 7.6.0): {@code origin} supplies the
+     * Exact pixel placement by the bottom edge (since 8.0.0): {@code origin} supplies the
      * panel's <b>outer bottom-left</b> corner, so a panel whose height changes (a list that
      * grows) keeps its bottom where it is and grows upward. Otherwise as {@link #pixel}.
      *

@@ -41,7 +41,7 @@ public abstract class MKCreativeTabHoverMixin {
      * as not hovered so vanilla draws no highlight.
      *
      * <p>Checking only for a modal let a tab glow through a non-modal opaque
-     * panel sitting over it (such as the pockets controls).
+     * panel sitting over it (a mod's controls beside the tab row, say).
      * {@link Focus#isInertUnderPanel} is the same check slot hover, widget hover,
      * tooltips and click-eating use, so tabs behave like every other surface.
      */

@@ -754,7 +754,7 @@ public final class Flow extends AbstractPanelElement {
         return ChildDispatch.hitTest(children, in);
     }
 
-    /** The widest lane a child hangs past the panel's edge (7.6.0), so a scroll area around this Flow keeps it. */
+    /** The widest lane a child hangs past the panel's edge (8.0.0), so a scroll area around this Flow keeps it. */
     @Override
     public int outboardWidth() {
         int w = 0;
@@ -830,15 +830,34 @@ public final class Flow extends AbstractPanelElement {
     /**
      * A vertical Flow is as much shorter as its children give. A row is as tall as its
      * tallest, so it gives nothing, unless it is a row of columns ({@link Builder#ownWidths()}):
-     * then each column is asked for the whole overflow, and the row gives the most any gave.
+     * then the row aims {@code overflow} below its tallest column, each column taller than
+     * that is asked for only what takes it down to it, and the row gives what its tallest
+     * column actually lost. A short column gives nothing it wouldn't save.
      */
     @Override
     public int yieldHeight(int overflow) {
         if (vertical) return ChildDispatch.yieldHeight(children, overflow);
         if (!ownWidths) return 0;
-        int most = 0;
-        for (PanelElement c : children) most = Math.max(most, c.yieldHeight(c.isVisible() ? overflow : 0));
-        return most;
+        // Every column at its full height first (0 gives it all back), to measure the row.
+        int[] full = new int[children.size()];
+        int tallest = 0;
+        for (int i = 0; i < full.length; i++) {
+            PanelElement c = children.get(i);
+            c.yieldHeight(0);
+            if (!c.isVisible()) continue;
+            full[i] = c.getHeight();
+            tallest = Math.max(tallest, full[i]);
+        }
+        if (overflow <= 0) return 0;
+        int target = tallest - overflow;
+        int newTallest = 0;
+        for (int i = 0; i < full.length; i++) {
+            PanelElement c = children.get(i);
+            if (!c.isVisible()) continue;
+            int given = full[i] > target ? c.yieldHeight(full[i] - target) : 0;
+            newTallest = Math.max(newTallest, full[i] - given);
+        }
+        return tallest - newTallest;
     }
 
     @Override

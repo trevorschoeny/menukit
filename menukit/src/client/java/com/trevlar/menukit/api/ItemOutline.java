@@ -1,7 +1,6 @@
 package com.trevlar.menukit.api;
 
 import com.trevlar.menukit.api.element.SlotRendering;
-import com.trevlar.menukit.core.MKRenderPipelines;
 import net.minecraft.client.renderer.state.gui.GuiItemRenderState;
 import org.jetbrains.annotations.ApiStatus;
 
@@ -25,7 +24,7 @@ import java.util.WeakHashMap;
  * (the states recorded inside {@link #silhouettes}) and drawn at the second:
  * {@code MKItemOutlineMarkMixin} records the mark as the state is added, and
  * {@code MKItemOutlineDrawMixin} blits a marked state through
- * {@link MKRenderPipelines#GUI_SILHOUETTE} in its color instead of normally.
+ * MenuKit's silhouette pipeline in its color instead of normally.
  *
  * <p>Ordering needs nothing extra: vanilla's render state puts an element that
  * overlaps an earlier one above it, so the item drawn after its four silhouettes

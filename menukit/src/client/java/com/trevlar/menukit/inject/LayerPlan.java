@@ -162,7 +162,7 @@ public final class LayerPlan {
         dimAndOverlay(hosts, graphics, mouseX, mouseY, screenW, screenH, pointer);
     }
 
-    /** The dim over the whole screen but the lit rectangles ({@link Panel#litWhileDimmed}, 7.6.0). */
+    /** The dim over the whole screen but the lit rectangles ({@link Panel#litWhileDimmed}, 8.0.0). */
     static void dimAround(GuiGraphicsExtractor graphics, int screenW, int screenH, List<ScreenRectangle> lit) {
         for (ScreenRectangle r : dimRects(screenW, screenH, lit)) {
             graphics.fill(r.left(), r.top(), r.right(), r.bottom(), DIM_COLOR);

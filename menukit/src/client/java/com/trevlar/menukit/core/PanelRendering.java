@@ -52,23 +52,6 @@ public final class PanelRendering {
     }
 
     /**
-     * Draws a stateless control surface (an info box): as {@link #renderPanel}, except RAISED,
-     * which is MenuKit's {@code menukit:control_raised} sprite, so a resource pack themes
-     * controls and panels ({@code menukit:panel_raised}) each on its own. Unthemed, the two are
-     * the same art. Controls with states (buttons, toggles, a dropdown, the color field) draw
-     * through {@link ControlLook#drawRaised}, every state from one source. A Panel-look panel
-     * surface that follows the pack's container art is {@link PackLook#drawPanel}.
-     */
-    public static void renderControl(GuiGraphicsExtractor graphics, int x, int y, int w, int h, PanelStyle style) {
-        if (style == PanelStyle.RAISED && w > 0 && h > 0) {
-            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, ControlLook.Control.BUTTON.own(ControlLook.State.NORMAL.ordinal()),
-                    x, y, w, h);
-            return;
-        }
-        renderPanel(graphics, x, y, w, h, style);
-    }
-
-    /**
      * Draws a panel background with custom colors and the default black border.
      * Every style except NONE is drawn with fills here: INSET with the shadow at
      * the top left, any other style raised.

@@ -630,7 +630,7 @@ public final class PanelHost {
      *       panel. (A panel's own slots stay live through
      *       {@link #yieldsToSlot}, which is about the claimant's own content, not
      *       about what lies beneath.) Past its rectangle it claims what its elements
-     *       hang outside it ({@link PanelElement#outboardWidth}, 7.6.0), by their hit
+     *       hang outside it ({@link PanelElement#outboardWidth}, 8.0.0), by their hit
      *       test, as a transparent panel claims its solid elements.</li>
      *   <li>A <b>transparent</b> panel claims only its solid elements: shown, opaque
      *       and interactive ones, by their hit test. A render-only decoration on a
@@ -650,14 +650,14 @@ public final class PanelHost {
         // A background panel (7.4.0) is under everything on the screen, so it takes no
         // point from anything: whatever lies over it stays live.
         if (panel.isBackground()) return false;
-        // Nor does one drawn under a transform (7.6.0): what shows isn't where it is laid out.
+        // Nor does one drawn under a transform (8.0.0): what shows isn't where it is laid out.
         if (panel.isTransformed()) return false;
         InputContext in = input(placed, mouseX, mouseY);
         List<PanelElement> shown = shownElements(panel);
         if (ChildDispatch.overlayOwner(shown, in) != null) return true;
         if (panel.isOpaque()) {
             if (placed.contains(mouseX, mouseY)) return true;
-            // An element hanging past the panel's edge claims only itself there (7.6.0).
+            // An element hanging past the panel's edge claims only itself there (8.0.0).
             return ChildDispatch.hitTest(shown, in);
         }
         for (PanelElement el : shown) {
@@ -1193,7 +1193,7 @@ public final class PanelHost {
      */
     public void render(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
                        Placed p, PointerPolicy pointer) {
-        // A panel under a transform (7.6.0) draws scaled about its pivot and faded, its
+        // A panel under a transform (8.0.0) draws scaled about its pivot and faded, its
         // slots included (they draw inside renderPanel), and is never live: it takes no
         // input until it is back at the identity. The layout under it is untouched.
         PanelTransform t = p.panel().currentTransform();
@@ -1313,7 +1313,7 @@ public final class PanelHost {
         for (LayerPlan.Drawn d : LayerPlan.topDown(hosts)) {
             if (d.host().kind == Kind.HUD) continue;
             if (modalUp && !d.placed().panel().tracksAsModal()) continue;
-            if (d.placed().panel().isTransformed()) continue; // drawn transformed: no input (7.6.0)
+            if (d.placed().panel().isTransformed()) continue; // drawn transformed: no input (8.0.0)
             out.add(d);
         }
         return out;
