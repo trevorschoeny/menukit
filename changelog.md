@@ -1,3 +1,9 @@
+## 8.0.0
+
+#### Fixed
+
+- A tab row's band beside its tabs took a click meant to drop a held item outside the frame, so nothing dropped there.
+
 ## 7.5.1
 
 #### Fixed
