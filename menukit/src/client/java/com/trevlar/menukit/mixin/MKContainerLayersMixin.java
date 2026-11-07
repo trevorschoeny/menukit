@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * The render hooks MenuKit places on container screens. Three injection points
+ * The render hooks MenuKit places on container screens. Four injection points
  * feed {@link ContainerScreenLayers}, which owns the order (see its layer table); two
  * wraps leave the slots a panel shows (and their hover highlights) out of vanilla's
  * slot pass, so they draw right after their panel (7.3.0); the RETURN of
@@ -85,11 +85,22 @@ public abstract class MKContainerLayersMixin {
         ContainerScreenLayers.afterHighlight(graphics);
     }
 
-    /** Layer 2 fallback and layer 4, after vanilla's slot pass and before the carried item's stratum. */
+    /** The end of vanilla's contents: the panel layers wait for whatever the screen draws next (a recipe book). */
     @Inject(method = "extractContents", at = @At("RETURN"), require = 1)
     private void mk$aboveSlots(GuiGraphicsExtractor graphics, int mouseX, int mouseY,
                                float partialTick, CallbackInfo ci) {
         ContainerScreenLayers.aboveSlots((AbstractContainerScreen<?>) (Object) this,
+                graphics, mouseX, mouseY);
+    }
+
+    /**
+     * Layer 2 fallback and layer 4, right before the carried item: after everything the screen
+     * draws past its contents (vanilla's recipe book, or a book a mod draws there), before the
+     * cursor and the tooltips. Every container screen family draws its carried item through here.
+     */
+    @Inject(method = "extractCarriedItem", at = @At("HEAD"), require = 1)
+    private void mk$beforeCarried(GuiGraphicsExtractor graphics, int mouseX, int mouseY, CallbackInfo ci) {
+        ContainerScreenLayers.beforeCarriedItem((AbstractContainerScreen<?>) (Object) this,
                 graphics, mouseX, mouseY);
     }
 }

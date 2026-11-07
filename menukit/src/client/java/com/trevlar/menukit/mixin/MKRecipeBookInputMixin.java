@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
  * The recipe book under a panel (8.0.0): panels draw over the book
- * ({@code MKRecipeBookLayersMixin}), so a click or drag on a point a panel claims is not
+ * ({@code ContainerScreenLayers.beforeCarriedItem}), so a click or drag on a point a panel claims is not
  * the book's. Vanilla offers the book every click twice (first from the screen's
  * {@code mouseClicked}, then as one of its children), so the book itself declines, at
  * its own HEAD, and the click goes on to the screen's slots and panels.

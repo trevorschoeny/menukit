@@ -1,6 +1,12 @@
 package com.trevlar.menukit.inject;
 
+import com.trevlar.menukit.mixin.AbstractContainerScreenAccessor;
+import com.trevlar.menukit.mixin.MKRecipeBookAccessor;
+import com.trevlar.menukit.mixin.MKRecipeBookComponentAccessor;
+
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.gui.screens.inventory.AbstractRecipeBookScreen;
+import net.minecraft.client.gui.screens.recipebook.RecipeBookComponent;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import java.util.HashMap;
 import java.util.Map;
 import org.jetbrains.annotations.ApiStatus;
+import org.jspecify.annotations.Nullable;
 
 /**
  * How far each {@link AbstractContainerScreen} subclass draws <i>outside</i> its
@@ -26,8 +33,9 @@ import org.jetbrains.annotations.ApiStatus;
  * <h3>Changes mid-session</h3>
  *
  * Extents are recomputed every frame through {@link ChromeProvider}. Dynamic
- * providers read live screen state (recipe book open or closed); static ones
- * ignore the screen and return a constant. When chrome changes, such as a recipe
+ * providers read live screen state; static ones ignore the screen and return a
+ * constant. The recipe book and the tab rows are every screen's, read live in
+ * {@link #of}. When chrome changes, such as a recipe
  * book toggle, there may be one frame before the provider picks it up, which in
  * practice can't be seen.
  */
@@ -79,17 +87,48 @@ public final class MenuChrome {
 
     /**
      * The chrome extents for the screen: its provider's, matched on its exact class
-     * ({@link ChromeExtents#NONE} without one), plus the tab rows standing on its own
-     * frame (8.0.0, {@link ContainerTabRows#bareRows}), so a panel above or below the
-     * frame sits past the row instead of under it. While the region is up its bounds
-     * already hold its rows. Called every frame when computing origins, so it must be
-     * cheap.
+     * ({@link ChromeExtents#NONE} without one), plus, on any screen (8.0.0):
+     * <ul>
+     *   <li>an open recipe book beside the frame ({@link #bookLeft}), the screen's own or
+     *       one a mod lends it, so a panel left of the frame sits left of the book;</li>
+     *   <li>the tab rows standing on its own frame ({@link ContainerTabRows#bareRows}), so
+     *       a panel above or below the frame sits past the row instead of under it. While
+     *       the region is up its bounds already hold its rows.</li>
+     * </ul>
+     * Called every frame when computing origins, so it must be cheap.
      */
     public static ChromeExtents of(AbstractContainerScreen<?> screen) {
         if (screen == null) return ChromeExtents.NONE;
         ChromeProvider provider = PROVIDERS.get(screen.getClass());
         ChromeExtents own = provider == null ? ChromeExtents.NONE : provider.compute(screen);
         int[] rows = ContainerTabRows.bareRows(screen);
-        return new ChromeExtents(own.top() + rows[0], own.left(), own.right(), own.bottom() + rows[1]);
+        return new ChromeExtents(own.top() + rows[0], own.left() + bookLeft(screen), own.right(), own.bottom() + rows[1]);
+    }
+
+    /**
+     * How far an open recipe book reaches left of the frame: from its filter tabs' left edge
+     * (30 px left of the body) to {@code leftPos}, or 0 with no book open beside the frame
+     * (none, closed, or over the frame on a narrow window). The book is the screen's own
+     * ({@code AbstractRecipeBookScreen}) or one a mod added among its widgets.
+     */
+    private static int bookLeft(AbstractContainerScreen<?> screen) {
+        RecipeBookComponent<?> book = screen instanceof AbstractRecipeBookScreen<?> own
+                ? ((MKRecipeBookAccessor) own).mk$getRecipeBookComponent() : lentBook(screen);
+        if (book == null || !book.isVisible()) return 0;
+        MKRecipeBookComponentAccessor at = (MKRecipeBookComponentAccessor) book;
+        if (at.mk$widthTooNarrow()) return 0;
+        int left = ((AbstractContainerScreenAccessor) screen).mk$getLeftPos() - (at.mk$xOrigin() - BOOK_TABS);
+        return Math.max(left, 0);
+    }
+
+    /** The recipe book's filter tabs stand this far left of its body. */
+    private static final int BOOK_TABS = 30;
+
+    /** A recipe book a mod added among the screen's widgets, or {@code null}. */
+    private static @Nullable RecipeBookComponent<?> lentBook(AbstractContainerScreen<?> screen) {
+        for (var child : screen.children()) {
+            if (child instanceof RecipeBookComponent<?> book) return book;
+        }
+        return null;
     }
 }
