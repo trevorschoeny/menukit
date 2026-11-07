@@ -399,7 +399,7 @@ A player's position is stored under the panel's id, and a shared panel's under i
 
 ## Reference
 
-A reference is the rectangle a `region(...)` placement is measured against. It is not the panel and has no relation to the panel's size. The host decides it. It is a container screen's frame (extended by its chrome, such as creative's tab rows or an open recipe book), an anchor's box, a standalone screen's main panel, or on the HUD the vanilla hotbar. `Reference` is the record that carries it. A region never names its reference.
+A reference is the rectangle a `region(...)` placement is measured against. It is not the panel and has no relation to the panel's size. The host decides it. It is a container screen's frame (extended by its chrome: creative's tab rows, an open recipe book on any screen, vanilla's or one a mod lends it, and the tab rows standing on the frame, so a panel above or below the frame sits past them), an anchor's box, a standalone screen's main panel, or on the HUD the vanilla hotbar. `Reference` is the record that carries it. A region never names its reference.
 
 ## Region
 
