@@ -7,7 +7,6 @@ import com.trevlar.menukit.core.DialogLayout;
 import com.trevlar.menukit.core.ItemEditing;
 import com.trevlar.menukit.core.ItemEditing.EnchantChoice;
 import com.trevlar.menukit.core.ItemSources;
-import com.trevlar.menukit.inject.ItemPickerMemory;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -37,8 +36,9 @@ import java.util.function.Function;
  * centered on the whole dialog, then a search box over a grid of every item and a "Show
  * advanced settings" checkbox, with the advanced settings the picker turns on in a second
  * column to the right of the grid, its top level with the search box, while the box is
- * ticked, then the buttons. The box is one remembered value for the
- * player ({@link ItemPickerMemory}). Built of MenuKit's own elements ({@link TextField},
+ * ticked, then the buttons. The box starts unticked on every opening, unless the slot
+ * it opens on already has an advanced field set (it is not remembered across openings
+ * or between pickers). Built of MenuKit's own elements ({@link TextField},
  * {@link ScrollContainer}, {@link Checkbox}, {@link Slider}, {@link DropdownMulti},
  * {@link Dropdown}, {@link ListView}, {@link Button}) plus the slot row and the grid
  * drawn here, laid out as every MenuKit dialog is ({@link DialogLayout}), so it draws in
@@ -329,8 +329,8 @@ final class ItemDialog {
 
     /**
      * Opened at slot {@code slot}: the value as it is now (kept for Cancel), a list's
-     * slot to add to after it, the search cleared, the advanced column shown when the
-     * player left it shown or that slot has a field filled in.
+     * slot to add to after it, the search cleared, the advanced column shown only when
+     * that slot already has a field set (not remembered from any earlier opening).
      */
     void open(int slot) {
         before = picker.value();
@@ -338,7 +338,7 @@ final class ItemDialog {
         slots.addAll(before);
         if (picker.isList() || slots.isEmpty()) slots.add(emptySlot());
         selected = Math.max(0, Math.min(slot, slots.size() - 1));
-        advanced = ItemPickerMemory.showAdvanced() || !current().getComponentsPatch().isEmpty();
+        advanced = hasAdvancedField();
         query = "";
         gridScroll = 0;
         name.reset();
@@ -368,10 +368,18 @@ final class ItemDialog {
         return advanced;
     }
 
-    /** "Show advanced settings": the column shown or hidden, and the player's choice remembered for every picker. */
+    /**
+     * Whether the selected slot already has an advanced field set: a count (only where
+     * the picker offers one and the item stacks, so a non-stacking item's leftover
+     * count is never mistaken for one), or any component (name, enchantments, components).
+     */
+    private boolean hasAdvancedField() {
+        return (options.count() && countShown() && slot().count() != ItemMatch.NONE) || !current().getComponentsPatch().isEmpty();
+    }
+
+    /** "Show advanced settings": the column shown or hidden for this opening only. */
     void setAdvanced(boolean show) {
         advanced = show;
-        ItemPickerMemory.setShowAdvanced(show);
     }
 
     void select(int slot) {

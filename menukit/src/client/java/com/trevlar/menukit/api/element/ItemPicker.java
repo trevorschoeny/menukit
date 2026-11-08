@@ -114,8 +114,8 @@ import java.util.function.Supplier;
  *       grid is five rows tall, fewer on a screen too short for the dialog.</li>
  *   <li><b>"Show advanced settings"</b>, a box under the grid. Ticked, the advanced
  *       settings show as a second column to the right of the grid, so the dialog grows
- *       wider, not taller. The player's choice is remembered for every picker (and the
- *       column shows anyway for a slot that has fields filled in). It holds the options
+ *       wider, not taller. It starts unticked on every opening, unless the slot it opens
+ *       on already has a field filled in, and is not remembered otherwise. It holds the options
  *       the setting turns on, for the selected slot: {@link Builder#count} (a slider from
  *       N/A, no count, to the item's stack size), {@link Builder#name},
  *       {@link Builder#enchantments} (a dropdown of those that fit the item, each one
@@ -556,7 +556,7 @@ public class ItemPicker extends AbstractPanelElement {
         dialog.select(slot);
     }
 
-    /** Ticks or clears "Show advanced settings", as a click on it does (remembered for every picker). */
+    /** Ticks or clears "Show advanced settings", as a click on it does, for this opening only. */
     @ApiStatus.Internal
     public void setAdvancedOpen(boolean open) {
         dialog.setAdvanced(open);

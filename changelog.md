@@ -7,6 +7,7 @@
 #### Fixed
 
 - A tab row's band beside its tabs took a click meant to drop a held item outside the frame, so nothing dropped there.
+- The item picker's "Show advanced settings" box no longer remembers being ticked across openings or between pickers; it starts hidden each time, opening on its own only for a slot that already has a count, name, enchantments or components set.
 
 ## 7.5.1
 

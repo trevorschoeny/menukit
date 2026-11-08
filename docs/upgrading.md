@@ -4,7 +4,7 @@ What changes for a mod moving to each MenuKit release, newest first. The latest 
 
 ## To 8.0.0
 
-The item picker's match modes are gone. `ItemMatch.Match`, `match(...)`, `playerChoosesMatch()`, `ignoring(...)`, `ignoringCount()` and the dialog's Search and Edit tabs are replaced by one rule: the item always counts, each field filled in narrows the match, and a blank one is not checked. The dialog's advanced settings open in a column beside the grid, behind a "Show advanced settings" box MenuKit remembers for the player, and what they offer is now the picker's choice: `name()`, `enchantments()`, `components()` and `count()`. Then:
+The item picker's match modes are gone. `ItemMatch.Match`, `match(...)`, `playerChoosesMatch()`, `ignoring(...)`, `ignoringCount()` and the dialog's Search and Edit tabs are replaced by one rule: the item always counts, each field filled in narrows the match, and a blank one is not checked. The dialog's advanced settings open in a column beside the grid, behind a "Show advanced settings" box, and what they offer is now the picker's choice: `name()`, `enchantments()`, `components()` and `count()`. Then:
 
 - `new ItemMatch(stack, Match.X)` becomes `new ItemMatch(stack)`, and `ItemMatch.matches(rule, Match.X, stack)` becomes `ItemMatch.matches(rule, stack)`.
 - An `EXACT` picker that edited names, enchantments and components turns on `name().enchantments().components()`. One that ignored damage needs nothing, since damage is checked only when the player lists it. An `ITEM` picker needs nothing.
