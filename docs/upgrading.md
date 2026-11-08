@@ -1,14 +1,14 @@
 # Upgrading from older versions
 
-What changes for a mod moving to each MenuKit release, newest first. The latest release's notes are on the [README](https://github.com/trevorschoeny/menukit#upgrading), and [Upgrading to 7.0.0](upgrading-7.md) walks through the move from 6.x and the 7.4.0 and 7.5.0 changes step by step. The [changelog](https://github.com/trevorschoeny/menukit/blob/main/menukit/changelog.md) has the full list for each.
+What changes for a mod moving to each MenuKit release, newest first. The latest release's notes are on the [README](https://github.com/trevorschoeny/menukit#upgrading), and [Upgrading to 7.0.0](upgrading-7.md) walks through the move from 6.x and the 7.4.0 and 7.5.0 changes step by step. The [changelog](https://github.com/trevorschoeny/menukit/blob/main/changelog.md) has the full list for each.
 
 ## To 8.0.0
 
 The item picker's match modes are gone. `ItemMatch.Match`, `match(...)`, `playerChoosesMatch()`, `ignoring(...)`, `ignoringCount()` and the dialog's Search and Edit tabs are replaced by one rule: the item always counts, each field filled in narrows the match, and a blank one is not checked. The dialog's advanced settings open in a column beside the grid, behind a "Show advanced settings" box, and what they offer is now the picker's choice: `name()`, `enchantments()`, `components()` and `count()`. Then:
 
-- `new ItemMatch(stack, Match.X)` becomes `new ItemMatch(stack)`, and `ItemMatch.matches(rule, Match.X, stack)` becomes `ItemMatch.matches(rule, stack)`.
+- `new ItemMatch(stack, Match.X)` becomes `new ItemMatch(stack)`, and `ItemMatch.matches(rule, Match.X, stack)` becomes `ItemMatch.matches(rule, stack)`. `ItemMatch.Match` and its `CODEC`, the accessors `match()`, `ignored()` and `countIgnored()`, and the four-argument constructor they came with are gone too, along with the picker's own `match()` and `countIgnored()` getters. Read a count with `rule.count()` and the levels with `rule.anyLevel()`.
 - An `EXACT` picker that edited names, enchantments and components turns on `name().enchantments().components()`. One that ignored damage needs nothing, since damage is checked only when the player lists it. An `ITEM` picker needs nothing.
-- An enchantment's level can be left blank, which matches any level: `ItemMatch.anyLevel()`, saved as `any_level`. `ItemMatch` gained that third component; `new ItemMatch(stack, count)` still makes a rule with none.
+- An enchantment's level can be left blank, which matches any level: `ItemMatch.anyLevel()`, saved as `any_level`. `ItemMatch` is now `(stack, count, anyLevel)`; `new ItemMatch(stack)` and `new ItemMatch(stack, count)` make a rule with no blank levels.
 - A count was part of `EXACT`. It is now a number for the mod, never matched: `count()` on a `rule` or `rules` picker, read with `rule.count()`: `ItemMatch.NONE` when the player left it at N/A, else 1 up to the item's stack size.
 - Rules saved by 7.x load through `ItemMatch.CODEC` as they matched, with one exception. An `exact` rule refused a stack that had more than the rule (a plain sword refused an enchanted one), and now that stack matches.
 
@@ -21,7 +21,71 @@ The cycle strip is gone: a ring of stacks beside the hotbar is the mod's own loo
 - A row, column or cross beside the hotbar is a `HudPanel` in `region(OutsideRegion.RIGHT_ALIGN_BOTTOM)` holding one element of the ring's live size, `.gap(4)` to sit where the strip did. Another mod's panel there stacks above it. Time a slide with `Easing.SPRING` and `Util.getMillis()`.
 - An arc over the hotbar's slots is a `HotbarDecorations.under(id, decoration)`, drawn after the hotbar's sprites and before its items. While a turn moves the held stack, `HotbarDecorations.hideItem(id, rule)` leaves the slot's own item out. On a screen, the same arc is a `SlotDecorations.under` on the hotbar's slots, as before.
 
-Also removed, unused: `AlertDialog` (use `ConfirmDialog`, or a `Panel.modal()` of your own), `InfoBox` (a `TextLabel`), `HudNotification` with `MK.notify` and `MK.registerNotification`, `HudPanel.Builder.slot(...)` with `HudPanel.STATUS_SCALE` (use `item(...)`, sized), `ElementSpec` with `Row`/`Column.add(ElementSpec)` (a layout takes built elements only), `ScreenKind.OPTIONS` and `CONTAINER` (use `DEFAULT`/`PANEL`), `ScrollContainer.OPTIONS_INSET_X`/`OPTIONS_INSET_Y` (use `DEFAULT_INSET_X`/`DEFAULT_INSET_Y`), and `OwnHost.add(Panel, PanelPosition, int)` (use `add(Panel, int)`, which reads the position from the panel's placements).
+Also removed, unused: `AlertDialog` (use `ConfirmDialog`, or a `Panel.modal()` of your own), `InfoBox` (a `TextLabel`), `HudNotification` with `MK.notify` and `MK.registerNotification`, `HudPanel.Builder.slot(...)` with `HudPanel.STATUS_SCALE`, the public `HudSlot` and `HudPanel.SlotBuilder` (use `item(...)`, sized), `ElementSpec` with `Row`/`Column.add(ElementSpec)` (a layout takes built elements only), `ScreenKind.OPTIONS` and `CONTAINER` (use `DEFAULT`/`PANEL`), `ScrollContainer.OPTIONS_INSET_X`/`OPTIONS_INSET_Y` (use `DEFAULT_INSET_X`/`DEFAULT_INSET_Y`), and `OwnHost.add(Panel, PanelPosition, int)` (use `add(Panel, int)`, which reads the position from the panel's placements).
+
+### Removed, with the replacement
+
+| Was in 7.x | Why it is gone | Do this |
+|---|---|---|
+| `HudCycleStrip` and everything in it | A ring of stacks beside the hotbar is the mod's own look now. | A `HudPanel` in `region(OutsideRegion.RIGHT_ALIGN_BOTTOM)`, and `HotbarDecorations.under`/`hideItem` for an arc over the hotbar's own slots. |
+| `HudPanel.Builder.slot(...)`, `HudPanel.STATUS_SCALE`, `HudSlot`, `HudPanel.SlotBuilder` | Nothing read them outside the removed cycle strip. | `item(...)`, sized. |
+| `ItemPicker.match(...)`, `playerChoosesMatch()`, `ignoring(...)`, `ignoringCount()` | Replaced by one rule, narrowed per field. | `name()`, `enchantments()`, `components()`, `count()` on the builder. |
+
+A ring of stacks beside the hotbar:
+
+```diff
+-HudCycleStrip.Source source = hotbarSlot ->
+-        enabled() ? new HudCycleStrip.View(ringFor(hotbarSlot), 0) : null;
+-HudCycleStrip.register(source);
++HudPanel.builder("mymod:ring", ModeScope.BOTH)
++        .region(OutsideRegion.RIGHT_ALIGN_BOTTOM)
++        .gap(4)
++        .element(ringElement)
++        .build();
+```
+
+A status icon on the hotbar:
+
+```diff
+ HudPanel.builder("mymod:status", ModeScope.BOTH)
+-        .slot(HudPanel.STATUS_SCALE)
++        .item(0, 0)
+             .item(() -> statusItem())
++            .size(16)
+             .done()
+         .build();
+```
+
+An `EXACT` picker that matched a name, enchantments and components:
+
+```diff
+ ItemPicker.builder()
+         .rules(config::locks, config::setLocks)
+-        .match(ItemMatch.Match.EXACT)
++        .name().enchantments().components()
+         .build();
+```
+
+### The dependency
+
+A mod built for 7.x must raise both bounds once it is rebuilt against 8.0.0, since the API removed above no longer compiles.
+
+```diff
+-    implementation 'maven.modrinth:menukit:7.5.1+26.3'
++    implementation 'maven.modrinth:menukit:8.0.0+26.3'
+```
+
+```diff
+-"depends": { "menukit": ">=7.5.0 <8.0.0" }
++"depends": { "menukit": ">=8.0.0 <9.0.0" }
+```
+
+### Behavior changes
+
+- A dimming or modal panel placed with `pixel(...)` or `pixelBottomLeft(...)` now sits at its point, instead of centered on the screen.
+- Panels now draw over an open recipe book, and the book declines a click or drag on a point a panel claims.
+- Tab rows standing on a screen's own frame now count as its chrome, so a panel placed above or below the frame (`region(...)`) sits past them instead of overlapping.
+- A click in a tab row's band beside its tabs now drops a held item there, instead of doing nothing.
 
 ## To 7.3.0
 

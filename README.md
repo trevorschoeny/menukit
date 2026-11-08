@@ -9,7 +9,7 @@ The UI draws on the client. MenuKit also loads on a server, because libraries bu
 ### Features
 
 - One set of components for five contexts, which are the HUD, container screens, other vanilla screens, anchors, and standalone screens. An anchor is a rectangle a mod names and supplies on any screen, such as the pause menu's column of buttons.
-- Buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, info boxes, tooltips, icons, item displays (with an optional colored outline), progress bars, dividers, scroll containers, runtime rows (`Flow`, plain or drawn as cards), collapsible sections, tabs, color fields, item pickers, and confirm and alert dialogs.
+- Buttons, toggles, checkboxes, radio buttons, sliders, dropdowns (single and multi-select), text fields, labels, tooltips, icons, item displays (with an optional colored outline), progress bars, dividers, scroll containers, runtime rows (`Flow`, plain or drawn as cards), collapsible sections, tabs, color fields, item pickers, and confirm and edit dialogs.
 - Every builder uses the same method names (`at`, `size`, `visibleWhen`, `disabledWhen`, `tooltip`, `state`, `onClick`). Every control that shows a value reads and writes a field the mod owns.
 - Components are grouped into panels. A panel renders, takes input, and shows or hides as a unit, and one `disabledWhen` grays the whole panel.
 - A panel's placement is one declaration on the panel, and it can differ by game mode, so a panel can sit somewhere else in creative. The panel sizes itself to fit at any GUI scale, wrapping and scrolling as needed.
@@ -31,7 +31,7 @@ The UI draws on the client. MenuKit also loads on a server, because libraries bu
 - Slots clip to the scroll area they sit in, so a slot half past the edge draws, hovers, and takes clicks only where it shows. Slot libraries report their slots to MenuKit, and SlotKit does.
 - Lists that follow a list the mod owns as it changes, with optional add, remove, reorder, search, and sort controls, and a button that opens a menu of actions for a row.
 - Text fields cancel an edit with Escape, without closing the screen.
-- A cycle strip beside the hotbar is available to any mod that turns a ring of stacks through the held slot. It slides on each turn.
+- Mods can draw on the hotbar's own slots, under their items, and hide a slot's item while drawing it elsewhere (`HotbarDecorations`).
 - A status column on the HUD, between the hearts and the hunger bar, holds small icons from several mods, stacked.
 - Tooltips can be hidden, docked, wrapped, kept on screen, or scrolled through one shared check.
 
@@ -69,14 +69,14 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    implementation 'maven.modrinth:menukit:7.5.0+26.3'
+    implementation 'maven.modrinth:menukit:8.0.0+26.3'
 }
 ```
 
 Declare it in `fabric.mod.json` with both bounds, separated by a space ([why](https://github.com/trevorschoeny/menukit/blob/main/docs/versioning.md)).
 
 ```json
-"depends": { "menukit": ">=7.5.0 <8.0.0" }
+"depends": { "menukit": ">=8.0.0 <9.0.0" }
 ```
 
 Players install MenuKit separately. The Trevlar mods list it as a required dependency on their Modrinth pages rather than bundling it.
@@ -115,7 +115,7 @@ The API is every type in a package named `api` (`com.trevlar.menukit.api.*`), an
 
 | Package | Holds |
 | --- | --- |
-| `api` | `MK`, the HUD facade, which registers HUD panels and reads or sets the recipe book. `Declarations`, the one freeze that MenuKit and every library built on it declare through. |
+| `api` | `MK`, the HUD facade, which registers HUD panels, reads or sets the recipe book, and draws a screen that isn't open as a backdrop (`drawBackdrop`). `Declarations`, the one freeze that MenuKit and every library built on it declare through. `DrawAlpha` and `ItemOutline`, for a mod drawing its own copy of an item. |
 | `api.element` | Every element, and the contexts they render and take input in |
 | `api.layout`, `api.dialog` | Rows and columns placed once, and confirm and edit dialogs |
 | `api.panel` | `Panel`, placement (`Placement`, `PanelPosition` and the regions) and `ModeScope`, the adapters that put panels on vanilla screens and around anchors, the container list (`ContainerRegion`), container tabs (`ContainerTabs`), screen frames (`ScreenFrames`), slot item looks and decorations (`SlotItemLooks`, `SlotDecorations`), shared panels (`SharedPanels`), and `MKScreen` |
@@ -184,7 +184,7 @@ A mod's own screen subclasses `MKScreen`. Elements draw for the kind of screen t
 
 #### Item settings
 
-`ItemPicker` takes one lens. `state` holds one item by kind, `stack` one stack, `stacks` a list of stacks, and `rule` and `rules` stacks that each carry their own match mode. `match(...)` sets how stacks compare, by the kind of item only (`ITEM`, the default), by the exact stack (`EXACT`), or by the item plus at least the components the rule sets (`CONTAINS`). The dialog has a Search tab and, for `EXACT` and `CONTAINS`, an Edit tab for components in `/give` syntax. In play, `rule.matches(stack)` or `ItemMatch.matches(...)` does the comparing, and `ItemMatch.CODEC` saves a rule. `ItemMatch` is common code, so it works on a server too. See the [item setting recipe](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md#an-item-setting).
+`ItemPicker` takes one lens. `state` holds one item by kind, `stack` one stack, `stacks` a list of stacks, and `rule` and `rules` stacks that each carry their own match. Every item in the stack always counts: a diamond sword picked from the grid matches every diamond sword, worn or renamed. Past that, each field the mod turns on and the player fills in narrows the match, and a blank field is not checked: `name()` for a name, `enchantments()` for the enchantments it must carry (at any level, left blank), `components()` for every other component in `/give` syntax, and `count()` for a count the mod reads back, never matched. In play, `rule.matches(stack)` or `ItemMatch.matches(...)` does the comparing, and `ItemMatch.CODEC` saves a rule. `ItemMatch` is common code, so it works on a server too. See [Concepts](https://github.com/trevorschoeny/menukit/blob/main/docs/concepts.md#item-picker) and the [item setting recipe](https://github.com/trevorschoeny/menukit/blob/main/docs/recipes.md#an-item-setting).
 
 #### Widgets from other libraries
 
@@ -208,15 +208,19 @@ MenuKit keeps no slot code. A mod that needs slot groups, created slots, or cust
 
 ### Upgrading
 
+#### To 8.0.0
+
+The item picker's match modes (`ItemMatch.Match`, `match(...)`, `playerChoosesMatch()`, `ignoring(...)`, `ignoringCount()`) and its Search and Edit tabs are gone, replaced by one rule the picker's builder configures (`name()`, `enchantments()`, `components()`, `count()`). The cycle strip (`HudCycleStrip`) is gone, replaced by `HotbarDecorations`. Also removed, unused: `AlertDialog`, `InfoBox`, `HudNotification`, `HudSlot`, and `ElementSpec`. A mod that uses anything new in 8.0.0 declares `"menukit": ">=8.0.0 <9.0.0"`. [Upgrading](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading.md#to-800).
+
 #### To 7.5.0
 
 Mods built for 7.4.0 work as before, with nothing to change. A mod that uses anything new in 7.5.0 declares `"menukit": ">=7.5.0 <8.0.0"`. [Upgrading](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading-7.md#to-750).
 
 #### To 7.4.0
 
-Mods built for 7.3.0 work as before, with two exceptions. A `switch` over `OutsideRegion` needs cases for the new `LEFT_CENTER` and `RIGHT_CENTER`, and a custom element that draws past its own box isn't drawn while that box is wholly out of view. The forms that don't say which game mode a panel is for, such as `Panel.Builder.position(p)` (now `in(ModeScope.BOTH, Placement.screen(p))`), are deprecated and go in 8.0.0. A resource pack that themed MenuKit's buttons through `menukit:panel_raised` themes them through `menukit:control_raised` now. A mod that uses anything new in 7.4.0 declares `"menukit": ">=7.4.0 <8.0.0"`. [Upgrading](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading-7.md#to-740) has every replacement and both checks.
+Mods built for 7.3.0 work as before, with two exceptions. A `switch` over `OutsideRegion` needs cases for the new `LEFT_CENTER` and `RIGHT_CENTER`, and a custom element that draws past its own box isn't drawn while that box is wholly out of view. The forms that don't say which game mode a panel is for, such as `Panel.Builder.position(p)` (now `in(ModeScope.BOTH, Placement.screen(p))`), are deprecated; `OwnHost.add(panel, position, padding)` went in 8.0.0, the others remain deprecated. A resource pack that themed MenuKit's buttons through `menukit:panel_raised` themes them through `menukit:control_raised` now. A mod that uses anything new in 7.4.0 declares `"menukit": ">=7.4.0 <8.0.0"`. [Upgrading](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading-7.md#to-740) has every replacement and both checks.
 
-Older releases, from 7.3.0 back to 3.0.0, are in [Upgrading from older versions](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading.md).
+From 8.0.0, and from 7.3.0 back to 3.0.0, every change is in [Upgrading from older versions](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading.md).
 
 ### License
 

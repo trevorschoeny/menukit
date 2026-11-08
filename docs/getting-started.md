@@ -13,14 +13,14 @@ repositories {
     maven { url 'https://api.modrinth.com/maven' }
 }
 dependencies {
-    implementation 'maven.modrinth:menukit:7.5.0+26.3'
+    implementation 'maven.modrinth:menukit:8.0.0+26.3'
 }
 ```
 
 Declare the dependency in `fabric.mod.json`:
 
 ```json
-"depends": { "menukit": ">=7.5.0 <8.0.0" }
+"depends": { "menukit": ">=8.0.0 <9.0.0" }
 ```
 
 Declare both bounds. The lower bound guarantees the API you call exists. The upper bound stops the next breaking MenuKit from loading against a jar built before it existed. That combination fails at a class load in the middle of a play session instead of at launch.
@@ -93,6 +93,7 @@ Start the client with the mod's `runClient` task. Open the inventory to see the 
 - [concepts.md](concepts.md) defines panels, elements, placement and the five contexts.
 - [recipes.md](recipes.md) covers the common tasks.
 - [limits.md](limits.md) lists what MenuKit does not do.
+- [upgrading.md](upgrading.md#to-800) moves a mod from 7.x.
 - [upgrading-7.md](upgrading-7.md) moves a mod from MenuKit 6.x.
 - [SlotKit's getting started](https://github.com/trevorschoeny/slotkit/blob/main/docs/getting-started.md) adds slots.
 - The [reference](https://trevorschoeny.github.io/menukit/) is the generated javadoc for every public type.

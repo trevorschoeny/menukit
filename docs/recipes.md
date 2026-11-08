@@ -23,7 +23,7 @@ HudPanel.builder("offshore:boat-health", ModeScope.BOTH)
 
 Result: a 7 pixel tall bar renders 50 pixels above the bottom center of the window while `boatActive()` returns true and no screen is open. `value` is a `DoubleSupplier` in the range 0 to 1.
 
-`.region(InsideRegion)` puts the panel on one of nine spots of the window, 4 pixels in from the edges it touches. It stacks with the other panels on that spot in `.priority(n)` order. `.offset(dx, dy)` nudges this panel alone. Sub-builders (`text`, `item`, `slot`, `bar`) end with `.done()`. `.element(PanelElement)` adds any element, and `.custom(x, y, w, h, ctx -> ...)` draws freely inside the panel.
+`.region(InsideRegion)` puts the panel on one of nine spots of the window, 4 pixels in from the edges it touches. It stacks with the other panels on that spot in `.priority(n)` order. `.offset(dx, dy)` nudges this panel alone. Sub-builders (`text`, `item`, `bar`) end with `.done()`. `.element(PanelElement)` adds any element, and `.custom(x, y, w, h, ctx -> ...)` draws freely inside the panel.
 
 ## Put an icon beside the hotbar
 

@@ -116,7 +116,7 @@ Nothing here is needed to upgrade.
 
 ## To 7.4.0
 
-Nothing was removed, and a mod built for 7.3.0 compiles and works as before with no code change, except in the two cases under [Two things to check](#two-things-to-check). 7.4.0 adds the game mode a declaration is for ([Mode scope](concepts.md#mode-scope)), and deprecates the forms that don't say it. They keep working, mean `ModeScope.BOTH`, and are removed at 8.0.0.
+Nothing was removed, and a mod built for 7.3.0 compiles and works as before with no code change, except in the two cases under [Two things to check](#two-things-to-check). 7.4.0 adds the game mode a declaration is for ([Mode scope](concepts.md#mode-scope)), and deprecates the forms that don't say it. They keep working and mean `ModeScope.BOTH`, and are deprecated for removal; 8.0.0 removed `OwnHost.add(panel, position, padding)`, the rest still work.
 
 ### The dependency
 

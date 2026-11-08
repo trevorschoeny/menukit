@@ -25,8 +25,8 @@ A `PanelElement` is one item inside a panel. Its position is relative to the pan
 | Kind | Types |
 |---|---|
 | Render only | `TextLabel`, `Icon`, `Divider`, `ItemDisplay`, `ProgressBar` |
-| Interactive | `Button`, `Toggle`, `Checkbox`, `Radio` (with `RadioGroup`), `Slider`, `TextField`, `Dropdown`, `DropdownMulti`, `ItemPicker`, `ColorField` |
-| Composite | `ScrollContainer`, `SlotScroll`, `Flow`, `Section`, `Tabs`, `ListView`, `ConfirmDialog`, `EditDialog` |
+| Interactive | `Button`, `Toggle`, `Checkbox`, `Radio` (with `RadioGroup`), `Slider`, `TextField`, `Dropdown`, `DropdownMulti`, `ItemPicker`, `ColorField`, `MenuButton` |
+| Composite | `ScrollContainer`, `SlotScroll`, `Flow`, `Section`, `Tabs`, `ListView`, `ConfirmDialog`, `EditDialog`, `Floating` |
 | Host | `WidgetHost`, for a vanilla-style widget made outside MenuKit |
 | Slot (SlotKit) | `SlotElement`, `SlotFlowElement`, in SlotKit |
 
@@ -159,7 +159,7 @@ The value is read from `get` every frame and handed to `set` on every change:
 
 So a diamond sword picked from the grid matches every diamond sword, worn or renamed, and a potion picked from the grid matches every potion of that kind.
 
-A rule's `count()` is never part of the match. It is a number for the mod, such as a reserved slot's cap, and `ItemMatch.NONE` (0) means the player set none. `ItemMatch.CODEC` saves a rule with vanilla's stack codec and its count beside it, so a count can go past 99. A blank level is saved as `any_level`. It also reads rules MenuKit 7 saved. An `item` rule keeps only the item. A `contains` or `exact` rule keeps every field it had, less the components it ignored, and its stack's count becomes its count.
+A rule's `count()` is never part of the match. It is a number for the mod, such as a reserved slot's cap, and `ItemMatch.NONE` (0) means the player set none. `ItemMatch.CODEC` saves a rule with vanilla's stack codec and its count beside it, so a count can go past 99. A blank level is saved as `any_level`. It also reads rules MenuKit 7 saved. Every 7.x rule's stack count becomes its count (at least 1), so a rule saved by 7.x loads with a count, not N/A.
 
 What the dialog's advanced settings offer is the picker's choice. Each option is off until the builder turns it on:
 
@@ -313,7 +313,7 @@ The mode is read where it is used, every frame, never kept from when a screen op
 
 `ModeScope` is a plain value in MenuKit's common code, not its client half, so a library that judges on the server (SlotKit's slot declarations per mode) uses the same type. It does nothing on its own. MenuKit reads it on the client.
 
-The scoped forms are `Panel.Builder.in(scope, placement)`, `HudPanel.builder(id, scope)`, and `ContainerRegion.section(id, scope)`. The 7.3.0 forms with no scope (`position(...)`, `HudPanel.builder(id)`, `AnchorPanelAdapter.on(...)`, `OwnHost.add(panel, position, padding)`) keep working, mean `BOTH`, and are deprecated ([upgrading](upgrading-7.md#to-740)). A panel that declares no placement at all, a nested one, a dialog or a standalone screen's default stack, is `BOTH` by nature.
+The scoped forms are `Panel.Builder.in(scope, placement)`, `HudPanel.builder(id, scope)`, and `ContainerRegion.section(id, scope)`. The 7.3.0 forms with no scope (`position(...)`, `HudPanel.builder(id)`, `AnchorPanelAdapter.on(...)`) keep working, mean `BOTH`, and are deprecated ([upgrading](upgrading-7.md#to-740)). (`OwnHost.add(panel, position, padding)` was removed in 8.0.0.) A panel that declares no placement at all, a nested one, a dialog or a standalone screen's default stack, is `BOTH` by nature.
 
 A screen's targeting is not per frame: `ScreenMatcher.where(test)` is asked once, as the screen opens, and a creative tab switch does not ask it again. Decide what changes while a screen is open with the mode scope or `visibleWhen(...)`.
 
@@ -459,6 +459,7 @@ What a panel covers is inert. A point on the screen is claimed by the topmost pa
 - A shown modal (`tracksAsModal`) takes every point on its screen.
 - An element can hang outside its panel (8.0.0), such as a list's `controlsOutside()` or a `Floating` element. An opaque panel takes those points too, but only where the element's own hit test does, so a point beside it goes to whatever is behind. Under a modal they are the modal's own points, live where the rest of the screen is inert.
 - A background panel (7.4.0) takes no point at all, opaque or not. It is drawn under everything on the screen, so nothing on the screen is behind it: whatever lies over it, another mod's widget included, is drawn on top and keeps the point, which is this same rule. Its own elements get input last: a click once the screen's widgets (every mod's) and every panel above have declined it, never on a slot it shows (that is vanilla's to click), and the wheel once the screen and every other handler have. Only its own slots are cut, at the edges of the clip they are shown under.
+- On a screen with a recipe book open, panels draw over the book and the book gets no click or drag on a point a panel claims (8.0.0).
 
 Under a claim, vanilla gets nothing. There is no slot highlight, click or tooltip, no widget or list hover, and no creative tab. The claim routes the point to the claiming panel instead. A panel's own slots stay live under its own claim (a created slot it presents, or a standalone screen's own slot group). A standalone screen's own widgets stay live under its own panels too. Every surface runs the same check, so an anchored panel and a standalone screen's panels block what they cover exactly as an adapter's panel does.
 
@@ -514,7 +515,7 @@ A slot in a `ScrollContainer` (SlotKit's `SlotElement`) scrolls and clips like a
 
 ## Slot decorations
 
-`SlotDecorations.under(id, decoration)` and `SlotDecorations.over(id, decoration)` let a mod draw on a container screen's slots without mixing into the slot's draw (7.5.0). Every slot draws in one order: its background (an empty slot's icon, a drag's tint), the **under** decorations, the item (as vanilla draws it, or as a slot item look says), its count and durability bar, then the **over** decorations. A ghost of the item that belongs in an empty slot goes under; a padlock, a corner mark or a grey fill over the slot goes over.
+`SlotDecorations.under(id, decoration)` and `SlotDecorations.over(id, decoration)` let a mod draw on a container screen's slots without mixing into the slot's draw (7.5.0). Every slot draws in one order: its background (an empty slot's icon, a drag's tint), the **under** decorations, the item (as vanilla draws it, or as a slot item look says), its count and durability bar, then the **over** decorations. A ghost of the item that belongs in an empty slot goes under; a padlock, a corner mark or a gray fill over the slot goes over.
 
 - **Every slot, every frame,** empty or not: vanilla's slots, created ones, the slots a panel shows (inside the panel's clip, scrolled with it) and the creative screen's, which are the creative menu's own wrappers around the inventory's slots. A decoration gets the screen, the slot, the stack the slot is drawing (during a drag, the stack it will get) and the top left of the slot's 16 pixel item box.
 - **They stack.** Unlike looks, every decoration draws, each layer in id order, so two mods' marks on one slot both show. Pick a corner another mod is unlikely to use.

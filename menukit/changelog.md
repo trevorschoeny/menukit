@@ -49,7 +49,7 @@ This release is additions: the container region, background panels, Panel-look p
 
 ### Deprecated
 
-These keep working, mean `ModeScope.BOTH`, and are removed at 8.0.0. [Upgrading](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading-7.md#to-740).
+These keep working and mean `ModeScope.BOTH`, and are deprecated for removal; 8.0.0 removed `OwnHost.add(panel, position, padding)`, the rest still work. [Upgrading](https://github.com/trevorschoeny/menukit/blob/main/docs/upgrading-7.md#to-740).
 
 - `Panel.Builder.position(position)` is replaced by `in(ModeScope.BOTH, Placement.screen(position))`.
 - `AnchorPanelAdapter.on(anchors)` is replaced by the anchor in the placement, `Placement.around(anchor, position)`.

@@ -12,7 +12,7 @@ Behavior counts too. A change to what a public method does that could break a ca
 
 ## What each part means
 
-A **major** bump means something public was removed or renamed, or its behavior changed in a way that can break a caller. Code built against the previous major may not link. 5.0.0 replaced the four region enums with `OutsideRegion` and `InsideRegion`; 6.0.0 moved the public types into `api` packages and renamed several; 7.0.0 moved every slot type out to SlotKit.
+A **major** bump means something public was removed or renamed, or its behavior changed in a way that can break a caller. Code built against the previous major may not link. 5.0.0 replaced the four region enums with `OutsideRegion` and `InsideRegion`; 6.0.0 moved the public types into `api` packages and renamed several; 7.0.0 moved every slot type out to SlotKit; 8.0.0 removed the cycle strip and the unused `AlertDialog`, `InfoBox`, `HudNotification`, `HudSlot` and `ElementSpec`.
 
 A **minor** bump adds API. Code built against an earlier minor of the same major keeps working.
 
@@ -25,7 +25,7 @@ The `+26.3` suffix is the Minecraft target. It is build metadata and takes no pa
 Pin to the major.minor the mod was built against, not the major alone:
 
 ```json
-"depends": { "menukit": ">=7.0.0 <8.0.0" }
+"depends": { "menukit": ">=8.0.0 <9.0.0" }
 ```
 
 A minor release can add API. A mod can call something a later minor added while declaring only the major's first release as its floor. That mod loads on the older MenuKit and crashes with `NoSuchMethodError` the first time it calls the new method. Within a major, semantic versioning promises new API only going forward. The floor has to track the minor the mod uses.
@@ -34,7 +34,7 @@ A mod that also uses SlotKit pins it the same way, against SlotKit's own version
 
 ```json
 "depends": {
-  "menukit": ">=7.0.0 <8.0.0",
+  "menukit": ">=8.0.0 <9.0.0",
   "slotkit": ">=1.0.0 <2.0.0"
 }
 ```
@@ -53,4 +53,4 @@ MenuKit declares `breaks` against consumer versions known to be incompatible, bu
 
 ## When MenuKit takes a new major
 
-[upgrading-7.md](upgrading-7.md) lists every change from 6.x to 7.0.0. Update the code for the new API, change both bounds to the new major, and release under a new version of the mod. Do not ship different requirements under a version number already published. Two jars with that number claim to be the same release, and only one of them works.
+[Upgrading](upgrading.md) lists what changes for each major (8.0.0 at the top). Update the code for the new API, change both bounds to the new major, and release under a new version of the mod. Do not ship different requirements under a version number already published. Two jars with that number claim to be the same release, and only one of them works.
